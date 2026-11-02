@@ -13,11 +13,10 @@ import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.shape.Shape;
-import io.github.pho001.synaptik.model.tensor.Tensor;
-import io.github.pho001.synaptik.model.tensor.TensorProducer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Builds first-order aggregate-reduction, scan, and softmax formulas selected by preflight.
@@ -36,9 +35,23 @@ import java.util.List;
  * <p>This owner constructs metadata only. It does not inspect values or storage, choose an
  * execution algorithm, capture a graph, lower work, or apply gradient-specific simplification.
  * Preflight owns exact kind, attributes, role, Shape, type, and boundary-policy selection.</p>
+ *
+ * <p>Descriptor access preserves original source roles without resolving primal values.
+ * Real construction uses Tensor references directly; checked metadata construction retains
+ * the same eager operation sites, including temporaries not used by a returned cotangent.</p>
+ *
+ * @param <V> direct Tensor or checked metadata operand representation
  */
-final class ReductionGradientRules {
-    private ReductionGradientRules() {}
+final class ReductionGradientRules<V> {
+    private final OrdinaryConstruction<V> ops;
+
+    /**
+     * Binds this formula owner to one compile-local construction route.
+     * @param ops non-null direct Tensor or checked metadata construction
+     */
+    ReductionGradientRules(OrdinaryConstruction<V> ops) {
+        this.ops = java.util.Objects.requireNonNull(ops);
+    }
 
     /**
      * Builds selected input cotangents for one approved reduction, scan, or softmax occurrence.
@@ -48,33 +61,33 @@ final class ReductionGradientRules {
      * @param gradient non-null accumulated cotangent for the selected output
      * @param selectedInputs non-null input-position-aligned selected-role flags from successful
      *     preflight
-     * @param constants non-null request-local exact typed logical-splat owner
+     * @param primal total lexical binding of original value operands and saved outputs
      * @return a new input-position-aligned array containing selected contributions and
      *     {@code null} for non-differentiable or unselected roles
      * @throws IllegalStateException if called for a row not approved by preflight
      */
-    static Tensor[] apply(
-            TensorProducer producer,
+    V[] apply(
+            OrdinaryConstruction.Source<V> producer,
             int outputIndex,
-            Tensor gradient,
+            V gradient,
             boolean[] selectedInputs,
-            FirstOrderAutograd.DerivativeConstants constants) {
+            Function<V, V> primal) {
         if (outputIndex != 0) {
             throw new IllegalStateException("reduction/scan/softmax output slot must be zero");
         }
-        Tensor input = producer.inputs().getFirst();
+        V input = primal.apply(producer.inputs().getFirst());
         if (producer.operation().kind() instanceof CumulativeScanKind kind) {
-            return new Tensor[] {kind == CumulativeScanKind.CUM_SUM
+            return ops.result(kind == CumulativeScanKind.CUM_SUM
                     ? cumulativeSum(producer, gradient)
-                    : cumulativeProduct(producer, gradient, constants)};
+                    : cumulativeProduct(producer, gradient, primal));
         }
         if (producer.operation().kind() instanceof SoftmaxKind kind) {
-            Tensor output = producer.output(0);
+            V output = primal.apply(producer.output(0));
             int axis = ((SoftmaxAttrs) producer.operation().attrs()).axis();
-            Tensor contribution = kind == SoftmaxKind.SOFTMAX
-                    ? output.mul(gradient.sub(gradient.mul(output).sum(axis, true)))
-                    : gradient.sub(output.exp().mul(gradient.sum(axis, true)));
-            return new Tensor[] {contribution};
+            V contribution = kind == SoftmaxKind.SOFTMAX
+                    ? ops.mul(output, ops.sub(gradient, ops.sum(ops.mul(gradient, output), axis, true)))
+                    : ops.sub(gradient, ops.mul(ops.exp(output), ops.sum(gradient, axis, true)));
+            return ops.result(contribution);
         }
         if (!(producer.operation().kind() instanceof AggregateReductionKind kind)) {
             throw new IllegalStateException(
@@ -82,257 +95,211 @@ final class ReductionGradientRules {
                             + producer.operation().kind());
         }
         if (producer.operation().attrs() instanceof SumToShapeAttrs) {
-            return new Tensor[] {gradient.expand(input.descriptor().shape())};
+            return ops.result(ops.expand(gradient, ops.descriptor(input).shape()));
         }
         if (producer.operation().attrs() instanceof MaskedReductionAttrs attrs) {
-            return masked(producer, gradient, attrs, constants);
+            return masked(producer, gradient, attrs, primal);
         }
 
         Axes axes = axes(producer);
-        return new Tensor[] {switch (kind) {
+        return ops.result(switch (kind) {
             case SUM -> restore(input, gradient, axes.values(), axes.keepDimensions());
-            case MEAN -> mean(input, gradient, axes, constants);
+            case MEAN -> mean(input, gradient, axes);
             case PROD -> product(input, gradient, axes);
-            case MIN, MAX -> extrema(producer, gradient, axes, constants);
-            case LOG_SUM_EXP -> logSumExp(producer, gradient, axes);
-            case VARIANCE -> variance(producer, gradient, axes, constants);
+            case MIN, MAX -> extrema(producer, gradient, axes, primal);
+            case LOG_SUM_EXP -> logSumExp(producer, gradient, axes, primal);
+            case VARIANCE -> variance(producer, gradient, axes, primal);
             case STANDARD_DEVIATION ->
-                    standardDeviation(producer, gradient, axes, constants);
-            case L1_NORM -> l1Norm(input, gradient, axes, constants);
-            case L2_NORM -> l2Norm(producer, gradient, axes, constants);
+                    standardDeviation(producer, gradient, axes, primal);
+            case L1_NORM -> l1Norm(input, gradient, axes);
+            case L2_NORM -> l2Norm(producer, gradient, axes, primal);
             case ALL, ANY, ARG_MIN, ARG_MAX -> throw new IllegalStateException(
                     "non-differentiable aggregate was preflight-approved: " + kind);
-        }};
+        });
     }
 
-    private static Tensor cumulativeSum(TensorProducer producer, Tensor gradient) {
+
+    private V cumulativeSum(OrdinaryConstruction.Source<V> producer, V gradient) {
         CumulativeScanAttrs attrs =
                 (CumulativeScanAttrs) producer.operation().attrs();
-        return gradient.cumSum(attrs.axis(), attrs.exclusive(), !attrs.reverse());
+        return ops.cumSum(gradient, attrs.axis(), attrs.exclusive(), !attrs.reverse());
     }
 
-    private static Tensor cumulativeProduct(
-            TensorProducer producer,
-            Tensor gradient,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        Tensor input = producer.inputs().getFirst();
+    private V cumulativeProduct(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient,
+            Function<V, V> primal) {
+        V input = primal.apply(producer.inputs().getFirst());
         CumulativeScanAttrs attrs =
                 (CumulativeScanAttrs) producer.operation().attrs();
-        Tensor zero = constants.zeroLike(input);
-        Tensor one = constants.oneLike(input);
-        Tensor isZero = input.equalTo(zero);
-        Tensor safeInput = Tensor.where(isZero, one, input);
-        Tensor zeroPrefix = Tensor.where(isZero, one, zero)
-                .cumSum(attrs.axis(), attrs.exclusive(), attrs.reverse());
-        Tensor safeProduct = safeInput.cumProd(
-                attrs.axis(), attrs.exclusive(), attrs.reverse());
-        Tensor q0 = Tensor.where(
-                zeroPrefix.equalTo(zero), gradient.mul(safeProduct), zero);
-        Tensor q1 = Tensor.where(
-                zeroPrefix.equalTo(one), gradient.mul(safeProduct), zero);
-        Tensor s0 = q0.cumSum(attrs.axis(), attrs.exclusive(), !attrs.reverse());
-        Tensor s1 = q1.cumSum(attrs.axis(), attrs.exclusive(), !attrs.reverse());
-        return Tensor.where(isZero, s1, s0.div(safeInput));
+        V zero = ops.zeroLike(input);
+        V one = ops.oneLike(input);
+        V isZero = ops.equalTo(input, zero);
+        V safeInput = ops.where(isZero, one, input);
+        V zeroPrefix = ops.cumSum(ops.where(isZero, one, zero), attrs.axis(), attrs.exclusive(), attrs.reverse());
+        V safeProduct = ops.cumProd(safeInput, attrs.axis(), attrs.exclusive(), attrs.reverse());
+        V q0 = ops.where(ops.equalTo(zeroPrefix, zero), ops.mul(gradient, safeProduct), zero);
+        V q1 = ops.where(ops.equalTo(zeroPrefix, one), ops.mul(gradient, safeProduct), zero);
+        V s0 = ops.cumSum(q0, attrs.axis(), attrs.exclusive(), !attrs.reverse());
+        V s1 = ops.cumSum(q1, attrs.axis(), attrs.exclusive(), !attrs.reverse());
+        return ops.where(isZero, s1, ops.div(s0, safeInput));
     }
 
-    private static Tensor[] masked(
-            TensorProducer producer,
-            Tensor gradient,
+    private V[] masked(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient,
             MaskedReductionAttrs attrs,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        Tensor input = producer.inputs().getFirst();
-        Tensor mask = producer.inputs().get(1);
-        Tensor restored = restore(input, gradient, List.of(attrs.axis()), false);
-        Tensor zero = constants.zeroLike(input);
+            Function<V, V> primal) {
+        V input = primal.apply(producer.inputs().getFirst());
+        V mask = primal.apply(producer.inputs().get(1));
+        V restored = restore(input, gradient, List.of(attrs.axis()), false);
+        V zero = ops.zeroLike(input);
         if (producer.operation().kind() == AggregateReductionKind.MEAN) {
-            Tensor count = Tensor.where(mask, constants.oneLike(input), zero)
-                    .sum(attrs.axis(), true)
-                    .expand(input.descriptor().shape());
-            return new Tensor[] {Tensor.where(mask, restored.div(count), zero), null};
+            V count = ops.expand(ops.sum(ops.where(mask, ops.oneLike(input), zero), attrs.axis(), true), ops.descriptor(input).shape());
+            return ops.result(ops.where(mask, ops.div(restored, count), zero), null);
         }
-        return new Tensor[] {Tensor.where(mask, restored, zero), null};
+        return ops.result(ops.where(mask, restored, zero), null);
     }
 
-    private static Tensor mean(
-            Tensor input,
-            Tensor gradient,
-            Axes axes,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        Tensor restored =
+    private V mean(V input, V gradient, Axes axes) {
+        V restored =
                 restore(input, gradient, axes.values(), axes.keepDimensions());
-        Tensor count = count(input, axes.values(), constants);
-        return restored.div(count.expand(input.descriptor().shape()));
+        V count = count(input, axes.values());
+        return ops.div(restored, ops.expand(count, ops.descriptor(input).shape()));
     }
 
-    private static Tensor product(Tensor input, Tensor gradient, Axes axes) {
+    private V product(V input, V gradient, Axes axes) {
         if (axes.values().isEmpty()) {
             return gradient;
         }
-        List<Tensor> stages = new ArrayList<>(axes.values().size() + 1);
+        List<V> stages = new ArrayList<>(axes.values().size() + 1);
         stages.add(input);
-        Tensor stage = input;
+        V stage = input;
         for (int axis : axes.values()) {
-            stage = stage.prod(axis, true);
+            stage = ops.prod(stage, axis, true);
             stages.add(stage);
         }
-        Tensor result = restoreToShape(
+        V result = restoreToShape(
                 gradient,
                 axes.values(),
                 axes.keepDimensions(),
-                stages.getLast().descriptor().shape());
+                ops.descriptor(stages.getLast()).shape());
         for (int index = axes.values().size() - 1; index >= 0; index--) {
-            Tensor stageInput = stages.get(index);
+            V stageInput = stages.get(index);
             int axis = axes.values().get(index);
-            Tensor prefix = stageInput.cumProd(axis, true, false);
-            Tensor suffix = stageInput.cumProd(axis, true, true);
-            result = result.expand(stageInput.descriptor().shape())
-                    .mul(prefix)
-                    .mul(suffix);
+            V prefix = ops.cumProd(stageInput, axis, true, false);
+            V suffix = ops.cumProd(stageInput, axis, true, true);
+            result = ops.mul(ops.mul(ops.expand(result, ops.descriptor(stageInput).shape()), prefix), suffix);
         }
         return result;
     }
 
-    private static Tensor extrema(
-            TensorProducer producer,
-            Tensor gradient,
+    private V extrema(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient,
             Axes axes,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        Tensor input = producer.inputs().getFirst();
-        Tensor restoredGradient =
+            Function<V, V> primal) {
+        V input = primal.apply(producer.inputs().getFirst());
+        V restoredGradient =
                 restore(input, gradient, axes.values(), axes.keepDimensions());
-        Tensor restoredOutput = restore(
-                input, producer.output(0), axes.values(), axes.keepDimensions());
-        Tensor matches = input.equalTo(restoredOutput);
-        Tensor zero = constants.zeroLike(input);
-        Tensor tieCount = Tensor.where(matches, constants.oneLike(input), zero)
-                .sum(ints(axes.values()), true)
-                .expand(input.descriptor().shape());
-        return Tensor.where(matches, restoredGradient.div(tieCount), zero);
+        V restoredOutput = restore(
+                input, primal.apply(producer.output(0)), axes.values(), axes.keepDimensions());
+        V matches = ops.equalTo(input, restoredOutput);
+        V zero = ops.zeroLike(input);
+        V tieCount = ops.expand(ops.sum(ops.where(matches, ops.oneLike(input), zero), ints(axes.values()), true), ops.descriptor(input).shape());
+        return ops.where(matches, ops.div(restoredGradient, tieCount), zero);
     }
 
-    private static Tensor logSumExp(
-            TensorProducer producer, Tensor gradient, Axes axes) {
-        Tensor input = producer.inputs().getFirst();
-        Tensor restoredGradient =
+    private V logSumExp(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient,
+            Axes axes,
+            Function<V, V> primal) {
+        V input = primal.apply(producer.inputs().getFirst());
+        V restoredGradient =
                 restore(input, gradient, axes.values(), axes.keepDimensions());
-        Tensor restoredOutput = restore(
-                input, producer.output(0), axes.values(), axes.keepDimensions());
-        return restoredGradient.mul(input.sub(restoredOutput).exp());
+        V restoredOutput = restore(
+                input, primal.apply(producer.output(0)), axes.values(), axes.keepDimensions());
+        return ops.mul(restoredGradient, ops.exp(ops.sub(input, restoredOutput)));
     }
 
-    private static Tensor variance(
-            TensorProducer producer,
-            Tensor gradient,
+    private V variance(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient,
             Axes axes,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        Tensor input = producer.inputs().getFirst();
+            Function<V, V> primal) {
+        V input = primal.apply(producer.inputs().getFirst());
         StatisticalReductionAttrs attrs =
                 (StatisticalReductionAttrs) producer.operation().attrs();
-        Tensor mean = input.mean(ints(axes.values()), true);
-        Tensor denominator = count(input, axes.values(), constants)
-                .sub(correction(input, attrs.correction(), constants));
-        return restore(input, gradient, axes.values(), axes.keepDimensions())
-                .mul(constants.two(input.descriptor().dataType()))
-                .mul(input.sub(mean))
-                .div(denominator.expand(input.descriptor().shape()));
+        V mean = ops.mean(input, ints(axes.values()), true);
+        V denominator = ops.sub(count(input, axes.values()), correction(input, attrs.correction()));
+        return ops.div(ops.mul(ops.mul(restore(input, gradient, axes.values(), axes.keepDimensions()), ops.two(ops.descriptor(input).dataType())), ops.sub(input, mean)), ops.expand(denominator, ops.descriptor(input).shape()));
     }
 
-    private static Tensor standardDeviation(
-            TensorProducer producer,
-            Tensor gradient,
+    private V standardDeviation(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient,
             Axes axes,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        Tensor input = producer.inputs().getFirst();
+            Function<V, V> primal) {
+        V input = primal.apply(producer.inputs().getFirst());
         StatisticalReductionAttrs attrs =
                 (StatisticalReductionAttrs) producer.operation().attrs();
-        Tensor mean = input.mean(ints(axes.values()), true);
-        Tensor restoredOutput = restore(
-                input, producer.output(0), axes.values(), axes.keepDimensions());
-        Tensor denominator = count(input, axes.values(), constants)
-                .sub(correction(input, attrs.correction(), constants))
-                .expand(input.descriptor().shape());
-        Tensor regular = restore(input, gradient, axes.values(), axes.keepDimensions())
-                .mul(input.sub(mean))
-                .div(denominator.mul(restoredOutput));
-        return Tensor.where(
-                restoredOutput.greaterThan(constants.zeroLike(input)),
-                regular,
-                constants.zeroLike(input));
+        V mean = ops.mean(input, ints(axes.values()), true);
+        V restoredOutput = restore(
+                input, primal.apply(producer.output(0)), axes.values(), axes.keepDimensions());
+        V denominator = ops.expand(ops.sub(count(input, axes.values()), correction(input, attrs.correction())), ops.descriptor(input).shape());
+        V regular = ops.div(ops.mul(restore(input, gradient, axes.values(), axes.keepDimensions()), ops.sub(input, mean)), ops.mul(denominator, restoredOutput));
+        return ops.where(ops.greaterThan(restoredOutput, ops.zeroLike(input)), regular, ops.zeroLike(input));
     }
 
-    private static Tensor l1Norm(
-            Tensor input,
-            Tensor gradient,
-            Axes axes,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        Tensor restored =
+    private V l1Norm(V input, V gradient, Axes axes) {
+        V restored =
                 restore(input, gradient, axes.values(), axes.keepDimensions());
-        Tensor zero = constants.zeroLike(input);
-        return Tensor.where(
-                input.greaterThan(zero),
-                restored,
-                Tensor.where(input.lessThan(zero), restored.neg(), zero));
+        V zero = ops.zeroLike(input);
+        return ops.where(ops.greaterThan(input, zero), restored, ops.where(ops.lessThan(input, zero), ops.neg(restored), zero));
     }
 
-    private static Tensor l2Norm(
-            TensorProducer producer,
-            Tensor gradient,
+    private V l2Norm(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient,
             Axes axes,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        Tensor input = producer.inputs().getFirst();
-        Tensor restoredOutput = restore(
-                input, producer.output(0), axes.values(), axes.keepDimensions());
-        Tensor regular = restore(input, gradient, axes.values(), axes.keepDimensions())
-                .mul(input)
-                .div(restoredOutput);
-        return Tensor.where(
-                restoredOutput.greaterThan(constants.zeroLike(input)),
-                regular,
-                constants.zeroLike(input));
+            Function<V, V> primal) {
+        V input = primal.apply(producer.inputs().getFirst());
+        V restoredOutput = restore(
+                input, primal.apply(producer.output(0)), axes.values(), axes.keepDimensions());
+        V regular = ops.div(ops.mul(restore(input, gradient, axes.values(), axes.keepDimensions()), input), restoredOutput);
+        return ops.where(ops.greaterThan(restoredOutput, ops.zeroLike(input)), regular, ops.zeroLike(input));
     }
 
-    private static Tensor correction(
-            Tensor input,
-            long correction,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        return constants.oneBase(input.descriptor().dataType())
-                .expand(Shape.of(correction))
-                .sum();
+    private V correction(V input, long correction) {
+        return ops.sum(ops.expand(ops.oneBase(ops.descriptor(input).dataType()), Shape.of(correction)));
     }
 
-    private static Tensor count(
-            Tensor input,
-            List<Integer> axes,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        return constants.oneLike(input).sum(ints(axes), true);
+    private V count(V input, List<Integer> axes) {
+        return ops.sum(ops.oneLike(input), ints(axes), true);
     }
 
-    private static Tensor restore(
-            Tensor input, Tensor tensor, List<Integer> axes, boolean keepDimensions) {
+    private V restore(V input, V tensor, List<Integer> axes, boolean keepDimensions) {
         return restoreToShape(
-                tensor, axes, keepDimensions, input.descriptor().shape());
+                tensor, axes, keepDimensions, ops.descriptor(input).shape());
     }
 
-    private static Tensor restoreToShape(
-            Tensor tensor,
-            List<Integer> axes,
-            boolean keepDimensions,
-            Shape targetShape) {
-        Tensor restored = tensor;
+    private V restoreToShape(V tensor, List<Integer> axes, boolean keepDimensions, Shape targetShape) {
+        V restored = tensor;
         if (!keepDimensions) {
             List<Integer> sorted = new ArrayList<>(axes);
             sorted.sort(Comparator.naturalOrder());
             for (int axis : sorted) {
-                restored = restored.expandDims(axis);
+                restored = ops.expandDims(restored, axis);
             }
         }
-        return restored.descriptor().shape().equals(targetShape)
+        return ops.descriptor(restored).shape().equals(targetShape)
                 ? restored
-                : restored.expand(targetShape).contiguous();
+                : ops.contiguous(ops.expand(restored, targetShape));
     }
 
-    private static Axes axes(TensorProducer producer) {
-        Shape inputShape = producer.inputs().getFirst().descriptor().shape();
+    private Axes axes(OrdinaryConstruction.Source<V> producer) {
+        Shape inputShape = ops.descriptor(producer.inputs().getFirst()).shape();
         if (producer.operation().attrs() == NoOperationAttrs.INSTANCE) {
             List<Integer> axes = new ArrayList<>(inputShape.rank());
             for (int axis = 0; axis < inputShape.rank(); axis++) {

@@ -41,8 +41,12 @@ public class CpuPool3dLoweringTest {
                 .pool3dGeometry().orElseThrow();
         var ceilAttrs=new AveragePool3dAttrs(2,3,4,4,4,3,1,2,1,2,1,2,true);
         var ceil=new CpuPool3dLowering().lower(context(Pool3dKind.AVERAGE_POOL3D,ceilAttrs,
-                DataType.BFLOAT16,Shape.of(1,2,7,8,9),Shape.of(1,2,3,4,3)))
+                DataType.FLOAT32,Shape.of(1,2,7,8,9),Shape.of(1,2,3,4,3)))
                 .pool3dGeometry().orElseThrow();
+        for (var type : java.util.List.of(DataType.BFLOAT16, DataType.FLOAT16))
+            assertTrue(io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                    .assertLowUnsupported(context(Pool3dKind.AVERAGE_POOL3D,ceilAttrs,type,
+                            Shape.of(1,2,7,8,9),Shape.of(1,2,3,4,3))));
         assertAll(()->assertEquals(24,floor.divisor()),
                 ()->assertArrayEquals(new long[]{1,2,4,4,3},floor.output().extents()),
                 ()->assertEquals(96,floor.outputCount()),

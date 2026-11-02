@@ -55,7 +55,7 @@ class CpuBatchNormInferenceGeneratedKernelTest {
                 () -> assertFalse(members.toString().contains("java/nio/ByteOrder")),
                 () -> assertFalse(members.toString().contains("ValueLayout.withOrder")));
 
-        var handle = generator.defineClassBytes(route.specialization(), first).entryPoint();
+        var handle = generator.defineClassBytes(route.specialization(), route.kernelIr(), first).entryPoint();
         float[] input = new float[24];
         for (int index = 0; index < input.length; index++) input[index] = index * .25f - 2f;
         float[] scale = {.5f, 1.25f, -2f};
@@ -98,6 +98,7 @@ class CpuBatchNormInferenceGeneratedKernelTest {
     }
 
     @Test void mixedCarriersAndGeneralLayoutsPreserveExactTypedFormula() throws Throwable {
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
         Shape shape = Shape.of(2, 3, 4), vector = Shape.of(3);
         var layouts = List.of(
                 LayoutDescriptor.of(shape, new long[] {20, 6, 1}, 2, true),
@@ -123,7 +124,7 @@ class CpuBatchNormInferenceGeneratedKernelTest {
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
         byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
-        var handle = generator.defineClassBytes(route.specialization(), bytes).entryPoint();
+        var handle = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes).entryPoint();
         float[] input = new float[40];
         double[] variance = new double[14];
         short[] bias = new short[6];
@@ -159,6 +160,7 @@ class CpuBatchNormInferenceGeneratedKernelTest {
                         Double.doubleToRawLongBits(output.get(DOUBLE, outputAddress * 8L)));
             }
         }
+        });
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> withInputs(

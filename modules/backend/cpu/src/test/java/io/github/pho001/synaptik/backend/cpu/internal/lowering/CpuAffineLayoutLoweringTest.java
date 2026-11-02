@@ -264,6 +264,16 @@ public class CpuAffineLayoutLoweringTest {
         return new PrepareContext<>(partition, nodes, values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);
     }
 
+    /** Returns one offset/holed logical source and its compact materializing reshape result. */
+    public static PrepareContext<CpuPartitionAnalysisInputs> materializingReshape(DataType type) {
+        Shape input = Shape.of(3, 2), output = Shape.of(6);
+        return context(List.of(new Operation(ShapeTransformKind.RESHAPE,
+                        new TargetShapeAttrs(output))),
+                List.of(descriptor(type, input,
+                                LayoutDescriptor.of(input, new long[]{1, 5}, 2, true)),
+                        descriptor(type, output, LayoutDescriptor.contiguous(output))));
+    }
+
     public static PrepareContext<CpuPartitionAnalysisInputs> select(
             DataType type, List<CarrierAccess> carriers) {
         Shape inputShape = Shape.of(3, 3), outputShape = Shape.of(3);

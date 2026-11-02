@@ -72,7 +72,7 @@ class CpuConv2dGeneratedKernelTest {
         for (int i = 0; i < weight.length; i++) weight[i] = (i % 7 - 3) * .25f;
         float[] output = new float[80];
         long[] geometry = plan.conv2dGeometry().orElseThrow().pack(new long[4]);
-        var handle = generator.defineClassBytes(route.specialization(), first).entryPoint();
+        var handle = generator.defineClassBytes(route.specialization(), route.kernelIr(), first).entryPoint();
         handle.invokeExact(input, weight, bias, output, geometry, 0L, 80L);
         for (int oc = 0; oc < 4; oc++) for (int oh = 0; oh < 4; oh++) for (int ow = 0; ow < 5; ow++) {
             float expected = bias[oc];
@@ -92,6 +92,7 @@ class CpuConv2dGeneratedKernelTest {
     }
 
     @Test void mixedGeneralCarriersAndBfloat16UseFloatAccumulation() throws Throwable {
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
         var inputShape = Shape.of(1, 1, 2, 2);
         var weightShape = Shape.of(1, 1, 2, 2);
         var outputShape = Shape.of(1, 1, 1, 1);
@@ -111,8 +112,7 @@ class CpuConv2dGeneratedKernelTest {
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var handle = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+        var handle = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
         short[] input = new short[10];
         input[2] = bf16(1f); input[3] = bf16(2f); input[5] = bf16(-3f); input[6] = bf16(.5f);
         float[] output = new float[6];
@@ -131,6 +131,7 @@ class CpuConv2dGeneratedKernelTest {
         expected = (float) (expected + -3f * 1.5f);
         expected = (float) (expected + .5f * 4f);
         assertEquals(Float.floatToRawIntBits(expected), Float.floatToRawIntBits(output[3]));
+        });
     }
 
     @Test void conceptualPaddingMultipliesPositiveZeroByInfinity() throws Throwable {
@@ -142,8 +143,7 @@ class CpuConv2dGeneratedKernelTest {
                         CarrierAccess.DOUBLE_ARRAY)))).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var handle = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+        var handle = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
         double[] output = new double[9];
         handle.invokeExact(new double[] {2}, new double[] {Double.POSITIVE_INFINITY}, output,
                 plan.conv2dGeometry().orElseThrow().pack(new long[3]), 0L, 9L);
@@ -164,10 +164,9 @@ class CpuConv2dGeneratedKernelTest {
         var vector = provisionalVector(route.specialization(),
                 FloatVector.SPECIES_PREFERRED.vectorBitSize());
         var generator = new CpuClassFileKernelGenerator();
-        var scalarHandle = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+        var scalarHandle = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
         byte[] vectorBytes = generator.generateClassBytes(vector, route.kernelIr());
-        var vectorHandle = generator.defineClassBytes(vector, vectorBytes).entryPoint();
+        var vectorHandle = generator.defineClassBytes(vector, route.kernelIr(), vectorBytes).entryPoint();
         float[] input = new float[2 * 4 * 3 * 18];
         float[] weight = new float[6 * 2 * 2 * 3];
         float[] bias = {.25f, -.5f, 1f, -2f, .125f, -.75f};
@@ -199,10 +198,9 @@ class CpuConv2dGeneratedKernelTest {
         var vector = provisionalVector(route.specialization(),
                 DoubleVector.SPECIES_PREFERRED.vectorBitSize());
         var generator = new CpuClassFileKernelGenerator();
-        var scalarHandle = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+        var scalarHandle = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
         byte[] vectorBytes = generator.generateClassBytes(vector, route.kernelIr());
-        var vectorHandle = generator.defineClassBytes(vector, vectorBytes).entryPoint();
+        var vectorHandle = generator.defineClassBytes(vector, route.kernelIr(), vectorBytes).entryPoint();
         double[] input = new double[2 * 3 * 9 * 18];
         double[] weight = new double[4 * 3 * 3 * 3];
         for (int i = 0; i < input.length; i++) input[i] = (i % 41 - 20) * .015625;
@@ -237,10 +235,9 @@ class CpuConv2dGeneratedKernelTest {
         var vector = provisionalVector(route.specialization(),
                 FloatVector.SPECIES_PREFERRED.vectorBitSize());
         var generator = new CpuClassFileKernelGenerator();
-        var scalarHandle = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+        var scalarHandle = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
         byte[] vectorBytes = generator.generateClassBytes(vector, route.kernelIr());
-        var vectorHandle = generator.defineClassBytes(vector, vectorBytes).entryPoint();
+        var vectorHandle = generator.defineClassBytes(vector, route.kernelIr(), vectorBytes).entryPoint();
         try (Arena arena = Arena.ofConfined()) {
             var input = arena.allocate((3 + 1 * 2 * 3 * 18L) * Float.BYTES, Float.BYTES);
             var weight = arena.allocate((2 + 3 * 2 * 2 * 3L) * Float.BYTES, Float.BYTES);
@@ -285,10 +282,9 @@ class CpuConv2dGeneratedKernelTest {
         var vector = provisionalVector(route.specialization(),
                 DoubleVector.SPECIES_PREFERRED.vectorBitSize());
         var generator = new CpuClassFileKernelGenerator();
-        var scalarHandle = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+        var scalarHandle = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
         byte[] vectorBytes = generator.generateClassBytes(vector, route.kernelIr());
-        var vectorHandle = generator.defineClassBytes(vector, vectorBytes).entryPoint();
+        var vectorHandle = generator.defineClassBytes(vector, route.kernelIr(), vectorBytes).entryPoint();
         double[] input = new double[2 + 1 * 2 * 5 * 18];
         double[] bias = new double[3];
         for (int i = 0; i < input.length; i++) input[i] = (i % 31 - 15) * .015625;
@@ -323,8 +319,7 @@ class CpuConv2dGeneratedKernelTest {
                         plan.units().getFirst().portablePlan().portableKernelIr()).epilogue());
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var handle = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+        var handle = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
         float[] input = {1, -2, 3, 4};
         float[] weight = {2};
         float[] bias = {.5f};

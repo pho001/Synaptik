@@ -5,6 +5,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
+import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuWorkerGroup;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionFinalizer;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
@@ -36,6 +39,7 @@ import io.github.pho001.synaptik.runtime.memory.WorkspaceSlot;
 import io.github.pho001.synaptik.runtime.run.BufferRepresentationBinding;
 import io.github.pho001.synaptik.runtime.run.RunResourceOwnership;
 import io.github.pho001.synaptik.runtime.run.RunState;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.ArrayList;
@@ -49,6 +53,10 @@ final class CpuSoftmaxFiniteConformanceTest {
     @Test void bothKindsAndFourDtypesHandleOverflowUnderflowAndOffsets() {
         for (SoftmaxKind kind : SoftmaxKind.values()) for (DataType type : List.of(
                 DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            if (type == DataType.BFLOAT16 || type == DataType.FLOAT16) {
+                assertThrows(IllegalArgumentException.class, () -> fixture(kind, type));
+                continue;
+            }
             var fixture = fixture(kind, type);
             try (var integration = CpuBackendIntegration.open()) {
                 MemorySegment input = storage(type), output = storage(type);
@@ -77,9 +85,10 @@ final class CpuSoftmaxFiniteConformanceTest {
                                     kind + "/" + type + " offset second");
                         }
                     }
-                    if (type == DataType.FLOAT32) {
-                        write(type, input, 0, -Float.MAX_VALUE);
-                        write(type, input, 1, Float.MAX_VALUE);
+                    if (type == DataType.FLOAT32 || type == DataType.FLOAT64) {
+                        double maximum = type == DataType.FLOAT32 ? Float.MAX_VALUE : Double.MAX_VALUE;
+                        write(type, input, 0, -maximum);
+                        write(type, input, 1, maximum);
                         bound.execute();
                         assertEquals(kind == SoftmaxKind.SOFTMAX ? 0 : Double.NEGATIVE_INFINITY,
                                 read(type, output, 0));
@@ -93,18 +102,92 @@ final class CpuSoftmaxFiniteConformanceTest {
                         assertEquals(-71, read(type, output, 0));
                         assertEquals(-71, read(type, output, 1));
                     }
+                    write(type, input, 0, 0); write(type, input, 1, 0);
+                    bound.execute();
+                    assertEquals(kind == SoftmaxKind.SOFTMAX ? 0.5 : -Math.log(2),
+                            read(type, output, 0), tolerance(type));
                 }
             }
         }
     }
 
+    @Test void parallelStridedNonLastSlicesValidateCompletelyBeforeWritingAndRescanEveryRun() {
+        Shape shape = Shape.of(3, 8);
+        var layout = LayoutDescriptor.of(shape, new long[] {2, 8}, 1, true);
+        int count = Math.toIntExact(layout.referencedElementSpan());
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+            for (SoftmaxKind kind : SoftmaxKind.values()) for (boolean nativeCarrier : List.of(false, true)) {
+                try (var arena = Arena.ofShared(); var workers = new CpuWorkerGroup(4);
+                        var integration = CpuBackendIntegration.open()) {
+                    CarrierAccess carrier = nativeCarrier ? CarrierAccess.MEMORY_SEGMENT
+                            : type == DataType.FLOAT32 ? CarrierAccess.FLOAT_ARRAY : CarrierAccess.DOUBLE_ARRAY;
+                    var fixture = fixture(kind, type, shape, 0, layout, carrier, Optional.of(workers));
+                    MemorySegment input = nativeCarrier
+                            ? arena.allocate((long) count * type.byteWidth(), type.byteWidth())
+                            : storage(type, count);
+                    MemorySegment output = nativeCarrier
+                            ? arena.allocate((long) count * type.byteWidth(), type.byteWidth())
+                            : storage(type, count);
+                    double maximum = type == DataType.FLOAT32 ? Float.MAX_VALUE : Double.MAX_VALUE;
+                    // Unaddressed cells are deliberately invalid; only represented contributors count.
+                    for (int i = 0; i < count; i++) write(type, input, i, Double.NaN);
+                    for (int slice = 0; slice < 8; slice++) {
+                        write(type, input, 1 + 8 * slice, -maximum);
+                        write(type, input, 3 + 8 * slice, maximum);
+                        write(type, input, 5 + 8 * slice, maximum);
+                    }
+                    try (RunState state = state(fixture.executable(), integration, type, input, output)) {
+                        var bound = fixture.executable().bind(state);
+                        bound.execute();
+                        assertTiedSlices(kind, type, output);
+                        for (double invalid : new double[] {Double.NaN, Double.POSITIVE_INFINITY,
+                                Double.NEGATIVE_INFINITY}) {
+                            output.fill((byte) 0x5a);
+                            byte[] sentinel = output.toArray(ValueLayout.JAVA_BYTE);
+                            write(type, input, 61, invalid); // final contributor in the last slice
+                            assertThrows(IllegalArgumentException.class, bound::execute);
+                            assertArrayEquals(sentinel, output.toArray(ValueLayout.JAVA_BYTE));
+                            write(type, input, 61, maximum);
+                            bound.execute();
+                            assertTiedSlices(kind, type, output);
+                        }
+                        // Even an unavailable worker group must not mask the current input failure.
+                        workers.close();
+                        output.fill((byte) 0x5a);
+                        byte[] sentinel = output.toArray(ValueLayout.JAVA_BYTE);
+                        write(type, input, 61, Double.NEGATIVE_INFINITY);
+                        assertThrows(IllegalArgumentException.class, bound::execute);
+                        assertArrayEquals(sentinel, output.toArray(ValueLayout.JAVA_BYTE));
+                    }
+                }
+            }
+    }
+
+    private static void assertTiedSlices(SoftmaxKind kind, DataType type, MemorySegment output) {
+        for (int slice = 0; slice < 8; slice++) {
+            double first = read(type, output, 1 + 8 * slice);
+            if (kind == SoftmaxKind.SOFTMAX) assertEquals(0L, Double.doubleToRawLongBits(first));
+            else assertEquals(Double.NEGATIVE_INFINITY, first);
+            double expected = kind == SoftmaxKind.SOFTMAX ? 0.5 : -Math.log(2);
+            assertEquals(expected, read(type, output, 3 + 8 * slice), tolerance(type));
+            assertEquals(expected, read(type, output, 5 + 8 * slice), tolerance(type));
+        }
+    }
+
     private static Fixture fixture(SoftmaxKind kind, DataType type) {
-        Shape shape = Shape.of(2);
-        var descriptor = new TensorDescriptor(type, shape,
-                Optional.of(LayoutDescriptor.of(shape, new long[] {1}, 0, true)), false);
-        var operation = new Operation(kind, new SoftmaxAttrs(0));
-        assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(operation,
-                List.of(descriptor), List.of(descriptor))));
+        CarrierAccess carrier = type == DataType.FLOAT64 ? CarrierAccess.DOUBLE_ARRAY
+                : type == DataType.FLOAT32 ? CarrierAccess.FLOAT_ARRAY : CarrierAccess.SHORT_ARRAY;
+        return fixture(kind, type, Shape.of(2), 0, LayoutDescriptor.contiguous(Shape.of(2)),
+                carrier, Optional.empty());
+    }
+
+    private static Fixture fixture(SoftmaxKind kind, DataType type, Shape shape, int axis,
+            LayoutDescriptor layout, CarrierAccess carrier, Optional<CpuWorkerGroup> workers) {
+        var descriptor = new TensorDescriptor(type, shape, Optional.of(layout), false);
+        var operation = new Operation(kind, new SoftmaxAttrs(axis));
+        assertEquals(type != DataType.BFLOAT16 && type != DataType.FLOAT16,
+                new CpuCapabilityProvider().supports(new OperationCapabilityQuery(operation,
+                        List.of(descriptor), List.of(descriptor))));
         var node = new CompiledNode(new NodeId(0), operation,
                 List.of(new ValueId(0)), List.of(new ValueId(1)));
         var partition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID,
@@ -117,30 +200,35 @@ final class CpuSoftmaxFiniteConformanceTest {
                         new LogicalMemoryRequirement(new ValueId(1), descriptor,
                                 Optional.of(partition), List.of(), true)), Map.of(),
                 new CpuPartitionAnalysisInputs(false,
-                        List.of(type == DataType.FLOAT64 ? CarrierAccess.DOUBLE_ARRAY
-                                        : type == DataType.FLOAT32 ? CarrierAccess.FLOAT_ARRAY
-                                        : CarrierAccess.SHORT_ARRAY,
-                                type == DataType.FLOAT64 ? CarrierAccess.DOUBLE_ARRAY
-                                        : type == DataType.FLOAT32 ? CarrierAccess.FLOAT_ARRAY
-                                        : CarrierAccess.SHORT_ARRAY)));
-        return new Fixture(finalizePortable(new CpuPartitionPreparer().analyze(context)));
+                        List.of(carrier, carrier), workers.isPresent()
+                                ? new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1)
+                                : PortableExecutionConfig.DEFAULT));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        if (workers.isPresent()) assertEquals(4, analysis.plan().selectedRangeCount());
+        return new Fixture(finalizePortable(analysis, workers));
     }
 
     private static RunState state(PreparedExecutable executable, CpuBackendIntegration integration,
             DataType type, MemorySegment input, MemorySegment output) {
         return new RunState(executable.memoryPlan(), List.of(
                 List.of(new BufferRepresentationBinding(integration.borrow(
-                        new MemorySegmentStorage(type, 2, input)), RunResourceOwnership.BORROWED)),
+                        new MemorySegmentStorage(type, input.byteSize() / type.byteWidth(), input)),
+                        RunResourceOwnership.BORROWED)),
                 List.of(new BufferRepresentationBinding(integration.borrow(
-                        new MemorySegmentStorage(type, 2, output)), RunResourceOwnership.BORROWED))),
+                        new MemorySegmentStorage(type, output.byteSize() / type.byteWidth(), output)),
+                        RunResourceOwnership.BORROWED))),
                 List.of());
     }
 
     private static MemorySegment storage(DataType type) {
+        return storage(type, 2);
+    }
+
+    private static MemorySegment storage(DataType type, int count) {
         return switch (type) {
-            case FLOAT64 -> MemorySegment.ofArray(new double[2]);
-            case FLOAT32 -> MemorySegment.ofArray(new float[2]);
-            case BFLOAT16, FLOAT16 -> MemorySegment.ofArray(new short[2]);
+            case FLOAT64 -> MemorySegment.ofArray(new double[count]);
+            case FLOAT32 -> MemorySegment.ofArray(new float[count]);
+            case BFLOAT16, FLOAT16 -> MemorySegment.ofArray(new short[count]);
             default -> throw new AssertionError(type);
         };
     }
@@ -177,7 +265,8 @@ final class CpuSoftmaxFiniteConformanceTest {
     }
 
     private static PreparedExecutable finalizePortable(
-            BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis) {
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis,
+            Optional<CpuWorkerGroup> workers) {
         var buffers = new ArrayList<PreparedMemoryPlan.BufferEntry>();
         var workspaces = new ArrayList<PreparedMemoryPlan.WorkspaceEntry>();
         var assignments = new ArrayList<PreparationResourceAssignment>();
@@ -197,7 +286,7 @@ final class CpuSoftmaxFiniteConformanceTest {
             }
         }
         var memory = new PreparedMemoryPlan(buffers, workspaces);
-        return new CpuPartitionFinalizer().finalizePartition(
+        return new CpuPartitionFinalizer(Optional.empty(), workers).finalizePartition(
                 new BackendPartitionFinalization<>(analysis, memory, assignments)).executable();
     }
 

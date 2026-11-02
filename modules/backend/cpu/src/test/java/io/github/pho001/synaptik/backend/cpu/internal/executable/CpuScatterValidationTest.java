@@ -28,6 +28,99 @@ import org.junit.jupiter.api.Test;
 
 /** Prepared validation regressions where logical index rank differs from scratch capacity. */
 class CpuScatterValidationTest {
+    @Test void temporalNdIndicesCheckEveryActiveComponentWithoutAnOutputRange() {
+        long[] indices = {99, 99, 0, 2, -1, 99, 1, 3};
+        byte[] active = {1, 0, 1};
+        long[] extents = {3, 2}, strides = {2, 1}, cursor = {71, 71};
+        MemorySegment storage = MemorySegment.ofArray(indices);
+        MemorySegment activity = MemorySegment.ofArray(active);
+        Runnable scan = () -> CpuPreparedExecutable.validateTemporalIndices(storage, Long.BYTES,
+                0L, extents, strides, cursor, 0L, 6L,
+                io.github.pho001.synaptik.backend.cpu.internal.ir.CpuIndexingIr.Family.GATHER_ND,
+                -1, 0, 2, -1L, new long[] {2, 3}, 2L,
+                true, activity, 0L, 2L, 3L);
+        assertEquals("GATHER_ND index at logical position 5 for data axis 1 is out of bounds: value=3, extent=3",
+                assertThrows(IndexOutOfBoundsException.class, scan::run).getMessage());
+        indices[7] = 2;
+        assertDoesNotThrow(scan::run);
+        active[1] = 1;
+        assertThrows(IndexOutOfBoundsException.class, scan::run);
+        active[1] = 0;
+        assertDoesNotThrow(scan::run);
+        assertDoesNotThrow(() -> CpuPreparedExecutable.validateTemporalIndices(null, Long.BYTES,
+                0L, null, null, null, 0L, 1L,
+                io.github.pho001.synaptik.backend.cpu.internal.ir.CpuIndexingIr.Family.GATHER,
+                0, 0, 0, 1L, null, 0L, false, null, 0L, 0L, 0L));
+    }
+
+    @Test void temporalScatterBoundsPrecedeDuplicatesAndInactiveCandidatesNeverParticipate() {
+        int[] indices = {99, 1, 1, 3};
+        byte[] active = {1, 1, 1};
+        long[] current = {71, 71}, earlier = {71, 71};
+        MemorySegment storage = MemorySegment.ofArray(indices);
+        MemorySegment activity = MemorySegment.ofArray(active);
+        Runnable scan = () -> CpuPreparedExecutable.validateTemporalScatter(storage, Integer.BYTES,
+                0L, new long[] {3}, new long[] {1}, new long[] {3}, new long[] {3},
+                new long[0], current, earlier, 3L, 3L,
+                io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr.Family.SCATTER_ELEMENTS,
+                0, 0, 0, true, 1L, true, activity, 0L, 1L, 3L, 0L, 1L, 3L);
+        assertThrows(IndexOutOfBoundsException.class, scan::run);
+        indices[3] = 2;
+        assertThrows(IllegalArgumentException.class, scan::run);
+        active[0] = 0;
+        assertDoesNotThrow(scan::run);
+        active[0] = 1;
+        active[1] = 0;
+        assertDoesNotThrow(scan::run);
+        indices[2] = -1;
+        assertDoesNotThrow(scan::run);
+        active[1] = 1;
+        assertThrows(IndexOutOfBoundsException.class, scan::run);
+        indices[2] = 0;
+        assertDoesNotThrow(scan::run);
+    }
+
+    @Test void temporalNdScatterSkipsWholeInactiveTuplesDuringBothValidationPhases() {
+        long[] indices = {0, 1, -1, 99, 0, 1};
+        byte[] active = {1, 0, 0};
+        MemorySegment storage = MemorySegment.ofArray(indices);
+        MemorySegment activity = MemorySegment.ofArray(active);
+        Runnable scan = () -> CpuPreparedExecutable.validateTemporalScatter(storage, Long.BYTES,
+                0L, new long[] {3, 2}, new long[] {2, 1}, new long[] {2, 2},
+                new long[] {3}, new long[] {3}, new long[2], new long[2], 6L, 3L,
+                io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr.Family.SCATTER_ND,
+                -1, 0, 2, true, 0L, true, activity, 0L, 2L, 3L, 0L, 1L, 3L);
+        assertDoesNotThrow(scan::run);
+        active[2] = 1;
+        assertThrows(IllegalArgumentException.class, scan::run);
+        active[0] = 0;
+        assertDoesNotThrow(scan::run);
+        active[1] = 1;
+        assertThrows(IndexOutOfBoundsException.class, scan::run);
+        active[1] = 0;
+        assertDoesNotThrow(scan::run);
+    }
+
+    @Test void temporalScatterKeepsSharedIndexAndRowCandidatePresenceOffsetsIndependent() {
+        int[] indices = {1, 1};
+        byte[] presence = {1, 0, 1};
+        MemorySegment storage = MemorySegment.ofArray(indices);
+        MemorySegment activity = MemorySegment.ofArray(presence);
+        long[] extents = {2}, strides = {1}, current = new long[1], earlier = new long[1];
+        Runnable scan = () -> CpuPreparedExecutable.validateTemporalScatter(storage, Integer.BYTES,
+                0L, extents, strides, new long[] {2}, extents, new long[0], current, earlier, 2L, 2L,
+                io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr.Family.SCATTER_ELEMENTS,
+                0, 0, 0, true, 0L, true, activity, 0L, 0L, 0L, 1L, 1L, 2L);
+        assertDoesNotThrow(scan::run);
+        indices[0] = -1;
+        assertThrows(IndexOutOfBoundsException.class, scan::run);
+        indices[0] = 1;
+        presence[1] = 1;
+        assertThrows(IllegalArgumentException.class, scan::run);
+        presence[2] = 0;
+        assertDoesNotThrow(scan::run);
+    }
+
     @Test void rankOneIndicesValidateStridedOffsetStorageBeforeRankTwoUpdates() {
         for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
             var data = desc(DataType.FLOAT32, Shape.of(2, 3));

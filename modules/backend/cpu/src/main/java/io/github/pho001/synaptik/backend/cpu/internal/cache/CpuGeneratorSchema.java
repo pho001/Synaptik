@@ -256,8 +256,17 @@ public final class CpuGeneratorSchema {
      * envelopes incompatible without changing emitted hot-loop algorithms. Envelopes written for
      * earlier schemas are incompatible misses. Schema 70 repairs ERF extremes and low composite
      * FLOAT32 working sites, invalidating schema-69 envelopes and class identities atomically.
+     * Schema 71 adds typed general-scan identity, exact demanded-history/carry-bank mappings and
+     * the outer-time-loop segment entry, while prefixing every retained family projection.
+     * Homogeneous FLOAT64 scan specializations are additive inside schema/family 71: existing
+     * arithmetic/boundary dtype facts select double locals and eight-byte resources, and the
+     * retained shaped-v1/MATMUL-v1 payloads key those baked magnitudes in both identity streams.
+     * The later CPU0071 approved static MATMUL cutover advances only baked all-valid v4 to v5
+     * and fixed-length retained-MATMUL v1 to length-aware-matmul v2, in both specialization
+     * streams. This does not advance envelope/family 71 or canonical projections; non-MATMUL
+     * shaped/fixed-length, symbolic/combined, pointwise/fixed and ordinary artifacts stay exact.
      */
-    public static final int CURRENT_VERSION = 70;
+    public static final int CURRENT_VERSION = 71;
     /** Generated entry name. */ public static final String ENTRY_NAME = "invoke";
     private CpuGeneratorSchema() { }
 

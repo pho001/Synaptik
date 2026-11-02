@@ -41,10 +41,14 @@ tasks.withType<Test>().configureEach {
         "synaptik.cpu.vectorMse.performance",
         "synaptik.cpu.vectorMse.performanceEvidenceRoot",
         "synaptik.cpu.vectorScalarPower.performance",
-        "synaptik.cpu.vectorScalarPower.performanceEvidenceRoot"
+        "synaptik.cpu.vectorScalarPower.performanceEvidenceRoot",
+        "synaptik.cpu.generalScan.performance",
+        "synaptik.cpu.generalScan.pointwisePerformance",
+        "synaptik.cpu.generalScan.evidenceRoot"
     ).forEach { name ->
         System.getProperty(name)?.let { systemProperty(name, it) }
     }
+    systemProperty("synaptik.cpu.dynamicBatch.performance", System.getProperty("synaptik.cpu.dynamicBatch.performance", "false"))
     System.getenv("SYNAPTIK_CPU_LOSS_PERFORMANCE")?.let {
         environment("SYNAPTIK_CPU_LOSS_PERFORMANCE", it)
     }

@@ -34,7 +34,7 @@ class CpuConv1dCompositionLoweringTest {
     @Test void foldsOnlyExactVisibleTopologyAndReusesConv2dBody() throws Throwable {
         var context=context(2);var lowered=new CpuPartitionLowering().lower(context);
         assertAll(()->assertInstanceOf(CpuConv2dIr.class,lowered.portableKernelIr()),()->assertEquals(3,lowered.virtualValues().size()),()->assertEquals(4,lowered.boundaryValues().size()),()->assertEquals(0,lowered.affineAddressPairs().length),()->assertTrue(lowered.conv2dGeometry().isPresent()),()->assertTrue(lowered.conv3dGeometry().isEmpty()));
-        var plan=new CpuPartitionPreparer().analyze(context).plan();var unit=plan.units().getFirst();var route=unit.portablePlan();var generator=new CpuClassFileKernelGenerator();var handle=generator.defineClassBytes(route.specialization(),generator.generateClassBytes(route.specialization(),route.kernelIr())).entryPoint();
+        var plan=new CpuPartitionPreparer().analyze(context).plan();var unit=plan.units().getFirst();var route=unit.portablePlan();var generator=new CpuClassFileKernelGenerator();var handle=generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
         float[] input={1,2,3,4,5,6,7,8},weight={1,0,-1,2,1,0,-1,0,1,1,1,1},bias={.5f,-1f},output=new float[8];handle.invokeExact(input,weight,bias,output,unit.conv2dGeometry().orElseThrow().pack(new long[4]),0L,8L);assertArrayEquals(new float[]{3.5f,14.5f,17.5f,25.5f,12f,19f,22f,11f},output);
         assertAll(()->assertTrue(plan.workspaceDeclaration().isEmpty()),()->assertTrue(plan.materialization().isEmpty()));
     }

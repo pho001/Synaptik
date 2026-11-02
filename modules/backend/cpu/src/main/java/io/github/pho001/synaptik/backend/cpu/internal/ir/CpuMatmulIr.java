@@ -13,6 +13,9 @@ import java.util.Objects;
  * <p>Concrete extents, offsets, strides, batch count, tile count, worker count, and range bounds
  * are invocation geometry. This identity retains only facts that can change generated code, so
  * compatible Shapes share one generated class.</p>
+ * <p>Vector realizations admit no terminal, or TANH for homogeneous FLOAT32/FLOAT64 only.
+ * The terminal follows full-K accumulation and any ordered bias ADD; scalar N tails retain
+ * the scalar terminal implementation.</p>
  *
  * @param leftType represented left operand type
  * @param rightType represented right operand type
@@ -23,12 +26,49 @@ import java.util.Objects;
  * @param numericalForm exact generated/direct floating multiply-add decision
  * @param inputAccesses exact read access plans in carrier order
  * @param outputAccess exact result write access plan
+ * @param batchGeometry immutable baked coefficient facts for ordinary B-only direct scalar
+ *     specialization, or null for every unchanged static identity
  */
 public record CpuMatmulIr(DataType leftType, DataType rightType, DataType resultType,
         Realization realization, Epilogue epilogue,
         int preferredSpeciesBitSize, NumericalForm numericalForm,
         List<CpuAccessPlan> inputAccesses,
-        CpuAccessPlan outputAccess) {
+        CpuAccessPlan outputAccess,
+        io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMatmulLowering.BatchGeometry batchGeometry) {
+    /**
+     * Retains the static shape-polymorphic constructor and unchanged canonical identity.
+     * @param leftType non-null left represented type
+     * @param rightType non-null right represented type
+     * @param resultType non-null promoted result type
+     * @param realization non-null selected full-K form
+     * @param epilogue non-null exact suffix
+     * @param preferredSpeciesBitSize vector bits or zero
+     * @param numericalForm non-null arithmetic choice
+     * @param inputAccesses non-null ordered read plans
+     * @param outputAccess non-null write plan
+     */
+    public CpuMatmulIr(DataType leftType, DataType rightType, DataType resultType,
+            Realization realization, Epilogue epilogue, int preferredSpeciesBitSize,
+            NumericalForm numericalForm, List<CpuAccessPlan> inputAccesses, CpuAccessPlan outputAccess) {
+        this(leftType, rightType, resultType, realization, epilogue, preferredSpeciesBitSize,
+                numericalForm, inputAccesses, outputAccess, null);
+    }
+
+    /**
+     * Returns only the baked numeric template facts for ordinary-batch specialization streams.
+     * The geometry-free canonical IR projection deliberately does not include these magnitudes.
+     * @return deterministic coefficient payload, or empty for every existing static identity
+     */
+    public String batchSpecializationIdentity() {
+        if (batchGeometry == null) return "";
+        var text = new StringBuilder(";ordinary-batch-v1:matmul-coefficients");
+        for (var binding : List.of(batchGeometry.left(), batchGeometry.right(), batchGeometry.result())) {
+            text.append('|').append(binding.extentConstants()).append('|').append(binding.extentBatchFactors())
+                    .append('|').append(binding.baseElementOffset()).append('|').append(binding.strideConstants())
+                    .append('|').append(binding.strideBatchFactors());
+        }
+        return text.toString();
+    }
 
     /** Closed portable realization vocabulary. */
     public enum Realization {
@@ -87,6 +127,11 @@ public record CpuMatmulIr(DataType leftType, DataType rightType, DataType result
         Objects.requireNonNull(realization, "realization");
         Objects.requireNonNull(epilogue, "epilogue");
         Objects.requireNonNull(numericalForm, "numericalForm");
+        if (batchGeometry != null && (realization != Realization.DIRECT_SCALAR || epilogue.hasBias()
+                || epilogue.hasTerminal() || numericalForm != NumericalForm.SEQUENTIAL
+                || leftType != DataType.FLOAT32 || rightType != DataType.FLOAT32 || resultType != DataType.FLOAT32)) {
+            throw new IllegalArgumentException("unsupported ordinary batch matrix code shape");
+        }
         inputAccesses = List.copyOf(inputAccesses);
         Objects.requireNonNull(outputAccess, "outputAccess");
         DataType promoted;
@@ -111,13 +156,17 @@ public record CpuMatmulIr(DataType leftType, DataType rightType, DataType result
                     && resultType != DataType.FLOAT32 && resultType != DataType.FLOAT64
                 || epilogue.clampRange() != null
                     && epilogue.clampRange().minValue().dataType() != resultType
-                || vector && (!sameVectorType || epilogue.hasTerminal())) {
+                || vector && (!sameVectorType || epilogue.hasTerminal()
+                    && (epilogue.terminal() != Epilogue.Terminal.TANH
+                        || resultType != DataType.FLOAT32 && resultType != DataType.FLOAT64))) {
             throw new IllegalArgumentException("MATMUL IR facts disagree");
         }
     }
 
     /**
-     * Encodes the family facts into the existing generated-artifact identity seam.
+     * Encodes the family facts into the existing generated-artifact identity seam. Ordinary
+     * B-only MATMUL includes its established namespace here, so typed authentication and
+     * lowering consume one exact encoding without changing represented artifact identities.
      *
      * @return a fresh canonical instruction-free kernel identity
      */
@@ -132,7 +181,8 @@ public record CpuMatmulIr(DataType leftType, DataType rightType, DataType result
                 CpuKernelIr.Value.Kind.OUTPUT, outputAccess));
         String family = "matmul:realization=" + realization + ":left=" + leftType
                 + ":right=" + rightType + ":result=" + resultType + ":epilogue=" + epilogue
-                + ":species=" + preferredSpeciesBitSize + ":numerical=" + numericalForm;
+                + ":species=" + preferredSpeciesBitSize + ":numerical=" + numericalForm
+                + (batchGeometry == null ? "" : ":ordinary-batch-v1");
         return new CpuKernelIr(values, List.of(), new CpuKernelIr.Loop("start", "end"),
                 List.of(new CpuKernelIr.Store(values.size() - 1, 0)), family);
     }

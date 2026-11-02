@@ -26,6 +26,9 @@ import java.util.Objects;
  * values. Read/read aliases are legal; writes and scratch must not overlap any other whole
  * selected representation, including its gaps and capacity tail. Input addresses retain both
  * the selected segment's physical base and its prepared logical offset/strides.
+ * In a complete batch-required plan, cold binding admits this fixed recipe only when every
+ * selected declaration and the plan-authenticated geometry equal its retained fixed spans and
+ * scratch bytes. An unrelated source B never changes this kernel's batch or length domain.
  * Bound execution repeats access preflight and validates every logically strided length after
  * preceding producers,
  * before even padding or raw initial-state copies can write any scan result.
@@ -38,6 +41,7 @@ public final class CpuRecurrentScanPreparedExecutable extends PreparedExecutable
     private final CpuRecurrentScanFloat16Kernel halfKernel;
     private final long lengthOffset, lengthStride;
     private final CpuConcurrencyBudget budget;
+    private final Optional<WorkspaceSelection> selectedWorkspace;
 
     /**
      * Constructs one post-assignment direct recipe; resources remain owned by each run.
@@ -47,7 +51,8 @@ public final class CpuRecurrentScanPreparedExecutable extends PreparedExecutable
      *     working width/alignment for FLOAT64, four otherwise, absent for empty time or batch
      * @param facts non-null immutable checked occurrence facts
      * @param budget borrowed inline concurrency admission, or null when not configured
-     * @throws IllegalArgumentException if selection counts disagree with exact scan requirements
+     * @throws IllegalArgumentException if selections disagree or the computation is not F32/F64,
+     *     including empty time/batch and all-inactive lengths
      */
     public CpuRecurrentScanPreparedExecutable(PreparedMemoryPlan plan, List<BufferSelection> buffers,
             Optional<WorkspaceSelection> workspace, Facts facts, CpuConcurrencyBudget budget) {
@@ -55,7 +60,10 @@ public final class CpuRecurrentScanPreparedExecutable extends PreparedExecutable
                 .mapToObj(p -> p < facts.readCount() ? BufferAccess.READ_ONLY : BufferAccess.WRITE_ONLY).toList());
         this.facts = Objects.requireNonNull(facts, "facts");
         this.budget = budget;
+        this.selectedWorkspace = workspace;
         var type = facts.geometry().dataType();
+        if (type != DataType.FLOAT32 && type != DataType.FLOAT64)
+            throw new IllegalArgumentException("CPU low recurrent computation is temporarily unsupported");
         kernel = type == DataType.FLOAT32 ? new CpuRecurrentScanKernel(facts) : null;
         doubleKernel = type == DataType.FLOAT64 ? new CpuRecurrentScanFloat64Kernel(facts) : null;
         bfloatKernel = type == DataType.BFLOAT16 ? new CpuRecurrentScanBFloat16Kernel(facts) : null;
@@ -95,6 +103,38 @@ public final class CpuRecurrentScanPreparedExecutable extends PreparedExecutable
         return representation instanceof CpuContiguousWorkspace cpu && cpu.isAccessible()
                 && cpu.byteSize() == facts.geometry().scratchBytes() && cpu.byteAlignment() >= facts.geometry().workingBytes()
                 && cpu.writableSegment().address() % facts.geometry().workingBytes() == 0 && !cpu.writableSegment().isReadOnly();
+    }
+
+    /**
+     * Authenticates retained fixed recurrent geometry without adopting a complete graph's B.
+     * @param state exact open run and authenticated resolved geometry
+     * @param p ordered recurrent boundary position
+     * @param representation selected CPU boundary, or an incompatible representation to reject
+     * @return whether the fixed declaration and original typed physical checks both qualify
+     */
+    @Override protected boolean acceptsBufferRepresentation(RunState state, int p,
+            BufferRepresentation representation) {
+        if (!state.memoryPlan().requiresBatchSize()) return acceptsBufferRepresentation(p, representation);
+        return representation instanceof CpuBufferRepresentation cpu
+                && cpu.acceptsFixedGeometry(state, memoryPlan(), bufferSelection(p).bufferIndex(),
+                        Math.multiplyExact(facts.spans().get(p), (long) facts.boundaryTypes().get(p).byteWidth()))
+                && acceptsBufferRepresentation(p, representation);
+    }
+
+    /**
+     * Authenticates this fixed occurrence's own projection scratch, not batch-derived scratch.
+     * @param state exact open run and authenticated resolved geometry
+     * @param p sole workspace position, zero
+     * @param representation selected CPU scratch, or an incompatible representation to reject
+     * @return whether declaration, resolved bytes and retained recurrent scratch facts agree
+     */
+    @Override protected boolean acceptsWorkspaceRepresentation(RunState state, int p,
+            WorkspaceRepresentation representation) {
+        if (!state.memoryPlan().requiresBatchSize()) return acceptsWorkspaceRepresentation(p, representation);
+        return representation instanceof CpuContiguousWorkspace cpu
+                && CpuBufferRepresentation.acceptsFixedWorkspaceGeometry(state, memoryPlan(),
+                        selectedWorkspace.orElseThrow().workspaceIndex(), facts.geometry().scratchBytes(), cpu)
+                && acceptsWorkspaceRepresentation(p, representation);
     }
 
     /**

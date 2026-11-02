@@ -38,7 +38,7 @@ class CpuIndexingOrderingSemanticClosureTest {
         var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
         byte[] first = generator.generateClassBytes(route.specialization(), route.kernelIr());
         assertArrayEquals(first, generator.generateClassBytes(route.specialization(), route.kernelIr()), candidate.ownerId());
-        var entry = generator.defineClassBytes(route.specialization(), first).entryPoint();
+        var entry = generator.defineClassBytes(route.specialization(), route.kernelIr(), first).entryPoint();
         var raw = new ArrayList<Object>(); var expected = new ArrayList<Object>();
         for (int i = 0; i < context.values().size(); i++) {
             var type = context.values().get(i).descriptor().dataType();

@@ -108,8 +108,7 @@ class CpuStoredSubnormalProviderRegressionTest {
                 var plan = new CpuPartitionPreparer().analyze(context).plan();
                 var route = plan.units().getFirst().portablePlan();
                 var generator = new CpuClassFileKernelGenerator();
-                var artifact = generator.defineClassBytes(route.specialization(),
-                        generator.generateClassBytes(route.specialization(), route.kernelIr()));
+                var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
                 long[] output = {-1};
                 artifact.entryPoint().invokeWithArguments(input, output,
                         plan.argExtremaGeometry().orElseThrow().pack(new long[2]), 0L, 1L);
@@ -158,7 +157,7 @@ class CpuStoredSubnormalProviderRegressionTest {
                             .startsWith("jdk/incubator/vector/")),
                     opcode + " must exercise the generated Vector API body");
         }
-        var artifact = generator.defineClassBytes(specialization, generated);
+        var artifact = generator.defineClassBytes(specialization, ir, generated);
         int count = left.length;
         var arguments = new ArrayList<Object>();
         arguments.add(left);

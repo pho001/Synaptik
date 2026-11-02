@@ -97,6 +97,19 @@ final class CpuScalarImmediateClampMatrixOracle {
         return List.copyOf(result);
     }
 
+    /** Proves a formerly positive low numerical fixture is currently unsupported. */
+    static boolean unsupported(Fixture fixture) {
+        return io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                .assertLowUnsupported(context(fixture));
+    }
+
+    /** Retains the complete form domain in the current inventory as explicit negative records. */
+    static boolean unsupported(Form form) {
+        return CpuGeneratedCoverageEvidenceRegistry.lowUnsupported("scalar-immediate:" + form.id(),
+                contextFor(form.fixture(), form.inputShape(), form.inputLayout(),
+                        form.outputShape(), form.outputLayout(), form.materializationPolicy()));
+    }
+
     static Artifact artifact(Fixture fixture) {
         var context = context(fixture);
         var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst().portablePlan();
@@ -290,9 +303,7 @@ final class CpuScalarImmediateClampMatrixOracle {
                 ? segment(inputArray) : inputArray;
         Object output = fixture.carriers().getLast() == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT
                 ? segment(outputArray) : outputArray;
-        MethodHandle handle = new CpuClassFileKernelGenerator().defineClassBytes(
-                new CpuPartitionPreparer().analyze(context(fixture)).plan().units().getFirst().portablePlan()
-                        .specialization(), artifact.bytes()).entryPoint();
+        MethodHandle handle = new CpuClassFileKernelGenerator().defineClassBytes(new CpuPartitionPreparer().analyze(context(fixture)).plan().units().getFirst().portablePlan().specialization(), new CpuPartitionPreparer().analyze(context(fixture)).plan().units().getFirst().portablePlan().kernelIr(), artifact.bytes()).entryPoint();
         handle.invokeWithArguments(input, output, geometry(start), start, end);
         return outputArray;
     }
@@ -311,7 +322,7 @@ final class CpuScalarImmediateClampMatrixOracle {
         Object output = form.fixture().carriers().getLast()
                 == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT
                 ? segment(outputArray) : outputArray;
-        new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(), artifact.bytes())
+        new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(), route.kernelIr(), artifact.bytes())
                 .entryPoint().invokeWithArguments(input, output, geometryFor(context), 0L,
                         form.outputShape().knownElementCount().orElseThrow());
         return outputArray;

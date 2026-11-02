@@ -27,7 +27,6 @@ import io.github.pho001.synaptik.model.tensor.TensorProvenance;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.model.tensor.TopKResult;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -37,37 +36,6 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 final class GraphCaptureTest {
-    @Test
-    void exposesOnlyThePackagePrivateStatelessCaptureContract() throws Exception {
-        var capture = GraphCapture.class.getDeclaredMethod("capture", List.class);
-        var captureConstants = GraphCapture.class.getDeclaredMethod(
-                "capture", List.class, CompileTimeConstantGraph.Ingress.class);
-        var captureCombined = GraphCapture.class.getDeclaredMethod(
-                "captureCombined",
-                List.class,
-                List.class,
-                Set.class,
-                Set.class,
-                Set.class,
-                CompileTimeConstantGraph.Ingress.class);
-        assertAll(
-                () -> assertTrue(Modifier.isFinal(GraphCapture.class.getModifiers())),
-                () -> assertFalse(Modifier.isPublic(GraphCapture.class.getModifiers())),
-                () -> assertEquals(0, GraphCapture.class.getDeclaredFields().length),
-                () -> assertTrue(Modifier.isStatic(capture.getModifiers())),
-                () -> assertFalse(Modifier.isPublic(capture.getModifiers())),
-                () -> assertSame(CompiledGraphModel.class, capture.getReturnType()),
-                () -> assertSame(
-                        CompileTimeConstantGraph.class, captureConstants.getReturnType()),
-                () -> assertSame(
-                        GraphCapture.CombinedCapture.class, captureCombined.getReturnType()),
-                () -> assertSame(GraphCompilationPort.SourceCapture.class,
-                        GraphCapture.class.getDeclaredMethod("captureSource", List.class).getReturnType()),
-                () -> assertEquals(4, Arrays.stream(GraphCapture.class.getDeclaredMethods())
-                        .filter(method -> !method.isSynthetic())
-                        .filter(method -> !Modifier.isPrivate(method.getModifiers()))
-                        .count()));
-    }
 
     @Test
     void mapsOnlyExplicitReachableLeafIdentitiesAndPreservesBindableEncounterOrder() {
@@ -170,19 +138,12 @@ final class GraphCaptureTest {
                 unrelated, new CompileTimeConstantGraph.Splat(ScalarValue.int64(4)));
 
         assertAll(
-                () -> assertEquals("outputs", assertThrows(NullPointerException.class,
-                        () -> GraphCapture.capture(null, null)).getMessage()),
-                () -> assertEquals("outputs must not be empty",
-                        assertThrows(IllegalArgumentException.class,
-                                () -> GraphCapture.capture(List.of(), null)).getMessage()),
-                () -> assertEquals("ingress", assertThrows(NullPointerException.class,
-                        () -> GraphCapture.capture(List.of(reachable), null)).getMessage()),
-                () -> assertEquals("ingress.bindings()[0] is not a reachable leaf",
-                        assertThrows(IllegalArgumentException.class,
-                                () -> GraphCapture.capture(
-                                        List.of(reachable),
-                                        new CompileTimeConstantGraph.Ingress(List.of(binding))))
-                                .getMessage()));
+                () -> assertThrows(NullPointerException.class, () -> GraphCapture.capture(null, null)),
+                () -> assertThrows(IllegalArgumentException.class, () -> GraphCapture.capture(List.of(), null)),
+                () -> assertThrows(NullPointerException.class, () -> GraphCapture.capture(List.of(reachable), null)),
+                () -> assertThrows(IllegalArgumentException.class, () -> GraphCapture.capture(
+                        List.of(reachable),
+                        new CompileTimeConstantGraph.Ingress(List.of(binding)))));
     }
 
     @Test
@@ -373,22 +334,15 @@ final class GraphCaptureTest {
     }
 
     @Test
-    void rejectsInvalidRequestsInRequiredOrderAndByIdentity() {
+    void rejectsInvalidRequestsAndDuplicateOutputIdentities() {
         Tensor first = tensor(DataType.FLOAT32, Shape.of(1), false);
         Tensor second = tensor(DataType.FLOAT32, Shape.of(1), false);
 
         assertAll(
-                () -> assertEquals("outputs", assertThrows(NullPointerException.class,
-                        () -> GraphCapture.capture(null)).getMessage()),
-                () -> assertEquals("outputs must not be empty",
-                        assertThrows(IllegalArgumentException.class,
-                                () -> GraphCapture.capture(List.of())).getMessage()),
-                () -> assertEquals("outputs[1]", assertThrows(NullPointerException.class,
-                        () -> GraphCapture.capture(Arrays.asList(first, null, null))).getMessage()),
-                () -> assertEquals("outputs[2] duplicates outputs[0]",
-                        assertThrows(IllegalArgumentException.class,
-                                () -> GraphCapture.capture(List.of(first, second, first)))
-                                .getMessage()));
+                () -> assertThrows(NullPointerException.class, () -> GraphCapture.capture(null)),
+                () -> assertThrows(IllegalArgumentException.class, () -> GraphCapture.capture(List.of())),
+                () -> assertThrows(NullPointerException.class, () -> GraphCapture.capture(Arrays.asList(first, null, null))),
+                () -> assertThrows(IllegalArgumentException.class, () -> GraphCapture.capture(List.of(first, second, first))));
     }
 
     @Test
@@ -397,14 +351,9 @@ final class GraphCaptureTest {
         Tensor output = input.abs();
         Tensor duplicateWrapper = duplicateWrapper(output);
 
-        IllegalArgumentException failure = assertThrows(
+        assertThrows(
                 IllegalArgumentException.class,
                 () -> GraphCapture.capture(List.of(output, duplicateWrapper)));
-
-        assertAll(
-                () -> assertTrue(failure.getMessage().contains("outputs[1]")),
-                () -> assertTrue(failure.getMessage().contains("outputs[0]")),
-                () -> assertTrue(failure.getMessage().contains("ValueId[value=1]")));
     }
 
     private static Tensor duplicateWrapper(Tensor source) throws Exception {

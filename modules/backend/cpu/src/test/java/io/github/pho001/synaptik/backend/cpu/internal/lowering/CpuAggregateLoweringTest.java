@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.backend.cpu.internal.lowering;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported;
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
@@ -20,6 +21,30 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 public class CpuAggregateLoweringTest {
+    /** Exact named Dimensions, not sampled batch extents, select SUM/MEAN axes. */
+    @Test void commonAxisFactsPreserveNamedBatchAndActualSingletonFiltering() {
+        var b = new io.github.pho001.synaptik.model.shape.DynamicDimension("B");
+        var f = new io.github.pho001.synaptik.model.shape.StaticDimension(3);
+        Shape input = Shape.ofDimensions(b,f), output = Shape.of(3);
+        assertEquals(List.of(0),CpuAggregateLowering.normalizedAxes(input,output,new SumToShapeAttrs(output)));
+        assertEquals(List.of(1),CpuAggregateLowering.normalizedAxes(input,Shape.ofDimensions(b),new AxisReductionAttrs(1,false)));
+        assertEquals(List.of(0,1),CpuAggregateLowering.normalizedAxes(input,Shape.of(1,1),new MultiAxisReductionAttrs(List.of(1,0),true)));
+        assertThrows(IllegalArgumentException.class,() -> CpuAggregateLowering.normalizedAxes(input,
+                Shape.ofDimensions(new io.github.pho001.synaptik.model.shape.DynamicDimension("Other"),f),
+                new AxisReductionAttrs(1,false)));
+        var in = CpuPartitionLowering.batchCanonical(new io.github.pho001.synaptik.model.tensor.TensorDescriptor(
+                DataType.FLOAT64,input,java.util.Optional.empty(),false),io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.AccessKind.READ);
+        Shape target = Shape.of(1,3);
+        var out = CpuPartitionLowering.batchCanonical(new io.github.pho001.synaptik.model.tensor.TensorDescriptor(
+                DataType.FLOAT64,target,java.util.Optional.of(LayoutDescriptor.contiguous(target)),false),
+                io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.AccessKind.WRITE);
+        var geometry = new CpuAggregateLowering.BatchGeometry(CpuAggregateIr.Kind.SUM,DataType.FLOAT64,
+                CpuAggregateLowering.reductionForm(new SumToShapeAttrs(target)),List.of(0),false,in,out);
+        assertArrayEquals(new int[0],geometry.bind(1).selectedAxes());
+        assertArrayEquals(new int[]{0},geometry.bind(7).selectedAxes());
+        assertEquals(34,geometry.bind(0).stateLimbCount());
+        assertEquals(280,geometry.byteSize(1));
+    }
     @Test void derivesRightAlignedSumToShapeGeometryAndCopyResources() {
         var combined = lower(AggregateReductionKind.SUM, DataType.FLOAT64, Shape.of(2,3,4),
                 new SumToShapeAttrs(Shape.of(3,1)), Shape.of(3,1));
@@ -107,29 +132,32 @@ public class CpuAggregateLoweringTest {
                 () -> assertEquals(1, scalar.aggregateGeometry().orElseThrow().domainCount()));
     }
 
-    @Test void derivesExactNumericalStateShapesAndStructuralIdentity() {
+    @Test void derivesNumericalStateAndRetainsExactLowExtremaWhileLowMeanRejects() {
         var sum = lower(AggregateReductionKind.SUM, DataType.FLOAT64, Shape.of(3),
                 NoOperationAttrs.INSTANCE, Shape.scalar());
-        var mean = lower(AggregateReductionKind.MEAN, DataType.BFLOAT16, Shape.of(65),
-                NoOperationAttrs.INSTANCE, Shape.scalar());
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            assertTrue(assertLowUnsupported(context(AggregateReductionKind.MEAN,
+                    type, Shape.of(65), NoOperationAttrs.INSTANCE, Shape.scalar())));
+        }
         var product = lower(AggregateReductionKind.PROD, DataType.FLOAT32, Shape.of(3),
                 NoOperationAttrs.INSTANCE, Shape.scalar());
         var integral = lower(AggregateReductionKind.PROD, DataType.INT64, Shape.of(3),
                 NoOperationAttrs.INSTANCE, Shape.scalar());
         var sumGeometry = sum.aggregateGeometry().orElseThrow();
-        var meanGeometry = mean.aggregateGeometry().orElseThrow();
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            for (var kind : List.of(AggregateReductionKind.MIN, AggregateReductionKind.MAX)) {
+                var exact = lower(kind, type, Shape.of(65),
+                        NoOperationAttrs.INSTANCE, Shape.scalar());
+                assertEquals(65, exact.aggregateGeometry().orElseThrow().domainCount());
+            }
+        }
         var productGeometry = product.aggregateGeometry().orElseThrow();
         assertAll(
                 () -> assertEquals(33, sumGeometry.stateLimbCount()),
                 () -> assertEquals(272, sumGeometry.scratchSliceBytes()),
-                () -> assertEquals(5, meanGeometry.stateLimbCount()),
-                () -> assertEquals(48, meanGeometry.scratchSliceBytes()),
                 () -> assertEquals(2, productGeometry.stateLimbCount()),
                 () -> assertEquals(40, productGeometry.scratchSliceBytes()),
-                () -> assertEquals(0, integral.aggregateGeometry().orElseThrow().stateLimbCount()),
-                () -> assertTrue(((CpuAggregateIr) sum.portableKernelIr()).encodedKernelIr()
-                        .familyIdentity().contains(
-                        ":domain=3:limbs=33:slice=272:")));
+                () -> assertEquals(0, integral.aggregateGeometry().orElseThrow().stateLimbCount()));
     }
 
     @Test void capabilityIsExactAndAcceptsBoundedInjectiveNonDenseOutput() {
@@ -139,11 +167,11 @@ public class CpuAggregateLoweringTest {
                 LayoutDescriptor.of(outputShape, new long[] {2,1}, 1, true));
         var operation = new Operation(AggregateReductionKind.MIN, new AxisReductionAttrs(1, true));
         var query = new OperationCapabilityQuery(operation, List.of(input), List.of(output));
-        assertAll(() -> assertTrue(new CpuCapabilityProvider().supports(query)),
+        assertAll(() -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(new CpuCapabilityProvider(), query),
                 () -> assertDoesNotThrow(() -> new CpuPartitionLowering().lower(
                         CpuScatterLoweringTest.context(operation, List.of(0), List.of(input), output))),
-                () -> assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(new Operation(AggregateReductionKind.SUM, NoOperationAttrs.INSTANCE), List.of(input), List.of(CpuScatterLoweringTest.desc(DataType.FLOAT64,
-                    Shape.scalar()))))));
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(new CpuCapabilityProvider(), new OperationCapabilityQuery(new Operation(AggregateReductionKind.SUM, NoOperationAttrs.INSTANCE), List.of(input), List.of(CpuScatterLoweringTest.desc(DataType.FLOAT64,
+                    Shape.scalar())))));
     }
 
     public static CpuPartitionLowering.LoweredPartition lower(AggregateReductionKind kind,

@@ -308,6 +308,12 @@ class CpuRandomGeneratedKernelTest {
                 for (int segmentRole = 0; segmentRole < 5; segmentRole++) {
                     List<CarrierAccess> selected = new ArrayList<>(heap);
                     selected.set(segmentRole, CarrierAccess.MEMORY_SEGMENT);
+                    if (type == DataType.BFLOAT16) {
+                        var base = CpuRandomLoweringTest.dropoutContext(type, Shape.of(), 0.0d);
+                        assertUnsupportedRange(base, selected, 0, 0);
+                        assertUnsupportedRange(base, selected, 0, 1);
+                        continue;
+                    }
                     Object input = valueArray(type, 1);
                     Object state = new long[]{9, -1};
                     Object output = valueArray(type, 1);
@@ -358,40 +364,16 @@ class CpuRandomGeneratedKernelTest {
         assertArrayEquals(emptyState, emptyNext);
     }
 
-    @Test void bfloat16ZeroProbabilityPreservesSignedZeroCanonicalizesNaNAndReplaysOddTail()
-            throws Throwable {
-        var invocation = generated(CpuRandomLoweringTest.dropoutContext(DataType.BFLOAT16,
-                Shape.of(7), -0.0d), carriers(DataType.BFLOAT16));
-        short[] input = {(short) 0x8000, (short) 0x7fa1, (short) 0x3f80,
-                (short) 0xbf80, (short) 0x7f80, (short) 0xff80, (short) 0x0001};
-        long[] state = {0x1234, 7};
-        short[] first = new short[7], replay = new short[7];
-        byte[] firstMask = new byte[7], replayMask = new byte[7];
-        long[] firstNext = new long[2], replayNext = new long[2];
-        invocation.handle.invokeWithArguments(input, state, first, firstMask, firstNext,
-                invocation.geometry, 0L, 0L);
-        invocation.handle.invokeWithArguments(input, state, first, firstMask, firstNext,
-                invocation.geometry, 0L, 3L);
-        invocation.handle.invokeWithArguments(input, state, first, firstMask, firstNext,
-                invocation.geometry, 3L, 7L);
-        invocation.handle.invokeWithArguments(input, state, replay, replayMask, replayNext,
-                invocation.geometry, 0L, 0L);
-        invocation.handle.invokeWithArguments(input, state, replay, replayMask, replayNext,
-                invocation.geometry, 0L, 3L);
-        invocation.handle.invokeWithArguments(input, state, replay, replayMask, replayNext,
-                invocation.geometry, 3L, 7L);
-        short[] expected = input.clone();
-        expected[1] = (short) 0x7fc0;
-        assertAll(() -> assertArrayEquals(expected, first),
-                () -> assertArrayEquals(first, replay),
-                () -> assertArrayEquals(new byte[]{1, 1, 1, 1, 1, 1, 1}, firstMask),
-                () -> assertArrayEquals(firstMask, replayMask),
-                () -> assertArrayEquals(new long[]{state[0], state[1] + 7}, firstNext),
-                () -> assertArrayEquals(firstNext, replayNext));
+    @Test void bfloat16ZeroProbabilityRejectsEveryOddTailReplayRange() {
+        var base = CpuRandomLoweringTest.dropoutContext(DataType.BFLOAT16, Shape.of(7), -0.0d);
+        for (int replay = 0; replay < 2; replay++) {
+            assertUnsupportedRange(base, carriers(DataType.BFLOAT16), 0, 0);
+            assertUnsupportedRange(base, carriers(DataType.BFLOAT16), 0, 3);
+            assertUnsupportedRange(base, carriers(DataType.BFLOAT16), 3, 7);
+        }
     }
 
-    @Test void bfloat16GeneralBroadcastAndStridedWritesMatchLogicalDrawsAcrossRanges()
-            throws Throwable {
+    @Test void bfloat16GeneralBroadcastAndStridedWritesRejectEveryReplayRange() {
         Shape shape = Shape.of(2, 2);
         Shape stateShape = Shape.of(2);
         var context = CpuRandomLoweringTest.dropoutContext(DataType.BFLOAT16, shape, .5d,
@@ -400,46 +382,11 @@ class CpuRandomGeneratedKernelTest {
                         LayoutDescriptor.of(shape, new long[]{7, 2}, 1, true),
                         LayoutDescriptor.of(shape, new long[]{8, 3}, 2, true),
                         LayoutDescriptor.of(stateShape, new long[]{3}, 2, true)));
-        var invocation = generated(context, carriers(DataType.BFLOAT16));
-        short[] input = {(short) 0x55aa, (short) 0x3fc0, (short) 0x55aa, (short) 0xc010};
-        long[] state = {-1, 0x1234, -1, 7};
-        short[] first = new short[11], replay = new short[11];
-        byte[] firstMask = new byte[14], replayMask = new byte[14];
-        long[] firstNext = new long[6], replayNext = new long[6];
-        Arrays.fill(first, (short) 0x55aa);
-        Arrays.fill(replay, (short) 0x55aa);
-        Arrays.fill(firstMask, (byte) -1);
-        Arrays.fill(replayMask, (byte) -1);
-        Arrays.fill(firstNext, -1);
-        Arrays.fill(replayNext, -1);
-        for (Object[] outputs : List.of(new Object[]{first, firstMask, firstNext},
-                new Object[]{replay, replayMask, replayNext})) {
-            invocation.handle.invokeWithArguments(input, state, outputs[0], outputs[1], outputs[2],
-                    invocation.geometry, 0L, 0L);
-            invocation.handle.invokeWithArguments(input, state, outputs[0], outputs[1], outputs[2],
-                    invocation.geometry, 2L, 4L);
-            invocation.handle.invokeWithArguments(input, state, outputs[0], outputs[1], outputs[2],
-                    invocation.geometry, 0L, 2L);
+        for (int replay = 0; replay < 2; replay++) {
+            assertUnsupportedRange(context, carriers(DataType.BFLOAT16), 0, 0);
+            assertUnsupportedRange(context, carriers(DataType.BFLOAT16), 2, 4);
+            assertUnsupportedRange(context, carriers(DataType.BFLOAT16), 0, 2);
         }
-        int[] inputAddresses = {1, 3, 1, 3};
-        int[] outputAddresses = {1, 3, 8, 10};
-        int[] maskAddresses = {2, 5, 10, 13};
-        for (int logical = 0; logical < 4; logical++) {
-            boolean keep = oracleUniform(oracleWord(0x1234, 7, logical)) >= .5d;
-            assertEquals(keep ? (byte) 1 : (byte) 0, firstMask[maskAddresses[logical]]);
-            double value = CastValueConversions.convert(
-                    ScalarValue.bfloat16Bits(input[inputAddresses[logical]]),
-                    DataType.FLOAT64).float64Value();
-            assertEquals(keep ? expectedBfloat(value / .5d) : (short) 0,
-                    first[outputAddresses[logical]]);
-        }
-        assertAll(() -> assertArrayEquals(first, replay),
-                () -> assertArrayEquals(firstMask, replayMask),
-                () -> assertArrayEquals(firstNext, replayNext),
-                () -> assertEquals(0x1234, firstNext[2]),
-                () -> assertEquals(11, firstNext[5]),
-                () -> assertEquals((short) 0x55aa, first[0]),
-                () -> assertEquals((byte) -1, firstMask[0]));
     }
 
     @Test void preparedBfloat16DropoutBindsAndExecutesTheGeneratedArtifact() {
@@ -448,6 +395,7 @@ class CpuRandomGeneratedKernelTest {
         var context = new PrepareContext<>(
                 base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
                 base.constants(), new CpuPartitionAnalysisInputs(false, selected));
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var analysis = new CpuPartitionPreparer().analyze(context);
         var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
         short[] input = {(short) 0x8000, (short) 0x7fa1, (short) 0x3f80};
@@ -595,6 +543,7 @@ class CpuRandomGeneratedKernelTest {
     private static void assertDirectShape(PrepareContext<CpuPartitionAnalysisInputs> base,
             List<CarrierAccess> carriers, DataType valueType, boolean dense) {
         var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
                 .portablePlan();
         byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(
@@ -728,14 +677,28 @@ class CpuRandomGeneratedKernelTest {
         }
     }
 
+    /**
+     * Proves admission rejection separately for each original logical invocation range.
+     * @param base original numerical fixture including its logical layouts
+     * @param carriers exact represented carrier for every boundary role
+     * @param start inclusive original invocation start
+     * @param end exclusive original invocation end
+     */
+    private static void assertUnsupportedRange(PrepareContext<CpuPartitionAnalysisInputs> base,
+            List<CarrierAccess> carriers, long start, long end) {
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
+        assertTrue(io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                .assertLowUnsupported(context), "dropout range [" + start + "," + end + ")");
+    }
+
     private static Generated generated(PrepareContext<CpuPartitionAnalysisInputs> base,
             List<CarrierAccess> carriers) {
         var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         return new Generated(artifact.entryPoint(), plan.randomGeometry().orElseThrow()
                 .pack(new long[carriers.size()]));
     }

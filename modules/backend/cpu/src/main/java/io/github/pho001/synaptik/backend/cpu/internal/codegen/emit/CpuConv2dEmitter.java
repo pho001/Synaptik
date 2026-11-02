@@ -24,6 +24,10 @@ import java.lang.constant.ConstantDescs;
  * Preferred-species chunks cover complete in-bounds output-width cells, while padding borders,
  * worker-range fragments, and tails use the same ordered scalar-cell semantics. Every other form,
  * including BFLOAT16, FLOAT16, short or interior-free widths, and non-dense access, remains scalar.</p>
+ *
+ * <p>Controlled scalar entries use the proved output-boundary ROW provenance and full logical
+ * output ordinal before any operand load. Inactive cells publish positive zero without evaluating
+ * bias, convolution contributions, or epilogues; physical strides never determine activity.</p>
  */
 public final class CpuConv2dEmitter {
     private static final ClassDesc MATH = ClassDesc.of(Math.class.getName());
@@ -124,6 +128,11 @@ public final class CpuConv2dEmitter {
         int weightValue = code.allocateLocal(accumulationKind);
         int accumulator = code.allocateLocal(accumulationKind);
         int externalValue = add ? code.allocateLocal(accumulationKind) : -1;
+        boolean rowControlled = CpuCarrierEmitter.controlFacts()
+                .map(control -> control.boundaryRows().get(outputBoundary).axis() >= 0)
+                .orElse(false);
+        var inactive = code.newLabel();
+        var publish = code.newLabel();
 
         code.lload(start).lstore(cell);
         var cells = code.newLabel();
@@ -134,6 +143,7 @@ public final class CpuConv2dEmitter {
         decodeCoordinate(code, geometry, outputExtents + 2, remaining, oh);
         decodeCoordinate(code, geometry, outputExtents + 1, remaining, oc);
         code.lload(remaining).lstore(n);
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, outputBoundary, cell, TypeKind.LONG, inactive);
         code.lload(oc);
         CpuNormEmitter.geometry(code, geometry, outputExtents + 1)
                 .loadConstant(groups).ldiv().ldiv().lstore(group);
@@ -218,6 +228,12 @@ public final class CpuConv2dEmitter {
                             .fstore(accumulator);
                 }
             }
+        }
+        if (rowControlled) {
+            code.branch(Opcode.GOTO, publish).labelBinding(inactive);
+            if (binary64) code.loadConstant(+0.0d).dstore(accumulator);
+            else code.loadConstant(+0.0f).fstore(accumulator);
+            code.labelBinding(publish);
         }
 
         address(code, geometry, outputBoundary, outputStrides, n, oc, oh, ow, outputAddress);

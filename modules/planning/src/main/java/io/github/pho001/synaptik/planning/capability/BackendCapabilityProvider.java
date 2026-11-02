@@ -37,6 +37,15 @@ public interface BackendCapabilityProvider {
      * runtime state, or promise successful preparation or execution. Current compiler
      * orchestration uses this answer only as one input to backend-neutral ownership selection.</p>
      *
+     * <p>For a general scan, true qualifies the complete header, every scoped body occurrence and
+     * descriptor, ordered formal/result bindings, residual requirements, demanded outer ports,
+     * and generated topology together with the loop binder. Supported children alone never prove
+     * scan support. Unknown, missing, malformed or unsupported occurrences or binders return false,
+     * even with zero steps or empty demand. This is a whole-occurrence ownership answer, not
+     * permission to partition a body among owners. The query transports these facts; it performs
+     * no descriptor inference, demand analysis or automatic differentiation. This interface
+     * contract does not itself implement general-scan support in any concrete backend.</p>
+     *
      * @param query the non-null immutable operation occurrence to inspect
      * @return {@code true} only when this provider's backend supports semantic ownership of the
      *     described occurrence; {@code false} carries no diagnostic reason

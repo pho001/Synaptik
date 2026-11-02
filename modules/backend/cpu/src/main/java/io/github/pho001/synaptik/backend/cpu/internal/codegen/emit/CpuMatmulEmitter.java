@@ -12,10 +12,22 @@ import java.lang.constant.ClassDesc;
 import java.lang.constant.MethodTypeDesc;
 import java.lang.constant.ConstantDescs;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 /**
  * Emits allocation-free full-K direct-scalar, direct-N-vector, scalar-2x2, and
- * vector-2x2 portable MATMUL bodies.
+ * vector-2x2 portable MATMUL bodies. Common bound scalar contractions own increasing full-K
+ * control and represented math, independently of entry or temporal binding. Generation-only
+ * loaders/activity callbacks inline bytecode; they never become runtime calls or allocate per
+ * step. Binding owners retain accumulator-zero/address initialization, output gates and stores.
+ * Controlled scalar bindings gate original ROW outputs before any eager operand load and
+ * gate ROW-contracting contributors before both operand loaders. Only authenticated boundary
+ * axes identify K as the original row; inactive contributors retain unconditional cursor
+ * advancement and never enter represented arithmetic.
+ * Floating vector TANH is applied after the full-K sum and optional ordered bias ADD, before
+ * the sole output store, using the same typed mathematics as pointwise vectors. Scalar N tails
+ * retain the scalar epilogue; no terminal is applied inside the contraction loop.
  * Realizations without an exact emitted loop shape fail before class generation; this type never
  * relabels the scalar fallback as a tiled or vector-tiled artifact.
  */
@@ -23,6 +35,233 @@ public final class CpuMatmulEmitter {
     private static final ClassDesc FLOAT = ClassDesc.of(Float.class.getName());
     /** Creates a stateless MATMUL emitter. */
     public CpuMatmulEmitter() { }
+
+    /**
+     * Initializes a represented scalar accumulator without selecting contributor traversal.
+     * @param code nonnull generation builder
+     * @param dataType represented accumulator dtype accepted by the ordinary math owner
+     * @param accumulator allocated typed accumulator slot
+     */
+    static void emitInit(CodeBuilder code, DataType dataType, int accumulator) {
+        zero(code,dataType,accumulator);
+    }
+
+    /**
+     * Emits the existing ordered multiply then add producing sites, never an FMA.
+     * Both loaders must be enclosed by the caller's contributor activity gate.
+     * @param code nonnull generation builder
+     * @param dataType represented working dtype
+     * @param accumulator initialized typed accumulator slot, updated here
+     * @param left generation action leaving the ordered left typed operand on stack
+     * @param right generation action leaving the ordered right typed operand on stack
+     * @throws IllegalArgumentException if the dtype is not supported by this scalar seam
+     */
+    static void emitContributorStep(CodeBuilder code, DataType dataType, int accumulator,
+            Runnable left, Runnable right) {
+        var kind = switch (dataType) {
+            case FLOAT64 -> TypeKind.DOUBLE;
+            case FLOAT32, BFLOAT16, FLOAT16 -> TypeKind.FLOAT;
+            case INT32 -> TypeKind.INT;
+            case INT64 -> TypeKind.LONG;
+            case BOOL -> throw new IllegalArgumentException("BOOL contraction");
+        };
+        code.loadLocal(kind,accumulator); left.run(); right.run();
+        switch (kind) {
+            case DOUBLE -> code.dmul().dadd();
+            case FLOAT -> code.fmul().fadd();
+            case INT -> code.imul().iadd();
+            case LONG -> code.lmul().ladd();
+            default -> throw new AssertionError(kind);
+        }
+        code.storeLocal(kind,accumulator);
+    }
+
+    /**
+     * Publishes only the completed accumulator; no extra arithmetic or rounding is introduced.
+     * @param code nonnull generation builder owning the accumulator
+     * @param dataType represented accumulator dtype
+     * @param accumulator initialized typed completed-result slot
+     * @param sink generation-only result consumer receiving that exact slot
+     */
+    static void emitFinish(CodeBuilder code, DataType dataType, int accumulator, IntConsumer sink) {
+        sink.accept(accumulator);
+    }
+
+    /**
+     * Initializes a feature-vector accumulator to typed positive zero, without reducing lanes.
+     * @param code builder owning the reference local
+     * @param type homogeneous FLOAT32 or FLOAT64 preferred-species dtype
+     * @param accumulator allocated reference local
+     * @throws IllegalArgumentException if the dtype is not a supported floating vector
+     */
+    static void emitVectorInit(CodeBuilder code, DataType type, int accumulator) {
+        if (type != DataType.FLOAT32 && type != DataType.FLOAT64)
+            throw new IllegalArgumentException("row vector requires FLOAT32 or FLOAT64");
+        ClassDesc vector = vectorClass(type), species = ClassDesc.of("jdk.incubator.vector.VectorSpecies");
+        code.getstatic(vector,"SPECIES_PREFERRED",species)
+                .invokestatic(vector,"zero",MethodTypeDesc.of(vector,species)).astore(accumulator);
+    }
+
+    /**
+     * Emits separate lane-wise MUL and ADD sites in contributor order, never FMA or horizontal
+     * reduction. The caller's activity gate must dominate both operand loaders.
+     * @param code builder owning the initialized reference local
+     * @param type homogeneous FLOAT32 or FLOAT64 lane type
+     * @param accumulator initialized matching preferred-species vector local, replaced here
+     * @param left generation-only loader leaving a matching left vector
+     * @param right generation-only loader leaving a matching right vector
+     * @throws IllegalArgumentException if the dtype is unsupported
+     */
+    static void emitVectorContributorStep(CodeBuilder code, DataType type, int accumulator,
+            Runnable left, Runnable right) {
+        if (type != DataType.FLOAT32 && type != DataType.FLOAT64)
+            throw new IllegalArgumentException("row vector requires FLOAT32 or FLOAT64");
+        ClassDesc vector = vectorClass(type), operand = ClassDesc.of("jdk.incubator.vector.Vector");
+        code.aload(accumulator); left.run(); right.run();
+        code.invokevirtual(vector,"mul",MethodTypeDesc.of(vector,operand))
+                .invokevirtual(vector,"add",MethodTypeDesc.of(vector,operand)).astore(accumulator);
+    }
+
+    /**
+     * Publishes a completed vector without extra arithmetic or a horizontal reduction.
+     * @param code builder owning the reference local
+     * @param type selected FLOAT32 or FLOAT64 lane type
+     * @param accumulator completed matching vector local
+     * @param sink generation-only consumer of that exact local
+     */
+    static void emitVectorFinish(CodeBuilder code, DataType type, int accumulator, IntConsumer sink) {
+        sink.accept(accumulator);
+    }
+
+    /**
+     * Emits the common cursor contraction over already bound operands and an initialized sum.
+     * An active-contributor wrapper must gate both loaders and dependent math; cursor advances
+     * remain unconditional so inactive contributors do not compact or reorder K. All callback
+     * invocations occur during generation only. The zero-trip edge preserves the caller's
+     * represented positive zero and no operand local escapes that edge.
+     * @param code non-null entry builder; sole owner of JVM-local allocation
+     * @param type exact represented accumulator type
+     * @param kKind INT or LONG proved K induction kind, independent of address width
+     * @param k allocated induction local, initialized here
+     * @param sum initialized typed accumulator local
+     * @param leftValue allocated typed left working-value local
+     * @param rightValue allocated typed right working-value local
+     * @param loadKBound emits a bound of kKind on the stack without runtime binding work
+     * @param loadLeft fills leftValue from the selected carrier/address
+     * @param loadRight fills rightValue from the selected carrier/address
+     * @param advanceOperands emits unconditional cursor advances, or no code for indexed bases
+     * @param activeContributor emits the supplied math only within the proved contributor gate;
+     *     uncontrolled callers use Runnable::run
+     * @throws IllegalArgumentException if kKind is not INT or LONG
+     */
+    static void emitCursorContraction(CodeBuilder code, DataType type, TypeKind kKind,
+            int k, int sum, int leftValue, int rightValue, Runnable loadKBound,
+            Runnable loadLeft, Runnable loadRight, Runnable advanceOperands,
+            Consumer<Runnable> activeContributor) {
+        boolean ints = contractionKind(kKind);
+        zeroIndex(code,k,ints);
+        var loop = code.newLabel(); var done = code.newLabel();
+        code.labelBinding(loop).loadLocal(kKind,k); loadKBound.run();
+        if (ints) code.branch(Opcode.IF_ICMPGE,done);
+        else code.lcmp().branch(Opcode.IFGE,done);
+        activeContributor.accept(() -> {
+            loadLeft.run(); loadRight.run();
+            accumulate(code,type,sum,leftValue,rightValue);
+        });
+        advanceOperands.run(); incrementIndex(code,k,ints);
+        code.branch(Opcode.GOTO,loop).labelBinding(done);
+    }
+
+    /**
+     * Emits direct indexed scalar K control/math with operands left on the stack by bound
+     * loaders. The contributor gate precedes both addresses/loads and multiplication; there
+     * are no operand cursors, operand-value copies or hidden helper calls in emitted code.
+     * @param code non-null method builder
+     * @param type admitted FLOAT32 or FLOAT64 represented type
+     * @param k allocated proved INT induction local
+     * @param sum initialized typed accumulator local, including empty-K positive zero
+     * @param loadKBound emits the checked INT contraction bound
+     * @param loadLeftAtK emits the selected left value for the supplied original K local
+     * @param loadRightAtK emits the selected right value for the supplied original K local
+     * @param activeContributor generation-only activity wrapper, or Runnable::run if unguarded
+     */
+    static void emitIndexedContraction(CodeBuilder code, DataType type, int k, int sum,
+            Runnable loadKBound, IntConsumer loadLeftAtK, IntConsumer loadRightAtK,
+            Consumer<Runnable> activeContributor) {
+        var kind = type == DataType.FLOAT64 ? TypeKind.DOUBLE : TypeKind.FLOAT;
+        var loop = code.newLabel(); var done = code.newLabel();
+        code.loadConstant(0).istore(k).labelBinding(loop).iload(k);
+        loadKBound.run(); code.branch(Opcode.IF_ICMPGE,done);
+        activeContributor.accept(() -> {
+            emitContributorStep(code,type,sum,() -> loadLeftAtK.accept(k),() -> loadRightAtK.accept(k));
+        });
+        code.iinc(k,1).branch(Opcode.GOTO,loop).labelBinding(done);
+    }
+
+    /**
+     * Validates the independent contraction induction proof without inspecting runtime extents.
+     * @param kind non-null proposed integral induction kind
+     * @return true for INT and false for LONG
+     * @throws IllegalArgumentException if kind is neither admitted induction kind
+     */
+    private static boolean contractionKind(TypeKind kind) {
+        if (kind != TypeKind.INT && kind != TypeKind.LONG)
+            throw new IllegalArgumentException("MATMUL K must be INT or LONG");
+        return kind == TypeKind.INT;
+    }
+
+    /**
+     * Wraps represented scalar work only when an authenticated operand ROW axis contracts.
+     * The ordinary input plans use effective MATMUL operand coordinates; controlled lowering
+     * must retain that same coordinate domain in its boundary provenance. The K coordinate is
+     * an original row only for the left final axis or the right penultimate axis (axis zero
+     * for a vector), independently of extents, strides, or the other operand's shape.
+     * @param code current scalar method builder
+     * @param ir exact effective operand access ranks
+     * @param k original increasing contraction-coordinate local
+     * @param kind INT or LONG contraction-coordinate representation
+     * @return generation-only wrapper gating both operand loads and all contributor arithmetic,
+     *     or the unchanged direct invocation when no ROW axis contracts
+     */
+    private static Consumer<Runnable> activeContributor(CodeBuilder code, CpuMatmulIr ir,
+            int k, TypeKind kind) {
+        var control = CpuCarrierEmitter.controlFacts();
+        if (control.isEmpty()) return Runnable::run;
+        var rows = control.orElseThrow().boundaryRows();
+        int leftRank = ir.inputAccesses().get(0).iterationRank();
+        int rightRank = ir.inputAccesses().get(1).iterationRank();
+        boolean leftContracts = rows.get(0).axis() >= 0
+                && rows.get(0).axis() == leftRank - 1;
+        boolean rightContracts = rows.get(1).axis() >= 0
+                && rows.get(1).axis() == Math.max(0, rightRank - 2);
+        if (!leftContracts && !rightContracts) return Runnable::run;
+        return contributor -> {
+            var inactive = code.newLabel();
+            CpuCarrierEmitter.emitActiveRowGuard(code, k, kind, inactive);
+            contributor.run();
+            code.labelBinding(inactive);
+        };
+    }
+
+    /**
+     * Gates one rank-two ordinary-batch result cell using the proved output ROW axis.
+     * This gate precedes all eager loads, including SHARED operands and any output store.
+     * @param code current ordinary-batch method builder
+     * @param row original M coordinate in an INT local
+     * @param column original N coordinate in an INT local
+     * @param inactive target retaining normal column advancement
+     */
+    private static void emitBatchOutputGuard(CodeBuilder code, int row, int column,
+            java.lang.classfile.Label inactive) {
+        var control = CpuCarrierEmitter.controlFacts();
+        if (control.isEmpty()) return;
+        var output = control.orElseThrow().boundaryRows().get(2);
+        if (output.axis() < 0) return;
+        if (output.axis() > 1)
+            throw new IllegalArgumentException("ordinary batch MATMUL output ROW rank disagrees");
+        CpuCarrierEmitter.emitActiveRowGuard(code, output.axis() == 0 ? row : column,
+                TypeKind.INT, inactive);
+    }
 
     /**
      * Emits the selected realization over a half-open range of flattened work units. A scalar
@@ -34,12 +273,20 @@ public final class CpuMatmulEmitter {
      * @param specialization non-null exact carriers and selected compute identity
      * @param ir non-null canonical MATMUL identity
      * @throws NullPointerException if an argument is {@code null}
-     * @throws IllegalArgumentException if family, carrier, or boundary facts disagree
+     * @throws IllegalArgumentException if family, carrier, or boundary facts disagree, or a
+     *     controlled binding requests a realization other than direct scalar
      */
     public void emit(CodeBuilder code, CpuKernelSpecialization specialization, CpuMatmulIr ir) {
         int expectedCarriers = ir.epilogue().hasBias() ? 4 : 3;
         if (specialization.carrierPattern().size() != expectedCarriers)
             throw new IllegalArgumentException("MATMUL generated facts disagree");
+        if (CpuCarrierEmitter.controlFacts().isPresent()
+                && ir.realization() != CpuMatmulIr.Realization.DIRECT_SCALAR)
+            throw new IllegalArgumentException("controlled MATMUL requires direct scalar realization");
+        if (specialization.ordinaryBatch()) {
+            emitOrdinaryBatch(code, specialization, ir);
+            return;
+        }
         if (ir.realization() == CpuMatmulIr.Realization.DIRECT_N_VECTOR) {
             emitDirectVector(code, specialization, ir);
             return;
@@ -95,6 +342,9 @@ public final class CpuMatmulEmitter {
         code.lload(start).lstore(ordinal);
         var cells = code.newLabel(); var done = code.newLabel();
         code.labelBinding(cells).lload(ordinal).lload(end).lcmp().branch(Opcode.IFGE, done);
+        var nextCell = code.newLabel();
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, expectedCarriers - 1, ordinal,
+                TypeKind.LONG, nextCell);
         code.lload(ordinal).lstore(remaining);
         code.lload(remaining); geometry(code, geometry, 6).lrem().lstore(n);
         code.lload(remaining); geometry(code, geometry, 6).ldiv().lstore(remaining);
@@ -120,18 +370,14 @@ public final class CpuMatmulEmitter {
         code.lload(outputBase).lload(m); geometry(code, geometry, 11).lmul().ladd()
                 .lload(n); geometry(code, geometry, 12).lmul().ladd();
         storeIndex(code, outputAddress, intAddress);
-        zero(code, resultType, accumulator); zeroIndex(code,k,intAddress);
-        var contract = code.newLabel(); var contractDone = code.newLabel();
-        code.labelBinding(contract);branchIndexGreaterOrEqual(code,k,kExtent,intAddress,contractDone);
-        load(code, carriers, specialization, leftType, resultType, 0, leftAddress,
-                leftRepresented, leftValue, intAddress);
-        load(code, carriers, specialization, rightType, resultType, 1, rightAddress,
-                rightRepresented, rightValue, intAddress);
-        accumulate(code, resultType, accumulator, leftValue, rightValue);
-        addIndex(code, leftAddress, leftKStride, intAddress);
-        addIndex(code, rightAddress, rightKStride, intAddress);
-        incrementIndex(code,k,intAddress);code.branch(Opcode.GOTO, contract)
-                .labelBinding(contractDone);
+        zero(code, resultType, accumulator);
+        int boundLeftAddress = leftAddress, boundRightAddress = rightAddress;
+        emitCursorContraction(code,resultType,intAddress ? TypeKind.INT : TypeKind.LONG,
+                k,accumulator,leftValue,rightValue,() -> code.loadLocal(intAddress ? TypeKind.INT : TypeKind.LONG,kExtent),
+                () -> load(code,carriers,specialization,leftType,resultType,0,boundLeftAddress,leftRepresented,leftValue,intAddress),
+                () -> load(code,carriers,specialization,rightType,resultType,1,boundRightAddress,rightRepresented,rightValue,intAddress),
+                () -> { addIndex(code,boundLeftAddress,leftKStride,intAddress); addIndex(code,boundRightAddress,rightKStride,intAddress); },
+                activeContributor(code,ir,k,intAddress ? TypeKind.INT : TypeKind.LONG));
         applyScalarEpilogue(code,carriers,specialization,ir,geometry,n,accumulator,
                 biasBase,biasStride);
         int outputBoundary=specialization.carrierPattern().size()-1;
@@ -147,8 +393,103 @@ public final class CpuMatmulEmitter {
             carriers.storeFrozen(resultType,specialization.carrierPattern().get(outputBoundary),
                     outputBoundary,outputAddress,accumulator,intAddress);
         }
+        code.labelBinding(nextCell);
         code.lload(ordinal).loadConstant(1L).ladd().lstore(ordinal)
                 .branch(Opcode.GOTO, cells).labelBinding(done);
+    }
+
+    /**
+     * Emits rank-two row/column/full-K loops with fixed F/H and constant native-order layouts.
+     * Frozen carrier access avoids a per-invocation layout object obscuring FFM constant folding.
+     * The ordinary binder supplies the complete output domain: an entry guard selects its
+     * canonical loops without per-row boundary selection or range division. A separate
+     * subrange body preserves the generated entry's half-open flattened-cell ABI.
+     * @param code non-null current method builder, mutated by emission
+     * @param specialization non-null exact scalar FLOAT32 carrier specialization
+     * @param ir non-null matrix facts with prepared B-only coefficients
+     */
+    private static void emitOrdinaryBatch(CodeBuilder code, CpuKernelSpecialization specialization, CpuMatmulIr ir) {
+        var recipe = java.util.Objects.requireNonNull(ir.batchGeometry(), "batchGeometry");
+        int geometrySlot = 3, startSlot = 4, endSlot = 6;
+        int m = code.allocateLocal(TypeKind.INT), n = code.allocateLocal(TypeKind.INT), kExtent = code.allocateLocal(TypeKind.INT);
+        int aBase = code.allocateLocal(TypeKind.INT), bBase = code.allocateLocal(TypeKind.INT), cBase = code.allocateLocal(TypeKind.INT);
+        int am = code.allocateLocal(TypeKind.INT), ak = code.allocateLocal(TypeKind.INT);
+        int bk = code.allocateLocal(TypeKind.INT), bn = code.allocateLocal(TypeKind.INT);
+        int cm = code.allocateLocal(TypeKind.INT), cn = code.allocateLocal(TypeKind.INT);
+        batchFact(code, geometrySlot, 4, recipe.left().extentConstants().get(0), recipe.left().extentBatchFactors().get(0)).istore(m);
+        batchFact(code, geometrySlot, 6, recipe.right().extentConstants().get(1), recipe.right().extentBatchFactors().get(1)).istore(n);
+        batchFact(code, geometrySlot, 5, recipe.left().extentConstants().get(1), recipe.left().extentBatchFactors().get(1)).istore(kExtent);
+        geometry(code, geometrySlot, 0).l2i().istore(aBase); geometry(code, geometrySlot, 1).l2i().istore(bBase);
+        geometry(code, geometrySlot, 2).l2i().istore(cBase);
+        batchFact(code, geometrySlot, 7, recipe.left().strideConstants().get(0), recipe.left().strideBatchFactors().get(0)).istore(am);
+        batchFact(code, geometrySlot, 8, recipe.left().strideConstants().get(1), recipe.left().strideBatchFactors().get(1)).istore(ak);
+        batchFact(code, geometrySlot, 9, recipe.right().strideConstants().get(0), recipe.right().strideBatchFactors().get(0)).istore(bk);
+        batchFact(code, geometrySlot, 10, recipe.right().strideConstants().get(1), recipe.right().strideBatchFactors().get(1)).istore(bn);
+        batchFact(code, geometrySlot, 11, recipe.result().strideConstants().get(0), recipe.result().strideBatchFactors().get(0)).istore(cm);
+        batchFact(code, geometrySlot, 12, recipe.result().strideConstants().get(1), recipe.result().strideBatchFactors().get(1)).istore(cn);
+        var done = code.newLabel();
+        code.lload(startSlot).lload(endSlot).lcmp().branch(Opcode.IFGE, done);
+        int firstRow = code.allocateLocal(TypeKind.INT), lastRow = code.allocateLocal(TypeKind.INT);
+        int firstColumn = code.allocateLocal(TypeKind.INT), lastColumn = code.allocateLocal(TypeKind.INT);
+        int row = code.allocateLocal(TypeKind.INT), column = code.allocateLocal(TypeKind.INT), stop = code.allocateLocal(TypeKind.INT);
+        int leftRow = code.allocateLocal(TypeKind.INT), outputRow = code.allocateLocal(TypeKind.INT);
+        int leftAddress = code.allocateLocal(TypeKind.INT), rightAddress = code.allocateLocal(TypeKind.INT), outputAddress = code.allocateLocal(TypeKind.INT);
+        int k = code.allocateLocal(TypeKind.INT), accumulator = code.allocateLocal(TypeKind.FLOAT);
+        int leftValue = code.allocateLocal(TypeKind.FLOAT), rightValue = code.allocateLocal(TypeKind.FLOAT);
+        var subrange = code.newLabel();
+        code.lload(startSlot).loadConstant(0L).lcmp().branch(Opcode.IFNE, subrange);
+        code.lload(endSlot).iload(m).i2l().iload(n).i2l().lmul().lcmp().branch(Opcode.IFNE, subrange);
+        // Emit two bodies, not a run-time mode branch inside the canonical row/column/K loops.
+        for (boolean fullRange : new boolean[] {true, false}) {
+            if (fullRange) {
+                code.loadConstant(0).istore(row);
+            } else {
+                code.labelBinding(subrange);
+                code.lload(startSlot).l2i().iload(n).idiv().istore(firstRow);
+                code.lload(startSlot).l2i().iload(n).irem().istore(firstColumn);
+                code.lload(endSlot).loadConstant(1L).lsub().l2i().iload(n).idiv().istore(lastRow);
+                code.lload(endSlot).loadConstant(1L).lsub().l2i().iload(n).irem().loadConstant(1).iadd().istore(lastColumn);
+                code.iload(firstRow).istore(row);
+            }
+            var rows = code.newLabel(); var columns = code.newLabel(); var nextRow = code.newLabel();
+            code.labelBinding(rows).iload(row);
+            if (fullRange) code.iload(m).branch(Opcode.IF_ICMPGE, done);
+            else code.iload(lastRow).branch(Opcode.IF_ICMPGT, done);
+            code.iload(aBase).iload(row).iload(am).imul().iadd().istore(leftRow);
+            code.iload(cBase).iload(row).iload(cm).imul().iadd().istore(outputRow);
+            if (fullRange) {
+                code.loadConstant(0).istore(column).iload(n).istore(stop);
+            } else {
+                var notFirst = code.newLabel(); var startReady = code.newLabel();
+                code.iload(row).iload(firstRow).branch(Opcode.IF_ICMPNE, notFirst);
+                code.iload(firstColumn).branch(Opcode.GOTO, startReady).labelBinding(notFirst).loadConstant(0).labelBinding(startReady).istore(column);
+                var notLast = code.newLabel(); var stopReady = code.newLabel();
+                code.iload(row).iload(lastRow).branch(Opcode.IF_ICMPNE, notLast);
+                code.iload(lastColumn).branch(Opcode.GOTO, stopReady).labelBinding(notLast).iload(n).labelBinding(stopReady).istore(stop);
+            }
+            code.labelBinding(columns).iload(column).iload(stop).branch(Opcode.IF_ICMPGE, nextRow);
+            var nextColumn = code.newLabel();
+            emitBatchOutputGuard(code,row,column,nextColumn);
+            code.iload(leftRow).istore(leftAddress).iload(bBase).iload(column).iload(bn).imul().iadd().istore(rightAddress);
+            code.loadConstant(0.0f).fstore(accumulator);
+            var carriers = new CpuCarrierEmitter(code);
+            emitCursorContraction(code,DataType.FLOAT32,TypeKind.INT,k,accumulator,leftValue,rightValue,
+                    () -> code.iload(kExtent),
+                    () -> { carriers.loadFrozen(DataType.FLOAT32,specialization.carrierPattern().get(0),0,leftAddress,true); code.fstore(leftValue); },
+                    () -> { carriers.loadFrozen(DataType.FLOAT32,specialization.carrierPattern().get(1),1,rightAddress,true); code.fstore(rightValue); },
+                    () -> { code.iload(leftAddress).iload(ak).iadd().istore(leftAddress); code.iload(rightAddress).iload(bk).iadd().istore(rightAddress); },
+                    activeContributor(code,ir,k,TypeKind.INT));
+            code.iload(outputRow).iload(column).iload(cn).imul().iadd().istore(outputAddress);
+            carriers.storeFrozen(DataType.FLOAT32, specialization.carrierPattern().get(2), 2, outputAddress, accumulator, true);
+            code.labelBinding(nextColumn);
+            code.iinc(column, 1).branch(Opcode.GOTO, columns).labelBinding(nextRow).iinc(row, 1).branch(Opcode.GOTO, rows);
+        }
+        code.labelBinding(done);
+    }
+
+    private static CodeBuilder batchFact(CodeBuilder code, int geometry, int index, long constant, long factor) {
+        if (factor == 0) return code.loadConstant(Math.toIntExact(constant));
+        return geometry(code, geometry, index).l2i();
     }
 
     private static void emitTiledScalar(CodeBuilder code,
@@ -378,7 +719,7 @@ public final class CpuMatmulEmitter {
         int epilogueN=n;
         if(ir.epilogue().hasBias()&&intAddress){epilogueN=code.allocateLocal(TypeKind.LONG);
             code.iload(n).i2l().lstore(epilogueN);}
-        applyVectorBias(code,carriers,specialization,ir,geometry,epilogueN,accumulator);
+        applyVectorEpilogue(code,carriers,specialization,ir,geometry,epilogueN,accumulator);
         int outputBoundary=specialization.carrierPattern().size()-1;
         carriers.vectorStore(type,specialization.carrierPattern().get(outputBoundary),outputBoundary,outputAddress,
                 accumulator,intAddress);
@@ -584,17 +925,36 @@ public final class CpuMatmulEmitter {
         int address=code.allocateLocal(intAddress?TypeKind.INT:TypeKind.LONG);
         code.lload(outputBase).lload(n);geometry(code,geometry,12).lmul().ladd();
         storeIndex(code,address,intAddress);
-        applyVectorBias(code,carriers,specialization,ir,geometry,n,value);
+        applyVectorEpilogue(code,carriers,specialization,ir,geometry,n,value);
         int outputBoundary=specialization.carrierPattern().size()-1;
         carriers.vectorStore(type,specialization.carrierPattern().get(outputBoundary),
                 outputBoundary,address,value,intAddress);
     }
 
+    /**
+     * Emits the common ordinary-vector suffix, preserving ordered ADD before typed TANH.
+     * @param code generation-only method builder
+     * @param carriers generation-only typed carrier emitter
+     * @param specialization exact entry carrier signature
+     * @param ir validated NONE/TANH vector matrix identity
+     * @param geometry local containing packed invocation geometry
+     * @param n local containing the first logical output column; long when bias reads use it,
+     *     otherwise unused by the suffix
+     * @param value reference local containing the completed vector sum, replaced by the suffix
+     */
+    private static void applyVectorEpilogue(CodeBuilder code,CpuCarrierEmitter carriers,
+            CpuKernelSpecialization specialization,CpuMatmulIr ir,int geometry,int n,int value) {
+        applyVectorBias(code,carriers,specialization,ir,geometry,n,value);
+        if(ir.epilogue().terminal()==CpuMatmulIr.Epilogue.Terminal.TANH) {
+            ClassDesc vector=vectorClass(ir.resultType());
+            code.aload(value).invokestatic(ClassDesc.of(CpuVectorMath.class.getName()),"tanh",
+                    MethodTypeDesc.of(vector,vector)).astore(value);
+        }
+    }
+
     private static void applyVectorBias(CodeBuilder code,CpuCarrierEmitter carriers,
             CpuKernelSpecialization specialization,CpuMatmulIr ir,int geometry,int n,int value) {
         if(!ir.epilogue().hasBias())return;
-        if(ir.epilogue().hasTerminal())throw new IllegalArgumentException(
-                "MATMUL vector terminal is not eligible");
         DataType type=ir.resultType();ClassDesc vector=vectorClass(type);
         int address=code.allocateLocal(TypeKind.LONG),bias=code.allocateLocal(TypeKind.REFERENCE);
         code.aload(geometry).loadConstant(14).laload().lload(n).aload(geometry)
@@ -900,14 +1260,28 @@ public final class CpuMatmulEmitter {
             else code.iload(represented).i2l().lstore(value);
         } else if(represented!=value)code.iload(represented).istore(value);
     }
-    private static void accumulate(CodeBuilder code, DataType type, int sum, int left, int right) {
-        switch (type) {
-            case FLOAT64 -> code.dload(sum).dload(left).dload(right).dmul().dadd().dstore(sum);
-            case FLOAT32, BFLOAT16, FLOAT16 -> code.fload(sum).fload(left).fload(right).fmul().fadd().fstore(sum);
-            case INT32 -> code.iload(sum).iload(left).iload(right).imul().iadd().istore(sum);
-            case INT64 -> code.lload(sum).lload(left).lload(right).lmul().ladd().lstore(sum);
+    /**
+     * Composes the ordinary scalar contraction primitive over explicitly bound typed locals.
+     * Scan generation reuses this site without entry-slot, batch or geometry-array assumptions.
+     * BF16/F16 represented loads have already decoded into FLOAT working locals; they must
+     * not be reloaded with their integral storage kind. MUL and ADD remain separate sites.
+     * @param code generation-only builder
+     * @param type admitted accumulator dtype
+     * @param sum accumulator local, updated with one represented product
+     * @param left represented left value local
+     * @param right represented right value local
+     * @throws IllegalArgumentException if the accumulator dtype is unsupported
+     */
+    static void accumulate(CodeBuilder code, DataType type, int sum, int left, int right) {
+        var workingKind = switch (type) {
+            case FLOAT64 -> TypeKind.DOUBLE;
+            case FLOAT32, BFLOAT16, FLOAT16 -> TypeKind.FLOAT;
+            case INT32 -> TypeKind.INT;
+            case INT64 -> TypeKind.LONG;
             case BOOL -> throw new AssertionError();
-        }
+        };
+        emitContributorStep(code,type,sum,() -> code.loadLocal(workingKind,left),
+                () -> code.loadLocal(workingKind,right));
     }
 
     private static void storeIntegral(CodeBuilder code, CpuCarrierEmitter carriers,

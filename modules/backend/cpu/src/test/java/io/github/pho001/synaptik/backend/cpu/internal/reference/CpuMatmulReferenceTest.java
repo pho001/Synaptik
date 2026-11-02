@@ -16,12 +16,9 @@ final class CpuMatmulReferenceTest {
     private final CpuMatmulLowering lowering = new CpuMatmulLowering();
 
     @Test void evaluatesFloatingMixedBfloatAndEmptyK() {
-        var mixed = lowering.lower(d(DataType.BFLOAT16, 2, 3), d(DataType.FLOAT32, 3, 2),
-                d(DataType.FLOAT32, 2, 2));
-        short[] left = {bf(1), bf(2), bf(3), bf(4), bf(5), bf(6)};
-        float[] right = {7, 8, 9, 10, 11, 12}; float[] output = new float[4];
-        CpuMatmulReferenceKernel.evaluate(mixed, NumericalForm.SEQUENTIAL, left, right, output);
-        assertArrayEquals(new float[] {58, 64, 139, 154}, output);
+        for (var type : java.util.List.of(DataType.BFLOAT16, DataType.FLOAT16))
+            assertThrows(IllegalArgumentException.class,
+                    () -> lowering.lower(d(type, 2, 3), d(DataType.FLOAT32, 3, 2), d(DataType.FLOAT32, 2, 2)));
         var empty = lowering.lower(d(DataType.FLOAT64, 2, 0), d(DataType.FLOAT64, 0, 3),
                 d(DataType.FLOAT64, 2, 3));
         double[] zeros = new double[6];
@@ -35,6 +32,11 @@ final class CpuMatmulReferenceTest {
         for (DataType leftType : floating) for (DataType rightType : floating) {
             DataType resultType = io.github.pho001.synaptik.model.datatype.DataTypePromotion
                     .promoteNumeric(leftType, rightType);
+            if (leftType == DataType.BFLOAT16 || rightType == DataType.BFLOAT16) {
+                assertThrows(IllegalArgumentException.class,
+                        () -> lowering.lower(d(leftType, 1, 2), d(rightType, 2, 1), d(resultType, 1, 1)));
+                continue;
+            }
             var geometry = lowering.lower(d(leftType, 1, 2), d(rightType, 2, 1),
                     d(resultType, 1, 1));
             Object result = carrier(resultType, 1.0f, 0.0f);

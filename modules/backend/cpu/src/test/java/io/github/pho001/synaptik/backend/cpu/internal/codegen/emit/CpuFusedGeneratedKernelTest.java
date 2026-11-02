@@ -67,8 +67,7 @@ class CpuFusedGeneratedKernelTest {
     @Test void executesArbitraryHalfOpenBoundsWithoutMaterializedIntermediates() throws Throwable {
         var route = CpuPartitionPreparerTest.analyze(Shape.of(5)).plan().units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         try (Arena arena = Arena.ofConfined()) {
             var a = arena.allocate(40, 8); var b = arena.allocate(40, 8);
             var c = arena.allocate(40, 8); var output = arena.allocate(40, 8);
@@ -97,8 +96,7 @@ class CpuFusedGeneratedKernelTest {
         var route = CpuPartitionPreparerTest.analyze(general, dense, scalar, dense,
                 CpuPartitionAnalysisInputs.DEFAULT).plan().units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         try (Arena arena = Arena.ofConfined()) {
             var a = arena.allocate(48, 8); var b = arena.allocate(48, 8);
             var c = arena.allocate(8, 8); var output = arena.allocate(48, 8);
@@ -117,8 +115,7 @@ class CpuFusedGeneratedKernelTest {
     @Test void zeroRangeReturnsBeforeAnyCarrierAccessOrAddressFormation() throws Throwable {
         var route = CpuPartitionPreparerTest.analyze(Shape.of(0)).plan().units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         long[] geometry = {0,0,0,0,0,0,1,1,1,1};
         artifact.entryPoint().invokeExact(java.lang.foreign.MemorySegment.NULL,
                 java.lang.foreign.MemorySegment.NULL, java.lang.foreign.MemorySegment.NULL,

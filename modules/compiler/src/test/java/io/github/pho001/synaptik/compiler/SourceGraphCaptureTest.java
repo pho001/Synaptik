@@ -144,6 +144,41 @@ final class SourceGraphCaptureTest {
         assertArrayEquals(before, originalStorage.segment().toArray(java.lang.foreign.ValueLayout.JAVA_BYTE));
     }
 
+    @Test
+    void lengthCaptureKeepsRawActualGeometryFlagsAndUnreadExternalLengths() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            Shape row = Shape.of(2, 3), sequenceShape = Shape.of(0, 2, 3), lengthsShape = Shape.of(2);
+            Tensor lengths;
+            MemorySegmentStorage storage;
+            try (Arena arena = Arena.ofConfined()) {
+                storage = new MemorySegmentStorage(DataType.INT64, 2, arena.allocate(16));
+                lengths = TensorFactory.create(new TensorDescriptor(DataType.INT64, lengthsShape,
+                        Optional.of(LayoutDescriptor.contiguous(lengthsShape)), false),
+                        Optional.empty(), Optional.of(storage));
+            }
+            Tensor initial = TensorFactory.create(new TensorDescriptor(type, row,
+                    Optional.of(LayoutDescriptor.of(row, new long[] {0, 2}, 5, true)), false));
+            Tensor sequence = TensorFactory.create(new TensorDescriptor(type, sequenceShape, Optional.empty(), true));
+            Tensor h = TensorFactory.create(new TensorDescriptor(type, row, Optional.of(LayoutDescriptor.contiguous(row)), false));
+            Tensor x = TensorFactory.create(new TensorDescriptor(type, row, Optional.of(LayoutDescriptor.contiguous(row)), true));
+            var body = new io.github.pho001.synaptik.model.tensor.ScanBody(List.of(h), List.of(x), List.of(),
+                    List.of(h.add(x).cast(type)), List.of(h));
+            var scan = io.github.pho001.synaptik.model.tensor.Scan.apply(List.of(initial), List.of(sequence), List.of(),
+                    lengths, 1, List.of(java.util.OptionalInt.of(0)), body, true);
+            var source = GraphCompilationPort.captureSource(scan.finalCarry());
+            assertEquals(List.of(initial, sequence, lengths), source.leaves());
+            var rebuilt = GraphCompilationPort.reconstructSource(source.graph(), source.leaves());
+            assertEquals(source.graph(), GraphCompilationPort.captureSource(rebuilt).graph());
+            var producer = rebuilt.getFirst().provenance().orElseThrow().producer();
+            assertSame(lengths, producer.inputs().getLast());
+            assertEquals(initial.descriptor(), producer.inputs().getFirst().descriptor());
+            assertTrue(rebuilt.getFirst().descriptor().requiresGrad());
+            assertFalse(producer.scanBody().orElseThrow().carry().getFirst().descriptor().requiresGrad());
+            assertTrue(producer.scanBody().orElseThrow().step().getFirst().descriptor().requiresGrad());
+            assertSame(storage, lengths.hostStorage().orElseThrow()); assertFalse(storage.isAlive());
+        }
+    }
+
     private static Tensor leaf(DataType type, Shape shape, boolean grad) {
         return TensorFactory.create(new TensorDescriptor(type, shape, Optional.empty(), grad));
     }

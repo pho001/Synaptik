@@ -61,6 +61,109 @@ import org.junit.jupiter.api.Test;
 
 /** Provider-to-invocation regressions for producer-ordered scans and loss occurrence geometry. */
 class CpuComposedValueValidationTest {
+    /**
+     * Both physical-input mode mismatches reject before a direct fold plan can exist.
+     * @throws Exception if the existing record-construction test seam fails unexpectedly
+     */
+    @Test void directFoldPlanRejectsBothCompactInputModeMismatches() throws Exception {
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            var analysis = compactFoldAnalysis(type, false);
+            // Remove identity-bound search diagnostics so the forgery reaches the independent
+            // physical-mode validator rather than failing earlier on provenance identity.
+            var noDecisions = copyRecord(analysis.plan(), "fusionDecisions", List.of());
+            var plan = copyRecord(noDecisions, "retainedBaselineBinding", Optional.empty());
+            var unit = plan.units().getFirst();
+            var geometry = plan.foldGeometry().orElseThrow();
+            var ordinaryGeometry = new io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLowering.Geometry(
+                    geometry.family(), type, geometry.input(), geometry.output(), geometry.mapping(), false);
+            var compactIrFailure = assertThrows(InvocationTargetException.class,
+                    () -> copyRecord(plan, "foldGeometry", Optional.of(ordinaryGeometry)));
+            assertInstanceOf(IllegalArgumentException.class, compactIrFailure.getCause());
+            assertEquals("fold structural IR and geometry disagree", compactIrFailure.getCause().getMessage());
+            var ordinaryUnit = ordinaryFoldUnit(unit);
+            var ordinaryIrFailure = assertThrows(InvocationTargetException.class,
+                    () -> copyRecord(plan, "units", List.of(ordinaryUnit)));
+            assertInstanceOf(IllegalArgumentException.class, ordinaryIrFailure.getCause());
+            assertEquals("fold structural IR and geometry disagree", ordinaryIrFailure.getCause().getMessage());
+        }
+    }
+
+    /**
+     * Composed children cannot bypass the same mode check on the path to finalization.
+     * @param root fresh empty test directory; no rejected plan may publish an artifact beneath it
+     * @throws Exception if the record-construction test seam or valid finalization fails
+     */
+    @Test void composedFoldFinalizationRejectsBothCompactInputModeMismatches(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path root) throws Exception {
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            var analysis = compactFoldAnalysis(type, true);
+            var noDecisions = copyRecord(analysis.plan(), "fusionDecisions", List.of());
+            var plan = copyRecord(noDecisions, "retainedBaselineBinding", Optional.empty());
+            assertEquals(2, plan.units().size());
+            var valid = CpuPartitionFinalizerTest.finalizePreparedExecutable(analysis, Optional.empty());
+            assertEquals(2, assertInstanceOf(io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedPartitionExecutable.class,
+                    valid).children().size());
+            int position = java.util.stream.IntStream.range(0, plan.units().size()).filter(i ->
+                    plan.units().get(i).portablePlan().portableKernelIr()
+                        instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr).findFirst().orElseThrow();
+            var unit = plan.units().get(position); var geometry = unit.runtimeFacts().foldGeometry().orElseThrow();
+            var ordinaryGeometry = new io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuFoldLowering.Geometry(
+                    geometry.family(), type, geometry.input(), geometry.output(), geometry.mapping(), false);
+            var ordinaryFacts = copyRecord(unit.runtimeFacts(), "foldGeometry", Optional.of(ordinaryGeometry));
+            var compactIrUnit = copyRecord(unit, "runtimeFacts", ordinaryFacts);
+            var ordinaryIrUnit = ordinaryFoldUnit(unit);
+            for (var mismatched : List.of(compactIrUnit, ordinaryIrUnit)) {
+                var units = new ArrayList<>(plan.units()); units.set(position, mismatched);
+                var artifacts = root.resolve(type + "-" + ((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr)
+                        mismatched.portablePlan().portableKernelIr()).kernelBroadcastInput());
+                var failure = assertThrows(InvocationTargetException.class, () -> {
+                    var forgedPlan = copyRecord(plan, "units", units);
+                    var forgedAnalysis = new BackendPartitionAnalysis<>(analysis.partition(), forgedPlan, analysis.requirements());
+                    CpuPartitionFinalizerTest.finalizePreparedExecutable(forgedAnalysis, Optional.of(artifacts));
+                });
+                assertInstanceOf(IllegalArgumentException.class, failure.getCause());
+                assertEquals("general CPU unit topology is not stable", failure.getCause().getMessage());
+                assertFalse(java.nio.file.Files.exists(artifacts));
+            }
+        }
+    }
+
+    /**
+     * Creates static compact-fold analysis, optionally alongside an unrelated source consumer.
+     * @param type non-null F32 or F64 represented type
+     * @param composed whether to add a second child without publishing private repetition values
+     * @return new immutable analysis with no physical run resources; never null
+     */
+    private static BackendPartitionAnalysis<CpuPartitionPreparationPlan> compactFoldAnalysis(DataType type, boolean composed) {
+        var c = io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuBroadcastFoldGeneratedKernelTest.context(type,
+                Shape.of(2, 3, 5, 7), new io.github.pho001.synaptik.model.operation.layout.Window2dAttrs(2, 3, 1, 1, 0, 1, 1, 1, false), 0, false);
+        if (!composed) return new CpuPartitionPreparer().analyze(c);
+        var descriptors = new ArrayList<>(c.values().stream().map(GraphValue::descriptor).toList());
+        descriptors.add(descriptor(type, descriptors.getFirst().shape()));
+        var nodes = new ArrayList<>(c.nodes()); nodes.add(node(20, plain(UnaryElementwiseKind.NEG), 7, 0));
+        var base = io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRecurrentScanLoweringTest.project(descriptors, nodes);
+        var memory = base.memoryRequirements().stream().map(r -> new LogicalMemoryRequirement(r.valueId(), r.descriptor(),
+                r.producerPartition(), r.consumerPartitions(), r.valueId().value() >= 6)).toList();
+        return new CpuPartitionPreparer().analyze(new PrepareContext<>(base.partition(), nodes, base.values(), memory,
+                Map.of(), CpuPartitionAnalysisInputs.DEFAULT));
+    }
+
+    /**
+     * Rebinds only a fold unit's structural identity to ordinary mode while retaining its geometry.
+     * @param unit non-null valid compact-input fold unit; borrowed and not mutated
+     * @return new unit with an authenticated ordinary-mode route and unchanged compact runtime facts
+     * @throws Exception if the existing record-construction test seam rejects the structural copy
+     */
+    private static CpuPartitionPreparationPlan.ExecutionUnitPlan ordinaryFoldUnit(
+            CpuPartitionPreparationPlan.ExecutionUnitPlan unit) throws Exception {
+        var ir = (io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr) unit.portablePlan().portableKernelIr();
+        var ordinary = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr(ir.family(), ir.dataType(),
+                ir.inputAccess(), ir.outputAccess(), ir.additionPolicy(), false);
+        var specialization = copyRecord(unit.portablePlan().specialization(), "loweringFingerprint",
+                io.github.pho001.synaptik.backend.cpu.internal.cache.CpuLoweringFingerprint.fromHex(ordinary.structuralKey()));
+        var route = new io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan(ordinary, specialization);
+        return copyRecord(unit, "portablePlan", route);
+    }
     @Test void producedRecurrentLengthsAreCheckedAfterCastBeforeEverySiblingWrite() {
         var source = descriptor(DataType.FLOAT32, Shape.of(2));
         var lengths = descriptor(DataType.INT64, Shape.of(2));
@@ -260,10 +363,10 @@ class CpuComposedValueValidationTest {
                     consumed ? List.of(partition) : List.of(), produced && !consumed));
         }
         var provider = new CpuCapabilityProvider();
-        for (var node : nodes) assertTrue(provider.supports(new OperationCapabilityQuery(
+        for (var node : nodes) io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, new OperationCapabilityQuery(
                 node.operation(), node.inputs().stream()
                         .map(id -> descriptors.get(Math.toIntExact(id.value()))).toList(),
-                node.outputs().stream().map(id -> descriptors.get(Math.toIntExact(id.value()))).toList())));
+                node.outputs().stream().map(id -> descriptors.get(Math.toIntExact(id.value()))).toList()));
         var config = new CpuPartitionAnalysisInputs.PortableExecutionConfig(
                 CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR, 2, 2, 1);
         return new CpuPartitionPreparer().analyze(new PrepareContext<>(partition, nodes, values,

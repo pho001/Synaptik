@@ -190,7 +190,7 @@ class CpuPartitionDagDecomposerTest {
     @Test void publicationAffineNumericalAndStateEdgesRemainMaterializedBarriers() {
         var publication = new CpuPartitionPreparer().analyze(publishedChain(2)).plan();
         var affine = new CpuPartitionPreparer().analyze(affineThenPointwise()).plan();
-        var numerical = new CpuPartitionPreparer().analyze(aggregateThenPointwise()).plan();
+        var numerical = new CpuPartitionPreparer().analyze(productAggregateThenPointwise()).plan();
         var pool3d = new CpuPartitionPreparer().analyze(pool3dThenPointwise()).plan();
         var state = new CpuPartitionPreparer().analyze(dropoutThenPointwise()).plan();
         assertAll(
@@ -490,11 +490,11 @@ class CpuPartitionDagDecomposerTest {
         return context(nodes, descriptors, Set.of(new ValueId(2)));
     }
 
-    private static PrepareContext<CpuPartitionAnalysisInputs> aggregateThenPointwise() {
+    private static PrepareContext<CpuPartitionAnalysisInputs> productAggregateThenPointwise() {
         var input = descriptor(DataType.FLOAT32, Shape.of(2, 3));
         var reduced = descriptor(DataType.FLOAT32, Shape.of(2));
         var nodes = List.of(
-                new CompiledNode(new NodeId(0), new Operation(AggregateReductionKind.SUM,
+                new CompiledNode(new NodeId(0), new Operation(AggregateReductionKind.PROD,
                         new AxisReductionAttrs(1, false)), List.of(new ValueId(0)),
                         List.of(new ValueId(1))),
                 new CompiledNode(new NodeId(1), new Operation(UnaryElementwiseKind.RELU,

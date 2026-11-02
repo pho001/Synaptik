@@ -944,7 +944,7 @@ class CpuVectorMseEvidenceTest {
             io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan route) {
         byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(
                 route.specialization(), route.kernelIr());
-        return new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(), bytes).entryPoint();
+        return new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(), route.kernelIr(), bytes).entryPoint();
     }
     private static String key(
             io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan route) {
@@ -1040,8 +1040,7 @@ class CpuVectorMseEvidenceTest {
         var route = route(type, Shape.of(count), roles, accesses, parallel ? 4 : 1);
         byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(
                 route.specialization(), route.kernelIr());
-        MethodHandle entry = new CpuClassFileKernelGenerator().defineClassBytes(
-                route.specialization(), bytes).entryPoint();
+        MethodHandle entry = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(), route.kernelIr(), bytes).entryPoint();
         int capacity = 7 + count + lanes;
         try (Arena arena = Arena.ofConfined()) {
             List<Object> boundaries = new ArrayList<>();

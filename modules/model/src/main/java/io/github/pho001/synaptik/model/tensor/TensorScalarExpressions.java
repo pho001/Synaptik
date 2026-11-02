@@ -53,31 +53,35 @@ final class TensorScalarExpressions {
      *     values have been constructed
      */
     static Tensor applyScalar(Tensor input, ScalarElementwiseKind kind, ScalarValue value) {
-        Objects.requireNonNull(input, "input");
-        Objects.requireNonNull(kind, "kind");
-        Objects.requireNonNull(value, "value");
-        if (kind == ScalarElementwiseKind.CLAMP) {
-            throw new IllegalArgumentException("CLAMP requires ClampRangeAttrs");
-        }
+        return applyScalarChecked(input, kind, value, null);
+    }
 
-        DataType dataType = input.descriptor().dataType();
-        if (!dataType.isFloating() && !dataType.isIntegral()) {
-            throw new IllegalArgumentException(
-                    "input must be a numeric data type, but was " + dataType);
-        }
-        if (dataType.isIntegral()
-                && (kind == ScalarElementwiseKind.DIV || kind == ScalarElementwiseKind.POW)) {
-            throw new IllegalArgumentException(kind + " does not support integral data types");
-        }
-        if (value.dataType() != dataType) {
-            throw new IllegalArgumentException(
-                    "scalar data type " + value.dataType()
-                            + " must match input data type " + dataType);
-        }
-
-        ScalarValueAttrs attrs = new ScalarValueAttrs(value);
-        Operation operation = new Operation(kind, attrs);
-        return create(input, dataType, operation);
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null floating or integral tensor retained by exact reference in result
+     *     provenance
+     * @param kind non-null scalar kind other than {@code CLAMP}, retained in the result operation
+     * @param value non-null exact scalar arithmetic parameter; its data type must
+     *     equal the input data type and it is retained by exact reference
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input}, {@code kind}, or {@code value} is null,
+     *     checked in that order with the parameter name as the message
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if {@code kind} is {@code CLAMP}, the input is boolean, an
+     *     integral request is {@code DIV} or {@code POW}, or the scalar and input types differ
+     * @throws IllegalStateException if tensor identifier space is exhausted after local model
+     *     values have been constructed
+     */
+    static Tensor applyScalarChecked(Tensor input, ScalarElementwiseKind kind, ScalarValue value,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return applyScalarDescriptors(
+                input == null ? null : input.descriptor(),
+                kind,
+                value,
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -102,11 +106,134 @@ final class TensorScalarExpressions {
      *     values have been constructed
      */
     static Tensor applyClamp(Tensor input, ScalarValue minValue, ScalarValue maxValue) {
+        return applyClampChecked(input, minValue, maxValue, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null floating tensor retained by exact reference in result provenance
+     * @param minValue non-null exact inclusive lower bound retained by reference
+     * @param maxValue non-null exact inclusive upper bound of the same type, retained by reference
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input}, {@code minValue}, or {@code maxValue} is
+     *     null, checked in that order with the parameter name as the message
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if the input data type is not floating, the bounds have
+     *     different types or BOOL type, the range is inverted, or the bounds and input types
+     *     differ
+     * @throws IllegalStateException if tensor identifier space is exhausted after local model
+     *     values have been constructed
+     */
+    static Tensor applyClampChecked(Tensor input, ScalarValue minValue, ScalarValue maxValue,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return applyClampDescriptors(
+                input == null ? null : input.descriptor(),
+                minValue,
+                maxValue,
+                descriptorCheck,
+                input);
+    }
+
+
+
+    /**
+     * Completes ordinary checked semantics synchronously without creating Tensor identities.
+     * The same descriptor guard core serves real construction; the sink is never retained.
+     * @param operation non-null ordinary operation selecting this family and its attributes
+     * @param inputs non-null ordered operand descriptors, including repeated occurrences
+     * @param outputCount exact canonical sibling count
+     * @param sink non-null consumer called exactly once with checked semantics and all outputs
+     * @throws NullPointerException if a required reference is null
+     * @throws IllegalArgumentException if cardinality or ordinary semantic guards reject the request
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(operation, "operation");
+        Objects.requireNonNull(inputs, "inputs");
+        Objects.requireNonNull(sink, "sink");
+        if (inputs.size() != 1 || outputCount != 1) {
+            throw new IllegalArgumentException("invalid ordinary descriptor cardinality");
+        }
+        for (TensorDescriptor input : inputs) {
+            Objects.requireNonNull(input, "input descriptor");
+        }
+        if (operation.attrs() instanceof ClampRangeAttrs attrs) {
+            applyClampDescriptors(inputs.get(0), attrs.minValue(), attrs.maxValue(), sink, null);
+        } else {
+            applyScalarDescriptors(inputs.get(0), (ScalarElementwiseKind) operation.kind(),
+                    ((ScalarValueAttrs) operation.attrs()).value(), sink, null);
+        }
+    }
+
+    /**
+     * Runs the shared descriptor guards; provenance references are used only for real construction.
+     * @param input descriptor supplying ordinary operand metadata
+     * @param kind ordinary checked construction parameter
+     * @param value ordinary checked construction parameter
+     * @param descriptorCheck synchronous, unretained sink; null selects real construction
+     * @param originalInput exact real operand, or null for descriptor completion
+     * @return the real result, or null after synchronous descriptor completion
+     */
+    private static Tensor applyScalarDescriptors(
+            TensorDescriptor input,
+            ScalarElementwiseKind kind,
+            ScalarValue value,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(kind, "kind");
+        Objects.requireNonNull(value, "value");
+        if (kind == ScalarElementwiseKind.CLAMP) {
+            throw new IllegalArgumentException("CLAMP requires ClampRangeAttrs");
+        }
+
+        DataType dataType = input.dataType();
+        if (!dataType.isFloating() && !dataType.isIntegral()) {
+            throw new IllegalArgumentException(
+                    "input must be a numeric data type, but was " + dataType);
+        }
+        if (dataType.isIntegral()
+                && (kind == ScalarElementwiseKind.DIV || kind == ScalarElementwiseKind.POW)) {
+            throw new IllegalArgumentException(kind + " does not support integral data types");
+        }
+        if (value.dataType() != dataType) {
+            throw new IllegalArgumentException(
+                    "scalar data type " + value.dataType()
+                            + " must match input data type " + dataType);
+        }
+
+        ScalarValueAttrs attrs = new ScalarValueAttrs(value);
+        Operation operation = new Operation(kind, attrs);
+        return createDescriptors(
+                input,
+                dataType,
+                operation,
+                descriptorCheck,
+                originalInput);
+    }
+
+    /**
+     * Runs the shared descriptor guards; provenance references are used only for real construction.
+     * @param input descriptor supplying ordinary operand metadata
+     * @param minValue ordinary checked construction parameter
+     * @param maxValue ordinary checked construction parameter
+     * @param descriptorCheck synchronous, unretained sink; null selects real construction
+     * @param originalInput exact real operand, or null for descriptor completion
+     * @return the real result, or null after synchronous descriptor completion
+     */
+    private static Tensor applyClampDescriptors(
+            TensorDescriptor input,
+            ScalarValue minValue,
+            ScalarValue maxValue,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(minValue, "minValue");
         Objects.requireNonNull(maxValue, "maxValue");
 
-        DataType dataType = input.descriptor().dataType();
+        DataType dataType = input.dataType();
         if (!dataType.isFloating()) {
             throw new IllegalArgumentException(
                     "input must be a floating data type, but was " + dataType);
@@ -119,31 +246,38 @@ final class TensorScalarExpressions {
                             + " must match input data type " + dataType);
         }
         Operation operation = new Operation(ScalarElementwiseKind.CLAMP, attrs);
-        return create(input, dataType, operation);
+        return createDescriptors(
+                input,
+                dataType,
+                operation,
+                descriptorCheck,
+                originalInput);
     }
 
     /**
-     * Creates the common descriptor, one-input provenance, and derived tensor result.
-     *
-     * <p>The descriptor retains {@code dataType}, the exact input shape reference, and unchanged
-     * gradient eligibility while leaving layout unresolved. Provenance retains the exact supplied
-     * operation and input reference. The central factory is invoked exactly once with no label;
-     * it supplies the fresh identity and storage-free result.</p>
-     *
-     * @param input non-null source tensor whose shape, gradient eligibility, and exact reference
-     *     are retained without mutation
-     * @param dataType non-null validated floating or integral input data type retained exactly
-     * @param operation non-null fully constructed scalar operation retained exactly in provenance
-     * @return the non-null fresh, unlabeled, storage-free derived tensor returned by the factory
-     * @throws NullPointerException if an internal caller violates a documented non-null argument
-     * @throws IllegalStateException if tensor identifier space is exhausted
+     * Runs the shared descriptor guards; provenance references are used only for real construction.
+     * @param input descriptor supplying ordinary operand metadata
+     * @param dataType ordinary checked construction parameter
+     * @param operation ordinary checked construction parameter
+     * @param descriptorCheck synchronous, unretained sink; null selects real construction
+     * @param originalInput exact real operand, or null for descriptor completion
+     * @return the real result, or null after synchronous descriptor completion
      */
-    private static Tensor create(Tensor input, DataType dataType, Operation operation) {
+    private static Tensor createDescriptors(
+            TensorDescriptor input,
+            DataType dataType,
+            Operation operation,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
         TensorDescriptor descriptor = new TensorDescriptor(
                 dataType,
-                input.descriptor().shape(),
+                input.shape(),
                 Optional.empty(),
-                input.descriptor().requiresGrad());
-        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
+                input.requiresGrad());
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(originalInput));
     }
 }

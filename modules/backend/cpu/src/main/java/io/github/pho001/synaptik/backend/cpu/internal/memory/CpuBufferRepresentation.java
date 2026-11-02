@@ -1,7 +1,9 @@
 package io.github.pho001.synaptik.backend.cpu.internal.memory;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
+import io.github.pho001.synaptik.runtime.run.RunState;
 import java.lang.foreign.MemorySegment;
 import java.util.Objects;
 
@@ -96,6 +98,74 @@ public abstract class CpuBufferRepresentation implements BufferRepresentation {
     public final boolean isAccessible() {
         return !isClosed() && segment.scope().isAlive()
                 && segment.isAccessibleBy(Thread.currentThread()) && segment.byteSize() == byteSize;
+    }
+
+    /**
+     * Authenticates one genuinely fixed buffer selection inside a complete run's memory mode.
+     * This does not infer static execution from a resolved zero or from a recipe evaluated at B.
+     * The unit must separately retain its typed carrier, access and referenced-span checks.
+     *
+     * @param state exact open run whose geometry was resolved before allocation
+     * @param plan exact prepared plan retained by the selecting executable
+     * @param bufferIndex dense selected buffer position in that plan
+     * @param retainedBytes fixed referenced byte span retained by the unit's lowering
+     * @return whether declaration, authenticated resolved bytes, capacity and declared alignment
+     *     agree with the unit's fixed facts and the physical carrier remains accessible
+     */
+    public final boolean acceptsFixedGeometry(RunState state, PreparedMemoryPlan plan,
+            int bufferIndex, long retainedBytes) {
+        if (!authenticates(state, plan) || !isAccessible()) return false;
+        var declaration = plan.buffers().get(bufferIndex);
+        var fixed = declaration.size().fixedByteSize();
+        if (fixed.isEmpty() || fixed.getAsLong() != retainedBytes
+                || state.geometry().bufferByteSize(bufferIndex) != retainedBytes
+                || byteSize < retainedBytes) return false;
+        try {
+            CpuBufferArgument selected = argument();
+            return selected.byteOffset() % dataType.byteWidth() == 0
+                    && selected.byteSize() % dataType.byteWidth() == 0
+                    && segment.address() % declaration.byteAlignment() == 0;
+        } catch (IllegalArgumentException | IllegalStateException incompatible) {
+            return false;
+        }
+    }
+
+    /**
+     * Authenticates genuinely fixed scratch without weakening a unit's own workspace checks.
+     *
+     * @param state exact open run with pre-allocation geometry
+     * @param plan exact prepared plan retained by the selecting executable
+     * @param workspaceIndex dense selected workspace position
+     * @param retainedBytes fixed workspace bytes retained by the unit's lowering
+     * @param workspace selected concrete CPU scratch, or null to reject
+     * @return whether fixed declaration, resolved bytes, exact physical size, declared alignment,
+     *     accessibility and writable lifetime agree
+     */
+    public static boolean acceptsFixedWorkspaceGeometry(RunState state, PreparedMemoryPlan plan,
+            int workspaceIndex, long retainedBytes, CpuContiguousWorkspace workspace) {
+        if (!authenticates(state, plan) || workspace == null || !workspace.isAccessible()) return false;
+        var declaration = plan.workspaces().get(workspaceIndex);
+        var fixed = declaration.size().fixedByteSize();
+        if (fixed.isEmpty() || fixed.getAsLong() != retainedBytes
+                || state.geometry().workspaceByteSize(workspaceIndex) != retainedBytes
+                || workspace.byteSize() != retainedBytes
+                || workspace.byteAlignment() < declaration.byteAlignment()) return false;
+        try {
+            MemorySegment selected = workspace.writableSegment();
+            return !selected.isReadOnly() && selected.address() % declaration.byteAlignment() == 0;
+        } catch (IllegalArgumentException | IllegalStateException incompatible) {
+            return false;
+        }
+    }
+
+    /**
+     * Checks reference authentication only; it never resolves or substitutes invocation geometry.
+     * @param state candidate open run
+     * @param plan exact executable plan
+     * @return whether both the state and its immutable geometry retain this exact plan
+     */
+    private static boolean authenticates(RunState state, PreparedMemoryPlan plan) {
+        return !state.isClosed() && state.memoryPlan() == plan && state.geometry().memoryPlan() == plan;
     }
 
     /** Ensures that the representation remains open. @throws IllegalStateException if closed */

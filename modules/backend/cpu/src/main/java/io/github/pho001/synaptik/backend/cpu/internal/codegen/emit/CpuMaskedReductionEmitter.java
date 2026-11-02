@@ -15,6 +15,10 @@ import java.lang.classfile.TypeKind;
  * one primitive selected-count local only on true, and delegates exact finite/special-value state
  * transitions and represented rounding to {@link CpuExactSumEmitter}. Generated classes do not
  * reference this generation-time type or any Synaptik runtime helper.</p>
+ *
+ * <p>Controlled activity is independent of the numeric mask: inactive output rows publish positive
+ * zero before exact-state reset, and a proved reduction-axis ROW contributor is skipped before
+ * either its mask or data is loaded. Increasing contributor order and exact rounding are retained.</p>
  */
 public final class CpuMaskedReductionEmitter {
     /** Creates a stateless generation-time emitter. */
@@ -104,6 +108,11 @@ public final class CpuMaskedReductionEmitter {
                 code.lmul().ladd().lstore(maskBase).labelBinding(singleton);
             }
         }
+        boolean controlledRow = CpuCarrierEmitter.controlFacts()
+                .map(control -> control.boundaryRows().get(2).rowIndexed()).orElse(false);
+        var inactive = controlledRow ? code.newLabel() : null;
+        var next = controlledRow ? code.newLabel() : null;
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, 2, cell, TypeKind.LONG, inactive);
         code.lload(dataBase).lstore(dataAddress);
         code.lload(maskBase).lstore(maskAddress);
         code.loadConstant(0L).lstore(domainIndex);
@@ -112,10 +121,14 @@ public final class CpuMaskedReductionEmitter {
         var domain = code.newLabel(); var finish = code.newLabel();
         code.labelBinding(domain).lload(domainIndex);
         geometry(code, geometrySlot, 7).lcmp().branch(Opcode.IFGE, finish);
+        var skip = code.newLabel();
+        if (CpuCarrierEmitter.controlFacts()
+                .map(control -> control.boundaryRows().getFirst().axis() == axis).orElse(false)) {
+            CpuCarrierEmitter.emitActiveRowGuard(code, domainIndex, TypeKind.LONG, skip);
+        }
         carriers.load(DataType.BOOL, specialization.carrierPattern().get(1), 1,
                 maskAddress, false);
         code.istore(selected);
-        var skip = code.newLabel();
         code.iload(selected).branch(Opcode.IFEQ, skip);
         code.lload(selectedCount).loadConstant(1L).ladd().lstore(selectedCount);
         carriers.load(type, specialization.carrierPattern().getFirst(), 0, dataAddress, false);
@@ -139,6 +152,15 @@ public final class CpuMaskedReductionEmitter {
         exact.emitFinish(result, selectedCount);
         carriers.store(type, specialization.carrierPattern().get(2), 2,
                 outputAddress, result, false);
+        if (controlledRow) {
+            code.branch(Opcode.GOTO, next).labelBinding(inactive);
+            if (type == DataType.FLOAT64) code.loadConstant(0.0).dstore(result);
+            else if (type == DataType.FLOAT32) code.loadConstant(0.0f).fstore(result);
+            else code.loadConstant(0).istore(result);
+            carriers.store(type, specialization.carrierPattern().get(2), 2,
+                    outputAddress, result, false);
+            code.labelBinding(next);
+        }
         code.lload(cell).loadConstant(1L).ladd().lstore(cell)
                 .branch(Opcode.GOTO, cells).labelBinding(done);
     }

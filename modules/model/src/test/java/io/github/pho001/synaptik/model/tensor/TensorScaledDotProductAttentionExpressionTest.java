@@ -36,10 +36,12 @@ public final class TensorScaledDotProductAttentionExpressionTest {
         var constructors = TensorScaledDotProductAttentionExpressions.class.getDeclaredConstructors();
         List<Method> applyMethods = Arrays.stream(
                         TensorScaledDotProductAttentionExpressions.class.getDeclaredMethods())
+                        .filter(method -> !method.getName().endsWith("Checked"))
                 .filter(method -> method.getName().equals("apply"))
                 .toList();
         List<Method> applyWithWeightsMethods = Arrays.stream(
                         TensorScaledDotProductAttentionExpressions.class.getDeclaredMethods())
+                        .filter(method -> !method.getName().endsWith("Checked"))
                 .filter(method -> method.getName().equals("applyWithWeights"))
                 .toList();
         List<Method> publicMethods = Arrays.stream(Tensor.class.getDeclaredMethods())

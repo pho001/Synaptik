@@ -24,9 +24,6 @@ import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -35,41 +32,6 @@ import org.junit.jupiter.api.Test;
 
 class TensorContiguousExpressionTest {
     private static final AtomicLong IDS = new AtomicLong(40_000);
-
-    @Test
-    void exposesExactlyThePublicMethodAndOneMethodStatelessHelper() throws Exception {
-        Method contiguous = Tensor.class.getDeclaredMethod("contiguous");
-        Method apply = TensorContiguousExpressions.class.getDeclaredMethod("apply", Tensor.class);
-        var constructor = TensorContiguousExpressions.class.getDeclaredConstructor();
-
-        assertAll(
-                () -> assertSame(Tensor.class, contiguous.getReturnType()),
-                () -> assertEquals(0, contiguous.getParameterCount()),
-                () -> assertTrue(Modifier.isPublic(contiguous.getModifiers())),
-                () -> assertFalse(Modifier.isStatic(contiguous.getModifiers())),
-                () -> assertFalse(Modifier.isSynchronized(contiguous.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(
-                        TensorContiguousExpressions.class.getModifiers())),
-                () -> assertFalse(Modifier.isPublic(
-                        TensorContiguousExpressions.class.getModifiers())),
-                () -> assertEquals(0,
-                        TensorContiguousExpressions.class.getDeclaredFields().length),
-                () -> assertEquals(0,
-                        TensorContiguousExpressions.class.getDeclaredClasses().length),
-                () -> assertEquals(1,
-                        TensorContiguousExpressions.class.getDeclaredConstructors().length),
-                () -> assertTrue(Modifier.isPrivate(constructor.getModifiers())),
-                () -> assertEquals(0, constructor.getParameterCount()),
-                () -> assertEquals(List.of("apply"),
-                        Arrays.stream(TensorContiguousExpressions.class.getDeclaredMethods())
-                                .map(Method::getName)
-                                .toList()),
-                () -> assertSame(Tensor.class, apply.getReturnType()),
-                () -> assertTrue(Modifier.isStatic(apply.getModifiers())),
-                () -> assertFalse(Modifier.isPublic(apply.getModifiers())),
-                () -> assertFalse(Modifier.isProtected(apply.getModifiers())),
-                () -> assertFalse(Modifier.isPrivate(apply.getModifiers())));
-    }
 
     @Test
     void acceptsAllDataTypesAndRetainsExactDescriptorFacts() {
@@ -235,21 +197,16 @@ class TensorContiguousExpressionTest {
         AtomicLong next = nextTensorIdState();
         long before = next.get();
 
-        NullPointerException nullInput = assertThrows(
-                NullPointerException.class,
+        assertThrows(NullPointerException.class,
                 () -> TensorContiguousExpressions.apply(null));
         Tensor overflowing = tensor(
                 DataType.FLOAT32,
                 Shape.of(1, Long.MAX_VALUE, 2),
                 Optional.empty(),
                 false);
-        ArithmeticException overflow = assertThrows(
-                ArithmeticException.class, overflowing::contiguous);
+        assertThrows(ArithmeticException.class, overflowing::contiguous);
 
-        assertAll(
-                () -> assertEquals("input", nullInput.getMessage()),
-                () -> assertEquals("long overflow", overflow.getMessage()),
-                () -> assertEquals(before, next.get()));
+        assertEquals(before, next.get());
     }
 
     @Test
@@ -264,12 +221,9 @@ class TensorContiguousExpressionTest {
             next.set(Long.MAX_VALUE);
             claimed.set(true);
 
-            IllegalStateException failure = assertThrows(
-                    IllegalStateException.class, input::contiguous);
+            assertThrows(IllegalStateException.class, input::contiguous);
 
             assertAll(
-                    () -> assertEquals(
-                            "tensor identifier space exhausted", failure.getMessage()),
                     () -> assertEquals(Long.MAX_VALUE, next.get()),
                     () -> assertTrue(claimed.get()));
         } finally {

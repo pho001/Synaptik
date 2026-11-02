@@ -10,3 +10,7 @@ dependencies {
     api(project(":backends:metal"))
     implementation(project(":tools:tuning"))
 }
+
+tasks.withType<Test>().configureEach {
+    systemProperty("synaptik.cpu.dynamicBatch.performance", System.getProperty("synaptik.cpu.dynamicBatch.performance", "false"))
+}

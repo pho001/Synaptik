@@ -43,7 +43,7 @@ class CpuVectorScalarPowerSelfContainmentTest {
             CpuKernelIr.PowerRealization.RECIPROCAL);
 
     @Test void everyTypeRealizationAndOrderedCarrierPairIsSelfContained() {
-        assertEquals(70, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(71, CpuGeneratorSchema.CURRENT_VERSION);
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
             CpuKernelSpecialization.CarrierAccess array = arrayCarrier(type);
             for (CpuKernelIr.PowerRealization realization : REALIZATIONS) {
@@ -160,8 +160,7 @@ class CpuVectorScalarPowerSelfContainmentTest {
         FloatVector.SPECIES_PREFERRED.vectorBitSize(), -1,
         List.of(CpuKernelIr.PowerRealization.POSITIVE_ONE), false, 52);
         var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(specialization,
-                generator.generateClassBytes(specialization, ir));
+        var artifact = generator.defineClassBytes(specialization, ir, generator.generateClassBytes(specialization, ir));
         float[] ignored = {Float.NaN};
         float[] biasValues = {10.0f, 20.0f, 30.0f};
         float[] actual = {-7.0f, -7.0f, -7.0f, -7.0f, -7.0f, -7.0f};
@@ -303,8 +302,7 @@ class CpuVectorScalarPowerSelfContainmentTest {
         CpuKernelIr ir = ir(type, realization, fused);
         var specialization = specialization(ir, type, realization, carriers, strategy);
         var generator = new CpuClassFileKernelGenerator();
-        return generator.defineClassBytes(specialization,
-                generator.generateClassBytes(specialization, ir));
+        return generator.defineClassBytes(specialization, ir, generator.generateClassBytes(specialization, ir));
     }
 
     private static CpuKernelSpecialization specialization(CpuKernelIr ir, DataType type,

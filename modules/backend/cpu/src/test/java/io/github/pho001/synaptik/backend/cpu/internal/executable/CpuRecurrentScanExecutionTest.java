@@ -5,28 +5,67 @@ import static io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRecurre
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRecurrentScanLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.*;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.*;
+import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.Float16Bits;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
+import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuRecurrentScanCleanJavaOracle;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.operation.recurrent.*;
 import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
+import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
 import io.github.pho001.synaptik.prepare.*;
 import io.github.pho001.synaptik.prepare.analysis.*;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
+import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
+import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
+import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
 import io.github.pho001.synaptik.runtime.memory.*;
 import io.github.pho001.synaptik.runtime.run.*;
+import io.github.pho001.synaptik.runtime.schedule.PreparedSchedule;
 import java.lang.foreign.*;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 
 /** Direct-kernel equations, raw movement and no-partial-write qualification on exact segments. */
 public class CpuRecurrentScanExecutionTest {
+    /** Retained low facts cannot construct executable code, including zero-scratch domains. */
+    @Test void retainedLowFixedExecutableRejectsBeforeEmptyDomainDecisions() {
+        for (var kind : RecurrentScanKind.values()) for (int time : List.of(0, 2))
+            for (int batch : List.of(0, 2)) {
+                var analysis = new CpuPartitionPreparer().analyze(scalarContext(kind, true,
+                        RecurrentDirection.FORWARD, time, batch, 2, 2, false, DataType.FLOAT32, 2));
+                var original = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
+                try (var fixture = new Fixture(analysis, 0, false, false, Map.of())) {
+                    var selections = java.util.stream.IntStream.range(0, original.boundaryValues().size())
+                            .mapToObj(p -> new PreparedExecutable.BufferSelection(p, 0)).toList();
+                    Optional<PreparedExecutable.WorkspaceSelection> workspace = original.geometry().scratchBytes() == 0
+                            ? Optional.empty() : Optional.of(new PreparedExecutable.WorkspaceSelection(0));
+                    assertDoesNotThrow(() -> new CpuRecurrentScanPreparedExecutable(
+                            fixture.state.memoryPlan(), selections, workspace, original, null));
+                    for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+                        var g = original.geometry();
+                        var geometry = new CpuRecurrentScanLowering.Geometry(g.kind(), g.reverse(), g.bias(),
+                                g.time(), g.batch(), g.inputSize(), g.hiddenSize(), g.gates(), type, g.scratchBytes());
+                        var retained = new CpuRecurrentScanLowering.Facts(geometry, original.boundaryValues(),
+                                original.rolePositions(), original.accessBindings(),
+                                original.boundaryTypes().stream().map(t -> t == DataType.FLOAT32 ? type : t).toList(),
+                                original.spans(), original.readCount());
+                        assertThrows(IllegalArgumentException.class, () -> new CpuRecurrentScanPreparedExecutable(
+                                fixture.state.memoryPlan(), selections, workspace, retained, null));
+                    }
+                }
+            }
+    }
+
     @Test void everyScalarTypeRetainsActiveSpecialClassesAndGradualSubnormalSites() {
         for (var type : floatingTypes()) for (var kind : RecurrentScanKind.values()) {
-            var analysis = new CpuPartitionPreparer().analyze(scalarContext(kind, true, RecurrentDirection.FORWARD,
-                    1, 1, 1, 1, false, type, 2));
+            var context = scalarContext(kind, true, RecurrentDirection.FORWARD,
+                    1, 1, 1, 1, false, type, 2);
+            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) continue;
+            var analysis = new CpuPartitionPreparer().analyze(context);
             var facts = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
             try (var f = new Fixture(analysis, 2, true, true, Map.of())) {
                 int weight = kind == RecurrentScanKind.LSTM ? 4 : 3, gates = facts.geometry().gates();
@@ -47,8 +86,10 @@ public class CpuRecurrentScanExecutionTest {
             }
         }
         for (var type : floatingTypes()) {
-            var analysis = new CpuPartitionPreparer().analyze(scalarContext(RecurrentScanKind.RNN_TANH, false,
-                    RecurrentDirection.FORWARD, 1, 1, 1, 1, false, type, 2));
+            var context = scalarContext(RecurrentScanKind.RNN_TANH, false,
+                    RecurrentDirection.FORWARD, 1, 1, 1, 1, false, type, 2);
+            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) continue;
+            var analysis = new CpuPartitionPreparer().analyze(context);
             var facts = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
             try (var f = new Fixture(analysis, 0, true, true, Map.of())) {
                 scatterLengths(facts, f, 1); scatter(facts, f, 2, new double[] {0});
@@ -69,8 +110,10 @@ public class CpuRecurrentScanExecutionTest {
 
     @Test void typedReadAliasesCapacityTailsAndConservativeWriteExclusion() {
         for (var type : floatingTypes()) {
-            var analysis = new CpuPartitionPreparer().analyze(scalarContext(RecurrentScanKind.LSTM, true,
-                    RecurrentDirection.FORWARD, 2, 2, 2, 2, false, type, 2));
+            var context = scalarContext(RecurrentScanKind.LSTM, true,
+                    RecurrentDirection.FORWARD, 2, 2, 2, 2, false, type, 2);
+            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) continue;
+            var analysis = new CpuPartitionPreparer().analyze(context);
             var facts = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
             try (Arena arena = Arena.ofShared()) {
                 var sameRead = arena.allocate(facts.spans().get(2) * type.byteWidth(), 8);
@@ -129,8 +172,10 @@ public class CpuRecurrentScanExecutionTest {
         for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16))
             for (var kind : List.of(RecurrentScanKind.GRU_RESET_AFTER, RecurrentScanKind.LSTM)) {
                 var witnessed = new boolean[kind == RecurrentScanKind.LSTM ? 5 : 4];
-                var analysis = new CpuPartitionPreparer().analyze(scalarContext(kind, true,
-                        RecurrentDirection.FORWARD, 2, 1, 3, 2, false, type, 2));
+                var context = scalarContext(kind, true,
+                        RecurrentDirection.FORWARD, 2, 1, 3, 2, false, type, 2);
+                if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) continue;
+                var analysis = new CpuPartitionPreparer().analyze(context);
                 var facts = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
                 try (var f = new Fixture(analysis, 0, false, false, Map.of())) {
                     var random = new Random(0x29c0ffee);
@@ -164,8 +209,10 @@ public class CpuRecurrentScanExecutionTest {
         for (var type : floatingTypes()) for (var kind : RecurrentScanKind.values())
             for (boolean bias : List.of(false, true)) for (var direction : RecurrentDirection.values())
                 for (int mode = 0; mode < 6; mode++) for (int carrier = 0; carrier < 3; carrier++) {
-                    var analysis = new CpuPartitionPreparer().analyze(scalarContext(kind, bias, direction,
-                            3, 4, 2, 3, false, type, mode));
+                    var context = scalarContext(kind, bias, direction,
+                            3, 4, 2, 3, false, type, mode);
+                    if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) continue;
+                    var analysis = new CpuPartitionPreparer().analyze(context);
                     var facts = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
                     try (var f = new Fixture(analysis, carrier, true, true, Map.of())) {
                         populate(facts, f);
@@ -205,8 +252,10 @@ public class CpuRecurrentScanExecutionTest {
 
     @Test void stridedLastInvalidLengthsAreAtomicAndBoundInvocationIsReusableForAllTypes() {
         for (var type : floatingTypes()) for (var kind : RecurrentScanKind.values()) for (int mode : List.of(1, 2, 4)) {
-            var analysis = new CpuPartitionPreparer().analyze(scalarContext(kind, true, RecurrentDirection.REVERSE,
-                    3, 4, 2, 3, false, type, mode));
+            var context = scalarContext(kind, true, RecurrentDirection.REVERSE,
+                    3, 4, 2, 3, false, type, mode);
+            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) continue;
+            var analysis = new CpuPartitionPreparer().analyze(context);
             var facts = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
             try (var f = new Fixture(analysis, 2, false, true, Map.of())) {
                 populate(facts, f);
@@ -240,6 +289,7 @@ public class CpuRecurrentScanExecutionTest {
                                     new long[] {Long.MAX_VALUE, 0, 0}, Long.MAX_VALUE, true)), false));
                     context = project(ds, context.nodes());
                 }
+                if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) continue;
                 var analysis = new CpuPartitionPreparer().analyze(context);
                 var facts = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
                 try (var f = new Fixture(analysis, 2, true, true, Map.of())) {
@@ -836,23 +886,321 @@ public class CpuRecurrentScanExecutionTest {
         public final PreparedExecutable executable;
         public final RunState state;
         private final List<MemorySegment> writers = new ArrayList<>();
-        private final CpuWorkerGroup workers = new CpuWorkerGroup(4);
+        private final CpuWorkerGroup workers;
         private final Map<ValueId, Long> logicalBytes = new HashMap<>();
+        private PreparedExecution graphExecution;
+        private PreparedScheduleContext graphContext;
+        private BackendPartitionAnalysis<CpuPartitionPreparationPlan> graphAnalysis;
+        private CpuPartitionAnalysisInputs graphInputs;
+        private Map<ValueId,DataType> graphTypes;
+        private boolean ownsGraphExecution;
+        private boolean ownsWorkers = true;
+
+        /**
+         * Prepares a complete static compiled graph, including real source-only publications.
+         * @param artifacts exact complete compiled graph and source/publication roles
+         * @param inputs exact immutable inputs used for the supplied actual analysis
+         * @param analysis actual independently analyzed CPU plan, never a fabricated declaration
+         * @param carrier heap/native/mixed physical-provider selector
+         * @param readOnly expose caller reads read-only
+         * @param sliced use exact interior physical slices
+         * @param overrides caller-owned deliberate physical substitutions
+         */
+        public Fixture(CompileArtifacts artifacts, CpuPartitionAnalysisInputs inputs,
+                BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis, int carrier,
+                boolean readOnly, boolean sliced, Map<ValueId,MemorySegment> overrides) {
+            this(artifacts,inputs,analysis,carrier,readOnly,sliced,overrides,OptionalLong.empty());
+        }
+
+        /**
+         * Prepares a complete graph with exact static or authenticated actual-B geometry.
+         * @param artifacts exact complete compiled graph and source/publication roles
+         * @param inputs actual immutable analysis inputs
+         * @param analysis actual independently analyzed CPU plan
+         * @param carrier heap/native/mixed physical-provider selector
+         * @param readOnly expose caller reads read-only
+         * @param sliced use exact interior physical slices
+         * @param overrides caller-owned deliberate physical substitutions
+         * @param batch actual B exactly when required by the complete memory plan
+         */
+        public Fixture(CompileArtifacts artifacts, CpuPartitionAnalysisInputs inputs,
+                BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis, int carrier,
+                boolean readOnly, boolean sliced, Map<ValueId,MemorySegment> overrides, OptionalLong batch) {
+            this(artifacts,inputs,analysis,carrier,readOnly,sliced,overrides,batch,null);
+        }
+
+        /**
+         * Creates independent run storage against an optional already finalized complete owner.
+         * @param artifacts exact complete compiled graph
+         * @param inputs actual immutable analysis inputs
+         * @param analysis actual independently analyzed CPU plan
+         * @param carrier heap/native/mixed physical-provider selector
+         * @param readOnly expose caller reads read-only
+         * @param sliced use exact interior physical slices
+         * @param overrides caller-owned deliberate physical substitutions
+         * @param batch actual B exactly when required by the complete memory plan
+         * @param owner matching open full-artifact owner, or null to prepare here
+         */
+        public Fixture(CompileArtifacts artifacts, CpuPartitionAnalysisInputs inputs,
+                BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis, int carrier,
+                boolean readOnly, boolean sliced, Map<ValueId,MemorySegment> overrides,
+                OptionalLong batch, Fixture owner) {
+            this(artifacts,inputs,analysis,carrier,readOnly,sliced,overrides,batch,owner,Optional.empty());
+        }
+
+        /**
+         * Uses real complete-graph assignment, source classification, CPU finalization and Runtime
+         * creation. The supplied genuine analysis is retained rather than reanalyzing a different
+         * physical-provider projection. Only test storage providers vary: source geometry/roles,
+         * slot associations, workspace creators and the real finalized executable stay unchanged.
+         * @param artifacts exact complete compiled graph, non-null
+         * @param inputs exact immutable inputs for the supplied actual analysis, non-null
+         * @param analysis actual independently analyzed CPU plan, non-null
+         * @param carrier heap/native/mixed physical-provider selector
+         * @param readOnly expose caller reads read-only without losing writable test input handles
+         * @param sliced use exact interior physical slices
+         * @param overrides caller-owned deliberate physical substitutions, snapshotted
+         * @param batch actual B exactly when required by complete prepared geometry, non-null
+         * @param owner matching open full-artifact owner, or null to prepare here
+         * @param artifactRoot optional isolated trusted generated-artifact directory
+         * @throws NullPointerException if a required argument is null
+         * @throws IllegalArgumentException if graph/analysis/owner associations or geometry disagree
+         * @throws RuntimeException if actual preparation, creation or validation fails
+         */
+        public Fixture(CompileArtifacts artifacts, CpuPartitionAnalysisInputs inputs,
+                BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis, int carrier,
+                boolean readOnly, boolean sliced, Map<ValueId,MemorySegment> overrides,
+                OptionalLong batch, Fixture owner, Optional<java.nio.file.Path> artifactRoot) {
+            Objects.requireNonNull(artifacts, "artifacts");
+            Objects.requireNonNull(inputs, "inputs");
+            Objects.requireNonNull(analysis, "analysis");
+            Objects.requireNonNull(batch, "batch");
+            Objects.requireNonNull(artifactRoot, "artifactRoot");
+            Map<ValueId,MemorySegment> substitutions = Map.copyOf(overrides);
+            if (artifacts.partitions().size() != 1 || artifacts.partitions().getFirst() != analysis.partition()) {
+                throw new IllegalArgumentException("full fixture requires the actual sole CPU partition analysis");
+            }
+            graphAnalysis = analysis;
+            graphInputs = inputs;
+            if (owner != null && (owner.graphExecution == null || owner.graphAnalysis != analysis
+                    || !owner.graphInputs.equals(inputs) || owner.state.isClosed())) {
+                throw new IllegalArgumentException("full fixture owner does not match the actual analysis");
+            }
+            boolean selectedRows = owner == null && analysis.plan().units().stream().anyMatch(u -> u.portablePlan() != null
+                    && u.portablePlan().specialization().rowFusionEmission()
+                            .map(e -> e.maximumPartialCount() > 1).orElse(false));
+            var rowBudget = selectedRows ? new CpuConcurrencyBudget(4) : null;
+            ownsWorkers = owner == null;
+            workers = owner != null ? owner.workers
+                    : selectedRows ? new CpuWorkerGroup(4,rowBudget) : new CpuWorkerGroup(4);
+            RunState created = null;
+            try {
+                if (owner == null) {
+                    var finalizer = selectedRows
+                            ? new CpuPartitionFinalizer(artifactRoot,Optional.of(workers),rowBudget,Optional.empty())
+                            : new CpuPartitionFinalizer(artifactRoot,Optional.of(workers));
+                    var cpuAssembler = new CpuPreparedScheduleAssembler(() -> true);
+                    PreparedScheduleAssembler assembler = new PreparedScheduleAssembler() {
+                        @Override public ProducerlessPublishedValueResource producerlessPublishedValue(
+                                GraphValue value, LogicalMemoryRequirement requirement, Optional<ScalarValue> scalar) {
+                            return cpuAssembler.producerlessPublishedValue(value, requirement, scalar);
+                        }
+                        @Override public PreparedSchedule assemble(PreparedScheduleContext context) {
+                            graphContext = context;
+                            return cpuAssembler.assemble(context);
+                        }
+                    };
+                    var preparation = new PartitionPreparation<CpuPartitionAnalysisInputs,CpuPartitionPreparationPlan>(
+                            inputs, context -> {
+                                if (context.partition() != analysis.partition()) {
+                                    throw new IllegalArgumentException("projected partition differs from actual analysis");
+                                }
+                                return analysis;
+                            }, finalizer);
+                    graphExecution = GraphPreparation.prepare(artifacts, List.of(preparation), assembler);
+                    ownsGraphExecution = true;
+                    graphTypes = new HashMap<>();
+                    graphContext.graphValues().forEach(value -> graphTypes.put(value.id(),value.descriptor().dataType()));
+                } else {
+                    graphExecution = owner.graphExecution;
+                    graphContext = owner.graphContext;
+                    graphTypes = owner.graphTypes;
+                }
+                executable = graphContext.partitions().getFirst().executable();
+                var memory = graphExecution.memoryPlan();
+                var geometry = RunMemoryGeometry.resolve(memory, batch);
+                var actualRecipe = ((PreparedSchedule.RepresentationCreationStep)
+                        graphExecution.schedule().steps().getFirst()).representationPlan();
+                ArrayList<List<PreparedRepresentationPlan.BufferPreparation>> preparations = null;
+                var callers = new ArrayList<BufferRepresentation>();
+                for (PreparedBufferAssignment assignment : graphContext.bufferAssignments()) {
+                    int index = assignment.planIndex();
+                    ValueId id = assignment.valueId();
+                    DataType type = graphTypes.get(id);
+                    var entry = memory.buffers().get(index);
+                    var origins = actualRecipe.bufferPreparations().get(index);
+                    ArrayList<PreparedRepresentationPlan.BufferPreparation> physical = null;
+                    for (int originIndex = 0; originIndex < origins.size(); originIndex++) {
+                        var origin = origins.get(originIndex);
+                        if (origin instanceof PreparedRepresentationPlan.CallerInput) {
+                            var writer = providedStorage(type,geometry.bufferByteSize(index),entry.byteAlignment(),
+                                    carrier,sliced,substitutions.get(id),index);
+                            storage.put(id,writer);
+                            var representation = CpuBorrowedBuffer.borrow(new MemorySegmentStorage(type,
+                                    writer.byteSize()/type.byteWidth(),readOnly ? writer.asReadOnly() : writer));
+                            borrowed.add(representation);
+                            callers.add(representation);
+                        } else if (carrier != 1 || sliced || substitutions.containsKey(id)) {
+                            if (physical == null) physical = new ArrayList<>(origins);
+                            if (origin instanceof PreparedRepresentationPlan.InitializedBuffer initialized) {
+                                physical.set(originIndex,new PreparedRepresentationPlan.InitializedBuffer((bytes,alignment) -> {
+                                    try (var original = (CpuBufferRepresentation) initialized.creator().create(bytes,alignment)) {
+                                        var writer = providedStorage(type,bytes,alignment,carrier,sliced,substitutions.get(id),index);
+                                        writer.asSlice(0,bytes).copyFrom(original.segment().asSlice(0,bytes));
+                                        return CpuBorrowedBuffer.borrow(new MemorySegmentStorage(type,
+                                                writer.byteSize()/type.byteWidth(),readOnly ? writer.asReadOnly() : writer));
+                                    }
+                                }));
+                            } else {
+                                physical.set(originIndex,new PreparedRepresentationPlan.CreatedBuffer((bytes,alignment) -> {
+                                    var writer = providedStorage(type,bytes,alignment,carrier,sliced,substitutions.get(id),index);
+                                    return CpuBorrowedBuffer.borrow(new MemorySegmentStorage(type,
+                                            writer.byteSize()/type.byteWidth(),writer));
+                                }));
+                            }
+                        }
+                    }
+                    if (physical != null) {
+                        if (preparations == null) preparations = new ArrayList<>(actualRecipe.bufferPreparations());
+                        preparations.set(index,physical);
+                    }
+                    logicalBytes.put(id,geometry.bufferByteSize(index));
+                }
+                var recipe = preparations == null ? actualRecipe
+                        : new PreparedRepresentationPlan(memory,preparations,actualRecipe.workspaceCreators());
+                created = CpuRunStateCreationTestAccess.create(recipe,callers,geometry);
+                state = created;
+                for (PreparedBufferAssignment assignment : graphContext.bufferAssignments()) {
+                    storage.putIfAbsent(assignment.valueId(),((CpuBufferRepresentation) state.bufferRepresentation(
+                            assignment.planIndex(),0).representation()).segment());
+                }
+            } catch (RuntimeException | Error failure) {
+                if (created != null) closeAfterFailure(created,failure);
+                for (var caller : borrowed) closeAfterFailure(caller,failure);
+                if (ownsGraphExecution) closeAfterFailure(graphExecution,failure);
+                if (ownsWorkers) closeAfterFailure(workers,failure);
+                closeAfterFailure(arena,failure);
+                throw failure;
+            }
+        }
+
+        /**
+         * Supplies only physical test storage for an actual assigned declaration.
+         * @param type exact declared element type
+         * @param bytes authenticated usable byte span
+         * @param alignment actual declaration alignment
+         * @param carrier heap/native/mixed selector
+         * @param sliced retain the existing eight-byte interior origin
+         * @param override explicit caller-owned substitution, or null to allocate
+         * @param index actual dense assignment position
+         * @return writable selected storage without inventing a declaration or source role
+         */
+        private MemorySegment providedStorage(DataType type,long bytes,long alignment,int carrier,
+                boolean sliced,MemorySegment override,int index) {
+            if (override != null) return override;
+            long capacity = Math.addExact(bytes,sliced ? 16 : 0);
+            MemorySegment result;
+            if (carrier == 0 || carrier == 2 && (index+1)%2 == 0) {
+                int cells = Math.toIntExact(capacity/type.byteWidth());
+                result = switch (type) {
+                    case BOOL -> MemorySegment.ofArray(new byte[cells]);
+                    case INT32 -> MemorySegment.ofArray(new int[cells]);
+                    case INT64 -> MemorySegment.ofArray(new long[cells]);
+                    case FLOAT16, BFLOAT16 -> MemorySegment.ofArray(new short[cells]);
+                    case FLOAT32 -> MemorySegment.ofArray(new float[cells]);
+                    case FLOAT64 -> MemorySegment.ofArray(new double[cells]);
+                };
+            } else result = arena.allocate(capacity,alignment);
+            return sliced ? result.asSlice(8,bytes) : result;
+        }
+
+        /** Closes one acquired fixture resource without replacing the original setup failure.
+         * @param resource acquired resource, or null if acquisition did not finish
+         * @param failure original unchecked setup failure */
+        private static void closeAfterFailure(AutoCloseable resource,Throwable failure) {
+            if (resource == null) return;
+            try { resource.close(); } catch (Throwable cleanup) {
+                if (cleanup != failure) failure.addSuppressed(cleanup);
+            }
+        }
 
         public Fixture(BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis, int carrier,
                 boolean readOnly, boolean sliced, Map<ValueId, MemorySegment> overrides) {
+            this(analysis,carrier,readOnly,sliced,overrides,OptionalLong.empty());
+        }
+
+        /**
+         * Retains the existing physical-assignment fixture for actual symbolic geometry.
+         * @param analysis exact selected backend plan
+         * @param carrier heap/native/mixed selection
+         * @param readOnly whether read boundaries are exposed read-only
+         * @param sliced whether storage is an exact interior slice
+         * @param overrides deliberate physical aliases or capacity/type failures
+         * @param batch present only for symbolic plans; never changes topology or lowering
+         */
+        public Fixture(BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis,int carrier,
+                boolean readOnly,boolean sliced,Map<ValueId,MemorySegment> overrides,OptionalLong batch) {
+            this(analysis,carrier,readOnly,sliced,overrides,batch,null);
+        }
+
+        /**
+         * Allocates an independent invocation against an already finalized immutable owner.
+         * Only storage and resolved batch geometry are new; no finalization or kernel selection
+         * is repeated. The owner must remain open until all dependent fixtures have closed.
+         * @param analysis the owner's exact selected backend plan
+         * @param carrier heap/native/mixed selection
+         * @param readOnly whether read boundaries are exposed read-only
+         * @param sliced whether storage is an exact interior slice
+         * @param overrides deliberate physical aliases or capacity/type failures
+         * @param batch invocation batch, present exactly for a symbolic memory plan
+         * @param owner existing owner to reuse, or null to finalize a new one
+         */
+        public Fixture(BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis,int carrier,
+                boolean readOnly,boolean sliced,Map<ValueId,MemorySegment> overrides,OptionalLong batch,Fixture owner) {
+            this(analysis,carrier,readOnly,sliced,overrides,batch,owner,Optional.empty());
+        }
+
+        /**
+         * Allocates the same test resources with an isolated trusted generated-artifact root.
+         * @param analysis selected immutable plan
+         * @param carrier existing heap/native/mixed fixture selector
+         * @param readOnly expose read boundaries read-only
+         * @param sliced use interior exact slices
+         * @param overrides deliberate storage substitutions
+         * @param batch invocation B for symbolic plans only
+         * @param owner existing prepared owner, or null to finalize here
+         * @param artifactRoot optional fresh private candidate directory, never a baseline oracle
+         */
+        public Fixture(BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis,int carrier,
+                boolean readOnly,boolean sliced,Map<ValueId,MemorySegment> overrides,OptionalLong batch,Fixture owner,
+                Optional<java.nio.file.Path> artifactRoot) {
+            boolean selectedRows = analysis.plan().units().stream().anyMatch(u -> u.portablePlan() != null && u.portablePlan().specialization()
+                    .rowFusionEmission().map(e -> e.maximumPartialCount() > 1).orElse(false));
+            var rowBudget = selectedRows ? new CpuConcurrencyBudget(4) : null;
+            workers = selectedRows ? new CpuWorkerGroup(4,rowBudget) : new CpuWorkerGroup(4);
             var buffers = new ArrayList<PreparedMemoryPlan.BufferEntry>(); var workspaces = new ArrayList<PreparedMemoryPlan.WorkspaceEntry>();
             var assignments = new ArrayList<PreparationResourceAssignment>(); var bindings = new ArrayList<List<BufferRepresentationBinding>>();
             var scratch = new ArrayList<io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation>();
             for (var requirement : analysis.requirements()) {
                 if (requirement instanceof PreparationResourceRequirement.Buffer buffer) {
-                    var slot = new BufferSlot(buffers.size()); buffers.add(new PreparedMemoryPlan.BufferEntry(slot, buffer.byteSize(), buffer.byteAlignment()));
+                    var slot = new BufferSlot(buffers.size()); buffers.add(new PreparedMemoryPlan.BufferEntry(slot, buffer.size(), buffer.byteAlignment()));
+                    long bytes = batch.isPresent() ? buffer.size().byteSize(batch.getAsLong()) : buffer.byteSize();
                     assignments.add(new PreparationResourceAssignment.Buffer(buffer, slot, buffers.size() - 1, 0));
                     var unit = analysis.plan().units().stream().filter(u -> u.boundaryValues().contains(buffer.valueId())).findFirst().orElseThrow();
                     int local = unit.boundaryValues().indexOf(buffer.valueId());
                     var type = unit.runtimeFacts().recurrentScan().map(s -> s.boundaryTypes().get(local))
                             .orElseGet(() -> unit.portablePlan().specialization().boundaryDataTypes().get(local));
-                    long capacity = buffer.byteSize() + (sliced ? 16 : 0);
+                    long capacity = bytes + (sliced ? 16 : 0);
                     MemorySegment segment = carrier == 0 || carrier == 2 && buffers.size() % 2 == 0
                             ? type == DataType.INT64 ? MemorySegment.ofArray(new long[Math.toIntExact(capacity / 8)])
                                 : type == DataType.FLOAT64 ? MemorySegment.ofArray(new double[Math.toIntExact(capacity / 8)])
@@ -860,29 +1208,77 @@ public class CpuRecurrentScanExecutionTest {
                                     ? MemorySegment.ofArray(new short[Math.toIntExact(capacity / 2)])
                                     : MemorySegment.ofArray(new float[Math.toIntExact(capacity / 4)])
                             : arena.allocate(capacity, buffer.byteAlignment());
-                    if (sliced) segment = segment.asSlice(8, buffer.byteSize());
+                    if (sliced) segment = segment.asSlice(8, bytes);
                     segment = overrides.getOrDefault(buffer.valueId(), segment);
-                    storage.put(buffer.valueId(), segment); logicalBytes.put(buffer.valueId(), buffer.byteSize()); writers.add(segment);
+                    storage.put(buffer.valueId(), segment); logicalBytes.put(buffer.valueId(), bytes); writers.add(segment);
                     boolean input = analysis.plan().units().stream().noneMatch(u -> u.boundaryValues().subList(u.boundaryValues().size() - u.outputCount(), u.boundaryValues().size()).contains(buffer.valueId()));
                     var selected = readOnly && input ? segment.asReadOnly() : segment;
                     var representation = CpuBorrowedBuffer.borrow(new MemorySegmentStorage(type, selected.byteSize() / type.byteWidth(), selected));
                     borrowed.add(representation); bindings.add(List.of(new BufferRepresentationBinding(representation, RunResourceOwnership.BORROWED)));
                 } else if (requirement instanceof PreparationResourceRequirement.Workspace workspace) {
-                    var slot = new WorkspaceSlot(workspaces.size()); workspaces.add(new PreparedMemoryPlan.WorkspaceEntry(slot, workspace.byteSize(), workspace.byteAlignment()));
+                    var slot = new WorkspaceSlot(workspaces.size()); workspaces.add(new PreparedMemoryPlan.WorkspaceEntry(slot, workspace.size(), workspace.byteAlignment()));
                     assignments.add(new PreparationResourceAssignment.Workspace(workspace, slot, workspaces.size() - 1));
-                    scratch.add(CpuContiguousWorkspace.allocate(workspace.byteSize(), workspace.byteAlignment()));
+                    scratch.add(CpuContiguousWorkspace.allocate(batch.isPresent() ? workspace.size().byteSize(batch.getAsLong()) : workspace.byteSize(), workspace.byteAlignment()));
                 }
             }
-            var memory = new PreparedMemoryPlan(buffers, workspaces);
-            executable = new CpuPartitionFinalizer(Optional.empty(), Optional.of(workers)).finalizePartition(
-                    new BackendPartitionFinalization<>(analysis, memory, assignments)).executable();
-            state = new RunState(memory, bindings, scratch);
+            var memory = owner == null ? new PreparedMemoryPlan(buffers, workspaces,batch.isPresent()) : owner.state.memoryPlan();
+            var finalizer = selectedRows ? new CpuPartitionFinalizer(artifactRoot,Optional.of(workers),rowBudget,Optional.empty())
+                    : new CpuPartitionFinalizer(artifactRoot,Optional.of(workers));
+            executable = owner == null ? finalizer.finalizePartition(
+                    new BackendPartitionFinalization<>(analysis, memory, assignments)).executable() : owner.executable;
+            state = batch.isPresent() ? new RunState(memory,bindings,scratch,
+                    io.github.pho001.synaptik.runtime.run.RunMemoryGeometry.resolve(memory,batch)) : new RunState(memory, bindings, scratch);
         }
         public MemorySegment segment(int id) { return storage.get(new ValueId(id)).asSlice(0, logicalBytes.get(new ValueId(id))); }
+        /** @return the borrowed test worker group; the fixture retains its closing obligation */
+        CpuWorkerGroup workers() { return workers; }
+        /** @return this fixture's coordinated row budget, or null for an inline-only analysis */
+        public CpuConcurrencyBudget rowOracleBudget() { return workers.concurrencyBudget(); }
+
+        /**
+         * Cold-binds the independent Java oracle's fixed row calls to the same existing workers.
+         * No range array or adapter is constructed per time step; only normal group Job metadata
+         * remains. This test bridge lends the caller's exclusive live reservation synchronously.
+         * @param ranges ordered nonnull fixed row calls, at least two
+         * @return synchronous prebound borrowed-reservation dispatch action
+         */
+        public java.util.function.Consumer<CpuConcurrencyBudget.Lease> bindRowOracleRanges(Runnable[] ranges) {
+            var calls = new CpuWorkerGroup.RangeCall[ranges.length];
+            for (int r = 0; r < ranges.length; r++) { var action = java.util.Objects.requireNonNull(ranges[r]); calls[r] = action::run; }
+            return lease -> workers.execute(calls,lease);
+        }
         public void floats(int id, float... values) { segment(id).copyFrom(MemorySegment.ofArray(values)); }
+        /**
+         * Fills an existing fixture selection with represented doubles, without narrowing.
+         * @param id fixture value identity with eight-byte cells
+         * @param values borrowed logical values copied into the selected storage
+         */
+        public void doubles(int id, double... values) { segment(id).copyFrom(MemorySegment.ofArray(values)); }
+        /**
+         * Reads the selected double storage for exact or numerical test assertions.
+         * @param id fixture value identity with eight-byte cells
+         * @return new array of all represented double cells
+         */
+        public double[] doubles(int id) { return segment(id).toArray(ValueLayout.JAVA_DOUBLE); }
+        /**
+         * Initializes every physical double cell, including a scalar-zero-stride selection.
+         * @param id fixture value identity with eight-byte cells
+         * @param value exact double value to repeat; NaNs and signed zero are allowed
+         */
+        public void fillDouble(int id, double value) { var s = segment(id); for (long p = 0; p < s.byteSize() / 8; p++) s.setAtIndex(ValueLayout.JAVA_DOUBLE, p, value); }
         public float[] floats(int id) { return segment(id).toArray(ValueLayout.JAVA_FLOAT); }
         public void fill(int id, float value) { var s = segment(id); for (long p = 0; p < s.byteSize() / 4; p++) s.setAtIndex(ValueLayout.JAVA_FLOAT, p, value); }
         public void lengths(int id, long... values) { segment(id).copyFrom(MemorySegment.ofArray(values)); }
-        @Override public void close() { try { state.close(); } finally { try { workers.close(); } finally { arena.close(); } } }
+        @Override public void close() {
+            try { state.close(); } finally {
+                try { if (ownsGraphExecution) graphExecution.close(); } finally {
+                    try { if (ownsWorkers) workers.close(); } finally {
+                        try {
+                            if (graphExecution != null) for (var caller : borrowed) caller.close();
+                        } finally { arena.close(); }
+                    }
+                }
+            }
+        }
     }
 }

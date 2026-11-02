@@ -279,7 +279,7 @@ public abstract class PreparedExecutable {
                                     selection.bufferIndex(), representationIndex)
                             .representation();
             bufferRepresentations[index] = representation;
-            if (!acceptsBufferRepresentation(index, representation)) {
+            if (!acceptsBufferRepresentation(runState, index, representation)) {
                 throw new IllegalArgumentException(
                         "bufferSelections["
                                 + index
@@ -292,7 +292,7 @@ public abstract class PreparedExecutable {
             WorkspaceRepresentation representation =
                     runState.workspaceRepresentation(workspaceSelections[index].workspaceIndex());
             workspaceRepresentations[index] = representation;
-            if (!acceptsWorkspaceRepresentation(index, representation)) {
+            if (!acceptsWorkspaceRepresentation(runState, index, representation)) {
                 throw new IllegalArgumentException(
                         "workspaceSelections["
                                 + index
@@ -346,6 +346,34 @@ public abstract class PreparedExecutable {
      */
     protected abstract boolean acceptsWorkspaceRepresentation(
             int selectionIndex, WorkspaceRepresentation representation);
+
+    /**
+     * Validates one selection against actual run geometry on the cold binding boundary.
+     * The static default deliberately rejects batch-required mode, including constant-byte plans.
+     * @param state non-null exact open run state
+     * @param selectionIndex dense buffer selection position
+     * @param representation non-null selected physical representation
+     * @return whether this selection is compatible with the explicit run mode and actual geometry
+     */
+    protected boolean acceptsBufferRepresentation(RunState state, int selectionIndex,
+            BufferRepresentation representation) {
+        return !state.memoryPlan().requiresBatchSize()
+                && acceptsBufferRepresentation(selectionIndex, representation);
+    }
+
+    /**
+     * Validates scratch against actual run geometry on the cold binding boundary.
+     * The static default never treats constant bytes as proof of static execution mode.
+     * @param state non-null exact open run state
+     * @param selectionIndex dense workspace selection position
+     * @param representation non-null selected physical scratch
+     * @return whether this selection is compatible with the explicit run mode and actual geometry
+     */
+    protected boolean acceptsWorkspaceRepresentation(RunState state, int selectionIndex,
+            WorkspaceRepresentation representation) {
+        return !state.memoryPlan().requiresBatchSize()
+                && acceptsWorkspaceRepresentation(selectionIndex, representation);
+    }
 
     /**
      * Constructs one backend-owned typed invocation after every selection is compatible.

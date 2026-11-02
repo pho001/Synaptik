@@ -1,7 +1,5 @@
 package io.github.pho001.synaptik.compiler;
 
-import io.github.pho001.synaptik.model.tensor.Tensor;
-import io.github.pho001.synaptik.model.tensor.TensorProducer;
 
 /**
  * Builds the closed role-aware floating {@code MATMUL} first-order formulas.
@@ -23,112 +21,113 @@ import io.github.pho001.synaptik.model.tensor.TensorProducer;
  * {@code [C(expandDims(g)) @ C(expandDims(r)), C(squeeze(T(l) @ C(expandDims(g))))]};
  * and matrix/matrix
  * {@code [g @ T(r), T(l) @ g]}. Each selected result is reduced with
- * {@code sumToShape(operand.shape())} when batch broadcasting occurred and is then cast once when
+ * {@code sumToShape(operand.shape())} only when its exact Shape differs, and is then cast once when
  * its promoted type differs from the selected operand. An unselected role remains {@code null}.
  * The matrix/vector right formula inserts and removes the final singleton column axis, so a
  * batched cotangent retains its batch prefix instead of being interpreted as a matrix operand.
  *
  * <p>This owner constructs expression metadata only. It reads no values or storage, captures no
  * graph, selects no numerical implementation, and performs no lowering or execution.</p>
+ *
+ * <p>Descriptor access preserves original source roles without resolving primal values.
+ * Real construction uses Tensor references directly; checked metadata construction retains
+ * the same eager operation sites, including temporaries not used by a returned cotangent.</p>
+ *
+ * @param <V> direct Tensor or checked metadata operand representation
  */
-final class LinearAlgebraGradientRules {
-    /**
-     * Prevents construction of this stateless formula owner.
-     */
-    private LinearAlgebraGradientRules() {}
+final class LinearAlgebraGradientRules<V> {
+    private final OrdinaryConstruction<V> ops;
 
     /**
-     * Builds selected ordered operand cotangents for one preflight-approved {@code MATMUL}.
+     * Binds this formula owner to one compile-local construction route.
+     * @param ops non-null direct Tensor or checked metadata construction
+     */
+    LinearAlgebraGradientRules(OrdinaryConstruction<V> ops) {
+        this.ops = java.util.Objects.requireNonNull(ops);
+    }
+
+    /**
+     * Binds original matrix operands, constructs their positional formulas and normalizes once.
      *
-     * @param producer exact original two-input {@code MATMUL} producer occurrence
-     * @param gradient non-null accumulated cotangent for its sole output
-     * @param selectedInputs non-null two-position selected-route flags; observed but not mutated
-     * @return a new two-position array containing each selected operand cotangent and {@code null}
-     *     for each unselected role
+     * <p>Rank-case construction does not append a shape reduction. The common normalization step
+     * retains actual batch reductions but omits an otherwise materialized same-Shape copy.</p>
+     *
+     * @param producer exact original matrix product
+     * @param gradient accumulated output cotangent
+     * @param selectedInputs two ordered role flags
+     * @param primal total lexical binding for original operands
+     * @return positional cotangents, null for unselected roles
      */
-    static Tensor[] apply(
-            TensorProducer producer, Tensor gradient, boolean[] selectedInputs) {
-        Tensor left = producer.inputs().get(0);
-        Tensor right = producer.inputs().get(1);
-        int leftRank = left.descriptor().shape().rank();
-        int rightRank = right.descriptor().shape().rank();
-        Tensor leftGradient = null;
-        Tensor rightGradient = null;
-
+    V[] apply(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient,
+            boolean[] selectedInputs,
+            java.util.function.Function<V, V> primal) {
+        V left = primal.apply(producer.inputs().get(0));
+        V right = primal.apply(producer.inputs().get(1));
+        int leftRank = ops.descriptor(left).shape().rank();
+        int rightRank = ops.descriptor(right).shape().rank();
+        V leftGradient = null;
+        V rightGradient = null;
+        
         if (leftRank == 1 && rightRank == 1) {
             if (selectedInputs[0]) {
-                leftGradient = gradient.mul(right);
+                leftGradient = ops.mul(gradient, right);
             }
             if (selectedInputs[1]) {
-                rightGradient = gradient.mul(left);
+                rightGradient = ops.mul(gradient, left);
             }
         } else if (leftRank == 1) {
             if (selectedInputs[0]) {
-                int insertionAxis = gradient.descriptor().shape().rank() - 1;
-                leftGradient = gradient.expandDims(insertionAxis)
-                        .contiguous()
-                        .matmul(swapLastTwo(right))
-                        .squeeze(insertionAxis)
-                        .contiguous()
-                        .sumToShape(left.descriptor().shape());
+                int insertionAxis = ops.descriptor(gradient).shape().rank() - 1;
+                leftGradient = ops.contiguous(ops.squeeze(ops.matmul(ops.contiguous(ops.expandDims(gradient, insertionAxis)), swapLastTwo(right)), insertionAxis));
             }
             if (selectedInputs[1]) {
-                int insertionAxis = gradient.descriptor().shape().rank() - 1;
-                rightGradient = left.expandDims(1)
-                        .contiguous()
-                        .matmul(gradient.expandDims(insertionAxis).contiguous())
-                        .sumToShape(right.descriptor().shape());
+                int insertionAxis = ops.descriptor(gradient).shape().rank() - 1;
+                rightGradient = ops.matmul(ops.contiguous(ops.expandDims(left, 1)), ops.contiguous(ops.expandDims(gradient, insertionAxis)));
             }
         } else if (rightRank == 1) {
             if (selectedInputs[0]) {
-                leftGradient = gradient.expandDims(gradient.descriptor().shape().rank())
-                        .contiguous()
-                        .matmul(right.expandDims(0).contiguous())
-                        .sumToShape(left.descriptor().shape());
+                leftGradient = ops.matmul(ops.contiguous(ops.expandDims(gradient, ops.descriptor(gradient).shape().rank())), ops.contiguous(ops.expandDims(right, 0)));
             }
             if (selectedInputs[1]) {
-                int columnAxis = gradient.descriptor().shape().rank();
-                rightGradient = swapLastTwo(left)
-                        .matmul(gradient.expandDims(columnAxis).contiguous())
-                        .squeeze(columnAxis)
-                        .contiguous()
-                        .sumToShape(right.descriptor().shape());
+                int columnAxis = ops.descriptor(gradient).shape().rank();
+                rightGradient = ops.contiguous(ops.squeeze(ops.matmul(swapLastTwo(left), ops.contiguous(ops.expandDims(gradient, columnAxis))), columnAxis));
             }
         } else {
             if (selectedInputs[0]) {
-                leftGradient = gradient.matmul(swapLastTwo(right))
-                        .sumToShape(left.descriptor().shape());
+                leftGradient = ops.matmul(gradient, swapLastTwo(right));
             }
             if (selectedInputs[1]) {
-                rightGradient = swapLastTwo(left)
-                        .matmul(gradient)
-                        .sumToShape(right.descriptor().shape());
+                rightGradient = ops.matmul(swapLastTwo(left), gradient);
             }
         }
-        return new Tensor[] {
-            normalize(leftGradient, left),
-            normalize(rightGradient, right)
-        };
+        return ops.result(normalize(leftGradient, left),
+            normalize(rightGradient, right));
     }
 
     /**
      * Converts one optional promoted MATMUL cotangent to its selected operand contract.
+     *
+     * <p>Exact Shape equality, including equal symbolic Dimensions, bypasses reduction rather
+     * than constructing a copying {@code sumToShape}. Different Shapes retain the ordinary
+     * broadcast-reversing reduction before any required dtype cast.</p>
      *
      * @param gradient selected promoted cotangent, or {@code null} for an unselected operand
      * @param input non-null original floating operand whose exact Shape and data type are required
      * @return {@code null} for an unselected operand; otherwise a non-null ordinary Tensor
      *     expression with the operand's exact Shape and data type
      */
-    private static Tensor normalize(Tensor gradient, Tensor input) {
+    private V normalize(V gradient, V input) {
         if (gradient == null) {
             return null;
         }
-        Tensor normalized = gradient.descriptor().shape().equals(input.descriptor().shape())
+        V normalized = ops.descriptor(gradient).shape().equals(ops.descriptor(input).shape())
                 ? gradient
-                : gradient.sumToShape(input.descriptor().shape());
-        return normalized.descriptor().dataType() == input.descriptor().dataType()
+                : ops.sumToShape(gradient, ops.descriptor(input).shape());
+        return ops.descriptor(normalized).dataType() == ops.descriptor(input).dataType()
                 ? normalized
-                : normalized.cast(input.descriptor().dataType());
+                : ops.cast(normalized, ops.descriptor(input).dataType());
     }
 
     /**
@@ -137,14 +136,14 @@ final class LinearAlgebraGradientRules {
      * @param tensor non-null preflight-approved Tensor with rank at least two
      * @return a new Tensor expression with the final two axes exchanged
      */
-    private static Tensor swapLastTwo(Tensor tensor) {
-        int rank = tensor.descriptor().shape().rank();
+    private V swapLastTwo(V tensor) {
+        int rank = ops.descriptor(tensor).shape().rank();
         int[] axes = new int[rank];
         for (int axis = 0; axis < rank; axis++) {
             axes[axis] = axis;
         }
         axes[rank - 2] = rank - 1;
         axes[rank - 1] = rank - 2;
-        return tensor.permute(axes);
+        return ops.permute(tensor, axes);
     }
 }

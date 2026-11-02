@@ -46,12 +46,13 @@ class CpuScalarImmediateClampMatrixTest {
                         "lowering-admitted", "preparation-eligible", "carrier-input", "carrier-output",
                         "preference", "parallelism", "entry-descriptor", "strategy", "generator-schema",
                         "class-identity-schema", "structural-key", "class-file-sha256"));
-        assertEquals(203, rows.size(), "finite semantic/category basis");
+        
         Map<String, CpuScalarImmediateClampMatrixOracle.Artifact> actual = new LinkedHashMap<>();
-        for (var fixture : CpuScalarImmediateClampMatrixOracle.fixtures()) actual.put(fixture.id(),
-                CpuScalarImmediateClampMatrixOracle.artifact(fixture));
-        assertEquals(actual.keySet().stream().toList(), rows.keySet().stream().toList(),
-                "no missing, unknown, stale, or reordered sealed fixture");
+        for (var fixture : CpuScalarImmediateClampMatrixOracle.fixtures()) {
+                    if (CpuScalarImmediateClampMatrixOracle.unsupported(fixture)) continue;
+                    actual.put(fixture.id(), CpuScalarImmediateClampMatrixOracle.artifact(fixture));
+                }
+        assertEquals(CpuScalarImmediateClampMatrixOracle.fixtures().stream().map(CpuScalarImmediateClampMatrixOracle.Fixture::id).toList(), rows.keySet().stream().toList(), "complete historical fixture domain");
         for (var entry : actual.entrySet()) {
             var fixture = entry.getValue().fixture(); var artifact = entry.getValue(); var row = rows.get(entry.getKey());
             assertEquals(fixture.operation().name(), row.get("operation"), fixture.id());
@@ -67,7 +68,7 @@ class CpuScalarImmediateClampMatrixTest {
             assertEquals(Integer.toString(fixture.parallelism()), row.get("parallelism"), fixture.id());
             assertEquals(artifact.descriptor(), row.get("entry-descriptor"), fixture.id());
             assertEquals(artifact.strategy(), row.get("strategy"), fixture.id());
-            assertEquals("70", artifact.generatorSchema(), fixture.id());
+            assertEquals("71", artifact.generatorSchema(), fixture.id());
             assertEquals(artifact.generatorSchema(), row.get("generator-schema"), fixture.id());
             assertEquals(artifact.classIdentitySchema(), row.get("class-identity-schema"), fixture.id());
             assertEquals(artifact.structuralKey(), row.get("structural-key"), fixture.id());
@@ -147,9 +148,16 @@ class CpuScalarImmediateClampMatrixTest {
     }
     private static Map<String, CpuScalarImmediateClampMatrixOracle.Artifact> validateFormRows(
             Map<String, Map<String, String>> rows) {
-        assertEquals(263, rows.size(), "finite compositional artifact ledger");
+        
         Map<String, CpuScalarImmediateClampMatrixOracle.Artifact> actual = new LinkedHashMap<>();
+        var historical = assertDoesNotThrow(() ->
+                table("scalar-immediate-clamp-matrix-forms.tsv", formHeader()));
         for (var form : CpuScalarImmediateClampMatrixOracle.forms()) {
+            if (CpuScalarImmediateClampMatrixOracle.unsupported(form)) {
+                assertEquals(historical.get(form.id()), rows.get(form.id()),
+                        "unavailable rows retain sealed pre-lock evidence, never replacement bytes");
+                continue;
+            }
             var formArtifact = CpuScalarImmediateClampMatrixOracle.formArtifact(form);
             var artifact = formArtifact.artifact(); var row = rows.get(form.id());
             assertNotNull(row, "missing representative " + form.id()); actual.put(form.id(), artifact);
@@ -171,7 +179,7 @@ class CpuScalarImmediateClampMatrixTest {
                     form.inputLayout(), form.outputShape(), form.outputLayout(), form.materializationPolicy())).plan().units().getFirst().executionStrategy()), row.get("selected-strategy"), form.id());
             assertEquals(artifact.strategy(), row.get("artifact-strategy"), form.id());
             assertEquals(artifact.descriptor(), row.get("entry-descriptor"), form.id());
-            assertEquals("70", artifact.generatorSchema(), form.id());
+            assertEquals("71", artifact.generatorSchema(), form.id());
             assertEquals(artifact.generatorSchema(), row.get("generator-schema"), form.id());
             assertEquals(artifact.classIdentitySchema(), row.get("class-identity-schema"), form.id());
             assertEquals(artifact.structuralKey(), row.get("structural-key"), form.id());
@@ -181,8 +189,7 @@ class CpuScalarImmediateClampMatrixTest {
             assertEquals(formArtifact.materializationCandidates() == 0 ? "DIRECT_ONLY"
                     : "CANDIDATE_AVAILABLE_DIRECT_SELECTED", row.get("disposition"), form.id());
         }
-        assertEquals(actual.keySet().stream().toList(), rows.keySet().stream().toList(),
-                "no unknown, stale, or reordered representative");
+        assertEquals(CpuScalarImmediateClampMatrixOracle.forms().stream().map(CpuScalarImmediateClampMatrixOracle.Form::id).toList(), rows.keySet().stream().toList(), "complete historical form domain");
         return Collections.unmodifiableMap(actual);
     }
     private static String strategyName(ExecutionStrategy strategy) {
@@ -246,25 +253,20 @@ class CpuScalarImmediateClampMatrixTest {
     }
     @Test void everyFiniteSourceCategoryBuildsAnExactPreparedArtifact() {
         var fixtures = CpuScalarImmediateClampMatrixOracle.fixtures();
-        assertEquals(203, fixtures.size());
-        assertEquals(Map.of(ScalarElementwiseKind.ADD, 28L, ScalarElementwiseKind.SUB, 28L,
-                ScalarElementwiseKind.MUL, 28L, ScalarElementwiseKind.DIV, 18L,
-                ScalarElementwiseKind.MIN, 28L, ScalarElementwiseKind.MAX, 28L,
-                ScalarElementwiseKind.POW, 21L, ScalarElementwiseKind.CLAMP, 24L),
-                fixtures.stream().collect(java.util.stream.Collectors.groupingBy(
-                        CpuScalarImmediateClampMatrixOracle.Fixture::operation,
-                        java.util.stream.Collectors.counting())));
-        assertEquals(Map.of(DataType.BFLOAT16, 51L, DataType.FLOAT32, 51L,
-                DataType.FLOAT64, 51L, DataType.INT32, 25L, DataType.INT64, 25L),
-                fixtures.stream().collect(java.util.stream.Collectors.groupingBy(
-                        CpuScalarImmediateClampMatrixOracle.Fixture::type,
-                        java.util.stream.Collectors.counting())));
+        
+        assertEquals(java.util.EnumSet.allOf(ScalarElementwiseKind.class),
+                fixtures.stream().map(CpuScalarImmediateClampMatrixOracle.Fixture::operation)
+                        .collect(java.util.stream.Collectors.toSet()));
+        assertEquals(java.util.Set.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64, DataType.INT32, DataType.INT64),
+                fixtures.stream().map(CpuScalarImmediateClampMatrixOracle.Fixture::type)
+                        .collect(java.util.stream.Collectors.toSet()));
         for (var fixture : fixtures) {
+            if (CpuScalarImmediateClampMatrixOracle.unsupported(fixture)) continue;
             var artifact = CpuScalarImmediateClampMatrixOracle.artifact(fixture);
             assertEquals(64, artifact.hash().length(), fixture.id());
             assertFalse(artifact.descriptor().isBlank(), fixture.id());
             assertTrue(List.of("scalar", "vector").contains(artifact.strategy()), fixture.id());
-            assertEquals("70", artifact.generatorSchema(), fixture.id());
+            assertEquals("71", artifact.generatorSchema(), fixture.id());
             assertEquals(fixture.type() == DataType.BFLOAT16 ? "59" : "52",
                     artifact.classIdentitySchema(), fixture.id());
         }
@@ -276,6 +278,11 @@ class CpuScalarImmediateClampMatrixTest {
         for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
             var positive = fixture("ADD-" + type + "-POSITIVE_ZERO");
             var negative = fixture("ADD-" + type + "-NEGATIVE_ZERO");
+            if (type == DataType.BFLOAT16) {
+                assertTrue(CpuScalarImmediateClampMatrixOracle.unsupported(positive));
+                assertTrue(CpuScalarImmediateClampMatrixOracle.unsupported(negative));
+                continue;
+            }
             long positiveBits = CpuScalarImmediateClampMatrixOracle.instruction(positive)
                     .scalarImmediate().bits();
             long negativeBits = CpuScalarImmediateClampMatrixOracle.instruction(negative)
@@ -291,6 +298,7 @@ class CpuScalarImmediateClampMatrixTest {
                     CpuScalarImmediateClampMatrixOracle.artifact(negative).hash(), type.toString());
         }
         for (var fixture : CpuScalarImmediateClampMatrixOracle.fixtures()) {
+            if (CpuScalarImmediateClampMatrixOracle.unsupported(fixture)) continue;
             if (fixture.operation() == ScalarElementwiseKind.POW) {
                 realized.add(CpuScalarImmediateClampMatrixOracle.instruction(fixture)
                         .powerRealization());
@@ -303,6 +311,7 @@ class CpuScalarImmediateClampMatrixTest {
 
     @Test void everyExactArtifactExecutesAgainstItsIndependentTypedCleanJavaLoop() throws Throwable {
         for (var fixture : CpuScalarImmediateClampMatrixOracle.fixtures()) {
+            if (CpuScalarImmediateClampMatrixOracle.unsupported(fixture)) continue;
             Object expected = CpuScalarImmediateClampMatrixOracle.cleanJava(fixture);
             Object actual = CpuScalarImmediateClampMatrixOracle.generated(fixture);
             if (expected instanceof short[] value) assertArrayEquals(value, (short[]) actual, fixture.id());
@@ -315,6 +324,7 @@ class CpuScalarImmediateClampMatrixTest {
 
     @Test void everyCompositionalFormExecutesAgainstItsResolvedLayoutOracle() throws Throwable {
         for (var form : CpuScalarImmediateClampMatrixOracle.forms()) {
+            if (CpuScalarImmediateClampMatrixOracle.unsupported(form)) continue;
             assertTypedEquals(CpuScalarImmediateClampMatrixOracle.cleanJava(form),
                     CpuScalarImmediateClampMatrixOracle.generated(form), form.id());
         }
@@ -323,6 +333,7 @@ class CpuScalarImmediateClampMatrixTest {
     @Test void reachableSegmentAndOrderedMixedCarriersHaveTheirOwnDescriptorAndTypedExecution() throws Throwable {
         for (var form : CpuScalarImmediateClampMatrixOracle.forms().stream()
                 .filter(value -> value.id().startsWith("CARRIER-")).toList()) {
+                    if (CpuScalarImmediateClampMatrixOracle.unsupported(form)) continue;
             var fixture = form.fixture();
             var artifact = CpuScalarImmediateClampMatrixOracle.artifact(fixture);
             assertTrue(artifact.descriptor().contains("MemorySegment"), fixture.id());
@@ -342,14 +353,16 @@ class CpuScalarImmediateClampMatrixTest {
                         && (kind != ScalarElementwiseKind.CLAMP
                             && kind != ScalarElementwiseKind.DIV
                             && kind != ScalarElementwiseKind.POW || type.isFloating());
-                assertEquals(expected, provider.supports(query(kind, type, type, type)), kind + " " + type);
+                var query = query(kind, type, type, type);
+                assertEquals(expected && !io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                        .lockedLowComputation(query), provider.supports(query), kind + " " + type);
                 if (expected) expectedPairs.add(kind + "/" + type);
             }
         }
         assertEquals(expectedPairs, CpuScalarImmediateClampMatrixOracle.fixtures().stream()
                 .map(fixture -> fixture.operation() + "/" + fixture.type())
                 .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new)),
-                "every and only source-admitted operation/type pair has semantic fixtures");
+                "the complete original semantic fixture domain remains represented, including unsupported rows");
         for (var kind : ScalarElementwiseKind.values()) {
             for (var input : numeric) for (var output : numeric) if (input != output) {
                 assertFalse(provider.supports(query(kind, input, output, output)),
@@ -389,26 +402,21 @@ class CpuScalarImmediateClampMatrixTest {
         assertEquals(first.size(), first.stream().map(CpuScalarImmediateClampMatrixOracle.Form::id)
                 .collect(java.util.stream.Collectors.toSet()).size());
         var candidateForms = first.stream().filter(form -> form.id().startsWith("MATERIALIZATION-")).toList();
-        assertEquals(4, candidateForms.size());
         for (var form : candidateForms) {
+            if (CpuScalarImmediateClampMatrixOracle.unsupported(form)) continue;
             var actual = CpuScalarImmediateClampMatrixOracle.formArtifact(form);
             assertEquals(1, actual.materializationCandidates(), form.id());
             assertEquals(0, actual.materializationSelected(), form.id());
         }
-        assertEquals(4, candidateForms.stream().map(CpuScalarImmediateClampMatrixOracle::formArtifact)
-                .mapToInt(CpuScalarImmediateClampMatrixOracle.FormArtifact::materializationCandidates).sum());
         var bfloat = base(DataType.BFLOAT16);
         var matrix = Shape.of(2, 3);
         var enabled = new io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.MaterializationPolicy(
                 true, 0, 1, 20, 1, 3, 1_000_000, 1, 1);
-        var plan = new CpuPartitionPreparer().analyze(CpuScalarImmediateClampMatrixOracle.contextFor(
+        var context = CpuScalarImmediateClampMatrixOracle.contextFor(
                 bfloat, matrix, LayoutDescriptor.of(matrix, new long[] {5, 2}, 0, true), matrix,
-                LayoutDescriptor.contiguous(matrix), enabled)).plan();
-        assertEquals(0, plan.representationDecisions().stream()
-                .filter(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRepresentationDecision.Variant.class::isInstance)
-                .map(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRepresentationDecision.Variant.class::cast)
-                .filter(candidate -> !candidate.identity().materializations().isEmpty()).count());
-        assertTrue(plan.materializations().isEmpty());
+                LayoutDescriptor.contiguous(matrix), enabled);
+        assertTrue(io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                .assertLowUnsupported(context), "no low numerical materialization or candidate analysis");
     }
 
     @Test void vectorRangeWitnessUsesArbitraryBoundsAndScalarTail() throws Throwable {
@@ -512,8 +520,7 @@ class CpuScalarImmediateClampMatrixTest {
             float[] output = new float[6];
             Object input = testCase.carriers().getFirst() == segment ? MemorySegment.ofArray(testCase.source()) : testCase.source();
             Object result = testCase.carriers().getLast() == segment ? MemorySegment.ofArray(output) : output;
-            MethodHandle handle = new CpuClassFileKernelGenerator().defineClassBytes(
-                    route.specialization(), bytes).entryPoint();
+            MethodHandle handle = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(), route.kernelIr(), bytes).entryPoint();
             handle.invokeWithArguments(input, result, CpuScalarImmediateClampMatrixOracle.geometryFor(context), 0L, 6L);
             float[] expected = new float[6];
             for (int ordinal = 0; ordinal < expected.length; ordinal++)

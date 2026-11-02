@@ -298,7 +298,7 @@ public final class CpuFusionProfitabilitySelector {
                 boundaryPositions = Math.addExact(boundaryPositions, 1);
             }
             Optional<WorkspaceFact> workspace = unit.runtimeFacts().workspaceDeclaration().map(value ->
-                    new WorkspaceFact(workspaceRole(unit.runtimeFacts().workspaceUse()),
+                    new WorkspaceFact(workspaceRole(unit),
                             value.byteSize(), value.byteAlignment()));
             if (workspace.isPresent()) workspaces = Math.addExact(workspaces, 1);
             boolean vector = unit.executionStrategy().compute()
@@ -365,13 +365,28 @@ public final class CpuFusionProfitabilitySelector {
         return new Assessed(candidate, new CandidateIdentity(unitIdentities), facts, score);
     }
 
+    /**
+     * Classifies a materialized boundary against the complete cold unit topology. A retained
+     * row producer may also feed a terminal inside its indivisible row unit; that internal use
+     * does not create a cross-unit materialization or override its publication role. Ordinary
+     * pointwise accounting retains its existing predicate.
+     * @param context non-null complete partition and logical publication facts
+     * @param topology non-null prepared unit membership in topological order
+     * @param value non-null materialized boundary value
+     * @return non-null closed producer/consumer/publication role
+     */
     private static BoundaryRole boundaryRole(PrepareContext<CpuPartitionAnalysisInputs> context,
             List<CpuPartitionDagDecomposer.Unit> topology, ValueId value) {
         PartitionDag dag = context.partitionDag();
         int producer = dag.producer(value).map(occurrence ->
                 unitIndex(topology, occurrence.node())).orElse(-1);
+        boolean rowProducer = producer >= 0 && topology.get(producer).lowering().portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr;
         boolean consumed = dag.consumers(value).stream()
-                .anyMatch(occurrence -> unitIndex(topology, occurrence.node()) >= 0);
+                .anyMatch(occurrence -> {
+                    int consumer = unitIndex(topology, occurrence.node());
+                    return consumer >= 0 && (!rowProducer || consumer != producer);
+                });
         if (producer >= 0 && consumed) return BoundaryRole.CROSS_UNIT;
         boolean publication = context.memoryRequirements().stream()
                 .filter(LogicalMemoryRequirement::graphOutput)
@@ -390,15 +405,33 @@ public final class CpuFusionProfitabilitySelector {
         return -1;
     }
 
+    /**
+     * Labels exact unit scratch for cold candidate identity without changing its cost. The shared
+     * GENERAL_SCAN_BANKS preparation tag denotes ordinary row state only when both the selected
+     * emission and matching row IR authenticate that route; actual Scan/recurrent owners remain
+     * outside complete-candidate discovery.
+     * @param unit non-null already-prepared unit with immutable route and runtime facts
+     * @return non-null closed role for this unit's declared workspace
+     * @throws IllegalArgumentException if the workspace has no role or belongs to a Scan owner
+     */
     private static CpuFusionDecision.WorkspaceRole workspaceRole(
-            CpuPartitionPreparationPlan.WorkspaceUse use) {
+            CpuPartitionPreparationPlan.ExecutionUnitPlan unit) {
+        var use = unit.runtimeFacts().workspaceUse();
+        var route = unit.portablePlan();
+        if (use == CpuPartitionPreparationPlan.WorkspaceUse.GENERAL_SCAN_BANKS && route != null
+                && route.portableKernelIr() instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr row
+                && route.specialization().rowFusionEmission().isPresent()
+                && route.specialization().rowMapReductionIr().filter(ir -> ir.structuralKey().equals(row.structuralKey())).isPresent()
+                && route.specialization().generalScanIr().isEmpty()
+                && unit.runtimeFacts().generalScan().isEmpty() && unit.runtimeFacts().recurrentScan().isEmpty())
+            return CpuFusionDecision.WorkspaceRole.ROW_REGION_STATE;
         return switch (use) {
             case MATERIALIZATION -> CpuFusionDecision.WorkspaceRole.MATERIALIZATION;
             case SCATTER_PRODUCT -> CpuFusionDecision.WorkspaceRole.SCATTER_PRODUCT;
             case ORDERING_INDICES -> CpuFusionDecision.WorkspaceRole.ORDERING_INDICES;
             case AGGREGATE_EXACT_STATE -> CpuFusionDecision.WorkspaceRole.AGGREGATE_EXACT_STATE;
             case ATTENTION_ROW_STATE -> CpuFusionDecision.WorkspaceRole.ATTENTION_ROW_STATE;
-            case RECURRENT_ROW_STATE -> throw new IllegalArgumentException("direct recurrent units have no generated candidate");
+            case RECURRENT_ROW_STATE, GENERAL_SCAN_BANKS -> throw new IllegalArgumentException("scan units have no generated candidate discovery");
             case NONE -> throw new IllegalArgumentException("workspace has no closed role");
         };
     }

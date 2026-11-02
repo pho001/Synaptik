@@ -34,6 +34,153 @@ import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 
 class CpuKernelSpecializationTest {
+    @Test void softmaxBackwardBindsBothStreamsAndRequiresExclusiveTypedScalarFacts() {
+        var keys = new java.util.HashSet<String>();
+        for (var type : List.of(DataType.FLOAT32,DataType.FLOAT64)) for (boolean log : List.of(false,true)) {
+            var c = io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSoftmaxBackwardLoweringTest.context(type,Shape.of(2,7),log,List.of());
+            var first = new CpuPartitionPreparer().analyze(c).plan().units().getFirst().portablePlan();
+            var s = first.specialization();
+            var larger = new CpuPartitionPreparer().analyze(io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSoftmaxBackwardLoweringTest.context(type,Shape.of(3,7),log,List.of()))
+                    .plan().units().getFirst().portablePlan();
+            assertEquals(first.kernelIr(),larger.kernelIr());
+            assertFalse(java.util.Arrays.equals(s.compatibilityBytes(),larger.specialization().compatibilityBytes()));
+            assertFalse(java.util.Arrays.equals(s.classIdentityBytes(),larger.specialization().classIdentityBytes()));
+            assertTrue(keys.add(s.structuralKey())); assertEquals(71,CpuGeneratorSchema.CURRENT_VERSION); assertEquals(52,s.classIdentitySchema());
+            for (byte[] b : List.of(s.compatibilityBytes(),s.classIdentityBytes()))
+                assertTrue(new String(b,java.nio.charset.StandardCharsets.US_ASCII).contains("|ordinary-softmax-backward-v1="));
+            assertThrows(IllegalArgumentException.class,() -> new io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan(first.portableKernelIr(),larger.specialization()));
+            var missing = new CpuKernelSpecialization(s.loweringFingerprint(),s.executionStrategy(),s.boundaryDataTypes(),s.carrierPattern(),0,-1,List.of(),true,52);
+            assertThrows(IllegalArgumentException.class,() -> new CpuClassFileKernelGenerator().generateClassBytes(missing,first.kernelIr()));
+            for (int invalid = 0; invalid < 4; invalid++) {
+                int selected = invalid;
+                assertThrows(IllegalArgumentException.class,() -> new CpuKernelSpecialization(s.loweringFingerprint(),
+                        selected == 0 ? io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR : s.executionStrategy(),
+                        s.boundaryDataTypes(),s.carrierPattern(),selected == 0 ? 128 : 0,-1,List.of(),selected != 1,selected == 2 ? 71 : 52,
+                        Optional.empty(),Optional.empty(),selected == 3,false,Optional.empty(),Optional.empty(),Optional.empty(),s.softmaxBackwardIr()));
+            }
+        }
+    }
+    /** Low folds reject each geometry; admitted controls retain geometry-free typed streams. */
+    @Test void lowFoldFingerprintFeedsBothStreamsAndStaysGeometryFreeAndDtypeDistinct() {
+        for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            for (int geometry = 0; geometry < 2; geometry++) {
+                var base = CpuFoldLoweringTest.context(new Operation(WindowTransformKind.FOLD_AXIS,
+                        new FoldAxisAttrs(0, geometry == 0 ? 5 : 6, geometry == 0 ? 1 : 2)),
+                        type, geometry == 0 ? Shape.of(3, 3) : Shape.of(2, 3),
+                        geometry == 0 ? Shape.of(5) : Shape.of(6));
+                var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                        base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
+                                List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.SHORT_ARRAY)));
+                assertTrue(io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                        .assertLowUnsupported(context));
+            }
+        }
+        var keys = new java.util.HashSet<String>();
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.INT32)) {
+            var carrier = type == DataType.FLOAT32 ? CarrierAccess.FLOAT_ARRAY
+                    : type == DataType.FLOAT64 ? CarrierAccess.DOUBLE_ARRAY : CarrierAccess.INT_ARRAY;
+            var first = fold(new Operation(WindowTransformKind.FOLD_AXIS, new FoldAxisAttrs(0, 5, 1)),
+                    type, Shape.of(3, 3), Shape.of(5), List.of(carrier, carrier)).specialization();
+            var second = fold(new Operation(WindowTransformKind.FOLD_AXIS, new FoldAxisAttrs(0, 6, 2)),
+                    type, Shape.of(2, 3), Shape.of(6), List.of(carrier, carrier)).specialization();
+            assertArrayEquals(first.compatibilityBytes(), second.compatibilityBytes());
+            assertArrayEquals(first.classIdentityBytes(), second.classIdentityBytes());
+            assertTrue(new String(first.compatibilityBytes(), java.nio.charset.StandardCharsets.US_ASCII).contains(first.loweringFingerprint().hex()));
+            assertTrue(new String(first.classIdentityBytes(), java.nio.charset.StandardCharsets.US_ASCII).contains(first.loweringFingerprint().hex()));
+            assertTrue(keys.add(first.structuralKey()));
+            assertEquals(71, CpuGeneratorSchema.CURRENT_VERSION); assertEquals(52, first.classIdentitySchema());
+        }
+    }
+    /** Ordinary fusion is typed, scalar, single-family and selectively versioned in both streams. */
+    @Test void ordinaryAggregateFusionRequiresItsTypedRecipeAndLeavesBareIdentityUnmarked() {
+        var route = io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuAggregateFusionGeneratedKernelTest.ordinaryRoute(DataType.FLOAT32,0);
+        var s = route.specialization();
+        assertEquals(71,CpuGeneratorSchema.CURRENT_VERSION); assertEquals(52,s.classIdentitySchema());
+        assertTrue(s.rowMapReductionIr().isEmpty()); assertTrue(s.generalScanIr().isEmpty());
+        var missing = new CpuKernelSpecialization(s.loweringFingerprint(),s.executionStrategy(),s.boundaryDataTypes(),s.carrierPattern(),
+                s.vectorSpeciesBitSize(),s.materializedSourcePosition(),s.scalarPowerRealizations(),s.scratchParameter(),s.classIdentitySchema(),
+                s.matmulIr(),s.generalScanIr(),false,false,s.rowMapReductionIr(),s.rowFusionEmission());
+        assertThrows(IllegalArgumentException.class,() -> new CpuClassFileKernelGenerator().generateClassBytes(missing,route.kernelIr()));
+        assertFalse(new String(missing.compatibilityBytes(),java.nio.charset.StandardCharsets.US_ASCII).contains("ordinary-aggregate-fusion-v1="));
+        assertTrue(new String(s.compatibilityBytes(),java.nio.charset.StandardCharsets.US_ASCII).contains("ordinary-aggregate-fusion-v1="));
+        assertTrue(new String(s.classIdentityBytes(),java.nio.charset.StandardCharsets.US_ASCII).contains("ordinary-aggregate-fusion-v1="));
+        var bare = new CpuPartitionPreparer().analyze(io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLoweringTest.context(
+                io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.SUM,DataType.FLOAT32,Shape.of(64,256),
+                new io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs(1,false),Shape.of(64))).plan().units().getFirst().portablePlan().specialization();
+        assertTrue(bare.aggregateFusionIr().isEmpty());
+        assertFalse(new String(bare.compatibilityBytes(),java.nio.charset.StandardCharsets.US_ASCII).contains("ordinary-aggregate-fusion"));
+        assertFalse(new String(bare.classIdentityBytes(),java.nio.charset.StandardCharsets.US_ASCII).contains("ordinary-aggregate-fusion"));
+    }
+
+    /** New baked magnitudes split artifacts, not compatible canonical typed topology. */
+    @Test void ordinaryAggregateFusionSeparatesCanonicalTopologyFromBakedGeometry() {
+        var first = io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuAggregateFusionGeneratedKernelTest.ordinaryRoute(DataType.FLOAT32,0);
+        var c = io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuAggregateFusionGeneratedKernelTest.fusionContextForGeometryTest(128);
+        var second = new CpuPartitionPreparer().analyze(c).plan().units().getFirst().portablePlan();
+        assertEquals(first.kernelIr(),second.kernelIr());
+        assertEquals(first.specialization().loweringFingerprint(),second.specialization().loweringFingerprint());
+        assertNotEquals(first.specialization().structuralKey(),second.specialization().structuralKey());
+        assertFalse(java.util.Arrays.equals(first.specialization().compatibilityBytes(),second.specialization().compatibilityBytes()));
+        assertFalse(java.util.Arrays.equals(first.specialization().classIdentityBytes(),second.specialization().classIdentityBytes()));
+        assertThrows(IllegalArgumentException.class,() -> new io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan(
+                first.portableKernelIr(),second.specialization()));
+    }
+
+    /** Canonical combined v1 and schema 71 survive baked v9, excluding v7 and withdrawn v8. */
+    @Test void combinedScanAdvancesBothBakedStreamsWithoutChangingCanonicalVersion() {
+        var facts = io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLowering.analyze(
+                io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLoweringTest.symbolicLengthQuery(DataType.FLOAT64,4,false));
+        var spec = io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneralScanGeneratedKernelTest.specialization(facts);
+        assertTrue(facts.ir().encodedKernelIr().familyIdentity().contains(":symbolic-length-v1"));
+        assertEquals(71,CpuGeneratorSchema.CURRENT_VERSION);
+        for (byte[] stream : List.of(spec.classIdentityBytes(),spec.compatibilityBytes())) {
+            String text = new String(stream,java.nio.charset.StandardCharsets.US_ASCII);
+            assertTrue(text.contains("|scan-symbolic-length-v9="));
+            assertFalse(text.contains("|scan-symbolic-length-v8="));
+            assertFalse(text.contains("|scan-symbolic-length-v7="));
+            assertFalse(text.contains("|scan-symbolic-length-v6="));
+            assertFalse(text.contains("|scan-symbolic-length-v5="));
+            assertFalse(text.contains("|scan-symbolic-length-v4="));
+            assertFalse(text.contains("|scan-symbolic-length-v3="));
+            assertFalse(text.contains("|scan-symbolic-length-v1=")); assertFalse(text.contains("|scan-symbolic-length-v2="));
+            assertTrue(text.contains("typed-explicit-b-v1"));
+        }
+        assertNotEquals(facts.pack(1)[facts.pack(1).length-1],facts.pack(7)[facts.pack(7).length-1]);
+        assertEquals(spec.structuralKey(),io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneralScanGeneratedKernelTest.specialization(facts).structuralKey());
+    }
+    /**
+     * Checks the sole MATMUL-v4 baked payload in both identity streams: changed contraction
+     * geometry separates specializations, while compatible runtime T and geometry-free
+     * canonical projections retain their existing reuse boundary.
+     */
+    @Test void matmulScanVersionedPayloadSeparatesBothCompatibilityProjectionsAndReusesTime() {
+        var small = io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneralScanGeneratedKernelTest.matmulFacts(3,2,3,4);
+        var same = io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneralScanGeneratedKernelTest.matmulFacts(257,2,3,4);
+        var changed = io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneralScanGeneratedKernelTest.matmulFacts(3,2,5,4);
+        var a = new CpuPartitionPreparer().analyze(io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuGeneralScanPreparationTest.context(
+                matmulQuery(3,3))).plan().units().getFirst().portablePlan().specialization();
+        var b = new CpuPartitionPreparer().analyze(io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuGeneralScanPreparationTest.context(
+                matmulQuery(3,5))).plan().units().getFirst().portablePlan().specialization();
+        assertEquals(small.ir(),same.ir()); assertEquals(small.ir().encodedKernelIr(),changed.ir().encodedKernelIr());
+        for (byte[] identity : List.of(a.classIdentityBytes(),a.compatibilityBytes()))
+            assertTrue(new String(identity,java.nio.charset.StandardCharsets.US_ASCII).contains("|scan-matmul-v5="));
+        assertFalse(java.util.Arrays.equals(a.classIdentityBytes(),b.classIdentityBytes()));
+        assertFalse(java.util.Arrays.equals(a.compatibilityBytes(),b.compatibilityBytes()));
+    }
+
+    private static io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery matmulQuery(int time, int k) {
+        var h = io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLoweringTest.tensor(false,2,4);
+        var x = io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLoweringTest.tensor(false,2,k);
+        var w = io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLoweringTest.tensor(false,k,4);
+        var next = h.add(x.matmul(w));
+        var body = new io.github.pho001.synaptik.model.tensor.ScanBody(List.of(h),List.of(x),List.of(w),List.of(next),List.of(next));
+        var scan = io.github.pho001.synaptik.model.tensor.Scan.apply(
+                List.of(io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLoweringTest.tensor(false,2,4)),
+                List.of(io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLoweringTest.tensor(false,time,2,k)),
+                List.of(io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLoweringTest.tensor(false,k,4)),body,false);
+        return io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLoweringTest.query(List.of(scan.finalCarry().getFirst(),scan.outputs().getFirst()));
+    }
+
     @Test void schema69IdentityRetainsFamily52BodyShape()
             throws Exception {
         Shape shape = Shape.of(64, 64);
@@ -46,9 +193,9 @@ class CpuKernelSpecializationTest {
                 route.specialization(), route.kernelIr());
         assertAll(
                 () -> assertTrue(new String(route.specialization().compatibilityBytes(),
-                        java.nio.charset.StandardCharsets.US_ASCII).startsWith("70|")),
+                        java.nio.charset.StandardCharsets.US_ASCII).startsWith("71|")),
                 () -> assertTrue(new String(route.specialization().classIdentityBytes(),
-                        java.nio.charset.StandardCharsets.US_ASCII).startsWith("70|52|")),
+                        java.nio.charset.StandardCharsets.US_ASCII).startsWith("71|52|")),
                 () -> assertNotEquals(
                         "0f60718d8a663e211143e17eb31efb7d6264eb065224c0aea88fd8de259e6079",
                         route.specialization().structuralKey()),
@@ -335,7 +482,7 @@ class CpuKernelSpecializationTest {
                                 otherExtents.kernelIr())),
                 () -> assertNotEquals(axisZero.specialization(), otherFamily.specialization()),
                 () -> assertNotEquals(axisZero.specialization(), otherCarrier.specialization()),
-                () -> assertEquals(70, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(71, CpuGeneratorSchema.CURRENT_VERSION),
                 () -> assertEquals(-1, axisZero.specialization().materializedSourcePosition()));
     }
 

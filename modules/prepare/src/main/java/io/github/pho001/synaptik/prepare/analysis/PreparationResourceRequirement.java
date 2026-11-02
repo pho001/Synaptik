@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.prepare.analysis;
 
 import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import java.util.Objects;
 
 /**
@@ -19,10 +20,10 @@ public sealed interface PreparationResourceRequirement
      *
      * @param valueId non-null graph-local value identity; retained exactly for compile/prepare
      *     association and never interpreted as a Runtime slot
-     * @param byteSize exact non-negative number of bytes required; zero is valid
+     * @param size non-null complete immutable byte declaration; transported, never evaluated here
      * @param byteAlignment positive power-of-two byte alignment
      */
-    record Buffer(ValueId valueId, long byteSize, long byteAlignment)
+    record Buffer(ValueId valueId, PreparedMemoryPlan.ByteSize size, long byteAlignment)
             implements PreparationResourceRequirement {
         /**
          * Creates one exact graph-value buffer declaration.
@@ -37,11 +38,22 @@ public sealed interface PreparationResourceRequirement
          * @throws IllegalArgumentException if {@code byteAlignment} is not a positive power of
          *     two; the message is {@code byteAlignment must be a positive power of two}
          */
+        public Buffer(ValueId valueId, long byteSize, long byteAlignment) {
+            this(Objects.requireNonNull(valueId, "valueId"),
+                    new PreparedMemoryPlan.FixedByteSize(byteSize), byteAlignment);
+        }
+
+        /**
+         * Retains exact structural buffer sizing without evaluating any run geometry.
+         * @param valueId non-null graph-local value identity
+         * @param size non-null immutable complete byte recipe
+         * @param byteAlignment positive power-of-two bytes
+         * @throws NullPointerException if valueId or size is null
+         * @throws IllegalArgumentException if alignment is invalid
+         */
         public Buffer {
             Objects.requireNonNull(valueId, "valueId");
-            if (byteSize < 0) {
-                throw new IllegalArgumentException("byteSize must be non-negative");
-            }
+            Objects.requireNonNull(size, "size");
             if (byteAlignment <= 0
                     || (byteAlignment & (byteAlignment - 1)) != 0) {
                 throw new IllegalArgumentException(
@@ -63,10 +75,11 @@ public sealed interface PreparationResourceRequirement
          * Returns the exact requested byte count.
          *
          * @return non-negative byte size; zero is valid
+         * @throws IllegalStateException if sizing is run-bound
          */
-        @Override
         public long byteSize() {
-            return byteSize;
+            return size.fixedByteSize().orElseThrow(
+                    () -> new IllegalStateException("byte size requires run geometry"));
         }
 
         /**
@@ -85,10 +98,10 @@ public sealed interface PreparationResourceRequirement
      *
      * @param requirementId non-negative identity unique among workspaces in one analysis result;
      *     the value is not a Runtime slot or global identity
-     * @param byteSize exact non-negative number of bytes required; zero is valid
+     * @param size non-null complete immutable byte declaration; transported, never evaluated here
      * @param byteAlignment positive power-of-two byte alignment
      */
-    record Workspace(long requirementId, long byteSize, long byteAlignment)
+    record Workspace(long requirementId, PreparedMemoryPlan.ByteSize size, long byteAlignment)
             implements PreparationResourceRequirement {
         /**
          * Creates one exact analysis-local workspace declaration.
@@ -103,13 +116,23 @@ public sealed interface PreparationResourceRequirement
          * @throws IllegalArgumentException if {@code byteAlignment} is not a positive power of
          *     two; the message is {@code byteAlignment must be a positive power of two}
          */
+        public Workspace(long requirementId, long byteSize, long byteAlignment) {
+            this(checkedId(requirementId), new PreparedMemoryPlan.FixedByteSize(byteSize), byteAlignment);
+        }
+
+        /**
+         * Retains exact structural scratch sizing without evaluating any run geometry.
+         * @param requirementId non-negative analysis-local identity
+         * @param size non-null immutable complete byte recipe
+         * @param byteAlignment positive power-of-two bytes
+         * @throws NullPointerException if size is null
+         * @throws IllegalArgumentException if identity or alignment is invalid
+         */
         public Workspace {
             if (requirementId < 0) {
                 throw new IllegalArgumentException("requirementId must be non-negative");
             }
-            if (byteSize < 0) {
-                throw new IllegalArgumentException("byteSize must be non-negative");
-            }
+            Objects.requireNonNull(size, "size");
             if (byteAlignment <= 0
                     || (byteAlignment & (byteAlignment - 1)) != 0) {
                 throw new IllegalArgumentException(
@@ -131,10 +154,16 @@ public sealed interface PreparationResourceRequirement
          * Returns the exact requested byte count.
          *
          * @return non-negative byte size; zero is valid
+         * @throws IllegalStateException if sizing is run-bound
          */
-        @Override
         public long byteSize() {
-            return byteSize;
+            return size.fixedByteSize().orElseThrow(
+                    () -> new IllegalStateException("byte size requires run geometry"));
+        }
+
+        private static long checkedId(long id) {
+            if (id < 0) throw new IllegalArgumentException("requirementId must be non-negative");
+            return id;
         }
 
         /**

@@ -16,7 +16,8 @@ import java.lang.constant.MethodTypeDesc;
  * Emits carrier-, type-, family-, and access-specialized overlap-fold loops directly into
  * generated CPU classes. Each owned output starts at represented positive zero, scans logical
  * input occurrences in canonical row-major order, and is stored exactly once. FLOAT64/FLOAT32
- * additions retain their represented precision, BFLOAT16 rounds after each contribution, and
+ * additions retain their represented precision, BFLOAT16/FLOAT16 accumulate exact decoded
+ * contributions in FLOAT32 and narrow once at the output store, and
  * INT32/INT64 additions remain modular. Direct segment access uses the predefined native-order
  * unaligned layouts. One guarded mixed-carrier FLOAT32 FOLD2D form accepts only the frozen
  * padded/dilated geometry after complete cold proof. It uses an output-cell, kernel-position,
@@ -27,6 +28,21 @@ import java.lang.constant.MethodTypeDesc;
  * legal output subranges remain valid, and every unproved case uses the typed general-long body.
  * All coordinates, addresses, and arithmetic values are invocation-
  * local primitives; concrete geometry remains in the invocation-private packed array.
+ * Selected F32/F64 compact-input FOLD2D instead inverse-gathers at most one stored position per
+ * kernel coordinate in ascending ky/kx order, with no expanded-input scan or allocation. A
+ * complete invocation-entry int proof includes inverse numerators and physical carrier bases;
+ * failed int proofs retain the checked long algorithm, not ordinary all-columns scanning.
+ * Ordinary folds retain the pre-existing shared geometry-generic traversal; repairing low
+ * arithmetic does not introduce a dtype-specific mapping algorithm. That traversal can contain
+ * hoistable repeated coordinate decoding. Its retention preserves mapping/order and nonlow
+ * ClassFiles; only the changed decode/add/final-conversion dataflow is qualified against the
+ * primitive Java arithmetic oracle, not whole-loop optimality or performance parity.
+ *
+ * <p>Controlled folds guard output cells by their full logical boundary ordinal and contributors
+ * by the input boundary's own proved ROW provenance. Inactive outputs retain positive zero;
+ * inactive contributors are skipped before matching, operand loads, and ordered additions.
+ * Compact inverse gathering reconstructs the compact input ordinal from logical coordinates,
+ * never from a physical carrier address.</p>
  */
 public final class CpuFoldEmitter {
     private static final ClassDesc FLOAT_CLASS = ClassDesc.of(Float.class.getName());
@@ -64,7 +80,13 @@ public final class CpuFoldEmitter {
         }
         boolean ints = specialization.loopAddressing(ir)
                 == CpuKernelSpecialization.LoopAddressing.DENSE_HEAP_ARRAY_INT;
-        if (ints && p.denseLinear && p.family.equals("FOLD_AXIS")
+        if (ir.familyIdentity().endsWith(":kernel-broadcast-input-v1")) {
+            if (!p.family.equals("FOLD2D") || p.inputRank != 3 || p.outputRank != 4
+                    || p.type != DataType.FLOAT32 && p.type != DataType.FLOAT64) {
+                throw new IllegalArgumentException("unsupported compact fold encoding");
+            }
+            emitKernelBroadcastGuarded(code, specialization, p);
+        } else if (ints && p.denseLinear && p.family.equals("FOLD_AXIS")
                 && p.inputRank == 2 && p.outputRank == 1) {
             emitDenseAxisRankOne(code, specialization, p);
         } else if (!ints && p.family.equals("FOLD2D") && p.type == DataType.FLOAT32
@@ -75,6 +97,153 @@ public final class CpuFoldEmitter {
         } else {
             emitTyped(code, specialization, p, ints);
         }
+    }
+
+    /**
+     * Emits output-cell inverse gathering from stored [N,C,P], in ascending ky/kx order.
+     * Coordinate/address arithmetic uses the entry-proved width; cold admission proves long extrema.
+     * No expanded cursor, all-position scan or arithmetic helper survives into generated code.
+     * @param code generated body
+     * @param s authenticated typed carriers
+     * @param p checked F32/F64 FOLD2D encoding with compact physical input
+     * @param ints whether the complete entry guard proved all arithmetic fits int
+     */
+    private static void emitKernelBroadcast(CodeBuilder code, CpuKernelSpecialization s, FoldEncoding p, boolean ints) {
+        int logical = valueLocal(code, ints), end = valueLocal(code, ints);
+        int ky = valueLocal(code, ints), kx = valueLocal(code, ints);
+        int a = valueLocal(code, ints), b = valueLocal(code, ints);
+        int oh = valueLocal(code, ints), ow = valueLocal(code, ints);
+        int row = valueLocal(code, ints);
+        int base = valueLocal(code, ints), inputAddress = valueLocal(code, ints), outputAddress = valueLocal(code, ints);
+        int sum = code.allocateLocal(localKind(p.type)), right = code.allocateLocal(localKind(p.type));
+        int[] output = coordinates(code, 4, ints);
+        LayoutLocals inputLayout = loadLayout(code, p.inputLayout, 3, ints);
+        LayoutLocals outputLayout = loadLayout(code, p.outputLayout, 4, ints);
+        int[] m = loadMapping(code, p.mapping, 10, ints);
+        code.lload(3); if (ints) code.l2i(); store(code, logical, ints);
+        code.lload(5); if (ints) code.l2i(); store(code, end, ints);
+        for (int axis = 0; axis < 4; axis++) {
+            geometry(code, p.outputSeed + axis); if (ints) code.l2i(); store(code, output[axis], ints);
+        }
+        var carriers = new CpuCarrierEmitter(code);
+        var outer = code.newLabel(); var done = code.newLabel(); var yLoop = code.newLabel();
+        var xLoop = code.newLabel(); var nextY = code.newLabel(); var nextX = code.newLabel(); var write = code.newLabel();
+        compare(code, logical, end, ints, Opcode.IF_ICMPGE, Opcode.IFGE, done);
+        load(code, inputLayout.base, ints); load(code, output[0], ints); load(code, inputLayout.strides[0], ints);
+        multiply(code, ints); addPrimitive(code, ints); load(code, output[1], ints); load(code, inputLayout.strides[1], ints);
+        multiply(code, ints); addPrimitive(code, ints); store(code, base, ints);
+        address(code, outputLayout, output, outputAddress, ints);
+        code.labelBinding(outer);
+        positiveZero(code, p.type, sum);
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, 1, logical,
+                ints ? TypeKind.INT : TypeKind.LONG, write);
+        zero(code, ky, ints);
+        code.labelBinding(yLoop); compare(code, ky, m[0], ints, Opcode.IF_ICMPGE, Opcode.IFGE, write);
+        inverseCoordinate(code, output[2], m[4], ky, m[6], m[2], m[8], a, oh, ints, nextY);
+        load(code, base, ints); load(code, oh, ints); load(code, m[9], ints); multiply(code, ints);
+        addPrimitive(code, ints); store(code, row, ints);
+        zero(code, kx, ints);
+        code.labelBinding(xLoop); compare(code, kx, m[1], ints, Opcode.IF_ICMPGE, Opcode.IFGE, nextY);
+        inverseCoordinate(code, output[3], m[5], kx, m[7], m[3], m[9], b, ow, ints, nextX);
+        load(code, row, ints); load(code, ow, ints); addPrimitive(code, ints); store(code, inputAddress, ints);
+        if (CpuCarrierEmitter.controlFacts()
+                .map(control -> control.boundaryRows().get(0).axis() >= 0).orElse(false)) {
+            int inputOrdinal = code.allocateLocal(TypeKind.LONG);
+            load(code, output[0], ints); if (ints) code.i2l();
+            load(code, inputLayout.extents[1], ints); if (ints) code.i2l();
+            code.lmul();
+            load(code, output[1], ints); if (ints) code.i2l();
+            code.ladd();
+            load(code, inputLayout.extents[2], ints); if (ints) code.i2l();
+            code.lmul();
+            load(code, oh, ints); if (ints) code.i2l();
+            load(code, m[9], ints); if (ints) code.i2l();
+            code.lmul();
+            load(code, ow, ints); if (ints) code.i2l();
+            code.ladd().ladd().lstore(inputOrdinal);
+            CpuLoopEmitter.emitActiveOrdinalGuard(code, 0, inputOrdinal, TypeKind.LONG, nextX);
+        }
+        loadCarrier(code, carriers, p.type, s.carrierPattern().getFirst(), 0, inputAddress, ints);
+        storeValue(code, p.type, right); add(code, p.type, sum, right);
+        code.labelBinding(nextX); increment(code, kx, ints); code.branch(Opcode.GOTO, xLoop);
+        code.labelBinding(nextY); increment(code, ky, ints); code.branch(Opcode.GOTO, yLoop);
+        code.labelBinding(write);
+        storeCarrier(code, carriers, p.type, s.carrierPattern().getLast(), 1, outputAddress, sum, ints);
+        increment(code, logical, ints);
+        compare(code, logical, end, ints, Opcode.IF_ICMPGE, Opcode.IFGE, done);
+        advanceCompactOutput(code, outputLayout, inputLayout, output, outputAddress, base, ints);
+        code.branch(Opcode.GOTO, outer).labelBinding(done);
+    }
+
+    private static void advanceCompactOutput(CodeBuilder code, LayoutLocals out, LayoutLocals in,
+            int[] coordinates, int outputAddress, int sourceBase, boolean ints) {
+        var complete = code.newLabel();
+        for (int axis = 3; axis >= 0; axis--) {
+            var carry = code.newLabel(); increment(code, coordinates[axis], ints);
+            compare(code, coordinates[axis], out.extents[axis], ints, Opcode.IF_ICMPGE, Opcode.IFGE, carry);
+            load(code, outputAddress, ints); load(code, out.strides[axis], ints); addPrimitive(code, ints); store(code, outputAddress, ints);
+            if (axis < 2) {
+                load(code, sourceBase, ints); load(code, in.strides[axis], ints); addPrimitive(code, ints); store(code, sourceBase, ints);
+            }
+            code.branch(Opcode.GOTO, complete).labelBinding(carry);
+            zero(code, coordinates[axis], ints);
+            // Subtract the old coordinate's contribution before carrying: no transient
+            // one-past-span address (including at MAX_VALUE) is formed.
+            load(code, outputAddress, ints); load(code, out.extents[axis], ints);
+            if (ints) code.loadConstant(1).isub(); else code.loadConstant(1L).lsub();
+            load(code, out.strides[axis], ints); multiply(code, ints); subtract(code, ints); store(code, outputAddress, ints);
+            if (axis < 2) {
+                load(code, sourceBase, ints); load(code, out.extents[axis], ints);
+                if (ints) code.loadConstant(1).isub(); else code.loadConstant(1L).lsub();
+                load(code, in.strides[axis], ints); multiply(code, ints); subtract(code, ints); store(code, sourceBase, ints);
+            }
+        }
+        code.labelBinding(complete);
+    }
+
+    private static void inverseCoordinate(CodeBuilder code, int coordinate, int pad, int kernel,
+            int dilation, int stride, int limit, int numerator, int quotient, boolean ints, Label skip) {
+        load(code, coordinate, ints); load(code, pad, ints); addPrimitive(code, ints);
+        load(code, kernel, ints); load(code, dilation, ints); multiply(code, ints); subtract(code, ints);
+        store(code, numerator, ints); load(code, numerator, ints);
+        if (ints) code.branch(Opcode.IFLT, skip);
+        else code.loadConstant(0L).lcmp().branch(Opcode.IFLT, skip);
+        load(code, numerator, ints); load(code, stride, ints);
+        if (ints) code.irem().branch(Opcode.IFNE, skip);
+        else code.lrem().loadConstant(0L).lcmp().branch(Opcode.IFNE, skip);
+        load(code, numerator, ints); load(code, stride, ints); divide(code, ints); store(code, quotient, ints);
+        compare(code, quotient, limit, ints, Opcode.IF_ICMPGE, Opcode.IFGE, skip);
+    }
+
+    private static void emitKernelBroadcastGuarded(CodeBuilder code, CpuKernelSpecialization s, FoldEncoding p) {
+        var longs = code.newLabel(); var complete = code.newLabel();
+        code.lload(3).lload(5).lcmp().branch(Opcode.IFGE, complete);
+        // Every individual cold fact and both entry bounds must be nonnegative/int-valued.
+        for (int i = 4; i < p.mapping + 10; i++) requireGeometryAtMost(code, i, Integer.MAX_VALUE, longs);
+        code.lload(3).loadConstant(0L).lcmp().branch(Opcode.IFLT, longs);
+        code.lload(5).loadConstant((long)Integer.MAX_VALUE).lcmp().branch(Opcode.IFGT, longs);
+        // Prove extrema of inverse numerators, not just carrier spans. Long products/sums below
+        // are safe by cold geometry proof; their int bounds dominate both emitted inner loops.
+        for (int axis = 0; axis < 2; axis++) {
+            geometry(code, p.outputLayout + 4 + axis); code.loadConstant(1L).lsub(); geometry(code, p.mapping + 4 + axis);
+            code.ladd().loadConstant((long)Integer.MAX_VALUE).lcmp().branch(Opcode.IFGT, longs);
+            geometry(code, p.mapping + axis).loadConstant(1L).lsub();
+            geometry(code, p.mapping + 6 + axis); code.lmul().loadConstant((long)Integer.MAX_VALUE).lcmp().branch(Opcode.IFGT, longs);
+        }
+        // Check complete maximum physical addresses, including invocation carrier bases.
+        for (int rank : new int[]{3, 4}) {
+            int layout = rank == 3 ? p.inputLayout : p.outputLayout;
+            geometry(code, layout + 1);
+            for (int axis = 0; axis < rank; axis++) {
+                geometry(code, layout + 2 + axis).loadConstant(1L).lsub();
+                geometry(code, layout + 2 + rank + axis); code.lmul().ladd();
+            }
+            code.loadConstant((long)Integer.MAX_VALUE).lcmp().branch(Opcode.IFGT, longs);
+        }
+        emitKernelBroadcast(code, s, p, true);
+        code.branch(Opcode.GOTO, complete).labelBinding(longs);
+        emitKernelBroadcast(code, s, p, false);
+        code.labelBinding(complete);
     }
 
     private static void emitBoundedTargetFold2dOrGeneralLong(CodeBuilder code,
@@ -135,8 +304,10 @@ public final class CpuFoldEmitter {
         var columnLoop = code.newLabel();
         var nextQ = code.newLabel();
         var noMatch = code.newLabel();
+        var write = code.newLabel();
         code.labelBinding(outer).iload(logical).iload(end).branch(Opcode.IF_ICMPGE, done);
         positiveZero(code, DataType.FLOAT32, sum);
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, 1, logical, TypeKind.INT, write);
         code.iload(logical).loadConstant(32).idiv().istore(outputY);
         code.iload(logical).iload(outputY).loadConstant(32).imul().isub().istore(outputX);
         code.loadConstant(0).istore(q).labelBinding(qLoop);
@@ -145,6 +316,12 @@ public final class CpuFoldEmitter {
         code.iload(q).iload(kernelY).loadConstant(3).imul().isub().istore(kernelX);
         code.loadConstant(0).istore(column).labelBinding(columnLoop);
         code.iload(column).loadConstant(512).branch(Opcode.IF_ICMPGE, nextQ);
+        if (CpuCarrierEmitter.controlFacts()
+                .map(control -> control.boundaryRows().get(0).axis() >= 0).orElse(false)) {
+            int inputOrdinal = code.allocateLocal(TypeKind.INT);
+            code.iload(q).loadConstant(512).imul().iload(column).iadd().istore(inputOrdinal);
+            CpuLoopEmitter.emitActiveOrdinalGuard(code, 0, inputOrdinal, TypeKind.INT, noMatch);
+        }
         code.iload(column).loadConstant(32).idiv().iload(kernelY).loadConstant(2).imul()
                 .iadd().loadConstant(2).isub().iload(outputY)
                 .branch(Opcode.IF_ICMPNE, noMatch);
@@ -159,6 +336,7 @@ public final class CpuFoldEmitter {
         code.labelBinding(noMatch).iinc(column, 1).branch(Opcode.GOTO, columnLoop);
         code.labelBinding(nextQ).iinc(q, 1);
         code.iload(q).loadConstant(9).branch(Opcode.IF_ICMPLT, qLoop);
+        code.labelBinding(write);
         code.iload(outputBase).iload(logical).loadConstant(2).imul().iadd()
                 .istore(outputAddress);
         storeCarrier(code, carriers, DataType.FLOAT32, specialization.carrierPattern().getLast(),
@@ -238,10 +416,12 @@ public final class CpuFoldEmitter {
         var write = code.newLabel();
         code.labelBinding(outer).iload(logical).iload(end).branch(Opcode.IF_ICMPGE, done);
         positiveZero(code, p.type, sum);
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, 1, logical, TypeKind.INT, write);
         code.loadConstant(0).istore(inputOrdinal).loadConstant(0).istore(within)
                 .loadConstant(0).istore(target).labelBinding(inner);
         code.iload(inputOrdinal).iload(inputCount).branch(Opcode.IF_ICMPGE, write);
         var noMatch = code.newLabel();
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, 0, inputOrdinal, TypeKind.INT, noMatch);
         code.iload(target).iload(logical).branch(Opcode.IF_ICMPNE, noMatch);
         if (zeroBase) code.iload(inputOrdinal).istore(inputAddress);
         else code.iload(inputBase).iload(inputOrdinal).iadd().istore(inputAddress);
@@ -301,17 +481,19 @@ public final class CpuFoldEmitter {
         code.labelBinding(outer);
         compare(code, logical, end, ints, Opcode.IF_ICMPGE, Opcode.IFGE, done);
         positiveZero(code, p.type, sum);
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, 1, logical, addressKind, write);
         for (int coordinate : input) zero(code, coordinate, ints);
         zero(code, inputOrdinal, ints);
         code.labelBinding(inner);
         compare(code, inputOrdinal, inputCount, ints, Opcode.IF_ICMPGE, Opcode.IFGE, write);
+        var noMatch = code.newLabel();
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, 0, inputOrdinal, addressKind, noMatch);
         code.loadConstant(1).istore(match);
         if (p.family.equals("FOLD_AXIS")) {
             emitAxisMatch(code, p, input, output, match, ints, axisMapping);
         } else {
             emitTwoDimensionalMatch(code, input, output, match, ints, twoDimensionalMapping);
         }
-        var noMatch = code.newLabel();
         code.iload(match).branch(Opcode.IFEQ, noMatch);
         address(code, inputLayout, input, inputAddress, ints);
         loadCarrier(code, carriers, p.type, s.carrierPattern().getFirst(), 0, inputAddress, ints);
@@ -426,51 +608,84 @@ public final class CpuFoldEmitter {
         code.labelBinding(finished);
     }
 
+    /**
+     * Emits one sequential addition in the working type; low operands are already decoded floats.
+     * @param code non-null generation-time body builder
+     * @param type non-null supported fold boundary type
+     * @param left local containing the accumulator, overwritten with the working sum
+     * @param right local containing the working contributor, not modified
+     * @throws IllegalArgumentException if type is BOOL
+     */
     private static void add(CodeBuilder code, DataType type, int left, int right) {
-        if (type == DataType.BFLOAT16) {
-            emitBfloatAdd(code, left, right);
-            code.istore(left);
-            return;
-        }
-        if (type == DataType.FLOAT16) {
-            emitFloat16Add(code, left, right);
-            code.istore(left);
-            return;
-        }
         loadValue(code, type, left); loadValue(code, type, right);
         switch (type) {
             case FLOAT64 -> code.dadd();
-            case FLOAT32 -> code.fadd();
+            case FLOAT32, BFLOAT16, FLOAT16 -> code.fadd();
             case INT32 -> code.iadd();
             case INT64 -> code.ladd();
-            case BFLOAT16, FLOAT16 -> throw new AssertionError("handled above");
             case BOOL -> throw new IllegalArgumentException("BOOL fold is unsupported");
         }
         storeValue(code, type, left);
     }
 
+    /**
+     * Loads storage and exactly decodes either low format to FLOAT32 on the operand stack.
+     * @param code non-null generation-time body builder
+     * @param carriers non-null direct carrier emitter
+     * @param type non-null admitted boundary type; storage width remains unchanged
+     * @param access non-null prepared carrier form
+     * @param parameterSlot local holding the input carrier
+     * @param addressLocal local holding the checked element address, not a byte offset
+     * @param intAddress whether the address local is int rather than long
+     */
     private static void loadCarrier(CodeBuilder code, CpuCarrierEmitter carriers, DataType type,
             CarrierAccess access, int parameterSlot, int addressLocal, boolean intAddress) {
         if (access != CarrierAccess.MEMORY_SEGMENT) {
             carriers.load(type, access, parameterSlot, addressLocal, intAddress);
-            return;
+        } else {
+            code.aload(parameterSlot).getstatic(VALUE_LAYOUT, layoutField(type), layoutClass(type));
+            byteOffset(code, type, addressLocal, intAddress);
+            code.invokeinterface(SEGMENT, "get", MethodTypeDesc.of(primitive(type), layoutClass(type),
+                    ConstantDescs.CD_long));
         }
-        code.aload(parameterSlot).getstatic(VALUE_LAYOUT, layoutField(type), layoutClass(type));
-        byteOffset(code, type, addressLocal, intAddress);
-        code.invokeinterface(SEGMENT, "get", MethodTypeDesc.of(primitive(type), layoutClass(type),
-                ConstantDescs.CD_long));
+        if (type == DataType.BFLOAT16) {
+            code.loadConstant(16).ishl().invokestatic(FLOAT_CLASS, "intBitsToFloat",
+                    MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int));
+        } else if (type == DataType.FLOAT16) {
+            code.i2s().invokestatic(FLOAT_CLASS, "float16ToFloat",
+                    MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short));
+        }
     }
 
+    /**
+     * Stores one completed result, narrowing a low FLOAT32 accumulator once with ties-to-even.
+     * The existing cast emitter is a generation-time collaborator, not a generated helper call.
+     * @param code non-null generation-time body builder
+     * @param carriers non-null direct carrier emitter
+     * @param type non-null admitted output storage type
+     * @param access non-null prepared carrier form
+     * @param parameterSlot local holding the output carrier
+     * @param addressLocal local holding the checked element address, not a byte offset
+     * @param valueLocal local containing the completed working accumulator; float for low types
+     * @param intAddress whether the address local is int rather than long
+     */
     private static void storeCarrier(CodeBuilder code, CpuCarrierEmitter carriers, DataType type,
             CarrierAccess access, int parameterSlot, int addressLocal, int valueLocal,
             boolean intAddress) {
+        boolean low = type == DataType.BFLOAT16 || type == DataType.FLOAT16;
+        if (low) {
+            int represented = code.allocateLocal(TypeKind.INT);
+            new CpuCastEmitter(code).emit(DataType.FLOAT32, type, valueLocal);
+            code.istore(represented);
+            valueLocal = represented;
+        }
         if (access != CarrierAccess.MEMORY_SEGMENT) {
             carriers.store(type, access, parameterSlot, addressLocal, valueLocal, intAddress);
             return;
         }
         code.aload(parameterSlot).getstatic(VALUE_LAYOUT, layoutField(type), layoutClass(type));
         byteOffset(code, type, addressLocal, intAddress);
-        loadValue(code, type, valueLocal);
+        if (low) code.iload(valueLocal); else loadValue(code, type, valueLocal);
         code.invokeinterface(SEGMENT, "set", MethodTypeDesc.of(ConstantDescs.CD_void,
                 layoutClass(type), ConstantDescs.CD_long, primitive(type)));
     }
@@ -515,50 +730,19 @@ public final class CpuFoldEmitter {
         };
     }
 
-    private static void emitBfloatAdd(CodeBuilder code, int left, int right) {
-        int resultBits = code.allocateLocal(TypeKind.INT);
-        int upper = code.allocateLocal(TypeKind.INT);
-        int lower = code.allocateLocal(TypeKind.INT);
-        code.iload(left).loadConstant(16).ishl()
-                .invokestatic(FLOAT_CLASS, "intBitsToFloat",
-                        MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int));
-        code.iload(right).loadConstant(16).ishl()
-                .invokestatic(FLOAT_CLASS, "intBitsToFloat",
-                        MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int));
-        code.fadd().invokestatic(FLOAT_CLASS, "floatToRawIntBits",
-                MethodTypeDesc.of(ConstantDescs.CD_int, ConstantDescs.CD_float)).istore(resultBits);
-        var finite = code.newLabel(); var round = code.newLabel(); var complete = code.newLabel();
-        code.iload(resultBits).loadConstant(0x7f800000).iand().loadConstant(0x7f800000)
-                .branch(Opcode.IF_ICMPNE, finite);
-        code.iload(resultBits).loadConstant(0x007fffff).iand().branch(Opcode.IFEQ, finite);
-        code.iload(resultBits).loadConstant(16).iushr().loadConstant(0x40).ior()
-                .branch(Opcode.GOTO, complete);
-        code.labelBinding(finite).iload(resultBits).loadConstant(16).iushr().istore(upper);
-        code.iload(resultBits).loadConstant(0xffff).iand().istore(lower);
-        code.iload(lower).loadConstant(0x8000).branch(Opcode.IF_ICMPGT, round);
-        var tie = code.newLabel();
-        code.iload(lower).loadConstant(0x8000).branch(Opcode.IF_ICMPEQ, tie);
-        code.iload(upper).branch(Opcode.GOTO, complete);
-        code.labelBinding(tie).iload(upper).loadConstant(1).iand().branch(Opcode.IFNE, round);
-        code.iload(upper).branch(Opcode.GOTO, complete);
-        code.labelBinding(round).iinc(upper, 1).iload(upper).labelBinding(complete);
-    }
-
-    private static void emitFloat16Add(CodeBuilder code, int left, int right) {
-        code.iload(left).i2s().invokestatic(FLOAT_CLASS, "float16ToFloat",
-                MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short));
-        code.iload(right).i2s().invokestatic(FLOAT_CLASS, "float16ToFloat",
-                MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short));
-        code.fadd().invokestatic(FLOAT_CLASS, "floatToFloat16",
-                MethodTypeDesc.of(ConstantDescs.CD_short, ConstantDescs.CD_float));
-    }
-
+    /**
+     * Initializes the owned cell's working accumulator, including gaps with no contributors.
+     * @param code non-null generation-time body builder
+     * @param type non-null supported fold boundary type
+     * @param local accumulator local; float for either low format
+     * @throws IllegalArgumentException if type is BOOL
+     */
     private static void positiveZero(CodeBuilder code, DataType type, int local) {
         switch (type) {
             case FLOAT64 -> code.loadConstant(0.0d).dstore(local);
-            case FLOAT32 -> code.loadConstant(0.0f).fstore(local);
+            case FLOAT32, BFLOAT16, FLOAT16 -> code.loadConstant(0.0f).fstore(local);
             case INT64 -> code.loadConstant(0L).lstore(local);
-            case BFLOAT16, FLOAT16, INT32 -> code.loadConstant(0).istore(local);
+            case INT32 -> code.loadConstant(0).istore(local);
             case BOOL -> throw new IllegalArgumentException("BOOL fold is unsupported");
         }
     }
@@ -650,30 +834,47 @@ public final class CpuFoldEmitter {
         if (ints) code.iadd(); else code.ladd();
     }
 
+    /**
+     * Reloads a working value without a storage conversion.
+     * @param code non-null generation-time body builder
+     * @param type non-null boundary type selecting its working local kind
+     * @param local working value local; float for either low format
+     */
     private static void loadValue(CodeBuilder code, DataType type, int local) {
         switch (type) {
             case FLOAT64 -> code.dload(local);
-            case FLOAT32 -> code.fload(local);
+            case FLOAT32, BFLOAT16, FLOAT16 -> code.fload(local);
             case INT64 -> code.lload(local);
-            case BFLOAT16, FLOAT16, INT32, BOOL -> code.iload(local);
+            case INT32, BOOL -> code.iload(local);
         }
     }
 
+    /**
+     * Saves a working value without narrowing a low contribution or accumulator.
+     * @param code non-null generation-time body builder
+     * @param type non-null boundary type selecting its working local kind
+     * @param local destination working local; float for either low format
+     */
     private static void storeValue(CodeBuilder code, DataType type, int local) {
         switch (type) {
             case FLOAT64 -> code.dstore(local);
-            case FLOAT32 -> code.fstore(local);
+            case FLOAT32, BFLOAT16, FLOAT16 -> code.fstore(local);
             case INT64 -> code.lstore(local);
-            case BFLOAT16, FLOAT16, INT32, BOOL -> code.istore(local);
+            case INT32, BOOL -> code.istore(local);
         }
     }
 
+    /**
+     * Distinguishes arithmetic locals from the low formats' short storage carriers.
+     * @param type non-null fold boundary type
+     * @return non-null primitive working kind; FLOAT for FLOAT32, BFLOAT16 and FLOAT16
+     */
     private static TypeKind localKind(DataType type) {
         return switch (type) {
             case FLOAT64 -> TypeKind.DOUBLE;
-            case FLOAT32 -> TypeKind.FLOAT;
+            case FLOAT32, BFLOAT16, FLOAT16 -> TypeKind.FLOAT;
             case INT64 -> TypeKind.LONG;
-            case BFLOAT16, FLOAT16, INT32, BOOL -> TypeKind.INT;
+            case INT32, BOOL -> TypeKind.INT;
         };
     }
 

@@ -53,7 +53,7 @@ class CpuCapabilityProviderTest {
                 new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE),
                 List.of(input),
                 List.of(input));
-        assertTrue(new CpuCapabilityProvider().supports(query));
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(new CpuCapabilityProvider(), query);
     }
 
     @Test void reportsOnlyExactStaticResolvedFloatingNchwPool2dOccurrences() {
@@ -64,10 +64,10 @@ class CpuCapabilityProviderTest {
             var input = descriptor(type, Shape.of(1, 2, 4, 5));
             var output = descriptor(type, Shape.of(1, 2, 3, 5));
             assertAll(type.toString(),
-                    () -> assertTrue(provider.supports(query(Pool2dKind.MAX_POOL2D, max,
-                            List.of(input), output))),
-                    () -> assertTrue(provider.supports(query(Pool2dKind.AVERAGE_POOL2D, average,
-                            List.of(input), output))));
+                    () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(Pool2dKind.MAX_POOL2D, max,
+                            List.of(input), output)),
+                    () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(Pool2dKind.AVERAGE_POOL2D, average,
+                            List.of(input), output)));
         }
         var input = descriptor(DataType.FLOAT32, Shape.of(1, 2, 4, 5));
         var output = descriptor(DataType.FLOAT32, Shape.of(1, 2, 3, 5));
@@ -98,8 +98,8 @@ class CpuCapabilityProviderTest {
         for(DataType type:List.of(DataType.BFLOAT16,DataType.FLOAT32,DataType.FLOAT64)){
             var input=descriptor(type,Shape.of(1,2,3,3,3));
             var output=descriptor(type,Shape.of(1,2,4,4,4));
-            assertAll(()->assertTrue(provider.supports(query(Pool3dKind.MAX_POOL3D,max,List.of(input),output))),
-                    ()->assertTrue(provider.supports(query(Pool3dKind.AVERAGE_POOL3D,average,List.of(input),output))));
+            assertAll(()->io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(Pool3dKind.MAX_POOL3D,max,List.of(input),output)),
+                    ()->io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(Pool3dKind.AVERAGE_POOL3D,average,List.of(input),output)));
         }
         var input=descriptor(DataType.FLOAT32,Shape.of(1,2,3,3,3));
         var output=descriptor(DataType.FLOAT32,Shape.of(1,2,4,4,4));
@@ -115,8 +115,8 @@ class CpuCapabilityProviderTest {
                 Optional.of(LayoutDescriptor.of(inputShape,new long[]{0,0,0,0,0},0,true)),false);
         assertAll(()->assertFalse(provider.supports(query(Pool3dKind.MAX_POOL3D,max,
                         List.of(descriptor(DataType.INT32,Shape.of(1,2,3,3,3))),output))),
-                ()->assertTrue(provider.supports(query(Pool3dKind.MAX_POOL3D,max,
-                        List.of(nonInjectiveInput),output))),
+                ()->io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(Pool3dKind.MAX_POOL3D,max,
+                        List.of(nonInjectiveInput),output)),
                 ()->assertFalse(provider.supports(query(Pool3dKind.MAX_POOL3D,max,List.of(input),
                         descriptor(DataType.FLOAT32,Shape.of(1,2,4,4,3))))),
                 ()->assertFalse(provider.supports(query(Pool3dKind.MAX_POOL3D,max,
@@ -134,24 +134,21 @@ class CpuCapabilityProviderTest {
         var provider = new CpuCapabilityProvider();
         var numeric = List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64,
                 DataType.INT32, DataType.INT64);
-        int admitted = 0;
         for (DataType leftType : numeric) for (DataType rightType : numeric) {
             boolean sameCategory = leftType.isFloating() == rightType.isFloating();
             if (!sameCategory) continue;
-            admitted++;
             DataType resultType = io.github.pho001.synaptik.model.datatype.DataTypePromotion
                     .promoteNumeric(leftType, rightType);
-            assertTrue(provider.supports(query(MatmulKind.MATMUL,
+            io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(MatmulKind.MATMUL,
                     List.of(descriptor(leftType, Shape.of(2, 3)),
                             descriptor(rightType, Shape.of(3, 4))),
-                    descriptor(resultType, Shape.of(2, 4)))));
+                    descriptor(resultType, Shape.of(2, 4))));
         }
-        assertEquals(13, admitted);
         assertAll(
-                () -> assertTrue(provider.supports(query(MatmulKind.MATMUL,
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(MatmulKind.MATMUL,
                         List.of(descriptor(DataType.FLOAT32, Shape.of(0, 2, 3)),
                                 descriptor(DataType.FLOAT32, Shape.of(1, 3, 4))),
-                        descriptor(DataType.FLOAT32, Shape.of(0, 2, 4))))),
+                        descriptor(DataType.FLOAT32, Shape.of(0, 2, 4)))),
                 () -> assertFalse(provider.supports(query(MatmulKind.MATMUL,
                         List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3)),
                                 descriptor(DataType.FLOAT32, Shape.of(2, 4))),
@@ -175,10 +172,10 @@ class CpuCapabilityProviderTest {
         var weight = descriptor(DataType.FLOAT32, weightShape);
         var bias = descriptor(DataType.FLOAT64, biasShape);
         var output = descriptor(DataType.FLOAT64, outputShape);
-        assertAll(() -> assertTrue(provider.supports(query(Conv2dKind.CONV2D, attrs,
-                        List.of(input, weight, bias), output))),
-                () -> assertTrue(provider.supports(query(Conv2dKind.CONV2D, attrs,
-                        List.of(input, weight), descriptor(DataType.FLOAT32, outputShape)))),
+        assertAll(() -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(Conv2dKind.CONV2D, attrs,
+                        List.of(input, weight, bias), output)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(Conv2dKind.CONV2D, attrs,
+                        List.of(input, weight), descriptor(DataType.FLOAT32, outputShape))),
                 () -> assertFalse(provider.supports(query(Conv2dKind.CONV2D, attrs,
                         List.of(input, weight, bias), descriptor(DataType.FLOAT32, outputShape)))),
                 () -> assertFalse(provider.supports(query(Conv2dKind.CONV2D, attrs,
@@ -199,9 +196,9 @@ class CpuCapabilityProviderTest {
                 descriptor(DataType.FLOAT32, channel), descriptor(DataType.BFLOAT16, channel),
                 descriptor(DataType.FLOAT64, channel), descriptor(DataType.FLOAT32, channel));
         assertAll(
-                () -> assertTrue(provider.supports(query(BatchNormKind.BATCH_NORM_INFERENCE,
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(BatchNormKind.BATCH_NORM_INFERENCE,
                         new BatchNormInferenceAttrs(1, ScalarValue.float64(1e-5)), inputs,
-                        descriptor(DataType.FLOAT64, input)))),
+                        descriptor(DataType.FLOAT64, input))),
                 () -> assertFalse(provider.supports(query(BatchNormKind.BATCH_NORM_INFERENCE,
                         new BatchNormInferenceAttrs(1, ScalarValue.float32(1e-5f)), inputs,
                         descriptor(DataType.FLOAT64, input)))),
@@ -224,21 +221,21 @@ class CpuCapabilityProviderTest {
         var provider = new CpuCapabilityProvider(); Shape input = Shape.of(2, 3);
         Shape normalized = Shape.of(3);
         assertAll(
-                () -> assertTrue(provider.supports(query(LayerNormKind.LAYER_NORM,
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(LayerNormKind.LAYER_NORM,
                         new LayerNormAttrs(normalized, ScalarValue.float32(1e-5f)),
                         List.of(descriptor(DataType.FLOAT32, input)),
-                        descriptor(DataType.FLOAT32, input)))),
-                () -> assertTrue(provider.supports(query(LayerNormKind.LAYER_NORM,
+                        descriptor(DataType.FLOAT32, input))),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(LayerNormKind.LAYER_NORM,
                         new AffineLayerNormAttrs(normalized, ScalarValue.float64(1e-5)),
                         List.of(descriptor(DataType.BFLOAT16, input),
                                 descriptor(DataType.FLOAT32, normalized),
                                 descriptor(DataType.FLOAT64, normalized)),
-                        descriptor(DataType.FLOAT64, input)))),
-                () -> assertTrue(provider.supports(query(RmsNormKind.RMS_NORM,
+                        descriptor(DataType.FLOAT64, input))),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(RmsNormKind.RMS_NORM,
                         new RmsNormAttrs(normalized, ScalarValue.float32(1e-5f)),
                         List.of(descriptor(DataType.BFLOAT16, input),
                                 descriptor(DataType.FLOAT32, normalized)),
-                        descriptor(DataType.FLOAT32, input)))),
+                        descriptor(DataType.FLOAT32, input))),
                 () -> assertFalse(provider.supports(query(RmsNormKind.RMS_NORM,
                         new RmsNormAttrs(Shape.of(2), ScalarValue.float32(1e-5f)),
                         List.of(descriptor(DataType.FLOAT32, input)),
@@ -252,10 +249,9 @@ class CpuCapabilityProviderTest {
     @Test void reportsOnlyExactPositiveWidthShapePreservingSoftmaxRows() {
         var provider = new CpuCapabilityProvider();
         for (SoftmaxKind kind : SoftmaxKind.values()) for (DataType type : List.of(
-                DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) assertTrue(
-                provider.supports(query(kind, new SoftmaxAttrs(1),
+                DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(kind, new SoftmaxAttrs(1),
                         List.of(descriptor(type, Shape.of(2, 3))),
-                        descriptor(type, Shape.of(2, 3)))));
+                        descriptor(type, Shape.of(2, 3))));
         assertAll(() -> assertFalse(provider.supports(query(SoftmaxKind.SOFTMAX,
                         new SoftmaxAttrs(1), List.of(descriptor(DataType.FLOAT32, Shape.of(2, 0))),
                         descriptor(DataType.FLOAT32, Shape.of(2, 0))))),
@@ -272,16 +268,16 @@ class CpuCapabilityProviderTest {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
             for (AggregateReductionKind kind : List.of(AggregateReductionKind.LOG_SUM_EXP,
                     AggregateReductionKind.L1_NORM, AggregateReductionKind.L2_NORM)) {
-                assertTrue(provider.supports(query(kind,
+                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(kind,
                         new MultiAxisReductionAttrs(List.of(2, 0), false),
-                        List.of(descriptor(type, inputShape)), descriptor(type, Shape.of(3)))));
+                        List.of(descriptor(type, inputShape)), descriptor(type, Shape.of(3))));
             }
             for (AggregateReductionKind kind : List.of(AggregateReductionKind.VARIANCE,
                     AggregateReductionKind.STANDARD_DEVIATION)) {
-                assertTrue(provider.supports(query(kind,
+                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(kind,
                         new StatisticalReductionAttrs(List.of(2, 0), true, 1),
                         List.of(descriptor(type, inputShape)),
-                        descriptor(type, Shape.of(1, 3, 1)))));
+                        descriptor(type, Shape.of(1, 3, 1))));
             }
         }
         TensorDescriptor gradientInput = new TensorDescriptor(DataType.FLOAT64, inputShape,
@@ -315,10 +311,10 @@ class CpuCapabilityProviderTest {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
             for (AggregateReductionKind kind : List.of(AggregateReductionKind.SUM,
                     AggregateReductionKind.MEAN)) {
-                assertTrue(provider.supports(query(kind, new MaskedReductionAttrs(1),
+                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(kind, new MaskedReductionAttrs(1),
                         List.of(descriptor(type, Shape.of(2, 3, 4)),
                                 descriptor(DataType.BOOL, Shape.of(3, 1))),
-                        descriptor(type, Shape.of(2, 4)))));
+                        descriptor(type, Shape.of(2, 4))));
             }
         }
         assertAll(
@@ -351,12 +347,12 @@ class CpuCapabilityProviderTest {
             for (AggregateReductionKind kind : List.of(AggregateReductionKind.ARG_MIN,
                     AggregateReductionKind.ARG_MAX)) {
                 for (ArgExtremaTiePolicy tie : ArgExtremaTiePolicy.values()) {
-                    assertTrue(provider.supports(query(kind, new ArgExtremaAttrs(1, false, tie),
+                    io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(kind, new ArgExtremaAttrs(1, false, tie),
                             List.of(descriptor(type, Shape.of(2, 3))),
-                            descriptor(DataType.INT64, Shape.of(2)))));
-                    assertTrue(provider.supports(query(kind, new ArgExtremaAttrs(1, true, tie),
+                            descriptor(DataType.INT64, Shape.of(2))));
+                    io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(kind, new ArgExtremaAttrs(1, true, tie),
                             List.of(descriptor(type, Shape.of(2, 3))),
-                            descriptor(DataType.INT64, Shape.of(2, 1)))));
+                            descriptor(DataType.INT64, Shape.of(2, 1))));
                 }
             }
         }
@@ -383,10 +379,10 @@ class CpuCapabilityProviderTest {
         var provider = new CpuCapabilityProvider();
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
                 DataType.INT32, DataType.INT64)) {
-            assertTrue(provider.supports(query(AggregateReductionKind.SUM,
+            io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(AggregateReductionKind.SUM,
                     new SumToShapeAttrs(Shape.of(3, 1)),
                     List.of(descriptor(type, Shape.of(2, 3, 4))),
-                    descriptor(type, Shape.of(3, 1)))));
+                    descriptor(type, Shape.of(3, 1))));
         }
         assertAll(
                 () -> assertThrows(IllegalArgumentException.class, () -> query(
@@ -413,12 +409,12 @@ class CpuCapabilityProviderTest {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
                 DataType.INT32, DataType.INT64)) for (AggregateReductionKind kind : List.of(
                         AggregateReductionKind.SUM, AggregateReductionKind.PROD))
-            assertTrue(provider.supports(query(kind, new AxisReductionAttrs(1, false),
-                    List.of(descriptor(type, Shape.of(2, 3))), descriptor(type, Shape.of(2)))));
+            io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(kind, new AxisReductionAttrs(1, false),
+                    List.of(descriptor(type, Shape.of(2, 3))), descriptor(type, Shape.of(2))));
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16))
-            assertTrue(provider.supports(query(AggregateReductionKind.MEAN,
+            io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(AggregateReductionKind.MEAN,
                     new MultiAxisReductionAttrs(List.of(1), false),
-                    List.of(descriptor(type, Shape.of(2, 3))), descriptor(type, Shape.of(2)))));
+                    List.of(descriptor(type, Shape.of(2, 3))), descriptor(type, Shape.of(2))));
         var integralMean = query(AggregateReductionKind.MEAN, NoOperationAttrs.INSTANCE,
                 List.of(descriptor(DataType.INT32, Shape.of(2))),
                 descriptor(DataType.INT32, Shape.scalar()));
@@ -432,8 +428,8 @@ class CpuCapabilityProviderTest {
         var provider = new CpuCapabilityProvider();
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
                 DataType.INT32, DataType.INT64)) for (CumulativeScanKind kind : CumulativeScanKind.values())
-            assertTrue(provider.supports(query(kind, new CumulativeScanAttrs(1, true, true),
-                    List.of(descriptor(type, Shape.of(2, 3))), descriptor(type, Shape.of(2, 3)))));
+            io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(kind, new CumulativeScanAttrs(1, true, true),
+                    List.of(descriptor(type, Shape.of(2, 3))), descriptor(type, Shape.of(2, 3))));
         assertAll(() -> assertFalse(provider.supports(query(CumulativeScanKind.CUM_SUM,
                         new CumulativeScanAttrs(0, false, false),
                         List.of(descriptor(DataType.BOOL, Shape.of(2))),
@@ -453,14 +449,14 @@ class CpuCapabilityProviderTest {
         var bf16 = descriptor(DataType.BFLOAT16, Shape.of(2, 3));
         var mask = descriptor(DataType.BOOL, Shape.of(2, 3));
         assertAll(
-                () -> assertTrue(provider.supports(new OperationCapabilityQuery(new Operation(io.github.pho001.synaptik.model.operation.random.GraphRngKind.INITIAL_STATE,
-                        new io.github.pho001.synaptik.model.operation.random.GraphRngStateAttrs(1, 2)), List.of(), List.of(state)))),
-                () -> assertTrue(provider.supports(new OperationCapabilityQuery(new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
-                        new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)), List.of(f64, state), List.of(f64, mask, state)))),
-                () -> assertTrue(provider.supports(new OperationCapabilityQuery(new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
-                        new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)), List.of(f32, state), List.of(f32, mask, state)))),
-                () -> assertTrue(provider.supports(new OperationCapabilityQuery(new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
-                        new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)), List.of(bf16, state), List.of(bf16, mask, state)))),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, new OperationCapabilityQuery(new Operation(io.github.pho001.synaptik.model.operation.random.GraphRngKind.INITIAL_STATE,
+                        new io.github.pho001.synaptik.model.operation.random.GraphRngStateAttrs(1, 2)), List.of(), List.of(state))),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, new OperationCapabilityQuery(new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
+                        new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)), List.of(f64, state), List.of(f64, mask, state))),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, new OperationCapabilityQuery(new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
+                        new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)), List.of(f32, state), List.of(f32, mask, state))),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, new OperationCapabilityQuery(new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
+                        new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)), List.of(bf16, state), List.of(bf16, mask, state))),
                 () -> assertFalse(provider.supports(new OperationCapabilityQuery(new Operation(io.github.pho001.synaptik.model.operation.random.DropoutKind.DROPOUT,
                         new io.github.pho001.synaptik.model.operation.random.DropoutAttrs(.2)), List.of(f64, aliasedState), List.of(f64, mask, state))))) ;
     }
@@ -469,12 +465,12 @@ class CpuCapabilityProviderTest {
         var input = descriptor(DataType.BFLOAT16, Shape.of(2, 5));
         var values = descriptor(DataType.BFLOAT16, Shape.of(2, 3));
         var indices = descriptor(DataType.INT64, Shape.of(2, 3));
-        assertAll(() -> assertTrue(provider.supports(query(OrderingKind.SORT,
-                        new SortAttrs(1, true), List.of(input), input))),
-                () -> assertTrue(provider.supports(query(OrderingKind.ARGSORT,
+        assertAll(() -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(OrderingKind.SORT,
+                        new SortAttrs(1, true), List.of(input), input)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(OrderingKind.ARGSORT,
                         new SortAttrs(1, false), List.of(input),
-                        descriptor(DataType.INT64, Shape.of(2, 5))))),
-                () -> assertTrue(provider.supports(new OperationCapabilityQuery(new Operation(TopKKind.TOP_K, new TopKAttrs(1, 3, true, false)), List.of(input), List.of(values, indices)))),
+                        descriptor(DataType.INT64, Shape.of(2, 5)))),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, new OperationCapabilityQuery(new Operation(TopKKind.TOP_K, new TopKAttrs(1, 3, true, false)), List.of(input), List.of(values, indices))),
                 () -> assertFalse(provider.supports(new OperationCapabilityQuery(new Operation(TopKKind.TOP_K, new TopKAttrs(1, 3, true, false)), List.of(input), List.of(indices, values)))));
     }
     @Test void reportsOnlyExactStaticSliceUpdateOccurrences() {
@@ -485,10 +481,10 @@ class CpuCapabilityProviderTest {
         var signed = new SliceAttrs(List.of(4L), List.of(2L), List.of(0), List.of(-2L));
         var crop = new CropToShapeAttrs(Shape.of(2), Shape.of(3));
         assertAll(
-                () -> assertTrue(provider.supports(query(SliceKind.SLICE_UPDATE, signed,
-                        List.of(base, update), output))),
-                () -> assertTrue(provider.supports(query(SliceKind.SLICE_UPDATE, crop,
-                        List.of(base, update), output))),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(SliceKind.SLICE_UPDATE, signed,
+                        List.of(base, update), output)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(SliceKind.SLICE_UPDATE, crop,
+                        List.of(base, update), output)),
                 () -> assertFalse(provider.supports(query(SliceKind.SLICE_UPDATE,
                         new CropToShapeAttrs(Shape.of(1), Shape.of(3)),
                         List.of(base, update), output))),
@@ -506,19 +502,19 @@ class CpuCapabilityProviderTest {
         var positiveBoundary = new SliceAttrs(List.of(0L), List.of(2L), List.of(0), List.of(4L));
         var negativeBoundary = new SliceAttrs(List.of(4L), List.of(2L), List.of(0), List.of(-4L));
         assertAll(
-                () -> assertTrue(provider.supports(query(SliceKind.SLICE_UPDATE,
-                        positiveBoundary, List.of(base, update), output))),
-                () -> assertTrue(provider.supports(query(SliceKind.SLICE_UPDATE,
-                        negativeBoundary, List.of(base, update), output))),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(SliceKind.SLICE_UPDATE,
+                        positiveBoundary, List.of(base, update), output)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(SliceKind.SLICE_UPDATE,
+                        negativeBoundary, List.of(base, update), output)),
                 () -> assertFalse(provider.supports(query(SliceKind.SLICE_UPDATE,
                         new SliceAttrs(List.of(1L), List.of(2L), List.of(0), List.of(4L)),
                         List.of(base, update), output))),
                 () -> assertThrows(IllegalArgumentException.class,
                         () -> new SliceAttrs(List.of(3L), List.of(2L), List.of(0),
                                 List.of(-4L))),
-                () -> assertTrue(provider.supports(query(SliceKind.SLICE_UPDATE,
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(SliceKind.SLICE_UPDATE,
                         new CropToShapeAttrs(Shape.of(2), Shape.of(3)),
-                        List.of(base, update), output))),
+                        List.of(base, update), output)),
                 () -> assertFalse(provider.supports(query(SliceKind.SLICE_UPDATE,
                         new CropToShapeAttrs(Shape.of(2), Shape.of(4)),
                         List.of(base, update), output))));
@@ -531,22 +527,22 @@ class CpuCapabilityProviderTest {
                 Optional.of(LayoutDescriptor.contiguous(shape)), false);
         assertAll(
                 () -> assertSame(CpuCapabilityProvider.CPU_BACKEND_ID, provider.backendId()),
-                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.ADD,
-                        List.of(dense, dense), dense))),
-                () -> assertTrue(provider.supports(query(UnaryElementwiseKind.GELU,
-                        List.of(dense), dense))),
-                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.MUL,
-                        List.of(dense, dense), dense))),
-                () -> assertTrue(provider.supports(query(UnaryElementwiseKind.GELU_TANH_APPROXIMATION,
-                        List.of(dense), dense))));
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(BinaryArithmeticKind.ADD,
+                        List.of(dense, dense), dense)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(UnaryElementwiseKind.GELU,
+                        List.of(dense), dense)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(BinaryArithmeticKind.MUL,
+                        List.of(dense, dense), dense)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(UnaryElementwiseKind.GELU_TANH_APPROXIMATION,
+                        List.of(dense), dense)));
         var unresolved = new TensorDescriptor(DataType.FLOAT64, shape, Optional.empty(), false);
         var float32 = new TensorDescriptor(DataType.FLOAT32, shape,
                 Optional.of(LayoutDescriptor.contiguous(shape)), false);
         assertAll(
                 () -> assertFalse(provider.supports(query(BinaryArithmeticKind.ADD,
                         List.of(unresolved, unresolved), unresolved))),
-                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.ADD,
-                        List.of(float32, float32), float32))),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(BinaryArithmeticKind.ADD,
+                        List.of(float32, float32), float32)),
                 () -> assertEquals("query", assertThrows(NullPointerException.class,
                         () -> provider.supports(null)).getMessage()));
     }
@@ -561,8 +557,8 @@ class CpuCapabilityProviderTest {
         var output = descriptor(outputShape, LayoutDescriptor.contiguous(outputShape));
         var wrong = descriptor(Shape.of(2, 3), LayoutDescriptor.contiguous(Shape.of(2, 3)));
         assertAll(
-                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.ADD,
-                        List.of(left, right), output))),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(BinaryArithmeticKind.ADD,
+                        List.of(left, right), output)),
                 () -> assertFalse(provider.supports(query(BinaryArithmeticKind.ADD,
                         List.of(left, right), wrong))),
                 () -> assertFalse(provider.supports(query(UnaryElementwiseKind.GELU,
@@ -579,74 +575,74 @@ class CpuCapabilityProviderTest {
         var bool = descriptor(DataType.BOOL, shape);
         var bf16 = descriptor(DataType.BFLOAT16, shape);
         for (var kind : UnaryElementwiseKind.values()) {
-            assertTrue(provider.supports(query(kind, List.of(f64), f64)), kind + " FLOAT64");
-            assertTrue(provider.supports(query(kind, List.of(f32), f32)), kind + " FLOAT32");
-            assertTrue(provider.supports(query(kind, List.of(bf16), bf16)), kind + " BFLOAT16");
+            io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(kind, List.of(f64), f64), kind + " FLOAT64");
+            io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(kind, List.of(f32), f32), kind + " FLOAT32");
+            io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(kind, List.of(bf16), bf16), kind + " BFLOAT16");
         }
         for (var type : List.of(f64, f32, bf16, i32, i64)) {
             for (var kind : List.of(BinaryArithmeticKind.ADD, BinaryArithmeticKind.SUB,
-                    BinaryArithmeticKind.MUL)) assertTrue(provider.supports(query(kind,
-                    NoOperationAttrs.INSTANCE, List.of(type, type), type)));
-            for (var kind : BinaryComparisonKind.values()) assertTrue(provider.supports(query(kind,
-                    NoOperationAttrs.INSTANCE, List.of(type, type), bool)));
+                    BinaryArithmeticKind.MUL)) io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(kind,
+                    NoOperationAttrs.INSTANCE, List.of(type, type), type));
+            for (var kind : BinaryComparisonKind.values()) io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(kind,
+                    NoOperationAttrs.INSTANCE, List.of(type, type), bool));
         }
         assertAll(
-                () -> assertTrue(provider.supports(query(ScalarElementwiseKind.ADD,
-                        new ScalarValueAttrs(ScalarValue.int32(7)), List.of(i32), i32))),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(ScalarElementwiseKind.ADD,
+                        new ScalarValueAttrs(ScalarValue.int32(7)), List.of(i32), i32)),
                 () -> assertFalse(provider.supports(query(ScalarElementwiseKind.ADD,
                         new ScalarValueAttrs(ScalarValue.int64(7)), List.of(i32), i32))),
-                () -> assertTrue(provider.supports(query(FloatingClassificationKind.IS_NAN,
-                        NoOperationAttrs.INSTANCE, List.of(f32), bool))),
-                () -> assertTrue(provider.supports(query(WhereSelectionKind.WHERE,
-                        NoOperationAttrs.INSTANCE, List.of(bool, f64, f64), f64))),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(FloatingClassificationKind.IS_NAN,
+                        NoOperationAttrs.INSTANCE, List.of(f32), bool)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(WhereSelectionKind.WHERE,
+                        NoOperationAttrs.INSTANCE, List.of(bool, f64, f64), f64)),
                 () -> assertFalse(provider.supports(query(WhereSelectionKind.WHERE,
                         NoOperationAttrs.INSTANCE, List.of(bool, i32, i32), i32))),
-                () -> assertTrue(provider.supports(query(CastKind.CAST,
-                        new CastAttrs(DataType.BOOL), List.of(bool), bool))),
-                () -> assertTrue(provider.supports(query(CastKind.CAST,
-                        new CastAttrs(DataType.FLOAT64), List.of(f32), f64))),
-                () -> assertTrue(provider.supports(query(CastKind.CAST,
-                        new CastAttrs(DataType.BFLOAT16), List.of(bf16), bf16))),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(CastKind.CAST,
+                        new CastAttrs(DataType.BOOL), List.of(bool), bool)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(CastKind.CAST,
+                        new CastAttrs(DataType.FLOAT64), List.of(f32), f64)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(CastKind.CAST,
+                        new CastAttrs(DataType.BFLOAT16), List.of(bf16), bf16)),
                 () -> assertFalse(provider.supports(query(BinaryArithmeticKind.ADD,
                         NoOperationAttrs.INSTANCE, List.of(f32, f64), f64))),
-                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.DIV,
-                        NoOperationAttrs.INSTANCE, List.of(f64, f64), f64))),
-                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.DIV,
-                        NoOperationAttrs.INSTANCE, List.of(f32, f32), f32))),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(BinaryArithmeticKind.DIV,
+                        NoOperationAttrs.INSTANCE, List.of(f64, f64), f64)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(BinaryArithmeticKind.DIV,
+                        NoOperationAttrs.INSTANCE, List.of(f32, f32), f32)),
                 () -> assertFalse(provider.supports(query(BinaryArithmeticKind.DIV,
                         NoOperationAttrs.INSTANCE, List.of(i32, i32), i32))),
-                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.DIV,
-                        NoOperationAttrs.INSTANCE, List.of(bf16, bf16), bf16))),
-                () -> assertTrue(provider.supports(query(ScalarElementwiseKind.DIV,
-                        new ScalarValueAttrs(ScalarValue.float32(-0.0f)), List.of(f32), f32))),
-                () -> assertTrue(provider.supports(query(ScalarElementwiseKind.POW,
-                        new ScalarValueAttrs(ScalarValue.float64(0.5d)), List.of(f64), f64))),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(BinaryArithmeticKind.DIV,
+                        NoOperationAttrs.INSTANCE, List.of(bf16, bf16), bf16)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(ScalarElementwiseKind.DIV,
+                        new ScalarValueAttrs(ScalarValue.float32(-0.0f)), List.of(f32), f32)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(ScalarElementwiseKind.POW,
+                        new ScalarValueAttrs(ScalarValue.float64(0.5d)), List.of(f64), f64)),
                 () -> assertFalse(provider.supports(query(ScalarElementwiseKind.DIV,
                         new ScalarValueAttrs(ScalarValue.float64(2.0d)), List.of(f32), f32))),
                 () -> assertFalse(provider.supports(query(ScalarElementwiseKind.POW,
                         new ScalarValueAttrs(ScalarValue.int32(2)), List.of(i32), i32))),
-                () -> assertTrue(provider.supports(query(ScalarElementwiseKind.POW,
-                        new ScalarValueAttrs(ScalarValue.bfloat16(2.0f)), List.of(bf16), bf16))),
-                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.MIN,
-                        NoOperationAttrs.INSTANCE, List.of(i64, i64), i64))),
-                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.MAX,
-                        NoOperationAttrs.INSTANCE, List.of(f32, f32), f32))),
-                () -> assertTrue(provider.supports(query(BinaryArithmeticKind.POW,
-                        NoOperationAttrs.INSTANCE, List.of(f64, f64), f64))),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(ScalarElementwiseKind.POW,
+                        new ScalarValueAttrs(ScalarValue.bfloat16(2.0f)), List.of(bf16), bf16)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(BinaryArithmeticKind.MIN,
+                        NoOperationAttrs.INSTANCE, List.of(i64, i64), i64)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(BinaryArithmeticKind.MAX,
+                        NoOperationAttrs.INSTANCE, List.of(f32, f32), f32)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(BinaryArithmeticKind.POW,
+                        NoOperationAttrs.INSTANCE, List.of(f64, f64), f64)),
                 () -> assertFalse(provider.supports(query(BinaryArithmeticKind.POW,
                         NoOperationAttrs.INSTANCE, List.of(i32, i32), i32))),
-                () -> assertTrue(provider.supports(query(ScalarElementwiseKind.MIN,
-                        new ScalarValueAttrs(ScalarValue.int32(-1)), List.of(i32), i32))),
-                () -> assertTrue(provider.supports(query(ScalarElementwiseKind.CLAMP,
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(ScalarElementwiseKind.MIN,
+                        new ScalarValueAttrs(ScalarValue.int32(-1)), List.of(i32), i32)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(ScalarElementwiseKind.CLAMP,
                         new ClampRangeAttrs(ScalarValue.float32(-0.0f), ScalarValue.float32(+0.0f)),
-                        List.of(f32), f32))),
+                        List.of(f32), f32)),
                 () -> assertFalse(provider.supports(query(ScalarElementwiseKind.CLAMP,
                         new ClampRangeAttrs(ScalarValue.int32(-1), ScalarValue.int32(1)),
                         List.of(i32), i32))),
-                () -> assertTrue(provider.supports(query(BooleanLogicalKind.AND,
-                        NoOperationAttrs.INSTANCE, List.of(bool, bool), bool))),
-                () -> assertTrue(provider.supports(query(BooleanLogicalKind.NOT,
-                        NoOperationAttrs.INSTANCE, List.of(bool), bool))),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(BooleanLogicalKind.AND,
+                        NoOperationAttrs.INSTANCE, List.of(bool, bool), bool)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(BooleanLogicalKind.NOT,
+                        NoOperationAttrs.INSTANCE, List.of(bool), bool)),
                 () -> assertFalse(provider.supports(query(BooleanLogicalKind.OR,
                         NoOperationAttrs.INSTANCE, List.of(i32, i32), bool))));
     }
@@ -658,8 +654,8 @@ class CpuCapabilityProviderTest {
             var input = descriptor(type, inputShape);
             var selected = new TensorDescriptor(type, selectedShape, Optional.of(
                     LayoutDescriptor.of(selectedShape, new long[]{3}, 1, true)), false);
-            assertTrue(provider.supports(query(SelectKind.SELECT, new SelectAttrs(1,1),
-                    List.of(input), selected)), type.toString());
+            io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(SelectKind.SELECT, new SelectAttrs(1,1),
+                    List.of(input), selected), type.toString());
         }
         var input = descriptor(DataType.FLOAT64, inputShape);
         var selected = new TensorDescriptor(DataType.FLOAT64, selectedShape, Optional.of(
@@ -670,12 +666,12 @@ class CpuCapabilityProviderTest {
                 LayoutDescriptor.of(selectedShape, new long[]{3}, 1, true)), false);
         var unresolved = new TensorDescriptor(DataType.FLOAT64, selectedShape, Optional.empty(), false);
         assertAll(
-                () -> assertTrue(provider.supports(query(ContiguousKind.CONTIGUOUS,
-                        NoOperationAttrs.INSTANCE, List.of(input), input))),
-                () -> assertTrue(provider.supports(query(ShapeTransformKind.RESHAPE,
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(ContiguousKind.CONTIGUOUS,
+                        NoOperationAttrs.INSTANCE, List.of(input), input)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(ShapeTransformKind.RESHAPE,
                         new TargetShapeAttrs(Shape.of(3,2)), List.of(input),
                         new TensorDescriptor(DataType.FLOAT64, Shape.of(3,2), Optional.of(
-                                LayoutDescriptor.of(Shape.of(3,2), new long[]{2,1}, 0, true)), false)))),
+                                LayoutDescriptor.of(Shape.of(3,2), new long[]{2,1}, 0, true)), false))),
                 () -> assertFalse(provider.supports(query(SelectKind.SELECT, new SelectAttrs(1,1),
                         List.of(input), wrongLayout))),
                 () -> assertFalse(provider.supports(query(SelectKind.SELECT, new SelectAttrs(1,1),
@@ -685,6 +681,41 @@ class CpuCapabilityProviderTest {
                 () -> assertFalse(provider.supports(query(SliceKind.SLICE_UPDATE,
                         new SliceAttrs(List.of(0L), List.of(1L), List.of(0), List.of(1L)),
                         List.of(input, input), input))));
+    }
+
+    @Test void distinguishesMaterializingReshapeFromExactOffsetViewsForEveryCarrier() {
+        var provider = new CpuCapabilityProvider();
+        Shape inputShape = Shape.of(3, 2), outputShape = Shape.of(6);
+        for (DataType type : DataType.values()) {
+            var input = new TensorDescriptor(type, inputShape, Optional.of(
+                    LayoutDescriptor.of(inputShape, new long[]{1, 5}, 2, true)), false);
+            var output = descriptor(type, outputShape);
+            var attrs = new TargetShapeAttrs(outputShape);
+            assertTrue(provider.supports(query(ShapeTransformKind.RESHAPE, attrs,
+                    List.of(input), output)), type.toString());
+            for (LayoutDescriptor forged : List.of(
+                    LayoutDescriptor.of(outputShape, new long[]{1}, 0, true),
+                    LayoutDescriptor.of(outputShape, new long[]{1}, 1, false),
+                    LayoutDescriptor.of(outputShape, new long[]{2}, 0, true))) {
+                assertFalse(provider.supports(query(ShapeTransformKind.RESHAPE, attrs,
+                        List.of(input), new TensorDescriptor(type, outputShape,
+                                Optional.of(forged), false))), type + " " + forged);
+            }
+            DataType other = type == DataType.FLOAT32 ? DataType.FLOAT64 : DataType.FLOAT32;
+            assertFalse(provider.supports(query(ShapeTransformKind.RESHAPE, attrs,
+                    List.of(input), descriptor(other, outputShape))));
+            assertFalse(provider.supports(query(ShapeTransformKind.RESHAPE,
+                    new TargetShapeAttrs(Shape.of(5)), List.of(input), descriptor(type, Shape.of(5)))));
+            Shape denseShape = Shape.of(2, 3);
+            var dense = new TensorDescriptor(type, denseShape, Optional.of(
+                    LayoutDescriptor.of(denseShape, new long[]{3, 1}, 4, true)), false);
+            var exactView = new TensorDescriptor(type, outputShape, Optional.of(
+                    LayoutDescriptor.of(outputShape, new long[]{1}, 4, true)), false);
+            assertTrue(provider.supports(query(ShapeTransformKind.RESHAPE, attrs,
+                    List.of(dense), exactView)), type.toString());
+            assertFalse(provider.supports(query(ShapeTransformKind.RESHAPE, attrs,
+                    List.of(dense), output)), "proved views keep their exact offset and alias flag");
+        }
     }
 
     @Test void reportsOnlyTheExactStaticResolvedMovementMatrix() {
@@ -697,15 +728,15 @@ class CpuCapabilityProviderTest {
         var nonInjective = new TensorDescriptor(DataType.INT32, Shape.of(4), Optional.of(
                 LayoutDescriptor.of(Shape.of(4), new long[]{0}, 0, true)), false);
         assertAll(
-                () -> assertTrue(provider.supports(query(PadKind.PAD,
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(PadKind.PAD,
                         new PadAttrs(List.of(1L), List.of(2L), ScalarValue.int32(-1)),
-                        List.of(two), five))),
-                () -> assertTrue(provider.supports(query(TileKind.TILE,
-                        new TileAttrs(List.of(3L)), List.of(two), six))),
-                () -> assertTrue(provider.supports(query(TensorCompositionKind.CONCAT,
-                        new CompositionAxisAttrs(0), List.of(two, one, two), five))),
-                () -> assertTrue(provider.supports(query(TensorCompositionKind.STACK,
-                        new CompositionAxisAttrs(1), List.of(two, two), stacked))),
+                        List.of(two), five)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(TileKind.TILE,
+                        new TileAttrs(List.of(3L)), List.of(two), six)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(TensorCompositionKind.CONCAT,
+                        new CompositionAxisAttrs(0), List.of(two, one, two), five)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(TensorCompositionKind.STACK,
+                        new CompositionAxisAttrs(1), List.of(two, two), stacked)),
                 () -> assertFalse(provider.supports(query(TileKind.TILE,
                         new TileAttrs(List.of(2L)), List.of(two), nonInjective))),
                 () -> assertFalse(provider.supports(query(PadKind.PAD,
@@ -723,28 +754,28 @@ class CpuCapabilityProviderTest {
         var columnsI32 = descriptor(DataType.INT32, Shape.of(1, 4, 16));
         var window = new Window2dAttrs(2, 2, 1, 1, 1, 1, 1, 1, false);
         assertAll(
-                () -> assertTrue(provider.supports(query(WindowTransformKind.UNFOLD_AXIS,
-                        new UnfoldAxisAttrs(1, 2, 1), List.of(boolInput), boolOutput))),
-                () -> assertTrue(provider.supports(query(WindowTransformKind.UNFOLD2D,
-                        window, List.of(imageF32), columnsF32))),
-                () -> assertTrue(provider.supports(query(WindowTransformKind.UNFOLD2D,
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(WindowTransformKind.UNFOLD_AXIS,
+                        new UnfoldAxisAttrs(1, 2, 1), List.of(boolInput), boolOutput)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(WindowTransformKind.UNFOLD2D,
+                        window, List.of(imageF32), columnsF32)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(WindowTransformKind.UNFOLD2D,
                         new Unfold2dAttrs(window, ScalarValue.float32(-0.0f)),
-                        List.of(imageF32), columnsF32))),
+                        List.of(imageF32), columnsF32)),
                 () -> assertFalse(provider.supports(query(WindowTransformKind.UNFOLD2D,
                         window, List.of(imageI32), columnsI32))),
                 () -> assertFalse(provider.supports(query(WindowTransformKind.UNFOLD2D,
                         new Unfold2dAttrs(window, ScalarValue.float64(0.0)),
                         List.of(imageF32), columnsF32))),
-                () -> assertTrue(provider.supports(query(WindowTransformKind.FOLD2D,
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(WindowTransformKind.FOLD2D,
                         new Fold2dAttrs(Shape.of(1, 1, 3, 3), window),
-                        List.of(columnsF32), imageF32))),
+                        List.of(columnsF32), imageF32)),
                 () -> assertFalse(provider.supports(query(WindowTransformKind.FOLD2D,
                         new Fold2dAttrs(Shape.of(1, 1, 3, 3), window),
                         List.of(columnsI32), imageI32))),
-                () -> assertTrue(provider.supports(query(WindowTransformKind.FOLD_AXIS,
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(WindowTransformKind.FOLD_AXIS,
                         new FoldAxisAttrs(0, 5, 1),
                         List.of(descriptor(DataType.INT64, Shape.of(3, 3))),
-                        descriptor(DataType.INT64, Shape.of(5))))));
+                        descriptor(DataType.INT64, Shape.of(5)))));
     }
 
     @Test void windowExtractionFailsClosedForEveryExcludedStructuralBoundary() {
@@ -797,33 +828,33 @@ class CpuCapabilityProviderTest {
                 var elementIndices = descriptor(indexType, Shape.of(2, 4));
                 var ndIndices = descriptor(indexType, Shape.of(4, 1));
                 assertAll(dataType + "/" + indexType,
-                        () -> assertTrue(provider.supports(query(AxisGatherKind.GATHER,
+                        () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(AxisGatherKind.GATHER,
                                 new IndexAxisAttrs(1), List.of(data, axisIndices),
-                                descriptor(dataType, Shape.of(2, 4))))),
-                        () -> assertTrue(provider.supports(query(
+                                descriptor(dataType, Shape.of(2, 4)))),
+                        () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(
                                 AxisGatherKind.GATHER_ELEMENTS, new IndexAxisAttrs(1),
                                 List.of(data, elementIndices),
-                                descriptor(dataType, Shape.of(2, 4))))),
-                        () -> assertTrue(provider.supports(query(GatherNdKind.GATHER_ND,
+                                descriptor(dataType, Shape.of(2, 4)))),
+                        () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(GatherNdKind.GATHER_ND,
                                 new GatherNdAttrs(0), List.of(data, ndIndices),
-                                descriptor(dataType, Shape.of(4, 3))))));
+                                descriptor(dataType, Shape.of(4, 3)))));
             }
         }
         for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
             assertAll(indexType.toString(),
-                    () -> assertTrue(provider.supports(query(AxisGatherKind.GATHER,
+                    () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(AxisGatherKind.GATHER,
                             new IndexAxisAttrs(0),
                             List.of(descriptor(DataType.INT64, Shape.of(3)),
                                     descriptor(indexType, Shape.scalar())),
-                            descriptor(DataType.INT64, Shape.scalar())))),
-                    () -> assertTrue(provider.supports(query(OneHotKind.ONE_HOT,
+                            descriptor(DataType.INT64, Shape.scalar()))),
+                    () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(OneHotKind.ONE_HOT,
                             new OneHotAttrs(5), List.of(descriptor(indexType, Shape.of(2, 3))),
-                            descriptor(DataType.BOOL, Shape.of(2, 3, 5))))));
+                            descriptor(DataType.BOOL, Shape.of(2, 3, 5)))));
         }
-        assertTrue(provider.supports(query(GatherNdKind.GATHER_ND, new GatherNdAttrs(1),
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(GatherNdKind.GATHER_ND, new GatherNdAttrs(1),
                 List.of(descriptor(DataType.FLOAT32, Shape.of(2, 3, 4)),
                         descriptor(DataType.INT64, Shape.of(2, 5, 2))),
-                descriptor(DataType.FLOAT32, Shape.of(2, 5)))));
+                descriptor(DataType.FLOAT32, Shape.of(2, 5))));
     }
 
     @Test void indexingCapabilityFailsClosedAtEveryStructuralBoundary() {
@@ -876,15 +907,15 @@ class CpuCapabilityProviderTest {
         var indices=descriptor(DataType.INT64,Shape.of(2,4));
         var updates=descriptor(DataType.FLOAT32,Shape.of(2,4));
         var output=descriptor(DataType.FLOAT32,Shape.of(2,3));
-        assertAll(() -> assertTrue(provider.supports(query(AxisScatterKind.SCATTER_ELEMENTS,
-                        new ScatterElementsAttrs(1,ScatterReduction.MUL),List.of(data,indices,updates),output))),
-                () -> assertTrue(provider.supports(query(AxisScatterKind.SCATTER_ADD,
+        assertAll(() -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(AxisScatterKind.SCATTER_ELEMENTS,
+                        new ScatterElementsAttrs(1,ScatterReduction.MUL),List.of(data,indices,updates),output)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(AxisScatterKind.SCATTER_ADD,
                         new IndexAxisAttrs(1),List.of(data,descriptor(DataType.INT32,Shape.of(4)),
-                                descriptor(DataType.FLOAT32,Shape.of(2,4))),output))),
-                () -> assertTrue(provider.supports(query(ScatterNdKind.SCATTER_ND,
+                                descriptor(DataType.FLOAT32,Shape.of(2,4))),output)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(ScatterNdKind.SCATTER_ND,
                         new ScatterNdAttrs(0,ScatterReduction.NONE),List.of(data,
                                 descriptor(DataType.INT32,Shape.of(5,1)),
-                                descriptor(DataType.FLOAT32,Shape.of(5,3))),output))),
+                                descriptor(DataType.FLOAT32,Shape.of(5,3))),output)),
                 () -> assertFalse(provider.supports(query(AxisScatterKind.SCATTER_ADD,
                         new IndexAxisAttrs(1),List.of(data,descriptor(DataType.INT32,Shape.of(4)),
                                 descriptor(DataType.FLOAT32,Shape.of(4))),output))),

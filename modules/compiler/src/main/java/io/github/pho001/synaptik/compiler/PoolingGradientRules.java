@@ -15,8 +15,8 @@ import io.github.pho001.synaptik.model.shape.Dimension;
 import io.github.pho001.synaptik.model.shape.DimensionExpressions;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
-import io.github.pho001.synaptik.model.tensor.Tensor;
-import io.github.pho001.synaptik.model.tensor.TensorProducer;
+
+import java.util.function.Function;
 
 /**
  * Builds fixed-count average-pool and exact first-winner max-pool input cotangents.
@@ -26,37 +26,48 @@ import io.github.pho001.synaptik.model.tensor.TensorProducer;
  * pooling reconstructs eligibility from the exact original input and same-occurrence output,
  * distinguishes padding from real negative infinity, and selects the first logical kernel
  * candidate without introducing hidden indices.</p>
+ *
+ * <p>Descriptor access preserves original source roles without resolving primal values.
+ * Real construction uses Tensor references directly; checked metadata construction retains
+ * the same eager operation sites, including temporaries not used by a returned cotangent.</p>
+ *
+ * @param <V> direct Tensor or checked metadata operand representation
  */
-final class PoolingGradientRules {
+final class PoolingGradientRules<V> {
+    private final OrdinaryConstruction<V> ops;
+
     /**
-     * Prevents construction of this stateless formula owner.
+     * Binds this formula owner to one compile-local construction route.
+     * @param ops non-null direct Tensor or checked metadata construction
      */
-    private PoolingGradientRules() {}
+    PoolingGradientRules(OrdinaryConstruction<V> ops) {
+        this.ops = java.util.Objects.requireNonNull(ops);
+    }
 
     /**
      * Builds the sole selected pooling input cotangent.
      *
      * @param producer non-null exact original pooling occurrence
      * @param gradient non-null accumulated cotangent for its sole output
-     * @param constants non-null request-local exact floating logical-splat owner
+     * @param primal non-null resolver from original primal wrappers to lexical values
      * @return a new one-position array containing the normalized input cotangent
      */
-    static Tensor[] apply(
-            TensorProducer producer,
-            Tensor gradient,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        Tensor input = producer.inputs().getFirst();
-        Tensor result;
+    V[] apply(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient,
+            Function<V, V> primal) {
+        V input = producer.inputs().getFirst();
+        V result;
         if (producer.operation().kind() == Pool2dKind.AVERAGE_POOL2D) {
-            result = average(producer, gradient, constants);
+            result = average(producer, gradient);
         } else if (producer.operation().kind() == Pool2dKind.MAX_POOL2D) {
-            result = maximum(producer, gradient, constants);
+            result = maximum(producer, gradient, primal);
         } else if (producer.operation().kind() == Pool3dKind.AVERAGE_POOL3D) {
-            result = average3d(producer, gradient, constants);
+            result = average3d(producer, gradient);
         } else {
-            result = maximum3d(producer, gradient, constants);
+            result = maximum3d(producer, gradient, primal);
         }
-        return new Tensor[] {normalize(result, input)};
+        return ops.result(normalize(result, input));
     }
 
     /**
@@ -65,46 +76,33 @@ final class PoolingGradientRules {
      *
      * @param producer non-null exact original average-pool occurrence
      * @param gradient non-null accumulated output cotangent
-     * @param constants non-null request-local exact floating logical-splat owner
      * @return a new overlap-accumulating input-cotangent expression
      */
-    private static Tensor average(
-            TensorProducer producer,
-            Tensor gradient,
-            FirstOrderAutograd.DerivativeConstants constants) {
+    private V average(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient) {
         AveragePool2dAttrs attrs =
                 (AveragePool2dAttrs) producer.operation().attrs();
         Window2dAttrs window = window(attrs);
-        Tensor input = producer.inputs().getFirst();
-        Shape output = gradient.descriptor().shape();
+        V input = producer.inputs().getFirst();
+        Shape output = ops.descriptor(gradient).shape();
         Dimension positions =
                 DimensionExpressions.multiply(output.dimension(2), output.dimension(3));
-        Dimension channels = input.descriptor().shape().dimension(1);
+        Dimension channels = ops.descriptor(input).shape().dimension(1);
         long kernelElements = Math.multiplyExact(attrs.kernelHeight(), attrs.kernelWidth());
 
-        Tensor divisor = constants.oneBase(input.descriptor().dataType())
-                .expand(Shape.of(attrs.kernelHeight(), attrs.kernelWidth()))
-                .contiguous()
-                .sum();
-        Tensor perPosition = gradient
-                .reshape(Shape.ofDimensions(
-                        output.dimension(0), channels, positions))
-                .contiguous()
-                .div(divisor);
-        Tensor columns = perPosition
-                .expandDims(2)
-                .expand(Shape.ofDimensions(
+        V divisor = ops.sum(ops.contiguous(ops.expand(ops.oneBase(ops.descriptor(input).dataType()), Shape.of(attrs.kernelHeight(), attrs.kernelWidth()))));
+        V perPosition = ops.div(ops.contiguous(ops.reshape(gradient, Shape.ofDimensions(
+                        output.dimension(0), channels, positions))), divisor);
+        V columns = ops.contiguous(ops.reshape(ops.contiguous(ops.expand(ops.expandDims(perPosition, 2), Shape.ofDimensions(
                         output.dimension(0),
                         channels,
                         new StaticDimension(kernelElements),
-                        positions))
-                .contiguous()
-                .reshape(Shape.ofDimensions(
+                        positions))), Shape.ofDimensions(
                         output.dimension(0),
                         DimensionExpressions.multiply(channels, kernelElements),
-                        positions))
-                .contiguous();
-        return columns.fold2d(input.descriptor().shape(), window);
+                        positions)));
+        return ops.fold2d(columns, ops.descriptor(input).shape(), window);
     }
 
     /**
@@ -113,72 +111,51 @@ final class PoolingGradientRules {
      *
      * @param producer non-null exact original maximum-pool occurrence
      * @param gradient non-null accumulated output cotangent
-     * @param constants non-null request-local exact floating logical-splat owner
+     * @param primal non-null resolver from original primal wrappers to lexical values
      * @return a new overlap-accumulating input-cotangent expression
      */
-    private static Tensor maximum(
-            TensorProducer producer,
-            Tensor gradient,
-            FirstOrderAutograd.DerivativeConstants constants) {
+    private V maximum(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient,
+            Function<V, V> primal) {
         MaxPool2dAttrs attrs = (MaxPool2dAttrs) producer.operation().attrs();
         Window2dAttrs window = window(attrs);
-        Tensor input = producer.inputs().getFirst();
-        Tensor output = producer.output(0);
-        Shape outputShape = output.descriptor().shape();
+        V input = producer.inputs().getFirst();
+        V output = producer.output(0);
+        Shape outputShape = ops.descriptor(output).shape();
         Dimension batch = outputShape.dimension(0);
         Dimension channels = outputShape.dimension(1);
         Dimension positions =
                 DimensionExpressions.multiply(outputShape.dimension(2), outputShape.dimension(3));
         long kernelElements = Math.multiplyExact(attrs.kernelHeight(), attrs.kernelWidth());
-        Tensor candidates = input
-                .unfold2d(window, negativeInfinity(input.descriptor().dataType()))
-                .reshape(Shape.ofDimensions(
+        V candidates = ops.permute(ops.reshape(ops.unfold2d(primal.apply(input), window, negativeInfinity(ops.descriptor(input).dataType())), Shape.ofDimensions(
                         batch,
                         channels,
                         new StaticDimension(kernelElements),
-                        positions))
-                .permute(0, 1, 3, 2);
-        Tensor inBounds = constants.oneLike(input)
-                .unfold2d(window, positiveZero(input.descriptor().dataType()))
-                .reshape(Shape.ofDimensions(
+                        positions)), 0, 1, 3, 2);
+        V inBounds = ops.notEqualTo(ops.permute(ops.reshape(ops.unfold2d(ops.oneLike(input), window, positiveZero(ops.descriptor(input).dataType())), Shape.ofDimensions(
                         batch,
                         channels,
                         new StaticDimension(kernelElements),
-                        positions))
-                .permute(0, 1, 3, 2)
-                .notEqualTo(constants.zeroLike(candidates));
-        Tensor alignedOutput = output
-                .reshape(Shape.ofDimensions(batch, channels, positions))
-                .expandDims(3);
+                        positions)), 0, 1, 3, 2), ops.zeroLike(candidates));
+        V alignedOutput = ops.expandDims(ops.reshape(primal.apply(output), Shape.ofDimensions(batch, channels, positions)), 3);
 
-        Tensor bothNaN = candidates.isNaN().logicalAnd(alignedOutput.isNaN());
-        Tensor numericallyEqual = candidates.equalTo(alignedOutput);
-        Tensor bothZero = candidates.equalTo(constants.zeroLike(candidates))
-                .logicalAnd(alignedOutput.equalTo(constants.zeroLike(alignedOutput)));
-        Tensor reciprocalSignsEqual = constants.oneLike(candidates).div(candidates)
-                .equalTo(constants.oneLike(alignedOutput).div(alignedOutput));
-        Tensor signedEqual = numericallyEqual.logicalAnd(
-                bothZero.logicalNot().logicalOr(reciprocalSignsEqual));
-        Tensor eligible = inBounds.logicalAnd(bothNaN.logicalOr(signedEqual));
+        V bothNaN = ops.logicalAnd(ops.isNaN(candidates), ops.isNaN(alignedOutput));
+        V numericallyEqual = ops.equalTo(candidates, alignedOutput);
+        V bothZero = ops.logicalAnd(ops.equalTo(candidates, ops.zeroLike(candidates)), ops.equalTo(alignedOutput, ops.zeroLike(alignedOutput)));
+        V reciprocalSignsEqual = ops.equalTo(ops.div(ops.oneLike(candidates), candidates), ops.div(ops.oneLike(alignedOutput), alignedOutput));
+        V signedEqual = ops.logicalAnd(numericallyEqual, ops.logicalOr(ops.logicalNot(bothZero), reciprocalSignsEqual));
+        V eligible = ops.logicalAnd(inBounds, ops.logicalOr(bothNaN, signedEqual));
 
-        Tensor candidateValues = Tensor.where(
-                eligible, constants.oneLike(candidates), constants.zeroLike(candidates));
-        Tensor first = candidateValues
-                .argMax(-1, false, ArgExtremaTiePolicy.FIRST_INDEX)
-                .oneHot(kernelElements);
-        Tensor selected = first.logicalAnd(eligible);
-        Tensor routed = Tensor.where(
-                selected,
-                gradient.reshape(Shape.ofDimensions(batch, channels, positions)).expandDims(3),
-                constants.zeroLike(candidates));
-        Tensor columns = routed
-                .permute(0, 1, 3, 2)
-                .contiguous()
-                .reshape(Shape.ofDimensions(
+        V candidateValues = ops.where(eligible, ops.oneLike(candidates), ops.zeroLike(candidates));
+        V first = ops.oneHot(ops.argMax(candidateValues, 3, false, ArgExtremaTiePolicy.FIRST_INDEX), kernelElements);
+        V selected = ops.logicalAnd(first, eligible);
+        V routed = ops.where(selected, ops.expandDims(ops.reshape(gradient, Shape.ofDimensions(batch, channels, positions)), 3), ops.zeroLike(candidates));
+        V columns = ops.reshape(ops.contiguous(ops.permute(routed, 0, 1, 3, 2)), Shape.ofDimensions(
                         batch,
                         DimensionExpressions.multiply(channels, kernelElements),
                         positions));
-        return columns.fold2d(input.descriptor().shape(), window);
+        return ops.fold2d(columns, ops.descriptor(input).shape(), window);
     }
 
     /**
@@ -187,46 +164,33 @@ final class PoolingGradientRules {
      *
      * @param producer non-null exact original average Pool3d occurrence
      * @param gradient non-null accumulated output cotangent
-     * @param constants non-null request-local exact floating logical-splat owner
      * @return a new volumetric overlap-accumulating input-cotangent expression
      */
-    private static Tensor average3d(
-            TensorProducer producer,
-            Tensor gradient,
-            FirstOrderAutograd.DerivativeConstants constants) {
+    private V average3d(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient) {
         AveragePool3dAttrs attrs = (AveragePool3dAttrs) producer.operation().attrs();
         Window3dAttrs window = window(attrs);
-        Tensor input = producer.inputs().getFirst();
-        Shape output = gradient.descriptor().shape();
+        V input = producer.inputs().getFirst();
+        Shape output = ops.descriptor(gradient).shape();
         Dimension positions = DimensionExpressions.multiply(
                 DimensionExpressions.multiply(output.dimension(2), output.dimension(3)),
                 output.dimension(4));
-        Dimension channels = input.descriptor().shape().dimension(1);
+        Dimension channels = ops.descriptor(input).shape().dimension(1);
         long kernelElements = kernelElements(
                 attrs.kernelDepth(), attrs.kernelHeight(), attrs.kernelWidth());
 
-        Tensor divisor = constants.oneBase(input.descriptor().dataType())
-                .expand(Shape.of(attrs.kernelDepth(), attrs.kernelHeight(), attrs.kernelWidth()))
-                .contiguous()
-                .sum();
-        Tensor perPosition = gradient
-                .reshape(Shape.ofDimensions(output.dimension(0), channels, positions))
-                .contiguous()
-                .div(divisor);
-        Tensor columns = perPosition
-                .expandDims(2)
-                .expand(Shape.ofDimensions(
+        V divisor = ops.sum(ops.contiguous(ops.expand(ops.oneBase(ops.descriptor(input).dataType()), Shape.of(attrs.kernelDepth(), attrs.kernelHeight(), attrs.kernelWidth()))));
+        V perPosition = ops.div(ops.contiguous(ops.reshape(gradient, Shape.ofDimensions(output.dimension(0), channels, positions))), divisor);
+        V columns = ops.contiguous(ops.reshape(ops.contiguous(ops.expand(ops.expandDims(perPosition, 2), Shape.ofDimensions(
                         output.dimension(0),
                         channels,
                         new StaticDimension(kernelElements),
-                        positions))
-                .contiguous()
-                .reshape(Shape.ofDimensions(
+                        positions))), Shape.ofDimensions(
                         output.dimension(0),
                         DimensionExpressions.multiply(channels, kernelElements),
-                        positions))
-                .contiguous();
-        return columns.fold3d(input.descriptor().shape(), window).contiguous();
+                        positions)));
+        return ops.contiguous(ops.fold3d(columns, ops.descriptor(input).shape(), window));
     }
 
     /**
@@ -235,18 +199,18 @@ final class PoolingGradientRules {
      *
      * @param producer non-null exact original maximum Pool3d occurrence
      * @param gradient non-null accumulated output cotangent
-     * @param constants non-null request-local exact floating logical-splat owner
+     * @param primal non-null resolver from original primal wrappers to lexical values
      * @return a new volumetric overlap-accumulating input-cotangent expression
      */
-    private static Tensor maximum3d(
-            TensorProducer producer,
-            Tensor gradient,
-            FirstOrderAutograd.DerivativeConstants constants) {
+    private V maximum3d(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient,
+            Function<V, V> primal) {
         MaxPool3dAttrs attrs = (MaxPool3dAttrs) producer.operation().attrs();
         Window3dAttrs window = window(attrs);
-        Tensor input = producer.inputs().getFirst();
-        Tensor output = producer.output(0);
-        Shape outputShape = output.descriptor().shape();
+        V input = producer.inputs().getFirst();
+        V output = producer.output(0);
+        Shape outputShape = ops.descriptor(output).shape();
         Dimension batch = outputShape.dimension(0);
         Dimension channels = outputShape.dimension(1);
         Dimension positions = DimensionExpressions.multiply(
@@ -257,47 +221,27 @@ final class PoolingGradientRules {
                 attrs.kernelDepth(), attrs.kernelHeight(), attrs.kernelWidth());
         Shape candidatesShape = Shape.ofDimensions(
                 batch, channels, new StaticDimension(kernelElements), positions);
-        Tensor candidates = input
-                .unfold3d(window, negativeInfinity(input.descriptor().dataType()))
-                .reshape(candidatesShape)
-                .permute(0, 1, 3, 2);
-        Tensor inBounds = constants.oneLike(input)
-                .unfold3d(window)
-                .reshape(candidatesShape)
-                .permute(0, 1, 3, 2)
-                .notEqualTo(constants.zeroLike(candidates));
-        Tensor alignedOutput = output
-                .reshape(Shape.ofDimensions(batch, channels, positions))
-                .expandDims(3);
+        V candidates = ops.permute(ops.reshape(ops.unfold3d(primal.apply(input), window, negativeInfinity(ops.descriptor(input).dataType())), candidatesShape), 0, 1, 3, 2);
+        V inBounds = ops.notEqualTo(ops.permute(ops.reshape(ops.unfold3d(ops.oneLike(input), window), candidatesShape), 0, 1, 3, 2),
+                ops.zeroLike(candidates));
+        V alignedOutput = ops.expandDims(ops.reshape(primal.apply(output), Shape.ofDimensions(batch, channels, positions)), 3);
 
-        Tensor bothNaN = candidates.isNaN().logicalAnd(alignedOutput.isNaN());
-        Tensor numericallyEqual = candidates.equalTo(alignedOutput);
-        Tensor bothZero = candidates.equalTo(constants.zeroLike(candidates))
-                .logicalAnd(alignedOutput.equalTo(constants.zeroLike(alignedOutput)));
-        Tensor reciprocalSignsEqual = constants.oneLike(candidates).div(candidates)
-                .equalTo(constants.oneLike(alignedOutput).div(alignedOutput));
-        Tensor signedEqual = numericallyEqual.logicalAnd(
-                bothZero.logicalNot().logicalOr(reciprocalSignsEqual));
-        Tensor eligible = inBounds.logicalAnd(bothNaN.logicalOr(signedEqual));
+        V bothNaN = ops.logicalAnd(ops.isNaN(candidates), ops.isNaN(alignedOutput));
+        V numericallyEqual = ops.equalTo(candidates, alignedOutput);
+        V bothZero = ops.logicalAnd(ops.equalTo(candidates, ops.zeroLike(candidates)), ops.equalTo(alignedOutput, ops.zeroLike(alignedOutput)));
+        V reciprocalSignsEqual = ops.equalTo(ops.div(ops.oneLike(candidates), candidates), ops.div(ops.oneLike(alignedOutput), alignedOutput));
+        V signedEqual = ops.logicalAnd(numericallyEqual, ops.logicalOr(ops.logicalNot(bothZero), reciprocalSignsEqual));
+        V eligible = ops.logicalAnd(inBounds, ops.logicalOr(bothNaN, signedEqual));
 
-        Tensor candidateValues = Tensor.where(
-                eligible, constants.oneLike(candidates), constants.zeroLike(candidates));
-        Tensor first = candidateValues
-                .argMax(-1, false, ArgExtremaTiePolicy.FIRST_INDEX)
-                .oneHot(kernelElements);
-        Tensor selected = first.logicalAnd(eligible);
-        Tensor routed = Tensor.where(
-                selected,
-                gradient.reshape(Shape.ofDimensions(batch, channels, positions)).expandDims(3),
-                constants.zeroLike(candidates));
-        Tensor columns = routed
-                .permute(0, 1, 3, 2)
-                .contiguous()
-                .reshape(Shape.ofDimensions(
+        V candidateValues = ops.where(eligible, ops.oneLike(candidates), ops.zeroLike(candidates));
+        V first = ops.oneHot(ops.argMax(candidateValues, 3, false, ArgExtremaTiePolicy.FIRST_INDEX), kernelElements);
+        V selected = ops.logicalAnd(first, eligible);
+        V routed = ops.where(selected, ops.expandDims(ops.reshape(gradient, Shape.ofDimensions(batch, channels, positions)), 3), ops.zeroLike(candidates));
+        V columns = ops.reshape(ops.contiguous(ops.permute(routed, 0, 1, 3, 2)), Shape.ofDimensions(
                         batch,
                         DimensionExpressions.multiply(channels, kernelElements),
                         positions));
-        return columns.fold3d(input.descriptor().shape(), window).contiguous();
+        return ops.contiguous(ops.fold3d(columns, ops.descriptor(input).shape(), window));
     }
 
     /**
@@ -417,12 +361,12 @@ final class PoolingGradientRules {
      * @param input non-null original pooling input whose descriptor is restored
      * @return a non-null ordinary Tensor expression with the input's exact descriptor
      */
-    private static Tensor normalize(Tensor gradient, Tensor input) {
-        Tensor result = gradient.descriptor().shape().equals(input.descriptor().shape())
+    private V normalize(V gradient, V input) {
+        V result = ops.descriptor(gradient).shape().equals(ops.descriptor(input).shape())
                 ? gradient
-                : gradient.sumToShape(input.descriptor().shape());
-        return result.descriptor().dataType() == input.descriptor().dataType()
+                : ops.sumToShape(gradient, ops.descriptor(input).shape());
+        return ops.descriptor(result).dataType() == ops.descriptor(input).dataType()
                 ? result
-                : result.cast(input.descriptor().dataType());
+                : ops.cast(result, ops.descriptor(input).dataType());
     }
 }

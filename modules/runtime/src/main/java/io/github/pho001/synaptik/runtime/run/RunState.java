@@ -43,6 +43,7 @@ import java.util.Objects;
  * caller guarantees lifetime, safe access, and external synchronization for every run using it.
  */
 public final class RunState implements AutoCloseable {
+    private final RunMemoryGeometry geometry;
     private final PreparedMemoryPlan memoryPlan;
     private final BufferRepresentationBinding[][] bufferBindings;
     private final boolean[][] bufferValidity;
@@ -51,6 +52,8 @@ public final class RunState implements AutoCloseable {
 
     /**
      * Creates the complete representation state for one run of a prepared memory plan.
+     * This absent-B compatibility overload accepts static mode only. A batch-required plan
+     * rejects before any resource ownership is accepted, even when all its byte sizes are fixed.
      *
      * <p>Top-level inputs and plan-sized counts are validated first. Buffer positions are then
      * scanned in increasing order, followed by workspace positions. All list structure is copied
@@ -73,12 +76,36 @@ public final class RunState implements AutoCloseable {
      *     inner buffer list is empty, or an exact representation object occurs more than once;
      *     count and position failures identify the rejected input, while every repeated identity
      *     reports {@code representation is already bound to this run}
+     * @throws IllegalArgumentException if the memory plan requires explicit B
      */
     public RunState(
             PreparedMemoryPlan memoryPlan,
             List<List<BufferRepresentationBinding>> bufferBindings,
             List<WorkspaceRepresentation> workspaceRepresentations) {
+        this(memoryPlan, bufferBindings, workspaceRepresentations,
+                RunMemoryGeometry.resolve(Objects.requireNonNull(memoryPlan, "memoryPlan"), java.util.OptionalLong.empty()));
+    }
+
+    /**
+     * Snapshots one run's resource bindings with its authenticated pre-allocation sizing.
+     * No resource ownership is accepted until every argument and identity has been validated.
+     * @param memoryPlan non-null exact prepared plan
+     * @param bufferBindings non-null plan-ordered nonempty binding lists, without nulls or repeats
+     * @param workspaceRepresentations non-null plan-ordered scratch, without nulls or repeats
+     * @param geometry non-null sizing authenticated to the exact memoryPlan reference
+     * @throws NullPointerException if an argument or contained binding is null
+     * @throws IllegalArgumentException if geometry is foreign, counts differ or identities repeat
+     */
+    public RunState(
+            PreparedMemoryPlan memoryPlan,
+            List<List<BufferRepresentationBinding>> bufferBindings,
+            List<WorkspaceRepresentation> workspaceRepresentations,
+            RunMemoryGeometry geometry) {
         Objects.requireNonNull(memoryPlan, "memoryPlan");
+        this.geometry = Objects.requireNonNull(geometry, "geometry");
+        if (geometry.memoryPlan() != memoryPlan) {
+            throw new IllegalArgumentException("geometry belongs to another memory plan");
+        }
         Objects.requireNonNull(bufferBindings, "bufferBindings");
         Objects.requireNonNull(workspaceRepresentations, "workspaceRepresentations");
 
@@ -171,6 +198,10 @@ public final class RunState implements AutoCloseable {
     public PreparedMemoryPlan memoryPlan() {
         return memoryPlan;
     }
+
+    /** Returns numeric invocation geometry independently of resource liveness.
+     * @return this run's non-null immutable authenticated sizing; readable after close */
+    public RunMemoryGeometry geometry() { return geometry; }
 
     /**
      * Returns the number of dense buffer positions in prepared-plan encounter order.

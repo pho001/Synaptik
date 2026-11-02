@@ -804,7 +804,12 @@ public final class CpuScalarReferenceKernel {
     /**
      * Independently evaluates one zero-initialized overlap fold for differential evidence.
      * This cold oracle constructs logical coordinates directly and shares no packed traversal or
-     * generated-emitter helper with the portable fold body.
+     * generated-emitter helper with the portable fold body. Compact input mode enumerates the
+     * logical expanded columns, then maps q to q/K only for the physical load. It is deliberately
+     * not the optimized inverse-gather oracle and allocates no expanded numeric storage.
+     * Low contributions are decoded from storage exactly, added sequentially to a positive-zero
+     * FLOAT32 accumulator, and narrowed once when the owned result is stored. This boxed cold
+     * semantic reference is not the primitive clean-Java hot-loop design oracle or a runtime path.
      *
      * @param ir non-null fold structural identity
      * @param geometry non-null matching static fold geometry
@@ -813,11 +818,13 @@ public final class CpuScalarReferenceKernel {
      * @param end exclusive flattened output ordinal
      * @throws NullPointerException if a required reference is {@code null}
      * @throws IllegalArgumentException if IR, geometry, arguments, or range disagree
+     * @throws ArithmeticException if expanded logical compact-input counts overflow before writes
      */
     public static void execute(CpuFoldIr ir, CpuFoldLowering.Geometry geometry,
             List<CpuBufferArgument> arguments, long start, long end) {
         Objects.requireNonNull(ir, "ir"); Objects.requireNonNull(geometry, "geometry");
         if (ir.family() != geometry.family() || ir.dataType() != geometry.dataType()
+                || ir.kernelBroadcastInput() != geometry.kernelBroadcastInput()
                 || arguments.size() != 2) {
             throw new IllegalArgumentException("fold reference facts disagree");
         }
@@ -825,19 +832,32 @@ public final class CpuScalarReferenceKernel {
         if (start < 0 || end < start || end > outputCount) {
             throw new IllegalArgumentException("invalid fold reference bounds");
         }
-        long inputCount = count(geometry.input().extents());
+        long[] logicalInput = geometry.input().extents();
+        long kernelArea = 1;
+        if (geometry.kernelBroadcastInput()) {
+            var mapping = (CpuFoldLowering.TwoDimensionalGeometry) geometry.mapping();
+            kernelArea = Math.multiplyExact(mapping.kernelHeight(), mapping.kernelWidth());
+            logicalInput[1] = Math.multiplyExact(logicalInput[1], kernelArea);
+        }
+        long inputCount = count(logicalInput);
         DataType type = geometry.dataType();
         for (long outputOrdinal = start; outputOrdinal < end; outputOrdinal++) {
             long[] outputCoordinate = coordinates(outputOrdinal, geometry.output().extents());
             Object sum = positiveZero(type);
             for (long inputOrdinal = 0; inputOrdinal < inputCount; inputOrdinal++) {
-                long[] inputCoordinate = coordinates(inputOrdinal, geometry.input().extents());
+                long[] inputCoordinate = coordinates(inputOrdinal, logicalInput);
                 if (!foldMatches(geometry, inputCoordinate, outputCoordinate)) continue;
+                if (geometry.kernelBroadcastInput()) inputCoordinate[1] /= kernelArea;
                 Object value = load(arguments.getFirst(), type,
                         foldAddress(geometry.input(), inputCoordinate));
                 sum = foldAdd(sum, value, type);
             }
-            store(arguments.getLast(), type, foldAddress(geometry.output(), outputCoordinate), sum);
+            Object result = switch (type) {
+                case BFLOAT16 -> BFloat16Bits.fromFloat((float) sum);
+                case FLOAT16 -> Float16Bits.fromFloat((float) sum);
+                default -> sum;
+            };
+            store(arguments.getLast(), type, foldAddress(geometry.output(), outputCoordinate), result);
         }
     }
 
@@ -878,22 +898,36 @@ public final class CpuScalarReferenceKernel {
         return result;
     }
 
+    /**
+     * Supplies the fold identity in its working representation, not low storage bits.
+     * @param type non-null supported fold type, excluding BOOL
+     * @return boxed positive zero; a Float for either low type, otherwise the represented type
+     * @throws AssertionError if BOOL reaches this already-lowered numeric fold
+     */
     private static Object positiveZero(DataType type) {
         return switch (type) {
             case FLOAT64 -> 0.0d; case FLOAT32 -> 0.0f;
-            case BFLOAT16, FLOAT16 -> (short) 0;
+            case BFLOAT16, FLOAT16 -> 0.0f;
             case INT32 -> 0; case INT64 -> 0L;
             case BOOL -> throw new AssertionError("BOOL fold is unsupported");
         };
     }
 
+    /**
+     * Adds one stored contributor without narrowing the low accumulator. Final conversion belongs
+     * to the output store in {@link #execute(CpuFoldIr, CpuFoldLowering.Geometry, List, long, long)}.
+     * @param left non-null boxed working accumulator; Float for either low type
+     * @param right non-null boxed stored input; Short for either low type
+     * @param type non-null supported fold type, excluding BOOL
+     * @return a non-null boxed working sum, using FLOAT32 for low types and modular integer addition
+     * @throws AssertionError if BOOL reaches this already-lowered numeric fold
+     */
     private static Object foldAdd(Object left, Object right, DataType type) {
         return switch (type) {
             case FLOAT64 -> (double) left + (double) right;
             case FLOAT32 -> (float) left + (float) right;
-            case BFLOAT16 -> toBfloat(bfloat((short) left) + bfloat((short) right));
-            case FLOAT16 -> Float.floatToFloat16(Float.float16ToFloat((short) left)
-                    + Float.float16ToFloat((short) right));
+            case BFLOAT16 -> (float) left + BFloat16Bits.toFloat((short) right);
+            case FLOAT16 -> (float) left + Float16Bits.toFloat((short) right);
             case INT32 -> (int) left + (int) right;
             case INT64 -> (long) left + (long) right;
             case BOOL -> throw new AssertionError("BOOL fold is unsupported");

@@ -27,8 +27,11 @@ import java.util.Arrays;
  * unproved STACK geometry retains the same typed long-address fallback. Affected general-long
  * CONCAT and STACK segment loads and shared stores use generation-fixed typed native-order layouts
  * so layout construction is not repeated in their hot loops. Emitted hot loops contain no Model
- * interpretation, reflection, map
- * lookup, per-element allocation, division, or modulo.</p>
+ * interpretation, reflection, map lookup, or per-element allocation.</p>
+ *
+ * <p>Controlled bodies reuse the general traversal and test the proved output's original row before
+ * selecting or loading any operand. Inactive cells store exact carrier zero and advance the same
+ * geometry cursors without inspecting their inputs; standalone code generation is unchanged.</p>
  */
 final class CpuDataMovementEmitter {
     /** Creates one stateless family emitter. */
@@ -46,6 +49,10 @@ final class CpuDataMovementEmitter {
      */
     void emit(CodeBuilder code, CpuKernelSpecialization specialization, CpuKernelIr ir) {
         Parsed parsed = Parsed.parse(ir.familyIdentity());
+        if (CpuCarrierEmitter.controlFacts().isPresent()) {
+            emitGeneralLong(code, specialization, ir, parsed);
+            return;
+        }
         if (specialization.loopAddressing(ir)
                 == CpuKernelSpecialization.LoopAddressing.DENSE_HEAP_ARRAY_INT) {
             emitDenseArrayInt(code, specialization, ir, parsed);
@@ -237,6 +244,11 @@ final class CpuDataMovementEmitter {
         var loop = code.newLabel();
         code.labelBinding(loop);
         code.lload(logical).lload(endSlot).lcmp().branch(Opcode.IFGE, done);
+        boolean controlled = CpuCarrierEmitter.controlFacts()
+                .map(facts -> facts.boundaryRows().get(uniqueInputs).rowIndexed()).orElse(false);
+        var inactive = controlled ? code.newLabel() : null;
+        var valueReady = controlled ? code.newLabel() : null;
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, uniqueInputs, logical, TypeKind.LONG, inactive);
         switch (parsed.family) {
             case "PAD" -> emitPad(code, carriers, specialization, type, parsed.bits,
                     geometrySlot, coordinates, sourceAddress, value, inputBases,
@@ -259,6 +271,17 @@ final class CpuDataMovementEmitter {
                     geometrySlot, coordinates, sliceTargets, sliceOrdinals, sourceAddress, value,
                     inputBases, strideOffsets);
             default -> throw new IllegalArgumentException("unsupported movement family");
+        }
+        if (controlled) {
+            code.branch(Opcode.GOTO, valueReady).labelBinding(inactive);
+            loadImmediate(code, type, 0L);
+            storeValue(code, type, value);
+            code.labelBinding(valueReady);
+            if (parsed.family.equals("UNFOLD2D")) {
+                advanceUnfold2d(code, geometrySlot, variant + 17, variant + 12,
+                        variant + 16, variant + 11, variant + 15, variant + 4,
+                        variant + 14, variant + 3, variant + 13, variant);
+            }
         }
         if (parsed.family.equals("CONCAT") || parsed.family.equals("STACK")) {
             // Composition entries have a generation-time-fixed carrier and lane type.  Retain
@@ -2056,8 +2079,11 @@ final class CpuDataMovementEmitter {
         loadImmediate(code, type, bits);
         storeValue(code, type, value);
         code.labelBinding(loaded);
-        advanceUnfold2d(code, geometrySlot, ow, variant + 12, oh, variant + 11,
-                kw, variant + 4, kh, variant + 3, channel, variant);
+        if (CpuCarrierEmitter.controlFacts().map(
+                facts -> !facts.boundaryRows().getLast().rowIndexed()).orElse(true)) {
+            advanceUnfold2d(code, geometrySlot, ow, variant + 12, oh, variant + 11,
+                    kw, variant + 4, kh, variant + 3, channel, variant);
+        }
     }
 
     private static void addAddressTerm(CodeBuilder code, int geometrySlot, int address,

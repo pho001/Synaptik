@@ -5,8 +5,8 @@ import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
 import io.github.pho001.synaptik.model.operation.ordering.SortAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.TopKAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.TopKKind;
-import io.github.pho001.synaptik.model.tensor.Tensor;
-import io.github.pho001.synaptik.model.tensor.TensorProducer;
+
+import java.util.function.Function;
 
 /**
  * Routes ordering cotangents through one exact stable permutation or selected-index set.
@@ -20,41 +20,52 @@ import io.github.pho001.synaptik.model.tensor.TensorProducer;
  * ARGSORT is the sole forward-semantic recomputation in the closed task matrix; TOP_K never
  * recomputes its selected set. Both formulas create logical Tensor expressions only and make no
  * execution, sorting-algorithm, or backend claim.</p>
+ *
+ * <p>Descriptor access preserves original source roles without resolving primal values.
+ * Real construction uses Tensor references directly; checked metadata construction retains
+ * the same eager operation sites, including temporaries not used by a returned cotangent.</p>
+ *
+ * @param <V> direct Tensor or checked metadata operand representation
  */
-final class OrderingGradientRules {
-    private OrderingGradientRules() {}
+final class OrderingGradientRules<V> {
+    private final OrdinaryConstruction<V> ops;
+
+    /**
+     * Binds this formula owner to one compile-local construction route.
+     * @param ops non-null direct Tensor or checked metadata construction
+     */
+    OrderingGradientRules(OrdinaryConstruction<V> ops) {
+        this.ops = java.util.Objects.requireNonNull(ops);
+    }
 
     /**
      * Builds the sole selected input cotangent for one approved SORT or TOP_K values output.
      *
      * @param producer exact original ordering producer occurrence
      * @param gradient non-null accumulated values-output cotangent
-     * @param constants non-null request-local exact typed positive-zero owner
+     * @param primal non-null resolver from original primal wrappers to lexical values
      * @return a one-element input-aligned array containing the routed cotangent
      * @throws IllegalStateException if the occurrence is outside the approved ordering matrix
      */
-    static Tensor[] apply(
-            TensorProducer producer,
-            Tensor gradient,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        Tensor input = producer.inputs().getFirst();
-        Tensor indices;
+    V[] apply(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient,
+            Function<V, V> primal) {
+        V input = producer.inputs().getFirst();
+        V indices;
         int axis;
         if (producer.operation().kind() == OrderingKind.SORT) {
             SortAttrs attrs = (SortAttrs) producer.operation().attrs();
-            indices = input.argsort(attrs.axis(), attrs.descending());
+            indices = ops.argsort(primal.apply(input), attrs.axis(), attrs.descending());
             axis = attrs.axis();
         } else if (producer.operation().kind() == TopKKind.TOP_K) {
             TopKAttrs attrs = (TopKAttrs) producer.operation().attrs();
-            indices = producer.output(1);
+            indices = primal.apply(producer.output(1));
             axis = attrs.axis();
         } else {
             throw new IllegalStateException(
                     "ordering operation was not preflight-approved: " + producer.operation());
         }
-        return new Tensor[] {
-            constants.zeroLike(input)
-                    .scatterElements(indices, gradient, axis, ScatterReduction.NONE)
-        };
+        return ops.result(ops.scatterElements(ops.zeroLike(input), indices, gradient, axis, ScatterReduction.NONE));
     }
 }

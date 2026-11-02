@@ -347,9 +347,14 @@ final class TrainingStateReconstructionTest {
         }
 
         private Tensor objective() {
-            Tensor sum = values.getFirst();
-            for (int index = 1; index < values.size(); index++) sum = sum.add(values.get(index));
-            if (sum.descriptor().dataType() != DataType.FLOAT64) sum = sum.cast(DataType.FLOAT32);
+            DataType type = values.getFirst().descriptor().dataType();
+            boolean lowPrecision = type == DataType.BFLOAT16 || type == DataType.FLOAT16;
+            // Low types remain parameter storage; promote before CPU arithmetic, not after it.
+            Tensor sum = lowPrecision ? values.getFirst().cast(DataType.FLOAT32) : values.getFirst();
+            for (int index = 1; index < values.size(); index++) {
+                Tensor value = values.get(index);
+                sum = sum.add(lowPrecision ? value.cast(DataType.FLOAT32) : value);
+            }
             return sum.sum();
         }
     }

@@ -59,6 +59,7 @@ class CpuBatchNormSemanticClosureTest {
     private static void inference(Fixture f) throws Throwable {
         PrepareContext<CpuPartitionAnalysisInputs> context = configure(CpuBatchNormInferenceLoweringTest.context(
                 f.types, SHAPE, f.axis, List.of(0, 1, 2, 3, 4)), f.request);
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         CpuPartitionPreparationPlan plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
@@ -71,13 +72,14 @@ class CpuBatchNormSemanticClosureTest {
         double[] expected = stores.getLast().snapshot();
         CpuBatchNormInferenceLowering.Geometry g = plan.batchNormInferenceGeometry().orElseThrow();
         inferenceOracle(g, stores, expected);
-        invokeInference(generator.defineClassBytes(route.specialization(), first), stores, g, plan);
+        invokeInference(generator.defineClassBytes(route.specialization(), route.kernelIr(), first), stores, g, plan);
         assertStorage(expected, stores.getLast(), f); assertSnapshots(before, stores.subList(0, 5), f);
     }
 
     private static void training(Fixture f) throws Throwable {
         PrepareContext<CpuPartitionAnalysisInputs> context = configure(CpuBatchNormTrainingLoweringTest.context(
                 f.types, SHAPE, f.axis, List.of(0, 1, 2, 3, 4), trainingLayouts(SHAPE, f.axis)), f.request);
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         CpuPartitionPreparationPlan plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
         byte[] first = generator.generateClassBytes(route.specialization(), route.kernelIr());
@@ -89,7 +91,7 @@ class CpuBatchNormSemanticClosureTest {
         for (int i = 0; i < 5; i++) expected[i] = stores.get(unique + i).snapshot();
         CpuBatchNormTrainingLowering.Geometry g = plan.batchNormTrainingGeometry().orElseThrow();
         trainingOracle(g, stores, expected);
-        invokeTraining(generator.defineClassBytes(route.specialization(), first), stores, g, plan);
+        invokeTraining(generator.defineClassBytes(route.specialization(), route.kernelIr(), first), stores, g, plan);
         for (int i = 0; i < 5; i++) assertStorage(expected[i], stores.get(unique + i), f + " output " + i);
         assertSnapshots(before, stores.subList(0, unique), f);
     }

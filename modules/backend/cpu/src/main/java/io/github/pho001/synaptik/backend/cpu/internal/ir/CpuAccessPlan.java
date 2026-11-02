@@ -19,6 +19,162 @@ import java.util.Objects;
  */
 public record CpuAccessPlan(AccessKind accessKind, Regime regime, int iterationRank,
         List<AxisRole> axisRoles, int contiguousSuffix) {
+    /**
+     * Prepared numeric access coefficients in elements, with one B-bearing extent at most.
+     * Nonoverlapping writes are proved structurally without enumerating invocation elements.
+     * Reads retain transpose/expansion mappings. Explicit repeated writes require the affine
+     * copy owner to check equal-source repeated destinations at numeric binding.
+     * @param plan non-null immutable structural access plan
+     * @param extentConstants non-null non-negative extent constants, copied
+     * @param extentBatchFactors non-null non-negative extent coefficients, copied
+     * @param baseElementOffset non-negative constant element origin
+     * @param strideConstants non-null non-negative element-stride constants, copied
+     * @param strideBatchFactors non-null non-negative element-stride coefficients, copied
+     * @param familyProvedRepeatedWrites explicit affine-copy repeated-destination strategy
+     */
+    public record BatchBinding(CpuAccessPlan plan, List<Long> extentConstants,
+            List<Long> extentBatchFactors, long baseElementOffset,
+            List<Long> strideConstants, List<Long> strideBatchFactors,
+            boolean familyProvedRepeatedWrites) {
+        /**
+         * Constructs the ordinary nonoverlapping access recipe.
+         * @param plan structural direction and axes
+         * @param extentConstants non-negative extent constants
+         * @param extentBatchFactors non-negative extent coefficients
+         * @param baseElementOffset non-negative fixed element origin
+         * @param strideConstants non-negative stride constants
+         * @param strideBatchFactors non-negative stride coefficients
+         */
+        public BatchBinding(CpuAccessPlan plan, List<Long> extentConstants,
+                List<Long> extentBatchFactors, long baseElementOffset,
+                List<Long> strideConstants, List<Long> strideBatchFactors) {
+            this(plan, extentConstants, extentBatchFactors, baseElementOffset,
+                    strideConstants, strideBatchFactors, false);
+        }
+        /**
+         * Validates coefficients and proves writes, except explicit affine repeated writes
+         * whose source/destination relationship must be checked by the owning copy route.
+         * @param plan non-null structural plan
+         * @param extentConstants non-null extent constants without nulls or negatives
+         * @param extentBatchFactors non-null extent factors without nulls or negatives
+         * @param baseElementOffset non-negative constant origin in elements
+         * @param strideConstants non-null stride constants without nulls or negatives
+         * @param strideBatchFactors non-null stride factors without nulls or negatives
+         * @param familyProvedRepeatedWrites affine-copy repeated-destination binding strategy
+         * @throws NullPointerException if a reference or list element is null
+         * @throws IllegalArgumentException if rank, coefficients or canonical write proof disagree
+         * @throws ArithmeticException if structural coefficient arithmetic overflows
+         */
+        public BatchBinding {
+            Objects.requireNonNull(plan, "plan");
+            extentConstants = Binding.checked(extentConstants, "extentConstants");
+            extentBatchFactors = Binding.checked(extentBatchFactors, "extentBatchFactors");
+            strideConstants = Binding.checked(strideConstants, "strideConstants");
+            strideBatchFactors = Binding.checked(strideBatchFactors, "strideBatchFactors");
+            int rank = plan.iterationRank();
+            if (baseElementOffset < 0 || extentConstants.size() != rank
+                    || extentBatchFactors.size() != rank || strideConstants.size() != rank
+                    || strideBatchFactors.size() != rank) {
+                throw new IllegalArgumentException("batch binding rank or origin disagrees");
+            }
+            int variableAxes = 0;
+            long suffixConstant = 1, suffixFactor = 0;
+            for (int axis = rank - 1; axis >= 0; axis--) {
+                long constant = extentConstants.get(axis), factor = extentBatchFactors.get(axis);
+                if (factor != 0) variableAxes++;
+                if (factor != 0 && suffixFactor != 0) {
+                    throw new IllegalArgumentException("non-affine batch product");
+                }
+                suffixFactor = Math.addExact(Math.multiplyExact(suffixFactor, constant),
+                        Math.multiplyExact(suffixConstant, factor));
+                suffixConstant = Math.multiplyExact(suffixConstant, constant);
+            }
+            if (variableAxes > 1) throw new IllegalArgumentException("multiple B-bearing axes");
+            if (familyProvedRepeatedWrites && plan.accessKind() != AccessKind.WRITE)
+                throw new IllegalArgumentException("repeated-write strategy requires a write plan");
+            if (plan.accessKind() == AccessKind.WRITE && !familyProvedRepeatedWrites)
+                proveWriteSeparation(extentConstants, extentBatchFactors, strideConstants, strideBatchFactors);
+            Math.toIntExact(baseElementOffset);
+            for (long extent : extentConstants) Math.toIntExact(extent);
+            for (long stride : strideConstants) Math.toIntExact(stride);
+        }
+
+        /**
+         * Proves mixed-radix separation for every positive B. Polynomial coefficients use
+         * B-1, not a sampled descriptor; B=0 has no accesses when a variable axis is present.
+         */
+        private static void proveWriteSeparation(List<Long> ec, List<Long> ef,
+                List<Long> sc, List<Long> sf) {
+            for (int axis = 0; axis < ec.size(); axis++)
+                if (ec.get(axis) == 0 && ef.get(axis) == 0) return;
+            var axes = new ArrayList<Integer>();
+            for (int axis = 0; axis < ec.size(); axis++)
+                if (ef.get(axis) != 0 || ec.get(axis) > 1) axes.add(axis);
+            axes.sort(java.util.Comparator.<Integer>comparingLong(axis -> sf.get(axis))
+                    .thenComparingLong(axis -> Math.addExact(sc.get(axis), sf.get(axis))));
+            long coveredConstant = 1, coveredFactor = 0;
+            for (int axis : axes) {
+                long strideConstant = Math.addExact(sc.get(axis), sf.get(axis));
+                long strideFactor = sf.get(axis);
+                if (strideConstant < coveredConstant || strideFactor < coveredFactor)
+                    throw new IllegalArgumentException("batch write addresses are not proved disjoint");
+                long extentConstant = Math.addExact(ec.get(axis), ef.get(axis)) - 1;
+                long extentFactor = ef.get(axis);
+                if (extentFactor != 0 && strideFactor != 0)
+                    throw new IllegalArgumentException("non-affine batch write span");
+                coveredConstant = Math.addExact(coveredConstant,
+                        Math.multiplyExact(extentConstant, strideConstant));
+                coveredFactor = Math.addExact(coveredFactor, Math.addExact(
+                        Math.multiplyExact(extentConstant, strideFactor),
+                        Math.multiplyExact(extentFactor, strideConstant)));
+            }
+        }
+
+        /**
+         * Preserves literal recipe text on every old nonoverlapping route.
+         * @return deterministic structural recipe text, excluding invocation B
+         */
+        @Override public String toString() {
+            return "BatchBinding[plan=" + plan + ", extentConstants=" + extentConstants
+                    + ", extentBatchFactors=" + extentBatchFactors + ", baseElementOffset=" + baseElementOffset
+                    + ", strideConstants=" + strideConstants + ", strideBatchFactors=" + strideBatchFactors
+                    + (familyProvedRepeatedWrites ? ", familyProvedRepeatedWrites=true" : "") + "]";
+        }
+
+        /**
+         * Resolves checked int-limited geometry once on the cold invocation boundary.
+         * No Model lowerer or element-enumerating injectivity proof is called.
+         * @param batchSize non-negative actual B, int-representable
+         * @return fresh immutable numeric full-range binding
+         * @throws IllegalArgumentException if B is negative
+         * @throws ArithmeticException if extents, strides, counts or referenced span exceed limits
+         */
+        public Binding bind(long batchSize) {
+            if (batchSize < 0) throw new IllegalArgumentException("batchSize must be non-negative");
+            Math.toIntExact(batchSize);
+            int rank = plan.iterationRank();
+            long[] extents = new long[rank], strides = new long[rank];
+            long count = 1;
+            // Right-to-left multiplication checks trailing geometry even if a leading axis is zero.
+            for (int axis = rank - 1; axis >= 0; axis--) {
+                extents[axis] = Math.toIntExact(Math.addExact(extentConstants.get(axis),
+                        Math.multiplyExact(extentBatchFactors.get(axis), batchSize)));
+                strides[axis] = Math.toIntExact(Math.addExact(strideConstants.get(axis),
+                        Math.multiplyExact(strideBatchFactors.get(axis), batchSize)));
+                count = Math.toIntExact(Math.multiplyExact(count, extents[axis]));
+            }
+            Math.toIntExact(baseElementOffset);
+            long span = baseElementOffset;
+            if (count != 0) {
+                for (int axis = 0; axis < rank; axis++) span = Math.addExact(span,
+                        Math.multiplyExact(extents[axis] - 1, strides[axis]));
+                span = Math.toIntExact(Math.addExact(span, 1));
+            } else {
+                span = baseElementOffset;
+            }
+            return Binding.create(plan, extents, baseElementOffset, strides, count, 0, count, span);
+        }
+    }
     /** Direction of access. */
     public enum AccessKind { /** Read-only input. */ READ, /** Write-only output. */ WRITE }
     /** Normalized role of one right-aligned iteration axis. */

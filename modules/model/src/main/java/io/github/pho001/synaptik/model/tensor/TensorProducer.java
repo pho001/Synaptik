@@ -30,12 +30,18 @@ import java.util.function.Supplier;
  * <p>This pre-capture identity is neither a tensor nor compiled graph state and owns no
  * graph-local node or value identity, gradient or backward state, storage, compiler state,
  * backend metadata, execution state, or runtime behavior.</p>
+ *
+ * <p>Only a general {@link Scan} occurrence contains a reusable {@link ScanBody}. This is local
+ * source containment, not captured graph state. Its bindings, header, output descriptors and
+ * current storage-free body values are checked before requesting any canonical output ID.
+ * Ordinary and fixed recurrent occurrences retain an empty attachment.</p>
  */
 public final class TensorProducer {
     private final Operation operation;
     private final List<Tensor> inputs;
     private final List<TensorDescriptor> outputDescriptors;
     private final List<Tensor> outputs;
+    private final Optional<ScanBody> scanBody;
 
     /**
      * Creates one validated expression producer and its canonical unlabeled output tensors.
@@ -58,7 +64,7 @@ public final class TensorProducer {
      *     descriptor element is null, reported by its zero-based indexed position
      * @throws IllegalArgumentException if {@code outputDescriptors} is empty, or if the final
      *     input or output count is outside the inclusive range accepted by the operation's
-     *     selected signature
+     *     selected signature, or a general-scan operation is supplied without its required body
      * @throws IllegalStateException if the package identity allocator is exhausted; identifiers
      *     allocated for earlier output positions remain consumed
      */
@@ -94,7 +100,8 @@ public final class TensorProducer {
      * @throws NullPointerException if a required reference, list element, or supplied identity is
      *     null
      * @throws IllegalArgumentException if output descriptors are empty, occurrence counts are
-     *     invalid, or the first output label is blank
+     *     invalid, a general-scan operation lacks its required body, or the first output label is
+     *     blank
      * @throws IllegalStateException if the identity source is exhausted; identifiers already
      *     supplied for earlier output positions are not rolled back
      */
@@ -104,6 +111,27 @@ public final class TensorProducer {
             List<TensorDescriptor> outputDescriptors,
             Optional<String> firstOutputLabel,
             Supplier<TensorId> tensorIdSupplier) {
+        this(operation, inputs, outputDescriptors, firstOutputLabel, tensorIdSupplier, Optional.empty());
+    }
+
+    /**
+     * Constructs an attached scan or an empty-attached ordinary occurrence atomically.
+     * All body, binding, header, descriptor and current body-storage checks precede the first ID.
+     *
+     * @param operation non-null semantic operation
+     * @param inputs non-null ordered actual inputs, including repeats
+     * @param outputDescriptors non-null non-empty ordered canonical descriptors
+     * @param firstOutputLabel non-null optional first-output label
+     * @param tensorIdSupplier non-null identity allocator, not retained
+     * @param scanBody non-null optional body, present exactly for general scans
+     * @throws NullPointerException if required references or elements are null
+     * @throws IllegalArgumentException if counts, attachment, bindings or descriptors are invalid
+     * @throws ArithmeticException if checked scan descriptor arithmetic overflows
+     * @throws IllegalStateException if allocation fails; no partial occurrence escapes
+     */
+    TensorProducer(Operation operation, List<Tensor> inputs, List<TensorDescriptor> outputDescriptors,
+            Optional<String> firstOutputLabel, Supplier<TensorId> tensorIdSupplier,
+            Optional<ScanBody> scanBody) {
         this.operation = Objects.requireNonNull(operation, "operation");
         Objects.requireNonNull(inputs, "inputs");
         Objects.requireNonNull(outputDescriptors, "outputDescriptors");
@@ -124,6 +152,8 @@ public final class TensorProducer {
 
         operation.signature().validateOccurrence(
                 inputSnapshot.size(), outputDescriptorSnapshot.size());
+        Scan.validateAttachment(operation, inputSnapshot, outputDescriptorSnapshot, scanBody);
+        this.scanBody = scanBody;
         this.inputs = inputSnapshot;
         this.outputDescriptors = outputDescriptorSnapshot;
 
@@ -150,6 +180,16 @@ public final class TensorProducer {
      */
     public Operation operation() {
         return operation;
+    }
+
+    /**
+     * Returns source containment only, never a captured graph or executable closure.
+     * Retaining a scan occurrence also retains the template's formal/root/sibling references.
+     * @return non-null optional exact reusable body; empty for ordinary and fixed operations;
+     *     optional-container identity is not part of the contract
+     */
+    public Optional<ScanBody> scanBody() {
+        return scanBody;
     }
 
     /**

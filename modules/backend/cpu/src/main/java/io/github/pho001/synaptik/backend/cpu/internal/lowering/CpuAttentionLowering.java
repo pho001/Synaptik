@@ -23,16 +23,178 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Cold fail-closed lowering for one atomic static scaled-dot-product-attention occurrence.
+ * Cold fail-closed lowering for atomic static or one-named-batch scaled-dot-product attention.
  *
  * <p>This CPU-private owner converts an already selected occurrence into direct generated-route
- * identity and invocation geometry. It does not choose backend ownership or execute attention.
+ * identity and numeric invocation geometry. Symbolic recipes preserve typed roles, broadcast
+ * layouts and optional weights without retaining descriptors or sampling B. It does not choose
+ * backend ownership or execute attention.
  */
 public final class CpuAttentionLowering {
   private final CpuCapabilityProvider capabilities = new CpuCapabilityProvider();
 
   /** Creates a stateless attention lowerer. */
   public CpuAttentionLowering() {}
+
+  /**
+   * Checks original symbolic batch broadcasting and preserves every typed role and output sibling.
+   * @param context complete one-node attention projection with fixed query/key/embedding axes
+   * @return unresolved numeric attention geometry without a representative batch
+   * @throws IllegalArgumentException if original semantics, types or dimension equations disagree
+   * @throws ArithmeticException if fixed coefficient or scratch arithmetic overflows
+   */
+  public CpuPartitionLowering.LoweredPartition lowerBatch(PrepareContext<? extends BackendAnalysisInputs> context) {
+      return lowerBatch(context,CpuPartitionLowering.batchLayouts(context));
+  }
+
+  /**
+   * Lowers original descriptors using the complete local graph's proved physical mappings.
+   * The map is consumed only during lowering; the recipe retains numeric boundary facts only.
+   * @param context complete original ordinary unit projection
+   * @param layouts non-null full-local value mappings, preserving view strides and offsets
+   * @return unresolved numeric family geometry with B-independent generated facts
+   * @throws NullPointerException if a required mapping or input is absent
+   * @throws IllegalArgumentException if original semantics or numeric mappings disagree
+   * @throws ArithmeticException if fixed geometry arithmetic overflows
+   */
+  public CpuPartitionLowering.LoweredPartition lowerBatch(PrepareContext<? extends BackendAnalysisInputs> context,
+          Map<ValueId,CpuAccessPlan.BatchBinding> layouts) {
+    var values = batchValues(context);
+    if (context.nodes().size() != 1) throw new IllegalArgumentException("attention requires one node");
+    var node = context.nodes().getFirst();
+    if (node.operation().kind() != ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION
+        || !(node.operation().attrs() instanceof ScaledDotProductAttentionAttrs attrs)
+        || node.inputs().size() < 3 || node.inputs().size() > 4 || node.outputs().isEmpty() || node.outputs().size() > 2
+        || node.outputs().stream().anyMatch(node.inputs()::contains)
+        || new java.util.HashSet<>(node.outputs()).size() != node.outputs().size())
+      throw new IllegalArgumentException("attention occurrence or output alias disagrees");
+    var q = require(values,node.inputs().get(0)); var k = require(values,node.inputs().get(1)); var v = require(values,node.inputs().get(2));
+    int qr = q.descriptor().shape().rank(), kr = k.descriptor().shape().rank(), vr = v.descriptor().shape().rank();
+    if (qr < 2 || kr < 2 || vr < 2) throw new IllegalArgumentException("attention rank is too small");
+    long l = fixed(q,qr-2), s = fixed(k,kr-2), e = fixed(q,qr-1), ev = fixed(v,vr-1);
+    if (e <= 0 || fixed(k,kr-1) != e || fixed(v,vr-2) != s) throw new IllegalArgumentException("attention feature equations disagree");
+    var result = DataTypePromotion.promoteFloating(DataTypePromotion.promoteFloating(q.descriptor().dataType(),k.descriptor().dataType()),v.descriptor().dataType());
+    if (attrs.scale().isPresent() && attrs.scale().orElseThrow().dataType() != result)
+      throw new IllegalArgumentException("attention scale representation disagrees");
+    double scale = attrs.scale().isPresent() ? result == DataType.FLOAT64 ? attrs.scale().orElseThrow().float64Value()
+        : attrs.scale().orElseThrow().float32Value() : result == DataType.FLOAT64 ? 1.0d/StrictMath.sqrt((double)e) : (float)(1.0d/StrictMath.sqrt((double)e));
+    if (!Double.isFinite(scale) || scale <= 0) throw new IllegalArgumentException("attention scale is invalid");
+    int batchRank = Math.max(qr-2,Math.max(kr-2,vr-2));
+    var prefix = new ArrayList<io.github.pho001.synaptik.model.shape.Dimension>();
+    for (int axis = 0; axis < batchRank; axis++) {
+      io.github.pho001.synaptik.model.shape.Dimension selected = new io.github.pho001.synaptik.model.shape.StaticDimension(1);
+      for (var value : List.of(q,k,v)) {
+        int from = axis - (batchRank-(value.descriptor().shape().rank()-2));
+        if (from < 0) continue;
+        var dimension = value.descriptor().shape().dimensions().get(from);
+        if (dimension instanceof io.github.pho001.synaptik.model.shape.StaticDimension d && d.size() == 1) continue;
+        if (!(selected instanceof io.github.pho001.synaptik.model.shape.StaticDimension d && d.size() == 1) && !selected.equals(dimension))
+          throw new IllegalArgumentException("attention symbolic prefix does not broadcast");
+        selected = dimension;
+      }
+      prefix.add(selected);
+    }
+    var outShape = new ArrayList<>(prefix); outShape.add(new io.github.pho001.synaptik.model.shape.StaticDimension(l)); outShape.add(new io.github.pho001.synaptik.model.shape.StaticDimension(ev));
+    var scoreShape = new ArrayList<>(prefix); scoreShape.add(new io.github.pho001.synaptik.model.shape.StaticDimension(l)); scoreShape.add(new io.github.pho001.synaptik.model.shape.StaticDimension(s));
+    for (int i = 0; i < node.outputs().size(); i++) {
+      var output = require(values,node.outputs().get(i));
+      boolean grad = q.descriptor().requiresGrad() || k.descriptor().requiresGrad() || i == 0 && v.descriptor().requiresGrad();
+      if (output.descriptor().dataType() != result || output.descriptor().requiresGrad() != grad
+          || !output.descriptor().shape().dimensions().equals(i == 0 ? outShape : scoreShape))
+        throw new IllegalArgumentException("attention output sibling shape/type/gradient disagrees");
+    }
+    if (node.inputs().size() == 4) {
+      var mask = require(values,node.inputs().get(3)); int rank = mask.descriptor().shape().rank();
+      if (mask.descriptor().dataType() != DataType.BOOL || mask.descriptor().requiresGrad() || rank > scoreShape.size())
+        throw new IllegalArgumentException("attention mask type/rank disagrees");
+      for (int axis = 0; axis < rank; axis++) {
+        var d = mask.descriptor().shape().dimensions().get(axis);
+        if (!(d instanceof io.github.pho001.synaptik.model.shape.StaticDimension singleton && singleton.size() == 1)
+            && !d.equals(scoreShape.get(axis+scoreShape.size()-rank))) throw new IllegalArgumentException("attention mask does not broadcast");
+      }
+    }
+    var ids = new ArrayList<ValueId>(); var roles = new ArrayList<Integer>();
+    for (var id : node.inputs()) { int position = ids.indexOf(id); if (position < 0) { position=ids.size(); ids.add(id); } roles.add(position); }
+    int uniqueInputs = ids.size(); ids.addAll(node.outputs());
+    var bindings = new ArrayList<CpuAccessPlan.BatchBinding>(); var plans = new ArrayList<CpuAccessPlan>();
+    for (int i = 0; i < ids.size(); i++) {
+      var binding = batchBinding(require(values,ids.get(i)),layouts);
+      if (i >= uniqueInputs) binding = writeRecipe(binding);
+      bindings.add(binding);
+      plans.add(new CpuAccessPlan(i < uniqueInputs ? CpuAccessPlan.AccessKind.READ : CpuAccessPlan.AccessKind.WRITE,CpuAccessPlan.Regime.SCALAR_ALL_ZERO,0,List.of(),0));
+    }
+    var types = ids.stream().map(id -> require(values,id).descriptor().dataType()).toList();
+    var ir = new CpuAttentionIr(q.descriptor().dataType(),k.descriptor().dataType(),v.descriptor().dataType(),result,node.inputs().size()==4,attrs.causal(),node.outputs().size(),roles,types,plans);
+    long[] parameters = new long[8+2*batchRank];
+    parameters[0]=batchRank; parameters[1]=l; parameters[2]=s; parameters[3]=e; parameters[4]=ev;
+    parameters[5]=Double.doubleToRawLongBits(scale); parameters[6]=uniqueInputs; parameters[7]=node.outputs().size();
+    for (int axis=0; axis<batchRank; axis++) {
+      var d=prefix.get(axis);
+      if (d instanceof io.github.pho001.synaptik.model.shape.StaticDimension fixed) parameters[8+axis]=fixed.size();
+      else parameters[8+batchRank+axis]=1;
+    }
+    return new CpuPartitionLowering.LoweredPartition(new Geometry.BatchGeometry(ir,ids,types,bindings,List.of(),parameters));
+  }
+
+  private static NormalizedLayout normalized(CpuAccessPlan.Binding binding, long[] target) {
+    long[] strides = new long[target.length]; int shift = target.length-binding.extents().size();
+    for (int axis=0; axis<binding.extents().size(); axis++)
+      strides[axis+shift] = binding.extents().get(axis)==1 && target[axis+shift]!=1 ? 0 : binding.effectiveStrides().get(axis);
+    return new NormalizedLayout(binding.baseElementOffset(),strides);
+  }
+
+    private static Map<ValueId, GraphValue> batchValues(PrepareContext<?> context) {
+        CpuPartitionLowering.requireBatchContext(context);
+        var values = new LinkedHashMap<ValueId, GraphValue>();
+        context.values().forEach(value -> values.put(value.id(),value));
+        return values;
+    }
+
+    private static long fixed(GraphValue value, int axis) {
+        var dimension = value.descriptor().shape().dimensions().get(axis);
+        if (!(dimension instanceof io.github.pho001.synaptik.model.shape.StaticDimension fixed))
+            throw new IllegalArgumentException("window and feature dimensions must be fixed");
+        return fixed.size();
+    }
+
+    private static void sameAxis(GraphValue left, int a, GraphValue right, int b) {
+        if (!left.descriptor().shape().dimensions().get(a).equals(
+                right.descriptor().shape().dimensions().get(b)))
+            throw new IllegalArgumentException("symbolic dimension equation disagrees");
+    }
+
+    private static CpuAccessPlan.BatchBinding batchBinding(GraphValue value,
+            Map<ValueId,CpuAccessPlan.BatchBinding> layouts) {
+        var mapping = Objects.requireNonNull(layouts.get(value.id()), "missing full-local layout");
+        var canonical = CpuPartitionLowering.batchCanonical(value.descriptor(),CpuAccessPlan.AccessKind.READ);
+        if (!mapping.extentConstants().equals(canonical.extentConstants())
+                || !mapping.extentBatchFactors().equals(canonical.extentBatchFactors()))
+            throw new IllegalArgumentException("full-local mapping disagrees with original symbolic shape");
+        var p = mapping.plan();
+        var read = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ,p.regime(),p.iterationRank(),p.axisRoles(),p.contiguousSuffix());
+        return new CpuAccessPlan.BatchBinding(read,mapping.extentConstants(),mapping.extentBatchFactors(),
+                mapping.baseElementOffset(),mapping.strideConstants(),mapping.strideBatchFactors());
+    }
+
+    private static CpuAccessPlan writePlan(CpuAccessPlan.BatchBinding binding) {
+        var p = binding.plan();
+        return new CpuAccessPlan(CpuAccessPlan.AccessKind.WRITE, p.regime(), p.iterationRank(),
+                p.axisRoles(), p.contiguousSuffix());
+    }
+
+    private static CpuAccessPlan.BatchBinding writeRecipe(CpuAccessPlan.BatchBinding binding) {
+        return new CpuAccessPlan.BatchBinding(writePlan(binding),binding.extentConstants(),
+                binding.extentBatchFactors(),binding.baseElementOffset(),binding.strideConstants(),
+                binding.strideBatchFactors());
+    }
+
+    private static String batchIdentity(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPortableKernelIr ir,
+            List<CpuAccessPlan.BatchBinding> bindings, long[] parameters) {
+        var key = new StringBuilder(ir.structuralKey());
+        for (var b : bindings) key.append('|').append(b.extentConstants()).append(b.extentBatchFactors())
+                .append(b.baseElementOffset()).append(b.strideConstants()).append(b.strideBatchFactors());
+        return key.append('|').append(Arrays.toString(parameters)).toString();
+    }
 
   /**
    * Lowers one exact supported attention occurrence to complete broadcast-batch/query rows.
@@ -365,6 +527,155 @@ public final class CpuAttentionLowering {
       Optional<NormalizedLayout> mask,
       NormalizedLayout output,
       Optional<NormalizedLayout> weights) {
+
+        /**
+         * Unresolved numeric invocation recipe. No representative shape, graph or invocation is retained.
+         * @param ir exact B-independent generated facts
+         * @param boundaries ordered physical boundaries
+         * @param boundaryTypes exact boundary storage types
+         * @param bindings affine numeric mappings, including the output mapping
+         * @param virtualValues private removed intermediate values
+         * @param parameters fixed family geometry, defensively copied
+
+         */
+        public record BatchGeometry(CpuAttentionIr ir, List<ValueId> boundaries,
+                List<io.github.pho001.synaptik.model.datatype.DataType> boundaryTypes,
+                List<CpuAccessPlan.BatchBinding> bindings, List<ValueId> virtualValues,
+                long[] parameters) implements CpuPartitionLowering.BatchUnitGeometry {
+            /**
+             * Snapshots immutable compile facts and checked numeric coefficients.
+             * @param ir B-independent generated facts
+             * @param boundaries ordered physical boundary identities
+             * @param boundaryTypes physical storage types in boundary order
+             * @param bindings affine layout coefficients in boundary order
+             * @param virtualValues private removed intermediates
+             * @param parameters fixed family-specific numeric geometry
+             */
+            public BatchGeometry {
+                Objects.requireNonNull(ir, "ir");
+                boundaries = List.copyOf(boundaries); boundaryTypes = List.copyOf(boundaryTypes);
+                bindings = List.copyOf(bindings); virtualValues = List.copyOf(virtualValues);
+                parameters = parameters.clone();
+            }
+            /**
+             * Returns isolated attention geometry cells used by numeric batch binding.
+             * Prepared constants and coefficients do not contain an evaluated actual B.
+             * Mutating the result cannot change this graph-free recipe or generated identity.
+             * @return a new non-null caller-owned copy of the numeric geometry cells
+             */
+            @Override public long[] parameters() { return parameters.clone(); }
+            /** @return checked affine complete-unit work count, not bytes */
+            @Override public io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize iterationCount() { long c=parameters[1], f=0; int rank=Math.toIntExact(parameters[0]);
+                if (parameters[4]==0 && parameters[7]==1) return new io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize(0,0,1);
+                for (int i=0;i<rank;i++) { long ec=parameters[8+i], ef=parameters[8+rank+i];
+                    if (f!=0 && ef!=0) throw new IllegalArgumentException("non-affine attention rows");
+                    f=Math.addExact(Math.multiplyExact(f,ec),Math.multiplyExact(c,ef)); c=Math.multiplyExact(c,ec); }
+                return new io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize(c,f,1); }
+            /**
+             * Reserves one aligned key-row slice for structurally present work. A variable-B
+             * reservation is a constant capacity; bind(0) gives the ordinary zero-work geometry
+             * a zero active slice without changing generated identity or allocating per step.
+             * @return affine direct-scalar scratch capacity in bytes
+             */
+            @Override public io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize scratchBytes() { var rows=iterationCount(); long slice=rows.constantBytes()==0 && rows.bytesPerBatch()==0 || parameters[2]==0 ? 0 : align8(Math.multiplyExact(parameters[2],ir.resultType()==DataType.FLOAT64 ? 8L:4L));
+                return new io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize(slice,0,1); }
+            /** @return structural identity independent of actual B and value identities */
+            @Override public String identity() { return batchIdentity(ir, bindings, parameters); }
+            /** @return no mutable packed traversal cursors for this ordinary family */
+            @Override public List<io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset> resets() { return List.of(); }
+            /**
+             * Resolves only numeric geometry on the cold invocation boundary.
+             * @param batch non-negative int-representable actual B
+             * @return ordinary resolved family geometry with identical generated facts
+             * @throws IllegalArgumentException if batch is negative
+             * @throws ArithmeticException if geometry exceeds checked host limits
+             */
+            @Override public CpuPartitionLowering.LoweredPartition bind(long batch) {
+                var resolved = new ArrayList<CpuAccessPlan.Binding>();
+                for (var binding : bindings) resolved.add(binding.bind(batch));
+                int rank=Math.toIntExact(parameters[0]), unique=Math.toIntExact(parameters[6]);
+                long[] batchExtents=new long[rank];
+                for (int i=0;i<rank;i++) batchExtents[i]=Math.addExact(parameters[8+i],Math.multiplyExact(parameters[8+rank+i],batch));
+                long rows=iterationCount().byteSize(batch);
+                long slice=rows==0 ? 0 : scratchBytes().constantBytes();
+                long[] target=new long[rank+2]; System.arraycopy(batchExtents,0,target,0,rank);
+                target[rank]=parameters[1]; target[rank+1]=parameters[3];
+                var q=normalized(resolved.get(ir.roleBoundaryPositions().get(0)),target);
+                target[rank]=parameters[2]; var k=normalized(resolved.get(ir.roleBoundaryPositions().get(1)),target);
+                target[rank+1]=parameters[4]; var v=normalized(resolved.get(ir.roleBoundaryPositions().get(2)),target);
+                target[rank]=parameters[1]; var output=normalized(resolved.get(unique),target);
+                target[rank+1]=parameters[2];
+                var mask=ir.masked() ? Optional.of(normalized(resolved.get(ir.roleBoundaryPositions().get(3)),target)) : Optional.<NormalizedLayout>empty();
+                var weights=ir.outputCount()==2 ? Optional.of(normalized(resolved.get(unique+1),target)) : Optional.<NormalizedLayout>empty();
+                var geometry=new Geometry(batchExtents,parameters[1],parameters[2],parameters[3],parameters[4],rows,slice,
+                        ir.queryType(),ir.keyType(),ir.valueType(),ir.resultType(),Double.longBitsToDouble(parameters[5]),ir.roleBoundaryPositions(),unique,ir.outputCount(),
+                        Optional.of(q),Optional.of(k),Optional.of(v),mask,output,weights);
+                return new CpuPartitionLowering.LoweredPartition(ir,boundaries,resolved,
+                        resolved.stream().map(CpuAccessPlan.Binding::referencedElementSpan).toList(),boundaryTypes,virtualValues,
+                        new long[]{rows},rows,"legal: symbolic direct attention",new long[0],
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(geometry));
+            }
+        }
+
+    /**
+     * One fixed generated assignment of a boundary's element base plus a layout delta.
+     * @param cell non-negative destination cell in this family's packed geometry
+     * @param boundary boundary position in the pack's carrier-base order
+     * @param elementDelta immutable element offset added with checked arithmetic
+     */
+    public record BaseCell(int cell, int boundary, long elementDelta) { }
+
+    /**
+     * One original cursor seed restored before every temporal helper call, including retry.
+     * @param cell non-negative destination cell in this family's packed geometry
+     * @param value original range-start cursor value
+     */
+    public record ResetCell(int cell, long value) { }
+
+    /**
+     * Cold, immutable facts for emitting fixed numeric assignments, never a runtime program.
+     * Scratch range offsets and invariant geometry remain bound once per invocation.
+     * @param bases non-null boundary-base assignments, defensively snapshotted
+     * @param resets non-null mutable-cursor assignments, defensively snapshotted
+     */
+    public record TemporalRebind(List<BaseCell> bases, List<ResetCell> resets) {
+        /**
+         * Snapshots the generation-time assignments; retains no invocation storage.
+         * @param bases non-null base facts without null entries
+         * @param resets non-null reset facts without null entries
+         * @throws NullPointerException if either list or an entry is null
+         */
+        public TemporalRebind {
+            bases = List.copyOf(bases);
+            resets = List.copyOf(resets);
+        }
+    }
+
+    /**
+     * Describes temporal base rebinding and restoration of this family's original cursors.
+     * Construct these facts only during generation or cold numeric binding; generated code
+     * emits the assignments directly, without calling pack, allocating, or iterating facts.
+     * Each boundary base is normalized using that boundary's own element width beforehand.
+     * @param start non-negative inclusive ordinary helper range start
+     * @return immutable owner-defined base locations and original cursor seeds
+     * @throws IllegalArgumentException if start is negative
+     * @throws ArithmeticException if checked layout or cursor arithmetic overflows
+     */
+    public TemporalRebind temporalRebind(long start) {
+        if (start < 0) throw new IllegalArgumentException("negative temporal range start");
+        int rank = batchExtents.length + 2, header = 14 + batchExtents.length;
+        var bases = new ArrayList<BaseCell>(6);
+        bases.add(new BaseCell(header, roleBoundaryPositions.get(0), query.orElseThrow().offset()));
+        bases.add(new BaseCell(header + rank + 1, roleBoundaryPositions.get(1), key.orElseThrow().offset()));
+        bases.add(new BaseCell(header + 2 * (rank + 1), roleBoundaryPositions.get(2), value.orElseThrow().offset()));
+        if (mask.isPresent()) bases.add(new BaseCell(header + 3 * (rank + 1),
+                roleBoundaryPositions.get(3), mask.orElseThrow().offset()));
+        bases.add(new BaseCell(header + 4 * (rank + 1), uniqueInputCount, output.offset()));
+        if (weights.isPresent()) bases.add(new BaseCell(header + 5 * (rank + 1),
+                uniqueInputCount + 1, weights.orElseThrow().offset()));
+        return new TemporalRebind(bases, List.of());
+    }
+
     /**
      * Validates and snapshots exact geometry.
      *

@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.github.pho001.synaptik.config.compile.CompileMode;
+import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
@@ -40,7 +42,9 @@ import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
+import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.model.tensor.TensorId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -75,6 +79,163 @@ final class StaticResultLogicalLayoutClosureTest {
                         result.graph().values().get(3).descriptor().layout().orElseThrow()),
                 () -> assertSame(add, result.graph().nodes().get(0)),
                 () -> assertSame(contiguous, result.graph().nodes().get(1)));
+    }
+
+    @Test
+    void closesActualTransposeMatmulGradientsToTheirOriginalLeafShapes() {
+        for (DataType type : List.of(
+                DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16)) {
+            Tensor left = tensor(type, true, Shape.of(6));
+            Tensor right = tensor(type, true, Shape.of(15));
+            Tensor product = left.reshape(3, 2).permute(1, 0)
+                    .matmul(right.reshape(5, 3).permute(1, 0));
+            Tensor seed = tensor(type, false, Shape.of(2, 5));
+            var stage = new FunctionalGradientRequest.Stage(
+                    List.of(new FunctionalGradientRequest.ForwardTensorReference(product)),
+                    List.of(Optional.of(seed)), List.of(left, right), false,
+                    FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+            var compilation = GraphCompiler.compile(
+                    CompileMode.FORWARD_AND_BACKWARD, List.of(product),
+                    Optional.of(new FunctionalGradientRequest(List.of(stage))),
+                    CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled());
+            var descriptors = new LinkedHashMap<ValueId, TensorDescriptor>();
+            compilation.validatedGraph().graph().values()
+                    .forEach(value -> descriptors.put(value.id(), value.descriptor()));
+            var outputs = compilation.validatedGraph().graph().outputs();
+            assertEquals(LayoutDescriptor.contiguous(left.descriptor().shape()),
+                    descriptors.get(outputs.get(1)).layout().orElseThrow(), type.name());
+            assertEquals(LayoutDescriptor.contiguous(right.descriptor().shape()),
+                    descriptors.get(outputs.get(2)).layout().orElseThrow(), type.name());
+        }
+    }
+
+    @Test
+    void closesCapturedMaterializedAffineComputedCropChainWithoutChangingGraphAssociations() {
+        Shape matrix = Shape.of(3, 4);
+        Tensor input = TensorFactory.create(new TensorDescriptor(
+                DataType.FLOAT64, matrix,
+                Optional.of(LayoutDescriptor.of(matrix, new long[] {7, 1}, 5, true)), true));
+        Tensor materialized = input.neg();
+        Tensor affine = materialized.permute(1, 0);
+        Tensor computed = affine.neg();
+        Tensor crop = computed.cropToShape(Shape.of(2, 2), Shape.of(1, 1));
+        Tensor finalView = crop.permute(1, 0);
+        ValidatedGraph source = CapturedGraphInference.inferAndValidate(GraphCapture.capture(
+                List.of(materialized, affine, computed, crop, finalView)));
+
+        ValidatedGraph result = StaticResultLogicalLayoutClosure.close(source);
+        Map<ValueId, TensorDescriptor> descriptors = new LinkedHashMap<>();
+        result.graph().values().forEach(value -> descriptors.put(value.id(), value.descriptor()));
+        List<LayoutDescriptor> expected = List.of(
+                LayoutDescriptor.contiguous(matrix),
+                LayoutDescriptor.of(Shape.of(4, 3), new long[] {1, 4}, 0, true),
+                LayoutDescriptor.contiguous(Shape.of(4, 3)),
+                LayoutDescriptor.of(Shape.of(2, 2), new long[] {3, 1}, 4, true),
+                LayoutDescriptor.of(Shape.of(2, 2), new long[] {1, 3}, 4, true));
+        for (int index = 0; index < expected.size(); index++) {
+            TensorDescriptor descriptor = descriptors.get(result.graph().outputs().get(index));
+            assertEquals(expected.get(index), descriptor.layout().orElseThrow());
+            assertEquals(DataType.FLOAT64, descriptor.dataType());
+            assertTrue(descriptor.requiresGrad());
+        }
+        for (int index = 0; index < source.graph().nodes().size(); index++) {
+            assertSame(source.graph().nodes().get(index), result.graph().nodes().get(index));
+        }
+        assertSame(source.graph().values().getFirst(), result.graph().values().getFirst());
+        assertEquals(source.graph().inputs(), result.graph().inputs());
+        assertEquals(source.graph().outputs(), result.graph().outputs());
+        assertEquals(source.graph().nodePhases(), result.graph().nodePhases());
+        assertSame(result, StaticResultLogicalLayoutClosure.close(result));
+    }
+
+    @Test
+    void distinguishesCapturedReshapeViewFromNoncontiguousMaterialization() {
+        Tensor input = tensor(DataType.FLOAT32, true, Shape.of(2, 3));
+        Tensor computed = input.neg();
+        Tensor view = computed.reshape(6);
+        Tensor materialized = computed.permute(1, 0).reshape(6);
+        ValidatedGraph source = CapturedGraphInference.inferAndValidate(
+                GraphCapture.capture(List.of(view, materialized)));
+
+        ValidatedGraph result = StaticResultLogicalLayoutClosure.close(source);
+        Map<ValueId, TensorDescriptor> descriptors = new LinkedHashMap<>();
+        result.graph().values().forEach(value -> descriptors.put(value.id(), value.descriptor()));
+        assertEquals(LayoutDescriptor.of(Shape.of(6), new long[] {1}, 0, true),
+                descriptors.get(result.graph().outputs().getFirst()).layout().orElseThrow());
+        assertEquals(LayoutDescriptor.contiguous(Shape.of(6)),
+                descriptors.get(result.graph().outputs().getLast()).layout().orElseThrow());
+    }
+
+    @Test
+    void materializesUnprovedReshapeWithoutReinterpretingItsSourceAndClosesDownstreamView() {
+        Shape sourceShape = Shape.of(3, 2);
+        Shape vector = Shape.of(6);
+        TensorDescriptor input = resolved(
+                sourceShape, LayoutDescriptor.of(sourceShape, new long[] {1, 3}, 5, true));
+        Operation reshape = new Operation(ShapeTransformKind.RESHAPE, new TargetShapeAttrs(vector));
+        assertTrue(LayoutInference.infer(reshape, List.of(input))
+                .outputs().getFirst().layout().isEmpty(), "raw source inference remains view-only");
+        var source = validated(graph(
+                List.of(input, unresolved(vector), unresolved(Shape.of(1, 6))),
+                List.of(
+                        node(101, ShapeTransformKind.RESHAPE, reshape.attrs(), List.of(0), List.of(1)),
+                        node(102, AxisTransformKind.EXPAND_DIMS, new AxisTransformAttrs(0),
+                                List.of(1), List.of(2))),
+                List.of(0), List.of(1, 2)), Map.of(), Map.of(id(0), new TensorId(310)));
+
+        var result = StaticResultLogicalLayoutClosure.close(source);
+        assertEquals(LayoutDescriptor.contiguous(vector),
+                result.graph().values().get(1).descriptor().layout().orElseThrow());
+        assertEquals(LayoutDescriptor.of(Shape.of(1, 6), new long[] {6, 1}, 0, true),
+                result.graph().values().get(2).descriptor().layout().orElseThrow());
+    }
+
+    @Test
+    void selectsCanonicalScalarAndEmptyMaterializationsUsingOrdinaryStaticGeometry() {
+        List<Shape> sources = List.of(Shape.of(1, 1), Shape.of(0, 3));
+        List<Shape> targets = List.of(Shape.scalar(), Shape.of(0));
+        List<long[]> strides = List.of(new long[] {7, 3}, new long[] {7, 2});
+        for (int index = 0; index < sources.size(); index++) {
+            Shape input = sources.get(index), output = targets.get(index);
+            var source = validated(graph(
+                    List.of(resolved(input, LayoutDescriptor.of(input, strides.get(index), 4, true)),
+                            unresolved(output)),
+                    List.of(node(103, ShapeTransformKind.RESHAPE, new TargetShapeAttrs(output),
+                            List.of(0), List.of(1))),
+                    List.of(0), List.of(1)), Map.of(), Map.of(id(0), new TensorId(311)));
+            assertEquals(LayoutDescriptor.contiguous(output), StaticResultLogicalLayoutClosure
+                    .close(source).graph().values().get(1).descriptor().layout().orElseThrow());
+        }
+    }
+
+    @Test
+    void doesNotInventMaterializationGeometryFromMissingOrDynamicSourceLayouts() {
+        for (Shape input : List.of(Shape.of(3, 2),
+                Shape.ofDimensions(new DynamicDimension("N"), new StaticDimension(2)))) {
+            Shape output = Shape.of(6);
+            var source = validated(graph(
+                    List.of(unresolved(input), unresolved(output)),
+                    List.of(node(104, ShapeTransformKind.RESHAPE, new TargetShapeAttrs(output),
+                            List.of(0), List.of(1))),
+                    List.of(0), List.of(1)), Map.of(), Map.of(id(0), new TensorId(312)));
+            assertTrue(StaticResultLogicalLayoutClosure.close(source)
+                    .graph().values().get(1).descriptor().layout().isEmpty());
+        }
+    }
+
+    @Test
+    void rejectsOverflowingCanonicalStrideEvenWhenTheMaterializedElementCountIsZero() {
+        Shape input = Shape.of(0, 3);
+        Shape output = Shape.of(0, Long.MAX_VALUE, Long.MAX_VALUE);
+        var source = validated(graph(
+                List.of(resolved(input, LayoutDescriptor.of(input, new long[] {7, 2}, 0, true)),
+                        unresolved(output)),
+                List.of(node(105, ShapeTransformKind.RESHAPE, new TargetShapeAttrs(output),
+                        List.of(0), List.of(1))),
+                List.of(0), List.of(1)), Map.of(), Map.of(id(0), new TensorId(313)));
+        var failure = assertThrows(IllegalArgumentException.class,
+                () -> StaticResultLogicalLayoutClosure.close(source));
+        assertTrue(failure.getCause() instanceof ArithmeticException);
     }
 
     @Test
@@ -484,6 +645,11 @@ final class StaticResultLogicalLayoutClosureTest {
                 new Operation(kind, attrs),
                 inputs.stream().map(StaticResultLogicalLayoutClosureTest::id).toList(),
                 outputs.stream().map(StaticResultLogicalLayoutClosureTest::id).toList());
+    }
+
+    private static Tensor tensor(DataType type, boolean requiresGrad, Shape shape) {
+        return TensorFactory.create(new TensorDescriptor(type, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), requiresGrad));
     }
 
     private static TensorDescriptor unresolved(Shape shape) {

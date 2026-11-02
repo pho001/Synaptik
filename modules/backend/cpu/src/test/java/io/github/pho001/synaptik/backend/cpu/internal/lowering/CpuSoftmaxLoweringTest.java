@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.backend.cpu.internal.lowering;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported;
 
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering.LoweredPartition;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
@@ -16,7 +17,11 @@ import org.junit.jupiter.api.Test;
 public class CpuSoftmaxLoweringTest {
     @Test void derivesCompleteSliceRangesAndPreservesEmptyNonSelectedExtent() {
         var dense = lower(SoftmaxKind.SOFTMAX, DataType.FLOAT64, Shape.of(2, 3, 4), 1);
-        var empty = lower(SoftmaxKind.LOG_SOFTMAX, DataType.BFLOAT16, Shape.of(0, 3), 1);
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            assertTrue(assertLowUnsupported(context(
+                    SoftmaxKind.LOG_SOFTMAX, type, Shape.of(0, 3), 1)));
+        }
+        var empty = lower(SoftmaxKind.LOG_SOFTMAX, DataType.FLOAT32, Shape.of(0, 3), 1);
         assertAll(() -> assertEquals(8, dense.elementCount()),
                 () -> assertEquals(3, dense.softmaxGeometry().orElseThrow().sliceWidth()),
                 () -> assertEquals(0, empty.elementCount()),

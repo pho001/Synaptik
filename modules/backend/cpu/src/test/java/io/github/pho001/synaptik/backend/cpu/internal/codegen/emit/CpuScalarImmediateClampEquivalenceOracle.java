@@ -28,13 +28,21 @@ import java.util.Optional;
 /** Test-only source-derived fixture builder and independent BFLOAT16 clean-Java oracle. */
 final class CpuScalarImmediateClampEquivalenceOracle {
     record Fixture(String id, float immediate, String immediateLocation) { }
-    record Artifact(Fixture fixture, CpuKernelSpecialization specialization, byte[] bytes,
+    record Artifact(Fixture fixture, CpuKernelSpecialization specialization,
+            io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr kernelIr, byte[] bytes,
             String hash, String binaryName, String structuralKey) { }
 
     /* The complete bounded mechanism here is one exact operation/type/carrier/layout/strategy/shape. */
     static List<Fixture> fixtures() {
         return List.of(new Fixture("bf16-mul-one", 1.0f, "entry:28"),
                 new Fixture("bf16-mul-two", 2.0f, "entry:28"));
+    }
+
+    /** The sealed historical low-MUL rows now prove real current preparation rejection. */
+    static boolean unsupported(Fixture fixture) {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> artifact(fixture), fixture.id());
+        return true;
     }
 
     static Artifact artifact(Fixture fixture) {
@@ -52,13 +60,13 @@ final class CpuScalarImmediateClampEquivalenceOracle {
                 CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT));
         var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst().portablePlan();
         byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr());
-        return new Artifact(fixture, route.specialization(), bytes, sha256(bytes),
+        return new Artifact(fixture, route.specialization(), route.kernelIr(), bytes, sha256(bytes),
                 CpuGeneratorSchema.generatedBinaryName(route.specialization()), route.kernelIr().structuralKey());
     }
 
     static short[] invoke(Artifact artifact, short[] input) throws Throwable {
         short[] actual = new short[input.length]; long[] geometry = geometry(2, input.length);
-        MethodHandle handle = new CpuClassFileKernelGenerator().defineClassBytes(artifact.specialization(), artifact.bytes()).entryPoint();
+        MethodHandle handle = new CpuClassFileKernelGenerator().defineClassBytes(artifact.specialization(), artifact.kernelIr(), artifact.bytes()).entryPoint();
         handle.invokeExact(input, actual, geometry, 0L, (long) input.length);
         return actual;
     }

@@ -41,8 +41,7 @@ class CpuAttentionCapabilityTest {
               var resultDescriptors = new ArrayList<TensorDescriptor>();
               resultDescriptors.add(desc(result, Shape.of(2, 5, 3, 7), true));
               if (outputs == 2) resultDescriptors.add(desc(result, Shape.of(2, 5, 3, 6), true));
-              assertTrue(
-                  provider.supports(query(inputs, resultDescriptors)), q + " " + k + " " + v);
+              io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(inputs, resultDescriptors), q + " " + k + " " + v);
             }
         }
   }

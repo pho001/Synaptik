@@ -91,6 +91,19 @@ public final class CpuConcurrencyBudget {
          */
         public int demand() { return demand; }
 
+        /**
+         * Authenticates the demand of a synchronous loan. The run-owned caller must exclude
+         * concurrent borrowing and keep this lease live until every started worker quiesces;
+         * this predicate introduces neither pinning nor another ownership protocol.
+         * @param budget exact borrowed budget identity, or null to reject
+         * @param demand positive participant demand
+         * @return whether this is a live, same-budget, sufficient reservation
+         */
+        boolean covers(CpuConcurrencyBudget budget, int demand) {
+            return budget != null && permits == budget.permits && !released.get()
+                    && demand > 0 && demand <= this.demand;
+        }
+
         /** Releases this lease's exact permits once; repeated calls have no effect. */
         @Override public void close() {
             if (released.compareAndSet(false, true)) permits.release(demand);

@@ -123,4 +123,19 @@ public record CpuRandomIr(Family family, DataType valueType, long keyBits, long 
 
     /** @return deterministic hexadecimal structural key excluding cold geometry */
     @Override public String structuralKey() { return encodedKernelIr().structuralKey(); }
+    /**
+     * Reads only the semantic discriminator consumed by emission, without decoding geometry.
+     * @param ir non-null canonical random envelope
+     * @return the existing encoded semantic discriminator
+     * @throws NullPointerException if the envelope is null
+     * @throws IllegalArgumentException if the family or discriminator is malformed
+     */
+    public static Family encodedFamily(CpuKernelIr ir) {
+        String identity = Objects.requireNonNull(ir, "ir").familyIdentity();
+        if (!identity.startsWith("random:")) throw new IllegalArgumentException("wrong encoded family");
+        int end = identity.indexOf(':', 7);
+        if (end < 0) throw new IllegalArgumentException("missing encoded discriminator");
+        return Family.valueOf(identity.substring(7, end));
+    }
+
 }

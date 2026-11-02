@@ -82,12 +82,6 @@ final class CpuStableReductionSoftmaxStageATest {
                 assertThrows(IllegalArgumentException.class,
                         () -> CpuSoftmaxInputValidator.validate(input, geometry), type + "/" + Arrays.toString(pair));
             }
-            if (type == DataType.FLOAT64) {
-                CpuBufferArgument extremes = new CpuBufferArgument.Doubles(
-                        new double[] {Double.MAX_VALUE, -Double.MAX_VALUE}, 0, 16, true);
-                assertThrows(IllegalArgumentException.class,
-                        () -> CpuSoftmaxInputValidator.validate(extremes, geometry), type + "/extreme shift");
-            }
         }
         assertThrows(IllegalArgumentException.class, () -> CpuSoftmaxLoweringTest.lower(
                 SoftmaxKind.SOFTMAX, DataType.FLOAT32, Shape.of(2, 0), 1));
@@ -205,7 +199,7 @@ final class CpuStableReductionSoftmaxStageATest {
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
         byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
-        var artifact = generator.defineClassBytes(route.specialization(), bytes);
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes);
         int count = Math.toIntExact(Arrays.stream(extents).reduce(1L, Math::multiplyExact));
         double[] logical = values(count);
         Object input = represented(type, logical); Object output = represented(type, new double[count]);

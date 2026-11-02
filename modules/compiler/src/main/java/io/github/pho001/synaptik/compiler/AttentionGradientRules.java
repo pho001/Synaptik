@@ -5,8 +5,8 @@ import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionAttrs;
 import io.github.pho001.synaptik.model.shape.Dimension;
 import io.github.pho001.synaptik.model.shape.Shape;
-import io.github.pho001.synaptik.model.tensor.Tensor;
-import io.github.pho001.synaptik.model.tensor.TensorProducer;
+
+import java.util.function.Function;
 
 /**
  * Builds first-order formulas for a two-output scaled-dot-product-attention occurrence.
@@ -15,12 +15,23 @@ import io.github.pho001.synaptik.model.tensor.TensorProducer;
  * Selection-safe contractions use public expand, multiplication, {@code where}, and reduction
  * expressions so an exact-zero saved weight excludes an exceptional opposing operand before
  * arithmetic. This owner creates no sibling attention occurrence or physical saved state.</p>
+ *
+ * <p>Descriptor access preserves original source roles without resolving primal values.
+ * Real construction uses Tensor references directly; checked metadata construction retains
+ * the same eager operation sites, including temporaries not used by a returned cotangent.</p>
+ *
+ * @param <V> direct Tensor or checked metadata operand representation
  */
-final class AttentionGradientRules {
+final class AttentionGradientRules<V> {
+    private final OrdinaryConstruction<V> ops;
+
     /**
-     * Prevents construction of this stateless formula owner.
+     * Binds this formula owner to one compile-local construction route.
+     * @param ops non-null direct Tensor or checked metadata construction
      */
-    private AttentionGradientRules() {}
+    AttentionGradientRules(OrdinaryConstruction<V> ops) {
+        this.ops = java.util.Objects.requireNonNull(ops);
+    }
 
     /**
      * Builds selected query, key, and value cotangents for one approved output slot.
@@ -30,50 +41,50 @@ final class AttentionGradientRules {
      * @param gradient non-null accumulated cotangent for the selected output
      * @param selectedInputs non-null input-position-aligned selected-route flags; observed but
      *     not mutated
-     * @param constants non-null request-local exact floating logical-splat owner
+     * @param primal non-null resolver from original primal wrappers to lexical values
      * @return a new input-position-aligned array of selected cotangents, with {@code null} for
      *     unselected roles
      */
-    static Tensor[] apply(
-            TensorProducer producer,
+    V[] apply(
+            OrdinaryConstruction.Source<V> producer,
             int outputIndex,
-            Tensor gradient,
+            V gradient,
             boolean[] selectedInputs,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        DataType resultType = producer.output(outputIndex).descriptor().dataType();
-        Tensor query = cast(producer.inputs().get(0), resultType);
-        Tensor key = cast(producer.inputs().get(1), resultType);
-        Tensor value = cast(producer.inputs().get(2), resultType);
-        Tensor weights = producer.output(1);
-        Tensor[] result = new Tensor[producer.inputs().size()];
+            Function<V, V> primal) {
+        DataType resultType = ops.descriptor(producer.output(outputIndex)).dataType();
+        V query = cast(primal.apply(producer.inputs().get(0)), resultType);
+        V key = cast(primal.apply(producer.inputs().get(1)), resultType);
+        V value = cast(primal.apply(producer.inputs().get(2)), resultType);
+        V weights = primal.apply(producer.output(1));
+        V[] result = ops.array(producer.inputs().size());
 
-        Tensor scoreGradient;
+        V scoreGradient;
         if (outputIndex == 0) {
-            Tensor valueGradient = selectionSafeContractOverQuery(
-                    weights, gradient, constants);
+            V valueGradient = selectionSafeContractOverQuery(
+                    weights, gradient);
             if (selectedInputs[2]) {
                 result[2] = normalize(valueGradient, producer.inputs().get(2));
             }
-            Tensor upstreamWeights = gradient.matmul(swapLastTwo(value));
-            scoreGradient = softmaxPullback(weights, upstreamWeights, constants);
+            V upstreamWeights = ops.matmul(gradient, swapLastTwo(value));
+            scoreGradient = softmaxPullback(weights, upstreamWeights);
         } else {
-            scoreGradient = softmaxPullback(weights, gradient, constants);
+            scoreGradient = softmaxPullback(weights, gradient);
         }
 
         ScaledDotProductAttentionAttrs attrs =
                 (ScaledDotProductAttentionAttrs) producer.operation().attrs();
         if (selectedInputs[0]) {
-            Tensor queryGradient =
-                    selectionSafeContractOverKey(scoreGradient, key, constants);
+            V queryGradient =
+                    selectionSafeContractOverKey(scoreGradient, key);
             result[0] = normalize(
-                    applyScale(queryGradient, query, attrs.scale(), constants),
+                    applyScale(queryGradient, query, attrs.scale()),
                     producer.inputs().get(0));
         }
         if (selectedInputs[1]) {
-            Tensor keyGradient =
-                    selectionSafeContractOverQuery(scoreGradient, query, constants);
+            V keyGradient =
+                    selectionSafeContractOverQuery(scoreGradient, query);
             result[1] = normalize(
-                    applyScale(keyGradient, query, attrs.scale(), constants),
+                    applyScale(keyGradient, query, attrs.scale()),
                     producer.inputs().get(1));
         }
         return result;
@@ -85,16 +96,12 @@ final class AttentionGradientRules {
      *
      * @param weights non-null canonical same-occurrence attention weights
      * @param upstream non-null cotangent with the weights descriptor
-     * @param constants non-null request-local exact floating logical-splat owner
      * @return a new score-cotangent expression with the weights descriptor
      */
-    private static Tensor softmaxPullback(
-            Tensor weights,
-            Tensor upstream,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        Tensor weighted = selectionSafeProduct(weights, upstream, constants);
-        Tensor centered = upstream.sub(weighted.sum(-1, true));
-        return selectionSafeProduct(weights, centered, constants);
+    private V softmaxPullback(V weights, V upstream) {
+        V weighted = selectionSafeProduct(weights, upstream);
+        V centered = ops.sub(upstream, ops.sum(weighted, ops.descriptor(weighted).shape().rank() - 1, true));
+        return selectionSafeProduct(weights, centered);
     }
 
     /**
@@ -102,18 +109,14 @@ final class AttentionGradientRules {
      *
      * @param scores non-null score-shaped selector Tensor
      * @param operand non-null key-position-aligned operand
-     * @param constants non-null request-local exact floating logical-splat owner
      * @return a new selection-safe contraction expression
      */
-    private static Tensor selectionSafeContractOverKey(
-            Tensor scores,
-            Tensor operand,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        Tensor expandedScores = scores.expandDims(scores.descriptor().shape().rank());
-        Tensor expandedOperand =
-                operand.expandDims(operand.descriptor().shape().rank() - 2);
-        return selectionSafeProduct(expandedScores, expandedOperand, constants)
-                .sum(-2, false);
+    private V selectionSafeContractOverKey(V scores, V operand) {
+        V expandedScores = ops.expandDims(scores, ops.descriptor(scores).shape().rank());
+        V expandedOperand =
+                ops.expandDims(operand, ops.descriptor(operand).shape().rank() - 2);
+        V product = selectionSafeProduct(expandedScores, expandedOperand);
+    return ops.sum(product, ops.descriptor(product).shape().rank() - 2, false);
     }
 
     /**
@@ -121,18 +124,14 @@ final class AttentionGradientRules {
      *
      * @param scores non-null score-shaped selector Tensor
      * @param operand non-null query-position-aligned operand
-     * @param constants non-null request-local exact floating logical-splat owner
      * @return a new selection-safe contraction expression
      */
-    private static Tensor selectionSafeContractOverQuery(
-            Tensor scores,
-            Tensor operand,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        Tensor expandedScores = scores.expandDims(scores.descriptor().shape().rank());
-        Tensor expandedOperand =
-                operand.expandDims(operand.descriptor().shape().rank() - 1);
-        return selectionSafeProduct(expandedScores, expandedOperand, constants)
-                .sum(-3, false);
+    private V selectionSafeContractOverQuery(V scores, V operand) {
+        V expandedScores = ops.expandDims(scores, ops.descriptor(scores).shape().rank());
+        V expandedOperand =
+                ops.expandDims(operand, ops.descriptor(operand).shape().rank() - 1);
+        V product = selectionSafeProduct(expandedScores, expandedOperand);
+    return ops.sum(product, ops.descriptor(product).shape().rank() - 3, false);
     }
 
     /**
@@ -141,16 +140,12 @@ final class AttentionGradientRules {
      *
      * @param selector non-null floating selector Tensor
      * @param operand non-null broadcast-compatible floating operand
-     * @param constants non-null request-local exact floating logical-splat owner
      * @return a new Tensor expression with excluded exceptional operands suppressed
      */
-    private static Tensor selectionSafeProduct(
-            Tensor selector,
-            Tensor operand,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        Tensor product = selector.mul(operand);
-        Tensor excluded = selector.equalTo(constants.zeroLike(selector));
-        return Tensor.where(excluded, constants.zeroLike(product), product);
+    private V selectionSafeProduct(V selector, V operand) {
+        V product = ops.mul(selector, operand);
+        V excluded = ops.equalTo(selector, ops.zeroLike(selector));
+        return ops.where(excluded, ops.zeroLike(product), product);
     }
 
     /**
@@ -160,24 +155,19 @@ final class AttentionGradientRules {
      * @param value non-null unscaled cotangent
      * @param query non-null query Tensor whose final Dimension defines the default scale
      * @param configuredScale non-null optional exact configured scalar
-     * @param constants non-null request-local exact floating logical-splat owner
      * @return a new scaled cotangent expression
      */
-    private static Tensor applyScale(
-            Tensor value,
-            Tensor query,
-            java.util.Optional<ScalarValue> configuredScale,
-            FirstOrderAutograd.DerivativeConstants constants) {
+    private V applyScale(
+            V value,
+            V query,
+            java.util.Optional<ScalarValue> configuredScale) {
         if (configuredScale.isPresent()) {
-            return value.mul(configuredScale.orElseThrow());
+            return ops.mul(value, configuredScale.orElseThrow());
         }
         Dimension embedding =
-                query.descriptor().shape().dimension(query.descriptor().shape().rank() - 1);
-        Tensor scale = constants.oneBase(query.descriptor().dataType())
-                .expand(Shape.ofDimensions(embedding))
-                .sum()
-                .rsqrt();
-        return value.mul(scale);
+                ops.descriptor(query).shape().dimension(ops.descriptor(query).shape().rank() - 1);
+        V scale = ops.rsqrt(ops.sum(ops.expand(ops.oneBase(ops.descriptor(query).dataType()), Shape.ofDimensions(embedding))));
+        return ops.mul(value, scale);
     }
 
     /**
@@ -187,8 +177,8 @@ final class AttentionGradientRules {
      * @param dataType non-null floating result type
      * @return {@code input} when its type already matches; otherwise a new cast expression
      */
-    private static Tensor cast(Tensor input, DataType dataType) {
-        return input.descriptor().dataType() == dataType ? input : input.cast(dataType);
+    private V cast(V input, DataType dataType) {
+        return ops.descriptor(input).dataType() == dataType ? input : ops.cast(input, dataType);
     }
 
     /**
@@ -198,13 +188,13 @@ final class AttentionGradientRules {
      * @param input non-null original input whose descriptor is restored
      * @return a non-null ordinary Tensor expression with the input's exact descriptor
      */
-    private static Tensor normalize(Tensor gradient, Tensor input) {
-        Tensor result = gradient.descriptor().shape().equals(input.descriptor().shape())
+    private V normalize(V gradient, V input) {
+        V result = ops.descriptor(gradient).shape().equals(ops.descriptor(input).shape())
                 ? gradient
-                : gradient.sumToShape(input.descriptor().shape());
-        return result.descriptor().dataType() == input.descriptor().dataType()
+                : ops.sumToShape(gradient, ops.descriptor(input).shape());
+        return ops.descriptor(result).dataType() == ops.descriptor(input).dataType()
                 ? result
-                : result.cast(input.descriptor().dataType());
+                : ops.cast(result, ops.descriptor(input).dataType());
     }
 
     /**
@@ -213,14 +203,14 @@ final class AttentionGradientRules {
      * @param tensor non-null preflight-approved Tensor with rank at least two
      * @return a new Tensor expression with the final two axes exchanged
      */
-    private static Tensor swapLastTwo(Tensor tensor) {
-        int rank = tensor.descriptor().shape().rank();
+    private V swapLastTwo(V tensor) {
+        int rank = ops.descriptor(tensor).shape().rank();
         int[] axes = new int[rank];
         for (int axis = 0; axis < rank; axis++) {
             axes[axis] = axis;
         }
         axes[rank - 2] = rank - 1;
         axes[rank - 1] = rank - 2;
-        return tensor.permute(axes);
+        return ops.permute(tensor, axes);
     }
 }

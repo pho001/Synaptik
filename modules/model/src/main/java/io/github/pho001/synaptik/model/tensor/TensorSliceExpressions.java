@@ -63,30 +63,38 @@ final class TensorSliceExpressions {
      */
     static Tensor apply(
             Tensor input, long[] starts, long[] ends, int[] axes, long[] steps) {
-        Objects.requireNonNull(input, "input");
-        Objects.requireNonNull(starts, "starts");
-        Objects.requireNonNull(ends, "ends");
-        Objects.requireNonNull(axes, "axes");
-        Objects.requireNonNull(steps, "steps");
-        if (starts.length != ends.length
-                || starts.length != axes.length
-                || starts.length != steps.length) {
-            throw new IllegalArgumentException(
-                    "starts, ends, axes, and steps must have matching lengths");
-        }
+        return applyChecked(input, starts, ends, axes, steps, null);
+    }
 
-        long[] privateStarts = starts.clone();
-        long[] privateEnds = ends.clone();
-        int[] privateAxes = axes.clone();
-        long[] privateSteps = steps.clone();
-        TensorDescriptor inputDescriptor = input.descriptor();
-        Shape inputShape = inputDescriptor.shape();
-        SliceAttrs attrs = normalize(
-                inputShape, privateStarts, privateEnds, privateAxes, privateSteps);
-        Shape resultShape = deriveShape(inputShape, attrs);
-        Optional<LayoutDescriptor> resultLayout =
-                resolveViewLayout(inputDescriptor, resultShape, attrs);
-        return create(input, inputDescriptor, resultShape, resultLayout, attrs);
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null tensor retained as the exact sole provenance input; not mutated
+     * @param starts non-null caller-owned inclusive raw starts, paired by entry
+     * @param ends non-null caller-owned exclusive raw ends, paired by entry
+     * @param axes non-null caller-owned raw positive or negative axes, paired by entry
+     * @param steps non-null caller-owned signed non-zero steps, paired by entry
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if any reference is null, with its parameter name as message
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if array lengths differ, an axis is invalid or repeated, a
+     *     step is zero, or a selected dimension is dynamic
+     * @throws ArithmeticException if checked result element-count, layout-offset, stride,
+     *     classification, or span arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    static Tensor applyChecked(
+            Tensor input, long[] starts, long[] ends, int[] axes, long[] steps,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return applyDescriptors(
+                input == null ? null : input.descriptor(),
+                starts,
+                ends,
+                axes,
+                steps,
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -122,30 +130,38 @@ final class TensorSliceExpressions {
      */
     static Tensor applyByLength(
             Tensor input, long[] starts, long[] lengths, int[] axes, long[] steps) {
-        Objects.requireNonNull(input, "input");
-        Objects.requireNonNull(starts, "starts");
-        Objects.requireNonNull(lengths, "lengths");
-        Objects.requireNonNull(axes, "axes");
-        Objects.requireNonNull(steps, "steps");
-        if (starts.length != lengths.length
-                || starts.length != axes.length
-                || starts.length != steps.length) {
-            throw new IllegalArgumentException(
-                    "starts, lengths, axes, and steps must have matching lengths");
-        }
+        return applyByLengthChecked(input, starts, lengths, axes, steps, null);
+    }
 
-        long[] privateStarts = starts.clone();
-        long[] privateLengths = lengths.clone();
-        int[] privateAxes = axes.clone();
-        long[] privateSteps = steps.clone();
-        TensorDescriptor inputDescriptor = input.descriptor();
-        Shape inputShape = inputDescriptor.shape();
-        SliceAttrs attrs = normalizeByLength(
-                inputShape, privateStarts, privateLengths, privateAxes, privateSteps);
-        Shape resultShape = deriveShape(inputShape, attrs);
-        Optional<LayoutDescriptor> resultLayout =
-                resolveViewLayout(inputDescriptor, resultShape, attrs);
-        return create(input, inputDescriptor, resultShape, resultLayout, attrs);
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null tensor retained as the exact sole provenance input; not mutated
+     * @param starts non-null caller-owned normalized non-negative inclusive starts; cloned and
+     *     never retained or mutated
+     * @param lengths non-null caller-owned finite non-negative coordinate counts; cloned and
+     *     never retained or mutated
+     * @param axes non-null caller-owned positive or negative axes; cloned and normalized once
+     * @param steps non-null caller-owned signed non-zero coordinate increments; cloned unchanged
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if a reference is null, checked in parameter order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if lengths differ or an entry violates the local contract
+     * @throws ArithmeticException if checked coordinate, Shape, or layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    static Tensor applyByLengthChecked(
+            Tensor input, long[] starts, long[] lengths, int[] axes, long[] steps,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return applyByLengthDescriptors(
+                input == null ? null : input.descriptor(),
+                starts,
+                lengths,
+                axes,
+                steps,
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -168,12 +184,35 @@ final class TensorSliceExpressions {
      */
     static Tensor applyAxis(
             Tensor input, int axis, long fromInclusive, long toExclusive, long step) {
-        return apply(
+        return applyAxisChecked(input, axis, fromInclusive, toExclusive, step, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null tensor retained as the exact sole provenance input
+     * @param axis raw positive or negative selected input axis
+     * @param fromInclusive raw inclusive start normalized and clamped by the general path
+     * @param toExclusive raw exclusive end normalized and clamped by the general path
+     * @param step signed non-zero distance between selected coordinates
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input} is null, with message {@code input}
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if the axis is invalid, selected dimension is dynamic, or
+     *     {@code step} is zero, or the delegated general request is otherwise invalid
+     * @throws ArithmeticException if checked result element-count or layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    static Tensor applyAxisChecked(
+            Tensor input, int axis, long fromInclusive, long toExclusive, long step,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return applyChecked(
                 input,
                 new long[] {fromInclusive},
                 new long[] {toExclusive},
                 new int[] {axis},
-                new long[] {step});
+                new long[] {step}, descriptorCheck);
     }
 
     /**
@@ -196,52 +235,30 @@ final class TensorSliceExpressions {
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
      */
     static Tensor flip(Tensor input, int[] axes) {
-        Objects.requireNonNull(input, "input");
-        Objects.requireNonNull(axes, "axes");
-        int[] privateAxes = axes.clone();
-        TensorDescriptor inputDescriptor = input.descriptor();
-        Shape inputShape = inputDescriptor.shape();
-        int rank = inputShape.rank();
-        boolean[] seenAxes = new boolean[rank];
-        List<Long> starts = new ArrayList<>(privateAxes.length);
-        List<Long> lengths = new ArrayList<>(privateAxes.length);
-        List<Integer> normalizedAxes = new ArrayList<>(privateAxes.length);
-        List<Long> steps = new ArrayList<>(privateAxes.length);
-        for (int index = 0; index < privateAxes.length; index++) {
-            int rawAxis = privateAxes[index];
-            long normalizedAxis = rawAxis;
-            if (normalizedAxis < 0) {
-                normalizedAxis += rank;
-            }
-            if (normalizedAxis < 0 || normalizedAxis >= rank) {
-                throw new IllegalArgumentException(
-                        "flip axis " + rawAxis + " at index " + index
-                                + " is outside rank " + rank);
-            }
-            int axis = (int) normalizedAxis;
-            if (seenAxes[axis]) {
-                throw new IllegalArgumentException(
-                        "flip contains duplicate normalized axis " + axis
-                                + " at index " + index);
-            }
-            seenAxes[axis] = true;
-            Dimension selectedDimension = inputShape.dimensions().get(axis);
-            if (!(selectedDimension instanceof StaticDimension staticDimension)) {
-                throw new IllegalArgumentException(
-                        "flip axis " + axis + " at index " + index
-                                + " must have a statically known dimension");
-            }
-            long dimensionSize = staticDimension.size();
-            starts.add(dimensionSize == 0 ? 0L : Math.subtractExact(dimensionSize, 1L));
-            lengths.add(dimensionSize);
-            normalizedAxes.add(axis);
-            steps.add(-1L);
-        }
-        SliceAttrs attrs = new SliceAttrs(starts, lengths, normalizedAxes, steps);
-        Shape resultShape = deriveShape(inputShape, attrs);
-        Optional<LayoutDescriptor> resultLayout =
-                resolveViewLayout(inputDescriptor, resultShape, attrs);
-        return create(input, inputDescriptor, resultShape, resultLayout, attrs);
+        return flipChecked(input, axes, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null tensor retained as the exact sole provenance input; not mutated
+     * @param axes non-null caller-owned positive or negative axes; cloned and never retained
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input} or {@code axes} is null, in that order, with
+     *     the parameter name as message
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if an axis is outside rank, repeated after normalization,
+     *     or selects a dynamic dimension
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    static Tensor flipChecked(Tensor input, int[] axes,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return flipDescriptors(
+                input == null ? null : input.descriptor(),
+                axes,
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -548,36 +565,220 @@ final class TensorSliceExpressions {
         return Optional.of(LayoutDescriptor.of(resultShape, resultStrides, resultOffset, true));
     }
 
+
     /**
-     * Creates exact descriptor, slice semantics, provenance, and one fresh Tensor.
-     *
-     * <p>Data type and gradient eligibility are retained. The result has the supplied Shape and
-     * resolved-or-unresolved layout, absent label and storage, exact {@link SliceKind#SLICE} with
-     * the normalized attributes, and ordered provenance {@code [input]}. The central derived
-     * factory is called exactly once, including for identity, repeated, nested, and empty slices.</p>
-     *
-     * @param input non-null exact sole provenance input
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input exact real provenance operand, or null for descriptor completion
      * @param inputDescriptor non-null descriptor supplying exact type and eligibility
      * @param resultShape non-null derived result Shape
      * @param resultLayout non-null resolved-view or unresolved-layout optional
      * @param attrs non-null exact normalized attributes retained by the Operation
-     * @return non-null fresh factory-derived Tensor without label or storage
-     * @throws IllegalArgumentException if completed descriptor invariants reject supplied metadata
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if completed descriptor invariants reject supplied metadata
      * @throws ArithmeticException if descriptor layout reconstruction arithmetic overflows
      * @throws IllegalStateException if tensor identifier space is exhausted at factory delegation
      */
-    private static Tensor create(
+    private static Tensor createChecked(
             Tensor input,
             TensorDescriptor inputDescriptor,
             Shape resultShape,
             Optional<LayoutDescriptor> resultLayout,
-            SliceAttrs attrs) {
+            SliceAttrs attrs,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         TensorDescriptor descriptor = new TensorDescriptor(
                 inputDescriptor.dataType(),
                 resultShape,
                 resultLayout,
                 inputDescriptor.requiresGrad());
         Operation operation = new Operation(SliceKind.SLICE, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
+    }
+
+    /**
+     * Completes ordinary checked semantics synchronously without creating Tensor identities.
+     * The real construction path calls these same descriptor guards and result helpers.
+     * @param operation non-null canonical operation selecting this family and its attributes
+     * @param inputs non-null ordered operand descriptors, retaining aliases and positions
+     * @param outputCount exact canonical sibling count, one
+     * @param sink non-null unretained consumer called once with checked semantics and all outputs
+     * @throws NullPointerException if a required reference is null
+     * @throws IllegalArgumentException if cardinality or ordinary semantic guards reject input
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(operation, "operation");
+        Objects.requireNonNull(inputs, "inputs");
+        Objects.requireNonNull(sink, "sink");
+        if (inputs.size() != 1 || outputCount != 1) {
+            throw new IllegalArgumentException("invalid ordinary descriptor cardinality");
+        }
+        for (TensorDescriptor input : inputs) {
+            Objects.requireNonNull(input, "input descriptor");
+        }
+        SliceAttrs attrs = (SliceAttrs) operation.attrs();
+        applyByLengthDescriptors(inputs.get(0),
+                attrs.starts().stream().mapToLong(Long::longValue).toArray(),
+                attrs.lengths().stream().mapToLong(Long::longValue).toArray(),
+                attrs.axes().stream().mapToInt(Integer::intValue).toArray(),
+                attrs.steps().stream().mapToLong(Long::longValue).toArray(), sink, null);
+    }
+
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param input exact operand descriptor, subject to ordinary null/semantic guards
+     * @param starts ordinary checked construction parameter
+     * @param ends ordinary checked construction parameter
+     * @param axes ordinary checked construction parameter
+     * @param steps ordinary checked construction parameter
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalInput exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor applyDescriptors(
+            TensorDescriptor input,
+            long[] starts,
+            long[] ends,
+            int[] axes,
+            long[] steps,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(starts, "starts");
+        Objects.requireNonNull(ends, "ends");
+        Objects.requireNonNull(axes, "axes");
+        Objects.requireNonNull(steps, "steps");
+        if (starts.length != ends.length
+                || starts.length != axes.length
+                || starts.length != steps.length) {
+            throw new IllegalArgumentException(
+                    "starts, ends, axes, and steps must have matching lengths");
+        }
+
+        long[] privateStarts = starts.clone();
+        long[] privateEnds = ends.clone();
+        int[] privateAxes = axes.clone();
+        long[] privateSteps = steps.clone();
+        TensorDescriptor inputDescriptor = input;
+        Shape inputShape = inputDescriptor.shape();
+        SliceAttrs attrs = normalize(
+                inputShape, privateStarts, privateEnds, privateAxes, privateSteps);
+        Shape resultShape = deriveShape(inputShape, attrs);
+        Optional<LayoutDescriptor> resultLayout =
+                resolveViewLayout(inputDescriptor, resultShape, attrs);
+        return createChecked(originalInput, inputDescriptor, resultShape, resultLayout, attrs, descriptorCheck);
+    }
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param input exact operand descriptor, subject to ordinary null/semantic guards
+     * @param starts ordinary checked construction parameter
+     * @param lengths ordinary checked construction parameter
+     * @param axes ordinary checked construction parameter
+     * @param steps ordinary checked construction parameter
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalInput exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor applyByLengthDescriptors(
+            TensorDescriptor input,
+            long[] starts,
+            long[] lengths,
+            int[] axes,
+            long[] steps,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(starts, "starts");
+        Objects.requireNonNull(lengths, "lengths");
+        Objects.requireNonNull(axes, "axes");
+        Objects.requireNonNull(steps, "steps");
+        if (starts.length != lengths.length
+                || starts.length != axes.length
+                || starts.length != steps.length) {
+            throw new IllegalArgumentException(
+                    "starts, lengths, axes, and steps must have matching lengths");
+        }
+
+        long[] privateStarts = starts.clone();
+        long[] privateLengths = lengths.clone();
+        int[] privateAxes = axes.clone();
+        long[] privateSteps = steps.clone();
+        TensorDescriptor inputDescriptor = input;
+        Shape inputShape = inputDescriptor.shape();
+        SliceAttrs attrs = normalizeByLength(
+                inputShape, privateStarts, privateLengths, privateAxes, privateSteps);
+        Shape resultShape = deriveShape(inputShape, attrs);
+        Optional<LayoutDescriptor> resultLayout =
+                resolveViewLayout(inputDescriptor, resultShape, attrs);
+        return createChecked(originalInput, inputDescriptor, resultShape, resultLayout, attrs, descriptorCheck);
+    }
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param input exact operand descriptor, subject to ordinary null/semantic guards
+     * @param axes ordinary checked construction parameter
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalInput exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor flipDescriptors(
+            TensorDescriptor input,
+            int[] axes,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(axes, "axes");
+        int[] privateAxes = axes.clone();
+        TensorDescriptor inputDescriptor = input;
+        Shape inputShape = inputDescriptor.shape();
+        int rank = inputShape.rank();
+        boolean[] seenAxes = new boolean[rank];
+        List<Long> starts = new ArrayList<>(privateAxes.length);
+        List<Long> lengths = new ArrayList<>(privateAxes.length);
+        List<Integer> normalizedAxes = new ArrayList<>(privateAxes.length);
+        List<Long> steps = new ArrayList<>(privateAxes.length);
+        for (int index = 0; index < privateAxes.length; index++) {
+            int rawAxis = privateAxes[index];
+            long normalizedAxis = rawAxis;
+            if (normalizedAxis < 0) {
+                normalizedAxis += rank;
+            }
+            if (normalizedAxis < 0 || normalizedAxis >= rank) {
+                throw new IllegalArgumentException(
+                        "flip axis " + rawAxis + " at index " + index
+                                + " is outside rank " + rank);
+            }
+            int axis = (int) normalizedAxis;
+            if (seenAxes[axis]) {
+                throw new IllegalArgumentException(
+                        "flip contains duplicate normalized axis " + axis
+                                + " at index " + index);
+            }
+            seenAxes[axis] = true;
+            Dimension selectedDimension = inputShape.dimensions().get(axis);
+            if (!(selectedDimension instanceof StaticDimension staticDimension)) {
+                throw new IllegalArgumentException(
+                        "flip axis " + axis + " at index " + index
+                                + " must have a statically known dimension");
+            }
+            long dimensionSize = staticDimension.size();
+            starts.add(dimensionSize == 0 ? 0L : Math.subtractExact(dimensionSize, 1L));
+            lengths.add(dimensionSize);
+            normalizedAxes.add(axis);
+            steps.add(-1L);
+        }
+        SliceAttrs attrs = new SliceAttrs(starts, lengths, normalizedAxes, steps);
+        Shape resultShape = deriveShape(inputShape, attrs);
+        Optional<LayoutDescriptor> resultLayout =
+                resolveViewLayout(inputDescriptor, resultShape, attrs);
+        return createChecked(originalInput, inputDescriptor, resultShape, resultLayout, attrs, descriptorCheck);
     }
 }

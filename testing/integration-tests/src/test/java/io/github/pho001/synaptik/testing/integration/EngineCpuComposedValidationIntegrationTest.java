@@ -20,6 +20,140 @@ import org.junit.jupiter.api.Test;
 
 /** Public CPU composition regressions without changing shared Engine or Compiler fixtures. */
 final class EngineCpuComposedValidationIntegrationTest {
+    /** Scale AD contains rounded gradient*normalized followed by an ordinary prefix-axis SUM. */
+    @Test void layerNormScaleGradientOrdinarySumReusesPreparationWithFreshInputs() {
+        try (var arena = Arena.ofShared(); var engine = Engine.builder()
+                .takeOwnership(io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration.open()).build()) {
+            var input = floats(arena,Shape.of(2,3),false,1,2,3,4,5,6);
+            var scaleBase = floats(arena,Shape.of(3),false,1,1,1);
+            var scale = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32,Shape.of(3),scaleBase.descriptor().layout(),true),
+                    Optional.empty(),scaleBase.hostStorage());
+            var bias = floats(arena,Shape.of(3),false,0,0,0); var upstream = floats(arena,Shape.of(2,3),false,1,2,3,4,5,6);
+            var seed = floats(arena,Shape.scalar(),false,1);
+            var objective = input.layerNorm(Shape.of(3),scale,bias,io.github.pho001.synaptik.model.datatype.ScalarValue.float32(.01f)).mul(upstream).sum();
+            var compiled = engine.compile(List.of(objective),List.of(seed),List.of(scale));
+            var pool = List.of(input,scale,bias,upstream,seed);
+            var ordered = compiled.inputs().stream().map(i -> pool.stream().filter(t -> t.id().equals(i.tensorId())).findFirst().orElseThrow()).toList();
+            try (var session = engine.prepare(compiled)) {
+                for (int run = 1; run <= 2; run++) {
+                    var storage = ((MemorySegmentStorage)input.hostStorage().orElseThrow()).segment();
+                    for (int i = 0; i < 6; i++) storage.setAtIndex(ValueLayout.JAVA_FLOAT,i,run*(i+1));
+                    double normalized = run/Math.sqrt(2d*run*run/3+.01);
+                    try (var result = engine.run(session,ordered)) {
+                        assertEquals(4*normalized,result.materialize(result.publications().getFirst(),4).bytes().getFloat(),2e-5);
+                        var gradient = result.materialize(result.publications().get(1),12).bytes();
+                        assertEquals(-5*normalized,gradient.getFloat(),2e-5); assertEquals(0,gradient.getFloat()); assertEquals(9*normalized,gradient.getFloat(),2e-5);
+                    }
+                }
+            }
+        }
+    }
+    /** Actual Compiler ordinary broadcast gradients reuse preparation with fresh input values. */
+    @Test void ordinaryProducerReductionAndCompilerGradientReuseFreshInputs() {
+        try (var arena = Arena.ofShared(); var engine = Engine.builder()
+                .takeOwnership(io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration.open()).build()) {
+            var input = floats(arena,Shape.of(2,3),false,1,2,3,4,5,6);
+            var weightStorage = arena.allocate(3L*4,4);
+            for (int i = 0; i < 3; i++) weightStorage.setAtIndex(ValueLayout.JAVA_FLOAT,i,2);
+            var weights = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32,Shape.of(3),
+                    Optional.of(LayoutDescriptor.contiguous(Shape.of(3))),true),Optional.empty(),
+                    Optional.of(new MemorySegmentStorage(DataType.FLOAT32,3,weightStorage)));
+            var seed = floats(arena,Shape.scalar(),false,1);
+            var objective = input.mul(weights).sum(1).sum();
+            var compiled = engine.compile(List.of(objective),List.of(seed),List.of(weights));
+            var pool = List.of(input,weights,seed);
+            var ordered = compiled.inputs().stream().map(i -> pool.stream().filter(t -> t.id().equals(i.tensorId())).findFirst().orElseThrow()).toList();
+            try (var session = engine.prepare(compiled)) {
+                for (int run = 1; run <= 2; run++) {
+                    var storage = ((MemorySegmentStorage)input.hostStorage().orElseThrow()).segment();
+                    for (int i = 0; i < 6; i++) storage.setAtIndex(ValueLayout.JAVA_FLOAT,i,run*(i+1));
+                    try (var result = engine.run(session,ordered)) {
+                        assertEquals(42f*run,result.materialize(result.publications().getFirst(),4).bytes().getFloat());
+                        var gradient = result.materialize(result.publications().get(1),12).bytes();
+                        for (int i = 0; i < 3; i++) assertEquals((5f+2*i)*run,gradient.getFloat());
+                    }
+                }
+            }
+        }
+    }
+
+    /** Public producer/reduction stores survive an expanding ADD tail and repeated execution. */
+    @Test void publishedProducerAndAggregateSurviveExpandingTail() {
+        try (var arena = Arena.ofShared(); var engine = Engine.builder()
+                .takeOwnership(io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration.open()).build()) {
+            var input = floats(arena,Shape.of(2,3),false,1,2,3,4,5,6);
+            var factors = floats(arena,Shape.of(2,3),false,2,2,2,2,2,2);
+            var bias = floats(arena,Shape.of(2),false,1,2);
+            var product = input.mul(factors); var aggregate = product.sum(); var expanded = aggregate.add(bias);
+            var compiled = engine.compile(List.of(product,aggregate,expanded));
+            var pool = List.of(input,factors,bias);
+            var ordered = compiled.inputs().stream().map(i -> pool.stream().filter(t -> t.id().equals(i.tensorId())).findFirst().orElseThrow()).toList();
+            try (var session = engine.prepare(compiled)) {
+                for (int run = 1; run <= 2; run++) {
+                    var storage = ((MemorySegmentStorage)input.hostStorage().orElseThrow()).segment();
+                    for (int i = 0; i < 6; i++) storage.setAtIndex(ValueLayout.JAVA_FLOAT,i,run*(i+1));
+                    try (var result = engine.run(session,ordered)) {
+                        var products = result.materialize(result.publications().get(0),24).bytes();
+                        for (int i = 0; i < 6; i++) assertEquals(2f*run*(i+1),products.getFloat());
+                        assertEquals(42f*run,result.materialize(result.publications().get(1),4).bytes().getFloat());
+                        var output = result.materialize(result.publications().get(2),8).bytes();
+                        assertEquals(42f*run+1,output.getFloat()); assertEquals(42f*run+2,output.getFloat());
+                    }
+                }
+            }
+        }
+    }
+
+    /** Checks actual Compiler mean-loss gradients through one preparation and fresh caller values. */
+    @Test void compilerMeanLossCountFoldsWhileReusableSessionReadsFreshCallerValues() {
+        try(var arena=Arena.ofShared();var engine=Engine.builder()
+                .takeOwnership(io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration.open()).build()) {
+            var storage=arena.allocate(6L*Float.BYTES,Float.BYTES);
+            var input=TensorFactory.create(new TensorDescriptor(DataType.FLOAT32,Shape.of(2,3),
+                    Optional.of(LayoutDescriptor.contiguous(Shape.of(2,3))),true),Optional.empty(),
+                    Optional.of(new MemorySegmentStorage(DataType.FLOAT32,6,storage)));
+            var target=floats(arena,Shape.of(2,3),false,0,0,0,0,0,0);
+            var seed=tensor(DataType.FLOAT32,Shape.scalar(),arena.allocate(4,4));
+            ((MemorySegmentStorage)seed.hostStorage().orElseThrow()).segment().setAtIndex(ValueLayout.JAVA_FLOAT,0,1);
+            var objective=input.meanSquaredError(target,LossReduction.MEAN);
+            var compiled=engine.compile(List.of(objective),List.of(seed),List.of(input));
+            var pool=List.of(input,target,seed);
+            var ordered=compiled.inputs().stream().map(i->pool.stream().filter(t->t.id().equals(i.tensorId())).findFirst().orElseThrow()).toList();
+            try(var session=engine.prepare(compiled)) {
+                for(int run=1;run<=2;run++) {
+                    for(int i=0;i<6;i++) storage.setAtIndex(ValueLayout.JAVA_FLOAT,i,run*(i+1));
+                    try(var result=engine.run(session,ordered)) {
+                        assertEquals(2,result.publications().size());
+                        assertEquals(run*run*91f/6,result.materialize(result.publications().getFirst(),4).bytes().getFloat(),1e-5f);
+                        var gradient=result.materialize(result.publications().get(1),24).bytes();
+                        for(int i=0;i<6;i++) assertEquals(run*(i+1)/3f,gradient.getFloat(),1e-6f);
+                    }
+                }
+            }
+        }
+    }
+
+    /** Checks actual normalization count plumbing through a running-mean objective and gradient. */
+    @Test void compilerNormalizationCountPreservesStatisticsAndInputGradient() {
+        try(var arena=Arena.ofShared();var engine=Engine.builder()
+                .takeOwnership(io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration.open()).build()) {
+            var base=floats(arena,Shape.of(4,2),false,1,2,3,4,5,6,7,8);
+            var input=TensorFactory.create(new TensorDescriptor(DataType.FLOAT32,Shape.of(4,2),
+                    base.descriptor().layout(),true),Optional.empty(),base.hostStorage());
+            var scale=floats(arena,Shape.of(2),false,1,1);
+            var bias=floats(arena,Shape.of(2),false,0,0);
+            var mean=floats(arena,Shape.of(2),false,0,0);
+            var variance=floats(arena,Shape.of(2),false,1,1);
+            var objective=input.batchNormTraining(1,scale,bias,mean,variance,
+                    io.github.pho001.synaptik.model.datatype.ScalarValue.float32(.5f),
+                    io.github.pho001.synaptik.model.datatype.ScalarValue.float32(.01f)).nextRunningMean().sum();
+            var backward=engine.backward(objective,List.of(input),36);
+            assertEquals(4.5f,backward.objective().bytes().getFloat());
+            var gradient=backward.gradients().getFirst().bytes();
+            for(int i=0;i<8;i++) assertEquals(.125f,gradient.getFloat());
+        }
+    }
+
     @Test void expSoftmaxRejectsProducedInfinityJustLikeDirectInputAcrossSessionRuns() {
         try (var arena = Arena.ofShared(); var engine = Engine.standard()) {
             var storage = arena.allocate(2L * Float.BYTES, Float.BYTES);

@@ -20,6 +20,8 @@ import java.util.Objects;
  * and output-slot order; node identifiers follow the same stored node order. The rebuild preserves
  * every occurrence, boundary position, phase, repeated input position, and output slot. It changes
  * only graph-local identifiers and storage order.</p>
+ * <p>Contained scan graphs keep their independent local IDs and exact role/saved-site bindings;
+ * only the surrounding occurrence is reindexed. Attachments are never reconstructed or merged.</p>
  */
 final class GraphCanonicalization {
     private GraphCanonicalization() {}
@@ -83,7 +85,7 @@ final class GraphCanonicalization {
             }
             NodeId canonicalNode = new NodeId(nextNodeId++);
             nodes.add(new CompiledNode(
-                    canonicalNode, node.operation(), remappedInputs, remappedOutputs));
+                    canonicalNode, node.operation(), remappedInputs, remappedOutputs, node.scanBody()));
             sourceNodeIds.add(node.id());
             phases.put(canonicalNode, graph.nodePhases().get(node.id()));
         }

@@ -77,11 +77,12 @@ class CpuConvolutionSemanticClosureTest {
     }
 
     private static void execute2d(Fixture f, PrepareContext<CpuPartitionAnalysisInputs> context) throws Throwable {
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var unit = new CpuPartitionPreparer().analyze(context).plan().units().getFirst();
         var route = unit.portablePlan(); var g = unit.conv2dGeometry().orElseThrow();
         byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr());
         assertArrayEquals(bytes, new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr()), f + " bytes");
-        var entry = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(), bytes);
+        var entry = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(), route.kernelIr(), bytes);
         List<Store> stores = stores(route.specialization().boundaryDataTypes(), route.specialization().carrierPattern(), layouts(g));
         populate(stores, layouts(g)); Store output = stores.getLast(); output.fill(-91.25);
         double[] expected = output.snapshot(); Conv2dAttrs attrs = (Conv2dAttrs) context.nodes().get(f.form.equals("CONV1D_COMPOSITION") ? 2 : 0).operation().attrs();
@@ -92,11 +93,12 @@ class CpuConvolutionSemanticClosureTest {
     }
 
     private static void execute3d(Fixture f, PrepareContext<CpuPartitionAnalysisInputs> context) throws Throwable {
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var unit = new CpuPartitionPreparer().analyze(context).plan().units().getFirst();
         var route = unit.portablePlan(); var g = unit.conv3dGeometry().orElseThrow();
         var generator = new CpuClassFileKernelGenerator(); byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
         assertArrayEquals(bytes, generator.generateClassBytes(route.specialization(), route.kernelIr()), f + " bytes");
-        var entry = generator.defineClassBytes(route.specialization(), bytes);
+        var entry = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes);
         List<Store> stores = stores(route.specialization().boundaryDataTypes(), route.specialization().carrierPattern(), layouts(g));
         populate(stores, layouts(g)); Store output = stores.getLast(); output.fill(-91.25);
         double[] expected = output.snapshot(); Conv3dAttrs attrs = (Conv3dAttrs) context.nodes().getFirst().operation().attrs();

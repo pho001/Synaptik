@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 
 class CompiledNodeTest {
     @Test
-    void hasExactlyTheRequiredFourComponentRecordState() {
+    void hasFiveComponentsAndCompatibleOldConstructor() {
         var components = CompiledNode.class.getRecordComponents();
         var instanceFields = Arrays.stream(CompiledNode.class.getDeclaredFields())
                 .filter(field -> !Modifier.isStatic(field.getModifiers()))
@@ -28,7 +28,7 @@ class CompiledNodeTest {
 
         assertAll(
                 () -> assertTrue(CompiledNode.class.isRecord()),
-                () -> assertEquals(4, components.length),
+                () -> assertEquals(5, components.length),
                 () -> assertEquals("id", components[0].getName()),
                 () -> assertEquals(NodeId.class, components[0].getType()),
                 () -> assertEquals("operation", components[1].getName()),
@@ -37,13 +37,15 @@ class CompiledNodeTest {
                 () -> assertEquals(List.class, components[2].getType()),
                 () -> assertEquals("outputs", components[3].getName()),
                 () -> assertEquals(List.class, components[3].getType()),
+                () -> assertEquals("scanBody", components[4].getName()),
+                () -> assertEquals(java.util.Optional.class, components[4].getType()),
                 () -> assertEquals(
-                        List.of("id", "operation", "inputs", "outputs"),
+                        List.of("id", "operation", "inputs", "outputs", "scanBody"),
                         instanceFields.stream().map(field -> field.getName()).toList()),
                 () -> assertTrue(instanceFields.stream().allMatch(
                         field -> Modifier.isPrivate(field.getModifiers())
                                 && Modifier.isFinal(field.getModifiers()))),
-                () -> assertEquals(1, CompiledNode.class.getDeclaredConstructors().length));
+                () -> assertEquals(2, CompiledNode.class.getDeclaredConstructors().length));
     }
 
     @Test

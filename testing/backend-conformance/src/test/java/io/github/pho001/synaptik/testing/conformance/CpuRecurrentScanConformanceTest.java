@@ -49,6 +49,7 @@ final class CpuRecurrentScanConformanceTest {
                     var node = context.nodes().getFirst();
                     var query = new io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery(node.operation(),
                             ds.subList(0, inputCount), ds.subList(inputCount, ds.size()));
+                    if (CpuProfileFreeConformanceTest.assertLockedNumerical(context)) continue;
                     assertTrue(new CpuCapabilityProvider().supports(query), type + " independent provider query");
                     var analysis = new CpuPartitionPreparer().analyze(context);
                     var facts = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
@@ -152,7 +153,7 @@ final class CpuRecurrentScanConformanceTest {
                     var lowInputs = query.inputs().stream().map(d -> d.dataType() == DataType.INT64 ? d
                             : new TensorDescriptor(low, d.shape(), d.layout(), d.requiresGrad())).toList();
                     var lowOutputs = query.outputs().stream().map(d -> new TensorDescriptor(low, d.shape(), d.layout(), d.requiresGrad())).toList();
-                    assertTrue(provider.supports(new io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery(node.operation(), lowInputs, lowOutputs)));
+                    assertFalse(provider.supports(new io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery(node.operation(), lowInputs, lowOutputs)));
                 }
                 var analysis = new CpuPartitionPreparer().analyze(context);
                 var facts = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
@@ -272,11 +273,15 @@ final class CpuRecurrentScanConformanceTest {
         public final PreparedExecutable executable;
         public final RunState state;
         private final List<MemorySegment> writers = new ArrayList<>();
-        private final CpuWorkerGroup workers = new CpuWorkerGroup(4);
+        private final CpuWorkerGroup workers;
         private final Map<ValueId, Long> logicalBytes = new HashMap<>();
 
         public Fixture(BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis, int carrier,
                 boolean readOnly, boolean sliced, Map<ValueId, MemorySegment> overrides) {
+            boolean selectedRows = analysis.plan().units().stream().anyMatch(u -> u.portablePlan() != null && u.portablePlan().specialization()
+                    .rowFusionEmission().map(e -> e.maximumPartialCount() > 1).orElse(false));
+            var budget = selectedRows ? new io.github.pho001.synaptik.backend.cpu.internal.executable.CpuConcurrencyBudget(4) : null;
+            workers = selectedRows ? new CpuWorkerGroup(4,budget) : new CpuWorkerGroup(4);
             var buffers = new ArrayList<PreparedMemoryPlan.BufferEntry>(); var workspaces = new ArrayList<PreparedMemoryPlan.WorkspaceEntry>();
             var assignments = new ArrayList<PreparationResourceAssignment>(); var bindings = new ArrayList<List<BufferRepresentationBinding>>();
             var scratch = new ArrayList<io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation>();
@@ -310,7 +315,9 @@ final class CpuRecurrentScanConformanceTest {
                 }
             }
             var memory = new PreparedMemoryPlan(buffers, workspaces);
-            executable = new CpuPartitionFinalizer(Optional.empty(), Optional.of(workers)).finalizePartition(
+            var finalizer = selectedRows ? new CpuPartitionFinalizer(Optional.empty(),Optional.of(workers),budget,Optional.empty())
+                    : new CpuPartitionFinalizer(Optional.empty(),Optional.of(workers));
+            executable = finalizer.finalizePartition(
                     new BackendPartitionFinalization<>(analysis, memory, assignments)).executable();
             state = new RunState(memory, bindings, scratch);
         }

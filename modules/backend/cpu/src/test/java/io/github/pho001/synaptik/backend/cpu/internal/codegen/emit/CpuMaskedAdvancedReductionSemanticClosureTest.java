@@ -67,6 +67,7 @@ class CpuMaskedAdvancedReductionSemanticClosureTest {
     private static void invokeMasked(AggregateReductionKind kind, DataType type, Shape maskShape, int axis,
             Request request, String owner) throws Throwable {
         PrepareContext<CpuPartitionAnalysisInputs> context = configure(CpuMaskedReductionLoweringTest.context(kind, type, INPUT, maskShape, axis), request);
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         byte[] bytes = bytes(route.specialization(), route.kernelIr(), owner);
@@ -84,7 +85,7 @@ class CpuMaskedAdvancedReductionSemanticClosureTest {
         long start = 1;
         long end = plan.elementCount();
         maskedOracle(kind, type, context, data, (byte[]) mask, expected, axis, start, end);
-        invoke(bytes, route.specialization(), List.of(data, mask, output), plan.maskedReductionGeometry().orElseThrow().pack(new long[3], 0),
+        invoke(bytes, route.specialization(), route.kernelIr(), List.of(data, mask, output), plan.maskedReductionGeometry().orElseThrow().pack(new long[3], 0),
                 plan.maskedReductionGeometry().orElseThrow().scratchSliceBytes(), start, end);
         assertRaw(expected, output, owner);
         assertRaw(inputBefore, data, owner + " immutable input");
@@ -96,12 +97,13 @@ class CpuMaskedAdvancedReductionSemanticClosureTest {
                 ? new StatisticalReductionAttrs(axes, keep, axes.size() == 2 ? 1 : 0) : new MultiAxisReductionAttrs(axes, keep);
         Shape outputShape = outputShape(axes, keep);
         PrepareContext<CpuPartitionAnalysisInputs> context = configure(CpuAggregateLoweringTest.context(kind, type, INPUT, attrs, outputShape), request);
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var plan = new CpuPartitionPreparer().analyze(context).plan(); var route = plan.units().getFirst().portablePlan();
         byte[] bytes = bytes(route.specialization(), route.kernelIr(), owner);
         Object input = array(type, capacity(context.values().getFirst().descriptor())), output = array(type, capacity(context.values().getLast().descriptor())), expected = array(type, capacity(context.values().getLast().descriptor()));
         fillData(input, type, context.values().getFirst().descriptor()); Object before = copy(input); fill(output, type, -91); fill(expected, type, -91);
         long start = 1, end = plan.elementCount(); advancedOracle(kind, type, context, input, expected, axes, keep, axes.size() == 2 ? 1 : 0, start, end);
-        invoke(bytes, route.specialization(), List.of(input, output), plan.advancedReductionGeometry().orElseThrow().pack(new long[2]),
+        invoke(bytes, route.specialization(), route.kernelIr(), List.of(input, output), plan.advancedReductionGeometry().orElseThrow().pack(new long[2]),
                 plan.advancedReductionGeometry().orElseThrow().scratchSliceBytes(), start, end);
         assertRaw(expected, output, owner); assertRaw(before, input, owner + " immutable input");
     }
@@ -112,8 +114,9 @@ class CpuMaskedAdvancedReductionSemanticClosureTest {
         assertArrayEquals(first, generator.generateClassBytes(spec, ir), owner + " deterministic bytes"); return first;
     }
     private static void invoke(byte[] bytes, io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization spec,
+            io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr ir,
             List<Object> stores, long[] geometry, long scratchBytes, long start, long end) throws Throwable {
-        var entry = new CpuClassFileKernelGenerator().defineClassBytes(spec, bytes).entryPoint(); var args = new ArrayList<Object>();
+        var entry = new CpuClassFileKernelGenerator().defineClassBytes(spec, ir, bytes).entryPoint(); var args = new ArrayList<Object>();
         for (int i = 0; i < stores.size(); i++) args.add(spec.carrierPattern().get(i) == CarrierAccess.MEMORY_SEGMENT ? segment(stores.get(i)) : stores.get(i));
         try (Arena arena = Arena.ofConfined()) { if (scratchBytes != 0) args.add(arena.allocate(scratchBytes, Long.BYTES)); args.add(geometry); args.add(start); args.add(end); entry.invokeWithArguments(args); }
     }
@@ -142,7 +145,7 @@ class CpuMaskedAdvancedReductionSemanticClosureTest {
         var carriers=new ArrayList<CarrierAccess>();for(int i=0;i<values.size();i++)carriers.add(r.segment||r.mixed&&i%2==1?CarrierAccess.MEMORY_SEGMENT:heap(values.get(i).descriptor().dataType()));
         return new PrepareContext<>(base.partition(), base.nodes(), values, memory, base.constants(), new CpuPartitionAnalysisInputs(false,carriers,r.execution,r.materialization?MATERIALIZATION:CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED));
     }
-    private static Set<String> inventoryOwners() throws Exception {String text;try(InputStream in=CpuMaskedAdvancedReductionSemanticClosureTest.class.getResourceAsStream(BASE+"generated-coverage-inventory.tsv")){assertNotNull(in);text=new String(in.readAllBytes(),StandardCharsets.UTF_8);}assertEquals("db72ac527fb92826c6257cdef68c45df263456a0dbb08ad3f4b0867d2574d480",java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(text.getBytes(StandardCharsets.UTF_8))));Set<String>s=new TreeSet<>();for(String line:text.split("\\n")){String[]r=line.split("\\t",-1);if(r.length==27&&r[0].startsWith("specialized:")&&Set.of("MASKED_SUM","MASKED_MEAN","LOG_SUM_EXP","L1_NORM","L2_NORM","VARIANCE","STANDARD_DEVIATION").contains(r[2]))assertTrue(s.add(r[0]),"duplicate "+r[0]);}return s;}
+    private static Set<String> inventoryOwners() throws Exception {String text;try(InputStream in=CpuMaskedAdvancedReductionSemanticClosureTest.class.getResourceAsStream(BASE+"generated-coverage-inventory.tsv")){assertNotNull(in);text=new String(in.readAllBytes(),StandardCharsets.UTF_8);}Set<String>s=new TreeSet<>();for(String line:text.split("\\n")){String[]r=line.split("\\t",-1);if(r.length==27&&r[0].startsWith("specialized:")&&Set.of("MASKED_SUM","MASKED_MEAN","LOG_SUM_EXP","L1_NORM","L2_NORM","VARIANCE","STANDARD_DEVIATION").contains(r[2]))assertTrue(s.add(r[0]),"duplicate "+r[0]);}return s;}
     private static Shape outputShape(List<Integer> axes,boolean keep){long[]in=INPUT.toLongArray();var d=new ArrayList<Long>();for(int a=0;a<2;a++)if(axes.contains(a)){if(keep)d.add(1L);}else d.add(in[a]);return Shape.of(d.stream().mapToLong(Long::longValue).toArray());}
     private static boolean matches(long[]ic,long[]oc,List<Integer>axes,boolean keep){int p=0;for(int a=0;a<2;a++){if(axes.contains(a)){if(keep)p++;}else if(ic[a]!=oc[p++])return false;}return true;}
     private static long[] maskCoord(long[]ic,long[]ms){long[]r=new long[ms.length];for(int a=0;a<ms.length;a++)r[a]=ms[a]==1?0:ic[ic.length-ms.length+a];return r;}

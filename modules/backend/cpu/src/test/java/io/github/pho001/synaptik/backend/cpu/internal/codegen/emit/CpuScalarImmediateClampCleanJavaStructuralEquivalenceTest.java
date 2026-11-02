@@ -9,7 +9,7 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 
 /**
- * Finite generated-support and clean-Java semantic closure.
+ * Finite generated-support and clean-Java semantic closure, with explicit unsupported form evidence.
  *
  * <p>This test does not claim generated-versus-{@code javac} CFG or full structural equivalence.
  * The matrix structural test retains proportionate direct Class-File hygiene checks, so the
@@ -18,13 +18,18 @@ import org.junit.jupiter.api.Test;
 class CpuScalarImmediateClampCleanJavaStructuralEquivalenceTest {
     @Test void everyExactFiniteFormHasIndependentTypedCounterpartAndTypedProvenance() {
         var forms = CpuScalarImmediateClampMatrixOracle.forms();
-        assertEquals(263, forms.size());
+        var expectedOwners = forms.stream().map(CpuScalarImmediateClampMatrixOracle.Form::id).sorted().toList();
         var compiled = CpuScalarImmediateClampCleanJavaOracle.compile(forms);
         var repeat = CpuScalarImmediateClampCleanJavaOracle.compile(forms);
         assertEquals(CpuScalarImmediateClampMatrixOracle.sha256(compiled.classBytes()),
                 CpuScalarImmediateClampMatrixOracle.sha256(repeat.classBytes()));
         Map<List<?>, List<String>> generated = new LinkedHashMap<>(), clean = new LinkedHashMap<>();
+        var unsupported = new ArrayList<String>();
         for (var form : forms) {
+            if (CpuScalarImmediateClampMatrixOracle.unsupported(form)) {
+                unsupported.add(form.id());
+                continue;
+            }
             var pair = CpuScalarImmediateClampCleanJavaOracle.pair(form, compiled);
             CpuScalarImmediateClampCleanJavaOracle.validatePairBinding(form, pair, repeat);
             var binding = pair.binding();
@@ -37,8 +42,15 @@ class CpuScalarImmediateClampCleanJavaStructuralEquivalenceTest {
             clean.computeIfAbsent(List.of(binding.cleanSelectedMethodName(), binding.cleanSelectedMethodDescriptor(),
                     binding.cleanMemberSchemaHash(), binding.cleanSourcePolicyHash()), ignored -> new ArrayList<>()).add(form.id());
         }
-        assertEquals(263, generated.values().stream().mapToLong(List::size).sum());
-        assertEquals(263, clean.values().stream().mapToLong(List::size).sum());
+        var generatedOwners = generated.values().stream().flatMap(List::stream).sorted().toList();
+        var cleanOwners = clean.values().stream().flatMap(List::stream).sorted().toList();
+        assertEquals(generatedOwners, cleanOwners, "only real generated pairs have counterpart provenance");
+        assertTrue(Collections.disjoint(generatedOwners, unsupported),
+                "unsupported evidence must never masquerade as generated pair provenance");
+        var accountedOwners = new ArrayList<>(generatedOwners);
+        accountedOwners.addAll(unsupported);
+        assertEquals(expectedOwners, accountedOwners.stream().sorted().toList(),
+                "all original forms have generated pair provenance or witnessed unsupported evidence");
         assertTrue(generated.values().stream().allMatch(rows -> !rows.isEmpty()));
         assertTrue(clean.values().stream().allMatch(rows -> !rows.isEmpty()));
     }
@@ -48,6 +60,7 @@ class CpuScalarImmediateClampCleanJavaStructuralEquivalenceTest {
         var forms = CpuScalarImmediateClampMatrixOracle.forms();
         Class<?> clean = define(CpuScalarImmediateClampCleanJavaOracle.compile(forms).classBytes());
         for (var form : forms) {
+            if (CpuScalarImmediateClampMatrixOracle.unsupported(form)) continue;
             long end = form.outputShape().knownElementCount().orElseThrow();
             for (var range : ranges(end)) executeRange(form, clean, range[0], range[1]);
         }
@@ -62,6 +75,7 @@ class CpuScalarImmediateClampCleanJavaStructuralEquivalenceTest {
         var forms = CpuScalarImmediateClampMatrixOracle.forms();
         var clean = CpuScalarImmediateClampCleanJavaOracle.compile(forms);
         for (var form : forms) {
+            if (CpuScalarImmediateClampMatrixOracle.unsupported(form)) continue;
             var generated = CpuScalarImmediateClampMatrixOracle.formArtifact(form).artifact();
             CpuScalarImmediateClampCleanJavaOracle.assertClosedInvocationAllowlist(form,
                     generated.bytes(), clean);

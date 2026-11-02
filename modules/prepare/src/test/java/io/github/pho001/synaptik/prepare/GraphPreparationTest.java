@@ -8,17 +8,26 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.contract.BackendId;
+import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
+import io.github.pho001.synaptik.backend.contract.BackendDeviceId;
+import io.github.pho001.synaptik.backend.contract.DeviceClass;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.compiler.CompileConstantPlan;
 import io.github.pho001.synaptik.compiler.CompileDiagnostics;
 import io.github.pho001.synaptik.compiler.DerivativeGraphMetadata;
 import io.github.pho001.synaptik.compiler.GradientPublicationBinding;
+import io.github.pho001.synaptik.compiler.FunctionalGradientRequest;
 import io.github.pho001.synaptik.compiler.PublicationPlan;
+import io.github.pho001.synaptik.compiler.GraphCompilationPort;
 import io.github.pho001.synaptik.config.compile.CompileMode;
+import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
+import io.github.pho001.synaptik.config.compile.BackendIntent;
+import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
+import io.github.pho001.synaptik.model.graph.CompiledScanBody;
 import io.github.pho001.synaptik.model.graph.ForwardPublicationBinding;
 import io.github.pho001.synaptik.model.graph.GraphPhase;
 import io.github.pho001.synaptik.model.graph.GraphValue;
@@ -29,10 +38,18 @@ import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.OperationSignature;
+import io.github.pho001.synaptik.model.operation.scan.ScanAttrs;
+import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorId;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.Scan;
+import io.github.pho001.synaptik.model.tensor.ScanBody;
+import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
+import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryPlan;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryPlanning;
@@ -65,10 +82,782 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class GraphPreparationTest {
+    @Test
+    void rejectsMissingDuplicateAndForeignCallerContributionsBeforeAnalysis() {
+        Shape shape = Shape.of(1);
+        var fixed = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        CompileArtifacts artifacts = callerSourceArtifacts(List.of(fixed, fixed, fixed), null);
+        List<ProducerlessPublishedValueResource> complete = sourceContributions(artifacts, Map.of());
+        ProducerlessPublishedValueResource caller = complete.stream()
+                .filter(resource -> resource.value().id().equals(new ValueId(90))).findFirst().orElseThrow();
+        var duplicate = new ArrayList<>(complete);
+        duplicate.add(caller);
+        var foreignValue = new ArrayList<>(complete);
+        foreignValue.set(1, new ProducerlessPublishedValueResource(
+                new GraphValue(caller.value().id(), caller.value().descriptor()),
+                caller.logicalRequirement(), caller.owner(), caller.size(), caller.byteAlignment()));
+        var logical = caller.logicalRequirement();
+        var foreignRequirement = new ArrayList<>(complete);
+        foreignRequirement.set(1, new ProducerlessPublishedValueResource(caller.value(),
+                new LogicalMemoryRequirement(logical.valueId(), logical.descriptor(),
+                        logical.producerPartition(), logical.consumerPartitions(), logical.graphOutput()),
+                caller.owner(), caller.size(), caller.byteAlignment()));
+        var extra = new ArrayList<>(complete);
+        GraphValue foreign = new GraphValue(new ValueId(999), fixed);
+        extra.add(new ProducerlessPublishedValueResource(foreign,
+                new LogicalMemoryRequirement(foreign.id(), fixed, Optional.empty(), List.of(), true),
+                caller.owner(), caller.size(), caller.byteAlignment()));
+        for (List<ProducerlessPublishedValueResource> invalid : List.of(
+                List.<ProducerlessPublishedValueResource>of(),
+                complete.subList(0, complete.size() - 1), duplicate, foreignValue, foreignRequirement, extra)) {
+            AtomicInteger analyses = new AtomicInteger();
+            assertThrows(IllegalArgumentException.class, () -> GraphPreparation.prepare(
+                    artifacts, List.of(callerSourcePreparation(artifacts, analyses, List.of())),
+                    invalid, sourceAssembler(artifacts, Map.of())));
+            assertEquals(0, analyses.get());
+        }
+        AtomicInteger analyses = new AtomicInteger();
+        PreparedScheduleAssembler wrongReference = new PreparedScheduleAssembler() {
+            @Override public ProducerlessPublishedValueResource producerlessPublishedValue(
+                    GraphValue value, LogicalMemoryRequirement requirement, Optional<ScalarValue> scalar) {
+                return value == caller.value() ? foreignValue.get(1) : complete.stream()
+                        .filter(resource -> resource.value() == value).findFirst().orElseThrow();
+            }
+            @Override public PreparedSchedule assemble(PreparedScheduleContext context) {
+                throw new AssertionError("invalid contribution reached schedule assembly");
+            }
+        };
+        assertThrows(IllegalArgumentException.class, () -> GraphPreparation.prepare(
+                artifacts, List.of(callerSourcePreparation(artifacts, analyses, List.of())), wrongReference));
+        assertEquals(0, analyses.get());
+    }
+
+    @Test
+    void preservesRawCallerAffineBroadcastAndEmptySpanGeometryWithoutArithmeticAdmission() {
+        for (DataType type : DataType.values()) {
+            Shape pair = Shape.of(2);
+            Shape empty = Shape.of(0);
+            var strided = new TensorDescriptor(type, pair,
+                    Optional.of(LayoutDescriptor.of(pair, new long[] {3}, 5, true)), false);
+            var broadcast = new TensorDescriptor(type, pair,
+                    Optional.of(LayoutDescriptor.of(pair, new long[] {0}, 7, true)), false);
+            var noElements = new TensorDescriptor(type, empty,
+                    Optional.of(LayoutDescriptor.of(empty, new long[] {3}, 11, true)), false);
+            CompileArtifacts artifacts = callerSourceArtifacts(List.of(strided, broadcast, noElements), null);
+            PreparedExecution execution = GraphPreparation.prepare(
+                    artifacts,
+                    List.of(callerSourcePreparation(artifacts, new AtomicInteger(), List.of())),
+                    sourceAssembler(artifacts, Map.of()));
+            assertEquals(9L * type.byteWidth(), execution.memoryPlan().buffers().get(0).byteSize());
+            assertEquals(8L * type.byteWidth(), execution.memoryPlan().buffers().get(2).byteSize());
+            assertEquals(0, execution.memoryPlan().buffers().get(4).byteSize());
+            assertTrue(!execution.memoryPlan().requiresBatchSize());
+            execution.close();
+        }
+    }
+
+    @Test
+    void lengthForwardProjectsSharedCarrySuffixMixedSequencesAndReusedTemplateScopes() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) for (long time : List.of(0L, 3L)) {
+            for (long batch : List.of(0L, 1L, 2L)) for (long features : List.of(0L, 2L)) {
+                Tensor h = scanTensor(type, false, batch, features), old = scanTensor(type, false, features);
+                Tensor x = scanTensor(type, true, batch, features), transposed = scanTensor(type, false, features, batch);
+                Tensor shared = scanTensor(type, false, features, batch), w = scanTensor(type, false, features);
+                Tensor next = h.add(x).add(transposed.permute(1, 0));
+                var body = new ScanBody(List.of(h, old), List.of(x, transposed, shared), List.of(w),
+                        List.of(next, old.add(shared.sum(1, false).add(w))), List.of(h, next, next));
+                var carry = List.of(scanTensor(type, false, batch, features), scanTensor(type, false, features));
+                var sequences = List.of(scanTensor(type, true, time, batch, features),
+                        scanTensor(type, false, time, features, batch), scanTensor(type, false, time, features, batch));
+                Tensor lengths = scanTensor(DataType.INT64, false, batch);
+                var axes = List.of(OptionalInt.of(0), OptionalInt.of(1), OptionalInt.empty());
+                var a = Scan.apply(carry, sequences, List.of(scanTensor(type, false, features)), lengths, 1, axes, body, false);
+                var b = Scan.apply(carry, sequences, List.of(scanTensor(type, false, features)), lengths, 1, axes, body, true);
+                CompileArtifacts source = compileScan(List.of(a.finalCarry().getFirst(), a.finalCarry().getLast(), b.outputs().getLast()));
+                CompileArtifacts artifacts = splitScanPartitions(source);
+                var contexts = new ArrayList<PrepareContext<FakeInputs>>();
+                var finals = new ArrayList<BackendPartitionFinalization<FakePlan>>();
+                var events = new ArrayList<String>();
+                try (var execution = GraphPreparation.prepare(artifacts,
+                        scanPreparations(artifacts, contexts, finals, events, Set.of()), GraphPreparationTest::scanSchedule)) {
+                    assertEquals(List.of("analyze-0", "analyze-1", "finalize-0", "finalize-1"), events);
+                    assertEquals(2, contexts.size());
+                    for (int i = 0; i < contexts.size(); i++) {
+                        var node = source.graph().nodes().get(i);
+                        var projected = contexts.get(i).nodes().getFirst();
+                        assertSame(node, projected);
+                        assertSame(node.operation().attrs(), projected.operation().attrs());
+                        assertSame(node.scanBody().orElseThrow(), projected.scanBody().orElseThrow());
+                        assertEquals(axes, ((ScanAttrs) projected.operation().attrs()).sequenceRowAxes());
+                        assertEquals(6, projected.scanBody().orElseThrow().graph().inputs().size());
+                        assertEquals(7, projected.inputs().size());
+                        assertLengthDeclarations(contexts.get(i), finals.get(i));
+                        var carryBanks = (PreparationResourceRequirement.Workspace) finals.get(i).analysis().requirements().stream()
+                                .filter(r -> r instanceof PreparationResourceRequirement.Workspace s && s.requirementId() == 0).findFirst().orElseThrow();
+                        assertEquals(Math.multiplyExact(2L * type.byteWidth(), Math.addExact(Math.multiplyExact(batch, features), features)), carryBanks.byteSize());
+                        assertSame(execution.memoryPlan(), finals.get(i).memoryPlan());
+                    }
+                    assertNotSame(contexts.get(0).nodes().getFirst().scanBody().orElseThrow().graph(),
+                            contexts.get(1).nodes().getFirst().scanBody().orElseThrow().graph());
+                    assertEquals(contexts.get(0).nodes().getFirst().scanBody().orElseThrow().graph().inputs(),
+                            contexts.get(1).nodes().getFirst().scanBody().orElseThrow().graph().inputs());
+                }
+            }
+        }
+    }
+
+    @Test
+    void lengthReverseRejectsMissingExtraAndStaleDemandBeforeAnalysis() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) for (boolean reverse : List.of(false, true)) {
+            for (long time : List.of(0L, 3L)) for (long batch : List.of(0L, 1L, 2L)) {
+                Tensor h = scanTensor(type, false, batch, 2), x = scanTensor(type, true, batch, 2);
+                Tensor unused = scanTensor(type, false, batch, 2), w = scanTensor(type, true, 2, 2);
+                Tensor wt = w.permute(1, 0), ht = h.permute(1, 0);
+                Tensor activation = h.matmul(wt).add(x).permute(1, 0).tanh();
+                Tensor next = activation.permute(1, 0).add(ht.permute(1, 0));
+                // The second emission is intentionally unpublished, independent of saved-primal choices.
+                var body = new ScanBody(List.of(h), List.of(x, unused), List.of(w), List.of(next), List.of(h, x));
+                Tensor seq = scanTensor(type, true, time, batch, 2), weight = scanTensor(type, true, 2, 2);
+                Tensor unusedActual = scanTensor(type, false, time, batch, 2), lengths = scanTensor(DataType.INT64, false, batch);
+                var source = Scan.apply(List.of(scanTensor(type, false, batch, 2)), List.of(seq, unusedActual), List.of(weight),
+                        lengths, 1, List.of(OptionalInt.of(0), OptionalInt.of(0)), body, reverse);
+                var roots = List.of(source.finalCarry().getFirst(), source.outputs().getFirst());
+                CompileArtifacts artifacts = splitScanPartitions(compileScan(roots, List.of(seq, weight)));
+                var scans = artifacts.graph().nodes().stream().filter(n -> n.scanBody().isPresent()).toList();
+                var contexts = new ArrayList<PrepareContext<FakeInputs>>();
+                var finals = new ArrayList<BackendPartitionFinalization<FakePlan>>();
+                try (var ignored = GraphPreparation.prepare(artifacts,
+                        scanPreparations(artifacts, contexts, finals, new ArrayList<>(), Set.of()), GraphPreparationTest::scanSchedule)) {
+                    for (CompiledNode node : scans) {
+                        var demand = node.scanBody().orElseThrow().demandedOutputIndices();
+                        var missing = new ArrayList<>(demand); missing.removeFirst();
+                        assertScanRejectedBeforeAnalysis(withScanDemand(artifacts, node, missing), true);
+                        int dead = java.util.stream.IntStream.range(0, node.outputs().size())
+                                .filter(i -> !demand.contains(i)).findFirst().orElseThrow();
+                        var extra = new ArrayList<>(demand); extra.add(dead); extra.sort(Integer::compareTo);
+                        assertScanRejectedBeforeAnalysis(withScanDemand(artifacts, node, extra), true);
+                        var stale = new ArrayList<>(missing); stale.add(dead); stale.sort(Integer::compareTo);
+                        assertScanRejectedBeforeAnalysis(withScanDemand(artifacts, node, stale), true);
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    void actualLengthReverseKeepsTiedPositionsRepeatedRootsAndTemplateOccurrences() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            Tensor h = scanTensor(type, true, 1, 2), k = scanTensor(type, true, 1, 2);
+            Tensor x = scanTensor(type, true, 1, 2), y = scanTensor(type, true, 1, 2);
+            Tensor w = scanTensor(type, true, 2), u = scanTensor(type, true, 2);
+            Tensor next = h.mul(w).add(k.mul(u)).add(x).add(y);
+            var body = new ScanBody(List.of(h, k), List.of(x, y), List.of(w, u), List.of(next, next), List.of(next, next));
+            Tensor initial = scanTensor(type, true, 1, 2), seq = scanTensor(type, true, 3, 1, 2), weight = scanTensor(type, true, 2);
+            Tensor lengths = scanTensor(DataType.INT64, false, 1);
+            var roots = new ArrayList<Tensor>();
+            for (boolean reverse : List.of(false, true)) {
+                var scan = Scan.apply(List.of(initial, initial), List.of(seq, seq), List.of(weight, weight), lengths,
+                        2, List.of(OptionalInt.of(0), OptionalInt.of(0)), body, reverse);
+                roots.addAll(scan.finalCarry()); roots.addAll(scan.outputs());
+            }
+            CompileArtifacts artifacts = compileScan(roots, List.of(initial, seq, weight));
+            var projected = GraphPreparation.project(artifacts, artifacts.partitions().getFirst(), new FakeInputs("tied"));
+            var scans = projected.nodes().stream().filter(n -> n.scanBody().isPresent()).toList();
+            assertEquals(4, scans.size());
+            var forwards = scans.stream().filter(n -> artifacts.graph().nodePhases().get(n.id()) == GraphPhase.FORWARD).toList();
+            assertEquals(2, forwards.size());
+            for (var node : forwards) {
+                assertEquals(node.inputs().get(0), node.inputs().get(1));
+                assertEquals(node.inputs().get(2), node.inputs().get(3));
+                assertEquals(node.inputs().get(4), node.inputs().get(5));
+                var local = node.scanBody().orElseThrow();
+                assertEquals(local.nextCarry().get(0), local.nextCarry().get(1));
+                assertEquals(local.nextCarry().getFirst(), local.emissions().getLast());
+                assertSame(node, projected.partitionDag().node(node.id()).orElseThrow());
+            }
+            assertNotSame(forwards.get(0).scanBody().orElseThrow().graph(), forwards.get(1).scanBody().orElseThrow().graph());
+            assertEquals(3, artifacts.publication().gradientBindings().size());
+            for (var binding : artifacts.publication().gradientBindings()) {
+                var producer = artifacts.graph().nodes().stream().filter(n -> n.outputs().contains(binding.valueId())).findFirst().orElseThrow();
+                assertEquals("ADD", producer.operation().kind().name()); // Positional and cross-occurrence sums survive.
+            }
+            try (var ignored = GraphPreparation.prepare(artifacts,
+                    scanPreparations(artifacts, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), Set.of()),
+                    GraphPreparationTest::scanSchedule)) {
+                assertSame(artifacts.graph().nodes().getFirst(), projected.nodes().getFirst());
+            }
+        }
+    }
+
+    @Test
+    void lengthMetadataHandoffKeepsExactSlotsRollbackAndOneTimeResourceTransfer() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) for (long time : List.of(0L, 3L)) {
+            for (long batch : List.of(0L, 2L)) {
+                CompileArtifacts artifacts = lengthHandoffArtifacts(type, time, batch);
+                var contexts = new ArrayList<PrepareContext<FakeInputs>>();
+                var finals = new ArrayList<BackendPartitionFinalization<FakePlan>>();
+                var events = new ArrayList<String>();
+                var closes = new ArrayList<String>();
+                var resources = scanResources(closes, artifacts.partitions().size());
+                PreparedExecution execution = GraphPreparation.prepare(artifacts,
+                        scanPreparations(artifacts, contexts, finals, events, Set.of(), resources), context -> {
+                            assertTrue(closes.isEmpty());
+                            ValueId crossing = artifacts.graph().nodes().getLast().inputs().getFirst();
+                            var assigned = context.bufferAssignments().stream().filter(b -> b.valueId().equals(crossing)).findFirst().orElseThrow();
+                            assertEquals(artifacts.partitions().stream().map(PlannedPartition::owner).toList(), assigned.representationOwners());
+                            return scanSchedule(context);
+                        });
+                assertEquals(List.of("analyze-0", "analyze-1", "finalize-0", "finalize-1"), events);
+                assertTrue(closes.isEmpty());
+                assertLengthDeclarations(contexts.getFirst(), finals.getFirst());
+                ValueId crossing = artifacts.graph().nodes().getLast().inputs().getFirst();
+                var producer = bufferAssignment(finals.getFirst(), crossing);
+                var consumer = bufferAssignment(finals.getLast(), crossing);
+                assertSame(producer.slot(), consumer.slot());
+                assertEquals(producer.planIndex(), consumer.planIndex());
+                assertEquals(0, producer.representationIndex());
+                assertEquals(1, consumer.representationIndex());
+                assertEquals(type.byteWidth() * time * batch * 2, producer.requirement().byteSize());
+                assertSame(execution.memoryPlan().buffers().get(producer.planIndex()).slot(), producer.slot());
+                try (var other = GraphPreparation.prepare(artifacts,
+                        scanPreparations(artifacts, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), Set.of()),
+                        GraphPreparationTest::scanSchedule)) {
+                    assertNotSame(execution.memoryPlan(), other.memoryPlan());
+                    assertNotSame(execution.schedule(), other.schedule());
+                }
+                execution.close(); execution.close();
+                assertEquals(List.of("resource-1", "resource-0"), closes);
+
+                var rollbackCloses = new ArrayList<String>();
+                var failure = new IllegalStateException("length assembly rejected");
+                assertSame(failure, assertThrows(IllegalStateException.class, () -> GraphPreparation.prepare(artifacts,
+                        scanPreparations(artifacts, new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), Set.of(),
+                                scanResources(rollbackCloses, artifacts.partitions().size())), context -> { throw failure; })));
+                assertEquals(List.of("resource-1", "resource-0"), rollbackCloses);
+                for (int omitted : List.of(0, 1)) {
+                    var rejected = new ArrayList<String>();
+                    assertTrue(assertThrows(IllegalArgumentException.class, () -> GraphPreparation.prepare(artifacts,
+                            scanPreparations(artifacts, new ArrayList<>(), new ArrayList<>(), rejected, Set.of(omitted)),
+                            GraphPreparationTest::scanSchedule)).getMessage().contains("cross-partition value"));
+                    assertEquals(List.of("analyze-0", "analyze-1"), rejected);
+                }
+            }
+        }
+    }
+
+    @Test
+    void lengthLaterPartitionRejectsUnusedDynamicDtypeAndOverflowBeforeAnyAnalyzer() {
+        Tensor h = scanTensor(DataType.FLOAT64, false, 2, 2), x = scanTensor(DataType.FLOAT64, false, 2, 2);
+        Tensor unused = scanTensor(DataType.FLOAT64, false, 5);
+        var template = new ScanBody(List.of(h), List.of(x), List.of(unused), List.of(h.add(x).tanh()), List.of(h));
+        Tensor initial = scanTensor(DataType.FLOAT64, false, 2, 2), seq = scanTensor(DataType.FLOAT64, false, 0, 2, 2);
+        Tensor actual = scanTensor(DataType.FLOAT64, false, 5), lengths = scanTensor(DataType.INT64, false, 2);
+        var a = Scan.apply(List.of(initial), List.of(seq), List.of(actual), lengths, 1, List.of(OptionalInt.of(0)), template, false);
+        var b = Scan.apply(List.of(initial), List.of(seq), List.of(actual), lengths, 1, List.of(OptionalInt.of(0)), template, true);
+        CompileArtifacts source = splitScanPartitions(compileScan(List.of(a.finalCarry().getFirst(), b.finalCarry().getFirst())));
+        var node = source.graph().nodes().getLast();
+        var body = node.scanBody().orElseThrow();
+        var local = body.graph();
+        for (ValueId id : List.of(local.inputs().getLast(), body.residuals().getLast())) {
+            for (TensorDescriptor bad : List.of(
+                    new TensorDescriptor(DataType.FLOAT64, Shape.ofDimensions(new DynamicDimension("unused")), Optional.empty(), false),
+                    scanTensor(DataType.FLOAT32, false, 5).descriptor(),
+                    new TensorDescriptor(DataType.FLOAT64, Shape.of(Long.MAX_VALUE, 2), Optional.empty(), false))) {
+                var values = local.values().stream().map(v -> v.id().equals(id) ? new GraphValue(id, bad) : v).toList();
+                var invalidBody = new CompiledScanBody(new CompiledGraphModel(values, local.nodes(), local.inputs(), local.outputs(), local.nodePhases()),
+                        body.nextCarry(), body.emissions(), body.residuals(), body.demandedOutputIndices());
+                var invalid = withScanBody(source, node, invalidBody);
+                var events = new ArrayList<String>();
+                Class<? extends RuntimeException> expected = bad.shape().equals(Shape.of(Long.MAX_VALUE, 2))
+                        ? ArithmeticException.class : IllegalArgumentException.class;
+                assertThrows(expected, () -> GraphPreparation.prepare(invalid,
+                        scanPreparations(invalid, new ArrayList<>(), new ArrayList<>(), events, Set.of()), GraphPreparationTest::scanSchedule));
+                assertTrue(events.isEmpty());
+            }
+        }
+    }
+
+    @Test
+    void projectsValidBodiesOutsideInitialCpuWhitelistIncludingZeroTimeAndUnusedGradientActual() {
+        for (long time : List.of(0L, 3L)) {
+            for (DataType type : List.of(DataType.FLOAT16, DataType.FLOAT32)) {
+                Tensor h = scanTensor(type, false, 2), x = scanTensor(type, false, 2);
+                Tensor unused = scanTensor(type, true, 5);
+                Tensor next = type == DataType.FLOAT16 ? h.add(x).tanh() : h.add(x).relu();
+                var template = new ScanBody(List.of(h), List.of(x), List.of(unused), List.of(next), List.of(h, next));
+                Tensor initial = scanTensor(type, false, 2), sequence = scanTensor(type, false, time, 2);
+                Tensor actualUnused = scanTensor(type, true, 5);
+                var a = Scan.apply(List.of(initial), List.of(sequence), List.of(actualUnused), template, false);
+                var b = Scan.apply(List.of(initial), List.of(sequence), List.of(actualUnused), template, true);
+                CompileArtifacts source = compileScan(List.of(a.finalCarry().getFirst(), b.outputs().getFirst()));
+                var partitions = List.of(
+                        new PlannedPartition(new BackendId("first"), List.of(source.graph().nodes().get(0).id())),
+                        new PlannedPartition(new BackendId("second"), List.of(source.graph().nodes().get(1).id())));
+                CompileArtifacts artifacts = scanArtifacts(source, source.graph(), partitions);
+                var events = new ArrayList<String>();
+                var contexts = new ArrayList<PrepareContext<FakeInputs>>();
+                var finalizations = new ArrayList<BackendPartitionFinalization<FakePlan>>();
+                try (PreparedExecution execution = GraphPreparation.prepare(artifacts,
+                        scanPreparations(artifacts, contexts, finalizations, events, Set.of()),
+                        context -> { events.add("assemble"); return scanSchedule(context); })) {
+                    assertEquals(List.of("analyze-0", "analyze-1", "finalize-0", "finalize-1", "assemble"), events);
+                    assertEquals(2, contexts.size());
+                    for (int i = 0; i < 2; i++) {
+                        var node = artifacts.graph().nodes().get(i);
+                        var projected = contexts.get(i);
+                        assertSame(node, projected.nodes().getFirst());
+                        var body = node.scanBody().orElseThrow();
+                        assertSame(body, projected.nodes().getFirst().scanBody().orElseThrow());
+                        assertSame(body.graph(), projected.nodes().getFirst().scanBody().orElseThrow().graph());
+                        assertEquals(1, projected.partitionDag().nodes().size());
+                        assertTrue(projected.partitionDag().edges().isEmpty());
+                        assertEquals(3, body.graph().inputs().size());
+                        assertTrue(projected.values().stream().allMatch(v -> artifacts.graph().values().contains(v)));
+                        assertTrue(body.graph().values().stream().noneMatch(v -> projected.values().stream().anyMatch(o -> o == v)));
+                        assertTrue(node.outputs().stream().allMatch(id -> projected.values().stream()
+                                .filter(v -> v.id().equals(id)).findFirst().orElseThrow().descriptor().requiresGrad()));
+                        assertTrue(body.graph().values().stream().filter(v -> !v.id().equals(body.graph().inputs().getLast()))
+                                .noneMatch(v -> v.descriptor().requiresGrad()));
+                        assertSame(execution.memoryPlan(), finalizations.get(i).memoryPlan());
+                    }
+                    assertNotSame(contexts.get(0).nodes().getFirst().scanBody().orElseThrow().graph(),
+                            contexts.get(1).nodes().getFirst().scanBody().orElseThrow().graph());
+                    assertEquals(List.of(0), contexts.get(0).nodes().getFirst().scanBody().orElseThrow().demandedOutputIndices());
+                    assertEquals(List.of(1), contexts.get(1).nodes().getFirst().scanBody().orElseThrow().demandedOutputIndices());
+                }
+            }
+        }
+    }
+
+    @Test
+    void rejectsStaleDemandFromPublicationsExternalConsumersAndForwardReverseEdgesBeforeAnyAnalysis() {
+        for (long time : List.of(0L, 3L)) {
+            Tensor h = scanTensor(DataType.FLOAT32, false, 2), x = scanTensor(DataType.FLOAT32, false, 2);
+            var body = new ScanBody(List.of(h), List.of(x), List.of(), List.of(h.add(x).tanh()), List.of(h));
+            Tensor initial = scanTensor(DataType.FLOAT32, false, 2), sequence = scanTensor(DataType.FLOAT32, false, time, 2);
+            var forward = Scan.apply(List.of(initial), List.of(sequence), List.of(), body, false);
+            var reverse = Scan.apply(List.of(initial), List.of(forward.residuals().getLast()), List.of(), body, true);
+            for (List<Tensor> roots : List.of(List.of(forward.finalCarry().getFirst()),
+                    List.of(forward.residuals().getLast()), List.of(forward.residuals().getLast().neg()),
+                    List.of(forward.finalCarry().getFirst(), reverse.finalCarry().getFirst()))) {
+                CompileArtifacts source = compileScan(roots);
+                // The same complete graph also projects with local scan-to-scan consumers;
+                // partition-local sinks alone do not determine demand.
+                var localContext = GraphPreparation.project(source, source.partitions().getFirst(), new FakeInputs("local"));
+                assertEquals(source.graph().nodes(), localContext.nodes());
+                // Distinct owners force the downstream consumer out of the scan's partition.
+                var partitions = new ArrayList<PlannedPartition>();
+                for (int i = 0; i < source.graph().nodes().size(); i++) {
+                    partitions.add(new PlannedPartition(new BackendId("owner-" + i), List.of(source.graph().nodes().get(i).id())));
+                }
+                CompileArtifacts artifacts = scanArtifacts(source, source.graph(), partitions);
+                for (CompiledNode node : artifacts.graph().nodes()) {
+                    if (node.scanBody().isEmpty()) continue;
+                    var bodyDemand = node.scanBody().orElseThrow().demandedOutputIndices();
+                    var missing = new ArrayList<>(bodyDemand);
+                    missing.removeLast();
+                    assertScanRejectedBeforeAnalysis(withScanDemand(artifacts, node, missing), true);
+                    var extra = new ArrayList<>(bodyDemand);
+                    for (int i = 0; i < node.outputs().size(); i++) {
+                        if (!extra.contains(i)) { extra.add(i); break; }
+                    }
+                    extra.sort(Integer::compareTo);
+                    assertScanRejectedBeforeAnalysis(withScanDemand(artifacts, node, extra), true);
+                }
+                var contexts = new ArrayList<PrepareContext<FakeInputs>>();
+                var finalizations = new ArrayList<BackendPartitionFinalization<FakePlan>>();
+                var events = new ArrayList<String>();
+                try (var ignored = GraphPreparation.prepare(artifacts,
+                        scanPreparations(artifacts, contexts, finalizations, events, Set.of()), GraphPreparationTest::scanSchedule)) {
+                    assertEquals(partitions.size(), contexts.size());
+                    if (artifacts.graph().nodes().size() == 2) {
+                        var first = artifacts.graph().nodes().getFirst();
+                        var last = artifacts.graph().nodes().getLast();
+                        assertTrue(last.inputs().stream().anyMatch(first.outputs()::contains));
+                        if (last.scanBody().isPresent()) {
+                            assertEquals(List.of(0), last.scanBody().orElseThrow().demandedOutputIndices());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    void laterPartitionDynamicUnusedFormalFailsBeforeTheFirstAnalyzer() {
+        Tensor h = scanTensor(DataType.FLOAT32, false, 2), x = scanTensor(DataType.FLOAT32, false, 2);
+        var template = new ScanBody(List.of(h), List.of(x), List.of(scanTensor(DataType.FLOAT32, false, 5)),
+                List.of(h.add(x)), List.of());
+        Tensor initial = scanTensor(DataType.FLOAT32, false, 2), sequence = scanTensor(DataType.FLOAT32, false, 0, 2);
+        Tensor unused = scanTensor(DataType.FLOAT32, false, 5);
+        var a = Scan.apply(List.of(initial), List.of(sequence), List.of(unused), template, false);
+        var b = Scan.apply(List.of(initial), List.of(sequence), List.of(unused), template, true);
+        CompileArtifacts source = compileScan(List.of(a.finalCarry().getFirst(), b.finalCarry().getFirst()));
+        var partitions = List.of(new PlannedPartition(new BackendId("first"), List.of(source.graph().nodes().getFirst().id())),
+                new PlannedPartition(new BackendId("second"), List.of(source.graph().nodes().getLast().id())));
+        var node = source.graph().nodes().getLast();
+        var body = node.scanBody().orElseThrow();
+        var local = body.graph();
+        ValueId id = local.inputs().getLast();
+        var values = local.values().stream().map(v -> v.id().equals(id)
+                ? new GraphValue(id, new TensorDescriptor(DataType.FLOAT32, Shape.ofDimensions(new DynamicDimension("unused")), Optional.empty(), false)) : v).toList();
+        var invalid = new CompiledScanBody(new CompiledGraphModel(values, local.nodes(), local.inputs(), local.outputs(), local.nodePhases()),
+                body.nextCarry(), body.emissions(), body.residuals(), body.demandedOutputIndices());
+        var nodes = List.of(source.graph().nodes().getFirst(), new CompiledNode(node.id(), node.operation(), node.inputs(), node.outputs(), Optional.of(invalid)));
+        var graph = new CompiledGraphModel(source.graph().values(), nodes, source.graph().inputs(), source.graph().outputs(), source.graph().nodePhases());
+        assertScanRejectedBeforeAnalysis(scanArtifacts(source, graph, partitions), false);
+    }
+
+    @Test
+    void symbolicOccurrencesProjectRankThreePortsWithoutInventingLocalSlotsOrLayouts() {
+        var batch = new DynamicDimension("B");
+        for (long time : List.of(0L,3L)) {
+            var row = new TensorDescriptor(DataType.FLOAT32,Shape.ofDimensions(batch,new io.github.pho001.synaptik.model.shape.StaticDimension(3)),Optional.empty(),true);
+            var sequence = new TensorDescriptor(DataType.FLOAT32,Shape.ofDimensions(new io.github.pho001.synaptik.model.shape.StaticDimension(time),batch,new io.github.pho001.synaptik.model.shape.StaticDimension(3)),Optional.empty(),true);
+            Tensor h = TensorFactory.create(row), x = TensorFactory.create(row), initial = TensorFactory.create(row), input = TensorFactory.create(sequence);
+            var body = new ScanBody(List.of(h),List.of(x),List.of(),List.of(h.add(x).sigmoid()),List.of(h));
+            var first = Scan.apply(List.of(initial),List.of(input),List.of(),body,false);
+            var second = Scan.apply(List.of(initial),List.of(input),List.of(),body,true);
+            var source = compileScan(List.of(first.finalCarry().getFirst(),first.outputs().getFirst(),second.outputs().getFirst()));
+            for (var partition : source.partitions()) {
+                var context = GraphPreparation.project(source,partition,new FakeInputs("scan"));
+                assertTrue(context.requiresBatchSize());
+                assertTrue(context.values().stream().allMatch(v -> v.descriptor().shape().isFullyStatic() || v.descriptor().layout().isEmpty()));
+                for (var node : context.nodes()) node.scanBody().ifPresent(scoped -> {
+                    assertTrue(scoped.graph().values().stream().anyMatch(v -> !v.descriptor().shape().isFullyStatic()));
+                    assertTrue(scoped.graph().values().stream().noneMatch(v -> v.descriptor().layout().isPresent()));
+                });
+                assertEquals(source.graph().values().stream().filter(v -> context.values().stream().anyMatch(c -> c.id().equals(v.id()))).count(),context.values().size());
+            }
+        }
+    }
+
+    @Test
+    void scanResidualHandoffRetainsExactDeclarationsCheckedGeometryAndNoLocalBufferInventory() {
+        for (long time : List.of(0L, 3L)) {
+            Tensor h = scanTensor(DataType.FLOAT32, false, 2), x = scanTensor(DataType.FLOAT32, false, 2);
+            var body = new ScanBody(List.of(h), List.of(x), List.of(), List.of(h.add(x).tanh()), List.of(h));
+            var scan = Scan.apply(List.of(scanTensor(DataType.FLOAT32, false, 2)),
+                    List.of(scanTensor(DataType.FLOAT32, false, time, 2)), List.of(), body, false);
+            CompileArtifacts source = compileScan(List.of(scan.finalCarry().getFirst(), scan.residuals().getLast().neg()));
+            var partitions = List.of(new PlannedPartition(new BackendId("first"), List.of(source.graph().nodes().getFirst().id())),
+                    new PlannedPartition(new BackendId("second"), List.of(source.graph().nodes().getLast().id())));
+            CompileArtifacts artifacts = scanArtifacts(source, source.graph(), partitions);
+            var first = artifacts.graph().nodes().getFirst();
+            ValueId residual = artifacts.graph().nodes().getLast().inputs().getFirst();
+            var contexts = new ArrayList<PrepareContext<FakeInputs>>();
+            var finalizations = new ArrayList<BackendPartitionFinalization<FakePlan>>();
+            var events = new ArrayList<String>();
+            try (var execution = GraphPreparation.prepare(artifacts,
+                    scanPreparations(artifacts, contexts, finalizations, events, Set.of()), context -> {
+                        events.add("assemble");
+                        var crossing = context.bufferAssignments().stream().filter(a -> a.valueId().equals(residual)).findFirst().orElseThrow();
+                        assertEquals(List.of(partitions.get(0).owner(), partitions.get(1).owner()), crossing.representationOwners());
+                        return scanSchedule(context);
+                    })) {
+                assertEquals(List.of("analyze-0", "analyze-1", "finalize-0", "finalize-1", "assemble"), events);
+                var firstAssignment = finalizations.get(0).assignments().stream()
+                        .filter(a -> a instanceof PreparationResourceAssignment.Buffer buffer && buffer.requirement().valueId().equals(residual))
+                        .map(a -> (PreparationResourceAssignment.Buffer) a).findFirst().orElseThrow();
+                var secondAssignment = finalizations.get(1).assignments().stream()
+                        .filter(a -> a instanceof PreparationResourceAssignment.Buffer buffer && buffer.requirement().valueId().equals(residual))
+                        .map(a -> (PreparationResourceAssignment.Buffer) a).findFirst().orElseThrow();
+                assertSame(firstAssignment.slot(), secondAssignment.slot());
+                assertEquals(firstAssignment.planIndex(), secondAssignment.planIndex());
+                assertEquals(0, firstAssignment.representationIndex());
+                assertEquals(1, secondAssignment.representationIndex());
+                assertEquals(Math.multiplyExact(time, 8), firstAssignment.requirement().byteSize());
+                assertEquals(Math.multiplyExact(time, 8) + 16, execution.memoryPlan().buffers().get(firstAssignment.planIndex()).byteSize());
+                assertEquals(16, execution.memoryPlan().buffers().get(firstAssignment.planIndex()).byteAlignment());
+                for (ValueId output : first.outputs()) {
+                    int index = first.outputs().indexOf(output);
+                    if (!first.scanBody().orElseThrow().demandedOutputIndices().contains(index)) {
+                        assertTrue(finalizations.getFirst().assignments().stream().noneMatch(a -> a instanceof PreparationResourceAssignment.Buffer buffer
+                                && buffer.requirement().valueId().equals(output)));
+                    }
+                }
+            }
+            // Both missing producer and missing consumer declarations fail before finalization.
+            for (int omittedPartition : List.of(0, 1)) {
+                var rejectedEvents = new ArrayList<String>();
+                assertTrue(assertThrows(IllegalArgumentException.class, () -> GraphPreparation.prepare(artifacts,
+                        scanPreparations(artifacts, new ArrayList<>(), new ArrayList<>(), rejectedEvents,
+                                Set.of(omittedPartition)), GraphPreparationTest::scanSchedule))
+                        .getMessage().contains("cross-partition value"));
+                assertEquals(List.of("analyze-0", "analyze-1"), rejectedEvents);
+            }
+        }
+    }
+
+    private static Tensor scanTensor(DataType type, boolean gradient, long... dimensions) {
+        Shape shape = Shape.of(dimensions);
+        return TensorFactory.create(new TensorDescriptor(type, shape, Optional.of(LayoutDescriptor.contiguous(shape)), gradient));
+    }
+
+    private static CompileArtifacts lengthHandoffArtifacts(DataType type, long time, long batch) {
+        Tensor h = scanTensor(type, false, batch, 2), x = scanTensor(type, false, batch, 2);
+        var body = new ScanBody(List.of(h), List.of(x), List.of(), List.of(h.add(x).tanh()), List.of(h));
+        var scan = Scan.apply(List.of(scanTensor(type, false, batch, 2)), List.of(scanTensor(type, false, time, batch, 2)),
+                List.of(), scanTensor(DataType.INT64, false, batch), 1, List.of(OptionalInt.of(0)), body, false);
+        return splitScanPartitions(compileScan(List.of(scan.finalCarry().getFirst(), scan.residuals().getLast().neg())));
+    }
+
+    private static List<List<PreparedResource>> scanResources(List<String> closes, int count) {
+        var resources = new ArrayList<List<PreparedResource>>();
+        for (int i = 0; i < count; i++) {
+            String name = "resource-" + i;
+            resources.add(List.of(() -> closes.add(name)));
+        }
+        return resources;
+    }
+
+    private static PreparationResourceAssignment.Buffer bufferAssignment(BackendPartitionFinalization<?> finalization, ValueId id) {
+        return finalization.assignments().stream()
+                .filter(a -> a instanceof PreparationResourceAssignment.Buffer b && b.requirement().valueId().equals(id))
+                .map(a -> (PreparationResourceAssignment.Buffer) a).findFirst().orElseThrow();
+    }
+
+    private static CompileArtifacts compileScan(List<Tensor> roots) {
+        return compileScan(roots, Optional.empty());
+    }
+
+    private static CompileArtifacts compileScan(List<Tensor> roots, List<Tensor> targets) {
+        var request = new FunctionalGradientRequest(List.of(new FunctionalGradientRequest.Stage(
+                roots.stream().map(t -> (FunctionalGradientRequest.OutputReference)
+                        new FunctionalGradientRequest.ForwardTensorReference(t)).toList(),
+                roots.stream().map(t -> Optional.of(scanTensor(t.descriptor().dataType(), false,
+                        t.descriptor().shape().toLongArray()))).toList(), targets, false,
+                FunctionalGradientRequest.DisconnectedPolicy.ZERO)));
+        return compileScan(roots, Optional.of(request));
+    }
+
+    private static CompileArtifacts compileScan(List<Tensor> roots, Optional<FunctionalGradientRequest> request) {
+        var owner = new BackendId("scan-test-only");
+        BackendCapabilityProvider provider = new BackendCapabilityProvider() {
+            @Override public BackendId backendId() { return owner; }
+            @Override public boolean supports(OperationCapabilityQuery query) { return true; }
+        };
+        return GraphCompilationPort.compile(request.isPresent() ? CompileMode.FORWARD_AND_BACKWARD : CompileMode.FORWARD_ONLY, roots, request,
+                GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(), List.of(provider),
+                List.of(new BackendAvailabilitySnapshot(owner, Map.of(new BackendDeviceId(owner, "0"), DeviceClass.CPU))));
+    }
+
+    private static CompileArtifacts splitScanPartitions(CompileArtifacts source) {
+        var partitions = new ArrayList<PlannedPartition>();
+        for (var node : source.graph().nodes()) {
+            partitions.add(new PlannedPartition(new BackendId("scan-owner-" + partitions.size()), List.of(node.id())));
+        }
+        return scanArtifacts(source, source.graph(), partitions);
+    }
+
+    private static TensorDescriptor descriptor(CompileArtifacts artifacts, ValueId id) {
+        return artifacts.graph().values().stream().filter(v -> v.id().equals(id)).findFirst().orElseThrow().descriptor();
+    }
+
+    private static CompileArtifacts scanArtifacts(CompileArtifacts source, CompiledGraphModel graph, List<PlannedPartition> partitions) {
+        PublicationPlan publication = construct(PublicationPlan.class,
+                new Class<?>[] {CompiledGraphModel.class, List.class, List.class}, graph,
+                source.publication().forwardBindings(), source.publication().gradientBindings());
+        return new CompileArtifacts(source.mode(), graph, partitions, LogicalMemoryPlanning.plan(graph, partitions), publication,
+                source.constants(), source.diagnostics(), new DerivativeGraphMetadata(graph, source.derivatives().derivativeOrderByNode()));
+    }
+
+    private static CompileArtifacts withScanDemand(CompileArtifacts source, CompiledNode node, List<Integer> demand) {
+        var body = node.scanBody().orElseThrow();
+        return withScanBody(source, node, new CompiledScanBody(body.graph(), body.nextCarry(), body.emissions(), body.residuals(), demand));
+    }
+
+    private static CompileArtifacts withScanBody(CompileArtifacts source, CompiledNode node, CompiledScanBody body) {
+        var replacement = new CompiledNode(node.id(), node.operation(), node.inputs(), node.outputs(),
+                Optional.of(body));
+        var graph = source.graph();
+        var nodes = graph.nodes().stream().map(n -> n == node ? replacement : n).toList();
+        return scanArtifacts(source, new CompiledGraphModel(graph.values(), nodes, graph.inputs(), graph.outputs(), graph.nodePhases()), source.partitions());
+    }
+
+    private static void assertScanRejectedBeforeAnalysis(CompileArtifacts artifacts, boolean checkProjection) {
+        var events = new ArrayList<String>();
+        var preparations = scanPreparations(artifacts, new ArrayList<>(), new ArrayList<>(), events, Set.of());
+        assertThrows(IllegalArgumentException.class,
+                () -> GraphPreparation.prepare(artifacts, preparations, GraphPreparationTest::scanSchedule));
+        assertTrue(events.isEmpty());
+        if (checkProjection) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> GraphPreparation.project(artifacts, artifacts.partitions().getFirst(), new FakeInputs("scan")));
+        }
+    }
+
+    private static List<PartitionPreparation<?, ?>> scanPreparations(CompileArtifacts artifacts,
+            List<PrepareContext<FakeInputs>> contexts, List<BackendPartitionFinalization<FakePlan>> finalizations,
+            List<String> events, Set<Integer> omitCrossing) {
+        return scanPreparations(artifacts, contexts, finalizations, events, omitCrossing, List.of());
+    }
+
+    private static List<PartitionPreparation<?, ?>> scanPreparations(CompileArtifacts artifacts,
+            List<PrepareContext<FakeInputs>> contexts, List<BackendPartitionFinalization<FakePlan>> finalizations,
+            List<String> events, Set<Integer> omitCrossing, List<List<PreparedResource>> resources) {
+        var preparations = new ArrayList<PartitionPreparation<?, ?>>();
+        for (int index = 0; index < artifacts.partitions().size(); index++) {
+            int position = index;
+            var partition = artifacts.partitions().get(index);
+            var plan = new FakePlan("scan-plan-" + index);
+            preparations.add(new PartitionPreparation<>(new FakeInputs("scan"), context -> {
+                events.add("analyze-" + position);
+                contexts.add(context);
+                var selected = new HashSet<ValueId>();
+                for (CompiledNode node : context.nodes()) {
+                    selected.addAll(node.inputs());
+                    if (node.scanBody().isPresent()) {
+                        node.scanBody().orElseThrow().demandedOutputIndices().forEach(i -> selected.add(node.outputs().get(i)));
+                    } else selected.addAll(node.outputs());
+                }
+                var declarations = new ArrayList<PreparationResourceRequirement>();
+                boolean lengthMode = context.nodes().stream().anyMatch(n -> n.operation().attrs() instanceof ScanAttrs a && a.rowCarryCount() > 0);
+                for (GraphValue value : context.values()) {
+                    if (!selected.contains(value.id())) continue;
+                    var logical = context.memoryRequirements().stream().filter(r -> r.valueId().equals(value.id())).findFirst().orElseThrow();
+                    boolean crossing = logical.producerPartition().isPresent()
+                            && logical.consumerPartitions().stream().anyMatch(p -> p != logical.producerPartition().orElseThrow());
+                    if (crossing && omitCrossing.contains(position)) continue;
+                    long bytes = descriptorBytes(value.descriptor());
+                    declarations.add(new PreparationResourceRequirement.Buffer(value.id(),
+                            crossing && position > 0 && !lengthMode ? Math.addExact(bytes, 16) : bytes,
+                            crossing && position > 0 && !lengthMode ? 16 : value.descriptor().dataType().byteWidth()));
+                }
+                if (lengthMode) declarations.addAll(lengthScratch(context));
+                else declarations.add(new PreparationResourceRequirement.Workspace(0, 32, 8));
+                return new BackendPartitionAnalysis<>(context.partition(), plan, declarations);
+            }, new BackendPartitionFinalizer<>() {
+                @Override public BackendId backendId() { return partition.owner(); }
+                @Override public BackendPartitionFinalizationResult finalizePartition(BackendPartitionFinalization<FakePlan> finalization) {
+                    events.add("finalize-" + position);
+                    finalizations.add(finalization);
+                    assertSame(plan, finalization.analysis().plan());
+                    for (int i = 0; i < finalization.assignments().size(); i++) {
+                        var declaration = finalization.analysis().requirements().get(i);
+                        switch (finalization.assignments().get(i)) {
+                            case PreparationResourceAssignment.Buffer buffer -> {
+                                assertSame(declaration, buffer.requirement());
+                                var entry = finalization.memoryPlan().buffers().get(buffer.planIndex());
+                                assertSame(entry.slot(), buffer.slot());
+                                assertTrue(entry.byteSize() >= buffer.requirement().byteSize());
+                                assertTrue(entry.byteAlignment() >= buffer.requirement().byteAlignment());
+                            }
+                            case PreparationResourceAssignment.Workspace workspace -> {
+                                assertSame(declaration, workspace.requirement());
+                                var entry = finalization.memoryPlan().workspaces().get(workspace.planIndex());
+                                assertSame(entry.slot(), workspace.slot());
+                                var requirement = (PreparationResourceRequirement.Workspace) declaration;
+                                assertEquals(requirement.byteSize(), entry.byteSize());
+                                assertEquals(requirement.byteAlignment(), entry.byteAlignment());
+                            }
+                        }
+                    }
+                    return new BackendPartitionFinalizationResult(new TestExecutable(finalization.memoryPlan()),
+                            resources.isEmpty() ? List.of() : resources.get(position));
+                }
+            }));
+        }
+        return preparations;
+    }
+
+    /** Test-only backend geometry: two carry banks, one step staging bank and dense local cuts. */
+    private static List<PreparationResourceRequirement.Workspace> lengthScratch(PrepareContext<?> context) {
+        var result = new ArrayList<PreparationResourceRequirement.Workspace>();
+        for (int index = 0; index < context.nodes().size(); index++) {
+            var node = context.nodes().get(index);
+            if (!(node.operation().attrs() instanceof ScanAttrs a) || a.rowCarryCount() == 0) continue;
+            var local = node.scanBody().orElseThrow().graph();
+            var descriptors = new LinkedHashMap<ValueId, TensorDescriptor>();
+            local.values().forEach(v -> descriptors.put(v.id(), v.descriptor()));
+            long carries = 0, staging = 0, temporaries = 0;
+            for (int i = 0; i < a.carryCount(); i++) {
+                carries = Math.addExact(carries, descriptorBytes(descriptors.get(local.inputs().get(i))));
+            }
+            for (int i = a.carryCount(); i < a.carryCount() + a.sequenceCount(); i++) {
+                staging = Math.addExact(staging, descriptorBytes(descriptors.get(local.inputs().get(i))));
+            }
+            for (var value : local.values()) {
+                if (!local.inputs().contains(value.id())) temporaries = Math.addExact(temporaries, descriptorBytes(value.descriptor()));
+            }
+            int width = descriptors.get(local.inputs().getFirst()).dataType().byteWidth();
+            result.add(new PreparationResourceRequirement.Workspace(index * 3L, Math.multiplyExact(2, carries), width));
+            result.add(new PreparationResourceRequirement.Workspace(index * 3L + 1, staging, width));
+            result.add(new PreparationResourceRequirement.Workspace(index * 3L + 2, temporaries, width));
+        }
+        return result;
+    }
+
+    private static long descriptorBytes(TensorDescriptor descriptor) {
+        return Math.multiplyExact((long) descriptor.dataType().byteWidth(), descriptor.shape().knownElementCount().orElseThrow());
+    }
+
+    private static void assertLengthDeclarations(PrepareContext<?> context, BackendPartitionFinalization<?> finalization) {
+        var selected = new HashSet<ValueId>();
+        for (var node : context.nodes()) {
+            selected.addAll(node.inputs());
+            node.scanBody().orElseThrow().demandedOutputIndices().forEach(i -> selected.add(node.outputs().get(i)));
+        }
+        var buffers = finalization.analysis().requirements().stream().filter(r -> r instanceof PreparationResourceRequirement.Buffer)
+                .map(r -> (PreparationResourceRequirement.Buffer) r).toList();
+        assertEquals(selected, buffers.stream().map(PreparationResourceRequirement.Buffer::valueId).collect(java.util.stream.Collectors.toSet()));
+        for (var buffer : buffers) {
+            TensorDescriptor d = context.values().stream().filter(v -> v.id().equals(buffer.valueId())).findFirst().orElseThrow().descriptor();
+            assertEquals(descriptorBytes(d), buffer.byteSize());
+            assertEquals(d.dataType().byteWidth(), buffer.byteAlignment());
+        }
+        var workspace = finalization.analysis().requirements().stream().filter(r -> r instanceof PreparationResourceRequirement.Workspace).toList();
+        assertEquals(lengthScratch(context), workspace);
+        for (var node : context.nodes()) {
+            ScanAttrs a = (ScanAttrs) node.operation().attrs();
+            var body = node.scanBody().orElseThrow();
+            for (int i = a.carryCount() + a.emissionCount(); i < node.outputs().size(); i++) {
+                if (!body.demandedOutputIndices().contains(i)) {
+                    ValueId dead = node.outputs().get(i);
+                    assertTrue(buffers.stream().noneMatch(b -> b.valueId().equals(dead)), "dead history has zero declaration bytes");
+                }
+            }
+            var lengths = buffers.stream().filter(b -> b.valueId().equals(node.inputs().getLast())).findFirst().orElseThrow();
+            long batch = context.values().stream().filter(v -> v.id().equals(node.inputs().getLast())).findFirst().orElseThrow()
+                    .descriptor().shape().dimension(0).staticSize().orElseThrow();
+            assertEquals(Math.multiplyExact(batch, 8L), lengths.byteSize());
+        }
+    }
+
+    private static PreparedSchedule scanSchedule(PreparedScheduleContext context) {
+        var buffers = new ArrayList<List<PreparedRepresentationPlan.BufferPreparation>>();
+        for (PreparedBufferAssignment assignment : context.bufferAssignments()) {
+            var preparations = new ArrayList<PreparedRepresentationPlan.BufferPreparation>();
+            for (int i = 0; i < assignment.representationOwners().size(); i++) {
+                preparations.add(context.constants().containsKey(assignment.valueId())
+                        ? new InitializedBuffer((requestedBytes, requestedAlignment) -> { throw new AssertionError("must not allocate"); })
+                        : i == 0 && context.bindableInputValueIds().contains(assignment.valueId())
+                                ? new CallerInput() : new CreatedBuffer((requestedBytes, requestedAlignment) -> { throw new AssertionError("must not allocate"); }));
+            }
+            buffers.add(preparations);
+        }
+        var workspaceCreators = context.memoryPlan().workspaces().stream()
+                .map(ignored -> (PreparedRepresentationPlan.WorkspaceCreator) (requestedBytes, requestedAlignment) -> { throw new AssertionError("must not allocate"); }).toList();
+        var representations = new PreparedRepresentationPlan(context.memoryPlan(), buffers, workspaceCreators);
+        var steps = new ArrayList<PreparedSchedule.Step>();
+        steps.add(new RepresentationCreationStep(representations));
+        context.partitions().forEach(p -> steps.add(new ExecutionStep(p.executable())));
+        for (int i = 0; i < context.publicationValueIds().size(); i++) {
+            ValueId id = context.publicationValueIds().get(i);
+            int bufferIndex = context.bufferAssignments().stream().filter(a -> a.valueId().equals(id)).findFirst().orElseThrow().planIndex();
+            steps.add(new PublicationStep(new PreparedPublication(context.memoryPlan(), bufferIndex, 0, i)));
+        }
+        return new PreparedSchedule(context.memoryPlan(), steps);
+    }
+
     @Test
     void requiresEveryProducerAndExternalConsumerToDeclareCrossPartitionValues() {
         Fixture fixture = fixture();
@@ -253,7 +1042,7 @@ class GraphPreparationTest {
                 descriptor(),
                 new TensorDescriptor(
                         DataType.FLOAT32,
-                        Shape.ofDimensions(new DynamicDimension("N")),
+                        Shape.ofDimensions(new DynamicDimension("N"),new DynamicDimension("N")),
                         Optional.empty(),
                         false));
         AtomicInteger analyses = new AtomicInteger();
@@ -261,16 +1050,11 @@ class GraphPreparationTest {
                 countingPreparation(0, fixture, analyses),
                 countingPreparation(1, fixture, analyses));
 
-        IllegalArgumentException failure = assertThrows(
-                IllegalArgumentException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> GraphPreparation.prepare(
                         fixture.artifacts, preparations, GraphPreparationTest::validSchedule));
 
-        assertAll(
-                () -> assertEquals(
-                        "values[0].descriptor.shape must be fully static: Shape[N]",
-                        failure.getMessage()),
-                () -> assertEquals(0, analyses.get()));
+        assertEquals(0, analyses.get());
     }
 
     @Test
@@ -312,10 +1096,10 @@ class GraphPreparationTest {
                         context -> scheduleWithPreparations(
                                 context,
                                 List.of(
-                                        List.of(new CreatedBuffer(FakeBuffer::new)),
-                                        List.of(new CreatedBuffer(FakeBuffer::new)),
-                                        List.of(new InitializedBuffer(FakeBuffer::new)),
-                                        List.of(new CreatedBuffer(FakeBuffer::new))))));
+                                        List.of(new CreatedBuffer((requestedBytes, requestedAlignment) -> new FakeBuffer())),
+                                        List.of(new CreatedBuffer((requestedBytes, requestedAlignment) -> new FakeBuffer())),
+                                        List.of(new InitializedBuffer((requestedBytes, requestedAlignment) -> new FakeBuffer())),
+                                        List.of(new CreatedBuffer((requestedBytes, requestedAlignment) -> new FakeBuffer()))))));
         assertFailure(
                 IllegalArgumentException.class,
                 "constant source ValueId[value=1] requires an initialized buffer representation",
@@ -326,9 +1110,9 @@ class GraphPreparationTest {
                                 context,
                                 List.of(
                                         List.of(new CallerInput()),
-                                        List.of(new CreatedBuffer(FakeBuffer::new)),
-                                        List.of(new CreatedBuffer(FakeBuffer::new)),
-                                        List.of(new CreatedBuffer(FakeBuffer::new))))));
+                                        List.of(new CreatedBuffer((requestedBytes, requestedAlignment) -> new FakeBuffer())),
+                                        List.of(new CreatedBuffer((requestedBytes, requestedAlignment) -> new FakeBuffer())),
+                                        List.of(new CreatedBuffer((requestedBytes, requestedAlignment) -> new FakeBuffer()))))));
         assertFailure(
                 IllegalArgumentException.class,
                 "constant source ValueId[value=1] must not use a caller-input representation",
@@ -339,11 +1123,11 @@ class GraphPreparationTest {
                                 context,
                                 List.of(
                                         List.of(new CallerInput()),
-                                        List.of(new CreatedBuffer(FakeBuffer::new)),
+                                        List.of(new CreatedBuffer((requestedBytes, requestedAlignment) -> new FakeBuffer())),
                                         List.of(
-                                                new InitializedBuffer(FakeBuffer::new),
+                                                new InitializedBuffer((requestedBytes, requestedAlignment) -> new FakeBuffer()),
                                                 new CallerInput()),
-                                        List.of(new CreatedBuffer(FakeBuffer::new))))));
+                                        List.of(new CreatedBuffer((requestedBytes, requestedAlignment) -> new FakeBuffer()))))));
         assertFailure(
                 IllegalArgumentException.class,
                 "buffer ValueId[value=2] has an initialized representation but is not a constant source",
@@ -354,9 +1138,9 @@ class GraphPreparationTest {
                                 context,
                                 List.of(
                                         List.of(new CallerInput()),
-                                        List.of(new InitializedBuffer(FakeBuffer::new)),
-                                        List.of(new InitializedBuffer(FakeBuffer::new)),
-                                        List.of(new CreatedBuffer(FakeBuffer::new))))));
+                                        List.of(new InitializedBuffer((requestedBytes, requestedAlignment) -> new FakeBuffer())),
+                                        List.of(new InitializedBuffer((requestedBytes, requestedAlignment) -> new FakeBuffer())),
+                                        List.of(new CreatedBuffer((requestedBytes, requestedAlignment) -> new FakeBuffer()))))));
         assertFailure(
                 IllegalArgumentException.class,
                 "execution occurrence count must equal prepared partition count 2",
@@ -428,15 +1212,15 @@ class GraphPreparationTest {
                     context.memoryPlan(),
                     List.of(
                             List.of(new CallerInput()),
-                            List.of(new CreatedBuffer(() -> {
+                            List.of(new CreatedBuffer((requestedBytes, requestedAlignment) -> {
                                 creators.incrementAndGet();
                                 return new FakeBuffer();
                             })),
-                            List.of(new InitializedBuffer(() -> {
+                            List.of(new InitializedBuffer((requestedBytes, requestedAlignment) -> {
                                 creators.incrementAndGet();
                                 return new FakeBuffer();
                             })),
-                            List.of(new CreatedBuffer(() -> {
+                            List.of(new CreatedBuffer((requestedBytes, requestedAlignment) -> {
                                 creators.incrementAndGet();
                                 return new FakeBuffer();
                             }))),
@@ -455,12 +1239,10 @@ class GraphPreparationTest {
     }
 
     @Test
-    void failsClosedWhenARequestedPassThroughValueHasNoPreparedAssignment() {
+    void rejectsAnUnresolvedSourceCallerBeforeScheduleAssembly() {
         CompileArtifacts artifacts = passThroughArtifacts();
 
-        assertFailure(
-                IllegalArgumentException.class,
-                "requested value has no prepared buffer assignment: ValueId[value=50]",
+        assertThrows(IllegalArgumentException.class,
                 () -> GraphPreparation.prepare(
                         artifacts,
                         List.of(),
@@ -515,7 +1297,7 @@ class GraphPreparationTest {
         AtomicInteger assemblers = new AtomicInteger();
         PartitionPreparation<FakeInputs, FakePlan> preparation = producerlessPreparation(
                 fixture, analyses, finalizers, new ArrayList<>());
-        ProducerlessPublishedConstantResource resource = resource(fixture, 0, 12, 8);
+        ProducerlessPublishedValueResource resource = resource(fixture, 0, 12, 8);
 
         assertAll(
                 () -> assertFailure(
@@ -539,7 +1321,7 @@ class GraphPreparationTest {
                 () -> {
                     var preparations = new ArrayList<PartitionPreparation<?, ?>>();
                     preparations.add(null);
-                    var resources = new ArrayList<ProducerlessPublishedConstantResource>();
+                    var resources = new ArrayList<ProducerlessPublishedValueResource>();
                     resources.add(null);
                     assertFailure(
                             NullPointerException.class,
@@ -551,7 +1333,7 @@ class GraphPreparationTest {
                                     context -> null));
                 },
                 () -> {
-                    var resources = new ArrayList<ProducerlessPublishedConstantResource>();
+                    var resources = new ArrayList<ProducerlessPublishedValueResource>();
                     resources.add(null);
                     assertFailure(
                             NullPointerException.class,
@@ -581,8 +1363,8 @@ class GraphPreparationTest {
                 () -> {
                     GraphValue equalValue = new GraphValue(
                             resource.value().id(), resource.value().descriptor());
-                    ProducerlessPublishedConstantResource foreignValue =
-                            new ProducerlessPublishedConstantResource(equalValue, resource.logicalRequirement(), new io.github.pho001.synaptik.backend.contract.BackendId("test"), 12, 8);
+                    ProducerlessPublishedValueResource foreignValue =
+                            new ProducerlessPublishedValueResource(equalValue, resource.logicalRequirement(), new io.github.pho001.synaptik.backend.contract.BackendId("test"), new io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan.FixedByteSize(12), 8);
                     assertFailure(
                             IllegalArgumentException.class,
                             "producerlessResources[0] value reference does not match artifacts graph value: ValueId[value=70]",
@@ -600,8 +1382,8 @@ class GraphPreparationTest {
                             logical.producerPartition(),
                             logical.consumerPartitions(),
                             logical.graphOutput());
-                    ProducerlessPublishedConstantResource foreignRequirement =
-                            new ProducerlessPublishedConstantResource(resource.value(), equalRequirement, new io.github.pho001.synaptik.backend.contract.BackendId("test"), 12, 8);
+                    ProducerlessPublishedValueResource foreignRequirement =
+                            new ProducerlessPublishedValueResource(resource.value(), equalRequirement, new io.github.pho001.synaptik.backend.contract.BackendId("test"), new io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan.FixedByteSize(12), 8);
                     assertFailure(
                             IllegalArgumentException.class,
                             "producerlessResources[0] logical requirement reference does not match artifacts memory requirement: ValueId[value=70]",
@@ -616,16 +1398,13 @@ class GraphPreparationTest {
                     GraphValue bindableValue = bindableArtifacts.graph().values().getFirst();
                     LogicalMemoryRequirement bindableRequirement =
                             bindableArtifacts.memory().requirements().getFirst();
-                    ProducerlessPublishedConstantResource extra =
-                            new ProducerlessPublishedConstantResource(bindableValue, bindableRequirement, new io.github.pho001.synaptik.backend.contract.BackendId("test"), 4, 4);
-                    assertFailure(
-                            IllegalArgumentException.class,
-                            "producerlessResources[0] is not a required producerless published constant: ValueId[value=81]",
-                            () -> GraphPreparation.prepare(
-                                    bindableArtifacts,
-                                    List.of(),
-                                    List.of(extra),
-                                    context -> null));
+                    ProducerlessPublishedValueResource extra =
+                            new ProducerlessPublishedValueResource(bindableValue, bindableRequirement, new io.github.pho001.synaptik.backend.contract.BackendId("test"), new io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan.FixedByteSize(4), 4);
+                    assertThrows(IllegalArgumentException.class, () -> GraphPreparation.prepare(
+                            bindableArtifacts,
+                            List.of(),
+                            List.of(extra),
+                            context -> null));
                 },
                 () -> assertEquals(0, analyses.get()),
                 () -> assertEquals(0, finalizers.get()),
@@ -651,8 +1430,8 @@ class GraphPreparationTest {
         AtomicInteger analyses = new AtomicInteger();
         AtomicInteger finalizers = new AtomicInteger();
         List<PrepareContext<FakeInputs>> contexts = new ArrayList<>();
-        ProducerlessPublishedConstantResource first = resource(fixture, 0, 13, 16);
-        ProducerlessPublishedConstantResource second = resource(fixture, 1, 29, 32);
+        ProducerlessPublishedValueResource first = resource(fixture, 0, 13, 16);
+        ProducerlessPublishedValueResource second = resource(fixture, 1, 29, 32);
 
         PreparedExecution execution = GraphPreparation.prepare(
                 fixture.artifacts,
@@ -688,17 +1467,14 @@ class GraphPreparationTest {
         LogicalMemoryRequirement requirement = artifacts.memory().requirements().getFirst();
         AtomicInteger assemblers = new AtomicInteger();
 
-        assertFailure(
-                IllegalArgumentException.class,
-                "producerless resources require at least one non-empty planned partition",
-                () -> GraphPreparation.prepare(
-                        artifacts,
-                        List.of(),
-                        List.of(new ProducerlessPublishedConstantResource(value, requirement, new io.github.pho001.synaptik.backend.contract.BackendId("test"), 4, 4)),
-                        context -> {
-                            assemblers.incrementAndGet();
-                            return new PreparedSchedule(context.memoryPlan(), List.of());
-                        }));
+        assertThrows(IllegalArgumentException.class, () -> GraphPreparation.prepare(
+                artifacts,
+                List.of(),
+                List.of(new ProducerlessPublishedValueResource(value, requirement, new io.github.pho001.synaptik.backend.contract.BackendId("test"), new io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan.FixedByteSize(4), 4)),
+                context -> {
+                    assemblers.incrementAndGet();
+                    return new PreparedSchedule(context.memoryPlan(), List.of());
+                }));
         assertEquals(0, assemblers.get());
     }
 
@@ -835,9 +1611,9 @@ class GraphPreparationTest {
                 context.memoryPlan(),
                 List.of(
                         List.of(new CallerInput()),
-                        List.of(new CreatedBuffer(FakeBuffer::new)),
-                        List.of(new InitializedBuffer(FakeBuffer::new)),
-                        List.of(new CreatedBuffer(FakeBuffer::new))),
+                        List.of(new CreatedBuffer((requestedBytes, requestedAlignment) -> new FakeBuffer())),
+                        List.of(new InitializedBuffer((requestedBytes, requestedAlignment) -> new FakeBuffer())),
+                        List.of(new CreatedBuffer((requestedBytes, requestedAlignment) -> new FakeBuffer()))),
                 List.of());
     }
 
@@ -869,12 +1645,12 @@ class GraphPreparationTest {
     private static PreparedSchedule producerlessSchedule(PreparedScheduleContext context) {
         var preparations = new ArrayList<List<PreparedRepresentationPlan.BufferPreparation>>();
         for (PreparedBufferAssignment assignment : context.bufferAssignments()) {
-            if (assignment.valueId().equals(new ValueId(60))) {
+            if (context.bindableInputValueIds().contains(assignment.valueId())) {
                 preparations.add(List.of(new CallerInput()));
-            } else if (assignment.valueId().value() >= 70) {
-                preparations.add(List.of(new InitializedBuffer(FakeBuffer::new)));
+            } else if (context.constants().containsKey(assignment.valueId())) {
+                preparations.add(List.of(new InitializedBuffer((requestedBytes, requestedAlignment) -> new FakeBuffer())));
             } else {
-                preparations.add(List.of(new CreatedBuffer(FakeBuffer::new)));
+                preparations.add(List.of(new CreatedBuffer((requestedBytes, requestedAlignment) -> new FakeBuffer())));
             }
         }
         PreparedRepresentationPlan representations = new PreparedRepresentationPlan(
@@ -1061,14 +1837,273 @@ class GraphPreparationTest {
         return new ProducerlessFixture(artifacts, partition, input, output, constants);
     }
 
-    private static ProducerlessPublishedConstantResource resource(
+    private static ProducerlessPublishedValueResource resource(
             ProducerlessFixture fixture, int index, long byteSize, long byteAlignment) {
         GraphValue value = fixture.constants.get(index);
         LogicalMemoryRequirement requirement = fixture.artifacts.memory().requirements().stream()
                 .filter(candidate -> candidate.valueId().equals(value.id()))
                 .findFirst()
                 .orElseThrow();
-        return new ProducerlessPublishedConstantResource(value, requirement, new io.github.pho001.synaptik.backend.contract.BackendId("test"), byteSize, byteAlignment);
+        return new ProducerlessPublishedValueResource(value, requirement, new io.github.pho001.synaptik.backend.contract.BackendId("test"), new io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan.FixedByteSize(byteSize), byteAlignment);
+    }
+
+    @Test
+    void sourceCallersLeadInBindableOrderAndConstantsRemainLastOnBothPreparationPaths() {
+        Shape shape = Shape.of(2, 3);
+        var affine = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.of(shape, new long[] {8, 2}, 5, true)), true);
+        CompileArtifacts artifacts = callerSourceArtifacts(List.of(affine, affine, affine), null);
+        for (boolean automatic : List.of(false, true)) {
+            AtomicInteger analyses = new AtomicInteger();
+            var assembler = sourceAssembler(artifacts, Map.of());
+            PreparedExecution execution = automatic
+                    ? GraphPreparation.prepare(artifacts,
+                            List.of(callerSourcePreparation(artifacts, analyses, List.of())), assembler)
+                    : GraphPreparation.prepare(artifacts,
+                            List.of(callerSourcePreparation(artifacts, analyses, List.of())),
+                            sourceContributions(artifacts, Map.of()).reversed(), assembler);
+            assertEquals(1, analyses.get());
+            assertEquals(8, execution.memoryPlan().buffers().size());
+            for (int index : new int[] {0, 2, 4}) {
+                assertEquals(72, execution.memoryPlan().buffers().get(index).byteSize());
+            }
+            assertEquals(List.of(5, 6, 0, 7, 2, 4),
+                    execution.schedule().steps().stream()
+                            .filter(PublicationStep.class::isInstance).map(PublicationStep.class::cast)
+                            .map(step -> step.publication().bufferIndex()).toList());
+            assertSame(affine, artifacts.graph().values().stream()
+                    .filter(value -> value.id().equals(new ValueId(90))).findFirst().orElseThrow()
+                    .descriptor());
+            execution.close();
+        }
+    }
+
+    @Test
+    void sourceOnlyNamedAuthorityRetainsRunBoundRecipesEvenForPermanentZeroBytes() {
+        for (long rowBytes : new long[] {0, 12}) {
+            Shape shape = Shape.ofDimensions(new DynamicDimension("Customers"),
+                    new io.github.pho001.synaptik.model.shape.StaticDimension(rowBytes == 0 ? 0 : 3));
+            var named = new TensorDescriptor(DataType.FLOAT32, shape, Optional.empty(), true);
+            CompileArtifacts artifacts = callerSourceArtifacts(List.of(named, named, named), null);
+            PreparedMemoryPlan.ByteSize size = new SourceRowsByteSize(rowBytes);
+            Map<ValueId, PreparedMemoryPlan.ByteSize> sizes = Map.of(
+                    new ValueId(90), size, new ValueId(91), size, new ValueId(92), size);
+            for (boolean automatic : List.of(false, true)) {
+                PreparedExecution execution = automatic
+                        ? GraphPreparation.prepare(artifacts,
+                                List.of(callerSourcePreparation(artifacts, new AtomicInteger(), List.of())),
+                                sourceAssembler(artifacts, sizes))
+                        : GraphPreparation.prepare(artifacts,
+                                List.of(callerSourcePreparation(artifacts, new AtomicInteger(), List.of())),
+                                sourceContributions(artifacts, sizes).reversed(),
+                                sourceAssembler(artifacts, sizes));
+                assertTrue(execution.memoryPlan().requiresBatchSize());
+                for (int index : new int[] {0, 2, 4}) {
+                    assertSame(size, execution.memoryPlan().buffers().get(index).size());
+                    assertTrue(execution.memoryPlan().buffers().get(index).size().fixedByteSize().isEmpty());
+                }
+                assertThrows(IllegalArgumentException.class, () ->
+                        io.github.pho001.synaptik.runtime.run.RunMemoryGeometry.resolve(
+                                execution.memoryPlan(), java.util.OptionalLong.empty()));
+                for (long batch : new long[] {2, 0, 5}) {
+                    var geometry = io.github.pho001.synaptik.runtime.run.RunMemoryGeometry.resolve(
+                            execution.memoryPlan(), java.util.OptionalLong.of(batch));
+                    assertSame(execution.memoryPlan(), geometry.memoryPlan());
+                    for (int index : new int[] {0, 2, 4}) {
+                        assertEquals(batch * rowBytes, geometry.bufferByteSize(index));
+                    }
+                    for (int index : new int[] {1, 3, 5}) {
+                        assertEquals(24, geometry.bufferByteSize(index));
+                    }
+                }
+                execution.close();
+            }
+        }
+    }
+
+    @Test
+    void rejectsInvalidSourceShapesAndConstantLayoutsBeforeEitherPathCanAnalyze() {
+        Shape one = Shape.of(1);
+        var fixed = new TensorDescriptor(DataType.FLOAT32, one,
+                Optional.of(LayoutDescriptor.contiguous(one)), false);
+        var unresolved = new TensorDescriptor(DataType.FLOAT32, one, Optional.empty(), false);
+        var batch = new TensorDescriptor(DataType.FLOAT32,
+                Shape.ofDimensions(new DynamicDimension("Customers")), Optional.empty(), false);
+        var independent = new TensorDescriptor(DataType.FLOAT32,
+                Shape.ofDimensions(new DynamicDimension("Other")), Optional.empty(), false);
+        var repeated = new TensorDescriptor(DataType.FLOAT32,
+                Shape.ofDimensions(new DynamicDimension("Customers"), new DynamicDimension("Customers")),
+                Optional.empty(), false);
+        List<CompileArtifacts> invalid = List.of(
+                callerSourceArtifacts(List.of(unresolved, fixed, fixed), null),
+                callerSourceArtifacts(List.of(batch, independent, fixed), null),
+                callerSourceArtifacts(List.of(repeated, fixed, fixed), null),
+                callerSourceArtifacts(List.of(fixed, fixed, fixed), unresolved),
+                callerSourceArtifacts(List.of(batch, fixed, fixed), batch),
+                callerSourceArtifacts(List.of(fixed, fixed, fixed), batch));
+        for (CompileArtifacts artifacts : invalid) for (boolean automatic : List.of(false, true)) {
+            AtomicInteger analyses = new AtomicInteger();
+            var preparation = callerSourcePreparation(artifacts, analyses, List.of());
+            assertThrows(IllegalArgumentException.class, () -> {
+                if (automatic) GraphPreparation.prepare(
+                        artifacts, List.of(preparation), sourceAssembler(artifacts, Map.of()));
+                else GraphPreparation.prepare(
+                        artifacts, List.of(preparation), List.of(),
+                        sourceAssembler(artifacts, Map.of()));
+            });
+            assertEquals(0, analyses.get());
+        }
+    }
+
+    @Test
+    void rejectedSourceCallerRepresentationRollsBackFinalizedResourcesExactlyOnce() {
+        Shape shape = Shape.of(1);
+        var fixed = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        CompileArtifacts artifacts = callerSourceArtifacts(List.of(fixed, fixed, fixed), null);
+        var closes = new ArrayList<String>();
+        PreparedResource first = () -> closes.add("first");
+        PreparedResource second = () -> closes.add("second");
+        AtomicInteger analyses = new AtomicInteger();
+        assertThrows(IllegalArgumentException.class, () -> GraphPreparation.prepare(
+                artifacts,
+                List.of(callerSourcePreparation(artifacts, analyses, List.of(first, second))),
+                sourceContributions(artifacts, Map.of()),
+                context -> {
+                    var preparations = new ArrayList<List<PreparedRepresentationPlan.BufferPreparation>>();
+                    for (PreparedBufferAssignment assignment : context.bufferAssignments()) {
+                        if (context.bindableInputValueIds().contains(assignment.valueId())
+                                && !assignment.valueId().equals(new ValueId(90))) {
+                            preparations.add(List.of(new CallerInput()));
+                        } else {
+                            preparations.add(List.of(new InitializedBuffer(
+                                    (requestedBytes, requestedAlignment) -> new FakeBuffer())));
+                        }
+                    }
+                    PreparedSchedule valid = producerlessSchedule(context);
+                    var steps = new ArrayList<>(valid.steps());
+                    steps.set(0, new RepresentationCreationStep(new PreparedRepresentationPlan(
+                            context.memoryPlan(), preparations, List.of())));
+                    return new PreparedSchedule(context.memoryPlan(), steps);
+                }));
+        assertEquals(1, analyses.get());
+        assertEquals(List.of("second", "first"), closes);
+    }
+
+    private static CompileArtifacts callerSourceArtifacts(
+            List<TensorDescriptor> callers, TensorDescriptor constantDescriptor) {
+        Shape one = Shape.of(1);
+        if (constantDescriptor == null) {
+            constantDescriptor = new TensorDescriptor(DataType.FLOAT32, one,
+                    Optional.of(LayoutDescriptor.contiguous(one)), false);
+        }
+        List<GraphValue> values = List.of(
+                new GraphValue(new ValueId(70), constantDescriptor),
+                new GraphValue(new ValueId(90), callers.get(0)),
+                new GraphValue(new ValueId(60), descriptor()),
+                new GraphValue(new ValueId(71), constantDescriptor),
+                new GraphValue(new ValueId(91), callers.get(1)),
+                new GraphValue(new ValueId(62), descriptor()),
+                new GraphValue(new ValueId(92), callers.get(2)),
+                new GraphValue(new ValueId(61), descriptor()));
+        List<ValueId> inputs = values.subList(0, 7).stream().map(GraphValue::id).toList();
+        List<ValueId> outputs = List.of(new ValueId(61), new ValueId(70), new ValueId(90),
+                new ValueId(71), new ValueId(91), new ValueId(92));
+        CompiledNode node = node(60, List.of(new ValueId(60), new ValueId(62)), new ValueId(61));
+        CompiledGraphModel graph = new CompiledGraphModel(values, List.of(node), inputs, outputs,
+                Map.of(node.id(), GraphPhase.FORWARD));
+        var partition = new PlannedPartition(new BackendId("cpu"), List.of(node.id()));
+        var bindables = inputs.stream().filter(id -> id.value() != 70 && id.value() != 71)
+                .map(id -> new CompileConstantPlan.BindableInput(new TensorId(9000 + id.value()), id))
+                .toList();
+        CompileConstantPlan constants = construct(CompileConstantPlan.class,
+                new Class<?>[] {List.class, List.class}, bindables,
+                List.of(new CompileConstantPlan.ConstantSource(new ValueId(70), ScalarValue.float32(1)),
+                        new CompileConstantPlan.ConstantSource(new ValueId(71), ScalarValue.float32(2))));
+        var bindings = new ArrayList<ForwardPublicationBinding>();
+        for (int index = 0; index < outputs.size(); index++) {
+            bindings.add(new ForwardPublicationBinding(new TensorId(9600 + index), outputs.get(index)));
+        }
+        PublicationPlan publication = construct(PublicationPlan.class,
+                new Class<?>[] {CompiledGraphModel.class, List.class, List.class},
+                graph, bindings, List.of());
+        List<PlannedPartition> partitions = List.of(partition);
+        return new CompileArtifacts(CompileMode.FORWARD_ONLY, graph, partitions,
+                LogicalMemoryPlanning.plan(graph, partitions), publication, constants,
+                construct(CompileDiagnostics.class, new Class<?>[] {List.class}, List.of()),
+                new DerivativeGraphMetadata(graph, Map.of(node.id(), 0)));
+    }
+
+    private static PartitionPreparation<FakeInputs, FakePlan> callerSourcePreparation(
+            CompileArtifacts artifacts, AtomicInteger analyses, List<PreparedResource> resources) {
+        PlannedPartition partition = artifacts.partitions().getFirst();
+        return new PartitionPreparation<>(new FakeInputs("source-callers"), context -> {
+            analyses.incrementAndGet();
+            assertEquals(List.of(new ValueId(60), new ValueId(62), new ValueId(61)),
+                    context.values().stream().map(GraphValue::id).toList());
+            assertTrue(context.constants().isEmpty());
+            assertTrue(!context.requiresBatchSize());
+            return new BackendPartitionAnalysis<>(partition, new FakePlan("fixed"), declarations(context));
+        }, new BackendPartitionFinalizer<>() {
+            @Override public BackendId backendId() { return partition.owner(); }
+            @Override public BackendPartitionFinalizationResult finalizePartition(
+                    BackendPartitionFinalization<FakePlan> finalization) {
+                assertEquals(List.of(1, 3, 5), finalization.assignments().stream()
+                        .map(PreparationResourceAssignment.Buffer.class::cast)
+                        .map(PreparationResourceAssignment.Buffer::planIndex).toList());
+                return new BackendPartitionFinalizationResult(
+                        new TestExecutable(finalization.memoryPlan()), resources);
+            }
+        });
+    }
+
+    private static List<ProducerlessPublishedValueResource> sourceContributions(
+            CompileArtifacts artifacts, Map<ValueId, PreparedMemoryPlan.ByteSize> sizes) {
+        var resources = new ArrayList<ProducerlessPublishedValueResource>();
+        for (GraphValue value : artifacts.graph().values()) {
+            if (value.id().value() != 70 && value.id().value() != 71 && value.id().value() < 90) continue;
+            LogicalMemoryRequirement requirement = artifacts.memory().requirements().stream()
+                    .filter(candidate -> candidate.valueId().equals(value.id())).findFirst().orElseThrow();
+            PreparedMemoryPlan.ByteSize size = sizes.get(value.id());
+            if (size == null) size = new PreparedMemoryPlan.FixedByteSize(Math.multiplyExact(
+                    value.descriptor().layout().orElseThrow().referencedElementSpan(),
+                    value.descriptor().dataType().byteWidth()));
+            resources.add(new ProducerlessPublishedValueResource(
+                    value, requirement, new BackendId("cpu"), size, 8));
+        }
+        return resources;
+    }
+
+    private static PreparedScheduleAssembler sourceAssembler(
+            CompileArtifacts artifacts, Map<ValueId, PreparedMemoryPlan.ByteSize> sizes) {
+        return new PreparedScheduleAssembler() {
+            @Override public ProducerlessPublishedValueResource producerlessPublishedValue(
+                    GraphValue value, LogicalMemoryRequirement requirement, Optional<ScalarValue> scalar) {
+                assertEquals(value.id().value() == 70 || value.id().value() == 71, scalar.isPresent());
+                if (scalar.isPresent()) assertSame(artifacts.constants().constantSources().stream()
+                        .filter(source -> source.valueId().equals(value.id())).findFirst().orElseThrow()
+                        .value(), scalar.orElseThrow());
+                return sourceContributions(artifacts, sizes).stream()
+                        .filter(resource -> resource.value() == value).findFirst().orElseThrow();
+            }
+            @Override public PreparedSchedule assemble(PreparedScheduleContext context) {
+                assertEquals(List.of(new ValueId(90), new ValueId(60), new ValueId(91),
+                                new ValueId(62), new ValueId(92), new ValueId(61),
+                                new ValueId(70), new ValueId(71)),
+                        context.bufferAssignments().stream().map(PreparedBufferAssignment::valueId).toList());
+                assertTrue(context.bufferAssignments().stream()
+                        .allMatch(assignment -> assignment.representationOwners().equals(List.of(new BackendId("cpu")))));
+                return producerlessSchedule(context);
+            }
+        };
+    }
+
+    private record SourceRowsByteSize(long rowBytes) implements PreparedMemoryPlan.ByteSize {
+        @Override public java.util.OptionalLong fixedByteSize() { return java.util.OptionalLong.empty(); }
+        @Override public long byteSize(long batchSize) {
+            if (batchSize < 0) throw new IllegalArgumentException("negative batch");
+            return Math.multiplyExact(rowBytes, batchSize);
+        }
     }
 
     private static CompileArtifacts producerlessZeroNodeArtifacts() {

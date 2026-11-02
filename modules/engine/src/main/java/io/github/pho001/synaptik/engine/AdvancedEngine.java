@@ -15,6 +15,7 @@ import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
 import io.github.pho001.synaptik.config.tuning.ModelAutotuningConfig;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorId;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import io.github.pho001.synaptik.runtime.run.PreparedExecutionRunner;
@@ -1265,6 +1266,11 @@ public final class AdvancedEngine implements AutoCloseable {
 
     private io.github.pho001.synaptik.engine.PreparedExecution prepareOrdinaryOpen(
             Engine owner, CompiledGraph compiledGraph) {
+        var batchPlan = io.github.pho001.synaptik.engine.PreparedExecution.batchPlan(compiledGraph);
+        if (batchPlan != null && compiledGraph.artifacts().partitions().stream().anyMatch(partition ->
+                !partition.owner().equals(io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider.CPU_BACKEND_ID))) {
+            throw new IllegalArgumentException("ordinary dynamic batch requires CPU-only ownership");
+        }
         EnginePreparation preparation = prepareOrdinary(compiledGraph.artifacts());
         io.github.pho001.synaptik.runtime.execution.PreparedExecution inward =
                 preparation.execution();
@@ -1274,7 +1280,7 @@ public final class AdvancedEngine implements AutoCloseable {
                     compiledGraph,
                     inward,
                     preparation.inputAdapters(),
-                    preparation.publicationAdapters());
+                    preparation.publicationAdapters(), batchPlan);
         } catch (RuntimeException | Error failure) {
             closeWithSuppression(inward, failure);
             throw failure;
@@ -1351,6 +1357,9 @@ public final class AdvancedEngine implements AutoCloseable {
                     preparedExecution.execution();
             List<Tensor> supplied = snapshotElements(inputs, "inputs");
             List<CompiledGraph.Input> required = preparedExecution.compiledGraph().inputs();
+            if (preparedExecution.batchPlan() != null) {
+                return runOrdinaryBatchOpen(preparedExecution, execution, supplied, positional);
+            }
 
             var storages = new ArrayList<HostTensorStorage>(required.size());
             if (positional) {
@@ -1456,6 +1465,108 @@ public final class AdvancedEngine implements AutoCloseable {
             }
             throw failure;
         }
+    }
+
+    /**
+     * Admits an already-open named-B invocation before borrowing any storage. Semantic metadata
+     * and preindexed logical/numeric domains are checked first; only publication descriptors are
+     * reconstructed. Input associations are snapshotted once, exact prefixes are borrowed, and
+     * Runtime alone owns the later unique run lease and resource rollback.
+     * @param prepared non-null exact open outward handle already authenticated to this Engine
+     * @param execution non-null exact inward delegate retrieved through its close gate
+     * @param supplied non-null immutable snapshot of non-null Tensors with caller-owned storage
+     * @param positional whether values align by compiled position rather than exact Tensor ID
+     * @return completed outward result and its direct lifecycle owner; never null
+     * @throws IllegalArgumentException if IDs/counts, descriptors, predicates or storage disagree
+     * @throws ArithmeticException if dimensions, strides, counts, bytes, padding or aggregate
+     *     representation multiplicity exceed supported numeric limits
+     * @throws IllegalStateException if storage is absent/dead/inaccessible or Runtime rejects
+     *     the run; failures publish no partial result and retain caller ownership
+     * @throws RuntimeException if inward creation/binding/execution/publication/cleanup fails
+     * @throws Error if inward work reports a fatal failure, retaining reverse attempt-all cleanup
+     */
+    private OrdinaryRun runOrdinaryBatchOpen(io.github.pho001.synaptik.engine.PreparedExecution prepared,
+            io.github.pho001.synaptik.runtime.execution.PreparedExecution execution, List<Tensor> supplied,
+            boolean positional) {
+        var required = prepared.compiledGraph().inputs();
+        if (supplied.size() != required.size()) throw new IllegalArgumentException("input count must equal required input count");
+        List<Tensor> ordered = supplied;
+        if (!positional) {
+            var byId = new HashMap<TensorId, Tensor>();
+            for (var tensor : supplied) if (byId.putIfAbsent(tensor.id(), tensor) != null) throw new IllegalArgumentException("duplicate input " + tensor.id());
+            var selected = new ArrayList<Tensor>(required.size());
+            for (var input : required) {
+                Tensor tensor = byId.get(input.tensorId());
+                if (tensor == null) throw new IllegalArgumentException("missing input " + input.tensorId());
+                selected.add(tensor);
+            }
+            ordered = List.copyOf(selected);
+        }
+        var binding = prepared.batchPlan().bind(ordered.stream().map(Tensor::descriptor).toList());
+        prepared.validateBatchGeometry(binding.batchSize());
+        var geometry = io.github.pho001.synaptik.runtime.run.RunMemoryGeometry.resolve(
+                execution.memoryPlan(), java.util.OptionalLong.of(binding.batchSize()));
+        var descriptors = prepared.publicationDescriptors(binding);
+        long[] prefixes = new long[ordered.size()];
+        for (int i = 0; i < prefixes.length; i++) prefixes[i] = ordinaryBatchBytes(ordered.get(i).descriptor());
+        for (var descriptor : descriptors) ordinaryBatchBytes(descriptor);
+        long total = 0;
+        var creation = (io.github.pho001.synaptik.runtime.schedule.PreparedSchedule.RepresentationCreationStep) execution.schedule().steps().getFirst();
+        for (int i = 0; i < execution.memoryPlan().buffers().size(); i++) {
+            var entry = execution.memoryPlan().buffers().get(i);
+            long padded = Math.addExact(geometry.bufferByteSize(i), entry.byteAlignment() - 1);
+            total = Math.addExact(total, Math.multiplyExact(padded, creation.representationPlan().bufferPreparations().get(i).size()));
+        }
+        for (int i = 0; i < execution.memoryPlan().workspaces().size(); i++) {
+            total = Math.addExact(total, Math.addExact(geometry.workspaceByteSize(i), execution.memoryPlan().workspaces().get(i).byteAlignment() - 1));
+        }
+        var storages = new ArrayList<HostTensorStorage>(ordered.size());
+        for (var tensor : ordered) storages.add(tensor.hostStorage().orElseThrow(() -> new IllegalStateException("input has no host storage")));
+        for (int i = 0; i < storages.size(); i++) {
+            var storage = storages.get(i);
+            if (storage.dataType() != ordered.get(i).descriptor().dataType()) throw new IllegalArgumentException("input storage data type does not match");
+            if (!storage.isAlive()) throw new IllegalStateException("input storage is not alive");
+            if (!storage.segment().isAccessibleBy(Thread.currentThread())) throw new IllegalStateException("input storage is not accessible to current thread");
+            if (storage.byteSize() < prefixes[i]) throw new IllegalArgumentException("input storage capacity is insufficient");
+        }
+        var borrowed = new ArrayList<BufferRepresentation>(storages.size());
+        io.github.pho001.synaptik.runtime.run.RunResult inward = null;
+        try {
+            if (prepared.inputAdapters().size() != storages.size()) throw new IllegalStateException("prepared input adapter count disagrees");
+            for (int i = 0; i < storages.size(); i++) borrowed.add(prepared.inputAdapters().get(i).borrow(storages.get(i), prefixes[i]));
+            inward = runner.run(execution, borrowed, geometry);
+            var specs = prepared.compiledGraph().publicationSpecs();
+            if (inward.resultCount() != specs.size() || prepared.publicationAdapters().size() != specs.size()) {
+                throw new IllegalStateException("actual publication occurrence count disagrees");
+            }
+            var resultOwner = new AdvancedRunResult(this, inward, borrowed, prepared.publicationAdapters());
+            var result = new io.github.pho001.synaptik.engine.RunResult(resultOwner, specs, descriptors);
+            return new OrdinaryRun(resultOwner, result);
+        } catch (RuntimeException | Error failure) {
+            if (inward != null) try { inward.close(); } catch (RuntimeException | Error cleanup) { suppressDistinct(failure, cleanup); }
+            closeBorrowedReverse(borrowed, failure); throw failure;
+        }
+    }
+
+    /**
+     * Checks an actual boundary's logical/int address domain without inspecting storage.
+     * Trailing products and strides are checked even behind an empty leading axis.
+     * @param descriptor non-null fully static input or publication descriptor
+     * @return exact non-negative referenced usable prefix in bytes
+     * @throws IllegalArgumentException if descriptor geometry cannot be represented
+     * @throws ArithmeticException if extents, strides, count, span or bytes exceed limits
+     */
+    private static long ordinaryBatchBytes(TensorDescriptor descriptor) {
+        long suffix = 1;
+        for (int axis = descriptor.shape().rank() - 1; axis >= 0; axis--) {
+            long extent = descriptor.shape().dimension(axis).staticSize().orElseThrow();
+            Math.toIntExact(extent); suffix = Math.toIntExact(Math.multiplyExact(suffix, extent));
+        }
+        var layout = descriptor.layout().orElseGet(() -> io.github.pho001.synaptik.model.layout.LayoutDescriptor.contiguous(descriptor.shape()));
+        Math.toIntExact(layout.storageOffset());
+        for (long stride : layout.strides()) Math.toIntExact(stride);
+        Math.toIntExact(layout.referencedElementSpan());
+        return Math.multiplyExact(layout.referencedElementSpan(), descriptor.dataType().byteWidth());
     }
 
     private static List<io.github.pho001.synaptik.engine.RunResult.Publication>

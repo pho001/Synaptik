@@ -184,8 +184,8 @@ final class CompositePreparedScheduleAssemblerTest {
                     PreparedBufferAssignment assignment = context.bufferAssignments().getFirst();
                     int representationIndex = assignment.representationOwners().indexOf(owner);
                     PreparedRepresentationPlan.BufferPreparation preparation = initialized
-                            ? new PreparedRepresentationPlan.InitializedBuffer(TestBuffer::new)
-                            : new PreparedRepresentationPlan.CreatedBuffer(TestBuffer::new);
+                            ? new PreparedRepresentationPlan.InitializedBuffer((requestedBytes, requestedAlignment) -> new TestBuffer())
+                            : new PreparedRepresentationPlan.CreatedBuffer((requestedBytes, requestedAlignment) -> new TestBuffer());
                     return new PreparedScheduleContribution(
                             owner,
                             List.of(new PreparedScheduleContribution.Buffer(

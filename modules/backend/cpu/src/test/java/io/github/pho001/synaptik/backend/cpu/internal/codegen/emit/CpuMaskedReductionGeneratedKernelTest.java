@@ -23,6 +23,46 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class CpuMaskedReductionGeneratedKernelTest {
+    @Test void controlledNonleadingRowsSkipMaskAndDataBeforeExactScratchWork() throws Throwable {
+        Shape shape = Shape.of(2, 2, 2);
+        var base = CpuMaskedReductionLoweringTest.context(AggregateReductionKind.SUM,
+                DataType.FLOAT64, shape, shape, 2);
+        var plan = plan(base, carriers(DataType.FLOAT64));
+        var route = plan.units().getFirst().portablePlan();
+        var inputRow = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(1, 2);
+        var outputRow = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(1, 1);
+        var control = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl(
+                List.of(inputRow, inputRow, outputRow), List.of(inputRow, inputRow, outputRow));
+        var owner = java.lang.constant.ClassDesc.of(
+                "io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.ControlledMaskedRows");
+        var inventory = CpuClassFileKernelGenerator.methodInventory(
+                owner, "row$", route.specialization(), route.kernelIr(), true);
+        byte[] bytes = ClassFile.of().build(owner, builder -> {
+            builder.withVersion(ClassFile.JAVA_26_VERSION, 0).withFlags(AccessFlag.FINAL);
+            CpuClassFileKernelGenerator.emitMethods(builder, owner, "row$",
+                    route.specialization(), route.kernelIr(), control);
+        });
+        CpuClassFileKernelGenerator.verifyMethodInventory(bytes, inventory);
+        var lookup = java.lang.invoke.MethodHandles.lookup().defineHiddenClass(bytes, true);
+        var entry = lookup.findStatic(lookup.lookupClass(), "row$invoke",
+                inventory.getFirst().type().resolveConstantDesc(lookup));
+        try (Arena arena = Arena.ofConfined()) {
+            var activity = arena.allocate(18, 8);
+            activity.set(java.lang.foreign.ValueLayout.JAVA_BYTE, 0, (byte) 1);
+            activity.set(java.lang.foreign.ValueLayout.JAVA_LONG, 8, 2L);
+            activity.set(java.lang.foreign.ValueLayout.JAVA_BYTE, 16, (byte) 1);
+            var scratch = arena.allocate(plan.maskedReductionGeometry().orElseThrow().scratchSliceBytes(), 8);
+            double[] output = {-9, -9, -9, -9};
+            // Inactive final data/mask elements do not exist; earlier inactive mask bytes are invalid.
+            entry.invokeWithArguments(new double[]{1, 2, Double.NaN, Double.NaN, 3, 4},
+                    new byte[]{1, 1, 7, 7, 1, 1}, output, scratch,
+                    plan.maskedReductionGeometry().orElseThrow().pack(new long[3], 0), 0L, 4L, activity);
+            assertArrayEquals(new double[]{3, 0, 7, 0}, output);
+            assertEquals(0L, Double.doubleToRawLongBits(output[1]));
+            assertEquals(0L, Double.doubleToRawLongBits(output[3]));
+        }
+    }
+
     @Test void generalAndZeroStrideLayoutsPreserveCanariesAndBroadcastMapping() throws Throwable {
         Shape dataShape = Shape.of(2, 3), maskShape = Shape.of(1, 3), outputShape = Shape.of(2);
         var base = CpuMaskedReductionLoweringTest.context(AggregateReductionKind.SUM,
@@ -42,35 +82,37 @@ class CpuMaskedReductionGeneratedKernelTest {
 
     @Test void everyTypedHeapSegmentPatternProducesTheSameRepresentedResult() throws Throwable {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
-            for (var kind : List.of(AggregateReductionKind.SUM, AggregateReductionKind.MEAN)) {
-                for (int pattern = 0; pattern < 8; pattern++) {
-                    Object dataArray = type == DataType.FLOAT64 ? new double[] {1, 2}
-                            : type == DataType.FLOAT32 ? new float[] {1, 2}
-                            : new short[] {(short) 0x3f80, (short) 0x4000};
-                    byte[] maskArray = {1, 1}; Object outputArray = array(type, 1);
-                    Object data = (pattern & 1) == 0 ? dataArray : segment(dataArray);
-                    Object mask = (pattern & 2) == 0 ? maskArray : MemorySegment.ofArray(maskArray);
-                    Object output = (pattern & 4) == 0 ? outputArray : segment(outputArray);
-                    CarrierAccess numeric = (pattern & 1) == 0 ? arrayCarrier(type)
-                            : CarrierAccess.MEMORY_SEGMENT;
-                    CarrierAccess maskCarrier = (pattern & 2) == 0 ? CarrierAccess.BYTE_ARRAY
-                            : CarrierAccess.MEMORY_SEGMENT;
-                    CarrierAccess outputCarrier = (pattern & 4) == 0 ? arrayCarrier(type)
-                            : CarrierAccess.MEMORY_SEGMENT;
-                    invoke(plan(kind, type, Shape.of(1, 2), Shape.of(2),
-                            List.of(numeric, maskCarrier, outputCarrier)), data, mask, output);
-                    long expected = type == DataType.FLOAT64
-                            ? Double.doubleToRawLongBits(kind == AggregateReductionKind.SUM
-                                    ? 3.0 : 1.5)
-                            : type == DataType.FLOAT32
-                            ? Integer.toUnsignedLong(Float.floatToRawIntBits(
-                                    kind == AggregateReductionKind.SUM ? 3.0f : 1.5f))
-                            : kind == AggregateReductionKind.SUM ? 0x4040L : 0x3fc0L;
-                    assertEquals(expected, bits(type, outputArray), type + "/" + kind
-                            + "/pattern=" + pattern);
+                    io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(type, () -> {
+                        for (var kind : List.of(AggregateReductionKind.SUM, AggregateReductionKind.MEAN)) {
+                            for (int pattern = 0; pattern < 8; pattern++) {
+                                Object dataArray = type == DataType.FLOAT64 ? new double[] {1, 2}
+                                        : type == DataType.FLOAT32 ? new float[] {1, 2}
+                                        : new short[] {(short) 0x3f80, (short) 0x4000};
+                                byte[] maskArray = {1, 1}; Object outputArray = array(type, 1);
+                                Object data = (pattern & 1) == 0 ? dataArray : segment(dataArray);
+                                Object mask = (pattern & 2) == 0 ? maskArray : MemorySegment.ofArray(maskArray);
+                                Object output = (pattern & 4) == 0 ? outputArray : segment(outputArray);
+                                CarrierAccess numeric = (pattern & 1) == 0 ? arrayCarrier(type)
+                                        : CarrierAccess.MEMORY_SEGMENT;
+                                CarrierAccess maskCarrier = (pattern & 2) == 0 ? CarrierAccess.BYTE_ARRAY
+                                        : CarrierAccess.MEMORY_SEGMENT;
+                                CarrierAccess outputCarrier = (pattern & 4) == 0 ? arrayCarrier(type)
+                                        : CarrierAccess.MEMORY_SEGMENT;
+                                invoke(plan(kind, type, Shape.of(1, 2), Shape.of(2),
+                                        List.of(numeric, maskCarrier, outputCarrier)), data, mask, output);
+                                long expected = type == DataType.FLOAT64
+                                        ? Double.doubleToRawLongBits(kind == AggregateReductionKind.SUM
+                                                ? 3.0 : 1.5)
+                                        : type == DataType.FLOAT32
+                                        ? Integer.toUnsignedLong(Float.floatToRawIntBits(
+                                                kind == AggregateReductionKind.SUM ? 3.0f : 1.5f))
+                                        : kind == AggregateReductionKind.SUM ? 0x4040L : 0x3fc0L;
+                                assertEquals(expected, bits(type, outputArray), type + "/" + kind
+                                        + "/pattern=" + pattern);
+                            }
+                        }
+                    });
                 }
-            }
-        }
     }
 
     @Test void generatedTypedBodySkipsFalseSpecialValuesAndUsesSelectedMeanCount()
@@ -98,19 +140,21 @@ class CpuMaskedReductionGeneratedKernelTest {
 
     @Test void allFalseAndEmptySelectionUseFrozenZeroCountResults() throws Throwable {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
-            Object data = type == DataType.FLOAT64 ? new double[] {Double.NaN, 2}
-                    : type == DataType.FLOAT32 ? new float[] {Float.NaN, 2}
-                    : new short[] {(short) 0x7f81, (short) 0x4000};
-            byte[] mask = {0, 0};
-            Object sum = array(type, 1), mean = array(type, 1);
-            invoke(plan(AggregateReductionKind.SUM, type, Shape.of(1, 2), Shape.of(2),
-                    carriers(type)), data, mask, sum);
-            invoke(plan(AggregateReductionKind.MEAN, type, Shape.of(1, 2), Shape.of(2),
-                    carriers(type)), data, mask, mean);
-            assertEquals(0L, bits(type, sum));
-            assertEquals(type == DataType.FLOAT64 ? 0x7ff8000000000000L
-                    : type == DataType.FLOAT32 ? 0x7fc00000L : 0x7fc0L, bits(type, mean));
-        }
+                    io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(type, () -> {
+                        Object data = type == DataType.FLOAT64 ? new double[] {Double.NaN, 2}
+                                : type == DataType.FLOAT32 ? new float[] {Float.NaN, 2}
+                                : new short[] {(short) 0x7f81, (short) 0x4000};
+                        byte[] mask = {0, 0};
+                        Object sum = array(type, 1), mean = array(type, 1);
+                        invoke(plan(AggregateReductionKind.SUM, type, Shape.of(1, 2), Shape.of(2),
+                                carriers(type)), data, mask, sum);
+                        invoke(plan(AggregateReductionKind.MEAN, type, Shape.of(1, 2), Shape.of(2),
+                                carriers(type)), data, mask, mean);
+                        assertEquals(0L, bits(type, sum));
+                        assertEquals(type == DataType.FLOAT64 ? 0x7ff8000000000000L
+                                : type == DataType.FLOAT32 ? 0x7fc00000L : 0x7fc0L, bits(type, mean));
+                    });
+                }
     }
 
     @Test void selectedSpecialValuesAndExactRoundingUseTheOrdinaryExactSumContract()
@@ -184,8 +228,7 @@ class CpuMaskedReductionGeneratedKernelTest {
             Object data, Object mask, Object output) throws Throwable {
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         long bytes = plan.maskedReductionGeometry().orElseThrow().scratchSliceBytes();
         try (Arena arena = Arena.ofConfined()) {
             var scratch = arena.allocate(bytes, Long.BYTES);

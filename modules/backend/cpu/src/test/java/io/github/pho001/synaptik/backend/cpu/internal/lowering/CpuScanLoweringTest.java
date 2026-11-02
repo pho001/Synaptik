@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 
 public class CpuScanLoweringTest {
     @Test void lowersSliceDomainWithTwoBoundariesAndZeroWorkspaceGeometry() {
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
         var lowered = new CpuPartitionLowering().lower(context(CumulativeScanKind.CUM_PROD,
                 DataType.BFLOAT16, Shape.of(2, 3, 4), 1, true, true));
         var ir = (CpuScanIr) lowered.portableKernelIr();
@@ -27,14 +28,14 @@ public class CpuScanLoweringTest {
                 () -> assertTrue(lowered.virtualValues().isEmpty()),
                 () -> assertTrue(lowered.scanGeometry().isPresent()),
                 () -> assertTrue(lowered.randomGeometry().isEmpty()));
+        });
     }
 
     @Test void admitsFiveTypesBothKindsAndAllModesButRejectsBoolAndScalar() {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
                 DataType.INT32, DataType.INT64)) for (CumulativeScanKind kind : CumulativeScanKind.values())
             for (boolean exclusive : List.of(false, true)) for (boolean reverse : List.of(false, true))
-                assertDoesNotThrow(() -> new CpuPartitionLowering().lower(
-                        context(kind, type, Shape.of(2, 3), 1, exclusive, reverse)));
+                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(type, () -> new CpuPartitionLowering().lower(context(kind, type, Shape.of(2, 3), 1, exclusive, reverse)));
         assertThrows(IllegalArgumentException.class, () -> new CpuPartitionLowering().lower(
                 context(CumulativeScanKind.CUM_SUM, DataType.BOOL, Shape.of(2), 0, false, false)));
         assertThrows(IllegalArgumentException.class, () -> new CpuPartitionLowering().lower(
@@ -55,7 +56,7 @@ public class CpuScanLoweringTest {
         var rejected = new OperationCapabilityQuery(operation, List.of(input), List.of(colliding));
 
         assertAll(
-                () -> assertTrue(provider.supports(accepted)),
+                () -> io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, accepted),
                 () -> assertDoesNotThrow(() -> new CpuPartitionLowering().lower(
                         CpuScatterLoweringTest.context(operation, List.of(0), List.of(input),
                                 interleaved))),

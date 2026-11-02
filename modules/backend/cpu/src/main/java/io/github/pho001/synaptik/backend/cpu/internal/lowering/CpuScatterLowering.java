@@ -1,8 +1,10 @@
 package io.github.pho001.synaptik.backend.cpu.internal.lowering;
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
+import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr;
+import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
@@ -13,6 +15,7 @@ import io.github.pho001.synaptik.model.operation.index.ScatterElementsAttrs;
 import io.github.pho001.synaptik.model.operation.index.ScatterNdAttrs;
 import io.github.pho001.synaptik.model.operation.index.ScatterNdKind;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
+import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
@@ -26,7 +29,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Lowers exactly one fully static resolved-layout functional scatter occurrence.
+ * Lowers one static resolved-layout or canonical single-named-B functional scatter occurrence.
  * This analysis owner revalidates the current Model signature and derives unique boundaries,
  * compact cold coordinate geometry, structural generated identity, and the exact optional
  * floating-product scratch slice. It does not read values, allocate Runtime resources, or choose
@@ -132,6 +135,104 @@ public final class CpuScatterLowering {
                 "legal: one fully static resolved-layout functional scatter occurrence",
                 new long[0], Optional.empty(), Optional.empty(), Optional.of(geometry),
                 Optional.empty(), Optional.empty());
+    }
+
+    /**
+     * Independently proves the original symbolic scatter descriptors and retains numeric facts.
+     * Ordinary bounds-before-uniqueness and source-ordered duplicate semantics remain unchanged.
+     * @param context non-null one-node functional scatter projection
+     * @return immutable ordinary IR with unresolved family-owned numeric geometry
+     * @throws IllegalArgumentException if shapes, types, attributes, identities or layouts disagree
+     * @throws ArithmeticException if fixed coefficient or scratch arithmetic overflows
+     */
+    public CpuPartitionLowering.LoweredPartition lowerBatch(
+            PrepareContext<? extends BackendAnalysisInputs> context) {
+        return lowerBatch(context, CpuPartitionLowering.batchLayouts(context));
+    }
+
+    /**
+     * Uses the full lexical body's numeric physical mappings rather than rebuilding a subset.
+     * @param context non-null original one-node scatter projection
+     * @param layouts non-null complete local value-to-layout map
+     * @return ordinary IR and unresolved numeric scatter geometry
+     * @throws IllegalArgumentException if ordinary descriptors or numeric layouts disagree
+     */
+    public CpuPartitionLowering.LoweredPartition lowerBatch(
+            PrepareContext<? extends BackendAnalysisInputs> context,
+            Map<ValueId, CpuAccessPlan.BatchBinding> layouts) {
+        CpuPartitionLowering.requireBatchContext(context);
+        if (context.nodes().size() != 1) throw invalidBatch();
+        var node = context.nodes().getFirst();
+        if (node.inputs().size() != 3 || node.outputs().size() != 1) throw invalidBatch();
+        Map<ValueId, GraphValue> values = new LinkedHashMap<>();
+        context.values().forEach(v -> values.put(v.id(), v));
+        var data = require(values, node.inputs().get(0)).descriptor();
+        var indices = require(values, node.inputs().get(1)).descriptor();
+        CpuScatterIr.Family family;
+        ScatterReduction reduction;
+        int axis = -1, batch = 0, tuple = 0;
+        Object kind = node.operation().kind(), attrs = node.operation().attrs();
+        if (kind == AxisScatterKind.SCATTER_ELEMENTS && attrs instanceof ScatterElementsAttrs a) {
+            family = CpuScatterIr.Family.SCATTER_ELEMENTS;
+            axis = a.axis(); reduction = a.reduction();
+        } else if (kind == AxisScatterKind.SCATTER_ADD && attrs instanceof IndexAxisAttrs a) {
+            family = CpuScatterIr.Family.SCATTER_ADD;
+            axis = a.axis(); reduction = ScatterReduction.ADD;
+        } else if (kind == ScatterNdKind.SCATTER_ND && attrs instanceof ScatterNdAttrs a) {
+            family = CpuScatterIr.Family.SCATTER_ND;
+            batch = a.batchDimensions(); reduction = a.reduction();
+            if (!(indices.shape().dimensions().getLast() instanceof StaticDimension depth))
+                throw invalidBatch();
+            tuple = Math.toIntExact(depth.size());
+        } else throw invalidBatch();
+        var unique = new LinkedHashMap<ValueId, Integer>();
+        var map = new ArrayList<Integer>();
+        for (var id : node.inputs()) map.add(unique.computeIfAbsent(id, ignored -> unique.size()));
+        if (unique.containsKey(node.outputs().getFirst())) throw invalidBatch();
+        var ids = new ArrayList<>(unique.keySet()); ids.add(node.outputs().getFirst());
+        var types = new ArrayList<DataType>();
+        var accesses = new ArrayList<CpuAccessPlan.BatchBinding>();
+        for (int b = 0; b < ids.size(); b++) {
+            var access = layouts.get(ids.get(b));
+            if (access == null) throw invalidBatch();
+            var plan = access.plan();
+            var permission = new CpuAccessPlan(b + 1 == ids.size() ? CpuAccessPlan.AccessKind.WRITE
+                    : CpuAccessPlan.AccessKind.READ, plan.regime(), plan.iterationRank(),
+                    plan.axisRoles(), plan.contiguousSuffix());
+            accesses.add(new CpuAccessPlan.BatchBinding(permission, access.extentConstants(),
+                    access.extentBatchFactors(), access.baseElementOffset(),
+                    access.strideConstants(), access.strideBatchFactors()));
+            types.add(require(values, ids.get(b)).descriptor().dataType());
+        }
+        boolean floatingMul = reduction == ScatterReduction.MUL && floating(data.dataType())
+                && nonemptyCapacity(batchCount(accesses.getLast(), 0, accesses.getLast().plan().iterationRank()))
+                && nonemptyCapacity(batchCount(accesses.get(map.get(2)), 0,
+                        accesses.get(map.get(2)).plan().iterationRank()));
+        var ir = new CpuScatterIr(family, reduction, map, types,
+                accesses.stream().map(CpuAccessPlan.BatchBinding::plan).toList(), floatingMul ? 1 : 0);
+        return new CpuPartitionLowering.LoweredPartition(
+                new Geometry.BatchGeometry(ir, ids, types, accesses, axis, batch, tuple));
+    }
+
+    private static boolean floating(DataType type) {
+        return type == DataType.FLOAT64 || type == DataType.FLOAT32
+                || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
+    }
+    private static IllegalArgumentException invalidBatch() {
+        return new IllegalArgumentException("inconsistent symbolic scatter geometry");
+    }
+    private static boolean nonemptyCapacity(BatchByteSize count) {
+        return count.constantBytes() != 0 || count.bytesPerBatch() != 0;
+    }
+    private static BatchByteSize batchCount(CpuAccessPlan.BatchBinding b, int start, int end) {
+        long constant = 1, factor = 0;
+        for (int a = start; a < end; a++) {
+            long c = b.extentConstants().get(a), f = b.extentBatchFactors().get(a);
+            if (factor != 0 && f != 0) throw invalidBatch();
+            factor = Math.addExact(Math.multiplyExact(factor, c), Math.multiplyExact(constant, f));
+            constant = Math.multiplyExact(constant, c);
+        }
+        return new BatchByteSize(constant, factor, 1);
     }
 
     private static long maximumUpdates(CpuScatterIr.Family family, List<Geometry.Layout> layouts,
@@ -243,6 +344,109 @@ public final class CpuScatterLowering {
             List<Integer> occurrenceToBoundary, List<Layout> boundaries,
             List<DataType> boundaryTypes, int axis, int batchDimensions, int tupleDepth,
             long maximumUpdatesPerTarget, long scratchSliceBytes) {
+
+        /**
+         * Numeric symbolic scatter geometry with the same ordinary IR and validator ownership.
+         * @param ir immutable structural scatter IR
+         * @param boundaries unique data/index/update inputs then output identities
+         * @param boundaryTypes actual represented boundary types
+         * @param bindings affine element-layout recipes
+         * @param axis normalized axis or -1 for scatter-ND
+         * @param batchDimensions fixed shared scatter-ND prefix length
+         * @param tupleDepth fixed positive ND tuple width, zero for axis families
+         */
+        public record BatchGeometry(CpuScatterIr ir, List<ValueId> boundaries,
+                List<DataType> boundaryTypes, List<CpuAccessPlan.BatchBinding> bindings,
+                int axis, int batchDimensions, int tupleDepth)
+                implements CpuPartitionLowering.BatchUnitGeometry {
+            /**
+             * Snapshots preparation facts without retaining graph, descriptors or host values.
+             * @param ir non-null prepared ordinary IR
+             * @param boundaries non-null ordered identities
+             * @param boundaryTypes non-null represented types
+             * @param bindings non-null affine numeric layouts
+             * @param axis normalized selected axis or -1
+             * @param batchDimensions fixed ND batch prefix count
+             * @param tupleDepth fixed ND tuple width or zero
+             */
+            public BatchGeometry {
+                Objects.requireNonNull(ir, "ir");
+                boundaries = List.copyOf(boundaries); boundaryTypes = List.copyOf(boundaryTypes);
+                bindings = List.copyOf(bindings);
+            }
+            /** @return exact affine output iteration count */
+            @Override public BatchByteSize iterationCount() {
+                var output = bindings.getLast();
+                return batchCount(output, 0, output.plan().iterationRank());
+            }
+            /** @return complete original target/copy/update coordinate pack cells */
+            @Override public List<PackReset> resets() {
+                int outputRank = bindings.getLast().plan().iterationRank();
+                int updateRank = bindings.get(ir.occurrenceToBoundary().get(2)).plan().iterationRank();
+                int end = 16 + 2 * outputRank + updateRank;
+                var cells = new ArrayList<PackReset>(end - 16);
+                for (int cell = 16; cell < end; cell++) cells.add(new PackReset(cell, 0));
+                return List.copyOf(cells);
+            }
+            private BatchByteSize maximumUpdatesCapacity() {
+                var indices = bindings.get(ir.occurrenceToBoundary().get(1));
+                if (!nonemptyCapacity(batchCount(indices, 0, indices.plan().iterationRank())))
+                    return new BatchByteSize(0, 0, 1);
+                return switch (ir.family()) {
+                    case SCATTER_ELEMENTS -> batchCount(indices, axis, axis + 1);
+                    case SCATTER_ADD -> batchCount(indices, 0, indices.plan().iterationRank());
+                    case SCATTER_ND -> batchCount(indices, batchDimensions, indices.plan().iterationRank() - 1);
+                };
+            }
+            /**
+             * @return affine exact-product scratch capacity; limb rounding is finalized at bind
+             */
+            @Override public BatchByteSize scratchBytes() {
+                if (ir.reduction() != ScatterReduction.MUL || !floating(boundaryTypes.getFirst())
+                        || !nonemptyCapacity(iterationCount())) return new BatchByteSize(0, 0, 1);
+                var updates = bindings.get(ir.occurrenceToBoundary().get(2));
+                if (!nonemptyCapacity(batchCount(updates, 0, updates.plan().iterationRank())))
+                    return new BatchByteSize(0, 0, 1);
+                var maximum = maximumUpdatesCapacity();
+                int precision = boundaryTypes.getFirst() == DataType.FLOAT64 ? 53
+                        : boundaryTypes.getFirst() == DataType.FLOAT32 ? 24
+                        : boundaryTypes.getFirst() == DataType.FLOAT16 ? 11 : 8;
+                long constantBits = Math.multiplyExact(precision, Math.addExact(maximum.constantBytes(), 1));
+                long factorBits = Math.multiplyExact(precision, maximum.bytesPerBatch());
+                return new BatchByteSize(Math.addExact(24, Math.multiplyExact(8,
+                        Math.floorDiv(Math.addExact(constantBits, 63), 64))),
+                        Math.multiplyExact(8, Math.floorDiv(Math.addExact(factorBits, 63), 64)), 1);
+            }
+            /** @return deterministic coefficient-only identity, excluding local IDs and actual B */
+            @Override public String identity() {
+                return "scatter:" + bindings + ":" + axis + ":" + batchDimensions + ":" + tupleDepth;
+            }
+            /**
+             * Resolves the original ordinary numeric layout, update-group and exact scratch facts.
+             * @param batch non-negative actual batch extent
+             * @return concrete ordinary scatter lowering retaining the identical prepared IR
+             * @throws ArithmeticException if checked geometry or exact-product scratch overflows
+             */
+            @Override public CpuPartitionLowering.LoweredPartition bind(long batch) {
+                var access = bindings.stream().map(b -> b.bind(batch)).toList();
+                var layouts = access.stream().map(b -> new Layout(
+                        b.extents().stream().mapToLong(Long::longValue).toArray(), b.baseElementOffset(),
+                        b.effectiveStrides().stream().mapToLong(Long::longValue).toArray())).toList();
+                long outputCount = access.getLast().elementCount();
+                long updateCount = access.get(ir.occurrenceToBoundary().get(2)).elementCount();
+                long maximum = maximumUpdates(ir.family(), layouts, ir.occurrenceToBoundary(), axis, batchDimensions);
+                long scratch = ir.reduction() == ScatterReduction.MUL && floating(boundaryTypes.getFirst())
+                        && outputCount != 0 && updateCount != 0
+                        ? CpuScatterLowering.scratchSliceBytes(boundaryTypes.getFirst(), maximum) : 0;
+                var geometry = new Geometry(ir.family(), ir.reduction(), ir.occurrenceToBoundary(),
+                        layouts, boundaryTypes, axis, batchDimensions, tupleDepth, maximum, scratch);
+                return new CpuPartitionLowering.LoweredPartition(ir, boundaries, access,
+                        access.stream().map(CpuAccessPlan.Binding::referencedElementSpan).toList(),
+                        boundaryTypes, List.of(), layouts.getLast().extents(), outputCount,
+                        "legal: bound symbolic scatter", new long[0], Optional.empty(),
+                        Optional.empty(), Optional.of(geometry), Optional.empty(), Optional.empty());
+            }
+        }
         /**
          * Static resolved layout of one unique input or output boundary.
          * @param extents fully static non-negative logical extents
@@ -341,6 +545,69 @@ public final class CpuScatterLowering {
         public long workspaceBytes(int rangeCount) {
             if (rangeCount <= 0) throw new IllegalArgumentException("rangeCount must be positive");
             return Math.multiplyExact(scratchSliceBytes, rangeCount);
+        }
+
+        /**
+         * One packed carrier base rebound before a temporal helper call.
+         *
+         * @param cell index in this owner's primitive geometry pack
+         * @param boundary unique ordinary boundary whose current element base is supplied
+         * @param elementDelta layout offset added to that boundary's element base
+         */
+        public record BaseCell(int cell, int boundary, long elementDelta) {}
+
+        /**
+         * One mutable coordinate cell restored before every temporal call, including retry.
+         *
+         * @param cell index in this owner's primitive geometry pack
+         * @param value original range-start coordinate, or zero for an update coordinate
+         */
+        public record ResetCell(int cell, long value) {}
+
+        /**
+         * Cold, immutable instructions for rebinding this owner's existing primitive pack.
+         *
+         * @param bases carrier-base cells in unique boundary order
+         * @param resets complete target, copy, and update coordinate reset cells
+         */
+        public record TemporalRebind(List<BaseCell> bases, List<ResetCell> resets) {
+            /**
+             * Snapshots both lists; this metadata is consumed only during binding/generation.
+             *
+             * @throws NullPointerException if a list or any element is {@code null}
+             */
+            public TemporalRebind {
+                bases = List.copyOf(bases);
+                resets = List.copyOf(resets);
+            }
+        }
+
+        /**
+         * Describes temporal rebind/reset using the same range-start seeds as {@link #pack}.
+         * The generated caller updates these cells in place; no per-step pack or cursor
+         * allocation is needed. All mutable coordinate domains are reset even when the previous
+         * invocation finished early or an output/update domain is empty.
+         *
+         * @param start original inclusive output ordinal of the helper's owned range
+         * @return immutable base and complete coordinate reset facts; never {@code null}
+         * @throws ArithmeticException if checked packing geometry overflows
+         */
+        public TemporalRebind temporalRebind(long start) {
+            long[] seed = pack(new long[boundaries.size()], start, start, 0);
+            int coordinateEnd = 16 + 2 * boundaries.getLast().extents.length
+                    + boundaries.get(occurrenceToBoundary.get(2)).extents.length;
+            var resets = new ArrayList<ResetCell>(coordinateEnd - 16);
+            for (int cell = 16; cell < coordinateEnd; cell++) {
+                resets.add(new ResetCell(cell, seed[cell]));
+            }
+            var bases = new ArrayList<BaseCell>(boundaries.size());
+            int cell = coordinateEnd;
+            for (int boundary = 0; boundary < boundaries.size(); boundary++) {
+                Layout layout = boundaries.get(boundary);
+                bases.add(new BaseCell(cell + 1, boundary, layout.offset));
+                cell += 2 + 2 * layout.extents.length;
+            }
+            return new TemporalRebind(bases, resets);
         }
 
         /**

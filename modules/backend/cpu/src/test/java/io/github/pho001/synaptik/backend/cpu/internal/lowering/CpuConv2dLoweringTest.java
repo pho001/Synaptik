@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 
 public class CpuConv2dLoweringTest {
     @Test void derivesGroupedGeometryAndDeclaresNoWorkspaceOrVirtualValue() {
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
         var lowered = new CpuPartitionLowering().lower(context(
                 List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT64),
                 Shape.of(2, 4, 7, 8), Shape.of(6, 2, 3, 2), Shape.of(2, 6, 3, 5),
@@ -32,6 +33,7 @@ public class CpuConv2dLoweringTest {
                 () -> assertTrue(lowered.virtualValues().isEmpty()),
                 () -> assertEquals(4, geometry.boundaries().size()),
                 () -> assertTrue(lowered.batchNormTrainingGeometry().isEmpty()));
+        });
     }
 
     @Test void emptyOutputDomainRetainsZeroDirectWork() {

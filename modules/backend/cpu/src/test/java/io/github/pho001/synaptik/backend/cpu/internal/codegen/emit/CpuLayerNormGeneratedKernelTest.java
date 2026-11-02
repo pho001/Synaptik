@@ -27,67 +27,95 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class CpuLayerNormGeneratedKernelTest {
-    @Test void allFormsAndResultTypesGenerateDirectTypedArtifacts() throws Throwable {
-        for (boolean affine : List.of(false, true)) for (DataType type : List.of(
-                DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
-            int inputs = affine ? 3 : 1;
-            var base = CpuTrailingNormalizationLoweringTest.context(true, affine, type,
-                    Shape.of(2, 3), Shape.of(3), affine ? List.of(0, 1, 2) : List.of(0));
-            var carriers = new java.util.ArrayList<CarrierAccess>();
-            for (int i = 0; i <= inputs; i++) carriers.add(array(type));
-            var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
-            var plan = new CpuPartitionPreparer().analyze(context).plan();
-            var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
-            byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
-            var model = ClassFile.of().parse(bytes);
-            assertAll(() -> assertEquals(inputs + 5,
-                            generator.defineClassBytes(route.specialization(), bytes).entryPoint()
-                                    .type().parameterCount()),
-                    () -> assertTrue(model.flags().has(AccessFlag.FINAL)),
-                    () -> assertTrue(model.fields().isEmpty()),
-                    () -> assertEquals(1, model.methods().size()),
-                    () -> assertTrue(java.util.stream.StreamSupport.stream(
-                            model.constantPool().spliterator(), false)
-                            .filter(MemberRefEntry.class::isInstance).map(MemberRefEntry.class::cast)
-                            .noneMatch(member -> member.owner().asInternalName()
-                                    .startsWith("io/github/pho001/synaptik"))));
-            var artifact = generator.defineClassBytes(route.specialization(), bytes);
-            Object input = represented(type, new double[] {1, 2, 3, -3, -2, -1});
-            Object output = represented(type, new double[6]);
-            Object scale = represented(type, new double[] {2, -1, .5});
-            Object bias = represented(type, new double[] {1, 2, 3});
-            var geometry = plan.trailingNormalizationGeometry().orElseThrow();
+    @Test void sharedSliceWithRowAffineOperandGuardsActualResult() throws Throwable {
+        var base = CpuTrailingNormalizationLoweringTest.context(true, true, DataType.FLOAT64,
+                Shape.of(1), Shape.of(1), List.of(0, 1, 2));
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+                List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY,
+                        CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
+        var shared = io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row.shared();
+        var row = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(0, 1);
+        var entry = CpuAffineCopyGeneratedKernelTest.controlledEntry(
+                plan.units().getFirst().portablePlan(), List.of(shared, row, shared, row));
+        var geometry = plan.trailingNormalizationGeometry().orElseThrow();
+        for (byte active : new byte[] {1, 0}) {
+            double[] output = {-77};
             try (Arena arena = Arena.ofConfined()) {
-                if (affine) artifact.entryPoint().invokeWithArguments(input, scale, bias, output,
-                        arena.allocate(geometry.scratchSliceBytes(), 8),
-                        geometry.pack(new long[4]), 0L, 2L);
-                else artifact.entryPoint().invokeWithArguments(input, output,
-                        arena.allocate(geometry.scratchSliceBytes(), 8),
-                        geometry.pack(new long[2]), 0L, 2L);
+                entry.invokeWithArguments(new double[] {3},
+                        active == 1 ? new double[] {2} : new double[0], new double[] {7}, output,
+                        arena.allocate(geometry.scratchSliceBytes(), 8), geometry.pack(new long[4]),
+                        0L, 1L, CpuAffineCopyGeneratedKernelTest.control(new byte[] {active}));
             }
-            double[][] semanticInputs = affine
-                    ? new double[][] {{1, 2, 3, -3, -2, -1}, {2, -1, .5}, {1, 2, 3}}
-                    : new double[][] {{1, 2, 3, -3, -2, -1}};
-            long[][] extents = affine ? new long[][] {{2, 3}, {3}, {3}}
-                    : new long[][] {{2, 3}};
-            long[][] strides = affine ? new long[][] {{3, 1}, {1}, {1}}
-                    : new long[][] {{3, 1}};
-            double[] expected = CpuTrailingNormalizationReferenceKernel.evaluate(
-                    CpuTrailingNormalizationIr.Kind.LAYER, affine
-                            ? CpuTrailingNormalizationIr.Form.LAYER_AFFINE
-                            : CpuTrailingNormalizationIr.Form.LAYER,
-                    java.util.Collections.nCopies(inputs, type), type, epsilon(type), semanticInputs,
-                    extents, new long[inputs], strides, 1);
-            double[] actual = decoded(type, output);
-            for (int index = 0; index < actual.length; index++) assertEquals(raw(type, expected[index]),
-                    raw(type, actual[index]), type + "/" + affine + "/" + index
-                            + " expectedValue=" + expected[index] + " actualValue=" + actual[index]);
-            retain("layer-" + (affine ? "affine-" : "plain-") + type.name().toLowerCase(),
-                    bytes, route.specialization().compatibilityBytes(), route.specialization().toString());
+            assertArrayEquals(new double[] {active == 1 ? 7 : -77}, output);
         }
     }
 
+    @Test void allFormsAndResultTypesGenerateDirectTypedArtifacts() throws Throwable {
+        for (boolean affine : List.of(false, true)) for (DataType type : List.of(
+                DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
+                    io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(type, () -> {
+                        int inputs = affine ? 3 : 1;
+                        var base = CpuTrailingNormalizationLoweringTest.context(true, affine, type,
+                                Shape.of(2, 3), Shape.of(3), affine ? List.of(0, 1, 2) : List.of(0));
+                        var carriers = new java.util.ArrayList<CarrierAccess>();
+                        for (int i = 0; i <= inputs; i++) carriers.add(array(type));
+                        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
+                        var plan = new CpuPartitionPreparer().analyze(context).plan();
+                        var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
+                        byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
+                        var model = ClassFile.of().parse(bytes);
+                        assertAll(() -> assertEquals(inputs + 5,
+                                        generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes).entryPoint()
+                                                .type().parameterCount()),
+                                () -> assertTrue(model.flags().has(AccessFlag.FINAL)),
+                                () -> assertTrue(model.fields().isEmpty()),
+                                () -> assertEquals(1, model.methods().size()),
+                                () -> assertTrue(java.util.stream.StreamSupport.stream(
+                                        model.constantPool().spliterator(), false)
+                                        .filter(MemberRefEntry.class::isInstance).map(MemberRefEntry.class::cast)
+                                        .noneMatch(member -> member.owner().asInternalName()
+                                                .startsWith("io/github/pho001/synaptik"))));
+                        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes);
+                        Object input = represented(type, new double[] {1, 2, 3, -3, -2, -1});
+                        Object output = represented(type, new double[6]);
+                        Object scale = represented(type, new double[] {2, -1, .5});
+                        Object bias = represented(type, new double[] {1, 2, 3});
+                        var geometry = plan.trailingNormalizationGeometry().orElseThrow();
+                        try (Arena arena = Arena.ofConfined()) {
+                            if (affine) artifact.entryPoint().invokeWithArguments(input, scale, bias, output,
+                                    arena.allocate(geometry.scratchSliceBytes(), 8),
+                                    geometry.pack(new long[4]), 0L, 2L);
+                            else artifact.entryPoint().invokeWithArguments(input, output,
+                                    arena.allocate(geometry.scratchSliceBytes(), 8),
+                                    geometry.pack(new long[2]), 0L, 2L);
+                        }
+                        double[][] semanticInputs = affine
+                                ? new double[][] {{1, 2, 3, -3, -2, -1}, {2, -1, .5}, {1, 2, 3}}
+                                : new double[][] {{1, 2, 3, -3, -2, -1}};
+                        long[][] extents = affine ? new long[][] {{2, 3}, {3}, {3}}
+                                : new long[][] {{2, 3}};
+                        long[][] strides = affine ? new long[][] {{3, 1}, {1}, {1}}
+                                : new long[][] {{3, 1}};
+                        double[] expected = CpuTrailingNormalizationReferenceKernel.evaluate(
+                                CpuTrailingNormalizationIr.Kind.LAYER, affine
+                                        ? CpuTrailingNormalizationIr.Form.LAYER_AFFINE
+                                        : CpuTrailingNormalizationIr.Form.LAYER,
+                                java.util.Collections.nCopies(inputs, type), type, epsilon(type), semanticInputs,
+                                extents, new long[inputs], strides, 1);
+                        double[] actual = decoded(type, output);
+                        for (int index = 0; index < actual.length; index++) assertEquals(raw(type, expected[index]),
+                                raw(type, actual[index]), type + "/" + affine + "/" + index
+                                        + " expectedValue=" + expected[index] + " actualValue=" + actual[index]);
+                        retain("layer-" + (affine ? "affine-" : "plain-") + type.name().toLowerCase(),
+                                bytes, route.specialization().compatibilityBytes(), route.specialization().toString());
+                    });
+                }
+    }
+
     @Test void mixedTypesCarriersOffsetsAndGeneralLayoutsMatchIndependentOracle() throws Throwable {
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
         Shape inputShape = Shape.of(2, 3), normalized = Shape.of(3);
         var inputDescriptor = new io.github.pho001.synaptik.model.tensor.TensorDescriptor(
                 DataType.BFLOAT16, inputShape,
@@ -112,8 +140,7 @@ class CpuLayerNormGeneratedKernelTest {
                 CarrierAccess.MEMORY_SEGMENT, CarrierAccess.DOUBLE_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         short[] input = {bits(99), bits(1), bits(2), bits(3), bits(99), bits(-3), bits(-2), bits(-1)};
         float[] scale = {99, 2}; double[] bias = {1, 2, 3};
         double[] output = new double[12]; java.util.Arrays.fill(output, -77);
@@ -130,17 +157,18 @@ class CpuLayerNormGeneratedKernelTest {
                 () -> assertEquals((1 / root) * 2 + 3, output[4], 2e-15),
                 () -> assertEquals((-1 / root) * 2 + 1, output[7], 2e-15),
                 () -> assertEquals(-77, output[0]), () -> assertEquals(-77, output[11]));
+        });
     }
 
     @Test void bfloatBodyUsesFloatMeanAndOneFinalEncoding() throws Throwable {
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
         var base = CpuTrailingNormalizationLoweringTest.context(true, false, DataType.BFLOAT16,
                 Shape.of(1, 3), Shape.of(3), List.of(0));
         var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
         List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.SHORT_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         short[] input = {bits(1), bits(2), bits(3)}, output = new short[3];
         var geometry = plan.trailingNormalizationGeometry().orElseThrow();
         try (Arena arena = Arena.ofConfined()) {
@@ -150,6 +178,7 @@ class CpuLayerNormGeneratedKernelTest {
         assertAll(() -> assertTrue(Float.intBitsToFloat(Short.toUnsignedInt(output[0]) << 16) < 0),
                 () -> assertEquals(0, output[1]),
                 () -> assertTrue(Float.intBitsToFloat(Short.toUnsignedInt(output[2]) << 16) > 0));
+        });
     }
 
     @Test void affineFloatBodyReusesTrailingScaleAndBias() throws Throwable {
@@ -160,8 +189,7 @@ class CpuLayerNormGeneratedKernelTest {
                 CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         float[] input = {1, 2, 3, 4, 5, 6}, scale = {2, -1, 0.5f}, bias = {1, 2, 3};
         float[] output = new float[6]; var geometry = plan.trailingNormalizationGeometry().orElseThrow();
         try (Arena arena = Arena.ofConfined()) {
@@ -181,8 +209,7 @@ class CpuLayerNormGeneratedKernelTest {
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         double[] input = {1, 2, 3, -3, -2, -1}, output = new double[6];
         var geometry = plan.trailingNormalizationGeometry().orElseThrow();
         try (Arena arena = Arena.ofConfined()) {
@@ -202,8 +229,7 @@ class CpuLayerNormGeneratedKernelTest {
         List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         double[] input = {-0.0, 0.0, Double.longBitsToDouble(0x7ff0000000000001L), 1.0,
                 Double.NEGATIVE_INFINITY, 2.0};
         double[] output = new double[6];

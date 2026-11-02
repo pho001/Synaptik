@@ -5,46 +5,7 @@ import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
-import io.github.pho001.synaptik.model.operation.Operation;
-import io.github.pho001.synaptik.model.operation.OperationKind;
-import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
-import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
-import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
-import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
-import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
-import io.github.pho001.synaptik.model.operation.elementwise.logical.BooleanLogicalKind;
-import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
-import io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind;
-import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
-import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
-import io.github.pho001.synaptik.model.operation.index.AxisScatterKind;
-import io.github.pho001.synaptik.model.operation.index.GatherNdKind;
-import io.github.pho001.synaptik.model.operation.index.OneHotKind;
-import io.github.pho001.synaptik.model.operation.index.ScatterNdKind;
-import io.github.pho001.synaptik.model.operation.index.SelectKind;
-import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
-import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
-import io.github.pho001.synaptik.model.operation.layout.PadKind;
-import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
-import io.github.pho001.synaptik.model.operation.layout.SliceKind;
-import io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind;
-import io.github.pho001.synaptik.model.operation.layout.TileKind;
-import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
-import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
-import io.github.pho001.synaptik.model.operation.loss.LossKind;
-import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
-import io.github.pho001.synaptik.model.operation.normalization.LayerNormKind;
-import io.github.pho001.synaptik.model.operation.normalization.RmsNormKind;
-import io.github.pho001.synaptik.model.operation.normalization.SoftmaxKind;
-import io.github.pho001.synaptik.model.operation.ordering.OrderingKind;
-import io.github.pho001.synaptik.model.operation.ordering.TopKKind;
-import io.github.pho001.synaptik.model.operation.pooling.Pool2dKind;
-import io.github.pho001.synaptik.model.operation.pooling.Pool3dKind;
-import io.github.pho001.synaptik.model.operation.random.DropoutKind;
-import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
-import io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind;
-import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
-import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
+import io.github.pho001.synaptik.model.tensor.ScanBody;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -53,20 +14,14 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Closes canonical logical layouts for proven materialized results and explicit splat inputs.
+ * Applies shared computed logical-layout completion and closes explicit splat inputs.
  *
  * <p>Model expression construction deliberately leaves most operation results layout-unresolved.
- * After final graph optimization has fixed the surviving topology, the allowlisted computation
- * families below may choose canonical contiguous logical result geometry because their outputs are
- * materialized values rather than storage views. {@link ContiguousKind#CONTIGUOUS} explicitly
- * requests the same geometry. Affine/view operations such as reshape, expand, permute, and squeeze
- * are excluded from canonical closure; after materialized inputs are closed, a second topological
- * phase derives their exact offset and strides with {@link LayoutInference}. That phase also
- * retries target-relative crop and positive-step coordinate slice extraction through the same
- * owner, and scalar select through {@link IndexingInference}, after each input layout closes.
- * Only matching output data types and Shapes with a family-proved layout are accepted; negative-
- * step, empty, dynamic, and otherwise unproved extractions remain unresolved. Unknown future
- * operation kinds fail closed instead of silently acquiring geometry.
+ * After final graph optimization fixes the surviving topology and independent inference validates
+ * ordinary semantics, {@link ScanBody#closeOrdinaryLayouts} owns the materialized-result
+ * classification, exact family view recipes and qualified noncontiguous reshape materialization.
+ * This pass supplies current operands in topological order and preserves the captured graph and
+ * its sidecars. Unknown and unproved layouts remain unresolved.
  *
  * <p>An explicit compile-time splat graph input may also use canonical geometry because it has no
  * caller binding whose descriptor must remain exact. Caller-bindable inputs, dynamic shapes, and
@@ -83,7 +38,8 @@ final class StaticResultLogicalLayoutClosure {
      * <p>If no descriptor qualifies, the exact input is returned. Otherwise only changed {@link
      * GraphValue} objects and graph-owning immutable sidecars are rebuilt. Value and boundary order,
      * IDs, exact node and operation references, phases, constants, bindable Tensor identities,
-     * constraints, and derivative-order values are preserved.
+     * constraints, derivative-order values, and containing-Scan activity plans are preserved.
+     * Local body graph references and structural availability/merge/temporal meanings are unchanged.
      *
      * @param validatedGraph non-null final optimized, validated graph state after specialized
      *     descriptor closures; it is not mutated
@@ -91,8 +47,8 @@ final class StaticResultLogicalLayoutClosure {
      *     canonical materialized-result layouts and exact family-derived views where proved
      * @throws NullPointerException if {@code validatedGraph} is {@code null}
      * @throws IllegalArgumentException if checked canonical or affine layout arithmetic overflows;
-     *     the failure identifies the affected node output or compile-time splat input and retains
-     *     the arithmetic failure as its cause
+     *     the failure identifies the affected node and canonical outputs or compile-time splat
+     *     input and retains the arithmetic failure as its cause
      */
     static ValidatedGraph close(ValidatedGraph validatedGraph) {
         java.util.Objects.requireNonNull(validatedGraph, "validatedGraph");
@@ -109,17 +65,7 @@ final class StaticResultLogicalLayoutClosure {
                     "compile-time splat input " + valueId);
         }
         for (CompiledNode node : graph.nodes()) {
-            if (!hasCanonicalContiguousResults(node.operation())) {
-                continue;
-            }
-            for (int outputIndex = 0; outputIndex < node.outputs().size(); outputIndex++) {
-                ValueId valueId = node.outputs().get(outputIndex);
-                changed |= closeValue(selectedValues, valueId,
-                        node.id() + " output[" + outputIndex + "] " + valueId);
-            }
-        }
-        for (CompiledNode node : graph.nodes()) {
-            changed |= closeAffineResult(selectedValues, node);
+            changed |= closeComputedResults(selectedValues, node);
         }
 
         if (!changed) {
@@ -141,111 +87,49 @@ final class StaticResultLogicalLayoutClosure {
                 validatedGraph.constantGraph().constants(),
                 validatedGraph.constantGraph().bindableTensorIds());
         DerivativeGraphMetadata derivatives = new DerivativeGraphMetadata(
-                rebuilt, validatedGraph.derivatives().derivativeOrderByNode());
+                rebuilt, validatedGraph.derivatives().derivativeOrderByNode(),
+                validatedGraph.derivatives().scanActivityByNode());
         return new ValidatedGraph(constantGraph, validatedGraph.constraints(), derivatives);
     }
+
     /**
-     * Returns whether every result of the exact operation family is a newly materialized logical
-     * value whose unresolved static geometry may be chosen canonical contiguous.
-     *
-     * <p>The list is intentionally explicit. Structural views are absent; the functional {@link
-     * SliceKind#SLICE_UPDATE} result is included separately from slice extraction. Adding a new Model
-     * operation kind does not broaden this proof automatically.
-     *
-     * @param operation non-null validated operation to classify without mutation
-     * @return whether the family proves newly materialized results eligible for canonical geometry
+     * Applies the shared Model decision to current operands and complete canonical results.
+     * Only descriptor replacements are retained; graph and sidecar orchestration stays here.
+     * @param selectedValues current call-local descriptor table
+     * @param node exact validated node in topological order
+     * @return whether any result acquired proved geometry
+     * @throws IllegalArgumentException if checked geometry overflows, retaining node/result context
      */
-    private static boolean hasCanonicalContiguousResults(Operation operation) {
-        OperationKind kind = operation.kind();
-        return kind instanceof ScaledDotProductAttentionKind
-                || kind instanceof BinaryArithmeticKind
-                || kind instanceof CastKind
-                || kind instanceof FloatingClassificationKind
-                || kind instanceof BinaryComparisonKind
-                || kind instanceof BooleanLogicalKind
-                || kind instanceof ScalarElementwiseKind
-                || kind instanceof WhereSelectionKind
-                || kind instanceof UnaryElementwiseKind
-                || kind instanceof AxisGatherKind
-                || kind instanceof AxisScatterKind
-                || kind instanceof GatherNdKind
-                || kind instanceof OneHotKind
-                || kind instanceof ScatterNdKind
-                || kind == ContiguousKind.CONTIGUOUS
-                || kind instanceof PadKind
-                || kind == SliceKind.SLICE_UPDATE
-                || kind instanceof TensorCompositionKind
-                || kind instanceof TileKind
-                || kind instanceof WindowTransformKind
-                || kind instanceof MatmulKind
-                || kind instanceof LossKind
-                || kind instanceof BatchNormKind
-                || kind instanceof LayerNormKind
-                || kind instanceof RmsNormKind
-                || kind instanceof SoftmaxKind
-                || kind instanceof OrderingKind
-                || kind instanceof TopKKind
-                || kind instanceof Pool2dKind
-                || kind instanceof Pool3dKind
-                || kind instanceof DropoutKind
-                || kind instanceof GraphRngKind
-                || kind instanceof RecurrentScanKind
-                || kind instanceof AggregateReductionKind
-                || kind instanceof CumulativeScanKind;
-    }
-    /**
-     * Retries one allowlisted view using its latest topologically closed input descriptor.
-     *
-     * <p>Select stays with indexing inference; shape/axis transforms and both slice attribute forms
-     * stay with layout inference. The inferred view is never replaced by canonical geometry. An
-     * absent proof, a captured dtype/Shape mismatch, or an already resolved output leaves the value
-     * unchanged. The captured gradient eligibility is preserved independently of family inference.
-     *
-     * @param selectedValues non-null call-local value table, updated only for a proved output layout
-     * @param node non-null validated node whose exact operation and identities remain unchanged
-     * @return whether the node's single output acquired exact logical view geometry
-     * @throws IllegalArgumentException if checked family layout arithmetic overflows, with node and
-     *     output identity in the message and the arithmetic failure retained as the cause
-     */
-    private static boolean closeAffineResult(
+    private static boolean closeComputedResults(
             Map<ValueId, GraphValue> selectedValues, CompiledNode node) {
-        OperationKind kind = node.operation().kind();
-        boolean affineTransform = kind instanceof ShapeTransformKind || kind instanceof AxisTransformKind;
-        boolean extraction = kind == SliceKind.SLICE || kind == SelectKind.SELECT;
-        if ((!affineTransform && !extraction)
-                || node.inputs().size() != 1
-                || node.outputs().size() != 1) {
-            return false;
+        boolean eligibleOutput = false;
+        for (ValueId id : node.outputs()) {
+            TensorDescriptor output = selectedValues.get(id).descriptor();
+            if (output.shape().isFullyStatic() && output.layout().isEmpty()) {
+                eligibleOutput = true;
+                break;
+            }
         }
-        ValueId outputId = node.outputs().getFirst();
-        TensorDescriptor output = selectedValues.get(outputId).descriptor();
-        TensorDescriptor input = selectedValues.get(node.inputs().getFirst()).descriptor();
-        if (!output.shape().isFullyStatic()
-                || output.layout().isPresent()
-                || input.layout().isEmpty()) {
-            return false;
-        }
-        TensorDescriptor inferred;
+        if (!eligibleOutput) return false;
+        List<TensorDescriptor> inputs = new ArrayList<>(node.inputs().size());
+        for (ValueId id : node.inputs()) inputs.add(selectedValues.get(id).descriptor());
+        List<TensorDescriptor> outputs = new ArrayList<>(node.outputs().size());
+        for (ValueId id : node.outputs()) outputs.add(selectedValues.get(id).descriptor());
+        List<TensorDescriptor> closed;
         try {
-            CapturedGraphInference.InferenceResult result = kind == SelectKind.SELECT
-                    ? IndexingInference.infer(node.operation(), List.of(input))
-                    : LayoutInference.infer(node.operation(), List.of(input));
-            inferred = result.outputs().getFirst();
+            closed = ScanBody.closeOrdinaryLayouts(node.operation(), inputs, outputs);
         } catch (ArithmeticException failure) {
-            throw new IllegalArgumentException(
-                    "cannot derive static affine result logical layout for "
-                            + node.id() + " output " + outputId,
-                    failure);
+            throw new IllegalArgumentException("cannot close static result logical layouts for "
+                    + node.id() + " outputs " + node.outputs(), failure);
         }
-        if (inferred.layout().isEmpty()
-                || inferred.dataType() != output.dataType()
-                || !inferred.shape().equals(output.shape())) {
-            return false;
+        boolean changed = false;
+        for (int index = 0; index < outputs.size(); index++) {
+            if (closed.get(index) == outputs.get(index)) continue;
+            ValueId id = node.outputs().get(index);
+            selectedValues.put(id, new GraphValue(id, closed.get(index)));
+            changed = true;
         }
-        TensorDescriptor closed = new TensorDescriptor(
-                output.dataType(), output.shape(), inferred.layout(), output.requiresGrad());
-        selectedValues.put(outputId, new GraphValue(outputId, closed));
-        return true;
+        return changed;
     }
 
 

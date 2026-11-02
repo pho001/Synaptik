@@ -43,10 +43,30 @@ final class TensorConv3dExpressions {
      * @throws IllegalStateException if Tensor identifier space is exhausted
      */
     static Tensor apply(Tensor input, Tensor weight, Conv3dAttrs attrs) {
+        return applyChecked(input, weight, attrs, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null rank-five NCDHW floating input retained as input zero
+     * @param weight non-null rank-five floating weight retained as input one
+     * @param attrs non-null exact convolution geometry retained by the operation
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if floating, rank, kernel, channel, or geometry validation
+     *     fails
+     * @throws ArithmeticException if checked convolution geometry overflows {@code long}
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    static Tensor applyChecked(Tensor input, Tensor weight, Conv3dAttrs attrs,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(weight, "weight");
         Objects.requireNonNull(attrs, "attrs");
-        return build(input, weight, null, attrs, List.of(input, weight));
+        return buildChecked(input, weight, null, attrs, List.of(input, weight), descriptorCheck);
     }
 
     /**
@@ -65,19 +85,82 @@ final class TensorConv3dExpressions {
      * @throws IllegalStateException if Tensor identifier space is exhausted
      */
     static Tensor apply(Tensor input, Tensor weight, Tensor bias, Conv3dAttrs attrs) {
+        return applyChecked(input, weight, bias, attrs, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null rank-five NCDHW floating input retained as input zero
+     * @param weight non-null rank-five floating weight retained as input one
+     * @param bias non-null rank-one floating output-channel bias retained as input two
+     * @param attrs non-null exact convolution geometry retained by the operation
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if floating, rank, kernel, channel, bias, or geometry
+     *     validation fails
+     * @throws ArithmeticException if checked convolution geometry overflows {@code long}
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    static Tensor applyChecked(Tensor input, Tensor weight, Tensor bias, Conv3dAttrs attrs,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(weight, "weight");
         Objects.requireNonNull(bias, "bias");
         Objects.requireNonNull(attrs, "attrs");
-        return build(input, weight, bias, attrs, List.of(input, weight, bias));
+        return buildChecked(input, weight, bias, attrs, List.of(input, weight, bias), descriptorCheck);
     }
 
-    private static Tensor build(
+    /**
+     * Delivers the canonical checked convolution descriptor once without constructing a Tensor.
+     * @param operation convolution operation whose exact attributes are retained
+     * @param inputs ordered input, weight, and optional bias descriptors
+     * @param outputCount output cardinality validated by the metadata facade
+     * @param sink synchronous, unretained receiver of canonical metadata
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Conv3dAttrs attrs = (Conv3dAttrs) operation.attrs();
+        TensorDescriptor descriptor = describeInputs(inputs.get(0), inputs.get(1),
+                inputs.size() == 3 ? inputs.get(2) : null, attrs);
+        sink.accept(new Operation(Conv3dKind.CONV3D, attrs), List.of(descriptor));
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null floating NCHW/NCDHW input; channel count must match grouped weights
+     * @param weight non-null floating OIHW/OIDHW weights with valid grouped channel geometry
+     * @param bias nullable floating rank-one output-channel bias; null selects the bias-free form
+     * @param attrs non-null stride, padding, dilation and group geometry validated by ordinary convolution
+     * @param inputs exact ordered input/weight and optional bias references used only for ordinary construction
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if ordinary semantic validation or the supplied check fails
+     */
+    private static Tensor buildChecked(
             Tensor input,
             Tensor weight,
             Tensor bias,
             Conv3dAttrs attrs,
-            List<Tensor> inputs) {
+            List<Tensor> inputs,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        TensorDescriptor descriptor = describeInputs(input.descriptor(), weight.descriptor(),
+                bias == null ? null : bias.descriptor(), attrs);
+        Operation operation = new Operation(Conv3dKind.CONV3D, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
+        return TensorFactory.createDerived(
+                descriptor, Optional.empty(), operation, inputs);
+    }
+
+    private static TensorDescriptor describeInputs(
+            TensorDescriptor input, TensorDescriptor weight, TensorDescriptor bias, Conv3dAttrs attrs) {
         DataType inputType = requireFloating(input, "input");
         DataType weightType = requireFloating(weight, "weight");
         DataType biasType = bias == null ? null : requireFloating(bias, "bias");
@@ -86,11 +169,11 @@ final class TensorConv3dExpressions {
             resultType = DataTypePromotion.promoteFloating(resultType, biasType);
         }
 
-        Shape inputShape = input.descriptor().shape();
-        Shape weightShape = weight.descriptor().shape();
+        Shape inputShape = input.shape();
+        Shape weightShape = weight.shape();
         requireRank(inputShape, 5, "input");
         requireRank(weightShape, 5, "weight");
-        Shape biasShape = bias == null ? null : bias.descriptor().shape();
+        Shape biasShape = bias == null ? null : bias.shape();
         if (biasShape != null) {
             requireRank(biasShape, 1, "bias");
         }
@@ -134,18 +217,15 @@ final class TensorConv3dExpressions {
         Shape outputShape = Shape.ofDimensions(
                 inputShape.dimension(0), outputChannels,
                 outputDepth, outputHeight, outputWidth);
-        boolean requiresGrad = input.descriptor().requiresGrad()
-                || weight.descriptor().requiresGrad()
-                || bias != null && bias.descriptor().requiresGrad();
-        TensorDescriptor descriptor = new TensorDescriptor(
+        boolean requiresGrad = input.requiresGrad()
+                || weight.requiresGrad()
+                || bias != null && bias.requiresGrad();
+        return new TensorDescriptor(
                 resultType, outputShape, Optional.empty(), requiresGrad);
-        Operation operation = new Operation(Conv3dKind.CONV3D, attrs);
-        return TensorFactory.createDerived(
-                descriptor, Optional.empty(), operation, inputs);
     }
 
-    private static DataType requireFloating(Tensor tensor, String role) {
-        DataType dataType = tensor.descriptor().dataType();
+    private static DataType requireFloating(TensorDescriptor tensor, String role) {
+        DataType dataType = tensor.dataType();
         if (!dataType.isFloating()) {
             throw new IllegalArgumentException(
                     "conv3d " + role + " must have a floating data type, but was " + dataType);

@@ -3,6 +3,10 @@ package io.github.pho001.synaptik.backend.cpu.internal.codegen.emit;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import java.lang.classfile.CodeBuilder;
 import java.lang.classfile.Opcode;
+import java.lang.classfile.Label;
+import java.lang.constant.ClassDesc;
+import java.lang.constant.ConstantDescs;
+import java.lang.constant.MethodTypeDesc;
 import java.lang.classfile.TypeKind;
 import java.util.List;
 import java.util.function.Consumer;
@@ -14,6 +18,9 @@ import java.util.function.Consumer;
  * ordinal-derived addresses for its two dense reads, last-axis broadcast read, and offset
  * two-strided output. The method retains the typed universal general-long state machine whenever
  * its complete runtime proof fails.
+ * Controlled ROW traversal guards each scalar ordinal before fused operand loads.
+ * A ROW-controlled vector entry uses its existing scalar body so an unmasked vector never
+ * crosses independently active original rows; uncontrolled and all-SHARED vectors are unchanged.
  */
 final class CpuLoopEmitter {
     /**
@@ -33,6 +40,131 @@ final class CpuLoopEmitter {
      * @param code non-null Class-File API code builder retained for generation only
      */
     CpuLoopEmitter(CodeBuilder code) { this.code = code; }
+
+    /**
+     * Guards a full logical boundary ordinal using its authenticated original ROW provenance.
+     * Leading ROW quotients already name the original row; only nonleading axes need batch modulo.
+     * SHARED boundaries and ordinary uncontrolled methods emit no instructions or locals.
+     * The inactive target must precede the caller's induction/address advancement, not its
+     * operand loads or publication.
+     * @param code current method builder
+     * @param boundary exact ordinary ABI boundary ordinal
+     * @param ordinal local containing the boundary's full logical ordinal
+     * @param kind INT or LONG ordinal representation
+     * @param inactive target skipping all work for this logical cell
+     */
+    static void emitActiveOrdinalGuard(CodeBuilder code, int boundary, int ordinal,
+            TypeKind kind, Label inactive) {
+        emitActiveSliceGuard(code, boundary, ordinal, kind, -1, -1, null, inactive);
+    }
+
+    /**
+     * Guards an ordinal in a boundary domain with explicitly omitted ordinary axes.
+     * The ordinary pack supplies remaining suffix extents after the proved ROW axis.
+     * Zero-sized omitted axes require no division by an empty full-tensor stride, and equal
+     * geometry never establishes ROW provenance.
+     * @param code current method builder
+     * @param boundary exact ordinary ABI boundary ordinal
+     * @param ordinal local containing the increasing represented slice ordinal
+     * @param kind INT or LONG ordinal representation
+     * @param geometry existing family geometry reference slot
+     * @param extents first full-boundary extent index in that pack
+     * @param omitted full-boundary omitted-axis membership, or null for a full ordinal
+     * @param inactive target before the caller's normal induction/address advancement
+     * @throws IllegalArgumentException if the ordinal kind or proved ROW domain disagrees
+     */
+    static void emitActiveSliceGuard(CodeBuilder code, int boundary, int ordinal,
+            TypeKind kind, int geometry, int extents, boolean[] omitted, Label inactive) {
+        var facts = CpuCarrierEmitter.controlFacts();
+        if (facts.isEmpty()) return;
+        var row = facts.orElseThrow().boundaryRows().get(boundary);
+        if (row.axis() < 0) return;
+        if (kind != TypeKind.INT && kind != TypeKind.LONG)
+            throw new IllegalArgumentException("ROW ordinal must be INT or LONG");
+        if (omitted != null && (row.axis() >= omitted.length || omitted[row.axis()]))
+            throw new IllegalArgumentException("slice removes its proved ROW axis");
+        int rowLocal = code.allocateLocal(TypeKind.LONG);
+        if (kind == TypeKind.INT) code.iload(ordinal).i2l(); else code.lload(ordinal);
+        if (omitted == null) {
+            if (row.logicalRowStride() != 1L) code.loadConstant(row.logicalRowStride()).ldiv();
+        } else {
+            code.loadConstant(1L);
+            for (int axis = row.axis() + 1; axis < omitted.length; axis++)
+                if (!omitted[axis]) code.aload(geometry).loadConstant(extents + axis).laload().lmul();
+            code.ldiv();
+        }
+        if (row.axis() != 0) {
+            code.aload(CpuCarrierEmitter.controlParameterSlot(code));
+            code.getstatic(ClassDesc.of("java.lang.foreign.ValueLayout"), "JAVA_LONG_UNALIGNED",
+                    ClassDesc.of("java.lang.foreign.ValueLayout$OfLong"));
+            code.loadConstant(8L).invokeinterface(ClassDesc.of("java.lang.foreign.MemorySegment"),
+                    "get", MethodTypeDesc.of(ConstantDescs.CD_long,
+                            ClassDesc.of("java.lang.foreign.ValueLayout$OfLong"), ConstantDescs.CD_long));
+            code.lrem();
+        }
+        code.lstore(rowLocal);
+        CpuCarrierEmitter.emitActiveRowGuard(code, rowLocal, TypeKind.LONG, inactive);
+    }
+
+    /** @return whether proved ROW activity requires independently guarded scalar visits */
+    private static boolean hasRowControl() {
+        return CpuCarrierEmitter.controlFacts().map(control ->
+                control.boundaryRows().stream().anyMatch(row -> row.rowIndexed())).orElse(false);
+    }
+
+    /**
+     * Emits the established four-byte dense step loop using invocation-local byte bases and
+     * preallocated locals.
+     * No entry parameter is overwritten and no layout, geometry array or carrier is rediscovered.
+     * @param startSlot long inclusive coordinate bound
+     * @param endSlot long exclusive coordinate bound
+     * @param baseSlots long byte-base locals, one per access
+     * @param scalar constant-address flags in access order
+     * @param addressSlots preallocated long byte-address locals
+     * @param indexSlot preallocated long coordinate local
+     * @param body generation-only callback over those byte addresses
+     */
+    void emitDense(int startSlot, int endSlot, int[] baseSlots, boolean[] scalar,
+            int[] addressSlots, int indexSlot, Consumer<State> body) {
+        emitDense(startSlot, endSlot, baseSlots, scalar, addressSlots, indexSlot, 4L, body);
+    }
+
+    /**
+     * Emits a half-open dense loop for a generation-time-qualified element width. Constant-address
+     * accesses keep their byte base; other accesses begin at base plus start times width and
+     * advance by width. The loop updates the supplied address/index locals rather than entry
+     * parameters and introduces no runtime layout lookup or callback.
+     * @param startSlot JVM slot holding the long inclusive coordinate bound
+     * @param endSlot JVM slot holding the long exclusive coordinate bound
+     * @param baseSlots non-null long byte-base slots, borrowed without mutation, one per access
+     * @param scalar non-null constant-address flags in matching access order, borrowed without mutation
+     * @param addressSlots non-null preallocated long byte-address slots in matching access order;
+     *     the array is borrowed, while generated code overwrites the named locals
+     * @param indexSlot preallocated long coordinate slot overwritten by generated code
+     * @param width positive represented element bytes, already qualified by the caller
+     * @param body non-null generation-only callback; never retained by emitted code
+     * @throws NullPointerException if a required array or callback is null
+     */
+    void emitDense(int startSlot, int endSlot, int[] baseSlots, boolean[] scalar,
+            int[] addressSlots, int indexSlot, long width, Consumer<State> body) {
+        var done = code.newLabel(); var loop = code.newLabel();
+        code.lload(startSlot).lload(endSlot).lcmp().branch(Opcode.IFGE, done);
+        for (int p = 0; p < baseSlots.length; p++) {
+            code.lload(baseSlots[p]);
+            if (!scalar[p]) code.lload(startSlot).loadConstant(width).lmul().ladd();
+            code.lstore(addressSlots[p]);
+        }
+        code.lload(startSlot).lstore(indexSlot).labelBinding(loop);
+        var advance = code.newLabel();
+        emitActiveOrdinalGuard(code, baseSlots.length - 1, indexSlot, TypeKind.LONG, advance);
+        body.accept(new State(addressSlots, false));
+        code.labelBinding(advance);
+        code.lload(indexSlot).loadConstant(1L).ladd().lstore(indexSlot);
+        code.lload(indexSlot).lload(endSlot).lcmp().branch(Opcode.IFGE, done);
+        for (int p = 0; p < addressSlots.length; p++) if (!scalar[p])
+            code.lload(addressSlots[p]).loadConstant(width).ladd().lstore(addressSlots[p]);
+        code.branch(Opcode.GOTO, loop).labelBinding(done);
+    }
 
     /**
      * Emits one universal half-open loop and regime-specific address state for all boundaries.
@@ -77,7 +209,10 @@ final class CpuLoopEmitter {
         code.lload(startSlot).lstore(index);
         var loop = code.newLabel();
         code.labelBinding(loop);
+        var advance = code.newLabel();
+        emitActiveOrdinalGuard(code, boundaryCount - 1, index, TypeKind.LONG, advance);
         body.accept(new State(addresses, false));
+        code.labelBinding(advance);
         code.lload(index).loadConstant(1L).ladd().lstore(index);
         code.lload(index).lload(endSlot).lcmp().branch(Opcode.IFGE, done);
         for (int value = 0; value < boundaryCount; value++) emitAdvance(
@@ -149,6 +284,8 @@ final class CpuLoopEmitter {
         var loop = code.newLabel();
         code.labelBinding(loop);
         code.iload(ordinal).iload(end).branch(Opcode.IF_ICMPGE, done);
+        var advance = code.newLabel();
+        emitActiveOrdinalGuard(code, 3, ordinal, TypeKind.INT, advance);
         code.iload(ordinal).i2l().lstore(addresses[0]);
         code.iload(ordinal).loadConstant(511).iand().i2l().lstore(addresses[1]);
         code.iload(ordinal).i2l().lstore(addresses[2]);
@@ -156,6 +293,7 @@ final class CpuLoopEmitter {
                 .imul().iadd().iload(ordinal).loadConstant(511).iand().loadConstant(2)
                 .imul().iadd().i2l().lstore(addresses[3]);
         body.accept(new State(addresses, false));
+        code.labelBinding(advance);
         code.iinc(ordinal, 1).branch(Opcode.GOTO, loop);
     }
 
@@ -221,6 +359,10 @@ final class CpuLoopEmitter {
      */
     void emitVector(List<CpuAccessPlan> plans, boolean[] accessed, int lanes,
             Consumer<State> vectorBody, Consumer<State> scalarBody) {
+        if (hasRowControl()) {
+            emit(plans, scalarBody);
+            return;
+        }
         int rank = plans.getFirst().iterationRank();
         int boundaryCount = plans.size();
         int geometrySlot = boundaryCount;
@@ -316,7 +458,10 @@ final class CpuLoopEmitter {
         code.lload(startSlot).l2i().istore(index);
         var loop = code.newLabel();
         code.labelBinding(loop);
+        var advance = code.newLabel();
+        emitActiveOrdinalGuard(code, boundaryCount - 1, index, TypeKind.INT, advance);
         body.accept(new State(addresses, true));
+        code.labelBinding(advance);
         incrementDenseAddresses(plans, addresses, 1);
         code.iinc(index, 1);
         code.iload(index).iload(end).branch(Opcode.IF_ICMPLT, loop);
@@ -346,6 +491,10 @@ final class CpuLoopEmitter {
      */
     void emitDenseArrayIntVector(List<CpuAccessPlan> plans, boolean[] accessed, int lanes,
             Consumer<State> vectorBody, Consumer<State> scalarBody) {
+        if (hasRowControl()) {
+            emitDenseArrayInt(plans, scalarBody);
+            return;
+        }
         int boundaryCount = plans.size(), geometrySlot = boundaryCount;
         int startSlot = boundaryCount + 1, endSlot = boundaryCount + 3;
         var done = code.newLabel();
@@ -407,6 +556,10 @@ final class CpuLoopEmitter {
      */
     void emitDenseLongVector(List<CpuAccessPlan> plans, boolean[] accessed, int lanes,
             Consumer<State> vectorBody, Consumer<State> scalarBody) {
+        if (hasRowControl()) {
+            emit(plans, scalarBody);
+            return;
+        }
         int boundaryCount = plans.size(), geometrySlot = boundaryCount;
         int startSlot = boundaryCount + 1, endSlot = boundaryCount + 3;
         var done = code.newLabel();

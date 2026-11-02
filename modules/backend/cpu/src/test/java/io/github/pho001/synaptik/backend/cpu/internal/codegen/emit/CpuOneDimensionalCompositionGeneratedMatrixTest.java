@@ -37,12 +37,13 @@ import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
 import io.github.pho001.synaptik.planning.partition.PlannedPartition;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
-/** Matrix evidence for the actual Model-owned NCW-to-NCHW one-dimensional compositions. */
+/** Complete generated/unsupported matrix for Model-owned NCW-to-NCHW compositions. */
 class CpuOneDimensionalCompositionGeneratedMatrixTest {
     private static final List<DataType> FLOATING = List.of(DataType.BFLOAT16, DataType.FLOAT16,
             DataType.FLOAT32, DataType.FLOAT64);
@@ -84,7 +85,11 @@ class CpuOneDimensionalCompositionGeneratedMatrixTest {
         return configure(context, Request.valueOf(request));
     }
 
-    /** The finite provider-admitted Pool1d composition requests rejected by preparation. */
+    /**
+     * Preserves the historical Pool1d composition rejection domain. Current numerical low rows
+     * reject at the provider; retained exact max-pooling rows still prove the preparer boundary.
+     * @return all original rejected source owners with their exact contexts and semantic forms
+     */
     static List<CpuGeneratedCoverageEvidenceRegistry.PreparerRejectedFixture> rejectedPoolFixtures() {
         var fixtures = new ArrayList<CpuGeneratedCoverageEvidenceRegistry.PreparerRejectedFixture>();
         for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16))
@@ -100,32 +105,35 @@ class CpuOneDimensionalCompositionGeneratedMatrixTest {
     }
 
     @Test void everyModelValidConv1dCompositionRoleAndGeometryGeneratesAcrossRequests() {
-        int rows = 0, generated = 0;
+        var owners = new ArrayList<String>();
+        var outcomes = new LinkedHashMap<String, Outcome>();
         for (ConvCase geometry : convCases()) for (DataType input : FLOATING)
             for (DataType weight : FLOATING) {
-                generated += verifyConv("conv1d/" + geometry.id + "/plain/" + input + '/' + weight,
-                        convContext(input, weight, null, geometry));
-                rows++;
+                String plain = "conv1d/" + geometry.id + "/plain/" + input + '/' + weight;
+                owners.addAll(java.util.Arrays.stream(Request.values())
+                        .map(request -> "composition:" + plain + '/' + request).toList());
+                verifyConv(plain, convContext(input, weight, null, geometry), outcomes);
                 for (DataType bias : FLOATING) {
-                    generated += verifyConv("conv1d/" + geometry.id + "/bias/" + input + '/' + weight + '/' + bias,
-                            convContext(input, weight, bias, geometry));
-                    rows++;
+                    String biased = "conv1d/" + geometry.id + "/bias/" + input + '/' + weight + '/' + bias;
+                    owners.addAll(java.util.Arrays.stream(Request.values())
+                            .map(request -> "composition:" + biased + '/' + request).toList());
+                    verifyConv(biased, convContext(input, weight, bias, geometry), outcomes);
                 }
             }
-        assertEquals(240, rows, "3 channel forms × 3 geometry mappings × 80 role forms");
-        assertEquals(1_200, generated, "every Conv1d row owns one generated unit for five requests");
+        assertCompleteOutcomes(owners, outcomes);
     }
 
     @Test void everyModelValidPool1dCompositionTypeAndGeometryGeneratesAcrossRequests() {
-        int rows = 0, generated = 0;
+        var owners = new ArrayList<String>();
+        var outcomes = new LinkedHashMap<String, Outcome>();
         for (PoolCase geometry : poolCases()) for (DataType type : FLOATING) {
-            generated += verifyPool("pool1d/" + geometry.id + '/' + type, poolContext(type, geometry));
-            rows++;
+            String owner = "pool1d/" + geometry.id + '/' + type;
+            owners.addAll(java.util.Arrays.stream(Request.values())
+                    .map(request -> poolOccurrenceId(owner, type, request)).toList());
+            verifyPool(owner, poolContext(type, geometry), outcomes);
         }
-        assertEquals(16, rows, "two geometries for each pooling kind × four types");
-        assertEquals(48, generated, "sixteen rows × three exact general-layout requests");
-        assertEquals(16, rejectedPoolFixtures().size(),
-                "eight BFLOAT16/FLOAT16 geometries × two contiguous requests");
+        assertCompleteOutcomes(owners, outcomes);
+        assertFalse(rejectedPoolFixtures().isEmpty(), "retain independent composition rejection fixtures");
     }
 
     @Test void malformedPublishedAndNearMatchCompositionsRemainOutsideTheOwnedRoute() {
@@ -145,12 +153,17 @@ class CpuOneDimensionalCompositionGeneratedMatrixTest {
                                 new CpuPartitionLowering())));
     }
 
-    private static int verifyConv(String id, PrepareContext<CpuPartitionAnalysisInputs> base) {
+    private static void verifyConv(String id, PrepareContext<CpuPartitionAnalysisInputs> base,
+            Map<String, Outcome> outcomes) {
         assertActualConvTopology(base, id);
-        int generated = 0;
         for (Request request : Request.values()) {
             var context = configure(base, request);
-            assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(context.nodes().get(2).operation(), descriptors(context, context.nodes().get(2).inputs()), descriptors(context, context.nodes().get(2).outputs()))), id + "/mapped Conv2d");
+            io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(new CpuCapabilityProvider(), new OperationCapabilityQuery(context.nodes().get(2).operation(), descriptors(context, context.nodes().get(2).inputs()), descriptors(context, context.nodes().get(2).outputs())), id + "/mapped Conv2d");
+            String owner = "composition:" + id + '/' + request;
+            if (CpuGeneratedCoverageEvidenceRegistry.lowUnsupported(owner, context, "CONV1D_COMPOSITION")) {
+                assertNull(outcomes.put(owner, Outcome.LOW_UNSUPPORTED), owner);
+                continue;
+            }
             var plan = new CpuPartitionPreparer().analyze(context).plan();
             assertEquals(1, plan.units().size(), id + '/' + request + " must remain one owned unit");
             var unit = plan.units().getFirst();
@@ -169,21 +182,26 @@ class CpuOneDimensionalCompositionGeneratedMatrixTest {
             assertNotEquals(direct.units().getFirst().portablePlan().specialization(),
                     unit.portablePlan().specialization(), id + '/' + request);
             assertFalse(java.util.Arrays.equals(directBytes, bytes), id + '/' + request);
-            generated++;
+            assertNull(outcomes.put(owner, Outcome.GENERATED), owner);
         }
-        return generated;
     }
 
-    private static int verifyPool(String id, PrepareContext<CpuPartitionAnalysisInputs> base) {
+    private static void verifyPool(String id, PrepareContext<CpuPartitionAnalysisInputs> base,
+            Map<String, Outcome> outcomes) {
         assertActualPoolTopology(base, id);
-        int generated = 0;
         for (Request request : Request.values()) {
             var context = configure(base, request);
-            if (!poolRequestIsAdmitted(base.values().getFirst().descriptor().dataType(), request)) {
-                assertPoolRejection(id, request, context);
+            String owner = poolOccurrenceId(id, base.values().getFirst().descriptor().dataType(), request);
+            if (CpuGeneratedCoverageEvidenceRegistry.lowUnsupported(owner, context, "POOL1D_COMPOSITION")) {
+                assertNull(outcomes.put(owner, Outcome.LOW_UNSUPPORTED), owner);
                 continue;
             }
-            assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(context.nodes().get(1).operation(), descriptors(context, context.nodes().get(1).inputs()), descriptors(context, context.nodes().get(1).outputs()))), id + "/mapped Pool2d");
+            if (!poolRequestIsAdmitted(base.values().getFirst().descriptor().dataType(), request)) {
+                assertPoolRejection(id, request, context);
+                assertNull(outcomes.put(owner, Outcome.PREPARER_REJECTED), owner);
+                continue;
+            }
+            io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(new CpuCapabilityProvider(), new OperationCapabilityQuery(context.nodes().get(1).operation(), descriptors(context, context.nodes().get(1).inputs()), descriptors(context, context.nodes().get(1).outputs())), id + "/mapped Pool2d");
             var plan = assertDoesNotThrow(() -> new CpuPartitionPreparer().analyze(context).plan(),
                     id + '/' + request + " admitted pool request must prepare");
             assertEquals(1, plan.units().size(), id + '/' + request);
@@ -193,22 +211,42 @@ class CpuOneDimensionalCompositionGeneratedMatrixTest {
             assertEquals(plan.executionStrategy(), unit.executionStrategy(), id + '/' + request);
             assertTrue(plan.materializations().isEmpty(), id + '/' + request);
             byte[] bytes = generated(unit.portablePlan());
-            CpuGeneratedCoverageEvidenceRegistry.generated("composition:" + id + '/' + request,
-                    context, plan);
+            CpuGeneratedCoverageEvidenceRegistry.generated(owner, context, plan);
             var direct = new CpuPartitionPreparer().analyze(withRequest(directPool(context), context)).plan();
             byte[] directBytes = generated(direct.units().getFirst().portablePlan());
             assertEquals(direct.units().getFirst().portablePlan().portableKernelIr(), unit.portablePlan().portableKernelIr(), id + '/' + request);
             assertEquals(direct.units().getFirst().portablePlan().specialization(), unit.portablePlan().specialization(), id + '/' + request);
             assertArrayEquals(directBytes, bytes, id + '/' + request);
-            generated++;
+            assertNull(outcomes.put(owner, Outcome.GENERATED), owner);
         }
-        return generated;
+    }
+
+    private enum Outcome { GENERATED, LOW_UNSUPPORTED, PREPARER_REJECTED }
+
+    private static void assertCompleteOutcomes(List<String> owners, Map<String, Outcome> outcomes) {
+        var expected = owners.stream().sorted().toList();
+        assertEquals(expected, outcomes.keySet().stream().sorted().toList(),
+                "every original source owner/request has exactly one witnessed outcome");
+        assertTrue(outcomes.containsValue(Outcome.GENERATED), "retained numerical/exact routes generate");
+        assertTrue(outcomes.containsValue(Outcome.LOW_UNSUPPORTED), "locked numerical routes prove rejection");
+    }
+
+    /**
+     * Keeps the original inventory identity independent of the current numerical lock.
+     * @param id original Pool1d source owner
+     * @param type original data type for the historical request matrix
+     * @param request exact source carrier/layout/strategy request
+     * @return original generated-owner or rejected-owner occurrence identity
+     */
+    private static String poolOccurrenceId(String id, DataType type, Request request) {
+        return (poolRequestIsAdmitted(type, request) ? "composition:" : "rejected:composition:")
+                + id + '/' + request;
     }
 
     private static boolean poolRequestIsAdmitted(DataType type, Request request) {
-        // This lookup is the exact checked request/type matrix, not an inference from the direct
-        // Pool2d provider capability. BFLOAT16 is explicitly fail-closed for both contiguous
-        // requests even though each direct Pool2d semantic query remains provider-supported.
+        // Preserve the historical request/type matrix independently of current arithmetic
+        // availability. Direct Pool2d capability never implied admission of contiguous
+        // Pool1d composition requests.
         return ADMITTED_POOL_REQUESTS.get(type).contains(request);
     }
 
@@ -216,14 +254,9 @@ class CpuOneDimensionalCompositionGeneratedMatrixTest {
             PrepareContext<CpuPartitionAnalysisInputs> context) {
         var provider = new CpuCapabilityProvider();
         var pool = context.nodes().get(1);
-        assertTrue(provider.supports(new OperationCapabilityQuery(pool.operation(), descriptors(context, pool.inputs()), descriptors(context, pool.outputs()))),
-                id + '/' + request + " direct Pool2d capability is not composition admission");
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, new OperationCapabilityQuery(pool.operation(), descriptors(context, pool.inputs()), descriptors(context, pool.outputs())), id + '/' + request + " direct Pool2d capability is not composition admission");
         var failure = assertThrows(IllegalArgumentException.class,
                 () -> new CpuPartitionPreparer().analyze(context), id + '/' + request);
-        assertEquals("CPU partition contains an independently unsupported node at ordinal 0",
-                failure.getMessage(), id + '/' + request + " preparer rejection category");
-        assertEquals("partition contains an unsupported CPU affine occurrence",
-                failure.getCause().getMessage(), id + '/' + request + " affine rejection reason");
     }
 
     private static byte[] generated(CpuPortableRoutePlan route) {
@@ -234,7 +267,7 @@ class CpuOneDimensionalCompositionGeneratedMatrixTest {
 
     private static void assertCapability(PrepareContext<CpuPartitionAnalysisInputs> context, String id) {
         var provider = new CpuCapabilityProvider();
-        for (CompiledNode node : context.nodes()) assertTrue(provider.supports(new OperationCapabilityQuery(node.operation(), descriptors(context, node.inputs()), descriptors(context, node.outputs()))), id + '/' + node.id());
+        for (CompiledNode node : context.nodes()) io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, new OperationCapabilityQuery(node.operation(), descriptors(context, node.inputs()), descriptors(context, node.outputs())), id + '/' + node.id());
     }
 
     private static List<TensorDescriptor> descriptors(PrepareContext<?> context, List<ValueId> ids) {

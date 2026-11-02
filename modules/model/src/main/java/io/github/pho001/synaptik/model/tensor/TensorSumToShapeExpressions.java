@@ -53,22 +53,63 @@ final class TensorSumToShapeExpressions {
      *     expression metadata has been constructed
      */
     static Tensor apply(Tensor input, Shape targetShape) {
+        return applyChecked(input, targetShape, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null numeric Tensor retained by exact reference as the sole provenance
+     *     input; its metadata, storage association, values, and identity remain unchanged
+     * @param targetShape non-null exact result Shape to retain in both attributes and descriptor;
+     *     its rank must not exceed the input rank
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input} or {@code targetShape} is null, checked in
+     *     that order with the parameter name as the message
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if the input is BOOL, the target rank exceeds the input
+     *     rank, or the first fully static aligned pair is neither equal nor target-one
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     expression metadata has been constructed
+     */
+    static Tensor applyChecked(Tensor input, Shape targetShape,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(targetShape, "targetShape");
+        return applyDescriptors(
+                input.descriptor(), targetShape, descriptorCheck, input);
+    }
+
+    /**
+     * Runs the shared descriptor guards and completes metadata before real provenance is used.
+     * @param input immutable operand metadata
+     * @param targetShape ordinary construction argument, validated in existing order
+     * @param descriptorCheck optional synchronous, unretained metadata completion; null constructs a Tensor
+     * @param inputTensor real provenance, unused when metadata completion is supplied
+     * @return null after metadata completion, otherwise the ordinary result
+     */
+    private static Tensor applyDescriptors(
+            TensorDescriptor input,
+            Shape targetShape,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor inputTensor) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(targetShape, "targetShape");
         validateInput(input);
-        Shape inputShape = input.descriptor().shape();
+        Shape inputShape = input.shape();
         validateCompatibility(inputShape, targetShape);
-        return create(input, targetShape);
+        return createDescriptors(input, targetShape, descriptorCheck, inputTensor);
     }
 
     /**
      * Requires one of the five current numeric input types without conversion or promotion.
      *
-     * @param input non-null Tensor whose descriptor is read only for its immutable data type
+     * @param input non-null descriptor inspected only for its immutable data type
      * @throws IllegalArgumentException if the input type is BOOL, with the exact SUM diagnostic
      */
-    private static void validateInput(Tensor input) {
-        DataType dataType = input.descriptor().dataType();
+    private static void validateInput(TensorDescriptor input) {
+        DataType dataType = input.dataType();
         if (!dataType.isFloating() && !dataType.isIntegral()) {
             throw new IllegalArgumentException(
                     "input must have a numeric data type for SUM, but was " + dataType);
@@ -109,28 +150,50 @@ final class TensorSumToShapeExpressions {
         }
     }
 
+
     /**
-     * Constructs exact attributes, descriptor, operation, producer, provenance, and result state.
-     *
-     * <p>Construction creates those values in the documented order. The descriptor retains the
-     * exact target Shape and input data type/eligibility with unresolved layout. The central
-     * factory snapshots ordered input {@code [input]}, selects output index zero, assigns one fresh
-     * identity, and attaches no label or storage.</p>
-     *
-     * @param input validated numeric source retained as the sole provenance input
-     * @param targetShape validated exact semantic result Shape retained unchanged
-     * @return the non-null exact fresh Tensor returned by central derived construction
-     * @throws IllegalStateException if tensor identifier space is exhausted
+     * Runs the shared descriptor guards and completes metadata before real provenance is used.
+     * @param input immutable operand metadata
+     * @param targetShape ordinary construction argument, validated in existing order
+     * @param descriptorCheck optional synchronous, unretained metadata completion; null constructs a Tensor
+     * @param inputTensor real provenance, unused when metadata completion is supplied
+     * @return null after metadata completion, otherwise the ordinary result
      */
-    private static Tensor create(Tensor input, Shape targetShape) {
+    private static Tensor createDescriptors(
+            TensorDescriptor input,
+            Shape targetShape,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor inputTensor) {
         SumToShapeAttrs attrs = new SumToShapeAttrs(targetShape);
         TensorDescriptor descriptor = new TensorDescriptor(
-                input.descriptor().dataType(),
+                input.dataType(),
                 targetShape,
                 Optional.empty(),
-                input.descriptor().requiresGrad());
+                input.requiresGrad());
         Operation operation = new Operation(AggregateReductionKind.SUM, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(
-                descriptor, Optional.empty(), operation, List.of(input));
+                descriptor, Optional.empty(), operation, List.of(inputTensor));
+    }
+
+    /**
+     * Completes one admitted ordinary occurrence synchronously using the real construction guards.
+     * No Tensor or identity is created and the callback is not retained. The owning facade checks
+     * occurrence cardinality and compares the returned canonical operation with the supplied one.
+     *
+     * @param operation non-null ordinary operation admitted to this family by the owning selector
+     * @param inputs non-null immutable operand metadata in canonical input order
+     * @param outputCount complete canonical output count, already validated by the owning facade
+     * @param sink non-null synchronous consumer of the canonical operation and all output metadata
+     * @throws IllegalArgumentException if ordinary semantic guards or the consumer reject metadata
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(sink, "sink");
+        SumToShapeAttrs attrs = (SumToShapeAttrs) operation.attrs();
+        applyDescriptors(inputs.get(0), attrs.targetShape(), sink, null);
     }
 }

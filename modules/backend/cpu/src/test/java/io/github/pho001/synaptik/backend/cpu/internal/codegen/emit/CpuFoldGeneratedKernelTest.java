@@ -141,7 +141,7 @@ class CpuFoldGeneratedKernelTest {
                                 || instruction instanceof NewMultiArrayInstruction)));
     }
 
-    @Test void supportsEveryRepresentedAxisTypeBfloatStepRoundingAndPartialRanges()
+    @Test void representedAxisTypesRetainIntegerArithmeticPartialRangesAndLowRejection()
             throws Throwable {
         int[] intOutput = {9, 9, 9, 9, 9};
         invoke(context(new Operation(WindowTransformKind.FOLD_AXIS,
@@ -158,13 +158,10 @@ class CpuFoldGeneratedKernelTest {
                 new long[]{0, Long.MAX_VALUE, 1, 0}, longOutput, 0, 3);
         assertEquals(Long.MIN_VALUE, longOutput[1]);
 
-        short one = (short) 0x3f80, halfUlp = (short) 0x3b80;
-        short[] bfloatOutput = new short[5];
-        invoke(context(new Operation(WindowTransformKind.FOLD_AXIS,
-                        new FoldAxisAttrs(0, 5, 1)), DataType.BFLOAT16,
-                Shape.of(3, 3), Shape.of(5)),
-                new short[]{0,0,one,0,halfUlp,0,halfUlp,0,0}, bfloatOutput, 0, 5);
-        assertEquals(one, bfloatOutput[2]);
+        for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16))
+            assertTrue(io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                    .assertLowUnsupported(context(new Operation(WindowTransformKind.FOLD_AXIS,
+                            new FoldAxisAttrs(0, 5, 1)), type, Shape.of(3, 3), Shape.of(5))));
 
         float[] partial = {-7, -7, -7, -7, -7};
         var partialContext = context(new Operation(WindowTransformKind.FOLD_AXIS,
@@ -181,6 +178,7 @@ class CpuFoldGeneratedKernelTest {
                     new FoldAxisAttrs(0, 5, 1)), type, Shape.of(3, 3), Shape.of(5));
             Object input = sample(type);
             Object expected = empty(type, 5);
+            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(base)) continue;
             var lowered = new CpuPartitionLowering().lower(base);
             CpuScalarReferenceKernel.execute((CpuFoldIr) lowered.portableKernelIr(),
                     lowered.foldGeometry().orElseThrow(),
@@ -259,8 +257,7 @@ class CpuFoldGeneratedKernelTest {
         var plan = new CpuPartitionPreparer().analyze(fold).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         for (long[] range : List.of(new long[]{0, 2}, new long[]{2, 3}, new long[]{3, 5})) {
             long[] packed = plan.foldGeometry().orElseThrow().pack(new long[2], range[0], range[1]);
             artifact.entryPoint().invokeWithArguments(input, partitioned, packed,
@@ -319,6 +316,7 @@ class CpuFoldGeneratedKernelTest {
 
     private static void compareWithReference(PrepareContext<CpuPartitionAnalysisInputs> context,
             Object input) throws Throwable {
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var lowered = new CpuPartitionLowering().lower(context);
         int count = Math.toIntExact(lowered.elementCount());
         DataType type = ((CpuFoldIr) lowered.portableKernelIr()).dataType();
@@ -339,8 +337,7 @@ class CpuFoldGeneratedKernelTest {
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         long[] packed = plan.foldGeometry().orElseThrow().pack(new long[2], start, end);
         artifact.entryPoint().invokeWithArguments(input, output, packed, start, end);
         return plan;
@@ -379,6 +376,7 @@ class CpuFoldGeneratedKernelTest {
     private static void assertDirectGeneratedShape(
             PrepareContext<CpuPartitionAnalysisInputs> context, DataType type,
             boolean dense, boolean segmentInput, boolean segmentOutput) {
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
                 .portablePlan();
         var generator = new CpuClassFileKernelGenerator();
@@ -495,8 +493,8 @@ class CpuFoldGeneratedKernelTest {
     private static CarrierAccess heap(DataType type) {
         return switch (type) {
             case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY; case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
-            case BFLOAT16 -> CarrierAccess.SHORT_ARRAY; case INT32 -> CarrierAccess.INT_ARRAY;
-            case INT64 -> CarrierAccess.LONG_ARRAY; case BOOL, FLOAT16 -> throw new AssertionError();
+            case BFLOAT16, FLOAT16 -> CarrierAccess.SHORT_ARRAY; case INT32 -> CarrierAccess.INT_ARRAY;
+            case INT64 -> CarrierAccess.LONG_ARRAY; case BOOL -> throw new AssertionError();
         };
     }
 

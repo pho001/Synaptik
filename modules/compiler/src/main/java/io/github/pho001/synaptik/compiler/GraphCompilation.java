@@ -18,6 +18,9 @@ import java.util.Set;
  * form the graph-output prefix. Gradient publication bindings retain request order and may share
  * one final {@link ValueId}; the graph boundary lists that value only at its first occurrence. No
  * Tensor, producer, provenance, mutable request map, or runtime/backend object is retained.</p>
+ * <p>General scan attachments contain independent Tensor-free local graphs and ordered roles.
+ * Their port demand reflects final outer publication/ordinary uses, not retained siblings or
+ * internal body roots. Logical histories here do not allocate storage or promise execution.</p>
  *
  * <p>This package-private record is not {@code CompileArtifacts}. It contains no publication,
  * partition, logical-memory, diagnostic, preparation, schedule, physical storage, executable, or

@@ -29,8 +29,6 @@ import io.github.pho001.synaptik.model.shape.Dimension;
 import io.github.pho001.synaptik.model.shape.DimensionExpressions;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
-import io.github.pho001.synaptik.model.tensor.Tensor;
-import io.github.pho001.synaptik.model.tensor.TensorProducer;
 import java.util.List;
 
 /**
@@ -63,45 +61,55 @@ import java.util.List;
  * {@code UNFOLD3D}/{@code FOLD3D} use their exact public overlap-add or extraction counterpart;
  * typed unfold padding remains scalar metadata and receives no cotangent. Fold adjoints use the
  * direct positive-zero unfold overload so discarded padded and ceil-tail columns receive zero.</p>
+ *
+ * <p>Descriptor access preserves original source roles without resolving primal values.
+ * Real construction uses Tensor references directly; checked metadata construction retains
+ * the same eager operation sites, including temporaries not used by a returned cotangent.</p>
+ *
+ * @param <V> direct Tensor or checked metadata operand representation
  */
-final class LayoutGradientRules {
-    private LayoutGradientRules() {}
+final class LayoutGradientRules<V> {
+    private final OrdinaryConstruction<V> ops;
 
     /**
-     * Builds the sole input cotangent for one approved layout occurrence.
-     *
-     * @param producer exact preflight-approved original logical layout-transform producer
-     * @param gradient non-null accumulated cotangent for the producer's sole output
-     * @param selectedInputs non-null input-position-aligned selected-route flags; observed but not
-     *     mutated
-     * @param constants non-null request-local owner of exact typed positive-zero splats
-     * @return a new input-position-aligned array containing selected cotangent expressions and
-     *     {@code null} for unselected roles
-     * @throws IllegalStateException if called for an operation kind outside the preflight-approved
-     *     logical layout matrix
+     * Binds this formula owner to one compile-local construction route.
+     * @param ops non-null direct Tensor or checked metadata construction
      */
-    static Tensor[] apply(
-            TensorProducer producer,
-            Tensor gradient,
+    LayoutGradientRules(OrdinaryConstruction<V> ops) {
+        this.ops = java.util.Objects.requireNonNull(ops);
+    }
+
+    /**
+     * Builds the existing ordinary layout VJP with explicit primal value bindings.
+     * @param producer exact original layout occurrence
+     * @param gradient accumulated cotangent
+     * @param selectedInputs positional route flags
+     * @param primal total binding of original operands to lexical formals
+     * @return ordered cotangents with null unselected entries
+     * @throws IllegalStateException if the occurrence is outside the preflight-approved matrix
+     */
+    V[] apply(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient,
             boolean[] selectedInputs,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        Tensor input = producer.inputs().getFirst();
+            java.util.function.Function<V, V> primal) {
+        V input = primal.apply(producer.inputs().getFirst());
         if (producer.operation().kind() == ContiguousKind.CONTIGUOUS) {
-            return new Tensor[] {gradient};
+            return ops.result(gradient);
         }
         if (producer.operation().kind() == ShapeTransformKind.RESHAPE) {
-            return new Tensor[] {gradient.reshape(input.descriptor().shape())};
+            return ops.result(ops.reshape(gradient, ops.descriptor(input).shape()));
         }
         if (producer.operation().kind() == ShapeTransformKind.EXPAND) {
-            return new Tensor[] {gradient.sumToShape(input.descriptor().shape())};
+            return ops.result(ops.sumToShape(gradient, ops.descriptor(input).shape()));
         }
         if (producer.operation().kind() == AxisTransformKind.EXPAND_DIMS) {
             int axis = ((AxisTransformAttrs) producer.operation().attrs()).axis();
-            return new Tensor[] {gradient.squeeze(axis)};
+            return ops.result(ops.squeeze(gradient, axis));
         }
         if (producer.operation().kind() == AxisTransformKind.SQUEEZE) {
             int axis = ((AxisTransformAttrs) producer.operation().attrs()).axis();
-            return new Tensor[] {gradient.expandDims(axis)};
+            return ops.result(ops.expandDims(gradient, axis));
         }
         if (producer.operation().kind() == AxisTransformKind.PERMUTE) {
             PermutationAttrs attrs = (PermutationAttrs) producer.operation().attrs();
@@ -109,104 +117,80 @@ final class LayoutGradientRules {
             for (int outputAxis = 0; outputAxis < attrs.axes().size(); outputAxis++) {
                 inverse[attrs.axes().get(outputAxis)] = outputAxis;
             }
-            return new Tensor[] {gradient.permute(inverse)};
+            return ops.result(ops.permute(gradient, inverse));
         }
         if (producer.operation().kind() == SliceKind.SLICE
                 && producer.operation().attrs() instanceof CropToShapeAttrs attrs) {
-            return new Tensor[] {
-                constants.zeroLike(input).sliceUpdate(gradient, attrs.prefixShape())
-            };
+            return ops.result(ops.sliceUpdate(ops.zeroLike(input), gradient, attrs.prefixShape()));
         }
         if (producer.operation().kind() == SliceKind.SLICE) {
             SliceAttrs attrs = (SliceAttrs) producer.operation().attrs();
-            return new Tensor[] {
-                constants.zeroLike(input).sliceUpdate(
-                        gradient,
-                        longs(attrs.starts()),
-                        ints(attrs.axes()),
-                        longs(attrs.steps()))
-            };
+            return ops.result(ops.sliceUpdate(ops.zeroLike(input), gradient, attrs));
         }
         if (producer.operation().kind() == SliceKind.SLICE_UPDATE
                 && producer.operation().attrs() instanceof CropToShapeAttrs attrs) {
-            Tensor update = producer.inputs().get(1);
-            Tensor baseGradient = selectedInputs[0]
-                    ? gradient.sliceUpdate(constants.zeroLike(update), attrs.prefixShape())
+            V update = primal.apply(producer.inputs().get(1));
+            V baseGradient = selectedInputs[0]
+                    ? ops.sliceUpdate(gradient, ops.zeroLike(update), attrs.prefixShape())
                     : null;
-            Tensor updateGradient = selectedInputs[1]
-                    ? gradient.cropToShape(attrs.targetShape(), attrs.prefixShape())
+            V updateGradient = selectedInputs[1]
+                    ? ops.cropToShape(gradient, attrs.targetShape(), attrs.prefixShape())
                     : null;
-            return new Tensor[] {baseGradient, updateGradient};
+            return ops.result(baseGradient, updateGradient);
         }
         if (producer.operation().kind() == SliceKind.SLICE_UPDATE) {
             SliceAttrs attrs = (SliceAttrs) producer.operation().attrs();
-            Tensor update = producer.inputs().get(1);
-            Tensor baseGradient = selectedInputs[0]
-                    ? gradient.sliceUpdate(
-                            constants.zeroLike(update),
-                            longs(attrs.starts()),
-                            ints(attrs.axes()),
-                            longs(attrs.steps()))
+            V update = primal.apply(producer.inputs().get(1));
+            V baseGradient = selectedInputs[0]
+                    ? ops.sliceUpdate(gradient, ops.zeroLike(update), attrs)
                     : null;
-            Tensor updateGradient = selectedInputs[1]
-                    ? gradient.sliceByLength(
-                            longs(attrs.starts()),
-                            longs(attrs.lengths()),
-                            ints(attrs.axes()),
-                            longs(attrs.steps()))
+            V updateGradient = selectedInputs[1]
+                    ? ops.sliceByLength(gradient, attrs)
                     : null;
-            return new Tensor[] {baseGradient, updateGradient};
+            return ops.result(baseGradient, updateGradient);
         }
         if (producer.operation().kind() == SelectKind.SELECT) {
             SelectAttrs attrs = (SelectAttrs) producer.operation().attrs();
-            Dimension[] prefix = new Dimension[input.descriptor().shape().rank()];
+            Dimension[] prefix = new Dimension[ops.descriptor(input).shape().rank()];
             for (int axis = 0; axis < prefix.length; axis++) {
                 prefix[axis] = new StaticDimension(axis == attrs.axis() ? attrs.index() : 0);
             }
-            return new Tensor[] {
-                constants.zeroLike(input).sliceUpdate(
-                        gradient.expandDims(attrs.axis()),
-                        Shape.ofDimensions(prefix))
-            };
+            return ops.result(ops.sliceUpdate(ops.zeroLike(input), ops.expandDims(gradient, attrs.axis()), Shape.ofDimensions(prefix)));
         }
         if (producer.operation().kind() == PadKind.PAD) {
             PadAttrs attrs = (PadAttrs) producer.operation().attrs();
-            return new Tensor[] {
-                gradient.cropToShape(input.descriptor().shape(), Shape.of(longs(attrs.before())))
-            };
+            return ops.result(ops.cropToShape(gradient, ops.descriptor(input).shape(), Shape.of(longs(attrs.before()))));
         }
         if (producer.operation().kind() == TileKind.TILE) {
-            return new Tensor[] {tileGradient(
-                    input, gradient, (TileAttrs) producer.operation().attrs())};
+            return ops.result(tileGradient(
+                    input, gradient, (TileAttrs) producer.operation().attrs()));
         }
         if (producer.operation().kind() == TensorCompositionKind.CONCAT) {
             int axis = ((CompositionAxisAttrs) producer.operation().attrs()).axis();
-            Tensor[] result = new Tensor[producer.inputs().size()];
+            V[] result = ops.array(producer.inputs().size());
             Dimension prefix = new StaticDimension(0);
             for (int index = 0; index < producer.inputs().size(); index++) {
-                Tensor compositionInput = producer.inputs().get(index);
+                V compositionInput = primal.apply(producer.inputs().get(index));
                 if (selectedInputs[index]) {
                     Dimension[] prefixDimensions =
-                            new Dimension[compositionInput.descriptor().shape().rank()];
+                            new Dimension[ops.descriptor(compositionInput).shape().rank()];
                     for (int candidate = 0; candidate < prefixDimensions.length; candidate++) {
                         prefixDimensions[candidate] =
                                 candidate == axis ? prefix : new StaticDimension(0);
                     }
-                    result[index] = gradient.cropToShape(
-                            compositionInput.descriptor().shape(),
-                            Shape.ofDimensions(prefixDimensions));
+                    result[index] = ops.cropToShape(gradient, ops.descriptor(compositionInput).shape(), Shape.ofDimensions(prefixDimensions));
                 }
                 prefix = DimensionExpressions.add(
-                        prefix, compositionInput.descriptor().shape().dimension(axis));
+                        prefix, ops.descriptor(compositionInput).shape().dimension(axis));
             }
             return result;
         }
         if (producer.operation().kind() == TensorCompositionKind.STACK) {
             int axis = ((CompositionAxisAttrs) producer.operation().attrs()).axis();
-            Tensor[] result = new Tensor[producer.inputs().size()];
+            V[] result = ops.array(producer.inputs().size());
             for (int index = 0; index < result.length; index++) {
                 if (selectedInputs[index]) {
-                    result[index] = gradient.select(axis, index);
+                    result[index] = ops.select(gradient, axis, index);
                 }
             }
             return result;
@@ -214,37 +198,37 @@ final class LayoutGradientRules {
         if (producer.operation().kind() == WindowTransformKind.UNFOLD_AXIS) {
             UnfoldAxisAttrs attrs = (UnfoldAxisAttrs) producer.operation().attrs();
             long outputSize = ((StaticDimension)
-                            input.descriptor().shape().dimension(attrs.axis()))
+                            ops.descriptor(input).shape().dimension(attrs.axis()))
                     .size();
-            return new Tensor[] {gradient.foldAxis(attrs.axis(), outputSize, attrs.step())};
+            return ops.result(ops.foldAxis(gradient, attrs.axis(), outputSize, attrs.step()));
         }
         if (producer.operation().kind() == WindowTransformKind.FOLD_AXIS) {
             FoldAxisAttrs attrs = (FoldAxisAttrs) producer.operation().attrs();
-            long windowSize = ((StaticDimension) input.descriptor()
+            long windowSize = ((StaticDimension) ops.descriptor(input)
                             .shape()
-                            .dimension(input.descriptor().shape().rank() - 1))
+                            .dimension(ops.descriptor(input).shape().rank() - 1))
                     .size();
-            return new Tensor[] {gradient.unfold(attrs.axis(), windowSize, attrs.step())};
+            return ops.result(ops.unfold(gradient, attrs.axis(), windowSize, attrs.step()));
         }
         if (producer.operation().kind() == WindowTransformKind.UNFOLD2D) {
             Window2dAttrs window = producer.operation().attrs() instanceof Unfold2dAttrs attrs
                     ? attrs.window()
                     : (Window2dAttrs) producer.operation().attrs();
-            return new Tensor[] {gradient.fold2d(input.descriptor().shape(), window)};
+            return ops.result(ops.fold2d(gradient, ops.descriptor(input).shape(), window));
         }
         if (producer.operation().kind() == WindowTransformKind.FOLD2D) {
             Fold2dAttrs attrs = (Fold2dAttrs) producer.operation().attrs();
-            return new Tensor[] {gradient.unfold2d(attrs.window())};
+            return ops.result(ops.unfold2d(gradient, attrs.window()));
         }
         if (producer.operation().kind() == WindowTransformKind.UNFOLD3D) {
             Window3dAttrs window = producer.operation().attrs() instanceof Unfold3dAttrs attrs
                     ? attrs.window()
                     : (Window3dAttrs) producer.operation().attrs();
-            return new Tensor[] {gradient.fold3d(input.descriptor().shape(), window)};
+            return ops.result(ops.fold3d(gradient, ops.descriptor(input).shape(), window));
         }
         if (producer.operation().kind() == WindowTransformKind.FOLD3D) {
             Fold3dAttrs attrs = (Fold3dAttrs) producer.operation().attrs();
-            return new Tensor[] {gradient.unfold3d(attrs.window())};
+            return ops.result(ops.unfold3d(gradient, attrs.window()));
         }
         throw new IllegalStateException(
                 "layout operation was not preflight-approved: " + producer.operation());
@@ -259,8 +243,8 @@ final class LayoutGradientRules {
      * @return a new public-Tensor expression with the exact input Shape, or {@code gradient}
      *     itself for a scalar input
      */
-    private static Tensor tileGradient(Tensor input, Tensor gradient, TileAttrs attrs) {
-        int rank = input.descriptor().shape().rank();
+    private V tileGradient(V input, V gradient, TileAttrs attrs) {
+        int rank = ops.descriptor(input).shape().rank();
         if (rank == 0) {
             return gradient;
         }
@@ -268,12 +252,10 @@ final class LayoutGradientRules {
         int[] repeatAxes = new int[rank];
         for (int axis = 0; axis < rank; axis++) {
             interleaved[2 * axis] = new StaticDimension(attrs.repeats().get(axis));
-            interleaved[2 * axis + 1] = input.descriptor().shape().dimension(axis);
+            interleaved[2 * axis + 1] = ops.descriptor(input).shape().dimension(axis);
             repeatAxes[axis] = 2 * axis;
         }
-        return gradient.reshape(Shape.ofDimensions(interleaved))
-                .sum(repeatAxes, false)
-                .reshape(input.descriptor().shape());
+        return ops.reshape(ops.sum(ops.reshape(gradient, Shape.ofDimensions(interleaved)), repeatAxes, false), ops.descriptor(input).shape());
     }
 
     /**
@@ -284,20 +266,6 @@ final class LayoutGradientRules {
      */
     private static long[] longs(List<Long> values) {
         long[] result = new long[values.size()];
-        for (int index = 0; index < result.length; index++) {
-            result[index] = values.get(index);
-        }
-        return result;
-    }
-
-    /**
-     * Copies boxed integer metadata into an independently owned primitive array.
-     *
-     * @param values non-null immutable list with no null element
-     * @return a new same-order primitive array
-     */
-    private static int[] ints(List<Integer> values) {
-        int[] result = new int[values.size()];
         for (int index = 0; index < result.length; index++) {
             result[index] = values.get(index);
         }

@@ -12,7 +12,7 @@ import io.github.pho001.synaptik.prepare.PreparedScheduleContext;
 import io.github.pho001.synaptik.prepare.PreparedScheduleContribution;
 import io.github.pho001.synaptik.prepare.PreparedScheduleContributor;
 import io.github.pho001.synaptik.prepare.PreparedWorkspaceAssignment;
-import io.github.pho001.synaptik.prepare.ProducerlessPublishedConstantResource;
+import io.github.pho001.synaptik.prepare.ProducerlessPublishedValueResource;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
 import io.github.pho001.synaptik.runtime.run.PreparedPublication;
 import io.github.pho001.synaptik.runtime.schedule.PreparedSchedule;
@@ -24,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -57,18 +58,18 @@ final class CompositePreparedScheduleAssembler implements PreparedScheduleAssemb
     }
 
     @Override
-    public ProducerlessPublishedConstantResource producerlessPublishedConstant(
+    public ProducerlessPublishedValueResource producerlessPublishedValue(
             GraphValue value,
             LogicalMemoryRequirement logicalRequirement,
-            ScalarValue scalar) {
+            Optional<ScalarValue> scalar) {
         for (EngineBackendComposition adapter : adapters.values()) {
             if (adapter instanceof CpuEngineBackendComposition) {
-                return adapter.scheduleAssembler().producerlessPublishedConstant(
+                return adapter.scheduleAssembler().producerlessPublishedValue(
                         value, logicalRequirement, scalar);
             }
         }
         throw new IllegalArgumentException(
-                "producerless published constants require a registered CPU adapter");
+                "producerless published values require a registered CPU adapter");
     }
 
     @Override

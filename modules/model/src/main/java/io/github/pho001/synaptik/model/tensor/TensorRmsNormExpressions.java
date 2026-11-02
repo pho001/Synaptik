@@ -49,18 +49,49 @@ final class TensorRmsNormExpressions {
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     static Tensor apply(Tensor input, Shape normalizedShape, ScalarValue epsilon) {
+        return applyChecked(input, normalizedShape, epsilon, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null floating input retained as sole producer input
+     * @param normalizedShape non-null positive-rank Shape matched to trailing input axes
+     * @param epsilon non-null finite positive scalar matching the input type, except FLOAT16 uses FLOAT32
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if input is non-floating, normalized Shape is empty or is
+     *     statically incompatible with trailing input axes, or epsilon does not match the input
+     *     arithmetic type
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    static Tensor applyChecked(Tensor input, Shape normalizedShape, ScalarValue epsilon,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(normalizedShape, "normalizedShape");
         Objects.requireNonNull(epsilon, "epsilon");
-        DataType resultType = requireFloating(input, "input");
-        Shape inputShape = input.descriptor().shape();
+        return applyCore(input.descriptor(), normalizedShape, epsilon, input, descriptorCheck);
+    }
+
+    private static Tensor applyCore(
+            TensorDescriptor inputDescriptor, Shape normalizedShape, ScalarValue epsilon,
+            Tensor input,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        DataType resultType = requireFloating(inputDescriptor, "input");
+        Shape inputShape = inputDescriptor.shape();
         validateNormalizedShape(inputShape, normalizedShape);
         validateEpsilonType(epsilon, resultType);
 
         RmsNormAttrs attrs = new RmsNormAttrs(normalizedShape, epsilon);
         TensorDescriptor descriptor = new TensorDescriptor(
-                resultType, inputShape, Optional.empty(), input.descriptor().requiresGrad());
+                resultType, inputShape, Optional.empty(), inputDescriptor.requiresGrad());
         Operation operation = new Operation(RmsNormKind.RMS_NORM, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(
                 descriptor, Optional.empty(), operation, List.of(input));
     }
@@ -83,31 +114,81 @@ final class TensorRmsNormExpressions {
      */
     static Tensor apply(
             Tensor input, Shape normalizedShape, Tensor scale, ScalarValue epsilon) {
+        return applyChecked(input, normalizedShape, scale, epsilon, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null floating input retained as first producer input
+     * @param normalizedShape non-null positive-rank Shape matched to trailing input axes
+     * @param scale non-null floating scale with Shape exactly equal to normalized Shape
+     * @param epsilon non-null finite positive scalar matching the result type, except FLOAT16 uses FLOAT32
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if an operand is non-floating, normalized Shape is empty or
+     *     statically incompatible with trailing input axes, scale Shape is not exactly normalized
+     *     Shape, or epsilon does not match the promoted result arithmetic type
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    static Tensor applyChecked(
+            Tensor input, Shape normalizedShape, Tensor scale, ScalarValue epsilon,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(normalizedShape, "normalizedShape");
         Objects.requireNonNull(scale, "scale");
         Objects.requireNonNull(epsilon, "epsilon");
+        return applyCore(input.descriptor(), normalizedShape, scale.descriptor(), epsilon,
+                input, scale, descriptorCheck);
+    }
 
-        DataType inputType = requireFloating(input, "input");
-        DataType scaleType = requireFloating(scale, "scale");
-        Shape inputShape = input.descriptor().shape();
+    private static Tensor applyCore(
+            TensorDescriptor inputDescriptor, Shape normalizedShape,
+            TensorDescriptor scaleDescriptor, ScalarValue epsilon, Tensor input, Tensor scale,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+
+        DataType inputType = requireFloating(inputDescriptor, "input");
+        DataType scaleType = requireFloating(scaleDescriptor, "scale");
+        Shape inputShape = inputDescriptor.shape();
         validateNormalizedShape(inputShape, normalizedShape);
-        validateScaleShape(scale.descriptor().shape(), normalizedShape);
+        validateScaleShape(scaleDescriptor.shape(), normalizedShape);
         DataType resultType = DataTypePromotion.promoteFloating(inputType, scaleType);
         validateEpsilonType(epsilon, resultType);
 
         RmsNormAttrs attrs = new RmsNormAttrs(normalizedShape, epsilon);
-        boolean requiresGrad = input.descriptor().requiresGrad()
-                || scale.descriptor().requiresGrad();
+        boolean requiresGrad = inputDescriptor.requiresGrad()
+                || scaleDescriptor.requiresGrad();
         TensorDescriptor descriptor = new TensorDescriptor(
                 resultType, inputShape, Optional.empty(), requiresGrad);
         Operation operation = new Operation(RmsNormKind.RMS_NORM, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(
                 descriptor, Optional.empty(), operation, List.of(input, scale));
     }
 
-    private static DataType requireFloating(Tensor tensor, String role) {
-        DataType dataType = tensor.descriptor().dataType();
+    /**
+     * Describes canonical RMS-normalization metadata through the construction guards.
+     * The sink is invoked synchronously exactly once without creating Tensor identities.
+     */
+    static void describeChecked(
+            Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        RmsNormAttrs attrs = (RmsNormAttrs) operation.attrs();
+        if (inputs.size() == 1) {
+            applyCore(inputs.get(0), attrs.normalizedShape(), attrs.epsilon(), null, sink);
+        } else {
+            applyCore(inputs.get(0), attrs.normalizedShape(), inputs.get(1), attrs.epsilon(),
+                    null, null, sink);
+        }
+    }
+
+    private static DataType requireFloating(TensorDescriptor descriptor, String role) {
+        DataType dataType = descriptor.dataType();
         if (!dataType.isFloating()) {
             throw new IllegalArgumentException(
                     "rmsNorm " + role + " must have a floating data type, but was " + dataType);

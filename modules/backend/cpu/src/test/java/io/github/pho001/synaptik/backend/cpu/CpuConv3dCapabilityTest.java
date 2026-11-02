@@ -19,7 +19,7 @@ class CpuConv3dCapabilityTest {
 
     @Test void admitsExactStaticGroupedPromotionAndRejectsExcludedBoundaries(){
         var attrs=new Conv3dAttrs(2,1,2,1,0,1,1,2,1,2);Shape x=Shape.of(2,4,5,6,7),w=Shape.of(6,2,3,2,2),b=Shape.of(6),y=Shape.of(2,6,3,4,4);
-        assertTrue(provider.supports(query(attrs,List.of(descriptor(DataType.BFLOAT16,x,false),descriptor(DataType.FLOAT32,w,true),descriptor(DataType.FLOAT64,b,false)),descriptor(DataType.FLOAT64,y,true))));
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, query(attrs,List.of(descriptor(DataType.BFLOAT16,x,false),descriptor(DataType.FLOAT32,w,true),descriptor(DataType.FLOAT64,b,false)),descriptor(DataType.FLOAT64,y,true)));
         assertAll(()->assertFalse(provider.supports(query(attrs,List.of(descriptor(DataType.INT32,x,false),descriptor(DataType.FLOAT32,w,false)),descriptor(DataType.FLOAT32,y,false)))),()->assertFalse(provider.supports(query(attrs,List.of(unresolved(DataType.FLOAT32,x),descriptor(DataType.FLOAT32,w,false)),descriptor(DataType.FLOAT32,y,false)))),()->assertFalse(provider.supports(query(attrs,List.of(descriptor(DataType.FLOAT32,x,false),descriptor(DataType.FLOAT32,w,false)),descriptor(DataType.FLOAT32,Shape.of(2,6,3,4,5),false)))));
     }
 

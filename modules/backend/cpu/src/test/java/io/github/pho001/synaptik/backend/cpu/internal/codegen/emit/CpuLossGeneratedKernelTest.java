@@ -39,14 +39,169 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /**
- * Verifies direct schema-58 generated loss bodies against the frozen typed clean-Java oracle.
+ * Verifies direct schema-58 generated loss bodies and independently rejected low fixtures.
  *
- * <p>The representative cases cover the three loss families and reductions, binary64/binary32/
- * BFLOAT16 accumulator domains, both index widths, shared input roles, non-contiguous cold
- * layouts, and a segment carrier. They invoke the generated artifact directly so successful
- * definition proves Class-File verification independently of later lifecycle work.</p>
+ * <p>The representative cases cover the three loss families and reductions, supported binary64/
+ * binary32 accumulator domains, explicit unsupported BFLOAT16 numerical roles, both index widths,
+ * shared input roles, non-contiguous cold layouts, and segment carriers. Supported fixtures invoke
+ * their generated artifact directly, independently of every low-negative assertion.</p>
  */
 class CpuLossGeneratedKernelTest {
+    @Test
+    void controlledLossSkipsNonleadingRowsBeforeOperandAccessAndPublishesPositiveZero() throws Throwable {
+        var plan = plan(new Operation(LossKind.MEAN_SQUARED_ERROR,
+                new MeanSquaredErrorAttrs(LossReduction.NONE)), List.of(0, 1),
+                List.of(desc(DataType.FLOAT64, Shape.of(2, 2, 2)),
+                        desc(DataType.FLOAT64, Shape.of(2, 2, 2))),
+                desc(DataType.FLOAT64, Shape.of(2, 2, 2)),
+                List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY));
+        var row = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(1, 2);
+        var control = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl(
+                List.of(row, row, row), List.of());
+        var entry = controlledLossEntry(plan, control);
+        try (var arena = java.lang.foreign.Arena.ofConfined()) {
+            var activity = arena.allocate(18, 8);
+            activity.set(java.lang.foreign.ValueLayout.JAVA_BYTE, 0, (byte) 1);
+            activity.set(java.lang.foreign.ValueLayout.JAVA_LONG, 8, 2L);
+            activity.set(java.lang.foreign.ValueLayout.JAVA_BYTE, 16, (byte) 1);
+            double[] output = {-9, -9, -9, -9, -9, -9, -9, -9};
+            // The final inactive row has no backing input elements at all.
+            entry.invokeWithArguments(new double[]{3, 4, Double.NaN, Double.NaN, 5, 6},
+                    new double[]{1, 1, Double.NaN, Double.NaN, 1, 1}, output,
+                    loss(plan).geometry().pack(new long[3]), 0L, 8L, activity);
+            assertArrayEquals(new double[]{4, 9, 0, 0, 16, 25, 0, 0}, output);
+            for (int index : new int[]{2, 3, 6, 7})
+                assertEquals(0L, Double.doubleToRawLongBits(output[index]));
+        }
+    }
+
+    @Test
+    void controlledCategoricalClassBeforeRowSkipsInactiveTargetsAndLogits() throws Throwable {
+        var plan = plan(new Operation(LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
+                new IndexCategoricalCrossEntropyWithLogitsAttrs(0, LossReduction.NONE, Optional.empty())),
+                List.of(0, 1), List.of(desc(DataType.FLOAT64, Shape.of(2, 3, 2)),
+                        desc(DataType.INT64, Shape.of(3, 2))),
+                desc(DataType.FLOAT64, Shape.of(3, 2)),
+                List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.LONG_ARRAY, CarrierAccess.DOUBLE_ARRAY));
+        var predictionRow = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(1, 2);
+        var sampleRow = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(0, 2);
+        var control = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl(
+                List.of(predictionRow, sampleRow, sampleRow), List.of());
+        var entry = controlledLossEntry(plan, control);
+        try (var arena = java.lang.foreign.Arena.ofConfined()) {
+            var activity = arena.allocate(19, 8);
+            activity.set(java.lang.foreign.ValueLayout.JAVA_BYTE, 0, (byte) 1);
+            activity.set(java.lang.foreign.ValueLayout.JAVA_LONG, 8, 3L);
+            activity.set(java.lang.foreign.ValueLayout.JAVA_BYTE, 16, (byte) 1);
+            double[] output = {-9, -9, -9, -9, -9, -9};
+            entry.invokeWithArguments(new double[]{0, 0, Double.NaN, Double.NaN,
+                            Double.NaN, Double.NaN, 0, 0}, new long[]{0, 1}, output,
+                    loss(plan).geometry().pack(new long[3]), 0L, 6L, activity);
+            assertArrayEquals(new double[]{StrictMath.log(2), StrictMath.log(2), 0, 0, 0, 0}, output);
+            for (int index = 2; index < output.length; index++)
+                assertEquals(0L, Double.doubleToRawLongBits(output[index]));
+        }
+    }
+
+    private static java.lang.invoke.MethodHandle controlledLossEntry(
+            io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan plan,
+            io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl control) throws Exception {
+        var route = plan.units().getFirst().portablePlan();
+        var owner = java.lang.constant.ClassDesc.of(
+                "io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.ControlledRowLoss");
+        var inventory = CpuClassFileKernelGenerator.methodInventory(
+                owner, "row$", route.specialization(), route.kernelIr(), true);
+        byte[] bytes = ClassFile.of().build(owner, builder -> {
+            builder.withVersion(ClassFile.JAVA_26_VERSION, 0).withFlags(AccessFlag.FINAL);
+            CpuClassFileKernelGenerator.emitMethods(builder, owner, "row$",
+                    route.specialization(), route.kernelIr(), control);
+        });
+        CpuClassFileKernelGenerator.verifyMethodInventory(bytes, inventory);
+        var lookup = java.lang.invoke.MethodHandles.lookup().defineHiddenClass(bytes, true);
+        return lookup.findStatic(lookup.lookupClass(), "row$invoke",
+                inventory.getFirst().type().resolveConstantDesc(lookup));
+    }
+
+    @Test
+    void controlledReducedLossSkipsContributorsAndCountsOnlyEligibleSamples() throws Throwable {
+        for (var reduction : List.of(LossReduction.SUM, LossReduction.MEAN)) {
+            var plan = plan(new Operation(LossKind.MEAN_SQUARED_ERROR,
+                    new MeanSquaredErrorAttrs(reduction)), List.of(0, 1),
+                    List.of(desc(DataType.FLOAT64, Shape.of(2, 2, 2)),
+                            desc(DataType.FLOAT64, Shape.of(2, 2, 2))),
+                    desc(DataType.FLOAT64, Shape.scalar()),
+                    List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY));
+            var row = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(1, 2);
+            var shared = io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row.shared();
+            var control = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl(
+                    List.of(row, row, shared), List.of());
+            var entry = controlledLossEntry(plan, control);
+            try (var arena = java.lang.foreign.Arena.ofConfined()) {
+                var activity = arena.allocate(18, 8);
+                activity.set(java.lang.foreign.ValueLayout.JAVA_BYTE, 0, (byte) 1);
+                activity.set(java.lang.foreign.ValueLayout.JAVA_LONG, 8, 2L);
+                activity.set(java.lang.foreign.ValueLayout.JAVA_BYTE, 16, (byte) 1);
+                double[] output = {-9};
+                entry.invokeWithArguments(new double[]{1, 2, Double.NaN, Double.NaN, 3, 4},
+                        new double[]{0, 0, Double.NaN, Double.NaN, 0, 0}, output,
+                        loss(plan).geometry().pack(new long[3]), 0L, 1L, activity);
+                assertEquals(reduction == LossReduction.SUM ? 30.0 : 7.5, output[0]);
+            }
+        }
+    }
+
+    @Test
+    void controlledSameClassLossConsumerForwardsTrailerAndAuthenticatesAllDeclarations() throws Throwable {
+        var plan = plan(new Operation(LossKind.MEAN_SQUARED_ERROR,
+                new MeanSquaredErrorAttrs(LossReduction.NONE)), List.of(0, 1),
+                List.of(desc(DataType.FLOAT64, Shape.of(2)), desc(DataType.FLOAT64, Shape.of(2))),
+                desc(DataType.FLOAT64, Shape.of(2)),
+                List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY, CarrierAccess.MEMORY_SEGMENT));
+        var route = plan.units().getFirst().portablePlan();
+        var owner = java.lang.constant.ClassDesc.of(
+                "io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.ControlledLossConsumer");
+        var inventory = CpuClassFileKernelGenerator.methodInventory(
+                owner, "body$", route.specialization(), route.kernelIr(), true);
+        var type = inventory.getFirst().type();
+        var complete = new java.util.ArrayList<>(inventory);
+        complete.add(new CpuClassFileKernelGenerator.GeneratedMethod("consumer", type, AccessFlag.STATIC.mask()));
+        byte[] bytes = ClassFile.of().build(owner, builder -> {
+            builder.withVersion(ClassFile.JAVA_26_VERSION, 0).withFlags(AccessFlag.FINAL);
+            assertEquals(inventory, CpuClassFileKernelGenerator.emitMethods(builder, owner, "body$",
+                    route.specialization(), route.kernelIr(), true));
+            builder.withMethod("consumer", type, AccessFlag.STATIC.mask(), method -> method.withCode(code -> {
+                for (int parameter = 0; parameter < type.parameterCount(); parameter++) {
+                    String descriptor = type.parameterType(parameter).descriptorString();
+                    if (descriptor.equals("J")) code.lload(code.parameterSlot(parameter));
+                    else code.aload(code.parameterSlot(parameter));
+                }
+                code.invokestatic(owner, "body$invoke", type).return_();
+            }));
+        });
+        CpuClassFileKernelGenerator.verifyMethodInventory(bytes, complete);
+        assertThrows(IllegalArgumentException.class,
+                () -> CpuClassFileKernelGenerator.verifyMethodInventory(bytes, inventory));
+        var model = ClassFile.of().parse(bytes);
+        assertEquals(4, model.methods().size());
+        assertTrue(model.methods().stream().allMatch(method -> method.methodType().equalsString(type.descriptorString())));
+        var lookup = java.lang.invoke.MethodHandles.lookup().defineHiddenClass(bytes, true);
+        var entry = lookup.findStatic(lookup.lookupClass(), "consumer", type.resolveConstantDesc(lookup));
+        try (var arena = java.lang.foreign.Arena.ofConfined()) {
+            var control = arena.allocate(16, 8);
+            var output = arena.allocateFrom(java.lang.foreign.ValueLayout.JAVA_DOUBLE, -17.0d, -19.0d);
+            // Absence dominates even invalid/null carriers and geometry.
+            entry.invokeWithArguments(null, null, output, null, 0L, 2L, control);
+            assertArrayEquals(new double[]{-17, -19}, output.toArray(java.lang.foreign.ValueLayout.JAVA_DOUBLE));
+            control.set(java.lang.foreign.ValueLayout.JAVA_BYTE, 0, (byte) 1);
+            entry.invokeWithArguments(new double[]{3, 4}, new double[]{1, 1}, output,
+                    loss(plan).geometry().pack(new long[]{0, 0, 0}), 0L, 2L, control);
+            assertArrayEquals(new double[]{4, 9}, output.toArray(java.lang.foreign.ValueLayout.JAVA_DOUBLE));
+            control.set(java.lang.foreign.ValueLayout.JAVA_BYTE, 0, (byte) 0);
+            entry.invokeWithArguments(null, null, output, null, 0L, 2L, control);
+            assertArrayEquals(new double[]{4, 9}, output.toArray(java.lang.foreign.ValueLayout.JAVA_DOUBLE));
+        }
+    }
+
     @Test
     void contiguousIndexF32AndF64BodiesRetainTheFrozenOracleStructuralFacts() throws Exception {
         Shape logits = Shape.of(2, 32, 64);
@@ -151,6 +306,7 @@ class CpuLossGeneratedKernelTest {
 
     @Test
     void contiguousDenseSegmentTargetAccumulatesItsContributionWithoutATemporarySpill() {
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
         Shape logits = Shape.of(2, 32, 64);
         var plan = plan(new Operation(LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                 new DenseCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.MEAN)),
@@ -169,6 +325,7 @@ class CpuLossGeneratedKernelTest {
                         "loss + weight * (lse - logit) must remain on the operand stack"),
                 () -> assertEquals(Opcode.FSTORE, opcodes.get(multiply + 2),
                         "only the accumulated loss may be stored after the contribution"));
+        });
     }
 
     @Test
@@ -234,6 +391,7 @@ class CpuLossGeneratedKernelTest {
                 () -> assertEquals(CpuLossIr.RangeForm.COMPLETE_REDUCTION,
                         loss(sumPlan).rangeForm()));
 
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
         var meanPlan = plan(new Operation(LossKind.MEAN_SQUARED_ERROR,
                 new MeanSquaredErrorAttrs(LossReduction.MEAN)), List.of(0, 0),
                 List.of(desc(DataType.BFLOAT16, shape)), desc(DataType.BFLOAT16, Shape.scalar()),
@@ -244,6 +402,7 @@ class CpuLossGeneratedKernelTest {
         assertAll(() -> assertEquals(List.of(0, 0), loss(meanPlan).roleBoundaryPositions()),
                 () -> assertEquals(2, loss(meanPlan).boundaryTypes().size()),
                 () -> assertEquals(bf16(0.0f), mean[0]));
+        });
     }
 
     @Test
@@ -298,6 +457,7 @@ class CpuLossGeneratedKernelTest {
 
     @Test
     void generatedDenseBfloatMeanSupportsSharedInputCarrierRole() throws Throwable {
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
         Shape logitsShape = Shape.of(2, 2);
         var plan = plan(new Operation(LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                 new DenseCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.MEAN)),
@@ -311,6 +471,7 @@ class CpuLossGeneratedKernelTest {
         float expected = CpuLossReferenceKernel.denseCategoricalCrossEntropy(decoded, decoded,
                 2, 2, LossReduction.MEAN)[0];
         assertEquals(bf16(expected), output[0]);
+        });
     }
 
     @Test
@@ -406,6 +567,9 @@ class CpuLossGeneratedKernelTest {
                 f32Logits, int64, 3, Long.MIN_VALUE, LossReduction.SUM)[0]),
                 Float.floatToRawIntBits(f32Output[0]));
 
+        assertAll(() -> assertEquals(1, loss(f64None).geometry().targetRank()),
+                () -> assertEquals(1, loss(f64None).geometry().outputRank()));
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
         var bfMean = plan(new Operation(LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                 new IndexCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.MEAN,
                         Optional.of(ScalarValue.int32(-1)))), List.of(0, 1),
@@ -418,14 +582,14 @@ class CpuLossGeneratedKernelTest {
         invoke(artifact(bfMean), bfMean, bfLogits, bfIndices, bfOutput, 0L, 1L);
         float expected = CpuLossReferenceKernel.indexCategoricalCrossEntropy(decode(bfLogits),
                 new long[] {-1, 1}, 3, -1L, LossReduction.MEAN)[0];
-        assertAll(() -> assertEquals(1, loss(f64None).geometry().targetRank()),
-                () -> assertEquals(1, loss(f64None).geometry().outputRank()),
-                () -> assertEquals(bf16(expected), bfOutput[0]));
+        assertEquals(bf16(expected), bfOutput[0]);
+        });
     }
 
     @Test
     void generalizedCategoricalSegmentCarrierFormsKeepTheFrozenDirectSemantics() throws Throwable {
         Shape logits = Shape.of(2, 3);
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
         var dense = plan(new Operation(LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                 new DenseCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.MEAN)),
                 List.of(0, 1), List.of(desc(DataType.BFLOAT16, logits),
@@ -437,6 +601,10 @@ class CpuLossGeneratedKernelTest {
         float[] denseOutput = new float[1];
         invoke(artifact(dense), dense, denseLogits, MemorySegment.ofArray(denseTarget),
                 MemorySegment.ofArray(denseOutput), 0L, 1L);
+        assertEquals(Float.floatToRawIntBits(CpuLossReferenceKernel
+                .denseCategoricalCrossEntropy(decode(denseLogits), denseTarget, 2, 3,
+                        LossReduction.MEAN)[0]), Float.floatToRawIntBits(denseOutput[0]));
+        });
 
         var indexed = plan(new Operation(LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                 new IndexCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.NONE,
@@ -450,12 +618,8 @@ class CpuLossGeneratedKernelTest {
         invoke(artifact(indexed), indexed, indexLogits, indexTarget,
                 MemorySegment.ofArray(indexOutput), 0L, 2L);
 
-        assertAll(
-                () -> assertEquals(Float.floatToRawIntBits(CpuLossReferenceKernel
-                        .denseCategoricalCrossEntropy(decode(denseLogits), denseTarget, 2, 3,
-                                LossReduction.MEAN)[0]), Float.floatToRawIntBits(denseOutput[0])),
-                () -> assertArrayEquals(CpuLossReferenceKernel.indexCategoricalCrossEntropy(
-                        indexLogits, indexTarget, 3, -1L, LossReduction.NONE), indexOutput));
+        assertArrayEquals(CpuLossReferenceKernel.indexCategoricalCrossEntropy(
+                indexLogits, indexTarget, 3, -1L, LossReduction.NONE), indexOutput);
     }
 
     @Test
@@ -520,6 +684,7 @@ class CpuLossGeneratedKernelTest {
 
     @Test
     void exactArrayIndexMeanSegmentUsesOneFinalDirectSegmentStore() {
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
         Shape logits = Shape.of(2, 32, 64);
         var plan = plan(new Operation(LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                 new IndexCategoricalCrossEntropyWithLogitsAttrs(1, LossReduction.MEAN,
@@ -544,6 +709,7 @@ class CpuLossGeneratedKernelTest {
                         .equals("java/lang/Float") && call.name().stringValue().equals("intBitsToFloat"))),
                 () -> assertFalse(calls.stream().anyMatch(call -> call.owner().asInternalName()
                         .startsWith("io/github/pho001/synaptik")), "no generated helper/dispatch call"));
+        });
     }
 
     @Test
@@ -641,7 +807,7 @@ class CpuLossGeneratedKernelTest {
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
         byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
-        var artifact = generator.defineClassBytes(route.specialization(), bytes);
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes);
         var generated = contiguousIntCode(plan);
         var oracle = CpuLossPerformanceOracle.compile(List.of(new CpuLossPerformanceOracle.Spec(
                 "mse", CpuLossPerformanceOracle.Family.MSE,
@@ -852,8 +1018,7 @@ class CpuLossGeneratedKernelTest {
             artifact(io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan plan) {
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        return generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        return generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
     }
 
     private static void invoke(

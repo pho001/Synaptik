@@ -23,7 +23,7 @@ import java.nio.file.Path;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 
-/** Frozen CPU 0007F1 generated/direct evidence probe and isolated-fork driver. */
+/** CPU 0007F1 evidence driver preserving supported measurements and explicit locked-low outcomes. */
 public final class CpuBatchNormInferenceEvidenceTest {
     private static final long MIN_BATCH_NANOS = 25_000_000L;
     private static volatile long sink;
@@ -34,8 +34,14 @@ public final class CpuBatchNormInferenceEvidenceTest {
     private static final ValueLayout.OfDouble DOUBLE = ValueLayout.JAVA_DOUBLE_UNALIGNED
             .withOrder(ByteOrder.nativeOrder());
     @FunctionalInterface private interface Action { long run() throws Throwable; }
+    private sealed interface CaseOutcome permits Case, UnsupportedCase {
+        String name();
+    }
     private record Case(String name, Action generated, Action direct, Runnable verify,
-            long roots, long reads, long[] generatedRounds, long[] directRounds) { }
+            long roots, long reads, long[] generatedRounds, long[] directRounds)
+            implements CaseOutcome { }
+    private record UnsupportedCase(String name, IllegalArgumentException rejection)
+            implements CaseOutcome { }
     private record Prepared(MethodHandle handle, long[] geometry,
             CpuBatchNormInferenceIr.RangeForm form, long items, byte[] bytes) { }
 
@@ -47,14 +53,24 @@ public final class CpuBatchNormInferenceEvidenceTest {
                 value.direct::run, value.verify::run);
     }
 
+    private static UnsupportedCase unsupported(String name,
+            org.junit.jupiter.api.function.Executable fixture) {
+        return new UnsupportedCase(name, assertThrows(IllegalArgumentException.class, fixture, name));
+    }
+
     @Test void frozenInventoryAndOperationBoundsAreExact() throws Throwable {
-        List<Case> cases = cases();
+        List<CaseOutcome> cases = cases();
         assertEquals(List.of("BN-BF16-A1", "BN-F32-A1", "BN-F64-A1", "BN-F32-A0",
                 "BN-F32-A2", "BN-MIX-F64", "BN-MIX-F32", "BN-REPEAT-C1"),
-                cases.stream().map(Case::name).toList());
-        for (Case value : cases) {
-            value.generated.run(); value.direct.run(); value.verify.run();
-            assertTrue(value.roots <= value.reads);
+                cases.stream().map(CaseOutcome::name).toList());
+        for (CaseOutcome outcome : cases) {
+            switch (outcome) {
+                case Case value -> {
+                    value.generated.run(); value.direct.run(); value.verify.run();
+                    assertTrue(value.roots <= value.reads);
+                }
+                case UnsupportedCase value -> assertNotNull(value.rejection());
+            }
         }
     }
 
@@ -65,10 +81,29 @@ public final class CpuBatchNormInferenceEvidenceTest {
         main(new String[] {fork});
     }
 
-    /** Runs one deterministic isolated five-warmup/nine-measurement fork. */
+    /**
+     * Runs an isolated fork, reporting locked low fixtures separately from generated/direct timings.
+     *
+     * @param args optional deterministic fork number
+     * @throws Throwable if a fixture outcome, semantic gate, timing gate, or evidence write fails
+     */
     public static void main(String[] args) throws Throwable {
         long fork = args.length == 0 ? 0 : Long.parseLong(args[0]);
-        List<Case> cases = cases();
+        List<CaseOutcome> outcomes = cases();
+        List<Case> cases = new ArrayList<>();
+        StringBuilder summary = new StringBuilder();
+        for (CaseOutcome outcome : outcomes) {
+            switch (outcome) {
+                case Case value -> cases.add(value);
+                case UnsupportedCase value -> {
+                    String row = "UNSUPPORTED," + value.name() + ","
+                            + value.rejection().getClass().getName() + ","
+                            + clean(value.rejection().getMessage()) + '\n';
+                    System.out.print(row);
+                    summary.append(row);
+                }
+            }
+        }
         int[] repetitions = new int[cases.size() * 2];
         for (int i = 0; i < cases.size(); i++) {
             cases.get(i).generated.run(); cases.get(i).direct.run(); cases.get(i).verify.run();
@@ -96,7 +131,7 @@ public final class CpuBatchNormInferenceEvidenceTest {
                 }
             }
         }
-        int failures = 0; StringBuilder summary = new StringBuilder();
+        int failures = 0;
         for (Case value : cases) {
             long generated = median(value.generatedRounds), direct = median(value.directRounds);
             double ratio = (double) generated / direct;
@@ -116,15 +151,16 @@ public final class CpuBatchNormInferenceEvidenceTest {
         if (failures != 0) throw new AssertionError("ratio failures " + failures);
     }
 
-    private static List<Case> cases() throws Throwable {
-        List<Case> result = new ArrayList<>();
-        result.add(dense("BN-BF16-A1", DataType.BFLOAT16, 32, 64, 256, 1));
+    private static List<CaseOutcome> cases() throws Throwable {
+        List<CaseOutcome> result = new ArrayList<>();
+        result.add(unsupported("BN-BF16-A1",
+                () -> dense("BN-BF16-A1", DataType.BFLOAT16, 32, 64, 256, 1)));
         result.add(dense("BN-F32-A1", DataType.FLOAT32, 32, 64, 256, 1));
         result.add(dense("BN-F64-A1", DataType.FLOAT64, 32, 64, 256, 1));
         result.add(dense("BN-F32-A0", DataType.FLOAT32, 4096, 128, 1, 0));
         result.add(dense("BN-F32-A2", DataType.FLOAT32, 32, 256, 64, 2));
-        result.add(mixedDense("BN-MIX-F64", true));
-        result.add(mixedDense("BN-MIX-F32", false));
+        result.add(unsupported("BN-MIX-F64", () -> mixedDense("BN-MIX-F64", true)));
+        result.add(unsupported("BN-MIX-F32", () -> mixedDense("BN-MIX-F32", false)));
         result.add(repeated());
         return result;
     }
@@ -238,7 +274,7 @@ public final class CpuBatchNormInferenceEvidenceTest {
         var route=plan.units().getFirst().portablePlan(); var generator=new CpuClassFileKernelGenerator();
         byte[] bytes=generator.generateClassBytes(route.specialization(),route.kernelIr());
         retain(name,bytes,route.specialization().compatibilityBytes(),route.specialization().toString());
-        return new Prepared(generator.defineClassBytes(route.specialization(),bytes).entryPoint(),
+        return new Prepared(generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes).entryPoint(),
                 plan.batchNormInferenceGeometry().orElseThrow().pack(new long[carriers.size()]),
                 plan.batchNormInferenceGeometry().orElseThrow().rangeForm(),plan.elementCount(),bytes);
     }
@@ -279,5 +315,8 @@ public final class CpuBatchNormInferenceEvidenceTest {
     private static long time(Action a,int n)throws Throwable{long start=System.nanoTime(),v=0;for(int i=0;i<n;i++)v^=a.run();sink^=v;return System.nanoTime()-start;}
     private static int repetitions(Action a)throws Throwable{int n=1;while(time(a,n)<MIN_BATCH_NANOS)n=Math.multiplyExact(n,2);return n;}
     private static long median(long[]a){long[]c=a.clone();Arrays.sort(c);return c[4];}
+    private static String clean(String message) {
+        return message == null ? "" : message.replace('\n', ' ').replace('\r', ' ').replace(',', ';');
+    }
     private static void retain(String name,byte[]bytes,byte[]compat,String specialization)throws Exception{var model=ClassFile.of().parse(bytes);StringBuilder members=new StringBuilder();java.util.stream.StreamSupport.stream(model.constantPool().spliterator(),false).filter(MemberRefEntry.class::isInstance).map(MemberRefEntry.class::cast).forEach(m->members.append(m.owner().asInternalName()).append('.').append(m.name().stringValue()).append(m.type().stringValue()).append('\n'));Path dir=Path.of("/private/tmp/synaptik-cpu-0007f1-retained-evidence-20260825/generated");Files.createDirectories(dir);Files.write(dir.resolve(name+".class"),bytes);Files.write(dir.resolve(name+".compatibility"),compat);Files.writeString(dir.resolve(name+".specialization"),specialization+"\n");Files.writeString(dir.resolve(name+".members"),members.toString());}
 }

@@ -1,7 +1,7 @@
 package io.github.pho001.synaptik.backend.cpu.internal.ir;
 
 /**
- * CPU-private, family-oriented pointwise opcode vocabulary with exactly forty-eight opcodes.
+ * CPU-private, family-oriented pointwise opcode vocabulary.
  *
  * <p>Each opcode is selected once while lowering a Model operation occurrence. Generated and
  * reference execution consume this typed value and never inspect Model operations or strings.</p>
@@ -175,6 +175,23 @@ public enum CpuPointwiseOpcode {
      * @return {@code true} for scalar arithmetic and {@code false} otherwise
      */
     public boolean carriesScalarImmediate() { return scalarImmediate; }
+
+    /**
+     * Identifies numerical sites rather than exact represented-value operations.
+     * This is independent of selected power realization and of operand carrier: integral
+     * arithmetic remains available, while low floating operands are rejected during admission.
+     *
+     * @return whether floating operands undergo numerical arithmetic
+     */
+    public boolean usesFloatingArithmetic() {
+        return switch (this) {
+            case ADD, SUB, MUL, DIV, POW, SCALAR_ADD, SCALAR_SUB, SCALAR_MUL,
+                    SCALAR_DIV, SCALAR_POW, RECIPROCAL, LOG, LOG1P, EXP, EXPM1,
+                    ERF, SQRT, RSQRT, SIGMOID, TANH, GELU_EXACT,
+                    GELU_TANH_APPROXIMATION, SILU -> true;
+            default -> false;
+        };
+    }
 
     /**
      * Reports opcode eligibility for some current exact typed vector form.

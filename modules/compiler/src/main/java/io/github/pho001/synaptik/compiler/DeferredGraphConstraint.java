@@ -266,6 +266,43 @@ final class GraphPredicateProof {
     private GraphPredicateProof() {}
 
     /**
+     * Preindexes an exact private obligation as numeric B-only evaluation, without diagnostic parsing.
+     * @param predicate non-null immutable typed obligation
+     * @param symbol non-null sole declared caller symbol
+     * @return immutable storage-free checked evaluator
+     * @throws IllegalArgumentException if any expression is not determined by B and constants
+     */
+    static java.util.function.LongPredicate bind(GraphPredicate predicate, String symbol) {
+        return switch (predicate) {
+            case DimensionEqual p -> {
+                var a = BatchBindingPlan.dimension(p.left(), symbol); var b = BatchBindingPlan.dimension(p.right(), symbol);
+                yield batch -> a.applyAsLong(batch) == b.applyAsLong(batch);
+            }
+            case DimensionAtLeast p -> { var d = BatchBindingPlan.dimension(p.dimension(), symbol);
+                yield batch -> d.applyAsLong(batch) >= p.minimum(); }
+            case DimensionDivisible p -> { var d = BatchBindingPlan.dimension(p.dimension(), symbol);
+                yield batch -> d.applyAsLong(batch) % p.divisor() == 0; }
+            case ShapeElementCountEqual p -> {
+                var a = BatchBindingPlan.count(p.left(), symbol); var b = BatchBindingPlan.count(p.right(), symbol);
+                yield batch -> a.applyAsLong(batch) == b.applyAsLong(batch);
+            }
+            case ShapeElementCountValue p -> { var d = BatchBindingPlan.count(p.shape(), symbol);
+                yield batch -> p.comparison() == ShapeElementCountValue.Comparison.EQUAL
+                        ? d.applyAsLong(batch) == p.value() : d.applyAsLong(batch) >= p.value(); }
+            case FitsWithin p -> {
+                var extent = p.extentDimension() == null ? BatchBindingPlan.count(p.extentShape(), symbol)
+                        : BatchBindingPlan.dimension(p.extentDimension(), symbol);
+                var containing = BatchBindingPlan.dimension(p.containing(), symbol);
+                yield batch -> Math.addExact(p.start(), extent.applyAsLong(batch)) <= containing.applyAsLong(batch);
+            }
+            case AllOf p -> { var children = p.predicates().stream().map(child -> bind(child, symbol)).toList();
+                yield batch -> { boolean result = true; for (var child : children) result &= child.test(batch); return result; }; }
+            case AnyOf p -> { var children = p.predicates().stream().map(child -> bind(child, symbol)).toList();
+                yield batch -> { boolean result = false; for (var child : children) result |= child.test(batch); return result; }; }
+        };
+    }
+
+    /**
      * Evaluates one predicate from static, structural, and available bounded facts.
      *
      * @param predicate non-null predicate to evaluate

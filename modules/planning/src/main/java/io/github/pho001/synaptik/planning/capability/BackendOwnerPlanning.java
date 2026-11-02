@@ -16,6 +16,11 @@ import java.util.Objects;
  * provider order, exact backend-identity references, hard requirements, current availability,
  * and the optional coarse device-class preference.</p>
  *
+ * <p>A general-scan query is forwarded unchanged, including its exact compiled body, scoped graph,
+ * ordered descriptors, role bindings and demand. The selected backend owns the complete scan;
+ * this collaboration neither partitions its body nor infers descriptors or demand. All-false
+ * provider answers remain terminal, with no alternate execution or weakened requirement.</p>
+ *
  * <p>The collaboration does not assemble graph-wide ownership, retain a provider or availability
  * snapshot, select a device, calculate a numeric cost, or choose a route, kernel, executable, or
  * runtime state. It is not a public graph compiler, planner workflow, registry, discovery

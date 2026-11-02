@@ -286,6 +286,8 @@ final class CpuOrdinaryPointwiseCastCleanJavaOracle {
      * @param result non-null name of the already declared double result variable
      */
     private static void appendErf(StringBuilder java, String value, String result) {
+        // Cephes ndtr.c ERF/ERFC coefficients and piecewise rational approximation (BSD-3-Clause).
+        // See the repository-root THIRD_PARTY_NOTICES.md for provenance and the applicable notice.
         java.append("double erfValue=").append(value).append(";")
                 .append("if(Double.isNaN(erfValue)){ ").append(result).append("=Double.NaN;}else if(erfValue==0.0d){")
                 .append(result).append("=erfValue;}else{")

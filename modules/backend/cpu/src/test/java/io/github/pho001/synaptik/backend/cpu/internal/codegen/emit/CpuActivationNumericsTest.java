@@ -11,19 +11,17 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import java.lang.classfile.ClassFile;
 import java.lang.classfile.Instruction;
 import java.lang.classfile.Opcode;
-import java.lang.classfile.constantpool.MemberRefEntry;
 import java.lang.classfile.instruction.InvokeInstruction;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.stream.StreamSupport;
 import jdk.incubator.vector.DoubleVector;
 import jdk.incubator.vector.FloatVector;
 import org.junit.jupiter.api.Test;
 
-/** Exact/class/named-site regressions, independent of the production differential reference. */
+/** Independent supported numerics and Class-File controls with per-fixture locked-low outcomes. */
 final class CpuActivationNumericsTest {
     static final List<CpuPointwiseOpcode> COMPOSITES = List.of(CpuPointwiseOpcode.RSQRT,
             CpuPointwiseOpcode.SIGMOID, CpuPointwiseOpcode.GELU_EXACT,
@@ -97,6 +95,7 @@ final class CpuActivationNumericsTest {
     @Test void allLowRepresentationsUseNamedFloatSitesIncludingCancellation() throws Throwable {
         for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16))
             for (CpuPointwiseOpcode kind : COMPOSITES) {
+                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(type, () -> {
                 int count = 65_536;
                 short[] input = new short[count], actual = new short[count], reference = new short[count];
                 for (int i = 0; i < count; i++) input[i] = (short) i;
@@ -128,6 +127,7 @@ final class CpuActivationNumericsTest {
                     int index = Short.toUnsignedInt(CpuActivationDirectOracle.encode(type, -6f));
                     assertEquals((short) 0x8000, actual[index], "GELU(-6) is negative zero");
                 }
+                });
             }
     }
 
@@ -137,6 +137,13 @@ final class CpuActivationNumericsTest {
                 for (boolean strided : List.of(false, true))
                     for (boolean nativeIn : List.of(false, true))
                         for (boolean nativeOut : List.of(false, true)) {
+                            if (type == DataType.BFLOAT16 || type == DataType.FLOAT16) {
+                                assertThrows(IllegalArgumentException.class, () -> fixture(type,
+                                        kind, ExecutionStrategy.SCALAR, nativeIn, nativeOut, strided),
+                                        type + "/" + kind + "/strided=" + strided
+                                                + "/nativeIn=" + nativeIn + "/nativeOut=" + nativeOut);
+                                continue;
+                            }
                             int count = 17, stride = strided ? 2 : 1, span = 48, start = 2, end = 15;
                             Object input = array(type, span), output = array(type, span);
                             for (int i = 0; i < span; i++) { putTyped(type, input, i, -71); putTyped(type, output, i, -71); }
@@ -177,38 +184,11 @@ final class CpuActivationNumericsTest {
                         }
     }
 
-    @Test void classFilesExposeFloatSitesAndNoScalarHelperAllocationOrDynamicDispatch() throws Exception {
-        Path root = Path.of("build/cpu-0022-classes");
-        Files.createDirectories(root);
+    @Test void lowCompositeClassFilesAreRejectedIndependently() {
         for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16))
             for (CpuPointwiseOpcode kind : COMPOSITES) {
-                Fixture fixture = fixture(type, kind, ExecutionStrategy.SCALAR, false, false, false);
-                byte[] bytes = fixture.kernel().classBytes();
-                Files.write(root.resolve(type + "-" + kind + ".class"), bytes);
-                var model = ClassFile.of().parse(bytes);
-                assertTrue(ClassFile.of().verify(bytes).isEmpty());
-                assertEquals(1, model.methods().size()); assertTrue(model.fields().isEmpty());
-                assertEquals(0, model.constantPool().bootstrapMethodCount());
-                var code = model.methods().getFirst().code().orElseThrow();
-                List<Opcode> opcodes = code.elementStream().filter(Instruction.class::isInstance)
-                        .map(Instruction.class::cast).map(Instruction::opcode).toList();
-                for (Opcode forbidden : List.of(Opcode.NEW, Opcode.NEWARRAY, Opcode.ANEWARRAY,
-                        Opcode.MULTIANEWARRAY, Opcode.INVOKEDYNAMIC, Opcode.MONITORENTER))
-                    assertFalse(opcodes.contains(forbidden), kind + " " + forbidden);
-                assertTrue(opcodes.contains(Opcode.D2F), kind + " elementary result rounding");
-                if (kind != CpuPointwiseOpcode.GELU_TANH_APPROXIMATION)
-                    assertTrue(opcodes.contains(Opcode.FDIV), kind + " named FLOAT32 division");
-                if (kind != CpuPointwiseOpcode.RSQRT) assertTrue(opcodes.contains(Opcode.FADD));
-                if (kind == CpuPointwiseOpcode.GELU_EXACT || kind == CpuPointwiseOpcode.GELU_TANH_APPROXIMATION
-                        || kind == CpuPointwiseOpcode.SILU) assertTrue(opcodes.contains(Opcode.FMUL));
-                if (kind != CpuPointwiseOpcode.GELU_EXACT)
-                    for (Opcode doubleArithmetic : List.of(Opcode.DADD, Opcode.DMUL, Opcode.DDIV))
-                        assertFalse(opcodes.contains(doubleArithmetic), kind + " no double composite work");
-                var members = StreamSupport.stream(model.constantPool().spliterator(), false)
-                        .filter(MemberRefEntry.class::isInstance).map(MemberRefEntry.class::cast).toList();
-                assertTrue(members.stream().allMatch(member -> List.of("java/lang/Float", "java/lang/Double",
-                        "java/lang/Math", "java/lang/StrictMath").contains(member.owner().asInternalName())));
-                assertTrue(members.stream().noneMatch(member -> member.name().stringValue().equals("valueOf")));
+                assertThrows(IllegalArgumentException.class, () -> fixture(type, kind,
+                        ExecutionStrategy.SCALAR, false, false, false), type + "/" + kind);
             }
     }
 
@@ -271,8 +251,7 @@ final class CpuActivationNumericsTest {
                 strategy == ExecutionStrategy.VECTOR ? lanes(type) * type.byteWidth() * 8 : 0,
                 -1, List.of(), false, type == DataType.FLOAT16 ? 68 : type == DataType.BFLOAT16 ? 59 : 52);
         var generator = new CpuClassFileKernelGenerator();
-        return new Fixture(ir, generator.defineClassBytes(specialization,
-                generator.generateClassBytes(specialization, ir)));
+        return new Fixture(ir, generator.defineClassBytes(specialization, ir, generator.generateClassBytes(specialization, ir)));
     }
 
     static long[] geometry(int count, int start, int inBase, int outBase, int stride, int span) {

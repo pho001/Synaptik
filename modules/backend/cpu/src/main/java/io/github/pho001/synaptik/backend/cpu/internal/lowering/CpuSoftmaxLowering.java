@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.lowering;
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSoftmaxIr;
+import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
@@ -26,6 +27,8 @@ import java.util.Optional;
  * ranges and a version-two CPU-private kernel identity. The identity binds the selected axis,
  * representation, three-pass shape, and access plans; run-time values remain for the separate
  * pre-write validator rather than becoming lowering facts.
+ * <p>General Scan may retain a single named-axis numeric recipe through {@link #lowerBatch};
+ * invocation binding resolves its complete slice geometry without semantic relowering.</p>
  */
 public final class CpuSoftmaxLowering {
     private final CpuCapabilityProvider capabilities = new CpuCapabilityProvider();
@@ -82,6 +85,84 @@ public final class CpuSoftmaxLowering {
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                 Optional.empty(), Optional.empty(), Optional.of(geometry));
+    }
+
+    /**
+     * Qualifies original single-B softmax descriptors and retains symbolic slice geometry.
+     * The selected axis may itself carry B; its ordinary positive-width guard is checked at bind.
+     * @param context complete one-node ordinary projection, with canonical named-axis layouts
+     * @return unresolved numeric geometry, never a sampled concrete lowering
+     * @throws NullPointerException if the context or a required fact is null
+     * @throws IllegalArgumentException if original descriptors or attributes disagree
+     * @throws ArithmeticException if fixed coefficient arithmetic overflows
+     */
+    public CpuPartitionLowering.LoweredPartition lowerBatch(
+            PrepareContext<? extends BackendAnalysisInputs> context) {
+        return lowerBatch(context, CpuPartitionLowering.batchLayouts(context));
+    }
+
+    /**
+     * Lowers using the complete local graph's already proved physical access mappings.
+     * No subset graph is used to reconstruct view strides, origins, or symbolic axis positions.
+     * @param context original complete one-node descriptor projection
+     * @param layouts complete local value-to-layout recipes; neither retained nor mutated
+     * @return unresolved family geometry retaining only immutable numeric access facts
+     * @throws NullPointerException if either argument or a required fact is null
+     * @throws IllegalArgumentException if a mapping, descriptor or family predicate disagrees
+     * @throws ArithmeticException if fixed coefficients exceed supported geometry limits
+     */
+    public CpuPartitionLowering.LoweredPartition lowerBatch(
+            PrepareContext<? extends BackendAnalysisInputs> context,
+            Map<ValueId, CpuAccessPlan.BatchBinding> layouts) {
+        Objects.requireNonNull(layouts, "layouts");
+        Objects.requireNonNull(context, "context");
+        CpuPartitionLowering.requireBatchContext(context);
+        if (context.nodes().size() != 1) throw new IllegalArgumentException("softmax needs one node");
+        var node = context.nodes().getFirst();
+        if (!(node.operation().kind() instanceof SoftmaxKind kind)
+                || !(node.operation().attrs() instanceof SoftmaxAttrs attrs)
+                || node.inputs().size() != 1 || node.outputs().size() != 1
+                || node.inputs().getFirst().equals(node.outputs().getFirst()))
+            throw new IllegalArgumentException("unsupported symbolic softmax occurrence");
+        Map<ValueId, GraphValue> values = new LinkedHashMap<>();
+        context.values().forEach(value -> values.put(value.id(), value));
+        var input = require(values, node.inputs().getFirst());
+        var output = require(values, node.outputs().getFirst());
+        var in = input.descriptor(); var out = output.descriptor(); int axis = attrs.axis();
+        var read = batchBinding(input, CpuAccessPlan.AccessKind.READ, layouts);
+        var write = batchBinding(output, CpuAccessPlan.AccessKind.WRITE, layouts);
+        if (read.extentConstants().get(axis) == 0 && read.extentBatchFactors().get(axis) == 0)
+            throw new IllegalArgumentException("softmax width must be positive");
+        long c = 1, f = 0;
+        for (int a = 0; a < in.shape().rank(); a++) if (a != axis) {
+            long ec = read.extentConstants().get(a), ef = read.extentBatchFactors().get(a);
+            f = Math.addExact(Math.multiplyExact(f, ec), Math.multiplyExact(c, ef));
+            c = Math.multiplyExact(c, ec);
+        }
+        var ir = new CpuSoftmaxIr(kind, in.dataType(), axis, 2, 3, read.plan(), write.plan());
+        return new CpuPartitionLowering.LoweredPartition(new Geometry.BatchGeometry(ir,
+                List.of(input.id(), output.id()), List.of(in.dataType(), out.dataType()),
+                List.of(read, write), new BatchByteSize(c, f, 1), new BatchByteSize(0, 0, 1)));
+    }
+
+
+    private static CpuAccessPlan.BatchBinding batchBinding(GraphValue value,
+            CpuAccessPlan.AccessKind kind, Map<ValueId, CpuAccessPlan.BatchBinding> layouts) {
+        var source = layouts.get(value.id());
+        if (source == null || source.plan().iterationRank() != value.descriptor().shape().rank())
+            throw new IllegalArgumentException("missing or inconsistent full-local normalization layout");
+        var exact = CpuPartitionLowering.batchAccess(kind, source.extentConstants(),
+                source.extentBatchFactors(), source.strideConstants(), source.strideBatchFactors());
+        return new CpuAccessPlan.BatchBinding(exact.plan(), exact.extentConstants(),
+                exact.extentBatchFactors(), source.baseElementOffset(), exact.strideConstants(),
+                exact.strideBatchFactors());
+    }
+
+
+    private static Layout boundLayout(CpuAccessPlan.Binding binding) {
+        return new Layout(binding.extents().stream().mapToLong(Long::longValue).toArray(),
+                binding.baseElementOffset(), binding.effectiveStrides().stream()
+                        .mapToLong(Long::longValue).toArray());
     }
 
     private static GraphValue require(Map<ValueId, GraphValue> values, ValueId id) {
@@ -193,6 +274,123 @@ public final class CpuSoftmaxLowering {
      */
     public record Geometry(SoftmaxKind kind, DataType dataType, int axis, Layout input,
             Layout output, long sliceCount, long sliceWidth, long elementCount) {
+
+        /**
+         * Numeric single-B geometry, retaining no graph, descriptor, or invocation storage.
+         * Coefficients are resolved only at the cold invocation boundary; the compiled IR is
+         * identical for every admitted B and each output retains its canonical semantic slot.
+         * @param ir structurally qualified family IR, independent of actual B
+         * @param boundaries unique reads followed by every ordered semantic output
+         * @param boundaryTypes exact represented types in boundary order
+         * @param bindings immutable per-boundary affine element geometry
+         * @param iterationCount affine complete-range count, in items rather than bytes
+         * @param scratchBytes fixed exact-state capacity for one simultaneous range, in bytes
+         */
+        public record BatchGeometry(CpuSoftmaxIr ir, List<ValueId> boundaries,
+                List<DataType> boundaryTypes, List<CpuAccessPlan.BatchBinding> bindings,
+                BatchByteSize iterationCount, BatchByteSize scratchBytes)
+                implements CpuPartitionLowering.BatchUnitGeometry {
+            /** Snapshots the immutable numeric recipe and its structural boundary inventory. */
+            public BatchGeometry {
+                Objects.requireNonNull(ir, "ir");
+                boundaries = List.copyOf(boundaries); boundaryTypes = List.copyOf(boundaryTypes);
+                bindings = List.copyOf(bindings);
+                Objects.requireNonNull(iterationCount, "iterationCount");
+                Objects.requireNonNull(scratchBytes, "scratchBytes");
+                if (boundaries.size() != bindings.size() || boundaries.size() != boundaryTypes.size())
+                    throw new IllegalArgumentException("normalization boundary recipe disagrees");
+            }
+            /**
+             * Declares that these normalization packs have no mutable ordinary cursor cells.
+             * @return an immutable empty reset inventory
+             */
+            @Override public List<io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset>
+                    resets() { return List.of(); }
+            /**
+             * Returns deterministic coefficients and family identity, never resolved B.
+             * @return immutable specialization recipe identity
+             */
+            @Override public String identity() {
+                return ir.structuralKey() + ":normalization-batch-v1:" + bindings
+                        + ":items=" + iterationCount + ":scratch=" + scratchBytes;
+            }
+            /**
+             * Resolves checked numeric geometry without invoking semantic lowering.
+             * @param batch non-negative invocation B, checked against access count/address limits
+             * @return ordinary concrete family geometry with the identical compiled IR
+             * @throws IllegalArgumentException if a positive-axis or training-domain rule fails
+             * @throws ArithmeticException if resolved geometry exceeds supported limits
+             */
+            @Override public CpuPartitionLowering.LoweredPartition bind(long batch) {
+                var resolved = bindings.stream().map(binding -> binding.bind(batch)).toList();
+                var layouts = resolved.stream().map(CpuSoftmaxLowering::boundLayout).toList();
+                var input = layouts.getFirst(); var output = layouts.getLast();
+                long width = input.extents[ir.axis()];
+                if (width <= 0) throw new IllegalArgumentException("softmax width must be positive");
+                long count = resolved.getFirst().elementCount();
+                long slices = iterationCount.byteSize(batch);
+                var geometry = new Geometry(ir.kind(), ir.dataType(), ir.axis(), input, output,
+                        slices, width, count);
+                return new CpuPartitionLowering.LoweredPartition(ir, boundaries, resolved,
+                        resolved.stream().map(CpuAccessPlan.Binding::referencedElementSpan).toList(),
+                        boundaryTypes, List.of(), new long[] {slices}, slices,
+                        "legal: symbolic stable softmax", new long[0], Optional.empty(),
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.empty(), Optional.of(geometry));
+            }
+        }
+
+        /**
+         * One fixed generated assignment of a boundary's element base plus a layout delta.
+         * @param cell non-negative destination cell in this family's packed geometry
+         * @param boundary boundary position in the pack's carrier-base order
+         * @param elementDelta immutable element offset added with checked arithmetic
+         */
+        public record BaseCell(int cell, int boundary, long elementDelta) { }
+
+        /**
+         * One original cursor seed restored before every temporal helper call, including retry.
+         * @param cell non-negative destination cell in this family's packed geometry
+         * @param value original range-start cursor value
+         */
+        public record ResetCell(int cell, long value) { }
+
+        /**
+         * Cold, immutable facts for emitting fixed numeric assignments, never a runtime program.
+         * Scratch range offsets and invariant geometry remain bound once per invocation.
+         * @param bases non-null boundary-base assignments, defensively snapshotted
+         * @param resets non-null mutable-cursor assignments, defensively snapshotted
+         */
+        public record TemporalRebind(List<BaseCell> bases, List<ResetCell> resets) {
+            /**
+             * Snapshots the generation-time assignments; retains no invocation storage.
+             * @param bases non-null base facts without null entries
+             * @param resets non-null reset facts without null entries
+             * @throws NullPointerException if either list or an entry is null
+             */
+            public TemporalRebind {
+                bases = List.copyOf(bases);
+                resets = List.copyOf(resets);
+            }
+        }
+
+        /**
+         * Describes temporal base rebinding and restoration of this family's original cursors.
+         * Construct these facts only during generation or cold numeric binding; generated code
+         * emits the assignments directly, without calling pack, allocating, or iterating facts.
+         * Each boundary base is normalized using that boundary's own element width beforehand.
+         * @param start non-negative inclusive ordinary helper range start
+         * @return immutable owner-defined base locations and original cursor seeds
+         * @throws IllegalArgumentException if start is negative
+         * @throws ArithmeticException if checked layout or cursor arithmetic overflows
+         */
+        public TemporalRebind temporalRebind(long start) {
+            if (start < 0) throw new IllegalArgumentException("negative temporal range start");
+            return new TemporalRebind(List.of(new BaseCell(0, 0, input.offset),
+                    new BaseCell(1, 1, output.offset)), List.of());
+        }
+
         /** Validates one complete static geometry. */
         public Geometry {
             Objects.requireNonNull(kind, "kind"); Objects.requireNonNull(dataType, "dataType");

@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.backend.cpu.internal.lowering;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuFoldIr;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -30,10 +31,15 @@ public class CpuFoldLoweringTest {
     }
 
     @Test void admitsExactTypeMatrixAndFailsClosedForBoolIntegral2dAndWrongShapes() {
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32,
                 DataType.INT32, DataType.INT64)) {
             assertDoesNotThrow(() -> lower(context(new Operation(WindowTransformKind.FOLD_AXIS,
                     new FoldAxisAttrs(0, 3, 1)), type, Shape.of(2, 2), Shape.of(3))));
+        }
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            assertTrue(assertLowUnsupported(context(
+                    new Operation(WindowTransformKind.FOLD_AXIS, new FoldAxisAttrs(0, 3, 1)),
+                    type, Shape.of(2, 2), Shape.of(3))));
         }
         assertAll(
                 () -> assertThrows(IllegalArgumentException.class, () -> lower(context(

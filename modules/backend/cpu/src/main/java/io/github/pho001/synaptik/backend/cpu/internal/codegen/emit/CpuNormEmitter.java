@@ -9,7 +9,11 @@ import java.lang.classfile.TypeKind;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.MethodTypeDesc;
 
-/** Emits direct L1/L2 norm bodies and exposes only shared primitive traversal mechanics. */
+/**
+ * Emits direct L1/L2 norm bodies and exposes only shared primitive traversal mechanics.
+ * Controlled ordinary entries guard their proved output ROW cell before any selected-domain
+ * loads or exact-state reset; SHARED and standalone entries retain the same traversal.
+ */
 public final class CpuNormEmitter {
     private static final ClassDesc MATH = ClassDesc.of(Math.class.getName());
     private static final ClassDesc FLOAT = ClassDesc.of(Float.class.getName());
@@ -77,6 +81,8 @@ public final class CpuNormEmitter {
         code.lload(start).lstore(cell);
         var cells = code.newLabel(); var done = code.newLabel();
         code.labelBinding(cells).lload(cell).lload(end).lcmp().branch(Opcode.IFGE, done);
+        var advance = code.newLabel();
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, 1, cell, TypeKind.LONG, advance);
         geometry(code, geometry, inputOffsetIndex).lstore(inputBase);
         geometry(code, geometry, outputOffsetIndex).lstore(outputAddress);
         code.lload(cell).lstore(remaining);
@@ -132,6 +138,7 @@ public final class CpuNormEmitter {
                 .branch(Opcode.GOTO, specialsDone).labelBinding(noInfinity)
                 .labelBinding(specialsDone);
         emitStore(code, carriers, specialization, type, outputAddress, result);
+        code.labelBinding(advance);
         code.lload(cell).loadConstant(1L).ladd().lstore(cell)
                 .branch(Opcode.GOTO, cells).labelBinding(done);
     }

@@ -178,6 +178,8 @@ public record PreparedRepresentationPlan(
         /**
          * Creates one backend-owned physical representation for the current run.
          *
+         * @param byteSize exact non-negative usable byte span, excluding allocator padding
+         * @param byteAlignment fixed power-of-two byte alignment from the prepared declaration
          * @return a fresh non-null representation conditionally owned by cold setup until the
          *     complete run state succeeds, then owned by that run
          * @throws RuntimeException if backend creation fails; cold setup preserves it and may add
@@ -185,7 +187,7 @@ public record PreparedRepresentationPlan(
          * @throws Error if backend creation reports an error; cold setup preserves it and may add
          *     cleanup failures as suppressed exceptions
          */
-        BufferRepresentation create();
+        BufferRepresentation create(long byteSize, long byteAlignment);
     }
 
     /**
@@ -201,6 +203,8 @@ public record PreparedRepresentationPlan(
         /**
          * Creates one backend-local scratch representation for the current run.
          *
+         * @param byteSize exact non-negative usable scratch bytes, including valid zero sizes
+         * @param byteAlignment fixed power-of-two byte alignment from the prepared declaration
          * @return a fresh non-null workspace conditionally owned by cold setup until the complete
          *     run state succeeds, then owned by that run
          * @throws RuntimeException if backend creation fails; cold setup preserves it and may add
@@ -208,6 +212,6 @@ public record PreparedRepresentationPlan(
          * @throws Error if backend creation reports an error; cold setup preserves it and may add
          *     cleanup failures as suppressed exceptions
          */
-        WorkspaceRepresentation create();
+        WorkspaceRepresentation create(long byteSize, long byteAlignment);
     }
 }

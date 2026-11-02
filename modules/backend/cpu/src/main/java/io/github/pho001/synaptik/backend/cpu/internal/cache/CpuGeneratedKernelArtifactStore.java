@@ -4,6 +4,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuClassFileK
 import io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedKernel;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import java.io.*;
+import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.nio.channels.FileChannel;
 import java.nio.file.*;
@@ -22,6 +23,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * machine code or profiling state. This store is also distinct from the future workload tuning
  * cache, which records route/configuration decisions.
  *
+ * <p>Prepared callers strongly own live artifacts; this process-wide store retains them weakly.
+ * Collected entries are reclaimed through a reference queue at the next cold realization under
+ * the same lock as lookup and publication. Cleanup never evicts a live artifact, runs a background
+ * task, or adds work to a generated kernel invocation.</p>
+ *
  * <p>The supplied root is trusted local storage. Checksums and class-shape validation detect
  * corruption and incompatibility but do not authenticate hostile bytes.
  */
@@ -35,8 +41,29 @@ public final class CpuGeneratedKernelArtifactStore {
     private static final int MAGIC = 0x53435055;
     private static final ConcurrentHashMap<String, WeakReference<CpuGeneratedKernel>> LOADED =
             new ConcurrentHashMap<>();
+    private static final ReferenceQueue<CpuGeneratedKernel> COLLECTED = new ReferenceQueue<>();
     private final Optional<Path> trustedRoot;
     private final CpuClassFileKernelGenerator generator = new CpuClassFileKernelGenerator();
+
+    /**
+     * Associates a collected artifact with its cache key without strongly retaining the artifact.
+     * The exact reference is also the removal token, so a delayed notification cannot remove a
+     * newer artifact with the same key.
+     */
+    private static final class LoadedKernelReference extends WeakReference<CpuGeneratedKernel> {
+        private final String key;
+
+        /**
+         * Registers an artifact for cold-path cleanup after its last strong owner releases it.
+         *
+         * @param key non-null structural key used for process-local interning
+         * @param artifact non-null artifact strongly retained by the realizing caller
+         */
+        private LoadedKernelReference(String key, CpuGeneratedKernel artifact) {
+            super(artifact, COLLECTED);
+            this.key = key;
+        }
+    }
 
     /** Development-evidence classification of one realization path. */
     enum RealizationSource {
@@ -73,8 +100,8 @@ public final class CpuGeneratedKernelArtifactStore {
      * @param kernelIr non-null canonical IR whose structural key must match the specialization
      * @return a verified artifact strongly retained by the caller; never {@code null}
      * @throws NullPointerException if either argument is {@code null}
-     * @throws IllegalArgumentException if IR and specialization disagree or verified generation
-     *     or definition fails
+     * @throws IllegalArgumentException if current CPU numerical admission rejects the IR,
+     *     IR and specialization disagree, or verified generation or definition fails
      */
     public CpuGeneratedKernel loadOrGenerate(CpuKernelSpecialization specialization,
             CpuKernelIr kernelIr) {
@@ -83,22 +110,26 @@ public final class CpuGeneratedKernelArtifactStore {
 
     /**
      * Realizes one artifact while exposing the path classification to focused evidence code.
+     * Collected weak entries are removed before lookup, under the existing publication lock.
      *
      * @param specialization non-null structural specialization
      * @param kernelIr non-null matching canonical IR
      * @return the verified artifact and its non-null observed source
      * @throws NullPointerException if either argument is {@code null}
-     * @throws IllegalArgumentException if compatibility or verified realization fails
+     * @throws IllegalArgumentException if current CPU numerical admission, compatibility or realization fails
      */
     ObservedRealization loadOrGenerateObserved(CpuKernelSpecialization specialization,
             CpuKernelIr kernelIr) {
         Objects.requireNonNull(specialization, "specialization");
         Objects.requireNonNull(kernelIr, "kernelIr");
+        io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering
+                .requirePermittedLowPrecisionUse(specialization, kernelIr);
         if (!specialization.loweringFingerprint().hex().equals(kernelIr.structuralKey())) {
             throw new IllegalArgumentException("kernel IR does not match specialization");
         }
         String key = specialization.structuralKey();
         synchronized (LOADED) {
+            removeCollectedEntries();
             WeakReference<CpuGeneratedKernel> reference = LOADED.get(key);
             CpuGeneratedKernel interned = reference == null ? null : reference.get();
             if (interned != null) {
@@ -107,18 +138,29 @@ public final class CpuGeneratedKernelArtifactStore {
             byte[] metadata = specialization.compatibilityBytes();
             byte[] bytes = trustedRoot.flatMap(root -> readEnvelope(root, key, metadata)).orElse(null);
             CpuGeneratedKernel artifact = null;
-            if (bytes != null) try { artifact = generator.defineClassBytes(specialization, bytes); }
+            if (bytes != null) try { artifact = generator.defineClassBytes(specialization, kernelIr, bytes); }
             catch (IllegalArgumentException malformed) { artifact = null; }
             RealizationSource source = RealizationSource.PERSISTED_HIT;
             if (artifact == null) {
                 bytes = generator.generateClassBytes(specialization, kernelIr);
-                artifact = generator.defineClassBytes(specialization, bytes);
+                artifact = generator.defineClassBytes(specialization, kernelIr, bytes);
                 byte[] generated = bytes;
                 trustedRoot.ifPresent(root -> writeEnvelope(root, key, metadata, generated));
                 source = RealizationSource.GENERATED;
             }
-            LOADED.put(key, new WeakReference<>(artifact));
+            LOADED.put(key, new LoadedKernelReference(key, artifact));
             return new ObservedRealization(artifact, source);
+        }
+    }
+
+    /**
+     * Drains collection notifications while the caller holds the lookup/publication lock.
+     * Conditional removal preserves a newer same-key publication when an old reference arrives late.
+     */
+    private static void removeCollectedEntries() {
+        LoadedKernelReference reference;
+        while ((reference = (LoadedKernelReference) COLLECTED.poll()) != null) {
+            LOADED.remove(reference.key, reference);
         }
     }
 
@@ -194,6 +236,23 @@ public final class CpuGeneratedKernelArtifactStore {
         } catch (NoSuchAlgorithmException impossible) { throw new AssertionError(impossible); }
     }
 
-    /** Clears process-local weak interning for isolated tests and evidence forks. */
-    static void clearLoadedForTests() { synchronized (LOADED) { LOADED.clear(); } }
+    /** Clears process-local weak interning and pending collection notifications for isolated tests. */
+    static void clearLoadedForTests() {
+        synchronized (LOADED) {
+            LOADED.clear();
+            removeCollectedEntries();
+        }
+    }
+
+    /**
+     * Observes weak-reference tokens without triggering cleanup, for deterministic lifecycle tests.
+     *
+     * @return an immutable snapshot of current keys and their weak tokens; artifacts are not
+     *     strongly retained, and test code may clear/enqueue a token to model collection
+     */
+    static Map<String, WeakReference<CpuGeneratedKernel>> loadedReferencesForTests() {
+        synchronized (LOADED) {
+            return Map.copyOf(LOADED);
+        }
+    }
 }

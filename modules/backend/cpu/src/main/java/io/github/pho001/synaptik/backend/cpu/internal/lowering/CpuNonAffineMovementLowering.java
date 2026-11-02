@@ -1,8 +1,10 @@
 package io.github.pho001.synaptik.backend.cpu.internal.lowering;
 
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
+import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuDataMovementIr;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
@@ -20,6 +22,8 @@ import io.github.pho001.synaptik.model.operation.layout.Unfold2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
+import io.github.pho001.synaptik.model.shape.DynamicDimension;
+import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.util.ArrayList;
@@ -46,6 +50,10 @@ import java.util.Optional;
  * target-relative attributes to rank-sized start, length, and step arrays. Its result-domain
  * mapping has the semantic effect of copying the base and replacing selected positions while
  * leaving both inputs unchanged.</p>
+ *
+ * <p>Canonical single-named-B occurrences use {@link #lowerBatch(PrepareContext)}. Their
+ * original shape relationships are proved structurally and their numeric geometry is resolved
+ * once at cold binding, without sampling B or rebuilding a semantic graph.</p>
  */
 public final class CpuNonAffineMovementLowering {
     /** Creates a stateless movement-family lowerer. */
@@ -342,6 +350,227 @@ public final class CpuNonAffineMovementLowering {
                 Optional.of(geometry));
     }
 
+    /**
+     * Proves one canonical symbolic movement occurrence and constructs its ordinary structural IR.
+     * Boundary recipes retain arbitrary original ranks and positions of the common named axis.
+     * @param context non-null complete one-node movement projection
+     * @return unresolved family-owned numeric recipe and ordinary movement IR
+     * @throws IllegalArgumentException if original shapes, types, attributes or layouts disagree
+     * @throws ArithmeticException if fixed coefficient arithmetic overflows
+     */
+    public CpuPartitionLowering.LoweredPartition lowerBatch(
+            PrepareContext<? extends BackendAnalysisInputs> context) {
+        return lowerBatch(context, CpuPartitionLowering.batchLayouts(context));
+    }
+
+    /**
+     * Uses the full lexical body's proved physical mappings, preserving incoming view geometry.
+     * @param context non-null original one-node movement projection
+     * @param layouts non-null complete local value-to-layout map
+     * @return ordinary structural IR and unresolved numeric movement recipe
+     * @throws IllegalArgumentException if ordinary descriptors or numeric mappings disagree
+     */
+    public CpuPartitionLowering.LoweredPartition lowerBatch(
+            PrepareContext<? extends BackendAnalysisInputs> context,
+            Map<ValueId, CpuAccessPlan.BatchBinding> layouts) {
+        var batchDimension = CpuPartitionLowering.requireBatchContext(context);
+        if (context.nodes().size() != 1) throw invalidBatch();
+        var node = context.nodes().getFirst();
+        if (node.outputs().size() != 1 || node.inputs().isEmpty() || node.inputs().size() > 16)
+            throw invalidBatch();
+        Map<ValueId, GraphValue> values = new LinkedHashMap<>();
+        context.values().forEach(v -> values.put(v.id(), v));
+        var unique = new LinkedHashMap<ValueId, Integer>();
+        var map = new ArrayList<Integer>();
+        for (var id : node.inputs()) map.add(unique.computeIfAbsent(id, ignored -> unique.size()));
+        if (unique.containsKey(node.outputs().getFirst())) throw invalidBatch();
+        var ids = new ArrayList<>(unique.keySet());
+        ids.add(node.outputs().getFirst());
+        var type = require(values, ids.getLast()).descriptor().dataType();
+        var accesses = new ArrayList<CpuAccessPlan.BatchBinding>();
+        for (int b = 0; b < ids.size(); b++) {
+            var descriptor = require(values, ids.get(b)).descriptor();
+            if (descriptor.dataType() != type) throw invalidBatch();
+            var access = layouts.get(ids.get(b));
+            if (access == null) throw invalidBatch();
+            var source = access.plan();
+            var permission = new CpuAccessPlan(b + 1 == ids.size() ? CpuAccessPlan.AccessKind.WRITE
+                    : CpuAccessPlan.AccessKind.READ, source.regime(), source.iterationRank(),
+                    source.axisRoles(), source.contiguousSuffix());
+            accesses.add(new CpuAccessPlan.BatchBinding(permission, access.extentConstants(),
+                    access.extentBatchFactors(), access.baseElementOffset(),
+                    access.strideConstants(), access.strideBatchFactors()));
+        }
+        var input = accesses.get(map.getFirst());
+        var output = accesses.getLast();
+        int rank = output.plan().iterationRank(), inputRank = input.plan().iterationRank();
+        Object kind = node.operation().kind(), attrs = node.operation().attrs();
+        CpuDataMovementIr.MovementPlan plan;
+        long[] facts;
+        long[] factors;
+        if (kind == PadKind.PAD && attrs instanceof PadAttrs pad) {
+            if (map.size() != 1 || rank != inputRank || pad.before().size() != rank
+                    || pad.after().size() != rank || pad.constantValue().dataType() != type)
+                throw invalidBatch();
+            for (int a = 0; a < rank; a++) checkExtent(output, a,
+                    Math.addExact(ec(input, a), Math.addExact(pad.before().get(a), pad.after().get(a))),
+                    ef(input, a));
+            plan = new CpuDataMovementIr.PadPlan(rank, scalarBits(pad.constantValue()));
+            facts = toArray(pad.before()); factors = new long[facts.length];
+        } else if (kind == TileKind.TILE && attrs instanceof TileAttrs tile) {
+            if (map.size() != 1 || rank != inputRank || tile.repeats().size() != rank)
+                throw invalidBatch();
+            for (int a = 0; a < rank; a++) checkExtent(output, a,
+                    Math.multiplyExact(ec(input, a), tile.repeats().get(a)),
+                    Math.multiplyExact(ef(input, a), tile.repeats().get(a)));
+            plan = new CpuDataMovementIr.TilePlan(rank);
+            facts = toArray(tile.repeats()); factors = new long[facts.length];
+        } else if (kind == TensorCompositionKind.CONCAT && attrs instanceof CompositionAxisAttrs c) {
+            int axis = c.axis();
+            if (rank == 0 || rank != inputRank || axis >= rank) throw invalidBatch();
+            long total = 0, totalFactor = 0;
+            for (int position : map) {
+                var occurrence = accesses.get(position);
+                if (occurrence.plan().iterationRank() != rank) throw invalidBatch();
+                for (int a = 0; a < rank; a++)
+                    if (a != axis) checkExtent(occurrence, a, ec(input, a), ef(input, a));
+                total = Math.addExact(total, ec(occurrence, axis));
+                totalFactor = Math.addExact(totalFactor, ef(occurrence, axis));
+            }
+            for (int a = 0; a < rank; a++) checkExtent(output, a,
+                    a == axis ? total : ec(input, a), a == axis ? totalFactor : ef(input, a));
+            plan = new CpuDataMovementIr.ConcatPlan(rank, map);
+            facts = new long[] {axis}; factors = new long[1];
+        } else if (kind == TensorCompositionKind.STACK && attrs instanceof CompositionAxisAttrs c) {
+            int axis = c.axis();
+            if (rank != inputRank + 1 || axis > inputRank) throw invalidBatch();
+            for (int position : map) {
+                var occurrence = accesses.get(position);
+                if (!occurrence.extentConstants().equals(input.extentConstants())
+                        || !occurrence.extentBatchFactors().equals(input.extentBatchFactors()))
+                    throw invalidBatch();
+            }
+            for (int a = 0; a < rank; a++) checkExtent(output, a,
+                    a == axis ? map.size() : ec(input, a < axis ? a : a - 1),
+                    a == axis ? 0 : ef(input, a < axis ? a : a - 1));
+            plan = new CpuDataMovementIr.StackPlan(rank, map);
+            facts = new long[] {axis}; factors = new long[1];
+        } else if (kind == WindowTransformKind.UNFOLD_AXIS && attrs instanceof UnfoldAxisAttrs u) {
+            int axis = u.axis();
+            if (map.size() != 1 || inputRank == 0 || rank != inputRank + 1 || axis >= inputRank)
+                throw invalidBatch();
+            if (ef(input, axis) == 0 && u.size() > ec(input, axis)
+                    || ef(input, axis) % u.step() != 0) throw invalidBatch();
+            long positions = Math.addExact(Math.floorDiv(
+                    Math.subtractExact(ec(input, axis), u.size()), u.step()), 1);
+            long positionFactor = ef(input, axis) / u.step();
+            for (int a = 0; a < rank; a++) checkExtent(output, a,
+                    a == inputRank ? u.size() : a == axis ? positions : ec(input, a),
+                    a == inputRank ? 0 : a == axis ? positionFactor : ef(input, a));
+            plan = new CpuDataMovementIr.UnfoldAxisPlan(rank);
+            facts = new long[] {axis, u.size(), u.step()}; factors = new long[3];
+        } else if (kind == WindowTransformKind.UNFOLD2D
+                && (attrs instanceof Window2dAttrs || attrs instanceof Unfold2dAttrs)) {
+            if (map.size() != 1 || inputRank != 4 || rank != 3
+                    || type != DataType.FLOAT64 && type != DataType.FLOAT32
+                        && type != DataType.BFLOAT16 && type != DataType.FLOAT16) throw invalidBatch();
+            Window2dAttrs window;
+            long bits;
+            if (attrs instanceof Window2dAttrs direct) { window = direct; bits = 0; }
+            else {
+                var configured = (Unfold2dAttrs) attrs;
+                if (configured.paddingValue().dataType() != type) throw invalidBatch();
+                window = configured.window(); bits = scalarBits(configured.paddingValue());
+            }
+            long h = windowPositions(input, 2, window.kernelHeight(), window.dilationHeight(),
+                    window.paddingHeight(), window.strideHeight(), window.ceilMode());
+            long w = windowPositions(input, 3, window.kernelWidth(), window.dilationWidth(),
+                    window.paddingWidth(), window.strideWidth(), window.ceilMode());
+            long hf = ef(input, 2) / window.strideHeight();
+            long wf = ef(input, 3) / window.strideWidth();
+            if (hf != 0 && wf != 0) throw invalidBatch();
+            long kernel = Math.multiplyExact(window.kernelHeight(), window.kernelWidth());
+            checkExtent(output, 0, ec(input, 0), ef(input, 0));
+            checkExtent(output, 1, Math.multiplyExact(ec(input, 1), kernel),
+                    Math.multiplyExact(ef(input, 1), kernel));
+            checkExtent(output, 2, Math.multiplyExact(h, w),
+                    Math.addExact(Math.multiplyExact(hf, w), Math.multiplyExact(h, wf)));
+            plan = new CpuDataMovementIr.Unfold2dPlan(rank, bits);
+            facts = new long[] {ec(input, 1), ec(input, 2), ec(input, 3), window.kernelHeight(),
+                    window.kernelWidth(), window.strideHeight(), window.strideWidth(),
+                    window.paddingHeight(), window.paddingWidth(), window.dilationHeight(),
+                    window.dilationWidth(), h, w};
+            factors = new long[] {ef(input, 1), ef(input, 2), ef(input, 3), 0, 0, 0, 0, 0, 0, 0, 0, hf, wf};
+        } else if (kind == SliceKind.SLICE_UPDATE) {
+            if (map.size() != 2 || rank != inputRank
+                    || !output.extentConstants().equals(input.extentConstants())
+                    || !output.extentBatchFactors().equals(input.extentBatchFactors()))
+                throw invalidBatch();
+            var update = accesses.get(map.get(1));
+            if (update.plan().iterationRank() != rank) throw invalidBatch();
+            facts = new long[2 * rank + 1]; factors = new long[2 * rank + 1];
+            Arrays.fill(facts, rank, 2 * rank, 1);
+            if (attrs instanceof SliceAttrs slice) {
+                boolean[] selected = new boolean[rank];
+                for (int n = 0; n < slice.axes().size(); n++) {
+                    int a = slice.axes().get(n);
+                    if (a >= rank || selected[a]) throw invalidBatch();
+                    selected[a] = true;
+                    checkExtent(update, a, slice.lengths().get(n), 0);
+                    facts[a] = slice.starts().get(n); facts[rank + a] = slice.steps().get(n);
+                    if (slice.lengths().get(n) > 0) {
+                        long last = Math.addExact(facts[a], Math.multiplyExact(
+                                slice.lengths().get(n) - 1, facts[rank + a]));
+                        if (last < 0 || ef(input, a) == 0
+                                && (facts[a] >= ec(input, a) || last >= ec(input, a))) throw invalidBatch();
+                    }
+                }
+                for (int a = 0; a < rank; a++)
+                    if (!selected[a]) checkExtent(update, a, ec(input, a), ef(input, a));
+            } else if (attrs instanceof CropToShapeAttrs crop) {
+                facts[2 * rank] = 1; // Target-relative bounds apply even to an empty update axis.
+                if (!crop.targetShape().equals(require(values, node.inputs().get(1)).descriptor().shape())
+                        || crop.prefixShape().rank() != rank) throw invalidBatch();
+                for (int a = 0; a < rank; a++) {
+                    var prefix = crop.prefixShape().dimensions().get(a);
+                    if (prefix instanceof StaticDimension fixed) facts[a] = fixed.size();
+                    else if (prefix instanceof DynamicDimension dynamic && dynamic.equals(batchDimension))
+                        factors[a] = 1;
+                    else throw invalidBatch();
+                    if (ef(input, a) == 0 && (factors[a] != 0 || ef(update, a) != 0
+                            || Math.addExact(facts[a], ec(update, a)) > ec(input, a))) throw invalidBatch();
+                    if (Math.addExact(factors[a], ef(update, a)) > ef(input, a)) throw invalidBatch();
+                }
+            } else throw invalidBatch();
+            plan = new CpuDataMovementIr.SliceUpdatePlan(rank, map);
+        } else throw invalidBatch();
+        var ir = new CpuDataMovementIr(type, plan, accesses.subList(0, accesses.size() - 1)
+                .stream().map(CpuAccessPlan.BatchBinding::plan).toList(), output.plan());
+        return new CpuPartitionLowering.LoweredPartition(new Geometry.BatchGeometry(ir, ids,
+                java.util.Collections.nCopies(ids.size(), type), accesses, facts, factors));
+    }
+
+    private static IllegalArgumentException invalidBatch() {
+        return new IllegalArgumentException("inconsistent symbolic movement geometry");
+    }
+    private static long ec(CpuAccessPlan.BatchBinding b, int axis) { return b.extentConstants().get(axis); }
+    private static long ef(CpuAccessPlan.BatchBinding b, int axis) { return b.extentBatchFactors().get(axis); }
+    private static void checkExtent(CpuAccessPlan.BatchBinding b, int axis, long constant, long factor) {
+        if (ec(b, axis) != constant || ef(b, axis) != factor) throw invalidBatch();
+    }
+    private static long windowPositions(CpuAccessPlan.BatchBinding b, int axis, long kernel,
+            long dilation, long padding, long stride, boolean ceil) {
+        long effective = Math.addExact(Math.multiplyExact(dilation, kernel - 1), 1);
+        long numerator = Math.subtractExact(Math.addExact(ec(b, axis), Math.multiplyExact(2, padding)), effective);
+        if (ef(b, axis) % stride != 0 || ef(b, axis) == 0 && numerator < 0) throw invalidBatch();
+        long quotient = Math.floorDiv(numerator, stride);
+        if (ceil && Math.floorMod(numerator, stride) != 0) quotient = Math.addExact(quotient, 1);
+        return Math.addExact(quotient, 1);
+    }
+    private static BatchByteSize batchCount(CpuAccessPlan.BatchBinding b) {
+        return CpuPartitionLowering.batchElements(b);
+    }
+
     private static void requireUnary(List<GraphValue> inputs, String family) {
         if (inputs.size() != 1) throw new IllegalArgumentException(family + " requires one input");
     }
@@ -458,6 +687,200 @@ public final class CpuNonAffineMovementLowering {
      */
     public record Geometry(long[] outputExtents, long outputOffset, long[] outputStrides,
             List<Input> inputs, Variant variant) {
+
+        /**
+         * Numeric movement recipe with fixed structural IR and affine variant cells.
+         * @param ir immutable ordinary movement IR
+         * @param boundaries unique inputs then output
+         * @param boundaryTypes actual represented boundary types
+         * @param bindings exact affine boundary layouts
+         * @param constants numeric variant cell constants, defensively copied
+         * @param batchFactors numeric variant cell B coefficients, defensively copied
+         */
+        public record BatchGeometry(CpuDataMovementIr ir, List<ValueId> boundaries,
+                List<DataType> boundaryTypes, List<CpuAccessPlan.BatchBinding> bindings,
+                long[] constants, long[] batchFactors) implements CpuPartitionLowering.BatchUnitGeometry {
+            /**
+             * Snapshots numeric preparation facts without Model descriptors or runtime storage.
+             * @param ir non-null structural IR
+             * @param boundaries non-null ordered identities
+             * @param boundaryTypes non-null represented types
+             * @param bindings non-null affine layouts
+             * @param constants non-null numeric variant constants
+             * @param batchFactors non-null equally sized B coefficients
+             */
+            public BatchGeometry {
+                Objects.requireNonNull(ir, "ir");
+                boundaries = List.copyOf(boundaries); boundaryTypes = List.copyOf(boundaryTypes);
+                bindings = List.copyOf(bindings);
+                constants = constants.clone(); batchFactors = batchFactors.clone();
+                if (constants.length != batchFactors.length) throw invalidBatch();
+            }
+            /**
+             * Returns the constant terms of the movement variant's affine numeric cells.
+             * Binding evaluates each cell as its constant plus its coefficient times actual B.
+             * @return a new non-null caller-owned copy of the variant constants
+             */
+            @Override public long[] constants() { return constants.clone(); }
+            /**
+             * Returns actual-B coefficients paired by index with the variant constants.
+             * These are coefficients, not values evaluated at a representative batch.
+             * @return a new non-null caller-owned copy of the variant coefficients
+             */
+            @Override public long[] batchFactors() { return batchFactors.clone(); }
+            /** @return exact affine output element count */
+            @Override public BatchByteSize iterationCount() { return batchCount(bindings.getLast()); }
+            /** @return zero numeric helper scratch */
+            @Override public BatchByteSize scratchBytes() { return new BatchByteSize(0, 0, 1); }
+            /** @return the original five mutable UNFOLD2D pack cells; other cursors are local */
+            @Override public List<PackReset> resets() {
+                if (!(ir.plan() instanceof CpuDataMovementIr.Unfold2dPlan)) return List.of();
+                int first = 3 * bindings.getLast().plan().iterationRank() + bindings.size();
+                for (int b = 0; b + 1 < bindings.size(); b++)
+                    first += bindings.get(b).plan().iterationRank();
+                var cells = new ArrayList<PackReset>(5);
+                for (int n = 0; n < 5; n++) cells.add(new PackReset(first + 13 + n, 0));
+                return List.copyOf(cells);
+            }
+            /** @return B-independent numeric recipe identity without local value identities */
+            @Override public String identity() {
+                return "movement:" + bindings + ":" + Arrays.toString(constants)
+                        + ":" + Arrays.toString(batchFactors);
+            }
+            /**
+             * Resolves ordinary geometry once at the cold numeric boundary.
+             * @param batch non-negative actual batch extent
+             * @return ordinary concrete lowering retaining the exact prepared IR
+             * @throws IllegalArgumentException if actual window or slice bounds are invalid
+             * @throws ArithmeticException if checked layout or variant arithmetic overflows
+             */
+            @Override public CpuPartitionLowering.LoweredPartition bind(long batch) {
+                var access = bindings.stream().map(b -> b.bind(batch)).toList();
+                var inputs = access.subList(0, access.size() - 1).stream().map(b -> new Input(
+                        b.extents().stream().mapToLong(Long::longValue).toArray(), b.baseElementOffset(),
+                        b.effectiveStrides().stream().mapToLong(Long::longValue).toArray())).toList();
+                var out = access.getLast();
+                long[] extents = out.extents().stream().mapToLong(Long::longValue).toArray();
+                long[] facts = new long[constants.length];
+                for (int n = 0; n < facts.length; n++) facts[n] = Math.addExact(constants[n],
+                        Math.multiplyExact(batchFactors[n], batch));
+                Variant variant = switch (ir.plan()) {
+                    case CpuDataMovementIr.PadPlan ignored -> new Pad(facts, inputs.getFirst().extents);
+                    case CpuDataMovementIr.TilePlan ignored -> new Tile(inputs.getFirst().extents, facts);
+                    case CpuDataMovementIr.ConcatPlan concat -> {
+                        int axis = Math.toIntExact(facts[0]);
+                        long[] prefixes = new long[concat.occurrenceToBoundary().size() + 1];
+                        for (int n = 0; n + 1 < prefixes.length; n++)
+                            prefixes[n + 1] = Math.addExact(prefixes[n],
+                                    inputs.get(concat.occurrenceToBoundary().get(n)).extents[axis]);
+                        yield new Concat(axis, prefixes);
+                    }
+                    case CpuDataMovementIr.StackPlan ignored -> new Stack(Math.toIntExact(facts[0]));
+                    case CpuDataMovementIr.UnfoldAxisPlan ignored -> {
+                        int axis = Math.toIntExact(facts[0]);
+                        if (facts[1] > inputs.getFirst().extents[axis]) throw invalidBatch();
+                        yield new UnfoldAxis(axis, facts[1], facts[2]);
+                    }
+                    case CpuDataMovementIr.Unfold2dPlan ignored -> {
+                        long effectiveH = Math.addExact(Math.multiplyExact(facts[9], facts[3] - 1), 1);
+                        long effectiveW = Math.addExact(Math.multiplyExact(facts[10], facts[4] - 1), 1);
+                        if (Math.addExact(facts[1], Math.multiplyExact(2, facts[7])) < effectiveH
+                                || Math.addExact(facts[2], Math.multiplyExact(2, facts[8])) < effectiveW)
+                            throw invalidBatch();
+                        yield new Unfold2d(facts[0], facts[1], facts[2], facts[3], facts[4],
+                                facts[5], facts[6], facts[7], facts[8], facts[9], facts[10], facts[11], facts[12]);
+                    }
+                    case CpuDataMovementIr.SliceUpdatePlan slice -> {
+                        int rank = extents.length;
+                        long[] starts = Arrays.copyOf(facts, rank);
+                        long[] steps = Arrays.copyOfRange(facts, rank, 2 * rank);
+                        long[] lengths = inputs.get(slice.occurrenceToBoundary().get(1)).extents;
+                        if (facts[2 * rank] != 0) {
+                            for (int a = 0; a < rank; a++)
+                                if (Math.addExact(starts[a], lengths[a]) > extents[a]) throw invalidBatch();
+                        }
+                        for (int a = 0; a < rank; a++) if (lengths[a] > 0) {
+                            long last = Math.addExact(starts[a], Math.multiplyExact(lengths[a] - 1, steps[a]));
+                            if (starts[a] < 0 || starts[a] >= extents[a] || last < 0 || last >= extents[a])
+                                throw invalidBatch();
+                        }
+                        yield new SliceUpdate(starts, lengths, steps);
+                    }
+                };
+                var geometry = new Geometry(extents, out.baseElementOffset(),
+                        out.effectiveStrides().stream().mapToLong(Long::longValue).toArray(), inputs, variant);
+                return new CpuPartitionLowering.LoweredPartition(ir, boundaries, access,
+                        access.stream().map(CpuAccessPlan.Binding::referencedElementSpan).toList(),
+                        boundaryTypes, List.of(), extents, out.elementCount(),
+                        "legal: bound symbolic movement", new long[0], Optional.of(geometry));
+            }
+        }
+
+        /**
+         * One fixed generated assignment of a boundary's element base plus a layout delta.
+         * @param cell non-negative destination cell in this family's packed geometry
+         * @param boundary boundary position in the pack's carrier-base order
+         * @param elementDelta immutable element offset added with checked arithmetic
+         */
+        public record BaseCell(int cell, int boundary, long elementDelta) { }
+
+        /**
+         * One original cursor seed restored before every temporal helper call, including retry.
+         * @param cell non-negative destination cell in this family's packed geometry
+         * @param value original range-start cursor value
+         */
+        public record ResetCell(int cell, long value) { }
+
+        /**
+         * Cold, immutable facts for emitting fixed numeric assignments, never a runtime program.
+         * Scratch range offsets and invariant geometry remain bound once per invocation.
+         * @param bases non-null boundary-base assignments, defensively snapshotted
+         * @param resets non-null mutable-cursor assignments, defensively snapshotted
+         */
+        public record TemporalRebind(List<BaseCell> bases, List<ResetCell> resets) {
+            /**
+             * Snapshots the generation-time assignments; retains no invocation storage.
+             * @param bases non-null base facts without null entries
+             * @param resets non-null reset facts without null entries
+             * @throws NullPointerException if either list or an entry is null
+             */
+            public TemporalRebind {
+                bases = List.copyOf(bases);
+                resets = List.copyOf(resets);
+            }
+        }
+
+        /**
+         * Describes temporal base rebinding and restoration of this family's original cursors.
+         * Construct these facts only during generation or cold numeric binding; generated code
+         * emits the assignments directly, without calling pack, allocating, or iterating facts.
+         * Each boundary base is normalized using that boundary's own element width beforehand.
+         * @param start non-negative inclusive ordinary helper range start
+         * @return immutable owner-defined base locations and original cursor seeds
+         * @throws IllegalArgumentException if start is negative
+         * @throws ArithmeticException if checked layout or cursor arithmetic overflows
+         */
+        public TemporalRebind temporalRebind(long start) {
+            if (start < 0) throw new IllegalArgumentException("negative temporal range start");
+            int rank = outputExtents.length;
+            // Cold-only reuse keeps variant cursor vocabulary with the original pack owner.
+            long[] seed = pack(new long[inputs.size() + 1], start, start);
+            var bases = new ArrayList<BaseCell>(inputs.size() + 1);
+            for (int i = 0; i < inputs.size(); i++)
+                bases.add(new BaseCell(3 * rank + 1 + i, i, inputs.get(i).offset));
+            bases.add(new BaseCell(2 * rank, inputs.size(), seed[2 * rank]));
+            var resets = new ArrayList<ResetCell>();
+            int variantStart = 3 * rank + 1 + inputs.size();
+            for (Input input : inputs) variantStart += input.extents.length;
+            // Other variants initialize local cursors from immutable pack seeds on entry.
+            // UNFOLD2D alone advances these five cursor cells in the pack itself.
+            if (variant instanceof Unfold2d) {
+                for (int i = 0; i < 5; i++)
+                    resets.add(new ResetCell(variantStart + 13 + i, seed[variantStart + 13 + i]));
+            }
+            return new TemporalRebind(bases, resets);
+        }
+
         /**
          * One unique input's exact static layout geometry.
          *

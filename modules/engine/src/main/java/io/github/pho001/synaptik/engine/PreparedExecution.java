@@ -1,6 +1,8 @@
 package io.github.pho001.synaptik.engine;
 
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.compiler.BatchBindingPlan;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import java.util.List;
 import java.util.Objects;
 
@@ -13,7 +15,11 @@ import java.util.Objects;
  * Runtime state. Closing the handle does not close a completed run result or detached host value;
  * those values retain their own documented lifetimes. Originating compile metadata remains
  * readable after closure. {@link Engine#run} binds exact IDs in arbitrary order, while
- * {@link Engine#runValues} binds fresh fully static exact-descriptor values in compiled order.
+ * {@link Engine#runValues} binds fresh fully static values in compiled order: exact static
+ * descriptors or the qualified ordinary/Scan CPU named-B binding, including homogeneous F32/F64
+ * symbolic-length Scan. Fixed nonzero feature products are checked independently of empty axes.
+ * B, numeric arrays and actual
+ * publication descriptors belong to each run, never this prepared owner.
  * Both retrieve/check this exact inward delegate before inspecting inputs; Runtime alone admits
  * the later run lease. Positional geometry is precomputed without rejecting preparations that
  * remain usable by identity-based run.</p>
@@ -25,6 +31,9 @@ public final class PreparedExecution implements AutoCloseable {
     private final List<EngineBackendComposition> inputAdapters;
     private final List<EngineBackendComposition> publicationAdapters;
     private final long[] valueElementSpans;
+    private final BatchBindingPlan batchPlan;
+    private final int[] publicationValues;
+    private final List<java.util.function.LongConsumer> batchNumericChecks;
     private boolean closed;
     private boolean cleanupComplete;
     private Throwable closeFailure;
@@ -47,11 +56,77 @@ public final class PreparedExecution implements AutoCloseable {
             io.github.pho001.synaptik.runtime.execution.PreparedExecution execution,
             List<EngineBackendComposition> inputAdapters,
             List<EngineBackendComposition> publicationAdapters) {
+        this(owner, compiledGraph, execution, inputAdapters, publicationAdapters, batchPlan(compiledGraph));
+    }
+
+    /**
+     * Retains an already indexed semantic plan and preindexes CPU logical int-limit checks for
+     * outer values and every scoped Scan declaration, including unused formals and latent siblings.
+     * Local IDs are never deduplicated against outer IDs or another occurrence. No actual B or
+     * caller storage is retained here; an invocation performs no graph walk for these checks.
+     * @param owner non-null exact ordinary Engine owner
+     * @param compiledGraph non-null exact originating metadata
+     * @param execution non-null inward recipe, with the same explicit batch mode
+     * @param inputAdapters non-null ordered direct caller adapters; membership snapshotted
+     * @param publicationAdapters non-null ordered direct publication adapters; snapshotted
+     * @param batchPlan immutable semantic plan, or null exactly for static execution
+     * @throws NullPointerException if a required reference or adapter is null
+     * @throws IllegalArgumentException if ownership, modes or dimension vocabulary disagree
+     * @throws ArithmeticException if fixed CPU numeric geometry exceeds int limits
+     */
+    PreparedExecution(Engine owner, CompiledGraph compiledGraph,
+            io.github.pho001.synaptik.runtime.execution.PreparedExecution execution,
+            List<EngineBackendComposition> inputAdapters, List<EngineBackendComposition> publicationAdapters,
+            BatchBindingPlan batchPlan) {
         this.owner = Objects.requireNonNull(owner, "owner");
         this.compiledGraph = Objects.requireNonNull(compiledGraph, "compiledGraph");
         this.execution = Objects.requireNonNull(execution, "execution");
         this.inputAdapters = List.copyOf(inputAdapters);
         this.publicationAdapters = List.copyOf(publicationAdapters);
+        this.batchPlan = batchPlan;
+        var numericChecks = new java.util.ArrayList<java.util.function.LongConsumer>();
+        var numericValues = new java.util.ArrayList<>(compiledGraph.artifacts().graph().values());
+        // Keep scoped values as occurrences, not a map keyed by coincident local/outer IDs.
+        // Unused formals and latent sibling ports still carry numeric representability duties.
+        for (var node : compiledGraph.artifacts().graph().nodes()) node.scanBody()
+                .ifPresent(body -> numericValues.addAll(body.graph().values()));
+        if (batchPlan != null) for (var value : numericValues) {
+            var descriptor = value.descriptor();
+            long[] constants = new long[descriptor.shape().rank()];
+            boolean[] variable = new boolean[constants.length];
+            long fixedFeatures = 1;
+            for (int axis = 0; axis < constants.length; axis++) {
+                var dimension = descriptor.shape().dimension(axis);
+                if (dimension instanceof io.github.pho001.synaptik.model.shape.DynamicDimension) variable[axis] = true;
+                else constants[axis] = Math.toIntExact(dimension.staticSize().orElseThrow(
+                        () -> new IllegalArgumentException("ordinary CPU requires named or fixed dimensions")));
+                if (!variable[axis] && constants[axis] != 0)
+                    fixedFeatures = Math.toIntExact(Math.multiplyExact(fixedFeatures,constants[axis]));
+            }
+            // Fixed explicit view origins/strides are checked even for an empty domain. All
+            // symbolic view strides in this bounded ordinary/Scan closure come from canonical B/fixed
+            // axes via permutation, insertion, removal or zero-stride broadcast.
+            descriptor.layout().ifPresent(layout -> {
+                Math.toIntExact(layout.storageOffset());
+                for (long stride : layout.strides()) Math.toIntExact(stride);
+            });
+            numericChecks.add(batch -> {
+                long suffix = 1;
+                for (int axis = constants.length - 1; axis >= 0; axis--)
+                    suffix = Math.toIntExact(Math.multiplyExact(suffix, variable[axis] ? Math.toIntExact(batch) : constants[axis]));
+            });
+        }
+        batchNumericChecks = List.copyOf(numericChecks);
+        if (execution.memoryPlan().requiresBatchSize() != (batchPlan != null)) {
+            throw new IllegalArgumentException("semantic and physical batch modes disagree");
+        }
+        var artifacts = compiledGraph.artifacts();
+        var positions = new java.util.HashMap<io.github.pho001.synaptik.model.graph.ValueId, Integer>();
+        for (int i = 0; i < artifacts.graph().values().size(); i++) positions.put(artifacts.graph().values().get(i).id(), i);
+        var indices = new java.util.ArrayList<Integer>();
+        artifacts.publication().forwardBindings().forEach(binding -> indices.add(positions.get(binding.valueId())));
+        artifacts.publication().gradientBindings().forEach(binding -> indices.add(positions.get(binding.valueId())));
+        publicationValues = indices.stream().mapToInt(Integer::intValue).toArray();
         valueElementSpans = new long[compiledGraph.inputs().size()];
         for (int index = 0; index < valueElementSpans.length; index++) {
             var descriptor = compiledGraph.inputs().get(index).descriptor();
@@ -72,6 +147,52 @@ public final class PreparedExecution implements AutoCloseable {
         if (compiledGraph.owner() != owner) {
             throw new IllegalArgumentException("compiled graph belongs to another engine");
         }
+    }
+
+    /**
+     * Indexes symbolic metadata once, before backend preparation acquires resources. A scoped-only
+     * symbol without any outer binding rejects rather than entering the static execution path.
+     * @param graph non-null final compile handle
+     * @return non-null immutable binding plan for a symbolic outer graph, or null when all outer
+     *     and scoped values are static
+     * @throws NullPointerException if {@code graph} is null
+     * @throws IllegalArgumentException if a scoped symbol lacks an outer binding or symbolic
+     *     admission cannot be represented
+     */
+    static BatchBindingPlan batchPlan(CompiledGraph graph) {
+        boolean outer = graph.artifacts().graph().values().stream()
+                .anyMatch(value -> !value.descriptor().shape().isFullyStatic());
+        boolean local = graph.artifacts().graph().nodes().stream().flatMap(node -> node.scanBody().stream())
+                .flatMap(body -> body.graph().values().stream()).anyMatch(value -> !value.descriptor().shape().isFullyStatic());
+        if (local && !outer) throw new IllegalArgumentException("scoped batch symbol has no outer binding");
+        return outer ? BatchBindingPlan.prepare(graph.artifacts()) : null;
+    }
+
+    /** @return immutable semantic plan, or null exactly for static execution */
+    BatchBindingPlan batchPlan() { return batchPlan; }
+
+    /**
+     * Checks every preindexed outer and scoped logical domain, including unused declarations,
+     * latent siblings and intermediate scalar-backed broadcasts. Empty leading axes do not hide
+     * an overflowing trailing stride or contributor domain.
+     * No descriptor, graph traversal or backend lowerer is used during this pre-borrow pass.
+     * @param batch actual non-negative admitted B
+     * @throws ArithmeticException if a dimension, trailing stride or count exceeds CPU int limits
+     */
+    void validateBatchGeometry(long batch) {
+        Math.toIntExact(batch);
+        for (var check : batchNumericChecks) check.accept(batch);
+    }
+
+    /**
+     * Resolves only preindexed public occurrences, never eager intermediate descriptors.
+     * @param binding non-null current invocation's semantic binding
+     * @return immutable actual generated-value descriptors in publication occurrence order
+     */
+    List<TensorDescriptor> publicationDescriptors(BatchBindingPlan.Binding binding) {
+        var descriptors = new java.util.ArrayList<TensorDescriptor>(publicationValues.length);
+        for (int index : publicationValues) descriptors.add(binding.descriptor(index));
+        return List.copyOf(descriptors);
     }
 
     /**

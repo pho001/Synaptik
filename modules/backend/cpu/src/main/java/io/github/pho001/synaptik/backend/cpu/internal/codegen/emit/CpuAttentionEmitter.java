@@ -15,6 +15,11 @@ import java.lang.constant.MethodTypeDesc;
  *
  * <p>The emitted body consumes only cold-bound primitive geometry, direct carriers, and assigned
  * per-range scratch. It is not a semantic operation implementation or a fallback route.
+ *
+ * <p>Controlled entries decode ROW coordinates from actual attention geometry, never from its
+ * rank-zero envelope access plan. Prefix/query coordinates may guard the complete score row;
+ * each output also uses its own authenticated full logical coordinate before scratch, mask,
+ * or value loads. Inactive numerical outputs are published as positive zero.</p>
  */
 public final class CpuAttentionEmitter {
   private static final ClassDesc STRICT = MathDesc(StrictMath.class);
@@ -57,12 +62,24 @@ public final class CpuAttentionEmitter {
     var carrier = new CpuCarrierEmitter(c);
     int n = s.carrierPattern().size(), scratch = n, g = n + 1;
     int start = n + 2, end = n + 4;
+    int outputBoundary = (int) getConstant(ir, 4);
+    int originalRowAxis = CpuCarrierEmitter.controlFacts()
+        .map(control -> control.boundaryRows().get(outputBoundary).axis()).orElse(-1);
+    int weightsBoundary = two ? (int) getConstant(ir, 5) : -1;
+    int weightsRowAxis = two ? CpuCarrierEmitter.controlFacts()
+        .map(control -> control.boundaryRows().get(weightsBoundary).axis()).orElse(-1) : -1;
+    boolean queryRowControlled = originalRowAxis >= 0
+        && (!two || originalRowAxis == weightsRowAxis);
+    boolean featureRowControlled = originalRowAxis >= 0;
+    int originalRow = queryRowControlled ? l(c) : -1;
+    Label inactiveRow = c.newLabel(), nextRow = c.newLabel();
     int rank = i(c), header = i(c), row = l(c), qi = l(c), batch = l(c);
     int qb = l(c), kb = l(c), vb = l(c);
     int mb = masked ? l(c) : qb, ob = l(c), wb = two ? l(c) : qb, axis = i(c);
     int coord = l(c);
     get(c, g, 6).l2i().istore(rank);
     c.loadConstant(12).iload(rank).iadd().istore(header);
+    if (queryRowControlled) c.loadConstant(0L).lstore(originalRow);
     c.lload(start).lstore(row);
     Label rows = c.newLabel(), done = c.newLabel();
     c.labelBinding(rows).lload(row).lload(end).lcmp().branch(Opcode.IFGE, done);
@@ -82,6 +99,11 @@ public final class CpuAttentionEmitter {
     c.lload(batch);
     c.aload(g).loadConstant(14).iload(axis).iadd().laload().lrem().lstore(coord);
     c.lload(batch).aload(g).loadConstant(14).iload(axis).iadd().laload().ldiv().lstore(batch);
+    if (queryRowControlled) {
+      Label otherAxis = c.newLabel();
+      c.iload(axis).loadConstant(originalRowAxis).branch(Opcode.IF_ICMPNE, otherAxis);
+      c.lload(coord).lstore(originalRow).labelBinding(otherAxis);
+    }
     addStride(c, g, header, rank, 0, axis, coord, qb);
     addStride(c, g, header, rank, 1, axis, coord, kb);
     addStride(c, g, header, rank, 2, axis, coord, vb);
@@ -93,6 +115,16 @@ public final class CpuAttentionEmitter {
     if (masked) addTrailing(c, g, header, rank, 3, rank, 0, qi, mb);
     addTrailing(c, g, header, rank, 4, rank, 0, qi, ob);
     if (two) addTrailing(c, g, header, rank, 5, rank, 0, qi, wb);
+    if (queryRowControlled) {
+      Label sharedScoreRow = c.newLabel(), rowCoordinateReady = c.newLabel();
+      c.iload(rank).loadConstant(1).isub().loadConstant(originalRowAxis)
+          .branch(Opcode.IF_ICMPEQ, sharedScoreRow);
+      c.iload(rank).loadConstant(2).isub().loadConstant(originalRowAxis)
+          .branch(Opcode.IF_ICMPNE, rowCoordinateReady);
+      c.lload(qi).lstore(originalRow).labelBinding(rowCoordinateReady);
+      CpuCarrierEmitter.emitActiveRowGuard(c, originalRow, TypeKind.LONG, inactiveRow);
+      c.labelBinding(sharedScoreRow);
+    }
 
     int valueWidth = rt == DataType.FLOAT64 ? 2 : 1;
     int eligible = axis, positive = axis + 2, anyNan = axis + 4, allNeg = axis + 5;
@@ -301,6 +333,9 @@ public final class CpuAttentionEmitter {
       Label wl = c.newLabel(), wd = c.newLabel();
       c.labelBinding(wl).lload(weightsJ);
       get(c, g, 8).lcmp().branch(Opcode.IFGE, wd);
+      Label inactiveWeight = c.newLabel(), publishWeight = c.newLabel();
+      if (weightsRowAxis >= 0)
+        emitOutputGuard(c, weightsBoundary, g, row, weightsJ, 8, inactiveWeight);
       if (masked || causal) {
         Label wz = c.newLabel(), selected = c.newLabel();
         eligibility(c, s, carrier, g, header, rank, rank, masked, causal, roles, qi, weightsJ,
@@ -313,6 +348,12 @@ public final class CpuAttentionEmitter {
         c.labelBinding(selected);
       } else {
         scratchLoad(c, scratch, rt, weightsJ, weightsValue);
+      }
+      if (weightsRowAxis >= 0) {
+        c.branch(Opcode.GOTO, publishWeight).labelBinding(inactiveWeight);
+        zero(c, rt);
+        store(c, rt, weightsValue);
+        c.labelBinding(publishWeight);
       }
       address(c, g, header, rank, 5, rank, wb, 1, weightsJ, weightsAddress);
       storeResult(c, carrier, s, rt, (int) getConstant(ir, 5), weightsAddress, weightsValue,
@@ -329,6 +370,9 @@ public final class CpuAttentionEmitter {
     c.labelBinding(outs).lload(d);
     get(c, g, 10).lcmp().branch(Opcode.IFGE, outsDone);
     Label zeroOut = c.newLabel(), outInitialized = c.newLabel(), storeOut = c.newLabel();
+    Label inactiveFeature = c.newLabel(), publishFeature = c.newLabel();
+    if (featureRowControlled)
+      emitOutputGuard(c, outputBoundary, g, row, d, 10, inactiveFeature);
     c.iload(mode).loadConstant(1).branch(Opcode.IF_ICMPNE, zeroOut);
     nan(c, rt);
     c.branch(Opcode.GOTO, outInitialized).labelBinding(zeroOut);
@@ -361,11 +405,75 @@ public final class CpuAttentionEmitter {
         .branch(Opcode.GOTO, vl)
         .labelBinding(vd)
         .labelBinding(storeOut);
+    if (featureRowControlled) {
+      c.branch(Opcode.GOTO, publishFeature).labelBinding(inactiveFeature);
+      zero(c, rt);
+      store(c, rt, outSum);
+      c.labelBinding(publishFeature);
+    }
     address(c, g, header, rank, 4, rank, ob, 1, d, outAddress);
     storeResult(c, carrier, s, rt, (int) getConstant(ir, 4), outAddress, outSum, resultBits,
         resultRepresented);
     c.lload(d).loadConstant(1L).ladd().lstore(d).branch(Opcode.GOTO, outs).labelBinding(outsDone);
+    if (queryRowControlled) {
+      c.branch(Opcode.GOTO, nextRow).labelBinding(inactiveRow);
+      emitInactiveRow(c, carrier, s, rt, outputBoundary, g, header, rank, 4, ob, 10);
+      if (two)
+        emitInactiveRow(c, carrier, s, rt, (int) getConstant(ir, 5),
+            g, header, rank, 5, wb, 8);
+      c.labelBinding(nextRow);
+    }
     c.lload(row).loadConstant(1L).ladd().lstore(row).branch(Opcode.GOTO, rows).labelBinding(done);
+  }
+
+  /**
+   * Guards one output's actual logical coordinate independently of its sibling's provenance.
+   * @param c generated method builder
+   * @param boundary exact output ABI ordinal
+   * @param geometry actual normalized attention geometry local
+   * @param row prefix/query ordinal local
+   * @param column trailing output coordinate local
+   * @param extent actual packed trailing output extent index
+   * @param inactive positive-zero publication target
+   */
+  private static void emitOutputGuard(CodeBuilder c, int boundary, int geometry, int row,
+      int column, int extent, Label inactive) {
+    int ordinal = l(c);
+    c.lload(row);
+    get(c, geometry, extent).lmul().lload(column).ladd().lstore(ordinal);
+    CpuLoopEmitter.emitActiveOrdinalGuard(c, boundary, ordinal, TypeKind.LONG, inactive);
+  }
+
+  /**
+   * Publishes one inactive logical row without accessing operand, mask, or numerical scratch.
+   * @param c generated method builder
+   * @param carrier direct output carrier emitter
+   * @param s authenticated boundary specialization
+   * @param type represented output type
+   * @param boundary exact output ABI ordinal
+   * @param geometry family geometry reference slot
+   * @param header runtime layout-header local
+   * @param rank runtime tensor-rank local
+   * @param layout output layout ordinal in the family pack
+   * @param base already decoded physical row-base local
+   * @param extent packed trailing output extent index
+   */
+  private static void emitInactiveRow(CodeBuilder c, CpuCarrierEmitter carrier,
+      CpuKernelSpecialization s, DataType type, int boundary, int geometry, int header,
+      int rank, int layout, int base, int extent) {
+    int index = l(c), address = l(c), representedZero = value(c, type);
+    boolean low = type == DataType.BFLOAT16 || type == DataType.FLOAT16;
+    int bits = low ? i(c) : -1, represented = low ? i(c) : -1;
+    zero(c, type);
+    store(c, type, representedZero);
+    c.loadConstant(0L).lstore(index);
+    Label cells = c.newLabel(), done = c.newLabel();
+    c.labelBinding(cells).lload(index);
+    get(c, geometry, extent).lcmp().branch(Opcode.IFGE, done);
+    address(c, geometry, header, rank, layout, rank, base, 1, index, address);
+    storeResult(c, carrier, s, type, boundary, address, representedZero, bits, represented);
+    c.lload(index).loadConstant(1L).ladd().lstore(index).branch(Opcode.GOTO, cells)
+        .labelBinding(done);
   }
 
   private static int getConstant(CpuKernelIr ir, int layout) {

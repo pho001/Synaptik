@@ -130,8 +130,7 @@ class CpuCastGeneratedKernelTest {
         List.of(carrier(DataType.FLOAT64, false), carrier(DataType.BFLOAT16, false),
                 carrier(DataType.INT32, false)), 0, -1, List.of(), false, 60);
         var generator = new CpuClassFileKernelGenerator();
-        MethodHandle entry = generator.defineClassBytes(specification,
-                generator.generateClassBytes(specification, chain)).entryPoint();
+        MethodHandle entry = generator.defineClassBytes(specification, chain, generator.generateClassBytes(specification, chain)).entryPoint();
         double[] input = {1.0039062501d, -1.0039062501d, 3.9d, Double.NaN};
         short[] bf16 = new short[4]; int[] integers = new int[4];
         entry.invokeWithArguments(input, bf16, integers, new long[] {4, 0, 0, 0, 0, 1, 1, 1, 4, 4, 4},
@@ -268,7 +267,7 @@ class CpuCastGeneratedKernelTest {
         List.of(source, target), List.of(carrier(source, forms.inputSegment), carrier(target, forms.outputSegment)),
         0, -1, List.of(), false, schema);
         var generator = new CpuClassFileKernelGenerator();
-        return generator.defineClassBytes(spec, generator.generateClassBytes(spec, ir)).entryPoint();
+        return generator.defineClassBytes(spec, ir, generator.generateClassBytes(spec, ir)).entryPoint();
     }
 
     private static CpuKernelIr ir(DataType source, DataType target, Form form) {

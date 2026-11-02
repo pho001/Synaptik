@@ -17,7 +17,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * interruption, or racing close cancels only unclaimed ranges. When constructed with a shared
  * concurrency budget, one submission acquires its exact participant count before publishing any
  * worker job and releases that demand only after all started ranges quiesce. Workers never acquire
- * nested permits. The owner must close the group; prepared executables and bound invocations only
+ * nested permits. The selected ordinary/Scan row-region overload instead borrows its run-owned caller's live
+ * reservation synchronously, without acquiring or releasing demand; the caller excludes
+ * concurrent borrowing and keeps it live until join. The owner must close the group; prepared executables and bound invocations only
  * borrow it.
  *
  * <p>This unsupported internal type is not an executor facade, common pool, virtual-thread
@@ -141,6 +143,35 @@ public final class CpuWorkerGroup implements AutoCloseable {
      *     or a worker throws a checked failure
      */
     void execute(RangeCall[] calls) {
+        execute(calls, false);
+    }
+
+    /**
+     * Synchronously lends an outer reservation without acquiring or releasing permits. Only
+     * its run-owned caller may lend it, exclusively and without closing until worker quiescence.
+     * Failure, interruption and close have the same ordered join semantics as ordinary dispatch.
+     * @param calls ordered nonnull prebound calls, at least two; cloned before publication
+     * @param reservation live sufficient reservation from this group's exact budget
+     * @throws IllegalArgumentException if the reservation is absent, foreign, released, short,
+     *     or fewer than two calls are supplied
+     * @throws IllegalStateException if a worker attempts nested submission
+     * @throws CpuParallelExecutionException if interrupted, cancelled, or checked worker failure
+     */
+    void execute(RangeCall[] calls, CpuConcurrencyBudget.Lease reservation) {
+        if (reservation == null) throw new IllegalArgumentException("missing CPU reservation");
+        if (!reservation.covers(concurrencyBudget, Math.min(workers.length, calls.length)))
+            throw new IllegalArgumentException("CPU reservation does not cover submission");
+        execute(calls, true);
+    }
+
+    /**
+     * Publishes one isolated job and joins it before returning or releasing locally acquired
+     * admission. A borrowed reservation is validated before entry and never closed here.
+     * @param calls ordered prebound range calls
+     * @param borrowed whether an authenticated outer reservation is lent exclusively and kept
+     *     live by the run-owned caller through quiescence
+     */
+    private void execute(RangeCall[] calls, boolean borrowed) {
         if (calls.length < 2) throw new IllegalArgumentException("parallel work requires two ranges");
         if (owns(Thread.currentThread())) {
             throw new IllegalStateException("CPU worker must not submit parallel work");
@@ -148,7 +179,7 @@ public final class CpuWorkerGroup implements AutoCloseable {
         Job job = new Job(calls.clone(), Math.min(workers.length, calls.length));
         CpuConcurrencyBudget.Lease lease;
         try {
-            lease = concurrencyBudget == null ? null : concurrencyBudget.acquire(job.participants);
+            lease = borrowed || concurrencyBudget == null ? null : concurrencyBudget.acquire(job.participants);
         } catch (CpuConcurrencyBudget.CpuCoordinationException failure) {
             throw new CpuParallelExecutionException("CPU parallel execution interrupted", failure);
         }

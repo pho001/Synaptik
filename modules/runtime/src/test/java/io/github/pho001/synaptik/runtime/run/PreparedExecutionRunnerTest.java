@@ -58,7 +58,7 @@ class PreparedExecutionRunnerTest {
                         inputs.getActualTypeArguments()),
                 () -> assertEquals(0, type.getDeclaredFields().length),
                 () -> assertEquals(
-                        List.of("run"),
+                        List.of("run", "run"),
                         Arrays.stream(type.getDeclaredMethods())
                                 .filter(method -> Modifier.isPublic(method.getModifiers()))
                                 .map(method -> method.getName())
@@ -109,7 +109,7 @@ class PreparedExecutionRunnerTest {
         TestBuffer owned = new TestBuffer();
         PreparedRepresentationPlan creation =
                 new PreparedRepresentationPlan(
-                        one, List.of(List.of(new CreatedBuffer(() -> owned))), List.of());
+                        one, List.of(List.of(new CreatedBuffer((requestedBytes, requestedAlignment) -> owned))), List.of());
         RunResult creationOnly =
                 runner.run(
                         execution(
@@ -184,8 +184,8 @@ class PreparedExecutionRunnerTest {
                         List.of(
                                 List.of(
                                         new CallerInput(),
-                                        new CreatedBuffer(() -> output),
-                                        new CreatedBuffer(() -> stale))),
+                                        new CreatedBuffer((requestedBytes, requestedAlignment) -> output),
+                                        new CreatedBuffer((requestedBytes, requestedAlignment) -> stale))),
                         List.of());
         TestExecutable executable =
                 executable(
@@ -294,7 +294,7 @@ class PreparedExecutionRunnerTest {
         PreparedRepresentationPlan creation =
                 new PreparedRepresentationPlan(
                         plan,
-                        List.of(List.of(new CallerInput(), new CreatedBuffer(() -> owned))),
+                        List.of(List.of(new CallerInput(), new CreatedBuffer((requestedBytes, requestedAlignment) -> owned))),
                         List.of());
         TestExecutable executable =
                 executable(
@@ -334,7 +334,7 @@ class PreparedExecutionRunnerTest {
         PreparedRepresentationPlan creation =
                 new PreparedRepresentationPlan(
                         plan,
-                        List.of(List.of(new CallerInput(), new CreatedBuffer(() -> destination))),
+                        List.of(List.of(new CallerInput(), new CreatedBuffer((requestedBytes, requestedAlignment) -> destination))),
                         List.of());
         TestExecutable executable =
                 executable(
@@ -375,7 +375,7 @@ class PreparedExecutionRunnerTest {
                         List.of(
                                 List.of(
                                         new CreatedBuffer(
-                                                () -> {
+                                                (requestedBytes, requestedAlignment) -> {
                                                     TestBuffer buffer = new TestBuffer();
                                                     created.add(buffer);
                                                     return buffer;
@@ -555,7 +555,7 @@ class PreparedExecutionRunnerTest {
     private static PreparedRepresentationPlan createdPlan(
             PreparedMemoryPlan plan, TestBuffer buffer) {
         return new PreparedRepresentationPlan(
-                plan, List.of(List.of(new CreatedBuffer(() -> buffer))), List.of());
+                plan, List.of(List.of(new CreatedBuffer((requestedBytes, requestedAlignment) -> buffer))), List.of());
     }
 
     private static PreparedExecutable.BufferSelection selection(

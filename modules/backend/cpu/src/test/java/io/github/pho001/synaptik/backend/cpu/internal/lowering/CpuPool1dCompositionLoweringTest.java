@@ -54,9 +54,8 @@ class CpuPool1dCompositionLoweringTest {
         var descriptors=published.values().stream().map(GraphValue::descriptor).toList();
         assertAll(()->assertThrows(IllegalArgumentException.class,()->new CpuPartitionLowering().lower(context(1,false))),
                 ()->assertThrows(IllegalArgumentException.class,()->new CpuPartitionLowering().lower(context(2,true))),
-                ()->assertTrue(new CpuCapabilityProvider().supports(
-                        new io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery(
-                                squeeze.operation(),List.of(descriptors.get(2)),List.of(descriptors.get(3))))),
+                ()->io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(new CpuCapabilityProvider(), new io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery(
+                        squeeze.operation(),List.of(descriptors.get(2)),List.of(descriptors.get(3)))),
                 ()->assertTrue(new CpuPartitionDagDecomposer().decompose(validHeightNearMatch(),
                         new CpuPartitionLowering()).size()>1));
     }

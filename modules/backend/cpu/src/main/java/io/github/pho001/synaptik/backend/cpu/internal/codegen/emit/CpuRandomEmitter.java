@@ -539,7 +539,7 @@ public final class CpuRandomEmitter {
                 throw new IllegalArgumentException("encoded random identity is invalid");
             }
             String[] parts = ir.familyIdentity().split(":");
-            CpuRandomIr.Family family = CpuRandomIr.Family.valueOf(parts[1]);
+            CpuRandomIr.Family family = CpuRandomIr.encodedFamily(ir);
             long key = 0, counter = 0, probability = 0;
             for (String part : parts) {
                 if (part.startsWith("key=")) key = Long.parseUnsignedLong(part.substring(4), 16);

@@ -423,6 +423,7 @@ final class CpuOpenBlasTuningBatchTest {
     }
 
     @Test void ineligibleBfloat16ProducesNoNativeCandidateOrTuningBatch() {
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(io.github.pho001.synaptik.model.datatype.DataType.BFLOAT16, () -> {
         DataType type = DataType.BFLOAT16;
         var config = CpuOpenBlasRouteSelectorTest.defaultConfig();
         var nativeFact = new CpuPartitionAnalysisInputs.BoundaryStorageFact(true,
@@ -442,6 +443,7 @@ final class CpuOpenBlasTuningBatchTest {
         assertAll(() -> assertEquals(CpuPartitionPreparationPlan.Route.PORTABLE, plan.route()),
                 () -> assertTrue(plan.openBlasPlan().isEmpty()),
                 () -> assertTrue(plan.openBlasTuningBatch().isEmpty()));
+        });
     }
 
     private static void addBoundaryMutations(List<WorkloadMutation> mutations,

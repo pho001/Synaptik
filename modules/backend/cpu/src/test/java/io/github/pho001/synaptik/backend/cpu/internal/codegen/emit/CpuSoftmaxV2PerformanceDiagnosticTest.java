@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.backend.cpu.internal.codegen.emit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
@@ -24,10 +25,11 @@ import org.junit.jupiter.api.Test;
 /**
  * Opt-in, one-process v2 diagnostic for generated and directly written softmax bodies.
  *
- * <p>Each side uses a contiguous heap carrier, three passes, binary32 working sites, Kahan
- * accumulation, and (for FLOAT16) one final narrowing. Preparation and equality checking are
- * outside timing. This is a bounded observation, not a route gate or a replacement for the
- * historical multi-fork evidence.</p>
+ * <p>Admitted FLOAT32 pairs use contiguous heap carriers, three passes, binary32 working sites
+ * and Kahan accumulation. Historical FLOAT16 owners instead prove explicit unsupported
+ * preparation outcomes; they acquire neither generated artifacts nor timing ratios. Preparation,
+ * rejection witnessing and equality checking are outside timing. This is a bounded observation,
+ * not a route gate or a replacement for the historical multi-fork evidence.</p>
  */
 final class CpuSoftmaxV2PerformanceDiagnosticTest {
     private static final int ROWS = 128;
@@ -46,10 +48,18 @@ final class CpuSoftmaxV2PerformanceDiagnosticTest {
     void boundedGeneratedVersusCleanJava() throws Throwable {
         assumeTrue("true".equals(System.getenv("SYNAPTIK_CPU_0033_DIAGNOSTIC")));
         List<Pair> pairs = new ArrayList<>();
+        List<String> unsupported = new ArrayList<>();
         for (SoftmaxKind kind : SoftmaxKind.values()) {
             pairs.add(floatPair(kind));
-            pairs.add(halfPair(kind));
+            assertThrows(IllegalArgumentException.class, () -> halfPair(kind), kind + "/FLOAT16");
+            unsupported.add(kind + "/FLOAT16");
         }
+        var expectedOwners = Arrays.stream(SoftmaxKind.values())
+                .flatMap(kind -> java.util.stream.Stream.of(kind + "/FLOAT32", kind + "/FLOAT16"))
+                .sorted().toList();
+        assertEquals(expectedOwners, java.util.stream.Stream.concat(
+                pairs.stream().map(Pair::name), unsupported.stream()).sorted().toList(),
+                "every historical diagnostic owner has a generated or witnessed unsupported outcome");
         for (Pair pair : pairs) {
             pair.generated.run();
             pair.direct.run();
@@ -83,14 +93,15 @@ final class CpuSoftmaxV2PerformanceDiagnosticTest {
                 + "samples=%d repeats=%d one JVM; ns per full invocation; ratio=generated/direct%n",
                 System.getProperty("java.runtime.version"), System.getProperty("os.name"),
                 System.getProperty("os.arch"), ROWS, WIDTH, WARMUP_PAIRS, SAMPLES, REPEATS);
-        System.out.println("case,generated_median_ns,direct_median_ns,paired_median_ratio,min_ratio,max_ratio");
+        System.out.println("case,outcome,generated_median_ns,direct_median_ns,paired_median_ratio,min_ratio,max_ratio");
+        for (String owner : unsupported) System.out.printf(Locale.ROOT, "%s,UNSUPPORTED,,,,,%n", owner);
         pairs.sort(java.util.Comparator.comparing(Pair::name));
         for (Pair pair : pairs) {
             pair.verify.run();
             long[] g = generated.get(pair.name), d = direct.get(pair.name);
             double[] r = ratios.get(pair.name);
             Arrays.sort(g); Arrays.sort(d); Arrays.sort(r);
-            System.out.printf(Locale.ROOT, "%s,%d,%d,%.6f,%.6f,%.6f%n",
+            System.out.printf(Locale.ROOT, "%s,GENERATED,%d,%d,%.6f,%.6f,%.6f%n",
                     pair.name, g[SAMPLES / 2], d[SAMPLES / 2], r[SAMPLES / 2], r[0], r[SAMPLES - 1]);
         }
     }
@@ -147,8 +158,7 @@ final class CpuSoftmaxV2PerformanceDiagnosticTest {
     private static MethodHandle entry(SoftmaxKind kind, DataType type, CarrierAccess carrier) {
         var route = plan(kind, type, carrier).units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        return generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+        return generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
     }
 
     private static long[] geometry(SoftmaxKind kind, DataType type, CarrierAccess carrier) {

@@ -33,6 +33,7 @@ class TensorMultiAxisReductionTest {
     void exposesExactPackagePrivateEntrySurface() throws ReflectiveOperationException {
         Class<?> type = TensorMultiAxisReductionExpressions.class;
         var entries = Arrays.stream(type.getDeclaredMethods())
+                .filter(method -> !method.getName().endsWith("Checked"))
                 .filter(method -> !Modifier.isPrivate(method.getModifiers()))
                 .toList();
         assertAll(

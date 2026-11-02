@@ -1,14 +1,16 @@
 package io.github.pho001.synaptik.backend.cpu.internal.prepare;
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
 import io.github.pho001.synaptik.prepare.PreparedBufferAssignment;
-import io.github.pho001.synaptik.prepare.ProducerlessPublishedConstantResource;
+import io.github.pho001.synaptik.prepare.ProducerlessPublishedValueResource;
 import io.github.pho001.synaptik.prepare.PreparedScheduleContribution;
 import io.github.pho001.synaptik.prepare.PreparedScheduleContributor;
 import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
@@ -22,6 +24,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -29,8 +32,9 @@ import java.util.function.BooleanSupplier;
  *
  * <p>The immutable assembler creates a representation-creation prefix, one exact finalized CPU
  * executable occurrence, and a forward-then-gradient publication suffix in stable Prepare-supplied
- * publication order. Source-only published constants use initialized-buffer recipes without gaining an
- * executable occurrence. It constructs recipes only: no creator is invoked and no physical
+ * publication order. Source-only published callers retain borrowed representations and constants
+ * use initialized-buffer recipes, without gaining an executable occurrence. It constructs recipes
+ * only: no creator is invoked and no physical
  * resource is allocated, initialized, borrowed, executed, or published during assembly.</p>
  */
 public final class CpuPreparedScheduleAssembler
@@ -49,26 +53,30 @@ public final class CpuPreparedScheduleAssembler
     }
 
     /**
-     * Derives CPU physical geometry for one stable producerless published splat.
+     * Derives CPU physical geometry for one authenticated producerless caller or constant.
      *
-     * <p>The contribution retains the exact value and logical-requirement references. It creates
-     * no representation and performs no scalar materialization; schedule assembly later uses the
-     * validated contribution to describe a per-run initialized CPU buffer.</p>
+     * <p>The contribution retains the exact value and logical-requirement references. A present
+     * scalar identifies a static, resolved, non-gradient canonical constant; an empty scalar
+     * identifies a caller with either an exact resolved static affine layout or the existing
+     * unresolved sole-named-batch template. Prepare authenticates those source roles before this
+     * callback. Geometry reads no payload and creates no representation, executable or resource.
+     * Later schedule assembly retains caller borrowing and fresh per-run constant initialization.</p>
      *
-     * @param value exact non-null stable graph value with a fully static canonical descriptor
+     * @param value exact non-null stable graph value with supported CPU source geometry
      * @param logicalRequirement exact non-null matching producerless logical requirement
-     * @param scalar exact non-null compile-time scalar whose type must match the descriptor
-     * @return a new non-null immutable contribution with checked canonical byte geometry
+     * @param scalar non-null optional authenticated constant scalar, matching the descriptor's
+     *     type when present; empty only for an authenticated caller
+     * @return a new non-null immutable contribution retaining the checked fixed or batch-bound size
      * @throws NullPointerException if an argument is {@code null}
      * @throws IllegalStateException if the owning CPU integration is closed
-     * @throws IllegalArgumentException if shape, layout, or scalar type is unsupported
-     * @throws ArithmeticException if referenced-span byte arithmetic overflows
+     * @throws IllegalArgumentException if source geometry or constant policy is unsupported
+     * @throws ArithmeticException if referenced-span byte arithmetic or CPU geometry limits overflow
      */
     @Override
-    public ProducerlessPublishedConstantResource producerlessPublishedConstant(
+    public ProducerlessPublishedValueResource producerlessPublishedValue(
             GraphValue value,
             LogicalMemoryRequirement logicalRequirement,
-            ScalarValue scalar) {
+            Optional<ScalarValue> scalar) {
         Objects.requireNonNull(value, "value");
         Objects.requireNonNull(logicalRequirement, "logicalRequirement");
         Objects.requireNonNull(scalar, "scalar");
@@ -76,32 +84,66 @@ public final class CpuPreparedScheduleAssembler
             throw new IllegalStateException("CPU backend integration is closed");
         }
         var descriptor = value.descriptor();
-        if (!descriptor.shape().isFullyStatic()) {
-            throw new IllegalArgumentException(
-                    "CPU source-only published constant has dynamic shape: " + value.id());
+        if (scalar.isPresent()) {
+            requireCanonicalConstant(value.id(), descriptor, scalar.orElseThrow());
         }
-        if (descriptor.layout().isEmpty()) {
-            throw new IllegalArgumentException(
-                    "CPU source-only published constant has unresolved layout: " + value.id());
-        }
-        LayoutDescriptor layout = descriptor.layout().orElseThrow();
-        if (!layout.equals(LayoutDescriptor.contiguous(descriptor.shape()))) {
-            throw new IllegalArgumentException(
-                    "CPU source-only published constant has non-canonical layout: " + value.id());
-        }
-        if (scalar.dataType() != descriptor.dataType()) {
-            throw new IllegalArgumentException(
-                    "CPU source-only published constant scalar type disagrees with descriptor: "
-                            + value.id());
-        }
-        long byteSize = Math.multiplyExact(
-                layout.referencedElementSpan(), descriptor.dataType().byteWidth());
-        return new ProducerlessPublishedConstantResource(
+        return new ProducerlessPublishedValueResource(
                 value,
                 logicalRequirement,
                 CpuCapabilityProvider.CPU_BACKEND_ID,
-                byteSize,
+                CpuPartitionLowering.descriptorByteSize(descriptor),
                 descriptor.dataType().byteWidth());
+    }
+
+    /**
+     * Applies the source-only constant policy without changing consumed-constant initialization.
+     *
+     * @param requirement exact complete-graph logical requirement identifying the source role
+     * @param scalar exact authenticated constant scalar
+     * @throws IllegalArgumentException if a producerless consumerless published constant violates
+     *     CPU's static, nongradient, resolved canonical descriptor or scalar-type policy
+     */
+    private static void requireSourceConstantPolicy(
+            LogicalMemoryRequirement requirement, ScalarValue scalar) {
+        if (requirement.producerPartition().isEmpty()
+                && requirement.consumerPartitions().isEmpty() && requirement.graphOutput()) {
+            requireCanonicalConstant(
+                    requirement.valueId(), requirement.descriptor(), scalar);
+        }
+    }
+
+    /**
+     * Checks CPU's canonical producerless constant contract shared by automatic and explicit sources.
+     *
+     * @param valueId stable source identifier for diagnostics
+     * @param descriptor exact authenticated constant descriptor
+     * @param scalar exact authenticated constant scalar
+     * @throws IllegalArgumentException if descriptor geometry, gradient eligibility or type disagrees
+     */
+    private static void requireCanonicalConstant(
+            ValueId valueId, TensorDescriptor descriptor, ScalarValue scalar) {
+        if (scalar.dataType() != descriptor.dataType()) {
+            throw new IllegalArgumentException(
+                    "CPU source-only published constant scalar type disagrees with descriptor: "
+                            + valueId);
+        }
+        if (!descriptor.shape().isFullyStatic()) {
+            throw new IllegalArgumentException(
+                    "CPU source-only published constant has dynamic shape: " + valueId);
+        }
+        if (descriptor.requiresGrad()) {
+            throw new IllegalArgumentException(
+                    "CPU source-only published constant requires gradients: " + valueId);
+        }
+        if (descriptor.layout().isEmpty()) {
+            throw new IllegalArgumentException(
+                    "CPU source-only published constant has unresolved layout: " + valueId);
+        }
+        if (!descriptor.layout().orElseThrow()
+                .equals(LayoutDescriptor.contiguous(descriptor.shape()))) {
+            throw new IllegalArgumentException(
+                    "CPU source-only published constant has non-canonical layout: " + valueId);
+        }
     }
 
 
@@ -113,12 +155,16 @@ public final class CpuPreparedScheduleAssembler
 
     /**
      * Contributes every externally assigned CPU buffer representation and workspace creator.
+     * Source-only constants, including explicit resource contributions, retain the callback's
+     * canonical descriptor policy; constants consumed by ordinary partitions keep their existing
+     * initializer behavior.
      *
      * @param context exact non-null complete shared schedule context
      * @return non-null immutable sparse CPU contribution
      * @throws NullPointerException if {@code context} is null
      * @throws IllegalStateException if the owning integration is closed
-     * @throws IllegalArgumentException if a CPU-assigned buffer lacks a graph descriptor
+     * @throws IllegalArgumentException if a CPU-assigned buffer lacks a graph descriptor or a
+     *     source-only constant violates CPU's canonical source policy
      */
     @Override
     public PreparedScheduleContribution contribute(PreparedScheduleContext context) {
@@ -126,9 +172,9 @@ public final class CpuPreparedScheduleAssembler
         if (!ownerOpen.getAsBoolean()) {
             throw new IllegalStateException("CPU backend integration is closed");
         }
-        var descriptors = context.graphValues().stream().collect(
+        var requirements = context.logicalMemoryRequirements().stream().collect(
                 java.util.stream.Collectors.toMap(
-                        value -> value.id(), value -> value.descriptor()));
+                        LogicalMemoryRequirement::valueId, requirement -> requirement));
         var bindable = new HashSet<>(context.bindableInputValueIds());
         var buffers = new ArrayList<PreparedScheduleContribution.Buffer>();
         for (PreparedBufferAssignment assignment : context.bufferAssignments()) {
@@ -137,16 +183,19 @@ public final class CpuPreparedScheduleAssembler
             if (representationIndex < 0) {
                 continue;
             }
-            var descriptor = descriptors.get(assignment.valueId());
-            if (descriptor == null) {
+            var requirement = requirements.get(assignment.valueId());
+            if (requirement == null) {
                 throw new IllegalArgumentException(
                         "prepared CPU buffer has no graph descriptor");
             }
+            var descriptor = requirement.descriptor();
             PreparedRepresentationPlan.BufferPreparation preparation;
             if (representationIndex == 0 && bindable.contains(assignment.valueId())) {
                 preparation = new PreparedRepresentationPlan.CallerInput();
             } else if (representationIndex == 0
                     && context.constants().containsKey(assignment.valueId())) {
+                requireSourceConstantPolicy(
+                        requirement, context.constants().get(assignment.valueId()));
                 preparation = new PreparedRepresentationPlan.InitializedBuffer(
                         CpuRepresentationRecipes.initializedBuffer(
                                 descriptor.dataType(),
@@ -177,6 +226,8 @@ public final class CpuPreparedScheduleAssembler
     }
     /**
      * Assembles one immutable CPU representation, execution, and publication schedule.
+     * Source-only constants are checked against the same CPU canonical policy even when their
+     * physical resources were supplied explicitly rather than discovered through the callback.
      *
      * @param context the non-null validated context containing exactly one non-empty compiled and
      *     prepared CPU partition, complete dense buffer assignments, and one exact memory plan
@@ -187,7 +238,8 @@ public final class CpuPreparedScheduleAssembler
      * @throws IllegalStateException if the outer CPU integration owner is closed
      * @throws IllegalArgumentException if the context does not contain exactly one non-empty
      *     CPU-owned compile/prepared partition, a prepared buffer has no graph descriptor, or a
-     *     published value has no prepared buffer assignment
+     *     published value has no prepared buffer assignment, or a source-only constant violates
+     *     CPU's canonical source policy
      */
     @Override
     public PreparedSchedule assemble(PreparedScheduleContext context) {
@@ -197,8 +249,9 @@ public final class CpuPreparedScheduleAssembler
         }
         validateSoleCpuPartition(context);
 
-        var descriptors = context.graphValues().stream().collect(
-                java.util.stream.Collectors.toMap(value -> value.id(), value -> value.descriptor()));
+        var requirements = context.logicalMemoryRequirements().stream().collect(
+                java.util.stream.Collectors.toMap(
+                        LogicalMemoryRequirement::valueId, requirement -> requirement));
         var bindable = new HashSet<>(context.bindableInputValueIds());
         var constants = context.constants();
 
@@ -207,13 +260,15 @@ public final class CpuPreparedScheduleAssembler
                 context.memoryPlan().buffers().size());
         for (int index = 0; index < context.bufferAssignments().size(); index++) {
             PreparedBufferAssignment assignment = context.bufferAssignments().get(index);
-            var descriptor = descriptors.get(assignment.valueId());
-            if (descriptor == null) {
+            var requirement = requirements.get(assignment.valueId());
+            if (requirement == null) {
                 throw new IllegalArgumentException("prepared CPU buffer has no graph descriptor");
             }
+            var descriptor = requirement.descriptor();
             if (bindable.contains(assignment.valueId())) {
                 bufferPreparations.add(List.of(new PreparedRepresentationPlan.CallerInput()));
             } else if (constants.containsKey(assignment.valueId())) {
+                requireSourceConstantPolicy(requirement, constants.get(assignment.valueId()));
                 bufferPreparations.add(List.of(new PreparedRepresentationPlan.InitializedBuffer(
                         CpuRepresentationRecipes.initializedBuffer(
                                 descriptor.dataType(), context.memoryPlan().buffers().get(index),

@@ -190,7 +190,7 @@ class CpuConcatStackPerformanceTest {
                 : c.addressing.equals("BOUNDED_INT_TARGET") ? "bounded-concat" : c.form.toLowerCase();
         var row=new CpuAffineMovementIndexingScatterRandomCleanJavaOracle.Row(candidate.ownerId(), family, route.specialization().entryType().descriptorString(), type.name(), false, candidate.context().values().getLast().descriptor().shape().rank(), 0L, movement.plan().occurrenceToBoundary());
         var clean=CpuAffineMovementIndexingScatterRandomCleanJavaOracle.compile(List.of(row));
-        var generator=new CpuClassFileKernelGenerator(); MethodHandle generated=generator.defineClassBytes(route.specialization(), generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+        var generator=new CpuClassFileKernelGenerator(); MethodHandle generated=generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
         MethodHandle direct=CpuAffineMovementIndexingScatterRandomCleanJavaOracle.entry(clean, candidate.ownerId(), route.specialization().entryType().descriptorString());
         CarrierSet generatedCarriers=carriers(candidate, plan, route.specialization()); CarrierSet directCarriers=carriers(candidate, plan, route.specialization());
         List<Object> generatedArgs=generatedCarriers.arguments; List<Object> directArgs=directCarriers.arguments;

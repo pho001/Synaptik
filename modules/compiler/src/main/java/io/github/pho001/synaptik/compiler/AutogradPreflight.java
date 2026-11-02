@@ -89,12 +89,16 @@ import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorProducer;
 import io.github.pho001.synaptik.model.tensor.TensorProvenance;
+import java.math.BigInteger;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -191,6 +195,18 @@ import java.util.Set;
  * validation, or optimization may consume IDs before failing. This owner neither reads Tensor
  * payloads, captures a graph, allocates storage, binds a dynamic Dimension, lowers work, nor
  * executes computation.
+ *
+ * <p>General scans retain whole-source facts and selected finite routes in {@link ScanGradientRules}.
+ * Every original scan, including unrelated branches, is checked before derivative allocation.
+ * Selected D/ND policy is aggregated per requested target at each legal prefix, across all
+ * selected roots, tied actual positions and ordinary routes outside Scan. Syntactic ancestry
+ * remains distinct from differentiable ancestry, so an unused computed actual cannot create
+ * an ND-only diagnostic merely by belonging to the outer inventory.
+ * Original length scans must have only ROW(0) carries/sequences, including unused and nongradient
+ * declarations; this original-source gate is not applied to generated reverse mixed-role inputs.
+ * Residual roots/paths/targets and scan higher-order requests reject. Body-local plans alone may
+ * traverse false-flag carried values: their flags stay unchanged, and public output, target and
+ * explicit-seed guards are not relaxed.</p>
  */
 final class AutogradPreflight {
     private AutogradPreflight() {}
@@ -222,7 +238,13 @@ final class AutogradPreflight {
         }
 
         Inventory original = inventory(forwardOutputs);
-        rejectForwardOnlyOccurrences(original);
+        ScanBodyInference.validateScopes(forwardOutputs);
+        var scanSources = rejectForwardOnlyOccurrences(original);
+        for (TensorProducer producer : original.producerPostorder()) {
+            if (producer.scanBody().isPresent() && request.stages().size() != 1) {
+                throw new IllegalArgumentException("general scan supports first-order only; createGraph is unsupported");
+            }
+        }
         FunctionalGradientRequest.Stage firstRequest = request.stages().getFirst();
         List<Tensor> firstOutputs = new ArrayList<>(firstRequest.outputs().size());
         IdentityHashMap<Tensor, Integer> outputPositions = new IdentityHashMap<>();
@@ -265,7 +287,7 @@ final class AutogradPreflight {
                 firstRequest.cotangentSeeds(),
                 firstRequest.targets(),
                 firstRequest.disconnectedPolicy(),
-                original);
+                original, false, scanSources);
         if (request.stages().size() == 2) {
             validateSecondStageClosure(request.stages().get(1), first);
         }
@@ -357,12 +379,90 @@ final class AutogradPreflight {
             List<Tensor> targets,
             FunctionalGradientRequest.DisconnectedPolicy policy,
             Inventory original) {
+        return preflightStage(stageIndex, outputs, seeds, targets, policy, original, false);
+    }
+
+    /**
+     * Selects only exact proved local root/formal pairs, retaining ordinary policy per pair.
+     * Unioning endpoint lists first would accidentally qualify their Cartesian product.
+     * @param body independently validated lexical template
+     * @param pairs root/formal declaration pairs used by selected finite outer routes
+     * @param rootPorts compact root declaration positions
+     * @param targetPositions compact formal declaration positions
+     * @return one ordinary stage with the union of the exact pair-selected positional edges
+     */
+    static StagePlan preflightBody(io.github.pho001.synaptik.model.tensor.ScanBody body,
+            List<ScanGradientRules.Pair> pairs, List<Integer> rootPorts, List<Integer> targetPositions) {
+        var allRoots = new ArrayList<>(body.nextCarry());
+        allRoots.addAll(body.emissions());
+        List<Tensor> formals = ScanBodyInference.formals(body);
+        List<Tensor> roots = rootPorts.stream().map(allRoots::get).toList();
+        List<Tensor> targets = targetPositions.stream().map(formals::get).toList();
+        Inventory ancestry = inventory(roots);
+        var selected = new ArrayList<SelectedOccurrence>();
+        for (ScanGradientRules.Pair pair : pairs) {
+            List<Tensor> oneRoot = List.of(allRoots.get(pair.seedOutputPort()));
+            StagePlan one = preflightStage(0, oneRoot, List.of(Optional.empty()),
+                    List.of(formals.get(pair.actualInputPosition())),
+                    FunctionalGradientRequest.DisconnectedPolicy.ERROR, inventory(oneRoot), true);
+            for (SelectedOccurrence occurrence : one.selectedOccurrences()) {
+                int existing = -1;
+                for (int i = 0; i < selected.size(); i++) {
+                    SelectedOccurrence candidate = selected.get(i);
+                    if (candidate.producer() == occurrence.producer()
+                            && candidate.outputIndex() == occurrence.outputIndex()) { existing = i; break; }
+                }
+                boolean[] flags = occurrence.selectedInputs();
+                if (existing >= 0) {
+                    boolean[] previous = selected.get(existing).selectedInputs();
+                    for (int i = 0; i < flags.length; i++) flags[i] |= previous[i];
+                }
+                int postorder = ancestry.producerPostorder().indexOf(occurrence.producer());
+                var merged = new SelectedOccurrence(postorder, occurrence.producer(),
+                        occurrence.outputIndex(), flags, occurrence.familyOwner());
+                if (existing < 0) selected.add(merged); else selected.set(existing, merged);
+            }
+        }
+        selected.sort(java.util.Comparator.comparingInt(SelectedOccurrence::postorderIndex)
+                .thenComparingInt(SelectedOccurrence::outputIndex));
+        BitSet connected = new BitSet();
+        connected.set(0, targets.size());
+        return new StagePlan(0, roots, Collections.nCopies(roots.size(), Optional.empty()), targets,
+                ancestry.producerPostorder(), selected, connected,
+                FunctionalGradientRequest.DisconnectedPolicy.ZERO, ancestry.producers(), Map.of());
+    }
+
+    /**
+     * Selects existing rules for a public stage or a closed internal body flow.
+     * @param stageIndex zero-based derivative stage
+     * @param outputs ordered cotangent roots, repeated roles permitted only internally
+     * @param seeds aligned explicit public seeds or empty internal allocation-free placeholders
+     * @param targets ordered original targets or all declared body formals
+     * @param policy public disconnected policy; internal unused formals receive typed zeros
+     * @param original allocation-free original inventory
+     * @param internalBody whether source eligibility guards are bypassed only for temporal flow
+     * @return successful allocation-free role/rule plan
+     * @throws IllegalArgumentException if public guards or existing occurrence rules fail
+     */
+    private static StagePlan preflightStage(
+            int stageIndex, List<Tensor> outputs, List<Optional<Tensor>> seeds,
+            List<Tensor> targets, FunctionalGradientRequest.DisconnectedPolicy policy,
+            Inventory original, boolean internalBody) {
+        return preflightStage(stageIndex, outputs, seeds, targets, policy, original, internalBody, null);
+    }
+
+    /** Reuses the whole-original source facts in both selected-route passes. */
+    private static StagePlan preflightStage(
+            int stageIndex, List<Tensor> outputs, List<Optional<Tensor>> seeds,
+            List<Tensor> targets, FunctionalGradientRequest.DisconnectedPolicy policy,
+            Inventory original, boolean internalBody,
+            IdentityHashMap<TensorProducer, ScanGradientRules.SourcePlan> originalScanSources) {
         String prefix = "functionalGradientRequest.stages[" + stageIndex + "]";
         for (int index = 0; index < outputs.size(); index++) {
             Tensor output = outputs.get(index);
             DataType outputType = output.descriptor().dataType();
             if (!outputType.isFloating()
-                    || (stageIndex == 0 && !output.descriptor().requiresGrad())) {
+                    || (!internalBody && stageIndex == 0 && !output.descriptor().requiresGrad())) {
                 throw new IllegalArgumentException(
                         prefix + ".outputs[" + index
                                 + (stageIndex == 0
@@ -370,6 +470,7 @@ final class AutogradPreflight {
                                         : "] must be floating"));
             }
             Optional<Tensor> seed = seeds.get(index);
+            if (internalBody) continue; // Real internal seeds bind only after whole-body preflight.
             if (seed.isEmpty()) {
                 if (!output.descriptor().requiresGrad()) {
                     throw new IllegalArgumentException(
@@ -408,18 +509,25 @@ final class AutogradPreflight {
 
         for (int index = 0; index < targets.size(); index++) {
             Tensor target = targets.get(index);
-            if (!original.tensors().containsKey(target)) {
+            if (!internalBody && !original.tensors().containsKey(target)) {
                 throw new IllegalArgumentException(
                         prefix + ".targets[" + index
                                 + "] is not in the complete original forward inventory");
             }
             if (!target.descriptor().dataType().isFloating()
-                    || !target.descriptor().requiresGrad()) {
+                    || (!internalBody && !target.descriptor().requiresGrad())) {
                 throw new IllegalArgumentException(
                         prefix + ".targets[" + index
                                 + "] must be floating and require gradients");
             }
             TensorProvenance targetProvenance = target.provenance().orElse(null);
+            if (targetProvenance != null && targetProvenance.producer().scanBody().isPresent()) {
+                var attrs = (io.github.pho001.synaptik.model.operation.scan.ScanAttrs)
+                        targetProvenance.producer().operation().attrs();
+                if (targetProvenance.outputIndex() >= attrs.carryCount() + attrs.emissionCount()) {
+                    throw new IllegalArgumentException(prefix + ".targets[" + index + "] is a scan residual port");
+                }
+            }
             if (targetProvenance != null
                     && targetProvenance.producer().operation().kind()
                             == BatchNormKind.BATCH_NORM_TRAINING
@@ -431,7 +539,26 @@ final class AutogradPreflight {
         }
 
         Inventory ancestry = inventory(outputs);
-        Set<Tensor> requiredCotangents = requiredCotangents(ancestry, outputs);
+        var scanSources = originalScanSources;
+        if (scanSources == null) {
+            scanSources = new IdentityHashMap<>();
+            for (TensorProducer producer : ancestry.producerPostorder()) if (producer.scanBody().isPresent()) {
+                scanSources.put(producer, ScanGradientRules.preflightSource(producer));
+            }
+        }
+        Set<Tensor> requiredCotangents = requiredCotangents(ancestry, outputs, scanSources);
+        for (TensorProducer producer : ancestry.producerPostorder()) {
+            if (producer.scanBody().isEmpty()) continue;
+            var attrs = (io.github.pho001.synaptik.model.operation.scan.ScanAttrs) producer.operation().attrs();
+            for (int output : ancestry.selectedOutputs(producer)) {
+                if (output >= attrs.carryCount() + attrs.emissionCount()
+                        && requiredCotangents.contains(producer.output(output))) {
+                    throw new IllegalArgumentException("scan residual ports cannot be differentiation roots or paths");
+                }
+            }
+        }
+        FinitePolicy finitePolicy = ancestry.producerPostorder().stream().anyMatch(p -> p.scanBody().isPresent())
+                ? finitePolicy(ancestry, outputs, targets, scanSources) : null;
         IdentityHashMap<Tensor, BitSet> containsTargets = new IdentityHashMap<>();
         for (int targetIndex = 0; targetIndex < targets.size(); targetIndex++) {
             containsTargets
@@ -440,6 +567,7 @@ final class AutogradPreflight {
         }
         String[] nonDifferentiableRoutes = new String[targets.size()];
         List<SelectedOccurrence> selected = new ArrayList<>();
+        var scanPairs = new IdentityHashMap<TensorProducer, List<ScanGradientRules.Pair>>();
         for (int producerIndex = 0;
                 producerIndex < ancestry.producerPostorder().size();
                 producerIndex++) {
@@ -450,12 +578,19 @@ final class AutogradPreflight {
                 BitSet outputTargets = copyOf(containsTargets.get(producer.output(selectedOutput)));
                 boolean anySelectedInput = false;
                 for (int input = 0; input < producer.inputs().size(); input++) {
-                    BitSet inputTargets = containsTargets.get(producer.inputs().get(input));
+                    BitSet inputTargets = finitePolicy == null
+                            ? containsTargets.get(producer.inputs().get(input))
+                            : finitePolicy.support(producer, selectedOutput, input);
                     if (inputTargets == null || inputTargets.isEmpty()) {
                         continue;
                     }
+                    ScanGradientRules.SourcePlan scanSource = scanSources.get(producer);
+                    ScanGradientRules.PairQualification scanRoute = scanSource != null
+                            && selectedOutput < scanSource.roots().size()
+                            ? ScanGradientRules.qualify(scanSource, selectedOutput, input) : null;
+                    if (scanRoute != null && !scanRoute.syntacticRoute()) continue;
                     FirstOrderGradientCoverage.Decision decision =
-                            FirstOrderGradientCoverage.classify(producer, selectedOutput, input);
+                            classifyRoute(producer, selectedOutput, input, scanSources);
                     if (decision.disposition()
                             == FirstOrderGradientCoverage.Disposition.D) {
                         if (familyOwner != null && familyOwner != decision.owner()) {
@@ -466,13 +601,17 @@ final class AutogradPreflight {
                         selectedInputs[input] = true;
                         anySelectedInput = true;
                         outputTargets.or(inputTargets);
+                        if (scanRoute != null && requiredCotangents.contains(producer.output(selectedOutput))) {
+                            scanPairs.computeIfAbsent(producer, ignored -> new ArrayList<>())
+                                    .add(new ScanGradientRules.Pair(selectedOutput, input));
+                        }
                     } else if (decision.disposition()
                             == FirstOrderGradientCoverage.Disposition.FC) {
                         if (requiredCotangents.contains(producer.output(selectedOutput))) {
                             throw new IllegalArgumentException(prefix + "." + occurrence(
                                     producerIndex, producer, selectedOutput, input) + decision.reason());
                         }
-                    } else {
+                    } else if (finitePolicy == null) {
                         for (int targetIndex = inputTargets.nextSetBit(0);
                                 targetIndex >= 0;
                                 targetIndex = inputTargets.nextSetBit(targetIndex + 1)) {
@@ -490,7 +629,7 @@ final class AutogradPreflight {
                 if (anySelectedInput && requiredCotangents.contains(producer.output(selectedOutput))) {
                     try {
                         validateOccurrence(
-                                producerIndex, producer, selectedOutput, selectedInputs);
+                                producerIndex, producer, selectedOutput, selectedInputs, internalBody);
                     } catch (IllegalArgumentException failure) {
                         throw new IllegalArgumentException(
                                 prefix + "." + failure.getMessage(), failure);
@@ -515,11 +654,20 @@ final class AutogradPreflight {
                 connectedTargets.or(outputTargets);
             }
         }
+        if (finitePolicy != null) connectedTargets = finitePolicy.connectedTargets;
         for (int index = 0; index < targets.size(); index++) {
+            if (finitePolicy != null && finitePolicy.failClosedTargets.get(index)) {
+                throw new IllegalArgumentException(prefix + ".targets[" + index
+                        + "] has a required unsupported finite derivative route");
+            }
+            if (finitePolicy != null && finitePolicy.nonDifferentiableTargets.get(index)) {
+                throw new IllegalArgumentException(prefix + ".targets[" + index
+                        + "] has only non-differentiable routes at a permitted finite Scan prefix");
+            }
             if (connectedTargets.get(index)) {
                 continue;
             }
-            if (ancestry.routeTensors().containsKey(targets.get(index))
+            if (finitePolicy == null && ancestry.routeTensors().containsKey(targets.get(index))
                     && nonDifferentiableRoutes[index] != null) {
                 throw new IllegalArgumentException(prefix + "." + nonDifferentiableRoutes[index]);
             }
@@ -528,6 +676,12 @@ final class AutogradPreflight {
                         prefix + ".targets[" + index
                                 + "] is disconnected from the selected stage outputs");
             }
+        }
+        var scanPlans = new IdentityHashMap<TensorProducer, ScanGradientRules.BackwardPlan>();
+        for (TensorProducer producer : ancestry.producerPostorder()) {
+            List<ScanGradientRules.Pair> pairs = scanPairs.get(producer);
+            if (pairs != null) scanPlans.put(producer,
+                    ScanGradientRules.plan(scanSources.get(producer), new ScanGradientRules.Demand(pairs)));
         }
         return new StagePlan(
                 stageIndex,
@@ -538,7 +692,535 @@ final class AutogradPreflight {
                 selected,
                 connectedTargets,
                 policy,
-                original.producers());
+                original.producers(), scanPlans,
+                finitePolicy == null ? Map.of() : finitePolicy.retainedPairs);
+    }
+
+    /** Exact canonical-output/input declaration edge, also used for ordinary occurrences. */
+    private record PortPair(int output, int input) {}
+
+    /**
+     * One immutable uniform cut plus the independently qualified materialized-boundary policy.
+     * Target support is positional: retaining an edge for one target never restores another
+     * target's impossible route.
+     */
+    private record FinitePolicy(BitSet connectedTargets, BitSet nonDifferentiableTargets,
+            BitSet failClosedTargets, Map<TensorProducer, Map<PortPair, BitSet>> retainedPairs) {
+        BitSet support(TensorProducer producer, int output, int input) {
+            Map<PortPair, BitSet> pairs = retainedPairs.get(producer);
+            return pairs == null ? null : pairs.get(new PortPair(output, input));
+        }
+    }
+
+    /** A chosen canonical row, or an unproved/mixing coordinate reached from that row. */
+    private sealed interface RowCoordinate permits RootRowCoordinate, MixedRowCoordinate {}
+    private enum RootRowCoordinate implements RowCoordinate { ROW }
+
+    /**
+     * Opaque coordinate contexts are shared only for the exact same contributing boundary.
+     * They do not assert that a gather/reduction/matrix contributor uses its consumer's row.
+     */
+    private record MixedRowCoordinate(RowCoordinate parent, Tensor actual, int actualAxis,
+            Tensor origin, int originAxis) implements RowCoordinate {
+        @Override public boolean equals(Object other) {
+            return other instanceof MixedRowCoordinate row && parent.equals(row.parent)
+                    && actual == row.actual && actualAxis == row.actualAxis
+                    && origin == row.origin && originAxis == row.originAxis;
+        }
+        @Override public int hashCode() {
+            int hash = 31 * parent.hashCode() + System.identityHashCode(actual);
+            hash = 31 * hash + actualAxis;
+            hash = 31 * hash + System.identityHashCode(origin);
+            return 31 * hash + originAxis;
+        }
+    }
+
+    /** Length identity alone is deliberately insufficient to identify a control variable. */
+    private record ControlKey(Tensor lengths, RowCoordinate row) {
+        @Override public boolean equals(Object other) {
+            return other instanceof ControlKey key && lengths == key.lengths && row.equals(key.row);
+        }
+        @Override public int hashCode() {
+            return 31 * System.identityHashCode(lengths) + row.hashCode();
+        }
+    }
+
+    /**
+     * A singleton (period zero), or a bounded arithmetic progression of legal exact prefixes.
+     * Periods arise only from the existing finite relation's transient/period quotient.
+     */
+    private record PrefixDomain(long first, long last, long period) {
+        PrefixDomain {
+            if (period > 0) last = first + ((last - first) / period) * period;
+            if (first == last) period = 0;
+        }
+        boolean contains(long value) {
+            return value >= first && value <= last
+                    && (period == 0 ? value == first : (value - first) % period == 0);
+        }
+
+        PrefixDomain intersect(PrefixDomain other) {
+            if (period == 0) return other.contains(first) ? this : null;
+            if (other.period == 0) return contains(other.first) ? other : null;
+            long lower = Math.max(first, other.first), upper = Math.min(last, other.last);
+            if (lower > upper) return null;
+            if (period == other.period) {
+                return (other.first - first) % period == 0 ? new PrefixDomain(lower, upper, period) : null;
+            }
+            // CRT is metadata arithmetic, not Tensor math. BigInteger is needed only when two
+            // periodic domains meet: their exact least common period need not fit a long.
+            BigInteger a = BigInteger.valueOf(period), b = BigInteger.valueOf(other.period);
+            BigInteger gcd = a.gcd(b);
+            BigInteger difference = BigInteger.valueOf(other.first).subtract(BigInteger.valueOf(first));
+            if (difference.remainder(gcd).signum() != 0) return null;
+            BigInteger reduced = b.divide(gcd);
+            BigInteger multiplier = reduced.equals(BigInteger.ONE) ? BigInteger.ZERO
+                    : difference.divide(gcd).multiply(a.divide(gcd).modInverse(reduced)).mod(reduced);
+            BigInteger step = a.multiply(reduced);
+            BigInteger start = BigInteger.valueOf(first).add(a.multiply(multiplier)).mod(step);
+            BigInteger minimum = BigInteger.valueOf(lower);
+            if (start.compareTo(minimum) < 0) {
+                start = start.add(minimum.subtract(start).add(step).subtract(BigInteger.ONE)
+                        .divide(step).multiply(step));
+            }
+            if (start.compareTo(BigInteger.valueOf(upper)) > 0) return null;
+            long exact = start.longValueExact();
+            return step.compareTo(BigInteger.valueOf(upper - exact)) > 0
+                    ? new PrefixDomain(exact, exact, 0)
+                    : new PrefixDomain(exact, upper, step.longValueExact());
+        }
+    }
+
+    private record PrefixBinding(ControlKey key, ScanGradientRules.SourcePlan source,
+            PrefixDomain domain, PrefixBinding previous) {}
+    private record DemandEdge(TensorProducer producer, PortPair pair) {
+        @Override public boolean equals(Object other) {
+            return other instanceof DemandEdge edge && producer == edge.producer && pair.equals(edge.pair);
+        }
+        @Override public int hashCode() {
+            return 31 * System.identityHashCode(producer) + pair.hashCode();
+        }
+    }
+    private record ScanBoundary(ScanGradientRules.SourcePlan source, int input, RowCoordinate row) {
+        @Override public boolean equals(Object other) {
+            return other instanceof ScanBoundary boundary && source.producer() == boundary.source.producer()
+                    && input == boundary.input && row.equals(boundary.row);
+        }
+        @Override public int hashCode() {
+            return 31 * (31 * System.identityHashCode(source.producer()) + input) + row.hashCode();
+        }
+    }
+
+    /** A quotient state; ordinary DAG diamonds share their suffix analysis. */
+    private record RouteStateKey(ScanGradientRules.Route route, ScanBoundary boundary,
+            Map<ControlKey, PrefixDomain> domains, BitSet visitedScans, boolean numerical) {}
+    private record RouteLink(RouteState parent, DemandEdge edge) {}
+    private static final class RouteState {
+        final RouteStateKey key;
+        final PrefixBinding bindings;
+        final List<RouteLink> parents = new ArrayList<>();
+        RouteState(RouteStateKey key, PrefixBinding bindings) {
+            this.key = key;
+            this.bindings = bindings;
+        }
+    }
+
+    /**
+     * A complete feasible path, not an independent union of its endpoint roots or inputs.
+     * Its prefix predicates are compile-local proof facts; no predicate crosses a Tensor boundary.
+     */
+    private record RouteWitness(ScanGradientRules.Route route, PrefixBinding bindings,
+            List<DemandEdge> edges, boolean numerical) {
+        boolean matches(Map<ControlKey, Long> assignment) {
+            for (PrefixBinding binding = bindings; binding != null; binding = binding.previous) {
+                Long prefix = assignment.get(binding.key);
+                if (prefix == null || !binding.domain.contains(prefix)) return false;
+            }
+            return true;
+        }
+
+        boolean traverses(TensorProducer producer) {
+            for (DemandEdge edge : edges) {
+                if (edge.producer == producer) return true;
+            }
+            return false;
+        }
+    }
+
+    /** Geometry is independent of selected targets and finite control states. */
+    private record RowProofQuery(Tensor origin, int originAxis, Tensor actual, int actualAxis, Dimension batch) {
+        @Override public boolean equals(Object other) {
+            return other instanceof RowProofQuery query && origin == query.origin && originAxis == query.originAxis
+                    && actual == query.actual && actualAxis == query.actualAxis && batch.equals(query.batch);
+        }
+        @Override public int hashCode() {
+            int hash = 31 * System.identityHashCode(origin) + originAxis;
+            hash = 31 * hash + System.identityHashCode(actual);
+            hash = 31 * hash + actualAxis;
+            return 31 * hash + batch.hashCode();
+        }
+    }
+
+    /**
+     * Computes one source-feasible positional cut, then qualifies retained seeds as PRESENT over
+     * the consuming local domain. Both passes use the ordinary S/D/FC owner; neither constructs
+     * derivative Tensors. The ordinary no-Scan path does not create any of these facts.
+     */
+    private static FinitePolicy finitePolicy(Inventory ancestry, List<Tensor> outputs, List<Tensor> targets,
+            IdentityHashMap<TensorProducer, ScanGradientRules.SourcePlan> sources) {
+        IdentityHashMap<Tensor, BitSet> syntacticTargets = syntacticTargets(ancestry, targets, sources);
+        var retained = new IdentityHashMap<TensorProducer, Map<PortPair, BitSet>>();
+        BitSet connected = new BitSet(), nd = new BitSet(), fc = new BitSet();
+        var witnesses = new ArrayList<List<RouteWitness>>();
+        var rowProofs = new java.util.HashMap<RowProofQuery, Boolean>();
+        for (int target = 0; target < targets.size(); target++) {
+            List<RouteWitness> paths = routeWitnesses(ancestry, outputs, targets.get(target), target,
+                    syntacticTargets, sources, rowProofs);
+            witnesses.add(paths);
+            for (RouteWitness path : paths) {
+                if (path.route.failClosed()) fc.set(target);
+                if (!path.route.differentiable()) continue;
+                connected.set(target);
+                for (DemandEdge edge : path.edges) {
+                    retained.computeIfAbsent(edge.producer, ignored -> new LinkedHashMap<>())
+                            .computeIfAbsent(edge.pair, ignored -> new BitSet()).set(target);
+                }
+            }
+            if (ndOnly(paths, null)) nd.set(target);
+        }
+
+        // Once retained, an external cotangent Tensor is present at every legal local prefix.
+        // A complete original-path witness is still required for a rescuing D bypass at the
+        // SAME assignment; another branch's existential D or published zero is not a rescue.
+        for (TensorProducer producer : ancestry.producerPostorder()) {
+            ScanGradientRules.SourcePlan source = sources.get(producer);
+            Map<PortPair, BitSet> pairs = retained.get(producer);
+            if (source == null || pairs == null) continue;
+            for (int target = 0; target < targets.size(); target++) {
+                var selectedPairs = new ArrayList<PortPair>();
+                for (var entry : pairs.entrySet()) {
+                    if (!entry.getValue().get(target)) continue;
+                    selectedPairs.add(entry.getKey());
+                    if (ScanGradientRules.qualify(source, entry.getKey().output, entry.getKey().input)
+                            .failClosed()) fc.set(target);
+                }
+                if (selectedPairs.isEmpty() || fc.get(target)) continue;
+                var bypass = new ArrayList<RouteWitness>();
+                for (RouteWitness path : witnesses.get(target)) {
+                    if (path.route.differentiable() && !path.traverses(producer)) bypass.add(path);
+                }
+                // Restart retained roots at the materialized boundary. Numerical input requests
+                // and all their suffixes stay inside the cut; genuine S/ND ancestry remains
+                // available separately for target policy.
+                var rootPorts = new BitSet();
+                for (PortPair pair : selectedPairs) rootPorts.set(pair.output);
+                var roots = new ArrayList<Tensor>();
+                for (int port = rootPorts.nextSetBit(0); port >= 0; port = rootPorts.nextSetBit(port + 1)) {
+                    roots.add(producer.output(port));
+                }
+                var local = new ArrayList<>(routeWitnesses(ancestry, roots, targets.get(target), target,
+                        syntacticTargets, sources, rowProofs, retained));
+                local.addAll(bypass);
+                if (ndOnly(local, source)) nd.set(target);
+            }
+        }
+        var frozen = new IdentityHashMap<TensorProducer, Map<PortPair, BitSet>>();
+        retained.forEach((producer, pairs) -> {
+            var copy = new LinkedHashMap<PortPair, BitSet>();
+            pairs.forEach((pair, support) -> copy.put(pair, (BitSet) support.clone()));
+            frozen.put(producer, Collections.unmodifiableMap(copy));
+        });
+        return new FinitePolicy(connected, nd, fc, Collections.unmodifiableMap(frozen));
+    }
+
+    /** Ordinary syntax is retained through ND roles, but unused Scan actuals are not ancestry. */
+    private static IdentityHashMap<Tensor, BitSet> syntacticTargets(Inventory ancestry, List<Tensor> targets,
+            IdentityHashMap<TensorProducer, ScanGradientRules.SourcePlan> sources) {
+        var result = new IdentityHashMap<Tensor, BitSet>();
+        for (int target = 0; target < targets.size(); target++) {
+            result.computeIfAbsent(targets.get(target), ignored -> new BitSet()).set(target);
+        }
+        for (TensorProducer producer : ancestry.producerPostorder()) {
+            ScanGradientRules.SourcePlan source = sources.get(producer);
+            for (int output : ancestry.selectedOutputs(producer)) {
+                BitSet support = copyOf(result.get(producer.output(output)));
+                for (int input = 0; input < producer.inputs().size(); input++) {
+                    if (source != null && !ScanGradientRules.hasPrimalRoute(source, output, input)) continue;
+                    BitSet inputSupport = result.get(producer.inputs().get(input));
+                    if (inputSupport != null) support.or(inputSupport);
+                }
+                if (!support.isEmpty()) result.put(producer.output(output), support);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Computes a finite path quotient in reverse producer postorder. Equal ordinary diamonds
+     * share a state and retain a provenance DAG, rather than enumerating exponentially many
+     * equivalent paths. Different Scan ancestry is not merged: an independent D bypass must
+     * remain distinguishable from a path through the occurrence whose ND obligation it rescues.
+     */
+    private static List<RouteWitness> routeWitnesses(Inventory ancestry, List<Tensor> outputs,
+            Tensor target, int targetIndex, IdentityHashMap<Tensor, BitSet> syntacticTargets,
+            IdentityHashMap<TensorProducer, ScanGradientRules.SourcePlan> sources,
+            Map<RowProofQuery, Boolean> rowProofs) {
+        return routeWitnesses(ancestry, outputs, target, targetIndex, syntacticTargets, sources,
+                rowProofs, null);
+    }
+
+    /**
+     * A local restart may inspect original S/ND ancestry, but its numerical witnesses must use
+     * the frozen target-specific cut throughout the suffix. Removing numerical eligibility
+     * does not convert an excluded original D path into an intentional ND path.
+     */
+    private static List<RouteWitness> routeWitnesses(Inventory ancestry, List<Tensor> outputs,
+            Tensor target, int targetIndex, IdentityHashMap<Tensor, BitSet> syntacticTargets,
+            IdentityHashMap<TensorProducer, ScanGradientRules.SourcePlan> sources,
+            Map<RowProofQuery, Boolean> rowProofs,
+            Map<TensorProducer, Map<PortPair, BitSet>> cut) {
+        var states = new IdentityHashMap<Tensor, Map<RouteStateKey, RouteState>>();
+        for (Tensor output : outputs) {
+            addRouteState(states, output, new RouteStateKey(ScanGradientRules.Route.identity(),
+                    null, Map.of(), new BitSet(), true), null, null, null);
+        }
+        for (int producerIndex = ancestry.producerPostorder().size() - 1; producerIndex >= 0; producerIndex--) {
+            TensorProducer producer = ancestry.producerPostorder().get(producerIndex);
+            ScanGradientRules.SourcePlan source = sources.get(producer);
+            for (int output : ancestry.selectedOutputs(producer)) {
+                Tensor value = producer.output(output);
+                if (value == target) continue;
+                BitSet support = syntacticTargets.get(value);
+                Map<RouteStateKey, RouteState> incoming = states.get(value);
+                if (incoming == null || support == null || !support.get(targetIndex)) continue;
+                for (RouteState state : incoming.values()) {
+                    if (source == null) {
+                        for (int input = 0; input < producer.inputs().size(); input++) {
+                            BitSet inputSupport = syntacticTargets.get(producer.inputs().get(input));
+                            if (inputSupport == null || !inputSupport.get(targetIndex)) continue;
+                            ScanGradientRules.Route edge = ScanGradientRules.Route.ordinary(
+                                    FirstOrderGradientCoverage.classify(producer, output, input));
+                            PortPair pair = new PortPair(output, input);
+                            addRouteState(states, producer.inputs().get(input),
+                                    new RouteStateKey(state.key.route.then(edge), state.key.boundary,
+                                            state.key.domains, state.key.visitedScans,
+                                            state.key.numerical && retainsNumericalEdge(cut, producer, pair, targetIndex)),
+                                    state.bindings, state, new DemandEdge(producer, pair));
+                        }
+                        continue;
+                    }
+                    boolean residual = output >= source.roots().size();
+                    if (residual && (state.key.route.differentiable() || state.key.route.failClosed())) {
+                        throw new IllegalArgumentException("scan residual ports cannot be differentiation roots or paths");
+                    }
+                    RowCoordinate row = rowCoordinate(source, output, state.key.boundary, rowProofs);
+                    BitSet visited = (BitSet) state.key.visitedScans.clone();
+                    visited.set(producerIndex);
+                    List<ScanGradientRules.FinitePrefix> prefixes = source.finitePrefixes().states();
+                    int first = source.attrs().lengthAware() ? 0
+                            : source.finitePrefixes().indexAt(source.attrs().timeCount());
+                    int end = source.attrs().lengthAware() ? prefixes.size() : first + 1;
+                    for (int prefix = first; prefix < end; prefix++) {
+                        PrefixBinding bindings = state.bindings;
+                        Map<ControlKey, PrefixDomain> domains = state.key.domains;
+                        if (source.attrs().lengthAware()) {
+                            ControlKey key = new ControlKey(producer.inputs().getLast(), row);
+                            PrefixDomain domain = prefixDomain(source, prefix);
+                            PrefixDomain previous = domains.get(key);
+                            if (previous != null) domain = domain.intersect(previous);
+                            if (domain == null) continue;
+                            var extended = new LinkedHashMap<>(domains);
+                            extended.put(key, domain);
+                            domains = Collections.unmodifiableMap(extended);
+                            bindings = new PrefixBinding(key, source, domain, bindings);
+                        }
+                        for (int input = 0; input < producer.inputs().size(); input++) {
+                            PortPair pair = new PortPair(output, input);
+                            BitSet inputSupport = syntacticTargets.get(producer.inputs().get(input));
+                            if (inputSupport == null || !inputSupport.get(targetIndex)) continue;
+                            ScanGradientRules.Route edge = residual
+                                    ? ScanGradientRules.primalRoute(source, prefixes.get(prefix), output, input)
+                                    : ScanGradientRules.route(source, prefixes.get(prefix), output, input).withoutUses();
+                            if (!edge.syntactic()) continue;
+                            addRouteState(states, producer.inputs().get(input),
+                                    new RouteStateKey(state.key.route.then(edge),
+                                            new ScanBoundary(source, input, row), domains, visited,
+                                            state.key.numerical && retainsNumericalEdge(cut, producer, pair, targetIndex)),
+                                    bindings, state, new DemandEdge(producer, pair));
+                        }
+                    }
+                }
+            }
+        }
+        Map<RouteStateKey, RouteState> complete = states.get(target);
+        if (complete == null) return List.of();
+        var result = new ArrayList<RouteWitness>();
+        for (RouteState state : complete.values()) {
+            var edges = new java.util.LinkedHashSet<DemandEdge>();
+            Set<RouteState> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+            var pending = new ArrayDeque<RouteState>();
+            pending.add(state);
+            while (!pending.isEmpty()) {
+                RouteState next = pending.removeLast();
+                if (!seen.add(next)) continue;
+                for (RouteLink link : next.parents) {
+                    edges.add(link.edge);
+                    pending.add(link.parent);
+                }
+            }
+            result.add(new RouteWitness(state.key.route, state.bindings, List.copyOf(edges), state.key.numerical));
+        }
+        return List.copyOf(result);
+    }
+
+    private static boolean retainsNumericalEdge(Map<TensorProducer, Map<PortPair, BitSet>> cut,
+            TensorProducer producer, PortPair pair, int target) {
+        if (cut == null) return true; // Whole-source feasibility has not selected a cut yet.
+        Map<PortPair, BitSet> pairs = cut.get(producer);
+        BitSet support = pairs == null ? null : pairs.get(pair);
+        return support != null && support.get(target);
+    }
+
+    private static void addRouteState(IdentityHashMap<Tensor, Map<RouteStateKey, RouteState>> states,
+            Tensor value, RouteStateKey key, PrefixBinding bindings, RouteState parent, DemandEdge edge) {
+        RouteState state = states.computeIfAbsent(value, ignored -> new LinkedHashMap<>())
+                .computeIfAbsent(key, ignored -> new RouteState(key, bindings));
+        if (parent != null) state.parents.add(new RouteLink(parent, edge));
+    }
+
+    /** A correlation is a qualified contributor mapping, never equality of batch extents. */
+    private static RowCoordinate rowCoordinate(ScanGradientRules.SourcePlan source, int output,
+            ScanBoundary parent, Map<RowProofQuery, Boolean> rowProofs) {
+        if (parent == null) return RootRowCoordinate.ROW;
+        var fromAxis = ScanGradientRules.outerRowAxis(source, output);
+        var toAxis = ScanGradientRules.actualRowAxis(parent.source, parent.input);
+        Tensor origin = source.producer().output(output);
+        Tensor actual = parent.source.producer().inputs().get(parent.input);
+        if (fromAxis.isPresent() && toAxis.isPresent()) {
+            Dimension batch = source.producer().inputs().getLast().descriptor().shape().dimension(0);
+            RowProofQuery query = new RowProofQuery(origin, fromAxis.getAsInt(), actual, toAxis.getAsInt(), batch);
+            if (rowProofs.computeIfAbsent(query, key -> ScanGradientRules.sameRow(
+                    key.origin, key.originAxis, key.actual, key.actualAxis, key.batch))) {
+                return parent.row;
+            }
+        }
+        return new MixedRowCoordinate(parent.row, actual, toAxis.orElse(-1), origin, fromAxis.orElse(-1));
+    }
+
+    private static PrefixDomain prefixDomain(ScanGradientRules.SourcePlan source, int index) {
+        int start = source.finitePrefixes().cycleStart();
+        return start < 0 || index < start ? new PrefixDomain(index, index, 0)
+                : new PrefixDomain(index, source.attrs().timeCount(),
+                        source.finitePrefixes().states().size() - start);
+    }
+
+    private record ControlChoices(ControlKey key, List<Long> prefixes) {}
+
+    private static void retainSource(List<ScanGradientRules.SourcePlan> sources,
+            ScanGradientRules.SourcePlan candidate) {
+        for (var source : sources) if (source.producer() == candidate.producer()) return;
+        sources.add(candidate);
+    }
+
+    /**
+     * Builds a finite joint partition for each coordinate-qualified control. An optional local
+     * source supplies its OWN complete domain, including prefixes whose producer publishes zero.
+     */
+    private static List<ControlChoices> controlChoices(List<RouteWitness> paths,
+            ScanGradientRules.SourcePlan local) {
+        var sources = new LinkedHashMap<ControlKey, List<ScanGradientRules.SourcePlan>>();
+        for (RouteWitness path : paths) {
+            for (PrefixBinding binding = path.bindings; binding != null; binding = binding.previous) {
+                List<ScanGradientRules.SourcePlan> group =
+                        sources.computeIfAbsent(binding.key, ignored -> new ArrayList<>());
+                retainSource(group, binding.source);
+            }
+        }
+        ControlKey localKey = local != null && local.attrs().lengthAware()
+                ? new ControlKey(local.producer().inputs().getLast(), RootRowCoordinate.ROW) : null;
+        if (localKey != null) {
+            List<ScanGradientRules.SourcePlan> group =
+                    sources.computeIfAbsent(localKey, ignored -> new ArrayList<>());
+            retainSource(group, local);
+        }
+        var choices = new ArrayList<ControlChoices>();
+        for (var entry : sources.entrySet()) {
+            long end = entry.getKey().equals(localKey) ? local.attrs().timeCount() : Long.MAX_VALUE;
+            if (!entry.getKey().equals(localKey)) {
+                for (var source : entry.getValue()) end = Math.min(end, source.attrs().timeCount());
+            }
+            choices.add(new ControlChoices(entry.getKey(), prefixRepresentatives(entry.getValue(), end)));
+        }
+        return List.copyOf(choices);
+    }
+
+    /**
+     * A joint transient/period partition. Time-domain ends are explicit partition boundaries;
+     * no early periodic repeat may hide a later source's checked T boundary.
+     */
+    private static List<Long> prefixRepresentatives(List<ScanGradientRules.SourcePlan> sources, long end) {
+        var boundaries = new java.util.TreeSet<Long>();
+        boundaries.add(0L);
+        for (var source : sources) {
+            long time = source.attrs().timeCount();
+            if (time < end) boundaries.add(time + 1);
+        }
+        var starts = new ArrayList<>(boundaries);
+        var result = new ArrayList<Long>();
+        for (int segment = 0; segment < starts.size(); segment++) {
+            long last = segment + 1 < starts.size() ? starts.get(segment + 1) - 1 : end;
+            Set<List<Integer>> seen = new HashSet<>();
+            for (long prefix = starts.get(segment); ; prefix++) {
+                var indices = new ArrayList<Integer>();
+                for (var source : sources) {
+                    indices.add(prefix <= source.attrs().timeCount()
+                            ? source.finitePrefixes().indexAt(prefix) : -1);
+                }
+                if (!seen.add(List.copyOf(indices))) break;
+                result.add(prefix);
+                if (prefix == last) break;
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    /** Tests a complete assignment; short-circuiting is only over immutable proof facts. */
+    private static boolean ndOnly(List<RouteWitness> paths, ScanGradientRules.SourcePlan local) {
+        if (paths.stream().noneMatch(path -> !path.route.differentiable() && !path.route.failClosed())
+                || paths.stream().anyMatch(path ->
+                        path.numerical && path.route.differentiable() && path.bindings == null)) return false;
+        return anyAssignment(controlChoices(paths, local), assignment -> {
+            boolean nonDifferentiable = false, differentiable = false, failClosed = false;
+            for (RouteWitness path : paths) {
+                if (!path.matches(assignment)) continue;
+                nonDifferentiable |= path.route.syntactic()
+                        && !path.route.differentiable() && !path.route.failClosed();
+                differentiable |= path.numerical && path.route.differentiable();
+                failClosed |= path.numerical && path.route.failClosed();
+            }
+            return nonDifferentiable && !differentiable && !failClosed;
+        });
+    }
+
+
+    /** Iterative Cartesian traversal of finite metadata partitions; no recursion or time DAG. */
+    private static boolean anyAssignment(List<ControlChoices> choices,
+            java.util.function.Predicate<Map<ControlKey, Long>> predicate) {
+        var assignment = new LinkedHashMap<ControlKey, Long>();
+        if (choices.isEmpty()) return predicate.test(assignment);
+        int[] positions = new int[choices.size()];
+        while (true) {
+            for (int index = 0; index < choices.size(); index++) {
+                ControlChoices choice = choices.get(index);
+                assignment.put(choice.key, choice.prefixes.get(positions[index]));
+            }
+            if (predicate.test(assignment)) return true;
+            int index = positions.length - 1;
+            while (index >= 0 && ++positions[index] == choices.get(index).prefixes.size()) {
+                positions[index--] = 0;
+            }
+            if (index < 0) return false;
+        }
     }
 
     /**
@@ -553,7 +1235,8 @@ final class AutogradPreflight {
      * @param outputs non-null exact selected stage roots
      * @return a new identity set of Tensors whose cotangents may be needed; never {@code null}
      */
-    private static Set<Tensor> requiredCotangents(Inventory ancestry, List<Tensor> outputs) {
+    private static Set<Tensor> requiredCotangents(Inventory ancestry, List<Tensor> outputs,
+            IdentityHashMap<TensorProducer, ScanGradientRules.SourcePlan> scanSources) {
         Set<Tensor> required = Collections.newSetFromMap(new IdentityHashMap<>());
         required.addAll(outputs);
         for (TensorProducer producer : ancestry.producerPostorder().reversed()) {
@@ -562,7 +1245,7 @@ final class AutogradPreflight {
                     continue;
                 }
                 for (int input = 0; input < producer.inputs().size(); input++) {
-                    if (FirstOrderGradientCoverage.classify(producer, output, input).disposition()
+                    if (classifyRoute(producer, output, input, scanSources).disposition()
                             != FirstOrderGradientCoverage.Disposition.ND) {
                         required.add(producer.inputs().get(input));
                     }
@@ -570,6 +1253,27 @@ final class AutogradPreflight {
             }
         }
         return required;
+    }
+
+    /** Shares one finite source classifier between the required-route and target-route passes. */
+    private static FirstOrderGradientCoverage.Decision classifyRoute(TensorProducer producer,
+            int output, int input,
+            IdentityHashMap<TensorProducer, ScanGradientRules.SourcePlan> sources) {
+        if (producer.scanBody().isEmpty()) return FirstOrderGradientCoverage.classify(producer, output, input);
+        var attrs = (io.github.pho001.synaptik.model.operation.scan.ScanAttrs) producer.operation().attrs();
+        if (output >= attrs.carryCount() + attrs.emissionCount()) {
+            return new FirstOrderGradientCoverage.Decision(FirstOrderGradientCoverage.Disposition.FC,
+                    null, "scan residual ports cannot be differentiated");
+        }
+        var route = ScanGradientRules.qualify(sources.get(producer), output, input);
+        if (route.failClosed()) return new FirstOrderGradientCoverage.Decision(
+                FirstOrderGradientCoverage.Disposition.FC, null,
+                "required finite Scan route crosses an unsupported ordinary derivative role");
+        if (route.differentiableRoute()) return new FirstOrderGradientCoverage.Decision(
+                FirstOrderGradientCoverage.Disposition.D, FirstOrderGradientCoverage.FamilyOwner.SCAN, "");
+        return new FirstOrderGradientCoverage.Decision(FirstOrderGradientCoverage.Disposition.ND, null,
+                route.syntacticRoute() ? "intentional non-differentiable finite Scan route"
+                        : "disconnected finite Scan route");
     }
 
     private static void validateSecondStageClosure(
@@ -601,12 +1305,25 @@ final class AutogradPreflight {
         return source == null ? new BitSet() : (BitSet) source.clone();
     }
 
+    /**
+     * Proves construction prerequisites without allocating derivative expressions.
+     * @param producerIndex deterministic diagnostic position
+     * @param producer original occurrence with canonical outputs
+     * @param outputIndex selected output position
+     * @param selectedInputs ordered input-route flags
+     * @param internalBody whether false-flag local carry flow is permitted
+     * @throws IllegalArgumentException if a rule or its descriptor prerequisites are unsupported
+     */
     private static void validateOccurrence(
             int producerIndex,
             TensorProducer producer,
             int outputIndex,
-            boolean[] selectedInputs) {
+            boolean[] selectedInputs,
+            boolean internalBody) {
         Operation operation = producer.operation();
+        // Whole-source validity is already checked. Selected finite construction is proved only
+        // after exact root/input pairs have been retained, never through a Cartesian body plan.
+        if (producer.scanBody().isPresent()) return;
         if (operation.kind() == BatchNormKind.BATCH_NORM_TRAINING) {
             if (producer.outputCount() != 5) {
                 throw unsupported(
@@ -650,12 +1367,12 @@ final class AutogradPreflight {
             throw unsupported(
                     producerIndex, producer, outputIndex, -1, "output type must be floating");
         }
-        if (!output.descriptor().requiresGrad()) {
+        if (!internalBody && !output.descriptor().requiresGrad()) {
             throw unsupported(
                     producerIndex, producer, outputIndex, -1, "selected output must require gradients");
         }
         for (int input = 0; input < selectedInputs.length; input++) {
-            if (selectedInputs[input]
+            if (!internalBody && selectedInputs[input]
                     && !producer.inputs().get(input).descriptor().requiresGrad()) {
                 throw unsupported(
                         producerIndex, producer, outputIndex, input,
@@ -2150,14 +2867,18 @@ final class AutogradPreflight {
      * Rejects the first complete-forward occurrence whose gradients are deliberately deferred.
      *
      * @param original non-null allocation-free inventory in deterministic producer postorder
+     * @return request-local exact-occurrence Scan source facts, including unrelated branches
      * @throws IllegalArgumentException if the inventory contains fixed recurrence or Conv3d;
      *     rejection occurs before seed normalization or derivative Tensor construction
      */
-    private static void rejectForwardOnlyOccurrences(Inventory original) {
+    private static IdentityHashMap<TensorProducer, ScanGradientRules.SourcePlan>
+            rejectForwardOnlyOccurrences(Inventory original) {
+        var sources = new IdentityHashMap<TensorProducer, ScanGradientRules.SourcePlan>();
         for (int producerIndex = 0;
                 producerIndex < original.producerPostorder().size();
                 producerIndex++) {
             TensorProducer producer = original.producerPostorder().get(producerIndex);
+            if (producer.scanBody().isPresent()) sources.put(producer, ScanGradientRules.preflightSource(producer));
             if (producer.operation().kind() instanceof RecurrentScanKind) {
                 throw new IllegalArgumentException(
                         "producerPostorder[" + producerIndex + "] "
@@ -2177,6 +2898,7 @@ final class AutogradPreflight {
                                 + "closes its gradients");
             }
         }
+        return sources;
     }
 
     private static Inventory inventory(List<Tensor> roots) {
@@ -2337,6 +3059,8 @@ final class AutogradPreflight {
      * @param connectedTargets stage-local connected target positions
      * @param disconnectedPolicy selected disconnected target policy
      * @param originalProducers complete original forward producer identity set
+     * @param scanPlans exact-occurrence finite selected Scan plans proved before materialization
+     * @param selectedPairSupport immutable exact positional cut, with original target-role support
      */
     record StagePlan(
             int stageIndex,
@@ -2347,7 +3071,51 @@ final class AutogradPreflight {
             List<SelectedOccurrence> selectedOccurrences,
             BitSet connectedTargets,
             FunctionalGradientRequest.DisconnectedPolicy disconnectedPolicy,
-            Set<TensorProducer> originalProducers) {
+            Set<TensorProducer> originalProducers,
+            Map<TensorProducer, ScanGradientRules.BackwardPlan> scanPlans,
+            Map<TensorProducer, Map<PortPair, BitSet>> selectedPairSupport) {
+        /**
+         * Creates a local body plan without an outer finite-path cut.
+         * @param stageIndex zero-based public stage index
+         * @param outputs exact ordered reverse roots
+         * @param cotangentSeeds output-aligned optional explicit cotangents
+         * @param targets exact ordered target declarations
+         * @param producerPostorder complete selected-output ancestry in producer postorder
+         * @param selectedOccurrences checked differentiable occurrence/input selections
+         * @param connectedTargets target positions having a differentiable route
+         * @param disconnectedPolicy policy for wholly disconnected targets
+         * @param originalProducers complete original-forward producer identity set
+         * @param scanPlans exact-occurrence checked Scan plans, empty for an ordinary body
+         */
+        StagePlan(int stageIndex, List<Tensor> outputs, List<Optional<Tensor>> cotangentSeeds,
+                List<Tensor> targets, List<TensorProducer> producerPostorder,
+                List<SelectedOccurrence> selectedOccurrences, BitSet connectedTargets,
+                FunctionalGradientRequest.DisconnectedPolicy disconnectedPolicy,
+                Set<TensorProducer> originalProducers,
+                Map<TensorProducer, ScanGradientRules.BackwardPlan> scanPlans) {
+            this(stageIndex, outputs, cotangentSeeds, targets, producerPostorder, selectedOccurrences,
+                    connectedTargets, disconnectedPolicy, originalProducers, scanPlans, Map.of());
+        }
+        /**
+         * Creates an ordinary stage without controlled Scan plans or a finite-path cut.
+         * @param stageIndex zero-based public stage index
+         * @param outputs exact ordered reverse roots
+         * @param cotangentSeeds output-aligned optional explicit cotangents
+         * @param targets exact ordered target declarations
+         * @param producerPostorder complete selected-output ancestry in producer postorder
+         * @param selectedOccurrences checked differentiable occurrence/input selections
+         * @param connectedTargets target positions having a differentiable route
+         * @param disconnectedPolicy policy for wholly disconnected targets
+         * @param originalProducers complete original-forward producer identity set
+         */
+        StagePlan(int stageIndex, List<Tensor> outputs, List<Optional<Tensor>> cotangentSeeds,
+                List<Tensor> targets, List<TensorProducer> producerPostorder,
+                List<SelectedOccurrence> selectedOccurrences, BitSet connectedTargets,
+                FunctionalGradientRequest.DisconnectedPolicy disconnectedPolicy,
+                Set<TensorProducer> originalProducers) {
+            this(stageIndex, outputs, cotangentSeeds, targets, producerPostorder, selectedOccurrences,
+                    connectedTargets, disconnectedPolicy, originalProducers, Map.of());
+        }
         /**
          * Snapshots the ordered components of one successful stage plan.
          *
@@ -2360,6 +3128,8 @@ final class AutogradPreflight {
          * @param connectedTargets non-null connected-target flags
          * @param disconnectedPolicy non-null disconnected target policy
          * @param originalProducers non-null complete original forward producer identity set
+         * @param scanPlans identity-keyed checked Scan plans, empty only for ordinary stages
+         * @param selectedPairSupport compiler-owned frozen positional cut, or empty for ordinary AD
          * @throws NullPointerException if a required component is {@code null}
          */StagePlan {
             outputs = List.copyOf(outputs);
@@ -2371,6 +3141,23 @@ final class AutogradPreflight {
                     connectedTargets, "connectedTargets").clone();
             Objects.requireNonNull(disconnectedPolicy, "disconnectedPolicy");
             Objects.requireNonNull(originalProducers, "originalProducers");
+            scanPlans = Collections.unmodifiableMap(new IdentityHashMap<>(scanPlans));
+            Objects.requireNonNull(selectedPairSupport, "selectedPairSupport");
+        }
+
+        /**
+         * Checks the same positional cut used by occurrence selection and Scan planning before
+         * a real contribution is appended. Ordinary plans without a cut allow their checked roles.
+         * @param producer exact original producing occurrence
+         * @param output original canonical output position
+         * @param input original input declaration position
+         * @return whether at least one requested target retains this edge, or no cut applies
+         */
+        boolean retainsRoute(TensorProducer producer, int output, int input) {
+            if (selectedPairSupport.isEmpty()) return true;
+            Map<PortPair, BitSet> pairs = selectedPairSupport.get(producer);
+            BitSet support = pairs == null ? null : pairs.get(new PortPair(output, input));
+            return support != null && !support.isEmpty();
         }
 
         /**

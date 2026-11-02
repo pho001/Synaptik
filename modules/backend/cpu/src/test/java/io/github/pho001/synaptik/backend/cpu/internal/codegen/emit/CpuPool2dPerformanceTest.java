@@ -310,7 +310,7 @@ public final class CpuPool2dPerformanceTest {
                 55);
         var generator = new CpuClassFileKernelGenerator();
         byte[] bytes = generator.generateClassBytes(s, ir);
-        return new Generated(generator.defineClassBytes(s, bytes).entryPoint(), bytes, s);
+        return new Generated(generator.defineClassBytes(s, ir, bytes).entryPoint(), bytes, s);
     }
 
     private static CpuPool2dLowering.Geometry geometry(

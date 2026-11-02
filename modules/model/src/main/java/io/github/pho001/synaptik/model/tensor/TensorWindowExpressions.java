@@ -55,22 +55,34 @@ final class TensorWindowExpressions {
      * @throws ArithmeticException if checked window-count arithmetic overflows
      */
     static Tensor unfoldAxis(Tensor input, int axis, long size, long step) {
-        Objects.requireNonNull(input, "input");
-        Shape inputShape = input.descriptor().shape();
-        if (inputShape.rank() < 1) {
-            throw new IllegalArgumentException("unfold requires rank at least 1");
-        }
-        int normalizedAxis = normalizeAxis(axis, inputShape.rank());
-        UnfoldAxisAttrs attrs = new UnfoldAxisAttrs(normalizedAxis, size, step);
-        long selectedSize = requireStaticSize(
-                inputShape, normalizedAxis, "unfold", "selected");
-        if (size > selectedSize) {
-            throw new IllegalArgumentException(
-                    "unfold size " + size + " exceeds selected dimension " + selectedSize);
-        }
-        Shape resultShape = unfoldAxisShape(inputShape, attrs);
-        Operation operation = new Operation(WindowTransformKind.UNFOLD_AXIS, attrs);
-        return create(input, resultShape, operation);
+        return unfoldAxisChecked(input, axis, size, step, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null exact sole provenance input
+     * @param axis raw positive or negative input axis
+     * @param size positive window extent in logical elements
+     * @param step positive distance between window starts in logical elements
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input} is null, with message {@code input}
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if rank, intrinsic attributes, selected staticity, or size
+     *     fit is invalid
+     * @throws IndexOutOfBoundsException if {@code axis} is outside input rank
+     * @throws ArithmeticException if checked window-count arithmetic overflows
+     */
+    static Tensor unfoldAxisChecked(Tensor input, int axis, long size, long step,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return unfoldAxisDescriptors(
+                input == null ? null : input.descriptor(),
+                axis,
+                size,
+                step,
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -88,46 +100,34 @@ final class TensorWindowExpressions {
      * @throws ArithmeticException if checked expected-window arithmetic overflows
      */
     static Tensor foldAxis(Tensor input, int axis, long outputSize, long step) {
-        Objects.requireNonNull(input, "input");
-        Shape inputShape = input.descriptor().shape();
-        if (inputShape.rank() < 2) {
-            throw new IllegalArgumentException("foldAxis requires rank at least 2");
-        }
-        int targetRank = inputShape.rank() - 1;
-        int normalizedAxis = normalizeAxis(axis, targetRank);
-        FoldAxisAttrs attrs = new FoldAxisAttrs(normalizedAxis, outputSize, step);
-        validateNumeric(input.descriptor().dataType(), "foldAxis");
-        long actualWindows = requireStaticSize(
-                inputShape, normalizedAxis, "foldAxis", "window-count");
-        Dimension finalDimension = inputShape.dimensions().get(inputShape.rank() - 1);
-        if (!(finalDimension instanceof StaticDimension staticWindow) || staticWindow.size() <= 0) {
-            throw new IllegalArgumentException(
-                    "foldAxis requires a positive static final window dimension");
-        }
-        long windowSize = staticWindow.size();
-        if (outputSize == 0) {
-            if (actualWindows != 0) {
-                throw new IllegalArgumentException(
-                        "foldAxis window count " + actualWindows
-                                + " does not match output size and window geometry: expected=0");
-            }
-        } else {
-            if (windowSize > outputSize) {
-                throw new IllegalArgumentException(
-                        "foldAxis window size " + windowSize
-                                + " exceeds output size " + outputSize);
-            }
-            long expectedWindows = Math.addExact((outputSize - windowSize) / step, 1L);
-            if (actualWindows != expectedWindows) {
-                throw new IllegalArgumentException(
-                        "foldAxis window count " + actualWindows
-                                + " does not match output size and window geometry: expected="
-                                + expectedWindows);
-            }
-        }
-        Shape resultShape = foldAxisShape(inputShape, attrs);
-        Operation operation = new Operation(WindowTransformKind.FOLD_AXIS, attrs);
-        return create(input, resultShape, operation);
+        return foldAxisChecked(input, axis, outputSize, step, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null rank-two-or-greater window Tensor whose final dimension is window size
+     * @param axis raw positive or negative target axis, excluding the final input dimension
+     * @param outputSize non-negative restored target extent in logical elements
+     * @param step positive distance between window starts in logical elements
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input} is null, with message {@code input}
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if rank, attributes, type, staticity, final-window extent,
+     *     or count geometry is invalid
+     * @throws IndexOutOfBoundsException if {@code axis} is outside target rank
+     * @throws ArithmeticException if checked expected-window arithmetic overflows
+     */
+    static Tensor foldAxisChecked(Tensor input, int axis, long outputSize, long step,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return foldAxisDescriptors(
+                input == null ? null : input.descriptor(),
+                axis,
+                outputSize,
+                step,
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -143,16 +143,29 @@ final class TensorWindowExpressions {
      * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
      */
     static Tensor unfold2d(Tensor input, Window2dAttrs window) {
-        Objects.requireNonNull(input, "input");
-        Objects.requireNonNull(window, "window");
-        Shape inputShape = input.descriptor().shape();
-        if (inputShape.rank() != 4) {
-            throw new IllegalArgumentException("unfold2d requires rank-4 NCHW input");
-        }
-        validateFloating(input.descriptor().dataType(), "unfold2d");
-        Shape resultShape = unfold2dShape(inputShape, window);
-        Operation operation = new Operation(WindowTransformKind.UNFOLD2D, window);
-        return create(input, resultShape, operation);
+        return unfold2dChecked(input, window, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null rank-four floating NCHW Tensor retained as sole provenance input
+     * @param window non-null exact symmetric kernel/stride/padding/dilation geometry
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input} or {@code window} is null, in that order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if rank or type is invalid or static geometry proves that
+     *     an effective kernel does not fit
+     * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
+     */
+    static Tensor unfold2dChecked(Tensor input, Window2dAttrs window,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return unfold2dDescriptors(
+                input == null ? null : input.descriptor(),
+                window,
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -169,24 +182,32 @@ final class TensorWindowExpressions {
      */
     static Tensor unfold2d(
             Tensor input, Window2dAttrs window, ScalarValue paddingValue) {
-        Objects.requireNonNull(input, "input");
-        Objects.requireNonNull(window, "window");
-        Objects.requireNonNull(paddingValue, "paddingValue");
-        Shape inputShape = input.descriptor().shape();
-        if (inputShape.rank() != 4) {
-            throw new IllegalArgumentException("unfold2d requires rank-4 NCHW input");
-        }
-        DataType inputDataType = input.descriptor().dataType();
-        validateFloating(inputDataType, "unfold2d");
-        if (paddingValue.dataType() != inputDataType) {
-            throw new IllegalArgumentException(
-                    "unfold2d paddingValue data type must match input data type: paddingValue="
-                            + paddingValue.dataType() + ", input=" + inputDataType);
-        }
-        Shape resultShape = unfold2dShape(inputShape, window);
-        Unfold2dAttrs attrs = new Unfold2dAttrs(window, paddingValue);
-        Operation operation = new Operation(WindowTransformKind.UNFOLD2D, attrs);
-        return create(input, resultShape, operation);
+        return unfold2dChecked(input, window, paddingValue, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null rank-four floating NCHW Tensor retained as sole provenance input
+     * @param window non-null exact symmetric kernel/stride/padding/dilation geometry
+     * @param paddingValue non-null scalar whose exact type and bits supply out-of-domain samples
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if a reference is null, checked in parameter order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if rank, input type, scalar type, or statically provable
+     *     geometry is invalid
+     * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
+     */
+    static Tensor unfold2dChecked(
+            Tensor input, Window2dAttrs window, ScalarValue paddingValue,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return unfold2dDescriptors(
+                input == null ? null : input.descriptor(),
+                window,
+                paddingValue,
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -203,25 +224,32 @@ final class TensorWindowExpressions {
      * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
      */
     static Tensor fold2d(Tensor input, Shape outputShape, Window2dAttrs window) {
-        Objects.requireNonNull(input, "input");
-        Objects.requireNonNull(outputShape, "outputShape");
-        Objects.requireNonNull(window, "window");
-        Shape inputShape = input.descriptor().shape();
-        if (inputShape.rank() != 3) {
-            throw new IllegalArgumentException("fold2d requires rank-3 canonical column input");
-        }
-        if (outputShape.rank() != 4) {
-            throw new IllegalArgumentException("fold2d outputShape must be rank-4 NCHW");
-        }
-        validateFloating(input.descriptor().dataType(), "fold2d");
-        if (!inputShape.dimensions().get(0).equals(outputShape.dimensions().get(0))) {
-            throw new IllegalArgumentException(
-                    "fold2d output batch dimension must match column batch dimension");
-        }
-        validateFold2dShape(inputShape, outputShape, window);
-        Fold2dAttrs attrs = new Fold2dAttrs(outputShape, window);
-        Operation operation = new Operation(WindowTransformKind.FOLD2D, attrs);
-        return create(input, outputShape, operation);
+        return fold2dChecked(input, outputShape, window, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null rank-three floating canonical-column Tensor
+     * @param outputShape non-null explicit rank-four NCHW result Shape retained exactly
+     * @param window non-null exact symmetric kernel/stride/padding/dilation geometry retained
+     *     exactly
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if a reference is null, checked in parameter order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if rank, type, batch, effective-kernel fit, or exact
+     *     structural channel/window compatibility is invalid
+     * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
+     */
+    static Tensor fold2dChecked(Tensor input, Shape outputShape, Window2dAttrs window,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return fold2dDescriptors(
+                input == null ? null : input.descriptor(),
+                outputShape,
+                window,
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -235,16 +263,28 @@ final class TensorWindowExpressions {
      * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
      */
     static Tensor unfold3d(Tensor input, Window3dAttrs window) {
-        Objects.requireNonNull(input, "input");
-        Objects.requireNonNull(window, "window");
-        Shape inputShape = input.descriptor().shape();
-        if (inputShape.rank() != 5) {
-            throw new IllegalArgumentException("unfold3d requires rank-5 NCDHW input");
-        }
-        validateFloating(input.descriptor().dataType(), "unfold3d");
-        Shape resultShape = unfold3dShape(inputShape, window);
-        Operation operation = new Operation(WindowTransformKind.UNFOLD3D, window);
-        return create(input, resultShape, operation);
+        return unfold3dChecked(input, window, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null exact sole provenance input
+     * @param window non-null exact depth-height-width geometry retained as operation attributes
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if a reference is null, checked in parameter order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if rank, type, or statically provable geometry is invalid
+     * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
+     */
+    static Tensor unfold3dChecked(Tensor input, Window3dAttrs window,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return unfold3dDescriptors(
+                input == null ? null : input.descriptor(),
+                window,
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -260,24 +300,31 @@ final class TensorWindowExpressions {
      */
     static Tensor unfold3d(
             Tensor input, Window3dAttrs window, ScalarValue paddingValue) {
-        Objects.requireNonNull(input, "input");
-        Objects.requireNonNull(window, "window");
-        Objects.requireNonNull(paddingValue, "paddingValue");
-        Shape inputShape = input.descriptor().shape();
-        if (inputShape.rank() != 5) {
-            throw new IllegalArgumentException("unfold3d requires rank-5 NCDHW input");
-        }
-        DataType inputDataType = input.descriptor().dataType();
-        validateFloating(inputDataType, "unfold3d");
-        if (paddingValue.dataType() != inputDataType) {
-            throw new IllegalArgumentException(
-                    "unfold3d paddingValue data type must match input data type: paddingValue="
-                            + paddingValue.dataType() + ", input=" + inputDataType);
-        }
-        Shape resultShape = unfold3dShape(inputShape, window);
-        Unfold3dAttrs attrs = new Unfold3dAttrs(window, paddingValue);
-        Operation operation = new Operation(WindowTransformKind.UNFOLD3D, attrs);
-        return create(input, resultShape, operation);
+        return unfold3dChecked(input, window, paddingValue, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null exact sole provenance input
+     * @param window non-null exact depth-height-width geometry retained by reference
+     * @param paddingValue non-null exact typed padding value retained by reference
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if a reference is null, checked in parameter order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if rank, type, padding type, or static geometry is invalid
+     * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
+     */
+    static Tensor unfold3dChecked(
+            Tensor input, Window3dAttrs window, ScalarValue paddingValue,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return unfold3dDescriptors(
+                input == null ? null : input.descriptor(),
+                window,
+                paddingValue,
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -293,25 +340,31 @@ final class TensorWindowExpressions {
      * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
      */
     static Tensor fold3d(Tensor input, Shape outputShape, Window3dAttrs window) {
-        Objects.requireNonNull(input, "input");
-        Objects.requireNonNull(outputShape, "outputShape");
-        Objects.requireNonNull(window, "window");
-        Shape inputShape = input.descriptor().shape();
-        if (inputShape.rank() != 3) {
-            throw new IllegalArgumentException("fold3d requires rank-3 canonical column input");
-        }
-        if (outputShape.rank() != 5) {
-            throw new IllegalArgumentException("fold3d outputShape must be rank-5 NCDHW");
-        }
-        validateFloating(input.descriptor().dataType(), "fold3d");
-        if (!inputShape.dimensions().get(0).equals(outputShape.dimensions().get(0))) {
-            throw new IllegalArgumentException(
-                    "fold3d output batch dimension must match column batch dimension");
-        }
-        validateFold3dShape(inputShape, outputShape, window);
-        Fold3dAttrs attrs = new Fold3dAttrs(outputShape, window);
-        Operation operation = new Operation(WindowTransformKind.FOLD3D, attrs);
-        return create(input, outputShape, operation);
+        return fold3dChecked(input, outputShape, window, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null rank-three floating canonical-column Tensor
+     * @param outputShape non-null explicit rank-five NCDHW result Shape retained by reference
+     * @param window non-null exact depth-height-width geometry retained by reference
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if a reference is null, checked in parameter order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if rank, type, batch, geometry, or structural column
+     *     compatibility is invalid
+     * @throws ArithmeticException if checked geometry or symbolic canonicalization overflows
+     */
+    static Tensor fold3dChecked(Tensor input, Shape outputShape, Window3dAttrs window,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return fold3dDescriptors(
+                input == null ? null : input.descriptor(),
+                outputShape,
+                window,
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -603,6 +656,8 @@ final class TensorWindowExpressions {
 
     /**
      * Calculates one static or symbolic floor- or ceil-mode spatial window count.
+     * Package-local Scan coordinate checking reuses this exact ordinary geometry to prove
+     * unflattened grid boundaries; it does not substitute sampled batch dimensions.
      *
      * @param inputSize non-null static or symbolic input spatial extent
      * @param kernel positive count of kernel samples
@@ -616,7 +671,7 @@ final class TensorWindowExpressions {
      * @throws IllegalArgumentException if static geometry proves the effective kernel does not fit
      * @throws ArithmeticException if checked geometry arithmetic overflows
      */
-    private static Dimension windowOutputDimension(
+    static Dimension windowOutputDimension(
             Dimension inputSize,
             long kernel,
             long padding,
@@ -654,6 +709,8 @@ final class TensorWindowExpressions {
      * {@code inputSize + 2 * padding}. A negative difference means the effective kernel does not
      * fit. Ceil mode rounds through quotient and remainder, never through the overflow-prone
      * {@code numerator + stride - 1} expression.</p>
+     * The package-local coordinate consumer shares these checked counts rather than duplicating
+     * fit/rounding arithmetic or treating empty batch geometry as a proof of row locality.
      *
      * @param inputSize non-negative static input spatial extent
      * @param kernel positive count of kernel samples
@@ -668,7 +725,7 @@ final class TensorWindowExpressions {
      * @throws ArithmeticException if any checked multiplication, addition, or subtraction
      *     overflows
      */
-    private static long windowOutputSize(
+    static long windowOutputSize(
             long inputSize,
             long kernel,
             long padding,
@@ -692,22 +749,375 @@ final class TensorWindowExpressions {
         return Math.addExact(quotient, 1L);
     }
 
+
     /**
-     * Creates one exact unresolved descriptor and delegates producer state for a fresh Tensor.
-     *
-     * @param input non-null exact sole provenance input and descriptor metadata source
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input exact real provenance operand, or null for descriptor completion
+     * @param inputDescriptor exact operand metadata shared by real and descriptor-only paths
      * @param resultShape non-null derived or exact retained result Shape
      * @param operation non-null exact typed window operation
-     * @return non-null fresh unlabeled, storage-free Tensor with unresolved layout
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
      * @throws IllegalStateException if tensor identifier space is exhausted
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata
      */
-    private static Tensor create(Tensor input, Shape resultShape, Operation operation) {
-        TensorDescriptor inputDescriptor = input.descriptor();
+    private static Tensor createChecked(Tensor input, TensorDescriptor inputDescriptor, Shape resultShape, Operation operation,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         TensorDescriptor descriptor = new TensorDescriptor(
                 inputDescriptor.dataType(),
                 resultShape,
                 Optional.empty(),
                 inputDescriptor.requiresGrad());
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
+    }
+
+    /**
+     * Completes ordinary checked semantics synchronously without creating Tensor identities.
+     * The real construction path calls these same descriptor guards and result helpers.
+     * @param operation non-null canonical operation selecting this family and its attributes
+     * @param inputs non-null ordered operand descriptors, retaining aliases and positions
+     * @param outputCount exact canonical sibling count, one
+     * @param sink non-null unretained consumer called once with checked semantics and all outputs
+     * @throws NullPointerException if a required reference is null
+     * @throws IllegalArgumentException if cardinality or ordinary semantic guards reject input
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(operation, "operation");
+        Objects.requireNonNull(inputs, "inputs");
+        Objects.requireNonNull(sink, "sink");
+        if (inputs.size() != 1 || outputCount != 1) {
+            throw new IllegalArgumentException("invalid ordinary descriptor cardinality");
+        }
+        for (TensorDescriptor input : inputs) {
+            Objects.requireNonNull(input, "input descriptor");
+        }
+        switch ((WindowTransformKind) operation.kind()) {
+            case UNFOLD_AXIS -> {
+                UnfoldAxisAttrs attrs = (UnfoldAxisAttrs) operation.attrs();
+                unfoldAxisDescriptors(inputs.get(0), attrs.axis(), attrs.size(), attrs.step(), sink, null);
+            }
+            case FOLD_AXIS -> {
+                FoldAxisAttrs attrs = (FoldAxisAttrs) operation.attrs();
+                foldAxisDescriptors(inputs.get(0), attrs.axis(), attrs.outputSize(), attrs.step(), sink, null);
+            }
+            case UNFOLD2D -> {
+                if (operation.attrs() instanceof Window2dAttrs attrs) {
+                    unfold2dDescriptors(inputs.get(0), attrs, sink, null);
+                } else {
+                    Unfold2dAttrs attrs = (Unfold2dAttrs) operation.attrs();
+                    unfold2dDescriptors(inputs.get(0), attrs.window(), attrs.paddingValue(), sink, null);
+                }
+            }
+            case UNFOLD3D -> {
+                if (operation.attrs() instanceof Window3dAttrs attrs) {
+                    unfold3dDescriptors(inputs.get(0), attrs, sink, null);
+                } else {
+                    Unfold3dAttrs attrs = (Unfold3dAttrs) operation.attrs();
+                    unfold3dDescriptors(inputs.get(0), attrs.window(), attrs.paddingValue(), sink, null);
+                }
+            }
+            case FOLD2D -> {
+                Fold2dAttrs attrs = (Fold2dAttrs) operation.attrs();
+                fold2dDescriptors(inputs.get(0), attrs.outputShape(), attrs.window(), sink, null);
+            }
+            case FOLD3D -> {
+                Fold3dAttrs attrs = (Fold3dAttrs) operation.attrs();
+                fold3dDescriptors(inputs.get(0), attrs.outputShape(), attrs.window(), sink, null);
+            }
+        }
+    }
+
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param input exact operand descriptor, subject to ordinary null/semantic guards
+     * @param axis ordinary checked construction parameter
+     * @param size ordinary checked construction parameter
+     * @param step ordinary checked construction parameter
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalInput exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor unfoldAxisDescriptors(
+            TensorDescriptor input,
+            int axis,
+            long size,
+            long step,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        Shape inputShape = input.shape();
+        if (inputShape.rank() < 1) {
+            throw new IllegalArgumentException("unfold requires rank at least 1");
+        }
+        int normalizedAxis = normalizeAxis(axis, inputShape.rank());
+        UnfoldAxisAttrs attrs = new UnfoldAxisAttrs(normalizedAxis, size, step);
+        long selectedSize = requireStaticSize(
+                inputShape, normalizedAxis, "unfold", "selected");
+        if (size > selectedSize) {
+            throw new IllegalArgumentException(
+                    "unfold size " + size + " exceeds selected dimension " + selectedSize);
+        }
+        Shape resultShape = unfoldAxisShape(inputShape, attrs);
+        Operation operation = new Operation(WindowTransformKind.UNFOLD_AXIS, attrs);
+        return createChecked(originalInput, input, resultShape, operation, descriptorCheck);
+    }
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param input exact operand descriptor, subject to ordinary null/semantic guards
+     * @param axis ordinary checked construction parameter
+     * @param outputSize ordinary checked construction parameter
+     * @param step ordinary checked construction parameter
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalInput exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor foldAxisDescriptors(
+            TensorDescriptor input,
+            int axis,
+            long outputSize,
+            long step,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        Shape inputShape = input.shape();
+        if (inputShape.rank() < 2) {
+            throw new IllegalArgumentException("foldAxis requires rank at least 2");
+        }
+        int targetRank = inputShape.rank() - 1;
+        int normalizedAxis = normalizeAxis(axis, targetRank);
+        FoldAxisAttrs attrs = new FoldAxisAttrs(normalizedAxis, outputSize, step);
+        validateNumeric(input.dataType(), "foldAxis");
+        long actualWindows = requireStaticSize(
+                inputShape, normalizedAxis, "foldAxis", "window-count");
+        Dimension finalDimension = inputShape.dimensions().get(inputShape.rank() - 1);
+        if (!(finalDimension instanceof StaticDimension staticWindow) || staticWindow.size() <= 0) {
+            throw new IllegalArgumentException(
+                    "foldAxis requires a positive static final window dimension");
+        }
+        long windowSize = staticWindow.size();
+        if (outputSize == 0) {
+            if (actualWindows != 0) {
+                throw new IllegalArgumentException(
+                        "foldAxis window count " + actualWindows
+                                + " does not match output size and window geometry: expected=0");
+            }
+        } else {
+            if (windowSize > outputSize) {
+                throw new IllegalArgumentException(
+                        "foldAxis window size " + windowSize
+                                + " exceeds output size " + outputSize);
+            }
+            long expectedWindows = Math.addExact((outputSize - windowSize) / step, 1L);
+            if (actualWindows != expectedWindows) {
+                throw new IllegalArgumentException(
+                        "foldAxis window count " + actualWindows
+                                + " does not match output size and window geometry: expected="
+                                + expectedWindows);
+            }
+        }
+        Shape resultShape = foldAxisShape(inputShape, attrs);
+        Operation operation = new Operation(WindowTransformKind.FOLD_AXIS, attrs);
+        return createChecked(originalInput, input, resultShape, operation, descriptorCheck);
+    }
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param input exact operand descriptor, subject to ordinary null/semantic guards
+     * @param window ordinary checked construction parameter
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalInput exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor unfold2dDescriptors(
+            TensorDescriptor input,
+            Window2dAttrs window,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(window, "window");
+        Shape inputShape = input.shape();
+        if (inputShape.rank() != 4) {
+            throw new IllegalArgumentException("unfold2d requires rank-4 NCHW input");
+        }
+        validateFloating(input.dataType(), "unfold2d");
+        Shape resultShape = unfold2dShape(inputShape, window);
+        Operation operation = new Operation(WindowTransformKind.UNFOLD2D, window);
+        return createChecked(originalInput, input, resultShape, operation, descriptorCheck);
+    }
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param input exact operand descriptor, subject to ordinary null/semantic guards
+     * @param window ordinary checked construction parameter
+     * @param paddingValue ordinary checked construction parameter
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalInput exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor unfold2dDescriptors(
+            TensorDescriptor input,
+            Window2dAttrs window,
+            ScalarValue paddingValue,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(window, "window");
+        Objects.requireNonNull(paddingValue, "paddingValue");
+        Shape inputShape = input.shape();
+        if (inputShape.rank() != 4) {
+            throw new IllegalArgumentException("unfold2d requires rank-4 NCHW input");
+        }
+        DataType inputDataType = input.dataType();
+        validateFloating(inputDataType, "unfold2d");
+        if (paddingValue.dataType() != inputDataType) {
+            throw new IllegalArgumentException(
+                    "unfold2d paddingValue data type must match input data type: paddingValue="
+                            + paddingValue.dataType() + ", input=" + inputDataType);
+        }
+        Shape resultShape = unfold2dShape(inputShape, window);
+        Unfold2dAttrs attrs = new Unfold2dAttrs(window, paddingValue);
+        Operation operation = new Operation(WindowTransformKind.UNFOLD2D, attrs);
+        return createChecked(originalInput, input, resultShape, operation, descriptorCheck);
+    }
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param input exact operand descriptor, subject to ordinary null/semantic guards
+     * @param outputShape ordinary checked construction parameter
+     * @param window ordinary checked construction parameter
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalInput exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor fold2dDescriptors(
+            TensorDescriptor input,
+            Shape outputShape,
+            Window2dAttrs window,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(outputShape, "outputShape");
+        Objects.requireNonNull(window, "window");
+        Shape inputShape = input.shape();
+        if (inputShape.rank() != 3) {
+            throw new IllegalArgumentException("fold2d requires rank-3 canonical column input");
+        }
+        if (outputShape.rank() != 4) {
+            throw new IllegalArgumentException("fold2d outputShape must be rank-4 NCHW");
+        }
+        validateFloating(input.dataType(), "fold2d");
+        if (!inputShape.dimensions().get(0).equals(outputShape.dimensions().get(0))) {
+            throw new IllegalArgumentException(
+                    "fold2d output batch dimension must match column batch dimension");
+        }
+        validateFold2dShape(inputShape, outputShape, window);
+        Fold2dAttrs attrs = new Fold2dAttrs(outputShape, window);
+        Operation operation = new Operation(WindowTransformKind.FOLD2D, attrs);
+        return createChecked(originalInput, input, outputShape, operation, descriptorCheck);
+    }
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param input exact operand descriptor, subject to ordinary null/semantic guards
+     * @param window ordinary checked construction parameter
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalInput exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor unfold3dDescriptors(
+            TensorDescriptor input,
+            Window3dAttrs window,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(window, "window");
+        Shape inputShape = input.shape();
+        if (inputShape.rank() != 5) {
+            throw new IllegalArgumentException("unfold3d requires rank-5 NCDHW input");
+        }
+        validateFloating(input.dataType(), "unfold3d");
+        Shape resultShape = unfold3dShape(inputShape, window);
+        Operation operation = new Operation(WindowTransformKind.UNFOLD3D, window);
+        return createChecked(originalInput, input, resultShape, operation, descriptorCheck);
+    }
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param input exact operand descriptor, subject to ordinary null/semantic guards
+     * @param window ordinary checked construction parameter
+     * @param paddingValue ordinary checked construction parameter
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalInput exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor unfold3dDescriptors(
+            TensorDescriptor input,
+            Window3dAttrs window,
+            ScalarValue paddingValue,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(window, "window");
+        Objects.requireNonNull(paddingValue, "paddingValue");
+        Shape inputShape = input.shape();
+        if (inputShape.rank() != 5) {
+            throw new IllegalArgumentException("unfold3d requires rank-5 NCDHW input");
+        }
+        DataType inputDataType = input.dataType();
+        validateFloating(inputDataType, "unfold3d");
+        if (paddingValue.dataType() != inputDataType) {
+            throw new IllegalArgumentException(
+                    "unfold3d paddingValue data type must match input data type: paddingValue="
+                            + paddingValue.dataType() + ", input=" + inputDataType);
+        }
+        Shape resultShape = unfold3dShape(inputShape, window);
+        Unfold3dAttrs attrs = new Unfold3dAttrs(window, paddingValue);
+        Operation operation = new Operation(WindowTransformKind.UNFOLD3D, attrs);
+        return createChecked(originalInput, input, resultShape, operation, descriptorCheck);
+    }
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param input exact operand descriptor, subject to ordinary null/semantic guards
+     * @param outputShape ordinary checked construction parameter
+     * @param window ordinary checked construction parameter
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalInput exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor fold3dDescriptors(
+            TensorDescriptor input,
+            Shape outputShape,
+            Window3dAttrs window,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(outputShape, "outputShape");
+        Objects.requireNonNull(window, "window");
+        Shape inputShape = input.shape();
+        if (inputShape.rank() != 3) {
+            throw new IllegalArgumentException("fold3d requires rank-3 canonical column input");
+        }
+        if (outputShape.rank() != 5) {
+            throw new IllegalArgumentException("fold3d outputShape must be rank-5 NCDHW");
+        }
+        validateFloating(input.dataType(), "fold3d");
+        if (!inputShape.dimensions().get(0).equals(outputShape.dimensions().get(0))) {
+            throw new IllegalArgumentException(
+                    "fold3d output batch dimension must match column batch dimension");
+        }
+        validateFold3dShape(inputShape, outputShape, window);
+        Fold3dAttrs attrs = new Fold3dAttrs(outputShape, window);
+        Operation operation = new Operation(WindowTransformKind.FOLD3D, attrs);
+        return createChecked(originalInput, input, outputShape, operation, descriptorCheck);
     }
 }

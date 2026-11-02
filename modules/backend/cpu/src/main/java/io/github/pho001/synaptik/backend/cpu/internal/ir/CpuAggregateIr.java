@@ -15,6 +15,10 @@ import java.util.Objects;
  * no domain is split or combined. Floating numerical rows carry an exact run-owned state shape;
  * all other rows remain workspace-free.</p>
  *
+ * <p>Equality and hashing include every component, comparing selected axes and source/target
+ * extents by content. Independently lowered immutable facts therefore remain equal after the
+ * defensive array copies, including empty arrays, without weakening containing artifact checks.</p>
+ *
  * @param kind non-null supported numerical, extrema, or Boolean fold
  * @param dataType non-null represented input and output type
  * @param form non-null ordinary axis form or right-aligned SUM-to-Shape form
@@ -23,20 +27,49 @@ import java.util.Objects;
  *     always false for SUM-to-Shape because retained target-one positions are encoded by form
  * @param inputAccess non-null structural read access
  * @param outputAccess non-null structural write access
- * @param sourceExtents exact bound source extents for SUM-to-Shape, otherwise empty; copied
- * @param targetExtents exact bound target extents for SUM-to-Shape, otherwise empty; copied
- * @param domainCount exact number of selected values in every output cell
- * @param stateLimbCount exact floating numerical limb count, otherwise zero
- * @param scratchSliceBytes exact floating numerical state bytes per worker range, otherwise zero
+ * @param sourceExtents exact bound source extents for resolved SUM-to-Shape, otherwise empty; copied
+ * @param targetExtents exact bound target extents for resolved SUM-to-Shape, otherwise empty; copied
+ * @param domainCount exact selected cardinality, or explicit admitted-count budget in symbolic mode
+ * @param stateLimbCount sufficient exact floating numerical limb count, otherwise zero
+ * @param scratchSliceBytes sufficient floating numerical state bytes per worker range, otherwise zero
  * @param floatingPolicy {@link #FIRST_LOGICAL_NAN_AND_SIGNED_ZERO}; applies to floating extrema
  * @param rangePolicy {@link #COMPLETE_OUTPUT_CELLS}; fixes the meaning of generated bounds
  * @param workspacePolicy {@link #ZERO_WORKSPACE} or {@link #EXACT_FLOATING_STATE}
+ * @param symbolicGeometry whether extent/domain values are explicit structural budgets rather
+ *     than resolved invocation geometry; original Shape equations must be authenticated by lowering
  */
 public record CpuAggregateIr(Kind kind, DataType dataType, Form form, int[] selectedAxes,
         boolean keepDimensions, CpuAccessPlan inputAccess, CpuAccessPlan outputAccess,
         long[] sourceExtents, long[] targetExtents,
         long domainCount, int stateLimbCount, long scratchSliceBytes,
-        int floatingPolicy, int rangePolicy, int workspacePolicy) implements CpuPortableKernelIr {
+        int floatingPolicy, int rangePolicy, int workspacePolicy,
+        boolean symbolicGeometry) implements CpuPortableKernelIr {
+    /**
+     * Retains the resolved ordinary identity and exact constructor contract.
+     * @param kind supported aggregate meaning
+     * @param dataType represented input/output type
+     * @param form exact attribute form
+     * @param selectedAxes increasing selected membership, copied
+     * @param keepDimensions whether selected axes remain extent one
+     * @param inputAccess structural read access
+     * @param outputAccess structural write access
+     * @param sourceExtents exact SUM-to-Shape source extents, otherwise empty
+     * @param targetExtents exact SUM-to-Shape target extents, otherwise empty
+     * @param domainCount exact selected-domain cardinality
+     * @param stateLimbCount exact floating state width, otherwise zero
+     * @param scratchSliceBytes exact floating state bytes, otherwise zero
+     * @param floatingPolicy fixed floating extrema policy
+     * @param rangePolicy complete-output-cell policy
+     * @param workspacePolicy exact-state or zero-workspace policy
+     */
+    public CpuAggregateIr(Kind kind, DataType dataType, Form form, int[] selectedAxes,
+            boolean keepDimensions, CpuAccessPlan inputAccess, CpuAccessPlan outputAccess,
+            long[] sourceExtents, long[] targetExtents, long domainCount, int stateLimbCount,
+            long scratchSliceBytes, int floatingPolicy, int rangePolicy, int workspacePolicy) {
+        this(kind,dataType,form,selectedAxes,keepDimensions,inputAccess,outputAccess,
+                sourceExtents,targetExtents,domainCount,stateLimbCount,scratchSliceBytes,
+                floatingPolicy,rangePolicy,workspacePolicy,false);
+    }
     /**
      * Creates a zero-workspace extrema/Boolean identity for existing schema-compatible callers.
      *
@@ -151,17 +184,20 @@ public record CpuAggregateIr(Kind kind, DataType dataType, Form form, int[] sele
      *     {@code null}
      * @param outputAccess structural write access with the rank implied by the form and retention
      *     policy; not {@code null}
-     * @param sourceExtents exact non-negative bound source extents for SUM-to-Shape, otherwise
-     *     empty; copied defensively
-     * @param targetExtents exact non-negative bound target extents for SUM-to-Shape, otherwise
-     *     empty; copied defensively
-     * @param domainCount exact non-negative selected-domain cardinality
-     * @param stateLimbCount positive exact-state width for floating numerical rows, otherwise zero
-     * @param scratchSliceBytes positive exact-state slice size for floating numerical rows,
+     * @param sourceExtents exact non-negative bound source extents for resolved SUM-to-Shape,
+     *     otherwise empty; copied defensively
+     * @param targetExtents exact non-negative bound target extents for resolved SUM-to-Shape,
+     *     otherwise empty; copied defensively
+     * @param domainCount exact non-negative selected-domain cardinality, or the explicit structural
+     *     admitted-count budget when symbolic geometry is selected
+     * @param stateLimbCount sufficient positive exact-state width for floating rows, otherwise zero
+     * @param scratchSliceBytes sufficient positive exact-state slice size for floating rows,
      *     otherwise zero
      * @param floatingPolicy fixed first-logical-NaN and signed-zero policy
      * @param rangePolicy fixed complete-output-cell range policy
      * @param workspacePolicy fixed zero-workspace or exact-floating-state policy
+     * @param symbolicGeometry explicit unresolved numeric recipe marker; source and target extent
+     *     arrays must be empty, and original Shape equations are authenticated by the lowerer
      * @throws NullPointerException if a reference component is {@code null}
      * @throws IllegalArgumentException if type, extents, axes, access roles, or fixed policies
      *     disagree, including an invalid right-aligned SUM-to-Shape obligation
@@ -198,11 +234,12 @@ public record CpuAggregateIr(Kind kind, DataType dataType, Form form, int[] sele
                 || form == Form.FULL && outputAccess.iterationRank() != 0
                 || form == Form.SUM_TO_SHAPE && (kind != Kind.SUM || keepDimensions
                     || outputAccess.iterationRank() > inputAccess.iterationRank()
-                    || sourceExtents.length != inputAccess.iterationRank()
-                    || targetExtents.length != outputAccess.iterationRank()
+                    || !symbolicGeometry && (sourceExtents.length != inputAccess.iterationRank()
+                    || targetExtents.length != outputAccess.iterationRank())
                     || selectedAxes.length == 0 && domainCount != 1)
                 || form != Form.SUM_TO_SHAPE
                     && (sourceExtents.length != 0 || targetExtents.length != 0)
+                || symbolicGeometry && (sourceExtents.length != 0 || targetExtents.length != 0)
                 || form != Form.FULL && form != Form.SUM_TO_SHAPE
                     && outputAccess.iterationRank() != (keepDimensions
                         ? inputAccess.iterationRank()
@@ -212,7 +249,7 @@ public record CpuAggregateIr(Kind kind, DataType dataType, Form form, int[] sele
                 || floatingPolicy != FIRST_LOGICAL_NAN_AND_SIGNED_ZERO
                 || rangePolicy != COMPLETE_OUTPUT_CELLS)
             throw new IllegalArgumentException("aggregate structural facts disagree");
-        if (form == Form.SUM_TO_SHAPE) validateSumToShape(
+        if (form == Form.SUM_TO_SHAPE && !symbolicGeometry) validateSumToShape(
                 sourceExtents, targetExtents, selectedAxes, domainCount);
     }
 
@@ -236,6 +273,48 @@ public record CpuAggregateIr(Kind kind, DataType dataType, Form form, int[] sele
      *     aggregate; never {@code null}
      */
     @Override public long[] targetExtents() { return targetExtents.clone(); }
+
+    /**
+     * Compares all immutable facts, including the contents of each defensively copied array.
+     * @param other any candidate object, including null
+     * @return true exactly for identical typed reduction, geometry and policy components
+     */
+    @Override public boolean equals(Object other) {
+        return this == other || other instanceof CpuAggregateIr ir
+                && kind == ir.kind && dataType == ir.dataType && form == ir.form
+                && Arrays.equals(selectedAxes, ir.selectedAxes)
+                && keepDimensions == ir.keepDimensions
+                && inputAccess.equals(ir.inputAccess) && outputAccess.equals(ir.outputAccess)
+                && Arrays.equals(sourceExtents, ir.sourceExtents)
+                && Arrays.equals(targetExtents, ir.targetExtents)
+                && domainCount == ir.domainCount && stateLimbCount == ir.stateLimbCount
+                && scratchSliceBytes == ir.scratchSliceBytes && floatingPolicy == ir.floatingPolicy
+                && rangePolicy == ir.rangePolicy && workspacePolicy == ir.workspacePolicy
+                && symbolicGeometry == ir.symbolicGeometry;
+    }
+
+    /**
+     * Hashes all immutable components using the same array-content meaning as {@link #equals(Object)}.
+     * @return content hash without boxing components or exposing retained arrays
+     */
+    @Override public int hashCode() {
+        int result = kind.hashCode();
+        result = 31 * result + dataType.hashCode();
+        result = 31 * result + form.hashCode();
+        result = 31 * result + Arrays.hashCode(selectedAxes);
+        result = 31 * result + Boolean.hashCode(keepDimensions);
+        result = 31 * result + inputAccess.hashCode();
+        result = 31 * result + outputAccess.hashCode();
+        result = 31 * result + Arrays.hashCode(sourceExtents);
+        result = 31 * result + Arrays.hashCode(targetExtents);
+        result = 31 * result + Long.hashCode(domainCount);
+        result = 31 * result + Integer.hashCode(stateLimbCount);
+        result = 31 * result + Long.hashCode(scratchSliceBytes);
+        result = 31 * result + Integer.hashCode(floatingPolicy);
+        result = 31 * result + Integer.hashCode(rangePolicy);
+        result = 31 * result + Integer.hashCode(workspacePolicy);
+        return 31 * result + Boolean.hashCode(symbolicGeometry);
+    }
 
     private static void validateSumToShape(long[] source, long[] target, int[] selected,
             long domainCount) {
@@ -282,7 +361,8 @@ public record CpuAggregateIr(Kind kind, DataType dataType, Form form, int[] sele
                         + ":domain=" + domainCount + ":limbs=" + stateLimbCount
                         + ":slice=" + scratchSliceBytes
                         + ":floating=" + floatingPolicy + ":range=" + rangePolicy
-                        + ":workspace=" + workspacePolicy);
+                        + ":workspace=" + workspacePolicy
+                        + (symbolicGeometry ? ":symbolic-geometry-v1" : ""));
     }
 
     /**
@@ -292,4 +372,19 @@ public record CpuAggregateIr(Kind kind, DataType dataType, Form form, int[] sele
      * @return a non-null lowercase hexadecimal structural key
      */
     @Override public String structuralKey() { return encodedKernelIr().structuralKey(); }
+    /**
+     * Reads only the semantic discriminator consumed by emission, without decoding geometry.
+     * @param ir non-null canonical aggregate envelope
+     * @return the existing encoded semantic discriminator
+     * @throws NullPointerException if the envelope is null
+     * @throws IllegalArgumentException if the family or discriminator is malformed
+     */
+    public static Kind encodedKind(CpuKernelIr ir) {
+        String identity = Objects.requireNonNull(ir, "ir").familyIdentity();
+        if (!identity.startsWith("aggregate:")) throw new IllegalArgumentException("wrong encoded family");
+        int end = identity.indexOf(':', 10);
+        if (end < 0) throw new IllegalArgumentException("missing encoded discriminator");
+        return Kind.valueOf(identity.substring(10, end));
+    }
+
 }

@@ -1,0 +1,26 @@
+CPU0035 stale-v2 fixtures: unchanged actual CPU0034 Class-Files, gzip/base64 transport only.
+No historical bytecode was synthesized by modifying new generated code.
+
+shaped:
+source=/private/tmp/synaptik-cpu0034-FgGCiI/measurement-v2/measured-fork-1/production.class
+source_identity=class-identity.bytes, compatibility.bytes, identity.txt, facts.txt in the same source directory
+geometry=runtime T=8; static B=4,H=8; FLOAT64; next=emit=h+xStep*w; final and emission demand; zero workspace
+class_sha256=32881953398f155906c8e4cc554ccaf60e14fb80c1c116872cb273465c4e75bb
+key_and_class_identity_sha256=9bc5185e846023927c0c65be4fccef83fc1ef19f2503908f2b6ca17728b850da
+compatibility_sha256=e05ad4ce7142f796bd83a367557ad8ff9be0f7b8c5ccdbba8614cf89aff2e085
+payload=scan-shaped-v2; schema/family=71; canonical projection=shaped-v1
+
+matmul:
+source=/private/tmp/synaptik-cpu0034-FgGCiI/structure/matmul-0-0.class
+source_identity=matmul-0-0.identity.txt and matmul-0-0.javap.txt in the same source directory
+geometry=runtime T=4; static M=2,K=3,N=4; FLOAT32; next=emit=h+xStep@w; final and emission demand; zero workspace
+class_sha256=55dbf382568dcfa7ae4317776346ca37752604ffacdeb88c1c60f7b0ad702a6a
+key_and_class_identity_sha256=3855fc1972754b9ddaca278bec16176bad6a97b355eeaafd43d5c173145119c5
+compatibility_sha256=8ea1e69f6a0f15a79016583c03c3a9038ca10706b457b6cdd55637114b8b5108
+payload=scan-matmul-v2; schema/family=71; canonical projection=matmul-v1
+
+Before freezing: source SHA-256, actual binary names/entry ABI/layout/geometry constants from
+source javap, and source identity streams were inspected. Regression tests independently
+verify fixture bytes, binary identity, source-equivalent v2 class and compatibility stream
+hashes, definition/persisted rejection and runtime-T reuse. The differing geometry/dtype is
+intentional; these fixtures do not purport to be the existing F32 B=2,H=3 shaped v1 case.

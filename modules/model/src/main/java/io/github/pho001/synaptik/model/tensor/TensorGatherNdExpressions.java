@@ -44,7 +44,30 @@ final class TensorGatherNdExpressions {
      * @throws IllegalStateException if tensor identifier space is exhausted at final creation
      */
     static Tensor gatherNd(Tensor data, Tensor indices) {
-        return gatherNd(data, indices, 0);
+        return gatherNdChecked(data, indices, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param data data tensor passed unchanged to the explicit path
+     * @param indices indices tensor passed unchanged to the explicit path
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code data} or {@code indices} is null, checked in order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if index type, rank, batch fit, or tuple depth is invalid
+     * @throws ArithmeticException if checked result-rank arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted at final creation
+     */
+    static Tensor gatherNdChecked(Tensor data, Tensor indices,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return gatherNdDescriptors(
+                data == null ? null : data.descriptor(),
+                indices == null ? null : indices.descriptor(),
+                descriptorCheck,
+                data,
+                indices);
     }
 
     /**
@@ -66,22 +89,33 @@ final class TensorGatherNdExpressions {
      * @throws IllegalStateException if tensor identifier space is exhausted at final creation
      */
     static Tensor gatherNd(Tensor data, Tensor indices, int batchDimensions) {
-        Objects.requireNonNull(data, "data");
-        Objects.requireNonNull(indices, "indices");
-        TensorDescriptor dataDescriptor = data.descriptor();
-        TensorDescriptor indicesDescriptor = indices.descriptor();
-        validateIndexType(indicesDescriptor);
-        Shape dataShape = dataDescriptor.shape();
-        Shape indicesShape = indicesDescriptor.shape();
-        if (indicesShape.rank() == 0) {
-            throw new IllegalArgumentException("gatherNd indices rank must be at least 1");
-        }
-        GatherNdAttrs attrs = new GatherNdAttrs(batchDimensions);
-        validateBatchDimensions(dataShape, indicesShape, batchDimensions);
-        validateBatchPrefix(dataShape, indicesShape, batchDimensions);
-        int tupleDepth = tupleDepth(dataShape, indicesShape, batchDimensions);
-        Shape resultShape = resultShape(dataShape, indicesShape, batchDimensions, tupleDepth);
-        return create(data, indices, dataDescriptor, resultShape, attrs);
+        return gatherNdChecked(data, indices, batchDimensions, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param data non-null value tensor retained as provenance input zero and never mutated
+     * @param indices non-null INT32 or INT64 coordinate tensor retained as provenance input one;
+     *     values and bounds are never inspected
+     * @param batchDimensions non-negative shared leading batch count smaller than both input ranks
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code data} or {@code indices} is null, checked in order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if index type, rank, batch prefix, or tuple depth is invalid
+     * @throws ArithmeticException if checked result-rank arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted at final creation
+     */
+    static Tensor gatherNdChecked(Tensor data, Tensor indices, int batchDimensions,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return gatherNdDescriptors(
+                data == null ? null : data.descriptor(),
+                indices == null ? null : indices.descriptor(),
+                batchDimensions,
+                descriptorCheck,
+                data,
+                indices);
     }
 
     /**
@@ -194,28 +228,122 @@ final class TensorGatherNdExpressions {
         return Shape.ofDimensions(resultDimensions);
     }
 
+
+
     /**
-     * Creates exact descriptor, semantics, ordered provenance, and one fresh derived Tensor.
-     *
-     * @param data non-null exact provenance input zero
-     * @param indices non-null exact provenance input one
-     * @param dataDescriptor non-null exact descriptor supplying retained type and eligibility
-     * @param resultShape non-null already derived result Shape
-     * @param attrs non-null normalized batch attributes retained by the operation
-     * @return a non-null fresh unlabeled, storage-free Tensor with unresolved layout
-     * @throws IllegalArgumentException if descriptor invariants reject the supplied metadata
-     * @throws IllegalStateException if tensor identifier space is exhausted at final delegation
+     * Completes ordinary checked semantics synchronously without creating Tensor identities.
+     * The same descriptor guard core serves real construction; the sink is never retained.
+     * @param operation non-null ordinary operation selecting this family and its attributes
+     * @param inputs non-null ordered operand descriptors, including repeated occurrences
+     * @param outputCount exact canonical sibling count
+     * @param sink non-null consumer called exactly once with checked semantics and all outputs
+     * @throws NullPointerException if a required reference is null
+     * @throws IllegalArgumentException if cardinality or ordinary semantic guards reject the request
      */
-    private static Tensor create(
-            Tensor data,
-            Tensor indices,
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(operation, "operation");
+        Objects.requireNonNull(inputs, "inputs");
+        Objects.requireNonNull(sink, "sink");
+        if (inputs.size() != 2 || outputCount != 1) {
+            throw new IllegalArgumentException("invalid ordinary descriptor cardinality");
+        }
+        for (TensorDescriptor input : inputs) {
+            Objects.requireNonNull(input, "input descriptor");
+        }
+        gatherNdDescriptors(inputs.get(0), inputs.get(1), ((GatherNdAttrs) operation.attrs()).batchDimensions(), sink, null, null);
+    }
+
+    /**
+     * Runs the shared descriptor guards; provenance references are used only for real construction.
+     * @param data descriptor supplying ordinary operand metadata
+     * @param indices descriptor supplying ordinary operand metadata
+     * @param descriptorCheck synchronous, unretained sink; null selects real construction
+     * @param originalData exact real operand, or null for descriptor completion
+     * @param originalIndices exact real operand, or null for descriptor completion
+     * @return the real result, or null after synchronous descriptor completion
+     */
+    private static Tensor gatherNdDescriptors(
+            TensorDescriptor data,
+            TensorDescriptor indices,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalData,
+            Tensor originalIndices) {
+        return gatherNdDescriptors(
+                data,
+                indices,
+                0,
+                descriptorCheck,
+                originalData,
+                originalIndices);
+    }
+
+    /**
+     * Runs the shared descriptor guards; provenance references are used only for real construction.
+     * @param batchDimensions ordinary checked construction parameter
+     * @param descriptorCheck synchronous, unretained sink; null selects real construction
+     * @param originalData exact real operand, or null for descriptor completion
+     * @param originalIndices exact real operand, or null for descriptor completion
+     * @return the real result, or null after synchronous descriptor completion
+     */
+    private static Tensor gatherNdDescriptors(
+            TensorDescriptor data,
+            TensorDescriptor indices,
+            int batchDimensions,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalData,
+            Tensor originalIndices) {
+        Objects.requireNonNull(data, "data");
+        Objects.requireNonNull(indices, "indices");
+        TensorDescriptor dataDescriptor = data;
+        TensorDescriptor indicesDescriptor = indices;
+        validateIndexType(indicesDescriptor);
+        Shape dataShape = dataDescriptor.shape();
+        Shape indicesShape = indicesDescriptor.shape();
+        if (indicesShape.rank() == 0) {
+            throw new IllegalArgumentException("gatherNd indices rank must be at least 1");
+        }
+        GatherNdAttrs attrs = new GatherNdAttrs(batchDimensions);
+        validateBatchDimensions(dataShape, indicesShape, batchDimensions);
+        validateBatchPrefix(dataShape, indicesShape, batchDimensions);
+        int tupleDepth = tupleDepth(dataShape, indicesShape, batchDimensions);
+        Shape resultShape = resultShape(dataShape, indicesShape, batchDimensions, tupleDepth);
+        return createDescriptors(
+                dataDescriptor,
+                resultShape,
+                attrs,
+                descriptorCheck,
+                originalData,
+                originalIndices);
+    }
+
+    /**
+     * Runs the shared descriptor guards; provenance references are used only for real construction.
+     * @param data descriptor supplying ordinary operand metadata
+     * @param indices descriptor supplying ordinary operand metadata
+     * @param dataDescriptor ordinary checked construction parameter
+     * @param resultShape ordinary checked construction parameter
+     * @param attrs ordinary checked construction parameter
+     * @param descriptorCheck synchronous, unretained sink; null selects real construction
+     * @param originalData exact real operand, or null for descriptor completion
+     * @param originalIndices exact real operand, or null for descriptor completion
+     * @return the real result, or null after synchronous descriptor completion
+     */
+    private static Tensor createDescriptors(
             TensorDescriptor dataDescriptor,
             Shape resultShape,
-            GatherNdAttrs attrs) {
+            GatherNdAttrs attrs,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalData,
+            Tensor originalIndices) {
         TensorDescriptor descriptor = new TensorDescriptor(
                 dataDescriptor.dataType(), resultShape, Optional.empty(), dataDescriptor.requiresGrad());
         Operation operation = new Operation(GatherNdKind.GATHER_ND, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(
-                descriptor, Optional.empty(), operation, List.of(data, indices));
+                descriptor, Optional.empty(), operation, List.of(originalData, originalIndices));
     }
 }

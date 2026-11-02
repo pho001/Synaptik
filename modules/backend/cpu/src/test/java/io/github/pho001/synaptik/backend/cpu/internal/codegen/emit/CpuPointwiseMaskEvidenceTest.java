@@ -109,7 +109,7 @@ class CpuPointwiseMaskEvidenceTest {
     }
 
     @Test void priorSchemaProjectionsRemainExplicitlySeparated() {
-        assertEquals(70, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(71, CpuGeneratorSchema.CURRENT_VERSION);
         CpuKernelIr virtual = virtualWhere(DataType.FLOAT32);
         assertEquals(52, specialization(virtual, DataType.FLOAT32, arrayCarriers(virtual), 52)
                 .classIdentitySchema());
@@ -275,8 +275,7 @@ class CpuPointwiseMaskEvidenceTest {
             List<CpuKernelSpecialization.CarrierAccess> carriers) {
         var generator = new CpuClassFileKernelGenerator();
         var specialization = specialization(ir, type, carriers, 61);
-        return generator.defineClassBytes(specialization,
-                generator.generateClassBytes(specialization, ir));
+        return generator.defineClassBytes(specialization, ir, generator.generateClassBytes(specialization, ir));
     }
 
     private static CpuKernelSpecialization specialization(CpuKernelIr ir, DataType type,

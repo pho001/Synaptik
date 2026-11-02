@@ -12,6 +12,22 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class CpuAccessPlanTest {
+    @Test void numericBatchBindingsPreserveZeroStridesAndCheckTrailingGeometryBeforeEmptyCounts() {
+        var plan = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ, CpuAccessPlan.Regime.DENSE_LINEAR, 2,
+                java.util.List.of(CpuAccessPlan.AxisRole.CONTIGUOUS, CpuAccessPlan.AxisRole.CONTIGUOUS), 2);
+        var binding = new CpuAccessPlan.BatchBinding(plan, java.util.List.of(4L, 0L), java.util.List.of(0L, 1L), 0,
+                java.util.List.of(0L, 1L), java.util.List.of(1L, 0L));
+        assertEquals(java.util.List.of(0L, 1L), binding.bind(0).effectiveStrides());
+        assertEquals(0, binding.bind(0).referencedElementSpan());
+        assertEquals(160, binding.bind(40).elementCount());
+        assertThrows(ArithmeticException.class, () -> binding.bind(Integer.MAX_VALUE));
+        assertThrows(IllegalArgumentException.class, () -> binding.bind(-1));
+        var bytes = new io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize(0, 16, 4);
+        assertTrue(bytes.fixedByteSize().isEmpty()); assertEquals(640, bytes.byteSize(40));
+        assertThrows(ArithmeticException.class, () -> bytes.byteSize(Long.MAX_VALUE));
+        var constant = new io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize(0, 0, 4);
+        assertTrue(constant.fixedByteSize().isEmpty()); assertEquals(0, constant.byteSize(0));
+    }
     @Test void classifiesTheCompleteOrderedRegimeFamily() {
         assertEquals(CpuAccessPlan.Regime.DENSE_LINEAR,
                 plan(Shape.of(2, 3), LayoutDescriptor.contiguous(Shape.of(2, 3)), Shape.of(2, 3)).regime());

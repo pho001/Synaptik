@@ -359,7 +359,7 @@ class CpuPointwiseMaskPerformanceTest {
           false,
           61);
       var g = new CpuClassFileKernelGenerator();
-      entry = g.defineClassBytes(s, g.generateClassBytes(s, ir)).entryPoint();
+      entry = g.defineClassBytes(s, ir, g.generateClassBytes(s, ir)).entryPoint();
     }
 
     void generated() throws Throwable {

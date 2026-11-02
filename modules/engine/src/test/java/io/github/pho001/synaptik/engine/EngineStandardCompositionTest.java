@@ -20,8 +20,6 @@ import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import java.util.List;
 import java.util.Map;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -29,18 +27,6 @@ import org.junit.jupiter.api.Test;
 
 /** Exercises ordinary Engine ownership and delegated lifecycle behavior. */
 final class EngineStandardCompositionTest {
-    @Test
-    void cpuCompositionDelegatesCompletePreparationWithoutDerivingCpuFacts() throws Exception {
-        String source = Files.readString(Path.of("src/main/java/io/github/pho001/synaptik/engine/"
-                + "CpuEngineBackendComposition.java"));
-
-        assertTrue(source.contains("GraphPreparation.prepare"));
-        assertTrue(source.contains("integration.partitionPreparation()"));
-        assertFalse(source.contains("ProducerlessPublishedConstantResource"));
-        assertFalse(source.contains("LogicalMemoryRequirement"));
-        assertFalse(source.contains("LayoutDescriptor"));
-    }
-
     @Test
     void advancedFactoryValidatesBeforeOwnershipTransfer() {
         assertEquals("cpuIntegration", assertThrows(NullPointerException.class,

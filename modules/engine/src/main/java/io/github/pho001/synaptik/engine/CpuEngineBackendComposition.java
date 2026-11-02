@@ -180,6 +180,16 @@ final class CpuEngineBackendComposition implements EngineBackendComposition {
     }
 
     /** {@inheritDoc} */
+    @Override public BufferRepresentation borrow(HostTensorStorage storage, long referencedByteSize) {
+        Objects.requireNonNull(storage, "storage");
+        if (referencedByteSize < 0 || referencedByteSize % storage.dataType().byteWidth() != 0
+                || referencedByteSize > storage.byteSize()) throw new IllegalArgumentException("invalid referenced storage prefix");
+        return integration.borrow(new io.github.pho001.synaptik.model.storage.MemorySegmentStorage(
+                storage.dataType(), referencedByteSize / storage.dataType().byteWidth(),
+                storage.segment().asSlice(0, referencedByteSize)));
+    }
+
+    /** {@inheritDoc} */
     @Override
     public byte[] copyToCanonicalHostBytes(
             BufferRepresentation representation,

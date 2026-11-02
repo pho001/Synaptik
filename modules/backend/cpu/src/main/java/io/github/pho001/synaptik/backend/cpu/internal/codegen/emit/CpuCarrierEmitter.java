@@ -42,6 +42,8 @@ final class CpuCarrierEmitter {
             ClassDesc.of("jdk.incubator.vector.VectorOperators$Comparison");
     private final CodeBuilder code;
     private final int layoutLocalBase;
+    /** Generation-only combined-Scan byte-access policy; other access seams stay unchanged. */
+    private final boolean constantByteLayouts;
     private int speciesLocal = -1;
     private int vectorByteOrderLocal = -1;
     private int maskByteSpeciesLocal = -1;
@@ -52,8 +54,22 @@ final class CpuCarrierEmitter {
      * @param code non-null Class-File API code builder retained for generation only
      */
     CpuCarrierEmitter(CodeBuilder code) {
+        this(code, false);
+    }
+
+    /**
+     * Selects constant predefined layouts only for an explicitly proved byte-addressed entry.
+     * Keeping the field at each access preserves its constant provenance at an OSR entry;
+     * checked segment operations, native byte order and byte-address units do not change.
+     * The fixed layout-local reservation remains owned by entry setup.
+     * @param code non-null method builder retained during generation only
+     * @param constantByteLayouts whether byte loads/stores use predefined layout fields;
+     *     combined symbolic-length Scan alone enables this seam
+     */
+    CpuCarrierEmitter(CodeBuilder code, boolean constantByteLayouts) {
         this.code = code;
         this.layoutLocalBase = firstGeneratedLocal(code);
+        this.constantByteLayouts = constantByteLayouts;
     }
 
     /**
@@ -73,12 +89,30 @@ final class CpuCarrierEmitter {
      * @param carrierPattern non-null ordered exact carrier forms matching {@code boundaryTypes}
      * @param directNativePredefinedLayouts whether this entry's required typed predefined
      *     unaligned layouts must be retained directly rather than recreated with the native byte
-     *     order; aggregate scalar and parallel-scalar entries pass {@code true}
+     *     order; aggregate entries and controlled ordinary helpers retain predefined native
+     *     layouts without recreating layout objects at each helper invocation
      * @throws IllegalArgumentException if the boundary lists disagree or the layout block is not
      *     the first generated-local allocation
      */
     static void prepareSegmentLayouts(CodeBuilder code, List<DataType> boundaryTypes,
             List<CarrierAccess> carrierPattern, boolean directNativePredefinedLayouts) {
+        prepareSegmentLayouts(code,boundaryTypes,carrierPattern,directNativePredefinedLayouts,false);
+    }
+
+    /**
+     * Reserves the unchanged layout slots, optionally omitting their initialization for a
+     * combined Scan whose every byte access uses a predefined constant layout field.
+     * Other entries retain exactly the existing setup and local indices.
+     * @param code non-null entry builder before its first generated local
+     * @param boundaryTypes non-null ordered represented boundary types
+     * @param carrierPattern non-null matching ordered carrier forms
+     * @param directNativePredefinedLayouts whether initialized layouts use predefined fields
+     * @param constantByteLayouts whether the combined entry consumes no layout local
+     * @throws IllegalArgumentException if the lists disagree or layout slots are not first
+     */
+    static void prepareSegmentLayouts(CodeBuilder code, List<DataType> boundaryTypes,
+            List<CarrierAccess> carrierPattern, boolean directNativePredefinedLayouts,
+            boolean constantByteLayouts) {
         if (boundaryTypes.size() != carrierPattern.size()) {
             throw new IllegalArgumentException("boundary types and carriers must have equal size");
         }
@@ -89,6 +123,7 @@ final class CpuCarrierEmitter {
                         "segment-layout locals must be the first generated locals");
             }
         }
+        if (constantByteLayouts) return;
         boolean[] required = new boolean[LAYOUT_LOCAL_COUNT];
         for (int boundary = 0; boundary < boundaryTypes.size(); boundary++) {
             if (carrierPattern.get(boundary) == CarrierAccess.MEMORY_SEGMENT) {
@@ -238,6 +273,33 @@ final class CpuCarrierEmitter {
      */
     void load(DataType type, CarrierAccess access, int parameterSlot, int addressLocal) {
         load(type, access, parameterSlot, addressLocal, false);
+    }
+
+    /**
+     * Loads a segment through an already selected carrier local and byte address. The explicit
+     * combined-Scan seam uses a constant layout field; other entries retain their layout local.
+     * @param type exact represented type
+     * @param carrierSlot reference local holding a checked segment
+     * @param byteAddressSlot long byte-address local
+     */
+    void loadBytes(DataType type, int carrierSlot, int byteAddressSlot) {
+        code.aload(carrierSlot); byteLayout(type);
+        code.lload(byteAddressSlot).invokeinterface(SEGMENT, "get",
+                MethodTypeDesc.of(primitive(type), layoutClass(type), TypeKind.LONG.upperBound()));
+    }
+
+    /**
+     * Stores a represented local without reconstructing an element-to-byte offset, using the
+     * same entry-selected layout provenance as byte loads and retaining checked FFM access.
+     * @param type exact represented type
+     * @param carrierSlot reference local holding a checked writable segment
+     * @param byteAddressSlot long byte-address local
+     * @param valueSlot represented typed value local
+     */
+    void storeBytes(DataType type, int carrierSlot, int byteAddressSlot, int valueSlot) {
+        code.aload(carrierSlot); byteLayout(type); code.lload(byteAddressSlot); loadLocal(type, valueSlot);
+        code.invokeinterface(SEGMENT, "set", MethodTypeDesc.of(ConstantDescs.CD_void,
+                layoutClass(type), TypeKind.LONG.upperBound(), primitive(type)));
     }
 
     /**
@@ -611,6 +673,110 @@ final class CpuCarrierEmitter {
     }
 
     /**
+     * Loads a masked contiguous feature block; disabled lanes perform no storage access.
+     * Broadcast reads exactly one scalar, under the caller's nonempty active-feature gate.
+     * @param type admitted lane dtype matching the prepared preferred species and mask
+     * @param access selected typed array or checked segment carrier
+     * @param parameterSlot carrier reference local
+     * @param addressLocal element-address local of the selected width
+     * @param broadcast whether one active scalar supplies every feature lane
+     * @param intAddress whether an array address uses INT rather than LONG
+     * @param maskLocal reference local holding the matching preferred-species VectorMask
+     * @throws IllegalArgumentException if the carrier does not match the lane dtype
+     */
+    void vectorLoad(DataType type, CarrierAccess access, int parameterSlot, int addressLocal,
+            boolean broadcast, boolean intAddress, int maskLocal) {
+        if (broadcast) {
+            vectorLoad(type,access,parameterSlot,addressLocal,true,intAddress);
+            return;
+        }
+        ClassDesc vector = vectorClass(type), mask = ClassDesc.of("jdk.incubator.vector.VectorMask");
+        if (speciesLocal < 0) prepareVectorSpecies(type);
+        code.aload(speciesLocal).aload(parameterSlot);
+        if (access == arrayCarrier(type)) {
+            if (intAddress) code.iload(addressLocal); else code.lload(addressLocal).l2i();
+            code.aload(maskLocal).invokestatic(vector,"fromArray",MethodTypeDesc.of(vector,
+                    VECTOR_SPECIES,primitive(type).arrayType(),TypeKind.INT.upperBound(),mask));
+        } else if (access == CarrierAccess.MEMORY_SEGMENT) {
+            code.lload(addressLocal).loadConstant((long)type.byteWidth()).lmul();
+            if (vectorByteOrderLocal >= 0) code.aload(vectorByteOrderLocal);
+            else code.invokestatic(BYTE_ORDER,"nativeOrder",MethodTypeDesc.of(BYTE_ORDER));
+            code.aload(maskLocal).invokestatic(vector,"fromMemorySegment",MethodTypeDesc.of(vector,
+                    VECTOR_SPECIES,SEGMENT,TypeKind.LONG.upperBound(),BYTE_ORDER,mask));
+        } else throw new IllegalArgumentException("carrier does not match vector data type");
+    }
+
+    /**
+     * Stores only actual feature cells, with no publication or access in disabled tail lanes.
+     * @param type admitted lane dtype matching the preferred species and mask
+     * @param access selected writable typed array or checked segment carrier
+     * @param parameterSlot carrier reference local
+     * @param addressLocal element-address local of the selected width
+     * @param valueLocal completed matching vector reference local
+     * @param intAddress whether an array address uses INT rather than LONG
+     * @param maskLocal matching preferred-species VectorMask reference local
+     * @throws IllegalArgumentException if the carrier does not match the lane dtype
+     */
+    void vectorStore(DataType type, CarrierAccess access, int parameterSlot, int addressLocal,
+            int valueLocal, boolean intAddress, int maskLocal) {
+        ClassDesc vector = vectorClass(type), mask = ClassDesc.of("jdk.incubator.vector.VectorMask");
+        code.aload(valueLocal).aload(parameterSlot);
+        if (access == arrayCarrier(type)) {
+            if (intAddress) code.iload(addressLocal); else code.lload(addressLocal).l2i();
+            code.aload(maskLocal).invokevirtual(vector,"intoArray",MethodTypeDesc.of(
+                    TypeKind.VOID.upperBound(),primitive(type).arrayType(),TypeKind.INT.upperBound(),mask));
+        } else if (access == CarrierAccess.MEMORY_SEGMENT) {
+            code.lload(addressLocal).loadConstant((long)type.byteWidth()).lmul();
+            if (vectorByteOrderLocal >= 0) code.aload(vectorByteOrderLocal);
+            else code.invokestatic(BYTE_ORDER,"nativeOrder",MethodTypeDesc.of(BYTE_ORDER));
+            code.aload(maskLocal).invokevirtual(vector,"intoMemorySegment",MethodTypeDesc.of(
+                    TypeKind.VOID.upperBound(),SEGMENT,TypeKind.LONG.upperBound(),BYTE_ORDER,mask));
+        } else throw new IllegalArgumentException("carrier does not match vector data type");
+    }
+
+    /**
+     * Loads a checked segment's contiguous real feature lanes directly from a byte offset.
+     * Disabled lanes access no storage. The binding owner proves dtype, preferred species,
+     * mask agreement, active-domain dominance and the consumed checked byte span; this method
+     * performs no element-unit conversion or scalar broadcast.
+     * @param type FLOAT32 or FLOAT64, matching this emitter's prepared preferred species
+     * @param carrierSlot nonnegative reference local holding the checked MemorySegment
+     * @param byteAddressSlot nonnegative LONG local containing the byte offset, not elements
+     * @param maskLocal nonnegative matching preferred-species VectorMask reference local
+     * @throws IllegalArgumentException if the dtype or a local slot is invalid
+     */
+    void vectorLoadBytes(DataType type,int carrierSlot,int byteAddressSlot,int maskLocal) {
+        if ((type != DataType.FLOAT32 && type != DataType.FLOAT64) || carrierSlot < 0 || byteAddressSlot < 0 || maskLocal < 0)
+            throw new IllegalArgumentException("checked byte-vector load requires floating typed locals");
+        prepareVectorSpecies(type); prepareVectorByteOrder();
+        var vector = vectorClass(type); var mask = ClassDesc.of("jdk.incubator.vector.VectorMask");
+        code.aload(speciesLocal).aload(carrierSlot).lload(byteAddressSlot).aload(vectorByteOrderLocal).aload(maskLocal)
+                .invokestatic(vector,"fromMemorySegment",MethodTypeDesc.of(vector,
+                        VECTOR_SPECIES,SEGMENT,TypeKind.LONG.upperBound(),BYTE_ORDER,mask));
+    }
+
+    /**
+     * Stores only the matching vector's enabled feature lanes at a checked segment byte offset.
+     * Native byte order and preferred species match the load path; no address roundtrip or
+     * publication occurs for disabled tail lanes. Storage remains owned by the run binding.
+     * @param type FLOAT32 or FLOAT64 matching the value and preferred mask species
+     * @param carrierSlot nonnegative reference local holding the checked writable segment
+     * @param byteAddressSlot nonnegative LONG byte-offset local
+     * @param valueLocal nonnegative reference local holding the matching completed vector
+     * @param maskLocal nonnegative matching preferred-species VectorMask reference local
+     * @throws IllegalArgumentException if the dtype or a local slot is invalid
+     */
+    void vectorStoreBytes(DataType type,int carrierSlot,int byteAddressSlot,int valueLocal,int maskLocal) {
+        if ((type != DataType.FLOAT32 && type != DataType.FLOAT64) || carrierSlot < 0 || byteAddressSlot < 0 || valueLocal < 0 || maskLocal < 0)
+            throw new IllegalArgumentException("checked byte-vector store requires floating typed locals");
+        prepareVectorSpecies(type); prepareVectorByteOrder();
+        var vector = vectorClass(type); var mask = ClassDesc.of("jdk.incubator.vector.VectorMask");
+        code.aload(valueLocal).aload(carrierSlot).lload(byteAddressSlot).aload(vectorByteOrderLocal).aload(maskLocal)
+                .invokevirtual(vector,"intoMemorySegment",MethodTypeDesc.of(TypeKind.VOID.upperBound(),
+                        SEGMENT,TypeKind.LONG.upperBound(),BYTE_ORDER,mask));
+    }
+
+    /**
      * Emits an allocation-free canonical scalar BOOL load broadcast as a typed numeric mask.
      *
      * @param laneType exact FLOAT32 or FLOAT64 mask lane type
@@ -654,6 +820,14 @@ final class CpuCarrierEmitter {
         code.aload(layoutLocalBase + layoutLocalOffset(type));
     }
 
+    /**
+     * Emits the entry-selected byte-access layout without runtime policy dispatch.
+     * @param type exact represented segment type
+     */
+    private void byteLayout(DataType type) {
+        if (constantByteLayouts) constantLayout(type); else layout(type);
+    }
+
     private static CodeBuilder emitLayout(CodeBuilder code, DataType type,
             boolean directNativePredefinedLayouts) {
         String field = switch (type) {
@@ -670,7 +844,113 @@ final class CpuCarrierEmitter {
         return code.checkcast(layout);
     }
 
+    /** Cold generation scope; never contains invocation segments or mutable runtime control. */
+    private static final ThreadLocal<DescriptorScope> DESCRIPTOR = new ThreadLocal<>();
+
+    private static final ThreadLocal<io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl>
+            CONTROL_FACTS = new ThreadLocal<>();
+
+    /**
+     * Exposes only immutable generation-time provenance, never invocation control storage.
+     * @return proved row mappings for the current controlled unit, otherwise empty
+     */
+    static java.util.Optional<io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl> controlFacts() {
+        return java.util.Optional.ofNullable(CONTROL_FACTS.get());
+    }
+
+    /**
+     * Runs synchronous helper declaration/emission with its independently proved row geometry.
+     * @param facts immutable numeric row mappings
+     * @param emission generation-only action
+     * @param <T> action result type
+     * @return the action's result
+     */
+    static <T> T withControlFacts(
+            io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl facts,
+            java.util.function.Supplier<T> emission) {
+        var previous = CONTROL_FACTS.get();
+        CONTROL_FACTS.set(facts);
+        try { return emission.get(); }
+        finally {
+            if (previous == null) CONTROL_FACTS.remove(); else CONTROL_FACTS.set(previous);
+        }
+    }
+
+    private record DescriptorScope(MethodTypeDesc type, boolean controlled) { }
+
+    /**
+     * Runs a single method emitter with its actual descriptor, restoring a nested scope on exit.
+     * @param type complete method descriptor
+     * @param controlled whether its last reference parameter is the control trailer
+     * @param body synchronous generation-only body
+     */
+    static void withDescriptor(MethodTypeDesc type, boolean controlled, Runnable body) {
+        DescriptorScope previous = DESCRIPTOR.get();
+        DESCRIPTOR.set(new DescriptorScope(type, controlled));
+        try { body.run(); }
+        finally {
+            if (previous == null) DESCRIPTOR.remove(); else DESCRIPTOR.set(previous);
+        }
+    }
+
+    /**
+     * Resolves the invocation-owned control parameter without consuming a numeric Tensor slot.
+     * @param code current method builder in a declaration-owner descriptor scope
+     * @return exact control local slot, or minus one for an uncontrolled method
+     */
+    static int controlParameterSlot(CodeBuilder code) {
+        DescriptorScope scope = DESCRIPTOR.get();
+        return scope == null || !scope.controlled() ? -1
+                : code.parameterSlot(scope.type().parameterCount() - 1);
+    }
+
+    /**
+     * Branches before contributor addresses or loads when the proved original row is absent.
+     * Uncontrolled methods emit no instructions; cursor advancement remains the caller's owner.
+     * @param code current descriptor-scoped method builder
+     * @param rowLocal local containing the original row coordinate
+     * @param rowKind INT or LONG coordinate representation
+     * @param inactive caller-owned skip label
+     * @throws IllegalArgumentException if the coordinate is not integral INT or LONG
+     */
+    static void emitActiveRowGuard(CodeBuilder code, int rowLocal, TypeKind rowKind,
+            java.lang.classfile.Label inactive) {
+        int control = controlParameterSlot(code);
+        if (control < 0) return;
+        if (rowKind != TypeKind.INT && rowKind != TypeKind.LONG)
+            throw new IllegalArgumentException("control row coordinate must be INT or LONG");
+        code.aload(control).getstatic(VALUE_LAYOUT, "JAVA_BYTE", layoutClass(DataType.BOOL));
+        code.loadLocal(rowKind, rowLocal);
+        if (rowKind == TypeKind.INT) code.i2l();
+        code.loadConstant(16L).ladd().invokeinterface(SEGMENT, "get",
+                MethodTypeDesc.of(ConstantDescs.CD_byte, layoutClass(DataType.BOOL), ConstantDescs.CD_long));
+        code.branch(java.lang.classfile.Opcode.IFEQ, inactive);
+    }
+
+    /**
+     * Skips an absent complete occurrence before layouts, operand loads or numeric writes.
+     * @param code current descriptor-scoped method builder
+     */
+    static void emitOccurrenceGuard(CodeBuilder code) {
+        int control = controlParameterSlot(code);
+        if (control < 0) return;
+        var present = code.newLabel();
+        code.aload(control).getstatic(VALUE_LAYOUT, "JAVA_BYTE", layoutClass(DataType.BOOL))
+                .loadConstant(0L).invokeinterface(SEGMENT, "get",
+                        MethodTypeDesc.of(ConstantDescs.CD_byte, layoutClass(DataType.BOOL), ConstantDescs.CD_long))
+                .branch(java.lang.classfile.Opcode.IFNE, present).return_().labelBinding(present);
+    }
+
     private static int firstGeneratedLocal(CodeBuilder code) {
+        DescriptorScope scope = DESCRIPTOR.get();
+        if (scope != null) {
+            MethodTypeDesc type = scope.type();
+            if (type.parameterCount() == 0) return 0;
+            int last = type.parameterCount() - 1;
+            String descriptor = type.parameterType(last).descriptorString();
+            int width = descriptor.equals("J") || descriptor.equals("D") ? 2 : 1;
+            return code.parameterSlot(last) + width;
+        }
         int parameter = 0;
         int lastSlot = -1;
         while (true) {
@@ -680,7 +960,7 @@ final class CpuCarrierEmitter {
                 break;
             }
         }
-        // Every generated entry ends with the primitive long end bound.
+        // Direct legacy focused-emitter consumers retain their ordinary last-long ABI.
         if (lastSlot < 0) throw new IllegalArgumentException(
                 "generated entries must declare primitive range parameters");
         return lastSlot + TypeKind.LONG.slotSize();

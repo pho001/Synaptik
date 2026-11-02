@@ -9,7 +9,11 @@ import java.lang.classfile.TypeKind;
 import java.lang.constant.ClassDesc;
 import java.lang.constant.MethodTypeDesc;
 
-/** Emits the direct stable two-pass log-sum-exp body. */
+/**
+ * Emits the direct stable two-pass log-sum-exp body.
+ * Controlled ROW outputs branch before either operand pass; inactive cells publish positive
+ * zero without classifying or loading any input.
+ */
 public final class CpuLogSumExpEmitter {
     private static final ClassDesc MATH = ClassDesc.of(Math.class.getName());
     /** Creates a stateless generation-time emitter. */
@@ -80,6 +84,11 @@ public final class CpuLogSumExpEmitter {
             CpuNormEmitter.geometry(code, geometry, outputStrides + axis).lmul().ladd()
                     .lstore(outputAddress);
         }
+        boolean controlledRow = CpuCarrierEmitter.controlFacts()
+                .map(control -> control.boundaryRows().get(1).rowIndexed()).orElse(false);
+        var inactive = controlledRow ? code.newLabel() : null;
+        var next = controlledRow ? code.newLabel() : null;
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, 1, cell, TypeKind.LONG, inactive);
         for (int inputAxis = 0, outputAxis = 0; inputAxis < inputRank; inputAxis++) {
             if (selected[inputAxis]) { if (keep) outputAxis++; continue; }
             code.lload(inputBase).lload(outputCoordinates[outputAxis++]);
@@ -131,6 +140,11 @@ public final class CpuLogSumExpEmitter {
                 .branch(Opcode.IFNE, specialsDone).loadConstant(Double.NEGATIVE_INFINITY)
                 .dstore(result).labelBinding(specialsDone);
         CpuNormEmitter.emitStore(code, carriers, specialization, type, outputAddress, result);
+        if (controlledRow) {
+            code.branch(Opcode.GOTO, next).labelBinding(inactive).loadConstant(0.0).dstore(result);
+            CpuNormEmitter.emitStore(code, carriers, specialization, type, outputAddress, result);
+            code.labelBinding(next);
+        }
         code.lload(cell).loadConstant(1L).ladd().lstore(cell)
                 .branch(Opcode.GOTO, cells).labelBinding(done);
     }

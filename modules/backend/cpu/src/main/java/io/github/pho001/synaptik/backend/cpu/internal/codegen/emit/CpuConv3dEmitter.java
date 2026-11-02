@@ -26,6 +26,10 @@ import jdk.incubator.vector.FloatVector;
  * chunks cover complete in-bounds output-width cells, while padding borders, worker-range
  * fragments, and tails use the same ordered scalar-cell semantics. Every other form, including
  * BFLOAT16, FLOAT16, short or interior-free widths, and non-dense access, remains scalar.</p>
+ *
+ * <p>Controlled scalar entries recover activity from the authenticated output-boundary logical
+ * ordinal, independently of physical layout. An inactive original row bypasses every operand
+ * load and convolution contribution and publishes positive zero.</p>
  */
 public final class CpuConv3dEmitter {
     /** Creates a stateless direct-convolution emitter. */
@@ -150,6 +154,11 @@ public final class CpuConv3dEmitter {
         int inputValue = code.allocateLocal(accumulationKind);
         int weightValue = code.allocateLocal(accumulationKind);
         int accumulator = code.allocateLocal(accumulationKind);
+        boolean rowControlled = CpuCarrierEmitter.controlFacts()
+                .map(control -> control.boundaryRows().get(outputBoundary).axis() >= 0)
+                .orElse(false);
+        var inactive = code.newLabel();
+        var publish = code.newLabel();
 
         code.lload(start).lstore(cell);
         var cells = code.newLabel();
@@ -161,6 +170,7 @@ public final class CpuConv3dEmitter {
         decodeCoordinate(code, outD, remaining, od);
         decodeCoordinate(code, outC, remaining, oc);
         code.lload(remaining).lstore(n);
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, outputBoundary, cell, TypeKind.LONG, inactive);
         code.lload(oc);
         code.lload(outC).loadConstant(groups).ldiv().ldiv().lstore(group);
 
@@ -260,6 +270,12 @@ public final class CpuConv3dEmitter {
         code.lload(channel).loadConstant(1L).ladd().lstore(channel)
                 .branch(Opcode.GOTO, channels).labelBinding(channelsDone);
 
+        if (rowControlled) {
+            code.branch(Opcode.GOTO, publish).labelBinding(inactive);
+            if (binary64) code.loadConstant(+0.0d).dstore(accumulator);
+            else code.loadConstant(+0.0f).fstore(accumulator);
+            code.labelBinding(publish);
+        }
         if (denseArrays) {
             outputAddressDense(code, outputBase, outC, outD, outH, outW, n, oc, od, oh, ow,
                     outputAddress);

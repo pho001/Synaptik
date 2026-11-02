@@ -82,12 +82,13 @@ class CpuNormalizationSemanticClosureTest {
 
     private static void invoke(Fixture fixture) throws Throwable {
         PrepareContext<CpuPartitionAnalysisInputs> context = configure(fixture.context(), fixture.request());
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr());
         assertArrayEquals(bytes, new CpuClassFileKernelGenerator().generateClassBytes(
                 route.specialization(), route.kernelIr()), fixture + " deterministic bytes");
-        var artifact = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(), bytes);
+        var artifact = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(), route.kernelIr(), bytes);
         assertTrue(plan.materializations().isEmpty(), fixture + " materialization remains unselected");
         List<Storage> storage = storage(context, route.specialization().carrierPattern());
         fillInputs(storage, context);

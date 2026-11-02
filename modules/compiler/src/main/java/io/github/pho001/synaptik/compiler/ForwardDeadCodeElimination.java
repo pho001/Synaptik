@@ -24,7 +24,9 @@ import java.util.Set;
  * dependencies. A {@link GraphPhase#BACKWARD BACKWARD} occurrence is not retained merely because
  * of its phase. A live producer occurrence remains indivisible: all of its output slots are
  * retained when any slot is needed. Rebuilds preserve every live node's exact operation,
- * descriptors, and phase.</p>
+ * descriptors, phase and independently scoped scan attachment. Retaining canonical siblings is
+ * not history demand: the orchestration refreshes demanded scan ports from actual outer uses
+ * and publications after a changed candidate.</p>
  */
 final class ForwardDeadCodeElimination {
     private ForwardDeadCodeElimination() {}
@@ -219,7 +221,7 @@ final class ForwardDeadCodeElimination {
             }
             NodeId rebuiltNode = new NodeId(nextNodeId++);
             nodes.add(new CompiledNode(
-                    rebuiltNode, node.operation(), rebuiltInputs, rebuiltOutputs));
+                    rebuiltNode, node.operation(), rebuiltInputs, rebuiltOutputs, node.scanBody()));
             sourceNodeIds.add(node.id());
             phases.put(rebuiltNode, graph.nodePhases().get(node.id()));
         }
@@ -279,7 +281,7 @@ final class ForwardDeadCodeElimination {
             }
             NodeId rebuiltNode = new NodeId(nextNodeId++);
             nodes.add(new CompiledNode(
-                    rebuiltNode, node.operation(), rebuiltInputs, rebuiltOutputs));
+                    rebuiltNode, node.operation(), rebuiltInputs, rebuiltOutputs, node.scanBody()));
             phases.put(rebuiltNode, graph.nodePhases().get(node.id()));
         }
 

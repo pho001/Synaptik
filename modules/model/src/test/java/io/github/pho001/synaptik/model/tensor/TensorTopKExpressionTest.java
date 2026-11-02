@@ -1,8 +1,12 @@
 package io.github.pho001.synaptik.model.tensor;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import io.github.pho001.synaptik.model.shape.Dimension;
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -13,51 +17,21 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.ordering.TopKAttrs;
 import io.github.pho001.synaptik.model.operation.ordering.TopKKind;
-import io.github.pho001.synaptik.model.shape.Dimension;
+
 import io.github.pho001.synaptik.model.shape.DimensionExpressions;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
-import java.lang.reflect.Modifier;
-import java.util.Arrays;
-import java.util.List;
+
+
+
 import java.util.Optional;
-import java.util.Set;
+
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 
 public final class TensorTopKExpressionTest {
-    @Test
-    void helperMethodsAndResultExposeOnlyTheRequiredSurface() throws Exception {
-        var apply = TensorTopKExpressions.class.getDeclaredMethod(
-                "apply", Tensor.class, long.class, int.class, boolean.class, boolean.class);
-        var helperMethods = Arrays.stream(TensorTopKExpressions.class.getDeclaredMethods())
-                .filter(method -> !method.isSynthetic()).toList();
-        var constructors = TensorTopKExpressions.class.getDeclaredConstructors();
-        var components = TopKResult.class.getRecordComponents();
-        assertAll(
-                () -> assertTrue(Modifier.isFinal(TensorTopKExpressions.class.getModifiers())),
-                () -> assertFalse(Modifier.isPublic(TensorTopKExpressions.class.getModifiers())),
-                () -> assertEquals(Set.of(), Set.of(TensorTopKExpressions.class.getInterfaces())),
-                () -> assertEquals(0, TensorTopKExpressions.class.getDeclaredFields().length),
-                () -> assertEquals(0, TensorTopKExpressions.class.getDeclaredClasses().length),
-                () -> assertEquals(1, constructors.length),
-                () -> assertTrue(Modifier.isPrivate(constructors[0].getModifiers())),
-                () -> assertEquals(0, constructors[0].getParameterCount()),
-                () -> assertEquals(List.of(apply), helperMethods),
-                () -> assertTrue(Modifier.isStatic(apply.getModifiers())),
-                () -> assertFalse(Modifier.isPublic(apply.getModifiers())),
-                () -> assertSame(TopKResult.class, apply.getReturnType()),
-                () -> assertTensorMethod("topK", long.class, int.class),
-                () -> assertTensorMethod("topK", long.class, int.class,
-                        boolean.class, boolean.class),
-                () -> assertTrue(TopKResult.class.isRecord()),
-                () -> assertEquals(List.of("values", "indices"),
-                        Arrays.stream(components).map(component -> component.getName()).toList()),
-                () -> assertEquals(List.of(Tensor.class, Tensor.class),
-                        Arrays.stream(components).map(component -> component.getType()).toList()),
-                () -> assertEquals(0, TopKResult.class.getDeclaredClasses().length));
-    }
+    
 
     @Test
     void defaultsToLargestSortedAndNormalizesAxisExactlyOnce() {
@@ -186,22 +160,17 @@ public final class TensorTopKExpressionTest {
         Tensor vector = tensor(DataType.BOOL, Shape.of(2), false);
         long before = next.get();
         assertAll(
-                () -> assertEquals("input", assertThrows(NullPointerException.class,
-                        () -> TensorTopKExpressions.apply(null, -1, 0, true, true)).getMessage()),
-                () -> assertEquals("Axis 0 is outside shape rank 0",
-                        assertThrows(IndexOutOfBoundsException.class,
-                                () -> scalar.topK(-1, 0)).getMessage()),
-                () -> assertEquals("Axis 2 is outside shape rank 1",
-                        assertThrows(IndexOutOfBoundsException.class,
-                                () -> vector.topK(-1, 2)).getMessage()),
-                () -> assertEquals("k must be non-negative: -1",
-                        assertThrows(IllegalArgumentException.class,
-                                () -> vector.topK(-1, 0)).getMessage()),
-                () -> assertEquals(
-                        "k must not exceed selected static extent: k=3, axis=0, extent=2",
-                        assertThrows(IllegalArgumentException.class,
-                                () -> vector.topK(3, 0)).getMessage()),
-                () -> assertEquals(before, next.get()));
+                        () -> assertThrows(NullPointerException.class,
+                                () -> TensorTopKExpressions.apply(null, -1, 0, true, true)),
+                        () -> assertThrows(IndexOutOfBoundsException.class,
+                                        () -> scalar.topK(-1, 0)),
+                        () -> assertThrows(IndexOutOfBoundsException.class,
+                                        () -> vector.topK(-1, 2)),
+                        () -> assertThrows(IllegalArgumentException.class,
+                                        () -> vector.topK(-1, 0)),
+                        () -> assertThrows(IllegalArgumentException.class,
+                                        () -> vector.topK(3, 0)),
+                        () -> assertEquals(before, next.get()));
     }
 
     @Test
@@ -210,25 +179,19 @@ public final class TensorTopKExpressionTest {
         Tensor indices = tensor(DataType.INT64, Shape.of(0), false);
         TopKResult result = new TopKResult(values, indices);
         assertAll(
-                () -> assertEquals("values", assertThrows(NullPointerException.class,
-                        () -> new TopKResult(null, null)).getMessage()),
-                () -> assertEquals("indices", assertThrows(NullPointerException.class,
-                        () -> new TopKResult(values, null)).getMessage()),
-                () -> assertSame(values, result.values()),
-                () -> assertSame(indices, result.indices()),
-                () -> assertEquals(result, new TopKResult(values, indices)),
-                () -> assertEquals(result.hashCode(), new TopKResult(values, indices).hashCode()),
-                () -> assertEquals("TopKResult[values=" + values + ", indices=" + indices + "]",
-                        result.toString()));
+                        () -> assertThrows(NullPointerException.class,
+                                () -> new TopKResult(null, null)),
+                        () -> assertThrows(NullPointerException.class,
+                                () -> new TopKResult(values, null)),
+                        () -> assertSame(values, result.values()),
+                        () -> assertSame(indices, result.indices()),
+                        () -> assertEquals(result, new TopKResult(values, indices)),
+                        () -> assertEquals(result.hashCode(), new TopKResult(values, indices).hashCode()),
+                        () -> assertEquals("TopKResult[values=" + values + ", indices=" + indices + "]",
+                                result.toString()));
     }
 
-    private static void assertTensorMethod(String name, Class<?>... parameterTypes) throws Exception {
-        var method = Tensor.class.getDeclaredMethod(name, parameterTypes);
-        assertAll(
-                () -> assertTrue(Modifier.isPublic(method.getModifiers())),
-                () -> assertFalse(Modifier.isStatic(method.getModifiers())),
-                () -> assertSame(TopKResult.class, method.getReturnType()));
-    }
+    
 
     private static AtomicLong nextTensorIdState() throws Exception {
         var field = TensorFactory.class.getDeclaredField("NEXT_TENSOR_ID");

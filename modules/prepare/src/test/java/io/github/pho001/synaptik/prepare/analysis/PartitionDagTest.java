@@ -9,20 +9,69 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.contract.BackendId;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
+import io.github.pho001.synaptik.model.graph.CompiledScanBody;
+import io.github.pho001.synaptik.model.graph.GraphPhase;
+import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.NodeId;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.OperationSignature;
+import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.scan.ScanAttrs;
+import io.github.pho001.synaptik.model.operation.scan.ScanKind;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.partition.PlannedPartition;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class PartitionDagTest {
+    @Test
+    void retainsScanAttachmentRolesAndPortOccurrencesWithoutProjectingLocalNodesOrIds() {
+        var descriptor = new TensorDescriptor(DataType.FLOAT32, Shape.scalar(), Optional.empty(), false);
+        var localNode = new CompiledNode(new NodeId(0),
+                new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE),
+                List.of(value(0), value(2)), List.of(value(3)));
+        var local = new CompiledGraphModel(
+                List.of(new GraphValue(value(0), descriptor), new GraphValue(value(1), descriptor),
+                        new GraphValue(value(2), descriptor), new GraphValue(value(3), descriptor)),
+                List.of(localNode), List.of(value(0), value(1), value(2)),
+                List.of(value(3), value(1), value(0)), Map.of(localNode.id(), GraphPhase.FORWARD));
+        var body = new CompiledScanBody(local, List.of(value(3), value(1)), List.of(value(3)),
+                List.of(value(0), value(3), value(1)), List.of(5));
+        var scan = new CompiledNode(new NodeId(0),
+                new Operation(ScanKind.SCAN, new ScanAttrs(3, 2, 1, 0, 1, 3, false)),
+                List.of(value(100), value(100), value(101)),
+                List.of(value(200), value(201), value(202), value(203), value(204), value(205)),
+                Optional.of(body));
+        var consumer = node(1, List.of(value(205), value(205)), List.of(value(206)));
+        var dag = new PartitionDag(partition(List.of(scan, consumer)), List.of(scan, consumer));
+        assertEquals(2, dag.nodes().size());
+        assertSame(scan, dag.node(localNode.id()).orElseThrow());
+        assertSame(body, dag.nodes().getFirst().scanBody().orElseThrow());
+        assertSame(local, dag.nodes().getFirst().scanBody().orElseThrow().graph());
+        assertEquals(List.of(value(3), value(1)), body.nextCarry());
+        assertEquals(List.of(value(3)), body.emissions());
+        assertEquals(List.of(value(0), value(3), value(1)), body.residuals());
+        assertEquals(List.of(5), body.demandedOutputIndices());
+        assertEquals(List.of(0, 1, 2), dag.externalInputs().stream().map(PartitionDag.ConsumerOccurrence::inputPosition).toList());
+        assertEquals(List.of(0, 1), dag.consumers(value(100)).stream().map(PartitionDag.ConsumerOccurrence::inputPosition).toList());
+        assertTrue(dag.producer(value(3)).isEmpty());
+        assertTrue(dag.consumers(value(0)).isEmpty());
+        assertEquals(2, dag.edges().size());
+        assertEquals(List.of(5, 5), dag.edges().stream().map(e -> e.producer().outputPosition()).toList());
+        assertEquals(List.of(consumer), dag.localSinks());
+    }
+
     @Test
     void projectsBranchingRepeatedMultiOutputAndDisconnectedFactsInPortOrder() {
         ValueId externalA = value(0);

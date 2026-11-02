@@ -40,6 +40,8 @@ import java.util.Set;
  * <p>A folded result becomes a new fixed structural source with one scalar payload. The pass does
  * not enumerate elements, read Tensor storage, allocate physical storage, intern constants, or
  * iterate to a fixed point.</p>
+ * <p>General scans are not folded. Their complete independently scoped attachments survive every
+ * outer rebuild, even when an unrelated exact scalar operation folds.</p>
  */
 final class ForwardConstantFolding {
     private ForwardConstantFolding() {}
@@ -348,7 +350,7 @@ final class ForwardConstantFolding {
             }
             NodeId rebuiltNode = new NodeId(nextNodeId++);
             nodes.add(new CompiledNode(
-                    rebuiltNode, node.operation(), rebuiltInputs, rebuiltOutputs));
+                    rebuiltNode, node.operation(), rebuiltInputs, rebuiltOutputs, node.scanBody()));
             sourceNodeIds.add(node.id());
             phases.put(rebuiltNode, graph.nodePhases().get(node.id()));
         }

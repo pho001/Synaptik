@@ -22,6 +22,9 @@ import java.lang.constant.MethodTypeDesc;
  * and every geometry that does not satisfy the complete proof retains the typed long-address
  * writer. The fixed sequence is internal code shape in one artifact, not another preparation or
  * Runtime variant.
+ * Controlled bodies retain the mapped writer and guard the proved original output row before
+ * loading indices or operands. Inactive outputs receive exact carrier zero; the complete active
+ * index-domain validation remains the executable owner's responsibility, including empty outputs.
  * This emitter owns neither validation, worker submission, nor Runtime policy.
  */
 public final class CpuIndexingEmitter {
@@ -48,6 +51,10 @@ public final class CpuIndexingEmitter {
      */
     public void emit(CodeBuilder code, CpuKernelSpecialization specialization, CpuKernelIr ir) {
         Parsed parsed = Parsed.parse(ir);
+        if (CpuCarrierEmitter.controlFacts().isPresent()) {
+            emitMapped(code, specialization, parsed, false);
+            return;
+        }
         if (isBoundedGather(specialization, parsed)) {
             emitBoundedGatherOrMapped(code, specialization, parsed);
             return;
@@ -608,6 +615,11 @@ public final class CpuIndexingEmitter {
         }
         addressInto(code, geometry, p.layouts[p.outputBoundary], coordinates, 0,
                 p.outputRank, outputAddress, ints);
+        boolean controlled = CpuCarrierEmitter.controlFacts()
+                .map(facts -> facts.boundaryRows().get(p.outputBoundary).rowIndexed()).orElse(false);
+        var inactive = controlled ? code.newLabel() : null;
+        var valueReady = controlled ? code.newLabel() : null;
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, p.outputBoundary, logical, addressKind, inactive);
         switch (p.family) {
             case "GATHER" -> emitGather(code, carriers, specialization, p, geometry, coordinates,
                     axisLocal, indexAddress, selected, sourceAddress, familyValue, ints);
@@ -622,6 +634,17 @@ public final class CpuIndexingEmitter {
             default -> throw new IllegalArgumentException("unsupported indexing family");
         }
         DataType outputType = p.family.equals("ONE_HOT") ? DataType.BOOL : p.dataType;
+        if (controlled) {
+            code.branch(Opcode.GOTO, valueReady).labelBinding(inactive);
+            switch (outputType) {
+                case FLOAT64 -> code.loadConstant(0.0d);
+                case FLOAT32 -> code.loadConstant(0.0f);
+                case INT64 -> code.loadConstant(0L);
+                case BFLOAT16, FLOAT16, INT32, BOOL -> code.loadConstant(0);
+            }
+            store(code, outputType, familyValue);
+            code.labelBinding(valueReady);
+        }
         carriers.store(outputType, specialization.carrierPattern().get(p.outputBoundary),
                 p.outputBoundary, outputAddress, familyValue, ints);
         advancePacked(code, geometry, coordinatePosition, p.layouts[p.outputBoundary],

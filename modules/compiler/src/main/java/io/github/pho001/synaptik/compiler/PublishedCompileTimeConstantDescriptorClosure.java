@@ -30,8 +30,8 @@ final class PublishedCompileTimeConstantDescriptorClosure {
      * <p>If no descriptor is eligible, the exact input result is returned. Otherwise the rebuilt
      * graph retains value encounter order and IDs, every exact node reference, both ordered
      * boundaries, phases, constant splats, bindable Tensor identities, deferred constraints, and
-     * derivative orders. Derivative metadata is rebuilt solely so that it owns the rebuilt exact
-     * graph reference.</p>
+     * derivative orders and containing-Scan activity plans. Derivative metadata is rebuilt solely
+     * so that it owns the rebuilt exact outer graph; exact local body references are retained.</p>
      *
      * @param validatedGraph non-null final optimized and validated graph state; it is not mutated
      * @return the exact input when no descriptor changes, or a non-null validated result whose
@@ -95,7 +95,8 @@ final class PublishedCompileTimeConstantDescriptorClosure {
                 validatedGraph.constantGraph().constants(),
                 validatedGraph.constantGraph().bindableTensorIds());
         DerivativeGraphMetadata derivatives = new DerivativeGraphMetadata(
-                rebuilt, validatedGraph.derivatives().derivativeOrderByNode());
+                rebuilt, validatedGraph.derivatives().derivativeOrderByNode(),
+                validatedGraph.derivatives().scanActivityByNode());
         return new ValidatedGraph(constantGraph, validatedGraph.constraints(), derivatives);
     }
 }

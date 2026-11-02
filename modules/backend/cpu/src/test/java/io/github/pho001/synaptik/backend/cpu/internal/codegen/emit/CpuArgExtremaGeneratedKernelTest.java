@@ -27,6 +27,22 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class CpuArgExtremaGeneratedKernelTest {
+    @Test void controlledArgExtremaUsesNonleadingOriginalRowsBeforeInputLoads() throws Throwable {
+        var selected = plan(AggregateReductionKind.ARG_MAX,
+                descriptor(DataType.FLOAT32, Shape.of(2, 3, 2), new long[]{6, 2, 1}, 0),
+                descriptor(DataType.INT64, Shape.of(2, 3), new long[]{3, 1}, 0), 2,
+                false, ArgExtremaTiePolicy.FIRST_INDEX,
+                List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.LONG_ARRAY));
+        var inputRow = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(1, 2);
+        var outputRow = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(1, 1);
+        var entry = CpuAffineCopyGeneratedKernelTest.controlledEntry(
+                selected.units().getFirst().portablePlan(), List.of(inputRow, outputRow));
+        long[] output = {-99, -99, -99, -99, -99, -99};
+        entry.invokeWithArguments(new float[]{1, 4, Float.NaN, Float.NaN, Float.NaN, Float.NaN,
+                        9, 2}, output, selected.argExtremaGeometry().orElseThrow().pack(new long[2]),
+                0L, 6L, CpuAffineCopyGeneratedKernelTest.control(new byte[]{1, 0, 0}));
+        assertArrayEquals(new long[]{1, 0, 0, 0, 0, 0}, output);
+    }
     @Test void executesExactLogicalIndicesForEveryTypeKindAndTiePolicy() throws Throwable {
         for (AggregateReductionKind kind : List.of(AggregateReductionKind.ARG_MIN,
                 AggregateReductionKind.ARG_MAX)) {
@@ -89,8 +105,7 @@ class CpuArgExtremaGeneratedKernelTest {
                 List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.LONG_ARRAY));
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         float[] storage = new float[13];
         storage[1] = -4; storage[3] = 7; storage[10] = 11; storage[12] = -9;
         long[] output = {-8, -8, -8, -8, -8, -8};
@@ -148,8 +163,7 @@ class CpuArgExtremaGeneratedKernelTest {
         long[] output = {-1, -1};
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         artifact.entryPoint().invokeWithArguments(input, output,
                 plan.argExtremaGeometry().orElseThrow().pack(new long[2]), 0L, 2L);
         return output;
@@ -160,8 +174,7 @@ class CpuArgExtremaGeneratedKernelTest {
         var plan = plan(kind, type, last);
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         long[] output = {-99};
         artifact.entryPoint().invokeWithArguments(input, output,
                 plan.argExtremaGeometry().orElseThrow().pack(new long[2]), 0L, 1L);

@@ -5,21 +5,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
 import io.github.pho001.synaptik.prepare.analysis.BackendPreparationPlan;
-import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.memory.BufferSlot;
+import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
-import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
 import io.github.pho001.synaptik.planning.partition.PlannedPartition;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.util.Arrays;
@@ -28,61 +25,6 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class GraphPreparationPublicShapeTest {
-    @Test
-    void exposesExactlyThePlannedRootOrchestrationTypes() throws Exception {
-        Method prepare = GraphPreparation.class.getDeclaredMethod(
-                "prepare", CompileArtifacts.class, List.class, PreparedScheduleAssembler.class);
-        Method prepareWithProducerlessResources = GraphPreparation.class.getDeclaredMethod(
-                "prepare",
-                CompileArtifacts.class,
-                List.class,
-                List.class,
-                PreparedScheduleAssembler.class);
-        Method project = GraphPreparation.class.getDeclaredMethod(
-                "project", CompileArtifacts.class, PlannedPartition.class,
-                BackendAnalysisInputs.class);
-        Method assemble = PreparedScheduleAssembler.class.getDeclaredMethod(
-                "assemble", PreparedScheduleContext.class);
-
-        assertAll(
-                () -> assertPublicRecord(PartitionPreparation.class),
-                () -> assertPublicRecord(PreparedBufferAssignment.class),
-                () -> assertPublicRecord(PreparedScheduleContext.class),
-                () -> assertPublicRecord(ProducerlessPublishedConstantResource.class),
-                () -> assertTrue(Modifier.isPublic(PreparedScheduleAssembler.class.getModifiers())),
-                () -> assertTrue(PreparedScheduleAssembler.class.isInterface()),
-                () -> assertTrue(PreparedScheduleAssembler.class.isAnnotationPresent(
-                        FunctionalInterface.class)),
-                () -> assertTrue(Modifier.isPublic(GraphPreparation.class.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(GraphPreparation.class.getModifiers())),
-                () -> assertEquals(1, GraphPreparation.class.getDeclaredConstructors().length),
-                () -> assertTrue(Modifier.isPrivate(
-                        GraphPreparation.class.getDeclaredConstructors()[0].getModifiers())),
-                () -> assertEquals(0, GraphPreparation.class.getDeclaredFields().length),
-                () -> assertEquals(3, Arrays.stream(GraphPreparation.class.getDeclaredMethods())
-                        .filter(method -> Modifier.isPublic(method.getModifiers()))
-                        .count()),
-                () -> assertTrue(Modifier.isPublic(prepare.getModifiers())),
-                () -> assertTrue(Modifier.isStatic(prepare.getModifiers())),
-                () -> assertEquals(PreparedExecution.class, prepare.getReturnType()),
-                () -> assertTrue(Modifier.isPublic(
-                        prepareWithProducerlessResources.getModifiers())),
-                () -> assertTrue(Modifier.isStatic(
-                        prepareWithProducerlessResources.getModifiers())),
-                () -> assertEquals(
-                        PreparedExecution.class,
-                        prepareWithProducerlessResources.getReturnType()),
-                () -> assertTrue(Modifier.isPublic(project.getModifiers())),
-                () -> assertTrue(Modifier.isStatic(project.getModifiers())),
-                () -> assertEquals(io.github.pho001.synaptik.prepare.analysis.PrepareContext.class,
-                        project.getReturnType()),
-                () -> assertEquals(2, Arrays.stream(
-                                PreparedScheduleAssembler.class.getDeclaredMethods())
-                        .filter(method -> Modifier.isPublic(method.getModifiers()))
-                        .count()),
-                () -> assertTrue(Modifier.isPublic(assemble.getModifiers())));
-    }
-
     @Test
     void locksRecordComponentsAndBackendGenericAssociations() {
         assertAll(
@@ -96,9 +38,6 @@ class GraphPreparationPublicShapeTest {
                         "plannedPartitions", "graphValues", "logicalMemoryRequirements",
                         "bindableInputValueIds", "constants", "publicationValueIds", "memoryPlan",
                         "partitions", "bufferAssignments", "workspaceAssignments"),
-                () -> assertRecordComponents(
-                        ProducerlessPublishedConstantResource.class,
-                        "value", "logicalRequirement", "owner", "byteSize", "byteAlignment"),
                 () -> assertEquals(
                         BackendAnalysisInputs.class,
                         PartitionPreparation.class.getTypeParameters()[0].getBounds()[0]),
@@ -172,99 +111,57 @@ class GraphPreparationPublicShapeTest {
     }
 
     @Test
-    void producerlessResourceHasExactSurfaceAndValidatesInInvariantOrder() {
-        TensorDescriptor descriptor = resolvedDescriptor();
-        GraphValue value = new GraphValue(new ValueId(10), descriptor);
+    void producerlessResourceRetainsRecipesAndRejectsInvalidAssociations() {
+        GraphValue value = new GraphValue(new ValueId(10), resolvedDescriptor());
         LogicalMemoryRequirement valid = requirement(value, Optional.empty(), List.of(), true);
+        var owner = new io.github.pho001.synaptik.backend.contract.BackendId("test");
+        var size = new PreparedMemoryPlan.FixedByteSize(0);
         PlannedPartition partition = new PlannedPartition(
-                new io.github.pho001.synaptik.backend.contract.BackendId("cpu"),
-                List.of(new io.github.pho001.synaptik.model.graph.NodeId(1)));
-
+                owner, List.of(new io.github.pho001.synaptik.model.graph.NodeId(1)));
         assertAll(
-                () -> assertEquals(
-                        8,
-                        Arrays.stream(ProducerlessPublishedConstantResource.class.getDeclaredMethods())
-                                .filter(method -> Modifier.isPublic(method.getModifiers()))
-                                .count()),
-                () -> assertEquals(
-                        1,
-                        ProducerlessPublishedConstantResource.class.getDeclaredConstructors().length),
-                () -> assertFailure(
-                        NullPointerException.class,
-                        "value",
-                        () -> new ProducerlessPublishedConstantResource(null, null, new io.github.pho001.synaptik.backend.contract.BackendId("test"), -1, 0)),
-                () -> assertFailure(
-                        NullPointerException.class,
-                        "logicalRequirement",
-                        () -> new ProducerlessPublishedConstantResource(value, null, new io.github.pho001.synaptik.backend.contract.BackendId("test"), -1, 0)),
-                () -> assertFailure(
-                        IllegalArgumentException.class,
+                () -> assertFailure(NullPointerException.class, "value",
+                        () -> new ProducerlessPublishedValueResource(null, valid, owner, size, 8)),
+                () -> assertFailure(NullPointerException.class, "logicalRequirement",
+                        () -> new ProducerlessPublishedValueResource(value, null, owner, size, 8)),
+                () -> assertFailure(NullPointerException.class, "owner",
+                        () -> new ProducerlessPublishedValueResource(value, valid, null, size, 8)),
+                () -> assertFailure(NullPointerException.class, "size",
+                        () -> new ProducerlessPublishedValueResource(value, valid, owner, null, 8)),
+                () -> assertFailure(IllegalArgumentException.class,
                         "logicalRequirement.valueId must match value.id",
-                        () -> new ProducerlessPublishedConstantResource(value, new LogicalMemoryRequirement(
-                                new ValueId(11), descriptor, Optional.empty(), List.of(), true), new io.github.pho001.synaptik.backend.contract.BackendId("test"), -1, 0)),
-                () -> assertFailure(
-                        IllegalArgumentException.class,
+                        () -> new ProducerlessPublishedValueResource(value,
+                                new LogicalMemoryRequirement(new ValueId(11), value.descriptor(),
+                                        Optional.empty(), List.of(), true), owner, size, 8)),
+                () -> assertFailure(IllegalArgumentException.class,
                         "logicalRequirement.descriptor must match value.descriptor",
-                        () -> new ProducerlessPublishedConstantResource(value, new LogicalMemoryRequirement(
-                                value.id(), resolvedDescriptor(2), Optional.empty(), List.of(), true), new io.github.pho001.synaptik.backend.contract.BackendId("test"), -1, 0)),
-                () -> assertFailure(
-                        IllegalArgumentException.class,
+                        () -> new ProducerlessPublishedValueResource(value,
+                                new LogicalMemoryRequirement(value.id(), resolvedDescriptor(2),
+                                        Optional.empty(), List.of(), true), owner, size, 8)),
+                () -> assertFailure(IllegalArgumentException.class,
                         "logicalRequirement must be producerless",
-                        () -> new ProducerlessPublishedConstantResource(value, requirement(value, Optional.of(partition), List.of(), true), new io.github.pho001.synaptik.backend.contract.BackendId("test"), -1, 0)),
-                () -> assertFailure(
-                        IllegalArgumentException.class,
+                        () -> new ProducerlessPublishedValueResource(value,
+                                requirement(value, Optional.of(partition), List.of(), true),
+                                owner, size, 8)),
+                () -> assertFailure(IllegalArgumentException.class,
                         "logicalRequirement must be consumerless",
-                        () -> new ProducerlessPublishedConstantResource(value, requirement(value, Optional.empty(), List.of(partition), true), new io.github.pho001.synaptik.backend.contract.BackendId("test"), -1, 0)),
-                () -> assertFailure(
-                        IllegalArgumentException.class,
+                        () -> new ProducerlessPublishedValueResource(value,
+                                requirement(value, Optional.empty(), List.of(partition), true),
+                                owner, size, 8)),
+                () -> assertFailure(IllegalArgumentException.class,
                         "logicalRequirement must require graph output",
-                        () -> new ProducerlessPublishedConstantResource(value, requirement(value, Optional.empty(), List.of(), false), new io.github.pho001.synaptik.backend.contract.BackendId("test"), -1, 0)),
-                () -> {
-                    TensorDescriptor dynamic = new TensorDescriptor(
-                            DataType.FLOAT32,
-                            Shape.ofDimensions(new DynamicDimension("N")),
-                            Optional.empty(),
-                            false);
-                    GraphValue dynamicValue = new GraphValue(value.id(), dynamic);
-                    assertFailure(
-                            IllegalArgumentException.class,
-                            "value descriptor shape must be fully static",
-                            () -> new ProducerlessPublishedConstantResource(dynamicValue, requirement(dynamicValue, Optional.empty(), List.of(), true), new io.github.pho001.synaptik.backend.contract.BackendId("test"), -1, 0));
-                },
-                () -> {
-                    TensorDescriptor unresolved = new TensorDescriptor(
-                            DataType.FLOAT32, Shape.of(1), Optional.empty(), false);
-                    GraphValue unresolvedValue = new GraphValue(value.id(), unresolved);
-                    assertFailure(
-                            IllegalArgumentException.class,
-                            "value descriptor layout must be resolved",
-                            () -> new ProducerlessPublishedConstantResource(unresolvedValue, requirement(unresolvedValue, Optional.empty(), List.of(), true), new io.github.pho001.synaptik.backend.contract.BackendId("test"), -1, 0));
-                },
-                () -> assertFailure(
-                        IllegalArgumentException.class,
-                        "byteSize must be non-negative",
-                        () -> new ProducerlessPublishedConstantResource(value, valid, new io.github.pho001.synaptik.backend.contract.BackendId("test"), -1, 0)),
-                () -> assertFailure(
-                        IllegalArgumentException.class,
-                        "byteAlignment must be a positive power of two",
-                        () -> new ProducerlessPublishedConstantResource(value, valid, new io.github.pho001.synaptik.backend.contract.BackendId("test"), 0, 0)),
-                () -> assertFailure(
-                        IllegalArgumentException.class,
-                        "byteAlignment must be a positive power of two",
-                        () -> new ProducerlessPublishedConstantResource(value, valid, new io.github.pho001.synaptik.backend.contract.BackendId("test"), 0, 3)),
-                () -> {
-                    ProducerlessPublishedConstantResource resource =
-                            new ProducerlessPublishedConstantResource(value, valid, new io.github.pho001.synaptik.backend.contract.BackendId("test"), 0, 8);
-                    assertSameReferences(value, valid, resource);
-                });
-    }
-
-    private static void assertSameReferences(
-            GraphValue value,
-            LogicalMemoryRequirement requirement,
-            ProducerlessPublishedConstantResource resource) {
+                        () -> new ProducerlessPublishedValueResource(value,
+                                requirement(value, Optional.empty(), List.of(), false),
+                                owner, size, 8)));
+        for (long alignment : new long[] {0, -1, 3}) {
+            assertFailure(IllegalArgumentException.class,
+                    "byteAlignment must be a positive power of two",
+                    () -> new ProducerlessPublishedValueResource(value, valid, owner, size, alignment));
+        }
+        var resource = new ProducerlessPublishedValueResource(value, valid, owner, size, 8);
         org.junit.jupiter.api.Assertions.assertSame(value, resource.value());
-        org.junit.jupiter.api.Assertions.assertSame(requirement, resource.logicalRequirement());
+        org.junit.jupiter.api.Assertions.assertSame(valid, resource.logicalRequirement());
+        org.junit.jupiter.api.Assertions.assertSame(owner, resource.owner());
+        org.junit.jupiter.api.Assertions.assertSame(size, resource.size());
     }
 
     private static LogicalMemoryRequirement requirement(
@@ -287,11 +184,6 @@ class GraphPreparationPublicShapeTest {
                 shape,
                 Optional.of(LayoutDescriptor.contiguous(shape)),
                 false);
-    }
-
-    private static void assertPublicRecord(Class<?> type) {
-        assertTrue(Modifier.isPublic(type.getModifiers()));
-        assertTrue(type.isRecord());
     }
 
     private static void assertRecordComponents(Class<?> type, String... names) {

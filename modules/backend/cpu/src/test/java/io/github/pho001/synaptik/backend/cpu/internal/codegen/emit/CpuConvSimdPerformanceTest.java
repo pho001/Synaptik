@@ -493,8 +493,8 @@ class CpuConvSimdPerformanceTest {
             CpuClassFileKernelGenerator generator = new CpuClassFileKernelGenerator();
             scalarBytes = generator.generateClassBytes(scalarSpecialization, route.kernelIr());
             vectorBytes = generator.generateClassBytes(vectorSpecialization, route.kernelIr());
-            var scalarArtifact = generator.defineClassBytes(scalarSpecialization, scalarBytes);
-            var vectorArtifact = generator.defineClassBytes(vectorSpecialization, vectorBytes);
+            var scalarArtifact = generator.defineClassBytes(scalarSpecialization, route.kernelIr(), scalarBytes);
+            var vectorArtifact = generator.defineClassBytes(vectorSpecialization, route.kernelIr(), vectorBytes);
             scalarClass = scalarArtifact.hiddenClass();
             vectorClass = vectorArtifact.hiddenClass();
 

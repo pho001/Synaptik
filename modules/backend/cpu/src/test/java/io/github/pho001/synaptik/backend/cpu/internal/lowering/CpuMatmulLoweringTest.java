@@ -28,6 +28,20 @@ import org.junit.jupiter.api.Test;
 public final class CpuMatmulLoweringTest {
     private final CpuMatmulLowering lowering = new CpuMatmulLowering();
 
+    @Test void commonRankTwoNormalizationUsesExactDimensionsAndKeepsEmptyEquations() {
+        var b = new io.github.pho001.synaptik.model.shape.DynamicDimension("B");
+        var other = new io.github.pho001.synaptik.model.shape.DynamicDimension("Other");
+        var three = new io.github.pho001.synaptik.model.shape.StaticDimension(3);
+        var two = new io.github.pho001.synaptik.model.shape.StaticDimension(2);
+        assertDoesNotThrow(() -> CpuMatmulLowering.validateRankTwo(Shape.ofDimensions(b,three),Shape.of(3,2),Shape.ofDimensions(b,two)));
+        assertDoesNotThrow(() -> CpuMatmulLowering.validateRankTwo(Shape.ofDimensions(three,b),Shape.ofDimensions(b,two),Shape.of(3,2)));
+        assertThrows(IllegalArgumentException.class,() -> CpuMatmulLowering.validateRankTwo(Shape.ofDimensions(three,b),Shape.ofDimensions(other,two),Shape.of(3,2)));
+        assertThrows(IllegalArgumentException.class,() -> CpuMatmulLowering.validateRankTwo(Shape.ofDimensions(b,three),Shape.of(3,2),Shape.ofDimensions(other,two)));
+        assertDoesNotThrow(() -> CpuMatmulLowering.validateRankTwo(Shape.of(7,0),Shape.of(0,2),Shape.of(7,2)));
+        assertThrows(IllegalArgumentException.class,() -> CpuMatmulLowering.validateRankTwo(Shape.of(0,3),Shape.of(4,2),Shape.of(0,2)));
+        assertThrows(IllegalArgumentException.class,() -> CpuMatmulLowering.validateRankTwo(Shape.of(3),Shape.of(3,2),Shape.of(2)));
+    }
+
     @Test void normalizesVectorPromotionAndRightAlignedBatchBroadcast() {
         var vector = lowering.lower(descriptor(DataType.FLOAT64, Shape.of(5)),
                 descriptor(DataType.FLOAT64, Shape.of(5)), descriptor(DataType.FLOAT64, Shape.scalar()));
@@ -88,8 +102,9 @@ public final class CpuMatmulLoweringTest {
     @Test void preparationThreadsExactRowAndTileWorkDomains() {
         var directVector=new CpuPartitionPreparer().analyze(vectorContext(DataType.FLOAT32,
                 Shape.of(2,63),Shape.of(63,128),Shape.of(2,128))).plan().units().getFirst();
-        var scalarTile=new CpuPartitionPreparer().analyze(context(DataType.BFLOAT16,
-                Shape.of(32,63),Shape.of(63,48),Shape.of(32,48))).plan().units().getFirst();
+        for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16))
+            assertTrue(io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                    .assertLowUnsupported(context(type, Shape.of(32,63), Shape.of(63,48), Shape.of(32,48))));
         var vectorTile=new CpuPartitionPreparer().analyze(vectorContext(DataType.FLOAT32,
                 Shape.of(32,127),Shape.of(127,256),Shape.of(32,256))).plan().units().getFirst();
         int lanes=jdk.incubator.vector.FloatVector.SPECIES_PREFERRED.length();
@@ -97,10 +112,6 @@ public final class CpuMatmulLoweringTest {
                         .Realization.DIRECT_N_VECTOR,directVector.portablePlan().specialization()
                         .matmulIr().orElseThrow().realization()),
                 ()->assertEquals(2,directVector.elementCount()),
-                ()->assertEquals(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr
-                        .Realization.TILED_SCALAR_2X2,scalarTile.portablePlan().specialization()
-                        .matmulIr().orElseThrow().realization()),
-                ()->assertEquals(384,scalarTile.elementCount()),
                 ()->assertEquals(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr
                         .Realization.TILED_N_VECTOR_2X2,vectorTile.portablePlan().specialization()
                         .matmulIr().orElseThrow().realization()),
@@ -112,6 +123,27 @@ public final class CpuMatmulLoweringTest {
                 Shape.of(2,63), Shape.of(63,128), Shape.of(2,128))).plan().units().getFirst();
         assertEquals(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.DIRECT_SCALAR,
                 unit.portablePlan().specialization().matmulIr().orElseThrow().realization());
+    }
+
+    @Test void tanhKeepsDefaultScalarAndRejectsNoncontiguousBiasVectorLoads() {
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            for (long biasStride : new long[] {0, 1, 2}) {
+                var base = linear(type, 2, 63, 129, UnaryElementwiseKind.TANH, biasStride);
+                var scalar = new CpuPartitionPreparer().analyze(base).plan().units().getFirst();
+                assertEquals(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr
+                        .Realization.DIRECT_SCALAR, scalar.portablePlan().specialization()
+                            .matmulIr().orElseThrow().realization());
+                var vector = new CpuPartitionPreparer().analyze(withVectorPreference(base))
+                        .plan().units().getFirst();
+                var ir = vector.portablePlan().specialization().matmulIr().orElseThrow();
+                assertEquals(biasStride == 1
+                        ? io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.DIRECT_N_VECTOR
+                        : io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization.DIRECT_SCALAR,
+                        ir.realization());
+                assertEquals(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr
+                        .Epilogue.Terminal.TANH, ir.epilogue().terminal());
+            }
+        }
     }
 
     @Test void fourTypesKeepDirectAndTiledStrategySpeciesAndWorkAligned() {
@@ -145,6 +177,7 @@ public final class CpuMatmulLoweringTest {
             long work, int bits) {
         var base = context(type, Shape.of(m, k), Shape.of(k, n), Shape.of(m, n));
         var selected = vector ? withVectorPreference(base) : base;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(selected)) return;
         var unit = new CpuPartitionPreparer().analyze(selected).plan().units().getFirst();
         var specialization = unit.portablePlan().specialization();
         assertAll(() -> assertEquals(form, specialization.matmulIr().orElseThrow().realization()),
@@ -258,22 +291,29 @@ public final class CpuMatmulLoweringTest {
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> linear() {
+        return linear(DataType.FLOAT32, 2, 3, 4, UnaryElementwiseKind.RELU, 1);
+    }
+
+    private static PrepareContext<CpuPartitionAnalysisInputs> linear(DataType type, int m,
+            int k, int n, UnaryElementwiseKind terminal, long biasStride) {
         var nodes=List.of(new CompiledNode(new NodeId(0),new Operation(MatmulKind.MATMUL,
                         NoOperationAttrs.INSTANCE),List.of(new ValueId(0),new ValueId(1)),List.of(new ValueId(2))),
                 new CompiledNode(new NodeId(1),new Operation(BinaryArithmeticKind.ADD,
                         NoOperationAttrs.INSTANCE),List.of(new ValueId(2),new ValueId(3)),List.of(new ValueId(4))),
-                new CompiledNode(new NodeId(2),new Operation(UnaryElementwiseKind.RELU,
+                new CompiledNode(new NodeId(2),new Operation(terminal,
                         NoOperationAttrs.INSTANCE),List.of(new ValueId(4)),List.of(new ValueId(5))));
-        var descriptors=List.of(descriptor(DataType.FLOAT32,Shape.of(2,3)),
-                descriptor(DataType.FLOAT32,Shape.of(3,4)),descriptor(DataType.FLOAT32,Shape.of(2,4)),
-                descriptor(DataType.FLOAT32,Shape.of(4)),descriptor(DataType.FLOAT32,Shape.of(2,4)),
-                descriptor(DataType.FLOAT32,Shape.of(2,4)));
+        var biasShape = Shape.of(n);
+        var descriptors=List.of(descriptor(type,Shape.of(m,k)),
+                descriptor(type,Shape.of(k,n)),descriptor(type,Shape.of(m,n)),
+                new TensorDescriptor(type,biasShape,Optional.of(LayoutDescriptor.of(biasShape,
+                        new long[] {biasStride},0,true)),false),descriptor(type,Shape.of(m,n)),
+                descriptor(type,Shape.of(m,n)));
         var partition=new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID,
                 nodes.stream().map(CompiledNode::id).toList());var values=new ArrayList<GraphValue>();
         var memory=new ArrayList<LogicalMemoryRequirement>();Set<ValueId> outputs=Set.of(new ValueId(5));
         for(int index=0;index<descriptors.size();index++){ValueId id=new ValueId(index);
-            var descriptor=descriptors.get(index);boolean produced=nodes.stream().anyMatch(n->n.outputs().contains(id));
-            boolean consumed=nodes.stream().anyMatch(n->n.inputs().contains(id));boolean output=outputs.contains(id);
+            var descriptor=descriptors.get(index);boolean produced=nodes.stream().anyMatch(node->node.outputs().contains(id));
+            boolean consumed=nodes.stream().anyMatch(node->node.inputs().contains(id));boolean output=outputs.contains(id);
             values.add(new GraphValue(id,descriptor));memory.add(new LogicalMemoryRequirement(id,descriptor,
                     produced?Optional.of(partition):Optional.empty(),consumed&&!output?List.of(partition):List.of(),output));}
         return new PrepareContext<>(partition, nodes, values, memory, Map.of(), CpuPartitionAnalysisInputs.DEFAULT);

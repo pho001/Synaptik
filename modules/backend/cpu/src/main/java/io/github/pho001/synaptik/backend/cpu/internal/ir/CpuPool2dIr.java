@@ -93,4 +93,19 @@ public record CpuPool2dIr(
     public String structuralKey() {
         return encodedKernelIr().structuralKey();
     }
+    /**
+     * Reads only the semantic discriminator consumed by emission, without decoding geometry.
+     * @param ir non-null canonical pool2d envelope
+     * @return the existing encoded semantic discriminator
+     * @throws NullPointerException if the envelope is null
+     * @throws IllegalArgumentException if the family or discriminator is malformed
+     */
+    public static Kind encodedKind(CpuKernelIr ir) {
+        String identity = Objects.requireNonNull(ir, "ir").familyIdentity();
+        if (!identity.startsWith("pool2d:kind=")) throw new IllegalArgumentException("wrong encoded family");
+        int end = identity.indexOf(':', 12);
+        if (end < 0) throw new IllegalArgumentException("missing encoded discriminator");
+        return Kind.valueOf(identity.substring(12, end));
+    }
+
 }

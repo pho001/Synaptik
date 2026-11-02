@@ -54,6 +54,91 @@ final class CpuProfileFreeConformanceTest {
     private static final Shape SHAPE = Shape.of(3);
     private static final TensorDescriptor FLOAT = descriptor(DataType.FLOAT32);
 
+    /**
+     * Proves the unsupported outcome of a numerical-family low fixture without removing its
+     * dtype/carrier/layout row. Exact/storage-only families must not call this helper.
+     * @param context exact independently constructed numerical-family fixture
+     * @return whether both actual source and independent preparation rejected a low row
+     */
+    static boolean assertLockedNumerical(PrepareContext<CpuPartitionAnalysisInputs> context) {
+        if (context.values().stream().noneMatch(value -> value.descriptor().dataType() == DataType.BFLOAT16
+                || value.descriptor().dataType() == DataType.FLOAT16)) return false;
+        var descriptors = new java.util.HashMap<ValueId, TensorDescriptor>();
+        context.values().forEach(value -> descriptors.put(value.id(), value.descriptor()));
+        boolean rejected = false;
+        for (var node : context.nodes()) {
+            var query = new OperationCapabilityQuery(node.operation(), node.inputs().stream().map(descriptors::get).toList(),
+                    node.outputs().stream().map(descriptors::get).toList(), node.scanBody(),
+                    Optional.ofNullable(context.scanActivityPlans().get(node.id())));
+            rejected |= !new CpuCapabilityProvider().supports(query);
+        }
+        assertTrue(rejected, "a low numerical source occurrence must have no CPU owner");
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new CpuPartitionPreparer().analyze(context));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new CpuPartitionPreparer().completePlanCandidates(context));
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> new io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering().lower(context));
+        return true;
+    }
+
+    /** Exact fusion keeps producing-site rounding, fresh run state and all-input alias checks. */
+    @Test void ordinaryProducerExactSumTailPreservesRoundingResourcesAndFailBeforeWrites() {
+        for (var type : List.of(DataType.FLOAT32,DataType.FLOAT64)) {
+            var shapes = List.of(Shape.of(2),Shape.of(2),Shape.of(2),Shape.scalar(),Shape.scalar(),Shape.scalar());
+            var nodes = List.of(new CompiledNode(new NodeId(0),new Operation(
+                    io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind.MUL,NoOperationAttrs.INSTANCE),
+                    List.of(new ValueId(0),new ValueId(1)),List.of(new ValueId(2))),
+                    new CompiledNode(new NodeId(1),new Operation(io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.SUM,
+                            NoOperationAttrs.INSTANCE),List.of(new ValueId(2)),List.of(new ValueId(3))),
+                    new CompiledNode(new NodeId(2),new Operation(io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind.ADD,
+                            NoOperationAttrs.INSTANCE),List.of(new ValueId(3),new ValueId(4)),List.of(new ValueId(5))));
+            var partition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID,nodes.stream().map(CompiledNode::id).toList());
+            var values = new ArrayList<GraphValue>(); var requirements = new ArrayList<LogicalMemoryRequirement>();
+            for (int i = 0; i < shapes.size(); i++) {
+                var id = new ValueId(i); var desc = new TensorDescriptor(type,shapes.get(i),Optional.of(LayoutDescriptor.contiguous(shapes.get(i))),false);
+                values.add(new GraphValue(id,desc));
+                requirements.add(new LogicalMemoryRequirement(id,desc,i == 2 || i == 3 || i == 5 ? Optional.of(partition) : Optional.empty(),
+                        i == 5 ? List.of() : List.of(partition),i == 5));
+            }
+            var analysis = new CpuPartitionPreparer().analyze(new PrepareContext<>(partition,nodes,values,requirements,Map.of(),CpuPartitionAnalysisInputs.DEFAULT));
+            assertEquals(1,analysis.plan().units().size()); assertEquals(4,analysis.plan().bufferDeclarations().size());
+            assertEquals(type == DataType.FLOAT32 ? 48 : 272,analysis.plan().aggregateGeometry().orElseThrow().workspaceBytes(1));
+            var executable = finalizePortable(analysis);
+            try (var integration = CpuBackendIntegration.open(); var arena = Arena.ofConfined()) {
+                for (int run = 0; run < 2; run++) for (int alias = -1; alias < 3; alias++) {
+                    int width = type.byteWidth(); double epsilon = Math.scalb(1d,type == DataType.FLOAT32 ? -23 : -52);
+                    var left = arena.allocate(2L*width,width); var right = arena.allocate(2L*width,width); var bias = arena.allocate(width,width);
+                    for (int i = 0; i < 2; i++) {
+                        double a = i == 0 ? 1+epsilon : -(1+2*epsilon), b = i == 0 ? 1+epsilon : 1;
+                        if (type == DataType.FLOAT32) { left.setAtIndex(java.lang.foreign.ValueLayout.JAVA_FLOAT,i,(float)a); right.setAtIndex(java.lang.foreign.ValueLayout.JAVA_FLOAT,i,(float)b); }
+                        else { left.setAtIndex(java.lang.foreign.ValueLayout.JAVA_DOUBLE,i,a); right.setAtIndex(java.lang.foreign.ValueLayout.JAVA_DOUBLE,i,b); }
+                    }
+                    if (type == DataType.FLOAT32) bias.set(java.lang.foreign.ValueLayout.JAVA_FLOAT,0,run+1);
+                    else bias.set(java.lang.foreign.ValueLayout.JAVA_DOUBLE,0,run+1);
+                    var reads = List.of(left,right,bias);
+                    var output = alias < 0 ? arena.allocate(width,width) : reads.get(alias).asSlice(alias < 2 ? width : 0,width);
+                    byte[] unchanged = output.toArray(java.lang.foreign.ValueLayout.JAVA_BYTE);
+                    var bindings = new ArrayList<List<BufferRepresentationBinding>>();
+                    for (var segment : List.of(left,right,bias,output)) bindings.add(List.of(new BufferRepresentationBinding(integration.borrow(
+                            new MemorySegmentStorage(type,segment.byteSize()/width,segment)),RunResourceOwnership.BORROWED)));
+                    var workspace = io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace.allocate(
+                            type == DataType.FLOAT32 ? 48 : 272,8);
+                    try (var state = new RunState(executable.memoryPlan(),bindings,List.of(workspace))) {
+                        if (alias >= 0) {
+                            org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,() -> executable.bind(state));
+                            assertArrayEquals(unchanged,output.toArray(java.lang.foreign.ValueLayout.JAVA_BYTE));
+                        } else {
+                            executable.bind(state).execute();
+                            assertEquals(run+1,type == DataType.FLOAT32 ? output.get(java.lang.foreign.ValueLayout.JAVA_FLOAT,0)
+                                    : output.get(java.lang.foreign.ValueLayout.JAVA_DOUBLE,0));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     @Test
     void supportedNegPreparesAndPreservesRepresentedExecution() {
         try (CpuBackendIntegration integration = CpuBackendIntegration.open()) {

@@ -163,6 +163,82 @@ final class LayoutInferenceTest {
     }
 
     @Test
+    void retainsIndependentTypedCropBoundsWhenNoLayoutCanBeResolved() {
+        DynamicDimension batch = new DynamicDimension("B");
+        Shape baseShape = Shape.ofDimensions(batch, new StaticDimension(4));
+        Shape target = Shape.of(2, 2);
+        TensorDescriptor base = new TensorDescriptor(
+                DataType.INT64, baseShape, Optional.empty(), false);
+        Operation operation = new Operation(
+                SliceKind.SLICE, new CropToShapeAttrs(target, Shape.of(1, 1)));
+
+        var inferred = LayoutInference.infer(operation, List.of(base));
+        assertEquals(new TensorDescriptor(DataType.INT64, target, Optional.empty(), false),
+                inferred.outputs().getFirst());
+        assertEquals(List.of(
+                        FitsWithin.dimension(0, new StaticDimension(3), batch),
+                        FitsWithin.dimension(0, new StaticDimension(3), new StaticDimension(4))),
+                inferred.constraints().stream()
+                        .map(CapturedGraphInference.ConstraintRequest::predicate).toList());
+
+        Tensor source = TensorFactory.create(base);
+        Tensor crop = source.cropToShape(target, Shape.of(1, 1));
+        var validated = CapturedGraphInference.inferAndValidate(GraphCapture.capture(List.of(crop)));
+        var predicates = validated.constraints().stream()
+                .map(DeferredGraphConstraint::predicate).toList();
+        assertEquals(List.of(FitsWithin.dimension(0, new StaticDimension(3), batch)), predicates);
+        var bound = GraphPredicateProof.bind(predicates.getFirst(), "B");
+        assertFalse(bound.test(0));
+        assertFalse(bound.test(2));
+        assertTrue(bound.test(3));
+        assertTrue(bound.test(7));
+        assertSame(validated, StaticResultLogicalLayoutClosure.close(validated));
+    }
+
+    @Test
+    void rejectsCropRankBoundsAndStoredTypeOrShapeIndependentlyOfTheLayoutRecipe() {
+        Shape matrix = Shape.of(3, 4);
+        TensorDescriptor base = new TensorDescriptor(
+                DataType.FLOAT64, matrix,
+                Optional.of(LayoutDescriptor.of(matrix, new long[] {6, 1}, 5, true)), true);
+        for (CropToShapeAttrs attrs : List.of(
+                new CropToShapeAttrs(Shape.of(2), Shape.of(1)),
+                new CropToShapeAttrs(Shape.of(2, 2), Shape.of(1)))) {
+            assertThrows(IllegalArgumentException.class, () -> LayoutInference.infer(
+                    new Operation(SliceKind.SLICE, attrs), List.of(base)));
+        }
+
+        Shape target = Shape.of(2, 2);
+        Operation crop = new Operation(
+                SliceKind.SLICE, new CropToShapeAttrs(target, Shape.of(1, 1)));
+        var inferred = LayoutInference.infer(crop, List.of(base)).outputs().getFirst();
+        assertEquals(DataType.FLOAT64, inferred.dataType());
+        assertEquals(target, inferred.shape());
+        assertTrue(inferred.requiresGrad());
+        assertEquals(LayoutDescriptor.of(target, new long[] {6, 1}, 12, true),
+                inferred.layout().orElseThrow());
+        for (TensorDescriptor stored : List.of(
+                new TensorDescriptor(DataType.FLOAT32, target, Optional.empty(), true),
+                new TensorDescriptor(DataType.FLOAT64, Shape.of(1, 2), Optional.empty(), true))) {
+            assertThrows(IllegalArgumentException.class, () -> CapturedGraphInference.inferAndValidate(
+                    graph(crop, List.of(base), stored)));
+        }
+        Operation outOfBounds = new Operation(
+                SliceKind.SLICE, new CropToShapeAttrs(target, Shape.of(2, 1)));
+        assertThrows(IllegalArgumentException.class, () -> CapturedGraphInference.inferAndValidate(
+                graph(outOfBounds, List.of(base),
+                        new TensorDescriptor(DataType.FLOAT64, target, Optional.empty(), true))));
+        Operation placement = new Operation(
+                SliceKind.SLICE_UPDATE, new CropToShapeAttrs(target, Shape.of(1, 1)));
+        for (TensorDescriptor update : List.of(
+                new TensorDescriptor(DataType.FLOAT32, target, Optional.empty(), false),
+                new TensorDescriptor(DataType.FLOAT64, Shape.of(1, 2), Optional.empty(), false))) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> LayoutInference.infer(placement, List.of(base, update)));
+        }
+    }
+
+    @Test
     void rejectsManuallyConstructedInvalidLayoutRuleCategories() {
         TensorDescriptor vector = descriptor(Shape.of(2));
 

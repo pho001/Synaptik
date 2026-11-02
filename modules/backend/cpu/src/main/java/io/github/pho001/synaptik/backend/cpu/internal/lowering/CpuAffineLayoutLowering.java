@@ -3,6 +3,8 @@ package io.github.pho001.synaptik.backend.cpu.internal.lowering;
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr;
+import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
+import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.*;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
@@ -15,7 +17,7 @@ import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.util.*;
 
 /**
- * Validates and composes the bounded straight-line static affine-view family.
+ * Validates and composes bounded straight-line static and symbolic affine-view families.
  *
  * <p>Lowering retains graph and logical-memory values while marking eligible unit-private
  * intermediates as CPU-private virtual values. It derives exactly one source boundary, one final
@@ -24,6 +26,11 @@ import java.util.*;
  * represented-bit copy lowering remain CPU-owned. Zero-stride result layouts use a
  * distinct-address write domain only when every repeated logical coordinate selects the same
  * represented source value.</p>
+ *
+ * <p>Symbolic Scan helpers retain only numeric extent/stride coefficients and coordinate
+ * recipes. Invocation binding composes the ordinary address-pair copy once for the actual batch,
+ * including noncontiguous reshape materialization and compatible repeated output addresses.
+ * Neither descriptors nor a graph lowerer are retained in that recipe.</p>
  */
 public final class CpuAffineLayoutLowering {
     private final CpuCapabilityProvider capabilities = new CpuCapabilityProvider();
@@ -50,6 +57,20 @@ public final class CpuAffineLayoutLowering {
      */
     public CpuPartitionLowering.LoweredPartition lower(
             PrepareContext<? extends BackendAnalysisInputs> context) {
+        return lower(context, false);
+    }
+
+    /**
+     * Lowers a chain with original logical ordinals retained for controlled distinct writes.
+     * The ordinary two-address pack and its generated identity are unchanged when uncontrolled.
+     *
+     * @param context exact ordinary affine-chain projection
+     * @param controlled whether distinct writes require original-row provenance
+     * @return exact physical copy facts with two-address or controlled three-cell entries
+     * @throws IllegalArgumentException if repeated destinations select different source values
+     */
+    public CpuPartitionLowering.LoweredPartition lower(
+            PrepareContext<? extends BackendAnalysisInputs> context, boolean controlled) {
         List<CompiledNode> nodes = context.partitionDag().nodes();
         Map<ValueId, GraphValue> values = new LinkedHashMap<>();
         context.values().forEach(value -> values.put(value.id(), value));
@@ -88,7 +109,7 @@ public final class CpuAffineLayoutLowering {
 
         long[] finalExtents = resultValue.descriptor().shape().toLongArray();
         long logicalCount = product(finalExtents);
-        LinkedHashMap<Long, Long> writes = new LinkedHashMap<>();
+        var writes = new LinkedHashMap<Long, AffineWrite>();
         long[] finalCoordinates = new long[finalExtents.length];
         for (long logical = 0; logical < logicalCount; logical++) {
             long resultAddress = address(resultLayout, finalCoordinates);
@@ -99,25 +120,23 @@ public final class CpuAffineLayoutLowering {
                         require(values, node.outputs().getFirst()), sourceCoordinates);
             }
             long sourceAddress = address(sourceLayout, sourceCoordinates);
-            Long prior = writes.putIfAbsent(resultAddress, sourceAddress);
-            if (prior != null && prior.longValue() != sourceAddress) {
+            AffineWrite prior = writes.get(resultAddress);
+            if (prior == null) writes.put(resultAddress, new AffineWrite(sourceAddress, logical));
+            if (prior != null && prior.source() != sourceAddress) {
                 throw new IllegalArgumentException(
                         "non-injective output coordinates do not select one source value");
             }
             advance(finalCoordinates, finalExtents);
         }
-        long[] addressPairs = new long[Math.multiplyExact(writes.size(), 2)];
-        int pair = 0;
-        for (var entry : writes.entrySet()) {
-            addressPairs[pair++] = entry.getValue();
-            addressPairs[pair++] = entry.getKey();
-        }
         long elementCount = writes.size();
-        CpuAccessPlan sourcePlan = tablePlan(CpuAccessPlan.AccessKind.READ, addressPairs, 0);
-        CpuAccessPlan resultPlan = tablePlan(CpuAccessPlan.AccessKind.WRITE, addressPairs, 1);
         CpuAffineCopyIr.WriteDomain domain = elementCount == logicalCount
                 ? CpuAffineCopyIr.WriteDomain.LOGICAL_ELEMENTS
                 : CpuAffineCopyIr.WriteDomain.DISTINCT_ADDRESSES;
+        boolean originalOrdinals = controlled && domain == CpuAffineCopyIr.WriteDomain.DISTINCT_ADDRESSES;
+        long[] addressPairs = addressPack(writes, originalOrdinals);
+        int entryWidth = originalOrdinals ? 3 : 2;
+        CpuAccessPlan sourcePlan = tablePlan(CpuAccessPlan.AccessKind.READ, addressPairs, 0, entryWidth);
+        CpuAccessPlan resultPlan = tablePlan(CpuAccessPlan.AccessKind.WRITE, addressPairs, 1, entryWidth);
         DataType type = resultValue.descriptor().dataType();
         var affine = new CpuAffineCopyIr(type, sourcePlan, resultPlan, steps, domain);
 
@@ -130,6 +149,327 @@ public final class CpuAffineLayoutLowering {
                 List.of(sourceLayout.referencedElementSpan(), resultLayout.referencedElementSpan()),
                 List.of(type, type), virtual, new long[]{elementCount}, elementCount,
                 "legal: bounded connected static affine chain", addressPairs);
+    }
+
+    /**
+     * Lowers an original one-named-B affine chain without substituting a representative shape.
+     *
+     * @param context exact non-null projected ordinary chain
+     * @return unresolved represented-bit copy with immutable numeric invocation geometry
+     * @throws IllegalArgumentException if ordinary semantics, layout, or chain ownership is invalid
+     * @throws ArithmeticException if structural coefficient arithmetic overflows
+     */
+    public CpuPartitionLowering.LoweredPartition lowerBatch(
+            PrepareContext<? extends BackendAnalysisInputs> context) {
+        return lowerBatch(context, CpuPartitionLowering.batchLayouts(context));
+    }
+
+    /**
+     * Lowers using authenticated full-local mappings, preserving views produced by earlier units.
+     *
+     * @param context exact non-null projected ordinary chain
+     * @param layouts non-null full-local numeric mappings, including every chain input and output
+     * @return unresolved ordinary affine copy; no original graph or descriptors are retained
+     * @throws IllegalArgumentException if semantics, mappings, or chain ownership is invalid
+     * @throws ArithmeticException if structural coefficient arithmetic overflows
+     */
+    public CpuPartitionLowering.LoweredPartition lowerBatch(
+            PrepareContext<? extends BackendAnalysisInputs> context,
+            Map<ValueId, CpuAccessPlan.BatchBinding> layouts) {
+        var batch = CpuPartitionLowering.requireBatchContext(context);
+        Objects.requireNonNull(layouts, "layouts");
+        var nodes = context.partitionDag().nodes();
+        if (nodes.isEmpty() || nodes.size() > 8)
+            throw new IllegalArgumentException("affine partition requires one through eight nodes");
+        var values = new LinkedHashMap<ValueId, GraphValue>();
+        context.values().forEach(value -> values.put(value.id(), value));
+        var memory = new LinkedHashMap<ValueId, LogicalMemoryRequirement>();
+        context.memoryRequirements().forEach(value -> memory.put(value.valueId(), value));
+        var shapes = new ArrayList<CpuAccessPlan.BatchBinding>();
+        var mappings = new ArrayList<BatchMapping>();
+        var virtual = new ArrayList<ValueId>();
+        ValueId source = nodes.getFirst().inputs().getFirst();
+        ValueId previous = source;
+        shapes.add(requireBatchLayout(layouts, require(values, source)));
+        DataType type = require(values, source).descriptor().dataType();
+        for (int n = 0; n < nodes.size(); n++) {
+            var node = nodes.get(n);
+            if (node.inputs().size() != 1 || node.outputs().size() != 1
+                    || !node.inputs().getFirst().equals(previous))
+                throw new IllegalArgumentException("affine partition must be one connected one-input chain");
+            var input = require(values, previous);
+            var output = require(values, node.outputs().getFirst());
+            if (input.descriptor().dataType() != type || output.descriptor().dataType() != type)
+                throw new IllegalArgumentException("affine copy must preserve represented type");
+            if (input.descriptor().shape().isFullyStatic() && output.descriptor().shape().isFullyStatic()
+                    && !capabilities.supports(new OperationCapabilityQuery(node.operation(),
+                            List.of(input.descriptor()), List.of(output.descriptor()))))
+                throw new IllegalArgumentException("unsupported fixed affine layout in symbolic chain");
+            var target = requireBatchLayout(layouts, output);
+            shapes.add(target);
+            mappings.add(BatchMapping.capture(node, input.descriptor().shape().rank(),
+                    output.descriptor().shape().rank(), batch));
+            if (n + 1 < nodes.size()) {
+                requireVirtual(memory.get(output.id()), context);
+                virtual.add(output.id());
+            }
+            previous = output.id();
+        }
+        validateUses(context, previous);
+        var read = shapes.getFirst();
+        var target = shapes.getLast();
+        var writePlan = new CpuAccessPlan(CpuAccessPlan.AccessKind.WRITE, target.plan().regime(),
+                target.plan().iterationRank(), target.plan().axisRoles(),
+                target.plan().contiguousSuffix());
+        var write = new CpuAccessPlan.BatchBinding(writePlan, target.extentConstants(),
+                target.extentBatchFactors(), target.baseElementOffset(), target.strideConstants(),
+                target.strideBatchFactors(), true);
+        // Address-pair traversal is deliberately structural: no actual B selects an IR regime.
+        var sourcePlan = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ,
+                CpuAccessPlan.Regime.GENERAL_ODOMETER, 1,
+                List.of(CpuAccessPlan.AxisRole.STRIDED), 0);
+        var resultPlan = new CpuAccessPlan(CpuAccessPlan.AccessKind.WRITE,
+                CpuAccessPlan.Regime.GENERAL_ODOMETER, 1,
+                List.of(CpuAccessPlan.AxisRole.STRIDED), 0);
+        var ir = new CpuAffineCopyIr(type, sourcePlan, resultPlan,
+                mappings.stream().map(BatchMapping::step).toList(),
+                CpuAffineCopyIr.WriteDomain.DISTINCT_ADDRESSES);
+        return new CpuPartitionLowering.LoweredPartition(new BatchGeometry(ir,
+                List.of(source, previous), List.of(type, type), List.of(read, write),
+                shapes, mappings, virtual, CpuPartitionLowering.batchElements(target)));
+    }
+
+    private static CpuAccessPlan.BatchBinding requireBatchLayout(
+            Map<ValueId, CpuAccessPlan.BatchBinding> layouts, GraphValue value) {
+        var layout = layouts.get(value.id());
+        if (layout == null) throw new IllegalArgumentException("missing affine physical mapping");
+        var canonical = CpuPartitionLowering.batchCanonical(value.descriptor(), CpuAccessPlan.AccessKind.READ);
+        if (!layout.extentConstants().equals(canonical.extentConstants())
+                || !layout.extentBatchFactors().equals(canonical.extentBatchFactors()))
+            throw new IllegalArgumentException("affine mapping disagrees with original logical extents");
+        if (value.descriptor().layout().isPresent()) {
+            var original = value.descriptor().layout().orElseThrow();
+            if (layout.baseElementOffset() != original.storageOffset()
+                    || layout.strideBatchFactors().stream().anyMatch(factor -> factor != 0)
+                    || !layout.strideConstants().equals(Arrays.stream(original.strides()).boxed().toList()))
+                throw new IllegalArgumentException("affine mapping discards an original physical layout");
+        }
+        return layout;
+    }
+
+    /** Numeric-only inverse coordinate recipe; no Operation, Shape, or descriptor survives. */
+    private record BatchMapping(CpuAffineCopyIr.MappingStep step, List<Long> origins,
+            List<Long> originFactors, List<Long> scales) {
+        private BatchMapping {
+            origins = List.copyOf(origins);
+            originFactors = List.copyOf(originFactors);
+            scales = List.copyOf(scales);
+        }
+
+        private static BatchMapping capture(CompiledNode node, int inputRank, int outputRank,
+                io.github.pho001.synaptik.model.shape.DynamicDimension batch) {
+            Object kind = node.operation().kind();
+            if (kind != ContiguousKind.CONTIGUOUS && kind != ShapeTransformKind.RESHAPE
+                    && kind != ShapeTransformKind.EXPAND && !(kind instanceof AxisTransformKind)
+                    && kind != io.github.pho001.synaptik.model.operation.index.SelectKind.SELECT
+                    && kind != SliceKind.SLICE)
+                throw new IllegalArgumentException("unsupported affine mapping step");
+            var step = mappingStep(node, inputRank, outputRank);
+            Object attrs = node.operation().attrs();
+            if (attrs instanceof SelectAttrs select)
+                return new BatchMapping(step, List.of(select.index()), List.of(0L), List.of());
+            if (attrs instanceof SliceAttrs slice)
+                return new BatchMapping(step, slice.starts(),
+                        Collections.nCopies(slice.starts().size(), 0L), slice.steps());
+            if (attrs instanceof CropToShapeAttrs crop) {
+                var constants = new ArrayList<Long>();
+                var factors = new ArrayList<Long>();
+                for (var dimension : crop.prefixShape().dimensions()) {
+                    if (dimension instanceof io.github.pho001.synaptik.model.shape.StaticDimension fixed) {
+                        constants.add(fixed.size()); factors.add(0L);
+                    } else if (dimension.equals(batch)) {
+                        constants.add(0L); factors.add(1L);
+                    } else throw new IllegalArgumentException("unproved affine crop origin");
+                }
+                return new BatchMapping(step, constants, factors, List.of());
+            }
+            return new BatchMapping(step, List.of(), List.of(), List.of());
+        }
+
+        private long[] bindOrigins(long batch) {
+            long[] result = new long[origins.size()];
+            for (int i = 0; i < result.length; i++) result[i] = Math.addExact(origins.get(i),
+                    Math.multiplyExact(originFactors.get(i), batch));
+            return result;
+        }
+
+        private void validate(long[] input, long[] output, long[] starts) {
+            if (step.kind() == CpuAffineCopyIr.MappingKind.SELECT) {
+                if (starts[0] >= input[step.axes().getFirst()])
+                    throw new IllegalArgumentException("affine SELECT index exceeds actual extent");
+            } else if (step.kind() == CpuAffineCopyIr.MappingKind.SLICE) {
+                for (int i = 0; i < step.axes().size(); i++) {
+                    int axis = step.axes().get(i);
+                    if (scales.get(i) <= 0 || output[axis] != 0 && Math.addExact(starts[i],
+                            Math.multiplyExact(output[axis] - 1, scales.get(i))) >= input[axis])
+                        throw new IllegalArgumentException("affine SLICE exceeds actual extent");
+                }
+            } else if (step.kind() == CpuAffineCopyIr.MappingKind.CROP_TO_SHAPE) {
+                for (int axis = 0; axis < input.length; axis++)
+                    if (Math.addExact(starts[axis], output[axis]) > input[axis])
+                        throw new IllegalArgumentException("affine crop exceeds actual extent");
+            } else if (step.kind() == CpuAffineCopyIr.MappingKind.RESHAPE
+                    && product(input) != product(output)) {
+                throw new IllegalArgumentException("affine reshape actual element counts disagree");
+            }
+        }
+
+        private void reverse(long[] input, long[] output, long[] coordinates,
+                long[] result, long[] starts) {
+            switch (step.kind()) {
+                case CONTIGUOUS -> System.arraycopy(coordinates, 0, result, 0, result.length);
+                case RESHAPE -> {
+                    long ordinal = linear(coordinates, output);
+                    for (int axis = input.length - 1; axis >= 0; axis--) {
+                        result[axis] = ordinal % input[axis];
+                        ordinal /= input[axis];
+                    }
+                }
+                case EXPAND -> {
+                    int shift = output.length - input.length;
+                    for (int axis = 0; axis < input.length; axis++)
+                        result[axis] = input[axis] == 1 ? 0 : coordinates[axis + shift];
+                }
+                case PERMUTE -> {
+                    for (int axis = 0; axis < input.length; axis++)
+                        result[step.axes().get(axis)] = coordinates[axis];
+                }
+                case EXPAND_DIMS -> {
+                    int removed = step.axes().getFirst();
+                    for (int axis = 0; axis < input.length; axis++)
+                        result[axis] = coordinates[axis < removed ? axis : axis + 1];
+                }
+                case SQUEEZE, SELECT -> {
+                    int inserted = step.axes().getFirst();
+                    for (int axis = 0; axis < input.length; axis++)
+                        result[axis] = axis == inserted
+                                ? step.kind() == CpuAffineCopyIr.MappingKind.SELECT ? starts[0] : 0
+                                : coordinates[axis < inserted ? axis : axis - 1];
+                }
+                case SLICE -> {
+                    System.arraycopy(coordinates, 0, result, 0, result.length);
+                    for (int i = 0; i < step.axes().size(); i++) {
+                        int axis = step.axes().get(i);
+                        result[axis] = Math.addExact(starts[i],
+                                Math.multiplyExact(coordinates[axis], scales.get(i)));
+                    }
+                }
+                case CROP_TO_SHAPE -> {
+                    for (int axis = 0; axis < input.length; axis++)
+                        result[axis] = Math.addExact(coordinates[axis], starts[axis]);
+                }
+            }
+        }
+    }
+
+    /** Immutable numeric copy geometry, bound once before the generated Scan time loop. */
+    private record BatchGeometry(CpuAffineCopyIr ir, List<ValueId> boundaries,
+            List<DataType> boundaryTypes, List<CpuAccessPlan.BatchBinding> bindings,
+            List<CpuAccessPlan.BatchBinding> shapes, List<BatchMapping> mappings,
+            List<ValueId> virtual, BatchByteSize iterationCount)
+            implements CpuPartitionLowering.BatchUnitGeometry {
+        private BatchGeometry {
+            boundaries = List.copyOf(boundaries);
+            boundaryTypes = List.copyOf(boundaryTypes);
+            bindings = List.copyOf(bindings);
+            shapes = List.copyOf(shapes);
+            mappings = List.copyOf(mappings);
+            virtual = List.copyOf(virtual);
+        }
+
+        @Override public BatchByteSize scratchBytes() { return new BatchByteSize(0, 0, 1); }
+        @Override public List<CpuKernelSpecialization.PackReset> resets() { return List.of(); }
+        @Override public List<ValueId> virtualValues() { return virtual; }
+
+        @Override public CpuPartitionLowering.LoweredPartition bind(long batch) {
+            var source = bindings.getFirst().bind(batch);
+            var result = bindings.getLast().bind(batch);
+            long[][] extents = new long[shapes.size()][];
+            long[][] coordinates = new long[shapes.size()][];
+            long[][] starts = new long[mappings.size()][];
+            for (int i = 0; i < shapes.size(); i++) {
+                var shape = shapes.get(i);
+                extents[i] = new long[shape.extentConstants().size()];
+                coordinates[i] = new long[extents[i].length];
+                for (int axis = 0; axis < extents[i].length; axis++)
+                    extents[i][axis] = Math.toIntExact(Math.addExact(shape.extentConstants().get(axis),
+                            Math.multiplyExact(shape.extentBatchFactors().get(axis), batch)));
+            }
+            for (int i = 0; i < mappings.size(); i++) {
+                starts[i] = mappings.get(i).bindOrigins(batch);
+                mappings.get(i).validate(extents[i], extents[i + 1], starts[i]);
+            }
+            var writes = new LinkedHashMap<Long, AffineWrite>();
+            int last = extents.length - 1;
+            long capacity = iterationCount.byteSize(batch);
+            for (long logical = 0; logical < capacity; logical++) {
+                long destination = address(result, coordinates[last]);
+                for (int i = mappings.size() - 1; i >= 0; i--)
+                    mappings.get(i).reverse(extents[i], extents[i + 1], coordinates[i + 1],
+                            coordinates[i], starts[i]);
+                long origin = address(source, coordinates[0]);
+                AffineWrite previous = writes.get(destination);
+                if (previous == null) writes.put(destination, new AffineWrite(origin, logical));
+                if (previous != null && previous.source() != origin)
+                    throw new IllegalArgumentException(
+                            "non-injective output coordinates do not select one source value");
+                advance(coordinates[last], extents[last]);
+            }
+            long[] pairs = addressPack(writes, true);
+            return new CpuPartitionLowering.LoweredPartition(ir, boundaries, List.of(source, result),
+                    List.of(source.referencedElementSpan(), result.referencedElementSpan()),
+                    boundaryTypes, virtual, new long[]{writes.size()}, writes.size(),
+                    "legal: bounded connected symbolic affine chain", pairs);
+        }
+
+        @Override public String identity() {
+            return "affine-batch:" + ir.structuralKey() + ':' + bindings + ':' + shapes + ':' + mappings;
+        }
+
+        private static long address(CpuAccessPlan.Binding binding, long[] coordinates) {
+            long result = binding.baseElementOffset();
+            for (int axis = 0; axis < coordinates.length; axis++) {
+                if (coordinates[axis] < 0 || coordinates[axis] >= binding.extents().get(axis))
+                    throw new IllegalArgumentException("affine coordinate exceeds actual extent");
+                result = Math.addExact(result,
+                        Math.multiplyExact(coordinates[axis], binding.effectiveStrides().get(axis)));
+            }
+            return result;
+        }
+    }
+
+    /**
+     * The original occurrence selected by the existing distinct-destination proof.
+     * @param source exact source element address
+     * @param logical first original logical result ordinal for this destination
+     */
+    private record AffineWrite(long source, long logical) {}
+
+    /**
+     * Packs addresses and, only for controlled distinct writes, their original logical ordinal.
+     * @param writes insertion-ordered proved destination/source occurrences
+     * @param originalOrdinals whether each entry includes original-row provenance
+     * @return exact ordinary pairs or controlled triples without a full logical-domain side array
+     */
+    private static long[] addressPack(Map<Long, AffineWrite> writes, boolean originalOrdinals) {
+        int width = originalOrdinals ? 3 : 2, cell = 0;
+        long[] packed = new long[Math.multiplyExact(writes.size(), width)];
+        for (var write : writes.entrySet()) {
+            packed[cell++] = write.getValue().source();
+            packed[cell++] = write.getKey();
+            if (originalOrdinals) packed[cell++] = write.getValue().logical();
+        }
+        return packed;
     }
 
     private static long[] reverse(CompiledNode node, GraphValue input, GraphValue output,
@@ -212,11 +552,12 @@ public final class CpuAffineLayoutLowering {
         return new CpuAffineCopyIr.MappingStep(mappingKind, inputRank, outputRank, axes);
     }
 
-    private static CpuAccessPlan tablePlan(CpuAccessPlan.AccessKind kind, long[] pairs, int parity) {
+    private static CpuAccessPlan tablePlan(CpuAccessPlan.AccessKind kind, long[] pairs,
+            int parity, int entryWidth) {
         boolean constant = true, dense = true;
-        for (int i = parity + 2; i < pairs.length; i += 2) {
+        for (int i = parity + entryWidth; i < pairs.length; i += entryWidth) {
             constant &= pairs[i] == pairs[parity];
-            dense &= pairs[i] == pairs[i - 2] + 1;
+            dense &= pairs[i] == pairs[i - entryWidth] + 1;
         }
         CpuAccessPlan.Regime regime = constant && kind == CpuAccessPlan.AccessKind.READ
                 ? CpuAccessPlan.Regime.SCALAR_ALL_ZERO

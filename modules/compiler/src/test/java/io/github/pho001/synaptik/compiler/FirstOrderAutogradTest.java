@@ -213,32 +213,31 @@ final class FirstOrderAutogradTest {
 
     @Test
     void exposesExactTwoAndNegativeHalfCoefficientsForEveryFloatingType() {
-        var constants = new FirstOrderAutograd.DerivativeConstants();
-        assertEquals((short) 0x4000, constants.two(DataType.BFLOAT16).bfloat16Bits());
-        assertEquals((short) 0xC000, constants.negativeTwo(DataType.BFLOAT16).bfloat16Bits());
-        assertEquals((short) 0xBF00, constants.negativeHalf(DataType.BFLOAT16).bfloat16Bits());
-        assertEquals((short) 0x4000, constants.two(DataType.FLOAT16).float16Bits());
-        assertEquals((short) 0xC000, constants.negativeTwo(DataType.FLOAT16).float16Bits());
-        assertEquals((short) 0xB800, constants.negativeHalf(DataType.FLOAT16).float16Bits());
+        assertEquals((short) 0x4000, FirstOrderAutograd.DerivativeConstants.two(DataType.BFLOAT16).bfloat16Bits());
+        assertEquals((short) 0xC000, FirstOrderAutograd.DerivativeConstants.negativeTwo(DataType.BFLOAT16).bfloat16Bits());
+        assertEquals((short) 0xBF00, FirstOrderAutograd.DerivativeConstants.negativeHalf(DataType.BFLOAT16).bfloat16Bits());
+        assertEquals((short) 0x4000, FirstOrderAutograd.DerivativeConstants.two(DataType.FLOAT16).float16Bits());
+        assertEquals((short) 0xC000, FirstOrderAutograd.DerivativeConstants.negativeTwo(DataType.FLOAT16).float16Bits());
+        assertEquals((short) 0xB800, FirstOrderAutograd.DerivativeConstants.negativeHalf(DataType.FLOAT16).float16Bits());
         assertEquals(
                 0x40000000,
-                Float.floatToRawIntBits(constants.two(DataType.FLOAT32).float32Value()));
+                Float.floatToRawIntBits(FirstOrderAutograd.DerivativeConstants.two(DataType.FLOAT32).float32Value()));
         assertEquals(
                 0xC0000000,
-                Float.floatToRawIntBits(constants.negativeTwo(DataType.FLOAT32).float32Value()));
+                Float.floatToRawIntBits(FirstOrderAutograd.DerivativeConstants.negativeTwo(DataType.FLOAT32).float32Value()));
         assertEquals(
                 0xBF000000,
-                Float.floatToRawIntBits(constants.negativeHalf(DataType.FLOAT32).float32Value()));
+                Float.floatToRawIntBits(FirstOrderAutograd.DerivativeConstants.negativeHalf(DataType.FLOAT32).float32Value()));
         assertEquals(
                 0x4000000000000000L,
-                Double.doubleToRawLongBits(constants.two(DataType.FLOAT64).float64Value()));
+                Double.doubleToRawLongBits(FirstOrderAutograd.DerivativeConstants.two(DataType.FLOAT64).float64Value()));
         assertEquals(
                 0xC000000000000000L,
-                Double.doubleToRawLongBits(constants.negativeTwo(DataType.FLOAT64).float64Value()));
+                Double.doubleToRawLongBits(FirstOrderAutograd.DerivativeConstants.negativeTwo(DataType.FLOAT64).float64Value()));
         assertEquals(
                 0xBFE0000000000000L,
                 Double.doubleToRawLongBits(
-                        constants.negativeHalf(DataType.FLOAT64).float64Value()));
+                        FirstOrderAutograd.DerivativeConstants.negativeHalf(DataType.FLOAT64).float64Value()));
     }
 
     @Test

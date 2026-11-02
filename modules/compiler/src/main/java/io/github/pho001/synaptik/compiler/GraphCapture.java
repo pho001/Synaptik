@@ -18,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -31,9 +32,20 @@ import java.util.Set;
  * uses original producer object identity to classify each occurrence as {@code FORWARD} or
  * {@link GraphPhase#BACKWARD} while assigning every {@link NodeId} and {@link ValueId} once.</p>
  *
- * <p>The structural traversal and ordinary capture entries perform no semantic inference,
+ * <p>General scan bodies receive independent local scopes, including repeated uses of the same
+ * immutable template. Every declared formal is retained in declaration order. Lexical escape
+ * and cross-template sharing reject before capture; ordered role bindings may repeat a unique
+ * local graph output. Body attachments are Tensor-free and undergo local inference validation.
+ * Outer wrappers and their caller/publication identities are never replaced.</p>
+ * <p>Length-mode attrs preserve ordered row roles and the extra lengths actual without a local
+ * formal. Ordinary structural capture is broader than cold admission: {@code captureSource}
+ * independently checks the static homogeneous FLOAT32/FLOAT64 length intersection, including
+ * all declarations and interiors, without reading lengths or granting codec/backend support.</p>
+ *
+ * <p>The outer structural traversal performs no outer semantic inference,
  * optimization, derivative-rule selection, numerical evaluation, planning, storage access,
- * preparation, backend work, or execution. The ordinary internal source sidecar projects only
+ * preparation, backend work, or execution. Contained general bodies are independently validated
+ * during local capture. The ordinary internal source sidecar projects only
  * immutable caller {@code TensorId} values for non-constant leaves;
  * returned graph state retains operations and descriptors but no Tensor, producer, or provenance
  * reference. Only the opt-in cold source entry also collects borrowed exact leaves at input-ID
@@ -42,6 +54,49 @@ import java.util.Set;
  */
 final class GraphCapture {
     private GraphCapture() {
+    }
+
+    /**
+     * Optional synchronous correspondence observation at the existing local assignment sites.
+     * Implementations are ephemeral; neither source objects nor this observer enter compiled state.
+     */
+    interface AssignmentObserver {
+        /**
+         * Observes a declaration at its existing assignment site.
+         * @param formal exact declared source leaf, including an unused declaration
+         * @param value actual independently scoped local value assigned to that declaration
+         */
+        void formal(Tensor formal, ValueId value);
+        /**
+         * Observes a producer after all of its canonical sibling values have been assigned.
+         * @param producer exact local source producer
+         * @param node actual independently scoped local node
+         * @param outputs immutable actual sibling values in canonical slot order
+         */
+        void producer(TensorProducer producer, NodeId node, List<ValueId> outputs);
+    }
+    /**
+     * Captures a lexical body with every declared formal allocated before local producers.
+     * @param outputs non-null unique local roots
+     * @param formals non-null declaration-ordered distinct source leaves, including unused ones
+     * @return Tensor-free independently scoped local graph
+     */
+    static CompiledGraphModel captureBody(List<Tensor> outputs, List<Tensor> formals) {
+        return captureBody(outputs, formals, null);
+    }
+
+    /**
+     * Captures one body while optionally observing exact source-to-local assignment.
+     * @param outputs unique ordered local roots
+     * @param formals identity-distinct declaration-ordered local leaves, including unused ones
+     * @param observer nullable synchronous assignment observer, never retained in compiled output
+     * @return independently scoped Tensor-free body graph
+     */
+    static CompiledGraphModel captureBody(List<Tensor> outputs, List<Tensor> formals,
+            AssignmentObserver observer) {
+        return captureInternal(outputs, List.of(), null, null, null,
+                CompileTimeConstantGraph.Ingress.empty(), null, formals, observer, Map.of())
+                .constantGraph().graph();
     }
 
     /**
@@ -145,6 +200,27 @@ final class GraphCapture {
             Set<TensorProducer> stageOneProducers,
             Set<TensorProducer> stageTwoProducers,
             CompileTimeConstantGraph.Ingress ingress) {
+        return captureCombined(forwardOutputs, targetGradients, originalProducers,
+                stageOneProducers, stageTwoProducers, ingress, Map.of());
+    }
+
+    /**
+     * Captures generated controlled drafts only against their exact independently captured bodies.
+     * @param forwardOutputs ordered original forward publications
+     * @param targetGradients ordered stage/target gradient roles
+     * @param originalProducers complete original forward producer identity set
+     * @param stageOneProducers exact producers owned by derivative order one
+     * @param stageTwoProducers exact producers owned by derivative order two
+     * @param ingress explicit reachable exact-splat bindings
+     * @param activityDrafts generated containing-occurrence identity map; ordinary routes are empty
+     * @return one combined immutable capture with exact-body component-eight activity metadata
+     * @throws IllegalArgumentException if a scope, publication, phase or draft association is invalid
+     */
+    static CombinedCapture captureCombined(List<Tensor> forwardOutputs,
+            List<FirstOrderAutograd.TargetGradient> targetGradients,
+            Set<TensorProducer> originalProducers, Set<TensorProducer> stageOneProducers,
+            Set<TensorProducer> stageTwoProducers, CompileTimeConstantGraph.Ingress ingress,
+            Map<TensorProducer, ScanGradientRules.ActivityDraft> activityDrafts) {
         validateForwardOutputs(forwardOutputs);
         Objects.requireNonNull(targetGradients, "targetGradients");
         for (int index = 0; index < targetGradients.size(); index++) {
@@ -161,7 +237,7 @@ final class GraphCapture {
                 stageOneProducers,
                 stageTwoProducers,
                 ingress,
-                null);
+                null, List.of(), null, activityDrafts);
     }
 
     private static void validateForwardOutputs(List<Tensor> outputs) {
@@ -190,12 +266,40 @@ final class GraphCapture {
             Set<TensorProducer> stageTwoProducers,
             CompileTimeConstantGraph.Ingress ingress,
             List<Tensor> sourceLeaves) {
+        return captureInternal(forwardOutputs, targetGradients, originalProducers,
+                stageOneProducers, stageTwoProducers, ingress, sourceLeaves, List.of(), null, Map.of());
+    }
+
+    /**
+     * Captures one lexical scope with optional declaration-first body inputs.
+     * @param forwardOutputs unique ordered publication roots in this scope
+     * @param targetGradients ordered gradient publication roles, empty for a body
+     * @param originalProducers original identity set, or null for a forward-only scope
+     * @param stageOneProducers first-stage identities, or null for a forward-only scope
+     * @param stageTwoProducers second-stage identities, or null for a forward-only scope
+     * @param ingress explicit constant bindings, empty for a body
+     * @param sourceLeaves optional mutable cold-source leaf collector, null for ordinary capture
+     * @param formals ordered local declarations, empty for the outer graph
+     * @return immutable graph and aligned ephemeral publication/constant/derivative facts
+     * @throws IllegalArgumentException if lexical, publication or ingress validation fails
+     */
+    private static CombinedCapture captureInternal(
+            List<Tensor> forwardOutputs,
+            List<FirstOrderAutograd.TargetGradient> targetGradients,
+            Set<TensorProducer> originalProducers,
+            Set<TensorProducer> stageOneProducers,
+            Set<TensorProducer> stageTwoProducers,
+            CompileTimeConstantGraph.Ingress ingress,
+            List<Tensor> sourceLeaves,
+            List<Tensor> formals, AssignmentObserver observer,
+            Map<TensorProducer, ScanGradientRules.ActivityDraft> activityDrafts) {
         List<Tensor> traversalRoots =
                 new ArrayList<>(forwardOutputs.size() + targetGradients.size());
         traversalRoots.addAll(forwardOutputs);
         for (FirstOrderAutograd.TargetGradient role : targetGradients) {
             traversalRoots.add(role.gradient());
         }
+        ScanBodyInference.validateScopes(traversalRoots);
 
         var requestedConstants = new IdentityHashMap<
                 Tensor, CompileTimeConstantGraph.Splat>();
@@ -211,11 +315,21 @@ final class GraphCapture {
         var graphInputs = new ArrayList<ValueId>();
         var nodePhases = new LinkedHashMap<NodeId, GraphPhase>();
         var derivativeOrders = new LinkedHashMap<NodeId, Integer>();
+        var activityPlans = new LinkedHashMap<NodeId,
+                io.github.pho001.synaptik.planning.capability.ScanActivityPlan>();
         var leafValues = new IdentityHashMap<Tensor, ValueId>();
         var producerOutputs = new IdentityHashMap<TensorProducer, List<ValueId>>();
         var visiting = new IdentityHashMap<TensorProducer, Boolean>();
         long nextValueId = 0;
         long nextNodeId = 0;
+        for (Tensor formal : formals) {
+            ValueId id = new ValueId(nextValueId++);
+            leafValues.put(formal, id);
+            graphInputs.add(id);
+            values.add(new GraphValue(id, formal.descriptor()));
+            bindableTensorIds.put(id, formal.id());
+            if (observer != null) observer.formal(formal, id);
+        }
 
         for (Tensor requested : traversalRoots) {
             TensorProvenance requestedProvenance = requested.provenance().orElse(null);
@@ -292,7 +406,13 @@ final class GraphCapture {
                 List<ValueId> outputSnapshot = List.copyOf(outputIds);
                 producerOutputs.put(producer, outputSnapshot);
                 NodeId nodeId = new NodeId(nextNodeId++);
-                nodes.add(new CompiledNode(nodeId, producer.operation(), inputIds, outputSnapshot));
+                ScanGradientRules.ActivityDraft draft = activityDrafts.get(producer);
+                Optional<io.github.pho001.synaptik.model.graph.CompiledScanBody> capturedBody =
+                        producer.scanBody().map(body -> ScanBodyInference.capture(body, draft));
+                nodes.add(new CompiledNode(nodeId, producer.operation(), inputIds, outputSnapshot, capturedBody));
+                if (observer != null) observer.producer(producer, nodeId, outputSnapshot);
+                if (draft != null) activityPlans.put(nodeId,
+                        draft.finish(capturedBody.orElseThrow().graph()));
                 int derivativeOrder;
                 if (originalProducers == null || originalProducers.contains(producer)) {
                     derivativeOrder = 0;
@@ -350,7 +470,7 @@ final class GraphCapture {
                 new CompileTimeConstantGraph(graph, constants, bindableTensorIds),
                 forwardOutputs.size(),
                 gradientOutputOrdinals,
-                new DerivativeGraphMetadata(graph, derivativeOrders));
+                new DerivativeGraphMetadata(graph, derivativeOrders, activityPlans));
     }
 
     private static void addSourceRole(

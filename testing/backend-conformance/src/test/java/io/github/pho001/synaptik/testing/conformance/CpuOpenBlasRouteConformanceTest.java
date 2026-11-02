@@ -76,7 +76,9 @@ final class CpuOpenBlasRouteConformanceTest {
                             ? Optional.of(partition) : Optional.empty(),
                     value.id().equals(new ValueId(2)) ? List.of() : List.of(partition),
                     value.id().equals(new ValueId(2)))).toList();
-            var context = new PrepareContext<>(partition, nodes, values, memory, Map.of(), base.backendInputs());
+            var context = new PrepareContext<>(
+                    new io.github.pho001.synaptik.prepare.analysis.PartitionDag(partition, nodes),
+                    values, memory, Map.of(), base.backendInputs(), base.scanActivityPlans());
             var analysis = new CpuPartitionPreparer().analyze(context);
             assertEquals(List.of(new ValueId(0), new ValueId(3), new ValueId(2)),
                     analysis.plan().boundaryValues());

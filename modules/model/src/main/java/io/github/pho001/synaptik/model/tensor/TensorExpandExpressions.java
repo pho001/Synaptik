@@ -56,14 +56,34 @@ final class TensorExpandExpressions {
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
      */
     static Tensor apply(Tensor input, long[] requestedShape) {
-        Objects.requireNonNull(input, "input");
-        Objects.requireNonNull(requestedShape, "requestedShape");
-        TensorDescriptor inputDescriptor = input.descriptor();
-        Shape inputShape = inputDescriptor.shape();
-        Shape targetShape = Shape.of(requestedShape);
-        validateExpansion(inputShape, targetShape);
-        Optional<LayoutDescriptor> resultLayout = resolveViewLayout(inputDescriptor, targetShape);
-        return create(input, inputDescriptor, targetShape, resultLayout);
+        return applyChecked(input, requestedShape, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null tensor retained as the sole provenance input; it is not mutated
+     * @param requestedShape non-null caller-owned literal dimensions; values must be non-negative
+     *     and an empty array requests scalar Shape
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input} or {@code requestedShape} is null, with the
+     *     corresponding parameter name as the message
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if a dimension is negative, target rank is below input
+     *     rank, or an aligned fully static pair has unequal extents and the input extent is not
+     *     one
+     * @throws ArithmeticException if resolved layout stride or referenced-span arithmetic
+     *     overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    static Tensor applyChecked(Tensor input, long[] requestedShape,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return applyDescriptors(
+                input == null ? null : input.descriptor(),
+                requestedShape,
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -85,13 +105,32 @@ final class TensorExpandExpressions {
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
      */
     static Tensor apply(Tensor input, Shape targetShape) {
-        Objects.requireNonNull(input, "input");
-        Objects.requireNonNull(targetShape, "targetShape");
-        TensorDescriptor inputDescriptor = input.descriptor();
-        Shape inputShape = inputDescriptor.shape();
-        validateExpansion(inputShape, targetShape);
-        Optional<LayoutDescriptor> resultLayout = resolveViewLayout(inputDescriptor, targetShape);
-        return create(input, inputDescriptor, targetShape, resultLayout);
+        return applyChecked(input, targetShape, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null tensor retained as the sole provenance input; it is not mutated
+     * @param targetShape non-null exact target Shape retained by reference
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input} or {@code targetShape} is null, with the
+     *     corresponding parameter name as the message
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if target rank is below input rank or an aligned fully
+     *     static pair has unequal extents and the input extent is not one
+     * @throws ArithmeticException if resolved layout stride or referenced-span arithmetic
+     *     overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    static Tensor applyChecked(Tensor input, Shape targetShape,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return applyDescriptors(
+                input == null ? null : input.descriptor(),
+                targetShape,
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -202,24 +241,28 @@ final class TensorExpandExpressions {
         return derivedStrides;
     }
 
+
     /**
-     * Creates the exact descriptor, expand semantics, provenance, and final derived Tensor once.
-     *
-     * @param input non-null exact sole provenance input; not inspected or mutated
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input exact real provenance operand, or null for descriptor completion
      * @param inputDescriptor non-null descriptor supplying exact DataType and gradient eligibility
      * @param targetShape non-null exact target retained in descriptor and attributes
      * @param resultLayout non-null resolved-view or unresolved-layout value retained by descriptor
-     * @return non-null fresh factory-derived Tensor with no label or host storage
-     * @throws IllegalArgumentException if completed descriptor invariants reject supplied metadata
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if completed descriptor invariants reject supplied metadata
      * @throws ArithmeticException if descriptor layout reconstruction arithmetic overflows
      * @throws IllegalStateException if tensor identifier space is exhausted at the single factory
      *     delegation
      */
-    private static Tensor create(
+    private static Tensor createChecked(
             Tensor input,
             TensorDescriptor inputDescriptor,
             Shape targetShape,
-            Optional<LayoutDescriptor> resultLayout) {
+            Optional<LayoutDescriptor> resultLayout,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         TensorDescriptor descriptor = new TensorDescriptor(
                 inputDescriptor.dataType(),
                 targetShape,
@@ -227,6 +270,80 @@ final class TensorExpandExpressions {
                 inputDescriptor.requiresGrad());
         TargetShapeAttrs attrs = new TargetShapeAttrs(targetShape);
         Operation operation = new Operation(ShapeTransformKind.EXPAND, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
+    }
+
+    /**
+     * Completes ordinary checked semantics synchronously without creating Tensor identities.
+     * The real construction path calls these same descriptor guards and result helpers.
+     * @param operation non-null canonical operation selecting this family and its attributes
+     * @param inputs non-null ordered operand descriptors, retaining aliases and positions
+     * @param outputCount exact canonical sibling count, one
+     * @param sink non-null unretained consumer called once with checked semantics and all outputs
+     * @throws NullPointerException if a required reference is null
+     * @throws IllegalArgumentException if cardinality or ordinary semantic guards reject input
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(operation, "operation");
+        Objects.requireNonNull(inputs, "inputs");
+        Objects.requireNonNull(sink, "sink");
+        if (inputs.size() != 1 || outputCount != 1) {
+            throw new IllegalArgumentException("invalid ordinary descriptor cardinality");
+        }
+        for (TensorDescriptor input : inputs) {
+            Objects.requireNonNull(input, "input descriptor");
+        }
+        applyDescriptors(inputs.get(0), ((TargetShapeAttrs) operation.attrs()).targetShape(), sink, null);
+    }
+
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param input exact operand descriptor, subject to ordinary null/semantic guards
+     * @param requestedShape ordinary checked construction parameter
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalInput exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor applyDescriptors(
+            TensorDescriptor input,
+            long[] requestedShape,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(requestedShape, "requestedShape");
+        TensorDescriptor inputDescriptor = input;
+        Shape inputShape = inputDescriptor.shape();
+        Shape targetShape = Shape.of(requestedShape);
+        validateExpansion(inputShape, targetShape);
+        Optional<LayoutDescriptor> resultLayout = resolveViewLayout(inputDescriptor, targetShape);
+        return createChecked(originalInput, inputDescriptor, targetShape, resultLayout, descriptorCheck);
+    }
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param input exact operand descriptor, subject to ordinary null/semantic guards
+     * @param targetShape ordinary checked construction parameter
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalInput exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor applyDescriptors(
+            TensorDescriptor input,
+            Shape targetShape,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(targetShape, "targetShape");
+        TensorDescriptor inputDescriptor = input;
+        Shape inputShape = inputDescriptor.shape();
+        validateExpansion(inputShape, targetShape);
+        Optional<LayoutDescriptor> resultLayout = resolveViewLayout(inputDescriptor, targetShape);
+        return createChecked(originalInput, inputDescriptor, targetShape, resultLayout, descriptorCheck);
     }
 }

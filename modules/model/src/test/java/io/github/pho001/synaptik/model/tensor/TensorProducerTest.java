@@ -44,13 +44,13 @@ class TensorProducerTest {
                 () -> assertTrue(Modifier.isFinal(TensorProducer.class.getModifiers())),
                 () -> assertFalse(TensorProducer.class.isRecord()),
                 () -> assertEquals(
-                        List.of("operation", "inputs", "outputDescriptors", "outputs"),
+                        List.of("operation", "inputs", "outputDescriptors", "outputs", "scanBody"),
                         fields.stream().map(field -> field.getName()).toList()),
                 () -> assertTrue(fields.stream().allMatch(field ->
                         Modifier.isPrivate(field.getModifiers())
                                 && Modifier.isFinal(field.getModifiers()))),
                 () -> assertEquals(
-                        Set.of("operation", "inputs", "outputDescriptors", "outputCount", "output"),
+                        Set.of("operation", "inputs", "outputDescriptors", "outputCount", "output", "scanBody"),
                         publicMethods));
     }
 

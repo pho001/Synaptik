@@ -42,7 +42,9 @@ final class RunStateCreation {
      * @throws NullPointerException if a top-level input, caller-input element, or callback result
      *     is {@code null}; indexed failures identify the rejected dense position
      * @throws IllegalArgumentException if the caller count differs from the plan or an exact
-     *     representation identity is repeated among callers and created results
+     *     representation identity is repeated among callers and created results, or the plan
+     *     requires B: this absent-B overload rejects before invoking creators or accepting
+     *     ownership, including all-constant-byte batch plans
      * @throws RuntimeException if a creator or final state construction reports an unchecked
      *     exception; successfully created results are rolled back and cleanup failures are
      *     suppressed on the original exception
@@ -54,6 +56,27 @@ final class RunStateCreation {
             PreparedRepresentationPlan representationPlan,
             List<BufferRepresentation> callerInputs) {
         Objects.requireNonNull(representationPlan, "representationPlan");
+        return create(representationPlan, callerInputs, RunMemoryGeometry.resolve(
+                representationPlan.memoryPlan(), java.util.OptionalLong.empty()));
+    }
+
+    /**
+     * Creates one isolated state using already resolved exact usable sizes. Foreign geometry
+     * rejects before caller validation or creator invocation; failures roll back only new resources.
+     * @param representationPlan non-null immutable physical creation recipe
+     * @param callerInputs non-null distinct borrowed representations in caller order
+     * @param geometry non-null sizing for the exact recipe memory plan
+     * @return fresh state owning successful creations and borrowing the callers
+     * @throws NullPointerException if arguments, caller elements or creator results are null
+     * @throws IllegalArgumentException if geometry, counts or resource identities disagree
+     */
+    static RunState create(PreparedRepresentationPlan representationPlan,
+            List<BufferRepresentation> callerInputs, RunMemoryGeometry geometry) {
+        Objects.requireNonNull(representationPlan, "representationPlan");
+        Objects.requireNonNull(geometry, "geometry");
+        if (geometry.memoryPlan() != representationPlan.memoryPlan()) {
+            throw new IllegalArgumentException("geometry belongs to another memory plan");
+        }
         Objects.requireNonNull(callerInputs, "callerInputs");
 
         int callerInputCount = 0;
@@ -116,7 +139,9 @@ final class RunStateCreation {
                                         : ((InitializedBuffer) preparation).creator();
                         BufferRepresentation representation =
                                 Objects.requireNonNull(
-                                        creator.create(),
+                                        creator.create(geometry.bufferByteSize(bufferIndex),
+                                                representationPlan.memoryPlan().buffers()
+                                                        .get(bufferIndex).byteAlignment()),
                                         "bufferPreparations["
                                                 + bufferIndex
                                                 + "]["
@@ -144,7 +169,10 @@ final class RunStateCreation {
                     workspaceIndex++) {
                 WorkspaceRepresentation representation =
                         Objects.requireNonNull(
-                                representationPlan.workspaceCreators().get(workspaceIndex).create(),
+                                representationPlan.workspaceCreators().get(workspaceIndex).create(
+                                        geometry.workspaceByteSize(workspaceIndex),
+                                        representationPlan.memoryPlan().workspaces()
+                                                .get(workspaceIndex).byteAlignment()),
                                 "workspaceCreators[" + workspaceIndex + "] result");
                 rejectRepeatedIdentity(
                         callerInputs,
@@ -156,7 +184,7 @@ final class RunStateCreation {
             }
 
             RunState state = new RunState(
-                    representationPlan.memoryPlan(), bufferBindings, workspaces);
+                    representationPlan.memoryPlan(), bufferBindings, workspaces, geometry);
             for (int bufferIndex = 0;
                     bufferIndex < representationPlan.bufferPreparations().size();
                     bufferIndex++) {

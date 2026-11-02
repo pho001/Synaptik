@@ -21,6 +21,87 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class CpuOrderingGeneratedKernelTest {
+    @Test void controlledOrderingSkipsNonleadingRowsBeforeScratchAndOperandLoads() throws Throwable {
+        for (boolean segment : List.of(false, true)) {
+            var base = CpuOrderingLoweringTest.context(
+                    new Operation(OrderingKind.SORT, new SortAttrs(2, false)),
+                    DataType.FLOAT32, Shape.of(2, 2, 3), Shape.of(2, 2, 3), false);
+            var pattern = List.of(segment ? CarrierAccess.MEMORY_SEGMENT : CarrierAccess.FLOAT_ARRAY,
+                    CarrierAccess.FLOAT_ARRAY);
+            var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                    base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                    base.constants(), new CpuPartitionAnalysisInputs(false, pattern));
+            var plan = new CpuPartitionPreparer().analyze(context).plan();
+            var row = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(1, 3);
+            var entry = CpuAffineCopyGeneratedKernelTest.controlledEntry(
+                    plan.units().getFirst().portablePlan(), List.of(row, row));
+            float[] input = {3, 1, 2, Float.NaN, Float.NaN, Float.NaN, 9, 7, 8};
+            float[] output = new float[12];
+            Arrays.fill(output, -99);
+            try (Arena arena = Arena.ofConfined()) {
+                var scratch = arena.allocate(plan.workspaceDeclaration().orElseThrow().byteSize(), 8);
+                scratch.fill((byte) 0x5a);
+                entry.invokeWithArguments(segment ? java.lang.foreign.MemorySegment.ofArray(input)
+                                : input, output, scratch,
+                        plan.orderingGeometry().orElseThrow().pack(new long[2], 0, 4, 0),
+                        0L, 4L, CpuAffineCopyGeneratedKernelTest.control(new byte[]{1, 0}));
+                assertArrayEquals(new float[]{1, 2, 3, 0, 0, 0, 7, 8, 9, 0, 0, 0}, output);
+                for (int cell : new int[]{3, 4, 5, 9, 10, 11})
+                    assertEquals(0, Float.floatToRawIntBits(output[cell]));
+                scratch.fill((byte) 0x5a);
+                entry.invokeWithArguments(segment ? java.lang.foreign.MemorySegment.ofArray(
+                                new float[0]) : new float[0], output, scratch,
+                        plan.orderingGeometry().orElseThrow().pack(new long[2], 0, 4, 0),
+                        0L, 4L, CpuAffineCopyGeneratedKernelTest.control(new byte[]{0, 0}));
+                for (byte value : scratch.toArray(java.lang.foreign.ValueLayout.JAVA_BYTE))
+                    assertEquals((byte) 0x5a, value);
+            }
+        }
+    }
+
+    @Test void controlledArgsortAndTopKZeroEveryInactiveOutputWithoutInputStorage() throws Throwable {
+        for (Operation operation : List.of(
+                new Operation(OrderingKind.ARGSORT, new SortAttrs(1, false)),
+                new Operation(TopKKind.TOP_K, new TopKAttrs(1, 2, true, false)))) {
+            boolean topK = operation.kind() == TopKKind.TOP_K;
+            var base = CpuOrderingLoweringTest.context(operation, DataType.FLOAT32,
+                    Shape.of(2, 3), Shape.of(2, topK ? 2 : 3), topK);
+            var pattern = topK
+                    ? List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY,
+                            CarrierAccess.LONG_ARRAY)
+                    : List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.LONG_ARRAY);
+            var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                    base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
+                    base.constants(), new CpuPartitionAnalysisInputs(false, pattern));
+            var plan = new CpuPartitionPreparer().analyze(context).plan();
+            var inputRow = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(0, 3);
+            var outputRow = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(
+                    0, topK ? 2 : 3);
+            var entry = CpuAffineCopyGeneratedKernelTest.controlledEntry(
+                    plan.units().getFirst().portablePlan(), topK
+                            ? List.of(inputRow, outputRow, outputRow) : List.of(inputRow, outputRow));
+            long[] indices = new long[topK ? 4 : 6];
+            Arrays.fill(indices, -99);
+            float[] values = {-99, -99, -99, -99};
+            try (Arena arena = Arena.ofConfined()) {
+                var scratch = arena.allocate(plan.workspaceDeclaration().orElseThrow().byteSize(), 8);
+                var arguments = new ArrayList<Object>();
+                arguments.add(new float[0]);
+                if (topK) arguments.add(values);
+                arguments.add(indices);
+                arguments.add(scratch);
+                arguments.add(plan.orderingGeometry().orElseThrow().pack(
+                        new long[pattern.size()], 0, 2, 0));
+                arguments.add(0L);
+                arguments.add(2L);
+                arguments.add(CpuAffineCopyGeneratedKernelTest.control(new byte[]{0, 0}));
+                entry.invokeWithArguments(arguments);
+                assertArrayEquals(new long[indices.length], indices);
+                if (topK) for (float value : values)
+                    assertEquals(0, Float.floatToRawIntBits(value));
+            }
+        }
+    }
     @Test void generatedClassMatrixUsesDirectTypedAllocationFreeOrderingBodies() {
         for (DataType type : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) {
             for (boolean descending : List.of(false, true)) {
@@ -160,8 +241,7 @@ class CpuOrderingGeneratedKernelTest {
         var plan = new CpuPartitionPreparer().analyze(selected).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         float[] input = {Float.intBitsToFloat(0x7fc12345)};
         float[] output = new float[19];
         Arrays.fill(output, Float.intBitsToFloat(0x7f800001));
@@ -187,8 +267,7 @@ class CpuOrderingGeneratedKernelTest {
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         try (Arena arena = Arena.ofConfined()) {
             var scratch = arena.allocate(plan.workspaceDeclaration().orElseThrow().byteSize(), 8);
             long[] packed = plan.orderingGeometry().orElseThrow().pack(new long[carriers.size()],
@@ -281,8 +360,7 @@ class CpuOrderingGeneratedKernelTest {
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         try (Arena scratchArena = Arena.ofConfined()) {
             var scratch = scratchArena.allocate(plan.workspaceDeclaration().orElseThrow().byteSize(), 8);
             long[] packed = plan.orderingGeometry().orElseThrow().pack(new long[carriers.size()],

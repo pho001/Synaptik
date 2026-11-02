@@ -46,6 +46,12 @@ import java.util.Objects;
  * occurrences use this same boundary before canonicalization and after every changed optimization
  * candidate, so their NCDHW result descriptors and ordered spatial-fit obligations are proved again
  * from the final graph rather than trusted from Model construction.
+ * General scans independently validate every local occurrence, canonical residual role/order,
+ * declaration-ordered actual/formal descriptor and conservative outer gradient flag. Numeric
+ * body IDs are never resolved against outer values; source admission is not an AD/backend whitelist.
+ * Length-mode scans additionally prove explicit row coordinates, terminal reduction paths and
+ * shared accumulator use independently of source checks. Lengths is INT64[B], has no formal,
+ * contributes no gradient eligibility and is never read by inference.
  */
 final class CapturedGraphInference {
     private CapturedGraphInference() {}
@@ -86,7 +92,8 @@ final class CapturedGraphInference {
      * @param derivatives non-null metadata owning the exact graph
      * @return non-null validated graph and sidecars
      * @throws NullPointerException if an argument is {@code null}
-     * @throws IllegalArgumentException if graph identity, inference, or descriptors are invalid
+     * @throws IllegalArgumentException if graph identity, inference, scoped body/roles, or
+     *     descriptors are invalid
      */
     static ValidatedGraph inferAndValidate(
             CompileTimeConstantGraph constantGraph,
@@ -108,7 +115,9 @@ final class CapturedGraphInference {
             String context = context(index, node);
             InferenceResult result;
             try {
-                result = dispatch(node.operation(), inputs, stored.size(), context);
+                result = node.scanBody().isPresent()
+                        ? ScanBodyInference.infer(node, inputs)
+                        : dispatch(node.operation(), inputs, stored.size(), context);
             } catch (ArithmeticException exception) {
                 throw new IllegalArgumentException(
                         context + "descriptor derivation failed: " + exception.getMessage(), exception);
@@ -116,32 +125,93 @@ final class CapturedGraphInference {
                 if (exception.getMessage() != null && exception.getMessage().startsWith(context)) throw exception;
                 throw new IllegalArgumentException(context + exception.getMessage(), exception);
             }
-            if (result.outputs().size() != stored.size()) {
-                throw new IllegalArgumentException(context + "expected output count "
-                        + result.outputs().size() + ", stored=" + stored.size());
-            }
-            for (int output = 0; output < stored.size(); output++) {
-                TensorDescriptor expected = result.outputs().get(output);
-                if (!expected.equals(stored.get(output))
-            && !deferredCropLayout(node.operation(), expected, stored.get(output))) {
-                    throw new IllegalArgumentException(context + "output[" + output + "] "
-                            + node.outputs().get(output) + " expected=" + expected
-                            + ", stored=" + stored.get(output));
-                }
-            }
-            for (ConstraintRequest request : result.constraints()) {
-                ProofStatus proof = GraphPredicateProof.evaluate(request.predicate());
-                if (proof == ProofStatus.DISPROVEN) {
-                    throw new IllegalArgumentException(context + "constraint " + request.subject()
-                            + " failed: " + request.predicate());
-                }
-                if (proof == ProofStatus.DEFERRED) {
-                    deferred.add(new DeferredGraphConstraint(node.id(), request.subject(), request.predicate()));
-                }
+            for (ConstraintRequest request : checkDescriptors(
+                    node.operation(), stored, result, context, node.outputs())) {
+                deferred.add(new DeferredGraphConstraint(
+                        node.id(), request.subject(), request.predicate()));
             }
         }
         return new ValidatedGraph(constantGraph, deferred, derivatives);
   }
+
+    /**
+     * Independently checks one ordinary construction without inventing graph-local identities.
+     *
+     * <p>The same dispatch, exact descriptor comparison, deferred crop-layout exception and
+     * predicate disposition serve captured graphs and construction-time checks. The supplied
+     * output list must contain every canonical sibling, not just the selected derivative role.
+     * A successful check does not establish Scan coordinates, derivative support or execution
+     * capability.</p>
+     *
+     * @param operation non-null canonical ordinary operation
+     * @param inputs non-null ordered operand descriptors
+     * @param outputs non-null complete Model-checked canonical output descriptors
+     * @return immutable ordered unresolved constraints, with no node or value identifiers
+     * @throws NullPointerException if a required argument or descriptor is null
+     * @throws IllegalArgumentException if independent inference disagrees or disproves a predicate
+     */
+    static List<ConstraintRequest> checkOrdinary(
+            Operation operation, List<TensorDescriptor> inputs, List<TensorDescriptor> outputs) {
+        Objects.requireNonNull(operation, "operation");
+        inputs = List.copyOf(inputs);
+        outputs = List.copyOf(outputs);
+        String context = "ordinary construction " + operation.kind() + ": ";
+        InferenceResult result;
+        try {
+            result = dispatch(operation, inputs, outputs.size(), context);
+        } catch (ArithmeticException exception) {
+            throw new IllegalArgumentException(
+                    context + "descriptor derivation failed: " + exception.getMessage(), exception);
+        } catch (IllegalArgumentException exception) {
+            if (exception.getMessage() != null && exception.getMessage().startsWith(context)) {
+                throw exception;
+            }
+            throw new IllegalArgumentException(context + exception.getMessage(), exception);
+        }
+        return checkDescriptors(operation, outputs, result, context, List.of());
+    }
+
+    /**
+     * Compares the complete independently inferred signature and evaluates ordered predicates.
+     *
+     * @param operation exact operation whose crop-layout compatibility may be deferred
+     * @param stored complete canonical descriptors supplied by Model construction or capture
+     * @param result independent family inference result
+     * @param context diagnostic prefix identifying this construction or graph occurrence
+     * @param outputIds existing captured output identities for diagnostics, or empty for metadata
+     * @return immutable unresolved predicates in family inference order
+     * @throws IllegalArgumentException if cardinality, a descriptor or a predicate disagrees
+     */
+    private static List<ConstraintRequest> checkDescriptors(
+            Operation operation, List<TensorDescriptor> stored, InferenceResult result,
+            String context, List<ValueId> outputIds) {
+        if (result.outputs().size() != stored.size()) {
+            throw new IllegalArgumentException(context + "expected output count "
+                    + result.outputs().size() + ", stored=" + stored.size());
+        }
+        for (int output = 0; output < stored.size(); output++) {
+            TensorDescriptor expected = result.outputs().get(output);
+            if (!expected.equals(stored.get(output))
+                    && !deferredCropLayout(operation, expected, stored.get(output))) {
+                throw new IllegalArgumentException(context + "output[" + output + "]"
+                        + (outputIds.isEmpty() ? "" : " " + outputIds.get(output))
+                        + " expected=" + expected + ", stored=" + stored.get(output));
+            }
+        }
+        List<ConstraintRequest> deferred = null;
+        for (ConstraintRequest request : result.constraints()) {
+            ProofStatus proof = GraphPredicateProof.evaluate(request.predicate());
+            if (proof == ProofStatus.DISPROVEN) {
+                throw new IllegalArgumentException(context + "constraint " + request.subject()
+                        + " failed: " + request.predicate());
+            }
+            if (proof == ProofStatus.DEFERRED) {
+                if (deferred == null) deferred = new ArrayList<>();
+                deferred.add(request);
+            }
+        }
+        return deferred == null ? List.of() : List.copyOf(deferred);
+    }
 
   /**
    * Generated backward CropToShape expressions intentionally retain an unresolved result layout.

@@ -40,7 +40,8 @@ import java.util.*;
  * Proved adjacent private MATMUL transpose inputs participate in the anchor membership so existing
  * bias/activation alternatives retain their exact baseline association without restoring a copy.
  * Recognition is cold metadata only: it does not change capability, lowering, generated artifact
- * identity, finalization, or hot dispatch.
+ * identity, finalization, or hot dispatch. Already-selected full-body row regions are indivisible
+ * baseline units: their members are excluded from legacy single-anchor recognition.
  */
 public final class CpuSpecializedSubgraphRecognizer {
     /** Maximum topology/family attempts made by one recognition scan. */
@@ -78,11 +79,14 @@ public final class CpuSpecializedSubgraphRecognizer {
         Objects.requireNonNull(context, "context");
         List<ExecutionUnitPlan> baselineUnits = List.copyOf(baseline);
         // Direct scan partitions intentionally have no generated baseline or recognition facts.
-        if (baselineUnits.stream().anyMatch(u -> u.runtimeFacts().recurrentScan().isPresent()))
+        if (baselineUnits.stream().anyMatch(u -> u.runtimeFacts().recurrentScan().isPresent()
+                || u.runtimeFacts().generalScan().isPresent()))
             return List.of();
         Map<ValueId, GraphValue> values = values(context);
         List<CompiledNode> nodes = context.partitionDag().nodes();
         var claimed = new BitSet(nodes.size());
+        baselineUnits.stream().filter(unit -> unit.portablePlan().specialization().rowMapReductionIr().isPresent())
+                .flatMap(unit -> unit.memberNodeOrdinals().stream()).forEach(claimed::set);
         var facts = new ArrayList<CpuSpecializedSubgraph>();
         var attempts = new Attempts();
         for (int ordinal = 0; ordinal < nodes.size() && facts.size() < MAX_FACTS; ordinal++) {
@@ -97,6 +101,19 @@ public final class CpuSpecializedSubgraphRecognizer {
                 selected = candidate;
                 break;
             }
+            if (selected == null) continue;
+            if (selected.family() == Family.REDUCTION) {
+                for (var unit : baselineUnits) if (unit.portablePlan().specialization().aggregateFusionIr().isPresent()
+                        && unit.memberNodeOrdinals().containsAll(selected.members())) {
+                    var ids = unit.boundaryValues();
+                    selected = build(Family.REDUCTION,selected.form(),selected.identity().attributes(),
+                            unit.memberNodeOrdinals(),ids.subList(0,ids.size()-1),List.of(ids.getLast()),
+                            values,selected.epilogue(),ExecutionDisposition.EXISTING_SPECIALIZED);
+                    break;
+                }
+            }
+            // A selected eight-node executable does not enlarge the six-member diagnostic
+            // fact budget. build() may decline that expanded association without changing it.
             if (selected == null) continue;
             List<Integer> units = associate(selected.members(), baselineUnits);
             if (units.isEmpty() || facts.size() >= MAX_FACTS
@@ -485,7 +502,7 @@ public final class CpuSpecializedSubgraphRecognizer {
             case ORDERING_INDICES -> WorkspaceRole.ORDERING_INDICES;
             case AGGREGATE_EXACT_STATE -> WorkspaceRole.AGGREGATE_EXACT_STATE;
             case ATTENTION_ROW_STATE -> WorkspaceRole.ATTENTION_ROW_STATE;
-            case RECURRENT_ROW_STATE -> throw new IllegalArgumentException("direct recurrent units have no generated candidate");
+            case RECURRENT_ROW_STATE, GENERAL_SCAN_BANKS -> throw new IllegalArgumentException("scan units have no generated candidate discovery");
         };
         WorkspaceResourceFact workspace = declaration
                 .map(value -> new WorkspaceResourceFact(role, value.byteSize(),
@@ -539,6 +556,8 @@ public final class CpuSpecializedSubgraphRecognizer {
             return packed(RuntimeTopology.ADVANCED_REDUCTION,
                     runtime.advancedReductionGeometry().orElseThrow().pack(bases));
         }
+        if (unit.portablePlan().specialization().aggregateFusionIr().isPresent()) return packed(RuntimeTopology.AGGREGATE,
+                runtime.aggregateGeometry().orElseThrow().packFusion(bases));
         if (runtime.aggregateGeometry().isPresent()) return packed(RuntimeTopology.AGGREGATE,
                 runtime.aggregateGeometry().orElseThrow().pack(bases, 0));
         return new PackedTopology(RuntimeTopology.POINTWISE, List.of());

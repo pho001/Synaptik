@@ -87,6 +87,14 @@ import java.util.Optional;
  * non-overlap before mutation. Floating numerical parallel ranges receive disjoint workspace
  * slices. All ranges own disjoint complete output cells; no range splits, partially reduces, or
  * combines a selected domain.
+ * Ordinary fused SUM/MEAN uses one such range and binds every producer/tail read plus the sole
+ * final write explicitly. Alias checks cover all complete physical spans before writes; only
+ * proved private intermediate carriers are absent. Exact-state resources remain run-owned.
+ * Fixed softmax derivative units also use the aggregate state header, but their final binding
+ * spans the full gradient, not the reduced SUM. Cold binding checks every actual element base
+ * plus the baked referenced span in bytes against the int-address proof before building the
+ * invocation-private geometry. One range reuses one exact-state slice across rows; no forward
+ * softmax finite-input validator is attached to these ordinary derivative primitives.
  * Masked SUM/MEAN invocation additionally validates the complete canonical Boolean mask before any
  * output write or worker submission. Binding permits only physical input/input aliasing and rejects the
  * output against both inputs and the exact-state workspace. Every call receives one already-sliced
@@ -115,8 +123,13 @@ import java.util.Optional;
  * once on the orchestrator before its prologue, consumer writes, or worker submission. Traversal
  * state and typed readers are prebound, so successful scans allocate no hot-path state. Metadata,
  * carrier, span, accessibility, and overlap checks remain in cold binding.
+ * An ordinary row-map/multiple-terminal region owns one unsplittable full-body work item:
+ * [0,1) executes every row and publishes shared zeros even at B=0; [0,0) is empty. Other
+ * ranges reject before writes. Binding checks all output spans/aliases, not only the last
+ * output, and resolves invocation bases/strides once without changing prepared requirements.
  */
 public final class CpuPreparedExecutable extends PreparedExecutable {
+    private final io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan batchRoute;
     private final CpuGeneratedKernel artifact;
     private final Optional<CpuGeneratedKernel.PartialReductionArtifact> partialReductionArtifact;
     private final List<CpuAccessPlan.Binding> bindings;
@@ -158,6 +171,84 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private final Optional<CpuAttentionLowering.Geometry> attentionGeometry;
     private final Optional<CpuLossLowering.Geometry> lossGeometry;
     private final int outputCount;
+
+    /**
+     * Retains one fully prepared ordinary-batch scalar unit without resolving any actual B.
+     * Every mutable access/packed array is created by cold binding, never retained here.
+     * Boundary dtypes determine element bases, spans and alignment independently, including
+     * the separate eight-byte length CAST output. Added typed cases require checked segments.
+     * @param memoryPlan non-null exact batch-required prepared plan
+     * @param selections non-null ordered unique-input-then-output selections
+     * @param artifact non-null verified generated artifact matching route
+     * @param route non-null immutable numeric batch route
+     * @param workspace non-null optional assigned exact-state scratch selection
+     * @param budget borrowed CPU admission budget, or null for low-level compatibility tests
+     * @throws NullPointerException if a required argument is null
+     * @throws IllegalArgumentException if mode, artifact, selections or scratch declarations disagree
+     */
+    public CpuPreparedExecutable(PreparedMemoryPlan memoryPlan, List<BufferSelection> selections,
+            CpuGeneratedKernel artifact,
+            io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan route,
+            Optional<WorkspaceSelection> workspace, CpuConcurrencyBudget budget) {
+        this(memoryPlan,selections,artifact,route,workspace,budget,1,1,null);
+    }
+
+    /**
+     * Binds ordinary symbolic selected-row policy without resolving B or selecting another
+     * artifact. Every run later owns its numeric ranges, staged values, calls and partials.
+     * @param memoryPlan exact batch-required memory plan
+     * @param selections ordered unique reads followed by all retained writes
+     * @param artifact verified matching generated artifact
+     * @param route immutable symbolic access recipes
+     * @param workspace exact optional assigned scratch selection
+     * @param budget borrowed inline budget, or coordinated group budget; null in compatibility mode
+     * @param selectedRangeCount positive prepared maximum number of row ranges
+     * @param minimumElementsPerWorker positive minimum row work, fixed across runs
+     * @param workerGroup borrowed group exactly when selectedRangeCount exceeds one
+     * @throws NullPointerException if a required reference is null
+     * @throws IllegalArgumentException if artifact, policy, resources or borrowed budgets disagree
+     */
+    public CpuPreparedExecutable(PreparedMemoryPlan memoryPlan, List<BufferSelection> selections,
+            CpuGeneratedKernel artifact,
+            io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan route,
+            Optional<WorkspaceSelection> workspace, CpuConcurrencyBudget budget,
+            int selectedRangeCount,long minimumElementsPerWorker,CpuWorkerGroup workerGroup) {
+        super(memoryPlan, selections, workspace.stream().toList(), accesses(selections.size(),
+                route.specialization().rowMapReductionIr().map(r -> r.arithmetic().stores().size()).orElse(1)));
+        this.batchRoute = Objects.requireNonNull(route, "route");
+        this.artifact = Objects.requireNonNull(artifact, "artifact");
+        boolean selectedRow = route.specialization().rowFusionEmission().isPresent();
+        if (!memoryPlan.requiresBatchSize() || !route.specialization().ordinaryBatch()
+                || !artifact.specialization().equals(route.specialization())
+                || selections.size() != route.batchBindings().size()
+                || workspace.isPresent() != (route.batchAggregate().isPresent() || route.specialization().rowFusionEmission().isPresent())
+                || selectedRangeCount <= 0 || minimumElementsPerWorker <= 0
+                || (selectedRangeCount > 1) != (workerGroup != null)
+                || !selectedRow && (selectedRangeCount != 1 || minimumElementsPerWorker != 1 || workerGroup != null
+                    || !route.specialization().executionStrategy().equals(io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR))
+                || selectedRow && (selectedRangeCount != route.specialization().rowFusionEmission().orElseThrow().maximumPartialCount()
+                    || (selectedRangeCount > 1) != (route.specialization().executionStrategy().orchestration()
+                        == io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Orchestration.PARALLEL))
+                || workerGroup != null && budget != null && workerGroup.concurrencyBudget() != budget) {
+            throw new IllegalArgumentException("ordinary batch executable declarations disagree");
+        }
+        partialReductionArtifact = Optional.empty(); bindings = List.of();
+        carrierPattern = route.specialization().carrierPattern(); generatedCarrierPattern = carrierPattern;
+        start = 0; end = 0; this.selectedRangeCount = selectedRangeCount; this.minimumElementsPerWorker = minimumElementsPerWorker;
+        this.workerGroup = workerGroup; concurrencyBudget = workerGroup == null ? budget : null; materialization = Optional.empty();
+        workspaceSelection = workspace; representationMaterializations = List.of();
+        representationMaterializationPositions = List.of(); representationWorkspaceSelections = List.of();
+        affineCopy = false; affineAddressPairs = new long[0]; movementGeometry = Optional.empty();
+        indexingGeometry = Optional.empty(); scatterGeometry = Optional.empty(); foldGeometry = Optional.empty();
+        orderingGeometry = Optional.empty(); randomGeometry = Optional.empty(); scanGeometry = Optional.empty();
+        aggregateGeometry = Optional.empty(); argExtremaGeometry = Optional.empty(); maskedReductionGeometry = Optional.empty();
+        advancedReductionGeometry = Optional.empty(); softmaxGeometry = Optional.empty(); trailingNormalizationGeometry = Optional.empty();
+        batchNormInferenceGeometry = Optional.empty(); batchNormTrainingGeometry = Optional.empty();
+        conv2dGeometry = Optional.empty(); conv3dGeometry = Optional.empty(); matmulGeometry = Optional.empty();
+        pool2dGeometry = Optional.empty(); pool3dGeometry = Optional.empty(); attentionGeometry = Optional.empty();
+        lossGeometry = Optional.empty(); outputCount = route.specialization().rowMapReductionIr()
+                .map(r -> r.arithmetic().stores().size()).orElse(1);
+    }
 
     /**
      * Creates a direct derived-boundary recipe for one exact half-open logical range.
@@ -989,6 +1080,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         super(memoryPlan, selections, java.util.stream.Stream.concat(workspaceSelection.stream(),
                 representationWorkspaceSelections.stream()).toList(),
                 accesses(selections.size(), outputCount));
+        this.batchRoute = null;
         if (selections.isEmpty()) throw new IllegalArgumentException("at least one buffer required");
         this.artifact = Objects.requireNonNull(artifact, "artifact");
         this.partialReductionArtifact = Objects.requireNonNull(partialReductionArtifact,
@@ -1033,7 +1125,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         if (outputCount <= 0 || outputCount > selections.size()) {
             throw new IllegalArgumentException("output boundary count is inconsistent");
         }
-        long count = this.lossGeometry.isPresent() ? end : this.attentionGeometry.isPresent()
+        long count = artifact.specialization().rowMapReductionIr().isPresent() ? 1 : this.lossGeometry.isPresent() ? end : this.attentionGeometry.isPresent()
                 ? this.attentionGeometry.orElseThrow().rowCount()
                 : this.pool3dGeometry.isPresent()
                 ? this.pool3dGeometry.orElseThrow().outputCount()
@@ -1075,6 +1167,13 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 ? elementCount(this.movementGeometry.orElseThrow().outputExtents())
                 : this.bindings.getLast().elementCount();
         if (start < 0 || end < start || end > count) throw new IllegalArgumentException("invalid range");
+        if (artifact.specialization().rowMapReductionIr().isPresent()
+                && (start != 0 || artifact.specialization().rowFusionEmission().isEmpty() && (selectedRangeCount != 1 || workerGroup != null)
+                    || outputCount != artifact.specialization().rowMapReductionIr().orElseThrow().arithmetic().stores().size()))
+            throw new IllegalArgumentException("row-region execution owns one unsplittable full-body item");
+        if (artifact.specialization().rowFusionEmission().isPresent()
+                && selectedRangeCount != artifact.specialization().rowFusionEmission().orElseThrow().maximumPartialCount())
+            throw new IllegalArgumentException("row range policy exceeds authenticated partial layout");
         this.start = start;
         this.end = end;
         if (selectedRangeCount <= 0 || minimumElementsPerWorker <= 0
@@ -1155,7 +1254,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         if (workspaceSelection.isPresent() != (scatterScratch
                 || aggregateScratch || maskedScratch || advancedScratch
                 || normalizationScratch || trainingScratch || attentionScratch
-                || this.orderingGeometry.isPresent() || this.partialReductionArtifact.isPresent())) {
+                || this.orderingGeometry.isPresent() || this.partialReductionArtifact.isPresent()
+                || artifact.specialization().rowFusionEmission().isPresent())) {
             throw new IllegalArgumentException("workspace selection purpose is inconsistent");
         }
         this.representationMaterializationPositions = representationPositions(
@@ -1395,6 +1495,17 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @return the non-null verified artifact
      */
     public CpuGeneratedKernel artifact() { return artifact; }
+
+    /**
+     * Authenticates a container's nonfixed workspace selection to this genuine batch route.
+     * @param selection exact dense workspace position selected by the container
+     * @return whether this dynamic unit will validate that workspace when the child binds
+     */
+    boolean hasDynamicWorkspaceSelection(WorkspaceSelection selection) {
+        return batchRoute != null && workspaceSelection.isPresent()
+                && workspaceSelection.orElseThrow().equals(selection);
+    }
+
     /**
      * Returns the iteration boundary's geometry adjusted to this recipe's range.
      * For movement this is the output boundary; other routes retain the first boundary contract.
@@ -1402,6 +1513,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @return a new immutable ranged binding
      */
     public CpuAccessPlan.Binding binding() {
+        if (artifact.specialization().rowMapReductionIr().isPresent()) return bindings.getLast();
         if (lossGeometry.isPresent() || softmaxGeometry.isPresent() || trailingNormalizationGeometry.isPresent()
                 || batchNormInferenceGeometry.isPresent() || batchNormTrainingGeometry.isPresent()
                 || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
@@ -1423,6 +1535,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
      * @return a new immutable list in boundary order with route-appropriate ranges
      */
     public List<CpuAccessPlan.Binding> accessBindings() {
+        if (artifact.specialization().rowMapReductionIr().isPresent()) return bindings;
         if (lossGeometry.isPresent() || softmaxGeometry.isPresent() || trailingNormalizationGeometry.isPresent()
                 || batchNormInferenceGeometry.isPresent() || batchNormTrainingGeometry.isPresent()
                 || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
@@ -1479,6 +1592,82 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                 source.elementCount(), rangeStart, rangeEnd, source.referencedElementSpan());
     }
 
+    /**
+     * Retains the external source span when generation consumes a canonical materialization.
+     * @param index ordered external boundary position
+     * @return original fixed referenced bytes, never the replacement workspace's span
+     * @throws ArithmeticException if checked represented byte sizing overflows
+     */
+    private long retainedBoundaryBytes(int index) {
+        int represented = -1;
+        for (int p = 0; p < representationMaterializationPositions.size(); p++) {
+            if (representationMaterializationPositions.get(p) == index) {
+                represented = p;
+                break;
+            }
+        }
+        var binding = represented < 0 ? bindings.get(index)
+                : representationMaterializations.get(represented).sourceBinding();
+        return Math.multiplyExact(binding.referencedElementSpan(),
+                (long) artifact.specialization().boundaryDataTypes().get(index).byteWidth());
+    }
+
+    /**
+     * Authenticates the current typed usable span against this invocation's numeric recipe.
+     * A fixed unit in a complete batch plan retains its original bindings and generated entry;
+     * every selected declaration must itself be fixed and match those retained referenced spans.
+     * @param state exact run owner and resolved geometry
+     * @param index ordered selected boundary position
+     * @param value actual CPU carrier or an incompatible representation to reject
+     * @return whether dtype, usable bytes, access, carrier and alignment match
+     */
+    @Override protected boolean acceptsBufferRepresentation(RunState state, int index, BufferRepresentation value) {
+        if (batchRoute == null) {
+            if (!state.memoryPlan().requiresBatchSize()) return acceptsBufferRepresentation(index, value);
+            return value instanceof CpuBufferRepresentation cpu
+                    && cpu.acceptsFixedGeometry(state, memoryPlan(), bufferSelection(index).bufferIndex(),
+                            retainedBoundaryBytes(index))
+                    && acceptsBufferRepresentation(index, value);
+        }
+        if (!(value instanceof CpuBufferRepresentation cpu) || !cpu.isAccessible()
+                || cpu.dataType() != artifact.specialization().boundaryDataTypes().get(index)
+                || cpu.byteSize() != state.geometry().bufferByteSize(bufferSelection(index).bufferIndex())) return false;
+        try {
+            var argument = preparedArgument(cpu, index);
+            long alignment = memoryPlan().buffers().get(bufferSelection(index).bufferIndex()).byteAlignment();
+            return carrierAccess(argument) == carrierPattern.get(index)
+                    && argument.byteOffset() % cpu.dataType().byteWidth() == 0 && argument.byteSize() % cpu.dataType().byteWidth() == 0
+                    && (!(argument instanceof CpuBufferArgument.Segment s) || s.segment().address() % alignment == 0)
+                    && (index < bufferSelectionCount() - outputCount || !argument.readOnly());
+        } catch (IllegalArgumentException | IllegalStateException incompatible) { return false; }
+    }
+
+    /**
+     * Keeps fixed scratch under its original route-specific size/alignment contract; only a real
+     * batch route consumes actual B. Fixed materialization workspaces retain their own selections.
+     * @param state exact open run and authenticated geometry
+     * @param index ordered workspace selection position
+     * @param value selected scratch, or an incompatible representation to reject
+     * @return whether declared geometry and the retained route's physical scratch checks agree
+     */
+    @Override protected boolean acceptsWorkspaceRepresentation(RunState state, int index, WorkspaceRepresentation value) {
+        if (batchRoute == null) {
+            if (!state.memoryPlan().requiresBatchSize()) return acceptsWorkspaceRepresentation(index, value);
+            int intrinsicCount = workspaceSelection.isPresent() ? 1 : 0;
+            int position = index < intrinsicCount ? workspaceSelection.orElseThrow().workspaceIndex()
+                    : representationWorkspaceSelections.get(index - intrinsicCount).workspaceIndex();
+            return value instanceof CpuContiguousWorkspace scratch
+                    && CpuBufferRepresentation.acceptsFixedWorkspaceGeometry(
+                            state, memoryPlan(), position, scratch.byteSize(), scratch)
+                    && acceptsWorkspaceRepresentation(index, value);
+        }
+        if (!(value instanceof CpuContiguousWorkspace scratch) || !scratch.isAccessible()) return false;
+        int position = workspaceSelection.orElseThrow().workspaceIndex();
+        long alignment = memoryPlan().workspaces().get(position).byteAlignment();
+        return scratch.byteSize() == state.geometry().workspaceByteSize(position)
+                && scratch.byteAlignment() == alignment && scratch.writableSegment().address() % alignment == 0;
+    }
+
     @Override protected boolean acceptsBufferRepresentation(int index, BufferRepresentation value) {
         if (!(value instanceof CpuBufferRepresentation cpu) || !cpu.isAccessible()
                 || cpu.dataType() != artifact.specialization().boundaryDataTypes().get(index)) return false;
@@ -1499,6 +1688,11 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             WorkspaceRepresentation representation) {
         if (!(representation instanceof CpuContiguousWorkspace workspace)
                 || !workspace.isAccessible()) return false;
+        if (artifact.specialization().rowFusionEmission().isPresent()) {
+            var requirement = memoryPlan().workspaces().get(workspaceSelection.orElseThrow().workspaceIndex());
+            return index == 0 && workspace.byteSize() == requirement.byteSize() && workspace.byteAlignment() >= 8
+                    && workspace.writableSegment().address()%8 == 0;
+        }
         if (partialReductionArtifact.isPresent()) {
             var partial = partialReductionArtifact.orElseThrow();
             return index == 0 && workspace.byteSize() == partial.ir().workspaceBytes()
@@ -1544,11 +1738,12 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
 
     @Override protected BoundInvocation bindCompatible(RunState state,
             BufferRepresentation[] buffers, WorkspaceRepresentation[] workspaces) {
+        if (batchRoute != null) return bindOrdinaryBatch(state, buffers, workspaces);
         if (partialReductionArtifact.isPresent()) {
             return bindPartialReduction(state, buffers, workspaces,
                     partialReductionArtifact.orElseThrow());
         }
-        boolean hasWorkspace=scatterGeometry.filter(g->g.scratchSliceBytes()>0).isPresent()
+        boolean hasWorkspace=artifact.specialization().rowFusionEmission().isPresent() || scatterGeometry.filter(g->g.scratchSliceBytes()>0).isPresent()
                 || aggregateGeometry.filter(g -> g.scratchSliceBytes() > 0
                     && g.outputCount() > 0).isPresent()
                 || maskedReductionGeometry.filter(g -> g.outputCount() > 0).isPresent()
@@ -1605,7 +1800,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                             || conv2dGeometry.isPresent() || conv3dGeometry.isPresent()
                             || matmulGeometry.isPresent() || pool2dGeometry.isPresent()
                             || pool3dGeometry.isPresent() || attentionGeometry.isPresent()
-                            || lossGeometry.isPresent()
+                            || lossGeometry.isPresent() || artifact.specialization().rowMapReductionIr().isPresent()
                         ? overlaps(arguments.get(input), inputBinding,
                             arguments.get(firstOutputIndex), bindings.get(firstOutputIndex))
                         : overlaps(arguments.get(input), ranged(inputBinding),
@@ -1730,6 +1925,12 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                         && attentionScratch.asOverlappingSlice(segment.segment()).isPresent())
                     throw new IllegalArgumentException("attention scratch must not overlap a buffer");
         }
+        if (artifact.specialization().rowFusionEmission().isPresent()) {
+            // The public full-body work domain is [0,1), independent of R. Its accepted
+            // [0,0) invocation must not enter staging, worker dispatch or terminal publication.
+            if (start == end) return new Invocation(state,validation,scatterValidation,valueValidations,null,null,null);
+            return bindSelectedRow(state,buffers,arguments,bindings,scratch(workspaces),0);
+        }
         long length = end - start;
         KernelCall prologue = randomGeometry.isPresent() ? callFor(artifact.entryPoint(), arguments,
                 null, geometry(arguments, 0, 0, 0), 0, 0) : null;
@@ -1756,6 +1957,171 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         }
         return new Invocation(state, validation, scatterValidation, valueValidations,
                 prologue, null, calls);
+    }
+
+    /**
+     * Resolves prepared access recipes once into fresh mutable invocation arrays. Each boundary
+     * uses its own represented width; no F32 narrowing or four-byte control base is introduced.
+     * A row region resolves every boundary independently and binds work count one, including
+     * B=0. Every output must be disjoint from every other boundary before any call is bound.
+     * @param state exact run owner with explicit admitted B
+     * @param buffers compatible ordered typed representations, borrowed
+     * @param workspaces exact declared scratch, including structural zero-byte scratch
+     * @return fresh bound invocation with direct typed carriers, never null
+     * @throws IllegalArgumentException if typed spans or writable overlap are invalid
+     * @throws ArithmeticException if numeric geometry is unrepresentable
+     */
+    private BoundInvocation bindOrdinaryBatch(RunState state, BufferRepresentation[] buffers,
+            WorkspaceRepresentation[] workspaces) {
+        long batch = state.geometry().batchSize().orElseThrow();
+        var resolved = batchRoute.batchBindings().stream().map(recipe -> recipe.bind(batch)).toList();
+        var arguments = new ArrayList<CpuBufferArgument>(buffers.length);
+        for (int i = 0; i < buffers.length; i++) {
+            var argument = preparedArgument((CpuBufferRepresentation) buffers[i], i);
+            if (Math.multiplyExact(resolved.get(i).referencedElementSpan(), (long)artifact.specialization().boundaryDataTypes().get(i).byteWidth()) > argument.byteSize()) {
+                throw new IllegalArgumentException("batch access exceeds selected usable span");
+            }
+            arguments.add(argument);
+        }
+        int firstWrite = batchRoute.specialization().rowMapReductionIr().map(r ->
+                (int)r.arithmetic().values().stream().filter(v -> v.kind()
+                        == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr.Value.Kind.INPUT).count())
+                .orElse(arguments.size()-1);
+        for (int output = firstWrite; output < arguments.size(); output++) for (int other = 0; other < output; other++)
+            if (overlaps(arguments.get(other),resolved.get(other),arguments.get(output),resolved.get(output)))
+                throw new IllegalArgumentException("batch writable outputs must not overlap any other boundary");
+        MemorySegment scratch = workspaces.length == 0 ? null : ((CpuContiguousWorkspace) workspaces[0]).writableSegment();
+        if (scratch != null) for (var argument : arguments) if (scratch.asOverlappingSlice(selectedSegment(argument)).isPresent()) {
+            throw new IllegalArgumentException("batch scratch must not overlap a buffer");
+        }
+        long length; long[] geometry;
+        long[] bases = java.util.stream.IntStream.range(0,arguments.size()).mapToLong(i ->
+                arguments.get(i).byteOffset() / artifact.specialization().boundaryDataTypes().get(i).byteWidth()).toArray();
+        if (batchRoute.specialization().rowMapReductionIr().isPresent()) {
+            if (artifact.specialization().rowFusionEmission().isPresent())
+                return bindSelectedRow(state,buffers,arguments,resolved,scratch,batch);
+            geometry = new long[1+bases.length]; geometry[0] = batch;
+            System.arraycopy(bases,0,geometry,1,bases.length); length = 1;
+        } else if (batchRoute.batchMatmul().isPresent()) {
+            var matrix = batchRoute.batchMatmul().orElseThrow().bind(batch);
+            geometry = matrix.pack(bases[0], bases[1], bases[2]); length = matrix.outputCount();
+        } else if (batchRoute.batchAggregate().isPresent()) {
+            var aggregate = batchRoute.batchAggregate().orElseThrow().bind(batch);
+            geometry = aggregate.pack(bases); length = aggregate.outputCount();
+        } else {
+            length = resolved.getLast().elementCount();
+            int rank = resolved.getFirst().plan().iterationRank(), count = resolved.size();
+            geometry = new long[2 * rank + count + count * rank + 2 * count];
+            for (int axis = 0; axis < rank; axis++) geometry[axis] = resolved.getFirst().extents().get(axis);
+            for (int value = 0; value < count; value++) {
+                var binding = resolved.get(value);
+                geometry[2 * rank + value] = Math.addExact(bases[value], binding.startAddress());
+                for (int axis = 0; axis < rank; axis++) geometry[2 * rank + count + value * rank + axis] = binding.effectiveStrides().get(axis);
+                long inner = 1;
+                for (int axis = rank - binding.plan().contiguousSuffix(); axis < rank; axis++) inner = Math.multiplyExact(inner, binding.extents().get(axis));
+                geometry[2 * rank + count + count * rank + count + value] = inner;
+            }
+        }
+        KernelCall call = length == 0 ? null : callFor(artifact.entryPoint(), arguments, scratch, geometry, 0, length);
+        return new Invocation(state, null, null, new Runnable[0], null, call, null);
+    }
+
+    /**
+     * Cold-binds one complete selected ordinary region. Numeric ranges are fixed from R/m/W,
+     * transposes and scratch are run-owned, and every helper/call is resolved before execution.
+     * Producer-sensitive accessibility is rechecked before staging or output writes. A coordinated
+     * group lends one reservation through staging, worker join and ordered merge; compatibility
+     * groups retain their existing uncoordinated behavior. No invocation chooses another artifact.
+     * @param state sole RunState owner
+     * @param buffers typed owners retained for access preflight
+     * @param arguments direct admitted carriers in boundary order
+     * @param resolved this invocation's concrete boundary geometry
+     * @param scratch exact private declared workspace
+     * @param batch admitted B for symbolic regions, otherwise ignored
+     * @return fresh direct synchronous invocation
+     * @throws IllegalArgumentException if scratch aliases storage or workers cannot access it
+     * @throws ArithmeticException if numeric range/staging arithmetic is unrepresentable
+     */
+    private BoundInvocation bindSelectedRow(RunState state,BufferRepresentation[] buffers,
+            List<CpuBufferArgument> arguments,List<CpuAccessPlan.Binding> resolved,MemorySegment scratch,long batch) {
+        var spec = artifact.specialization(); var region = spec.rowMapReductionIr().orElseThrow();
+        var emission = spec.rowFusionEmission().orElseThrow(); int width = spec.boundaryDataTypes().getFirst().byteWidth();
+        int anchor = region.rowSites().getFirst(), rowAxis = region.rowAxes().get(anchor);
+        long rows = spec.ordinaryBatch() ? batch : region.accesses().get(anchor).extentConstants().get(rowAxis);
+        int count = rows == 0 ? 0 : Math.toIntExact(Math.min(selectedRangeCount,1+(rows-1)/minimumElementsPerWorker));
+        long stageCells = 0, terminalCells = 0;
+        var transposes = new ArrayList<>(emission.invariantTransposeValues()); transposes.addAll(emission.temporalTransposeValues());
+        for (int v : transposes) {
+            var a = region.accesses().get(v); long cells = 1;
+            for (long extent : a.extentConstants()) cells = Math.multiplyExact(cells,extent);
+            stageCells = Math.addExact(stageCells,cells);
+        }
+        for (int v : region.terminalOutputs()) {
+            long cells = 1; for (long extent : region.accesses().get(v).extentConstants()) cells = Math.multiplyExact(cells,extent);
+            terminalCells = Math.addExact(terminalCells,cells);
+        }
+        long stageBytes = (stageCells*width+7)/8*8, slice = 8+(terminalCells*width+7)/8*8;
+        if (scratch == null || scratch.byteSize() != Math.addExact(stageBytes,Math.multiplyExact(selectedRangeCount,slice))
+                || scratch.address()%8 != 0) throw new IllegalArgumentException("row workspace layout disagrees");
+        var owners = java.util.Arrays.copyOf(buffers,buffers.length,CpuBufferRepresentation[].class);
+        var segments = arguments.stream().map(CpuPreparedExecutable::selectedSegment).toList();
+        for (var segment : segments) if (segment.byteSize() != 0 && scratch.asOverlappingSlice(segment).isPresent())
+            throw new IllegalArgumentException("row workspace overlaps selected capacity");
+        Runnable preflight = () -> {
+            for (var owner : owners) if (!owner.isAccessible()) throw new IllegalArgumentException("row carrier is no longer accessible");
+            if (!scratch.scope().isAlive() || !scratch.isAccessibleBy(Thread.currentThread()))
+                throw new IllegalArgumentException("row workspace is no longer accessible");
+            if (count >= 2) {
+                if (workerGroup == null || !workerGroup.workersCanAccess(scratch))
+                    throw new IllegalArgumentException("row workspace is not worker-accessible");
+                for (var segment : segments) if (!workerGroup.workersCanAccess(segment))
+                    throw new IllegalArgumentException("row carrier is not worker-accessible");
+            }
+        };
+        preflight.run();
+        int[] boundary = new int[region.arithmetic().values().size()]; java.util.Arrays.fill(boundary,-1);
+        int next = 0;
+        for (var v : region.arithmetic().values()) if (v.kind() == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr.Value.Kind.INPUT) boundary[v.ordinal()] = next++;
+        for (var v : region.arithmetic().values()) if (v.kind() == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr.Value.Kind.OUTPUT) boundary[v.ordinal()] = next++;
+        var stagedBindings = transposes.stream().map(v -> region.accesses().get(v).bind(batch)).toList();
+        Runnable stage = () -> {
+            if (rows == 0) return;
+            long destination = 0;
+            for (int t = 0; t < transposes.size(); t++) {
+                int v = transposes.get(t); var a = stagedBindings.get(t);
+                var source = segments.get(boundary[region.viewOrigins().get(v)]);
+                for (long k = 0; k < a.extents().get(0); k++) for (long n = 0; n < a.extents().get(1); n++) {
+                    long offset = Math.addExact(a.baseElementOffset(),Math.addExact(k*a.effectiveStrides().get(0),n*a.effectiveStrides().get(1)));
+                    MemorySegment.copy(source,offset*width,scratch,destination,width); destination += width;
+                }
+            }
+        };
+        long[] packed = new long[arguments.size()+3]; packed[0] = batch;
+        for (int b = 0; b < arguments.size(); b++) packed[b+1] = arguments.get(b).byteOffset()/width;
+        packed[arguments.size()+1] = count;
+        KernelCall inline = count < 2 ? callFor(artifact.entryPoint(),arguments,scratch,packed,0,1) : null;
+        KernelCall merge = count < 2 ? null : callFor(artifact.ordinaryRowMergeEntryPoint(),arguments,scratch,packed,0,1);
+        CpuWorkerGroup.RangeCall[] calls = new CpuWorkerGroup.RangeCall[count < 2 ? 0 : count];
+        long begin = 0;
+        for (int i = 0; i < calls.length; i++) {
+            long end = begin+rows/count+(i < rows%count ? 1 : 0);
+            long[] frame = packed.clone(); frame[arguments.size()+2] = stageBytes+i*slice;
+            KernelCall range = callFor(artifact.ordinaryRowRangeEntryPoint(),arguments,scratch,frame,begin,end);
+            calls[i] = range::invoke; begin = end;
+        }
+        KernelCall whole = () -> {
+            var groupBudget = workerGroup == null ? null : workerGroup.concurrencyBudget();
+            var reservation = groupBudget == null ? null : groupBudget.acquire(Math.max(1,count));
+            try {
+                preflight.run(); stage.run();
+                if (inline != null) inline.invoke();
+                else {
+                    if (reservation == null) workerGroup.execute(calls); else workerGroup.execute(calls,reservation);
+                    merge.invoke();
+                }
+            } finally { if (reservation != null) reservation.close(); }
+        };
+        return new Invocation(state,null,null,new Runnable[0],null,whole,null);
     }
 
     /** Binds the already-selected direct-array partial route without reselecting a kernel. */
@@ -1967,34 +2333,217 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         return address;
     }
 
+    /**
+     * Returns only the family's mutable packed cursor seeds for fixed temporal helper calls.
+     * Pointwise and affine-copy packs are immutable after binding and therefore have no resets.
+     * Family geometry owners retain every packed-cell index; callers emit these assignments
+     * directly rather than interpreting the list during execution.
+     * @param lowered independently qualified ordinary lowering with resolved numeric geometry
+     * @return immutable original cursor assignments, including an empty list for immutable packs
+     * @throws ArithmeticException if a family cursor seed calculation overflows
+     */
+    public static List<io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset>
+            temporalResets(io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering.LoweredPartition lowered) {
+        if (lowered.movementGeometry().isPresent()) return lowered.movementGeometry().orElseThrow().temporalRebind(0).resets().stream()
+                .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        if (lowered.indexingGeometry().isPresent()) return lowered.indexingGeometry().orElseThrow().temporalRebind(0).resets().stream()
+                .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        if (lowered.scatterGeometry().isPresent()) return lowered.scatterGeometry().orElseThrow().temporalRebind(0).resets().stream()
+                .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        if (lowered.foldGeometry().isPresent()) return lowered.foldGeometry().orElseThrow().temporalRebind(0).resets().stream()
+                .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        if (lowered.orderingGeometry().isPresent()) return lowered.orderingGeometry().orElseThrow().temporalRebind(0).resets().stream()
+                .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        if (lowered.randomGeometry().isPresent()) return lowered.randomGeometry().orElseThrow().temporalRebind(0).resets().stream()
+                .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        if (lowered.scanGeometry().isPresent()) return lowered.scanGeometry().orElseThrow().temporalRebind(0).resets().stream()
+                .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        if (lowered.aggregateGeometry().isPresent()) return (lowered.portableKernelIr() instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateFusionIr
+                    || lowered.portableKernelIr() instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSoftmaxBackwardIr
+                    ? lowered.aggregateGeometry().orElseThrow().temporalRebindFusion(0, lowered.boundaryValues().size())
+                    : lowered.aggregateGeometry().orElseThrow().temporalRebind(0)).resets().stream()
+                .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        if (lowered.argExtremaGeometry().isPresent()) return lowered.argExtremaGeometry().orElseThrow().temporalRebind(0).resets().stream()
+                .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        if (lowered.maskedReductionGeometry().isPresent()) return lowered.maskedReductionGeometry().orElseThrow().temporalRebind(0).resets().stream()
+                .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        if (lowered.advancedReductionGeometry().isPresent()) return lowered.advancedReductionGeometry().orElseThrow().temporalRebind(0).resets().stream()
+                .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        if (lowered.softmaxGeometry().isPresent()) return lowered.softmaxGeometry().orElseThrow().temporalRebind(0).resets().stream()
+                .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        if (lowered.trailingNormalizationGeometry().isPresent()) return lowered.trailingNormalizationGeometry().orElseThrow().temporalRebind(0).resets().stream()
+                .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        if (lowered.batchNormInferenceGeometry().isPresent()) return lowered.batchNormInferenceGeometry().orElseThrow().temporalRebind(0).resets().stream()
+                .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        if (lowered.batchNormTrainingGeometry().isPresent()) return lowered.batchNormTrainingGeometry().orElseThrow().temporalRebind(0).resets().stream()
+                .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        if (lowered.conv2dGeometry().isPresent()) return lowered.conv2dGeometry().orElseThrow().temporalRebind(0).resets().stream()
+                .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        if (lowered.conv3dGeometry().isPresent()) return lowered.conv3dGeometry().orElseThrow().temporalRebind(0).resets().stream()
+                .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        if (lowered.matmulGeometry().isPresent()) return lowered.matmulGeometry().orElseThrow().temporalRebind(0).resets().stream()
+                .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        if (lowered.pool2dGeometry().isPresent()) return lowered.pool2dGeometry().orElseThrow().temporalRebind(0).resets().stream()
+                .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        if (lowered.pool3dGeometry().isPresent()) return lowered.pool3dGeometry().orElseThrow().temporalRebind(0).resets().stream()
+                .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        if (lowered.attentionGeometry().isPresent()) return lowered.attentionGeometry().orElseThrow().temporalRebind(0).resets().stream()
+                .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        if (lowered.portableKernelIr() instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr loss)
+            return loss.geometry().temporalRebind(0).resets().stream()
+                    .map(r -> new io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset(r.cell(), r.value())).toList();
+        return List.of();
+    }
+
     private long[] geometry(List<CpuBufferArgument> arguments, long rangeStart, long rangeEnd,
             int rangeIndex) {
-        if (attentionGeometry.isPresent()) {
-            long[] bases = new long[arguments.size()];
-            for (int index = 0; index < bases.length; index++) {
-                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
-                bases[index] = arguments.get(index).byteOffset() / width;
+        long[] bases = new long[arguments.size()];
+        for (int b = 0; b < bases.length; b++) bases[b] = arguments.get(b).byteOffset()
+                / artifact.specialization().boundaryDataTypes().get(b).byteWidth();
+        return packGeometry(artifact.specialization(), bindings, affineCopy, affineAddressPairs,
+                movementGeometry, indexingGeometry, scatterGeometry, foldGeometry,
+                orderingGeometry, randomGeometry, scanGeometry, aggregateGeometry,
+                argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry, softmaxGeometry,
+                trailingNormalizationGeometry, batchNormInferenceGeometry, batchNormTrainingGeometry, conv2dGeometry,
+                conv3dGeometry, matmulGeometry, pool2dGeometry, pool3dGeometry,
+                attentionGeometry, lossGeometry, outputCount, bases,
+                rangeStart, rangeEnd, rangeIndex);
+    }
+
+    /**
+     * Packs an ordinary helper through the same family geometry owner as standalone binding.
+     * Offsets are already normalized independently by each boundary's represented element width.
+     * The returned array belongs exclusively to the bound invocation.
+     * @param lowered exact controlled ordinary lowering, resolved to invocation geometry;
+     *     distinct affine writes retain source/destination/original-logical-ordinal triples
+     * @param specialization independently qualified matching ordinary specialization
+     * @param elementBases workspace/carrier-relative element bases in ordinary ABI order
+     * @param batch actual named numeric batch coordinate, or zero for fixed recipes
+     * @return fresh invocation-owned numeric pack
+     * @throws IllegalArgumentException if boundary counts or a family pack disagree
+     * @throws ArithmeticException if checked geometry arithmetic overflows
+     */
+    public static long[] packGeometry(
+            io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering.LoweredPartition lowered,
+            io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization specialization,
+            long[] elementBases, long batch) {
+        if (elementBases.length != lowered.boundaryDataTypes().size())
+            throw new IllegalArgumentException("ordinary geometry boundary count mismatch");
+        if (lowered.portableKernelIr() instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr affine
+                && affine.writeDomain() == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr.WriteDomain.DISTINCT_ADDRESSES) {
+            long[] triples = lowered.affineAddressPairs();
+            if (triples.length != Math.multiplyExact(lowered.elementCount(), 3))
+                throw new IllegalArgumentException("controlled affine writes require original logical ordinals");
+            for (int cell = 0; cell < triples.length; cell += 3) {
+                triples[cell] = Math.addExact(triples[cell], elementBases[0]);
+                triples[cell + 1] = Math.addExact(triples[cell + 1], elementBases[1]);
             }
+            return triples;
+        }
+        var loss = lowered.portableKernelIr() instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr l
+                ? Optional.of(l.geometry()) : Optional.<CpuLossLowering.Geometry>empty();
+        long[] packed = packGeometry(specialization, lowered.accessBindings(), lowered.portableKernelIr() instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr,
+                lowered.affineAddressPairs(),
+                lowered.movementGeometry(), lowered.indexingGeometry(), lowered.scatterGeometry(),
+                lowered.foldGeometry(), lowered.orderingGeometry(), lowered.randomGeometry(),
+                lowered.scanGeometry(), lowered.aggregateGeometry(), lowered.argExtremaGeometry(),
+                lowered.maskedReductionGeometry(), lowered.advancedReductionGeometry(), lowered.softmaxGeometry(),
+                lowered.trailingNormalizationGeometry(), lowered.batchNormInferenceGeometry(), lowered.batchNormTrainingGeometry(),
+                lowered.conv2dGeometry(), lowered.conv3dGeometry(), lowered.matmulGeometry(),
+                lowered.pool2dGeometry(), lowered.pool3dGeometry(), lowered.attentionGeometry(),
+                loss, (int) lowered.kernelIr().values().stream().filter(v -> v.kind() == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr.Value.Kind.OUTPUT).count(), elementBases,
+                0, lowered.elementCount(), 0);
+        if (specialization.rowMapReductionIr().isPresent()) packed[0] = batch;
+        return packed;
+    }
+
+    /**
+     * Selects the existing ordinary family pack owner for both standalone and Scan binding.
+     * This cold method never reads tensor values; returned mutable state is exclusively run-owned.
+     * @param specialization exact generated family and boundary type facts
+     * @param bindings normalized full-range boundary access plans
+     * @param affineCopy whether the affine address-pair ABI is selected
+     * @param affineAddressPairs original immutable alternating source/result addresses
+     * @param movementGeometry optional independently qualified movement geometry; empty for other families
+     * @param indexingGeometry optional independently qualified indexing geometry; empty for other families
+     * @param scatterGeometry optional independently qualified scatter geometry; empty for other families
+     * @param foldGeometry optional independently qualified fold geometry; empty for other families
+     * @param orderingGeometry optional independently qualified ordering geometry; empty for other families
+     * @param randomGeometry optional independently qualified random geometry; empty for other families
+     * @param scanGeometry optional independently qualified scan geometry; empty for other families
+     * @param aggregateGeometry optional independently qualified aggregate geometry; empty for other families
+     * @param argExtremaGeometry optional independently qualified argExtrema geometry; empty for other families
+     * @param maskedReductionGeometry optional independently qualified maskedReduction geometry; empty for other families
+     * @param advancedReductionGeometry optional independently qualified advancedReduction geometry; empty for other families
+     * @param softmaxGeometry optional independently qualified softmax geometry; empty for other families
+     * @param trailingNormalizationGeometry optional independently qualified trailingNormalization geometry; empty for other families
+     * @param batchNormInferenceGeometry optional independently qualified batchNormInference geometry; empty for other families
+     * @param batchNormTrainingGeometry optional independently qualified batchNormTraining geometry; empty for other families
+     * @param conv2dGeometry optional independently qualified conv2d geometry; empty for other families
+     * @param conv3dGeometry optional independently qualified conv3d geometry; empty for other families
+     * @param matmulGeometry optional independently qualified matmul geometry; empty for other families
+     * @param pool2dGeometry optional independently qualified pool2d geometry; empty for other families
+     * @param pool3dGeometry optional independently qualified pool3d geometry; empty for other families
+     * @param attentionGeometry optional independently qualified attention geometry; empty for other families
+     * @param lossGeometry optional independently qualified loss geometry; empty for other families
+     * @param outputCount number of materialized output boundaries
+     * @param carrierBases typed element bases in ordinary boundary order
+     * @param rangeStart inclusive logical range start
+     * @param rangeEnd exclusive logical range end
+     * @param rangeIndex zero-based private scratch range index
+     * @return fresh family-owned numeric pack with the requested range's initial cursor state
+     * @throws IllegalArgumentException if the selected family rejects boundary or range geometry
+     * @throws ArithmeticException if checked address, range or geometry calculations overflow
+     */
+    private static long[] packGeometry(
+            io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization specialization,
+            List<CpuAccessPlan.Binding> bindings,
+            boolean affineCopy,
+            long[] affineAddressPairs,
+            Optional<CpuNonAffineMovementLowering.Geometry> movementGeometry,
+            Optional<CpuIndexingLowering.Geometry> indexingGeometry,
+            Optional<CpuScatterLowering.Geometry> scatterGeometry,
+            Optional<CpuFoldLowering.Geometry> foldGeometry,
+            Optional<CpuOrderingLowering.Geometry> orderingGeometry,
+            Optional<CpuRandomLowering.Geometry> randomGeometry,
+            Optional<CpuScanLowering.Geometry> scanGeometry,
+            Optional<CpuAggregateLowering.Geometry> aggregateGeometry,
+            Optional<CpuArgExtremaLowering.Geometry> argExtremaGeometry,
+            Optional<CpuMaskedReductionLowering.Geometry> maskedReductionGeometry,
+            Optional<CpuAdvancedReductionLowering.Geometry> advancedReductionGeometry,
+            Optional<CpuSoftmaxLowering.Geometry> softmaxGeometry,
+            Optional<CpuTrailingNormalizationLowering.Geometry> trailingNormalizationGeometry,
+            Optional<CpuBatchNormInferenceLowering.Geometry> batchNormInferenceGeometry,
+            Optional<CpuBatchNormTrainingLowering.Geometry> batchNormTrainingGeometry,
+            Optional<CpuConv2dLowering.Geometry> conv2dGeometry,
+            Optional<CpuConv3dLowering.Geometry> conv3dGeometry,
+            Optional<CpuMatmulLowering.Geometry> matmulGeometry,
+            Optional<CpuPool2dLowering.Geometry> pool2dGeometry,
+            Optional<CpuPool3dLowering.Geometry> pool3dGeometry,
+            Optional<CpuAttentionLowering.Geometry> attentionGeometry,
+            Optional<CpuLossLowering.Geometry> lossGeometry,
+            int outputCount,
+            long[] carrierBases,
+            long rangeStart,
+            long rangeEnd,
+            int rangeIndex) {
+        if (specialization.rowMapReductionIr().isPresent()) {
+            long[] packed = new long[1+carrierBases.length];
+            for (int b = 0; b < carrierBases.length; b++) packed[1+b] = carrierBases[b];
+            return packed;
+        }
+        if (attentionGeometry.isPresent()) {
+            long[] bases = carrierBases;
             return attentionGeometry.orElseThrow().pack(bases);
         }
         if (pool3dGeometry.isPresent()) {
-            int width = artifact.specialization().boundaryDataTypes().getFirst().byteWidth();
-            return pool3dGeometry.orElseThrow().pack(
-                    arguments.getFirst().byteOffset() / width,
-                    arguments.getLast().byteOffset() / width);
+            return pool3dGeometry.orElseThrow().pack(carrierBases[0], carrierBases[carrierBases.length - 1]);
         }
         if (pool2dGeometry.isPresent()) {
-            int width = artifact.specialization().boundaryDataTypes().getFirst().byteWidth();
-            return pool2dGeometry.orElseThrow().pack(
-                    arguments.getFirst().byteOffset() / width,
-                    arguments.getLast().byteOffset() / width);
+            return pool2dGeometry.orElseThrow().pack(carrierBases[0], carrierBases[carrierBases.length - 1]);
         }
         if (matmulGeometry.isPresent()) {
-            long[] bases = new long[arguments.size()];
-            for (int index = 0; index < bases.length; index++) {
-                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
-                bases[index] = arguments.get(index).byteOffset() / width;
-            }
+            long[] bases = carrierBases;
             if(bases.length==4) {
                 CpuAccessPlan.Binding bias=bindings.get(2);
                 if(bias.extents().size()!=1||bias.effectiveStrides().size()!=1)
@@ -2006,51 +2555,27 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             return matmulGeometry.orElseThrow().pack(bases[0], bases[1], bases[bases.length - 1]);
         }
         if (conv3dGeometry.isPresent()) {
-            long[] bases = new long[arguments.size()];
-            for (int index = 0; index < bases.length; index++) {
-                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
-                bases[index] = arguments.get(index).byteOffset() / width;
-            }
+            long[] bases = carrierBases;
             return conv3dGeometry.orElseThrow().pack(bases);
         }
         if (conv2dGeometry.isPresent()) {
-            long[] bases = new long[arguments.size()];
-            for (int index = 0; index < bases.length; index++) {
-                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
-                bases[index] = arguments.get(index).byteOffset() / width;
-            }
+            long[] bases = carrierBases;
             return conv2dGeometry.orElseThrow().pack(bases);
         }
         if (batchNormTrainingGeometry.isPresent()) {
-            long[] bases = new long[arguments.size()];
-            for (int index = 0; index < bases.length; index++) {
-                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
-                bases[index] = arguments.get(index).byteOffset() / width;
-            }
+            long[] bases = carrierBases;
             return batchNormTrainingGeometry.orElseThrow().pack(bases, 0);
         }
         if (batchNormInferenceGeometry.isPresent()) {
-            long[] bases = new long[arguments.size()];
-            for (int index = 0; index < bases.length; index++) {
-                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
-                bases[index] = arguments.get(index).byteOffset() / width;
-            }
+            long[] bases = carrierBases;
             return batchNormInferenceGeometry.orElseThrow().pack(bases);
         }
         if (trailingNormalizationGeometry.isPresent()) {
-            long[] bases = new long[arguments.size()];
-            for (int index = 0; index < bases.length; index++) {
-                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
-                bases[index] = arguments.get(index).byteOffset() / width;
-            }
+            long[] bases = carrierBases;
             return trailingNormalizationGeometry.orElseThrow().pack(bases);
         }
         if (softmaxGeometry.isPresent()) {
-            long[] bases = new long[2];
-            for (int index = 0; index < 2; index++) {
-                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
-                bases[index] = arguments.get(index).byteOffset() / width;
-            }
+            long[] bases = carrierBases;
             return softmaxGeometry.orElseThrow().pack(bases);
         }
         if (lossGeometry.isPresent()) {
@@ -2058,111 +2583,70 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             if (outputCount != 1 || bindings.size() < 2 || bindings.size() > 3) {
                 throw new IllegalArgumentException("loss boundaries must have two inputs and one output");
             }
-            long[] bases = new long[3];
-            for (int index = 0; index < bindings.size() - 1; index++) {
-                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
-                bases[index] = arguments.get(index).byteOffset() / width;
-            }
-            if (bindings.size() == 2) bases[1] = bases[0];
-            int width = artifact.specialization().boundaryDataTypes().get(output).byteWidth();
-            bases[2] = arguments.get(output).byteOffset() / width;
+            long[] bases = {carrierBases[0], carrierBases.length == 2 ? carrierBases[0] : carrierBases[1],
+                    carrierBases[output]};
             return lossGeometry.orElseThrow().pack(bases);
         }
         if (advancedReductionGeometry.isPresent()) {
-            long[] bases = new long[2];
-            for (int index = 0; index < 2; index++) {
-                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
-                bases[index] = arguments.get(index).byteOffset() / width;
-            }
+            long[] bases = carrierBases;
             return advancedReductionGeometry.orElseThrow().pack(bases);
         }
         if (maskedReductionGeometry.isPresent()) {
-            long[] bases = new long[3];
-            for (int index = 0; index < 3; index++) {
-                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
-                bases[index] = arguments.get(index).byteOffset() / width;
-            }
+            long[] bases = carrierBases;
             // The worker call already receives its private slice of the run-owned workspace.
             return maskedReductionGeometry.orElseThrow().pack(bases, 0);
         }
         if (argExtremaGeometry.isPresent()) {
-            long[] bases = new long[2];
-            for (int index = 0; index < 2; index++) {
-                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
-                bases[index] = arguments.get(index).byteOffset() / width;
-            }
+            long[] bases = carrierBases;
             return argExtremaGeometry.orElseThrow().pack(bases);
         }
         if (aggregateGeometry.isPresent()) {
-            long[] bases = new long[2];
-            for (int index = 0; index < 2; index++) {
-                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
-                bases[index] = arguments.get(index).byteOffset() / width;
+            boolean fused = specialization.aggregateFusionIr().isPresent()
+                    || specialization.softmaxBackwardIr().isPresent();
+            long[] bases = carrierBases;
+            if (specialization.softmaxBackwardIr().isPresent()) {
+                var physical = specialization.softmaxBackwardIr().orElseThrow();
+                for (int i = 0; i < bases.length; i++) {
+                    var binding = physical.boundaries().get(i);
+                    long span = Math.max(binding.referencedElementSpan(),binding.baseElementOffset());
+                    Math.toIntExact(Math.multiplyExact(Math.addExact(bases[i],span),
+                            physical.aggregate().dataType().byteWidth()));
+                }
             }
-            return aggregateGeometry.orElseThrow().pack(bases, 0);
+            return fused ? aggregateGeometry.orElseThrow().packFusion(bases)
+                    : aggregateGeometry.orElseThrow().pack(bases, 0);
         }
         if (scanGeometry.isPresent()) {
-            long[] bases = new long[2];
-            for (int index = 0; index < 2; index++) {
-                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
-                bases[index] = arguments.get(index).byteOffset() / width;
-            }
+            long[] bases = carrierBases;
             return scanGeometry.orElseThrow().pack(bases);
         }
         if (randomGeometry.isPresent()) {
-            long[] bases = new long[arguments.size()];
-            for (int index = 0; index < arguments.size(); index++) {
-                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
-                bases[index] = arguments.get(index).byteOffset() / width;
-            }
+            long[] bases = carrierBases;
             return randomGeometry.orElseThrow().pack(bases);
         }
         if (orderingGeometry.isPresent()) {
-            long[] bases = new long[arguments.size()];
-            for (int index = 0; index < arguments.size(); index++) {
-                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
-                bases[index] = arguments.get(index).byteOffset() / width;
-            }
+            long[] bases = carrierBases;
             return orderingGeometry.orElseThrow().pack(bases, rangeStart, rangeEnd, rangeIndex);
         }
         if (foldGeometry.isPresent()) {
-            long[] bases = new long[2];
-            for (int index = 0; index < 2; index++) {
-                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
-                bases[index] = arguments.get(index).byteOffset() / width;
-            }
+            long[] bases = carrierBases;
             return foldGeometry.orElseThrow().pack(bases, rangeStart, rangeEnd);
         }
         if (scatterGeometry.isPresent()) {
-            long[] bases = new long[arguments.size()];
-            for (int index = 0; index < arguments.size(); index++) {
-                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
-                bases[index] = arguments.get(index).byteOffset() / width;
-            }
+            long[] bases = carrierBases;
             return scatterGeometry.orElseThrow().pack(bases, rangeStart, rangeEnd, rangeIndex);
         }
         if (indexingGeometry.isPresent()) {
-            long[] bases = new long[arguments.size()];
-            for (int index = 0; index < arguments.size(); index++) {
-                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
-                bases[index] = arguments.get(index).byteOffset() / width;
-            }
+            long[] bases = carrierBases;
             return indexingGeometry.orElseThrow().pack(bases, rangeStart, rangeEnd);
         }
         if (movementGeometry.isPresent()) {
-            long[] bases = new long[arguments.size()];
-            for (int index = 0; index < arguments.size(); index++) {
-                int width = artifact.specialization().boundaryDataTypes().get(index).byteWidth();
-                bases[index] = arguments.get(index).byteOffset() / width;
-            }
+            long[] bases = carrierBases;
             return movementGeometry.orElseThrow().pack(bases, rangeStart, rangeEnd);
         }
         if (affineCopy) {
             long[] geometry = affineAddressPairs.clone();
-            int sourceWidth = dataType(arguments.get(0)).byteWidth();
-            int resultWidth = dataType(arguments.get(1)).byteWidth();
-            long sourceBase = arguments.get(0).byteOffset() / sourceWidth;
-            long resultBase = arguments.get(1).byteOffset() / resultWidth;
+            long sourceBase = carrierBases[0], resultBase = carrierBases[1];
             for (int index = 0; index < geometry.length; index += 2) {
                 geometry[index] = Math.addExact(geometry[index], sourceBase);
                 geometry[index + 1] = Math.addExact(geometry[index + 1], resultBase);
@@ -2180,8 +2664,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         }
         for (int value = 0; value < boundaryCount; value++) {
             CpuAccessPlan.Binding binding = ranged(bindings.get(value), rangeStart, rangeEnd);
-            int width = artifact.specialization().boundaryDataTypes().get(value).byteWidth();
-            long carrierBase = arguments.get(value).byteOffset() / width;
+            long carrierBase = carrierBases[value];
             geometry[2 * rank + value] = Math.addExact(carrierBase, binding.startAddress());
             for (int axis = 0; axis < rank; axis++) geometry[2 * rank + boundaryCount + value * rank + axis]
                     = binding.effectiveStrides().get(axis);
@@ -2470,6 +2953,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         private final int tuple;
         private final long[] coordinates;
         private final long indexCount;
+        private final MemorySegment storage;
 
         IndexValidation(List<CpuBufferArgument> arguments, CpuIndexingLowering.Geometry geometry) {
             family = geometry.family();
@@ -2479,6 +2963,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
                     : geometry.occurrenceToBoundary().get(1);
             indexArgument = arguments.get(indexBoundary);
             indexType = geometry.boundaryTypes().get(indexBoundary);
+            storage = indexStorage(indexArgument);
             var indexLayout = geometry.boundaries().get(indexBoundary);
             extents = indexLayout.extents(); strides = indexLayout.strides();
             base = Math.addExact(indexArgument.byteOffset() / indexType.byteWidth(), indexLayout.offset());
@@ -2503,27 +2988,14 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         private final long[] dataExtents;
 
         void validate() {
-            java.util.Arrays.fill(coordinates, 0);
-            long address = base;
-            int component = 0;
-            for (long ordinal = 0; ordinal < indexCount; ordinal++) {
-                long value = readIndex(indexArgument, address, indexType);
-                int currentAxis = axis;
-                long currentBound = bound;
-                if (family == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuIndexingIr.Family.GATHER_ND) {
-                    currentAxis = batch + component;
-                    currentBound = dataExtents[currentAxis];
-                }
-                if (value < 0 || value >= currentBound) throw failure(ordinal, value,
-                        currentAxis, currentBound);
-                address = advanceAddress(address, extents, strides, coordinates);
-                if (family == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuIndexingIr.Family.GATHER_ND
-                        && ++component == tuple) component = 0;
-            }
+            validateTemporalIndices(storage, indexType.byteWidth(), base, extents, strides,
+                    coordinates, 0L, indexCount, family, axis, batch, tuple, bound, dataExtents,
+                    0L, true, null, 0L, 0L, 0L);
         }
 
-        private IndexOutOfBoundsException failure(long ordinal, long value, int selectedAxis,
-                long extent) {
+        private static IndexOutOfBoundsException failure(
+                io.github.pho001.synaptik.backend.cpu.internal.ir.CpuIndexingIr.Family family,
+                long ordinal, long value, int selectedAxis, long extent) {
             String message = switch (family) {
                 case GATHER -> "GATHER index at logical position " + ordinal
                         + " for data axis " + selectedAxis + " is out of bounds: value=" + value
@@ -2541,28 +3013,81 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         }
     }
 
-    private static long readIndex(CpuBufferArgument argument, long address,
-            io.github.pho001.synaptik.model.datatype.DataType type) {
-        if (type == io.github.pho001.synaptik.model.datatype.DataType.INT32) {
-            if (argument instanceof CpuBufferArgument.Ints ints) {
-                return ints.carrier()[Math.toIntExact(address)];
+    private static MemorySegment indexStorage(CpuBufferArgument argument) {
+        return switch (argument) {
+            case CpuBufferArgument.Ints ints -> MemorySegment.ofArray(ints.carrier());
+            case CpuBufferArgument.Longs longs -> MemorySegment.ofArray(longs.carrier());
+            case CpuBufferArgument.Segment segment -> segment.segment();
+            default -> throw new IllegalArgumentException("index requires integral storage");
+        };
+    }
+
+    private static long readIndex(MemorySegment storage, long address, int indexBytes) {
+        return indexBytes == Integer.BYTES
+                ? storage.get(ValueLayout.JAVA_INT, Math.multiplyExact(address, Integer.BYTES))
+                : storage.get(ValueLayout.JAVA_LONG, Math.multiplyExact(address, Long.BYTES));
+    }
+
+    /**
+     * Checks the complete eligible index range before any output, history or scratch write.
+     * The domain is the index domain, even if the numerical output is empty. GATHER_ND bounds
+     * are component-specific. Cold wrappers and the mutable cursor are retained by the invocation.
+     *
+     * @param storage borrowed prebound integral storage
+     * @param indexBytes represented width, four or eight bytes
+     * @param base index layout element offset, including any carrier offset
+     * @param extents immutable cold index extents
+     * @param strides immutable cold index element strides
+     * @param coordinates invocation-private rank-sized cursor, reset on every call
+     * @param start inclusive scalar index ordinal
+     * @param end exclusive ordinal for the entire unit validation domain
+     * @param family cold ordinary indexing family
+     * @param axis data axis for axis indexing, otherwise minus one
+     * @param batch GATHER_ND batch dimensions, otherwise zero
+     * @param tuple GATHER_ND tuple depth, otherwise zero
+     * @param bound axis extent or ONE_HOT depth, unused for GATHER_ND
+     * @param dataExtents immutable data extents for GATHER_ND, otherwise an empty array
+     * @param temporalOffset additional index element displacement
+     * @param ownerPresent structural occurrence presence, independent of empty domains
+     * @param activity borrowed row bytes, or null for all-active
+     * @param activityOffset byte address of row zero
+     * @param rowStride scalar index ordinals per original row coordinate, or zero for a shared byte
+     * @param rowExtent proved row extent, unused for a shared byte
+     * @throws IndexOutOfBoundsException if an eligible index is outside its component bounds
+     * @throws ArithmeticException if checked address arithmetic overflows
+     */
+    public static void validateTemporalIndices(MemorySegment storage, int indexBytes, long base,
+            long[] extents, long[] strides, long[] coordinates, long start, long end,
+            io.github.pho001.synaptik.backend.cpu.internal.ir.CpuIndexingIr.Family family,
+            int axis, int batch, int tuple, long bound, long[] dataExtents, long temporalOffset,
+            boolean ownerPresent, MemorySegment activity, long activityOffset,
+            long rowStride, long rowExtent) {
+        if (!ownerPresent) return;
+        ScatterValidation.coordinates(start, extents, coordinates);
+        long address = Math.addExact(base, temporalOffset);
+        for (int dimension = 0; dimension < extents.length; dimension++)
+            address = Math.addExact(address,
+                    Math.multiplyExact(coordinates[dimension], strides[dimension]));
+        for (long ordinal = start; ordinal < end; ordinal++) {
+            if (CpuBooleanInputValidator.isActive(ordinal, activity, activityOffset,
+                    rowStride, rowExtent)) {
+                long value = readIndex(storage, address, indexBytes);
+                int selectedAxis = axis;
+                long selectedBound = bound;
+                if (family == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuIndexingIr.Family.GATHER_ND) {
+                    selectedAxis = batch + (int) (ordinal % tuple);
+                    selectedBound = dataExtents[selectedAxis];
+                }
+                if (value < 0 || value >= selectedBound)
+                    throw IndexValidation.failure(family, ordinal, value, selectedAxis, selectedBound);
             }
-            return ((CpuBufferArgument.Segment) argument).segment().get(ValueLayout.JAVA_INT,
-                    Math.multiplyExact(address, Integer.BYTES));
+            address = advanceAddress(address, extents, strides, coordinates);
         }
-        if (argument instanceof CpuBufferArgument.Longs longs) {
-            return longs.carrier()[Math.toIntExact(address)];
-        }
-        return ((CpuBufferArgument.Segment) argument).segment().get(ValueLayout.JAVA_LONG,
-                Math.multiplyExact(address, Long.BYTES));
     }
 
     /** Reusable allocation-free complete scatter bounds and replacement-uniqueness validator. */
     private static final class ScatterValidation {
-        private final List<CpuBufferArgument> arguments;
         private final CpuScatterLowering.Geometry geometry;
-        private final int indexBoundary;
-        private final CpuBufferArgument indices;
         private final io.github.pho001.synaptik.model.datatype.DataType indexType;
         private final long[] indexExtents;
         private final long[] indexStrides;
@@ -2570,14 +3095,19 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         private final long indexBase;
         private final long[] current;
         private final long[] earlier;
+        private final MemorySegment storage;
+        private final long[] dataExtents;
+        private final long[] updateExtents;
+        private final long indexCount;
+        private final long candidateCount;
 
         ScatterValidation(List<CpuBufferArgument> arguments,
                 CpuScatterLowering.Geometry geometry) {
-            this.arguments = arguments;
             this.geometry = geometry;
-            indexBoundary = geometry.occurrenceToBoundary().get(1);
-            indices = arguments.get(indexBoundary);
+            int indexBoundary = geometry.occurrenceToBoundary().get(1);
+            CpuBufferArgument indices = arguments.get(indexBoundary);
             indexType = geometry.boundaryTypes().get(indexBoundary);
+            storage = indexStorage(indices);
             var layout = geometry.boundaries().get(indexBoundary);
             indexExtents = layout.extents(); indexStrides = layout.strides();
             tuplePrefixExtents = java.util.Arrays.copyOf(indexExtents,
@@ -2586,92 +3116,143 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
             current = new long[Math.max(indexExtents.length,
                     geometry.boundaries().get(geometry.occurrenceToBoundary().get(2)).extents().length)];
             earlier = current.clone();
+            dataExtents = geometry.boundaries().get(geometry.occurrenceToBoundary().get(0)).extents();
+            updateExtents = geometry.boundaries().get(geometry.occurrenceToBoundary().get(2)).extents();
+            indexCount = elementCount(indexExtents);
+            candidateCount = geometry.family()
+                    == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr.Family.SCATTER_ND
+                    ? elementCount(tuplePrefixExtents) : elementCount(updateExtents);
         }
 
         void validate() {
-            bounds();
-            if (geometry.reduction()
-                    == io.github.pho001.synaptik.model.operation.index.ScatterReduction.NONE) {
-                duplicates();
-            }
-        }
-
-        private void bounds() {
-            java.util.Arrays.fill(current, 0);
-            long address=indexBase;
-            long count=elementCount(indexExtents);
-            for(long ordinal=0;ordinal<count;ordinal++){
-                long value=readIndex(indices,address,indexType);
-                int axis=geometry.family()
-                        ==io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr.Family.SCATTER_ND
-                        ?geometry.batchDimensions()+(int)(ordinal%geometry.tupleDepth())
-                        :geometry.axis();
-                long extent=geometry.boundaries().get(geometry.occurrenceToBoundary().get(0))
-                        .extents()[axis];
-                if(value<0||value>=extent)throw boundsFailure(ordinal,axis,value,extent);
-                address=advanceAddress(address,indexExtents,indexStrides,current);
-            }
-        }
-
-        private void duplicates() {
-            if (geometry.family()
-                    == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr.Family.SCATTER_ADD) return;
-            if (geometry.family()
-                    == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr.Family.SCATTER_ELEMENTS) {
-                long[] updateExtents=geometry.boundaries().get(
-                        geometry.occurrenceToBoundary().get(2)).extents();
-                long count=elementCount(updateExtents);
-                for(long later=1;later<count;later++){
-                    coordinates(later,updateExtents,current);
-                    for(long first=0;first<later;first++){
-                        coordinates(first,updateExtents,earlier);
-                        if(elementTargetEqual(current,earlier))throw new IllegalArgumentException(
-                                "SCATTER_ELEMENTS duplicate target at logical update position "+later
-                                +"; first addressed at logical update position "+first);
-                    }
-                }
-                return;
-            }
-            long tupleCount=1;
-            for(int i=0;i<indexExtents.length-1;i++)tupleCount=Math.multiplyExact(tupleCount,indexExtents[i]);
-            for(long later=1;later<tupleCount;later++){
-                coordinates(later,tuplePrefixExtents,current);
-                for(long first=0;first<later;first++){
-                    coordinates(first,tuplePrefixExtents,earlier);
-                    if(ndTargetEqual(current,earlier))throw new IllegalArgumentException(
-                            "SCATTER_ND duplicate target tuple at logical tuple position "+later
-                            +"; first addressed at logical tuple position "+first);
-                }
-            }
-        }
-
-        private boolean elementTargetEqual(long[] left,long[] right){
-            int axis=geometry.axis();
-            for(int i=0;i<indexExtents.length;i++)if(i!=axis&&left[i]!=right[i])return false;
-            return indexAt(left,-1)==indexAt(right,-1);
-        }
-        private boolean ndTargetEqual(long[] left,long[] right){
-            for(int i=0;i<geometry.batchDimensions();i++)if(left[i]!=right[i])return false;
-            for(int k=0;k<geometry.tupleDepth();k++)if(indexAt(left,k)!=indexAt(right,k))return false;
-            return true;
-        }
-        private long indexAt(long[] coordinate,int component){
-            long address=indexBase;
-            int prefix=indexExtents.length-1;
-            for(int i=0;i<(component<0?indexExtents.length:prefix);i++)
-                address=Math.addExact(address,Math.multiplyExact(coordinate[i],indexStrides[i]));
-            if(component>=0)address=Math.addExact(address,Math.multiplyExact(component,indexStrides[prefix]));
-            return readIndex(indices,address,indexType);
-        }
-        private IndexOutOfBoundsException boundsFailure(long ordinal,int axis,long value,long extent){
-            String family=geometry.family().name();
-            return new IndexOutOfBoundsException(family+" index at logical position "+ordinal
-                    +" for data axis "+axis+" is out of bounds: value="+value+", extent="+extent);
+            validateTemporalScatter(storage, indexType.byteWidth(), indexBase, indexExtents,
+                    indexStrides, dataExtents, updateExtents, tuplePrefixExtents, current, earlier,
+                    indexCount, candidateCount, geometry.family(), geometry.axis(),
+                    geometry.batchDimensions(), geometry.tupleDepth(),
+                    geometry.reduction() == io.github.pho001.synaptik.model.operation.index.ScatterReduction.NONE,
+                    0L, true, null, 0L, 0L, 0L, 0L, 0L, 0L);
         }
         private static void coordinates(long ordinal,long[] extents,long[] target){
             java.util.Arrays.fill(target,0);
             for(int i=extents.length-1;i>=0;i--){if(extents[i]!=0){target[i]=ordinal%extents[i];ordinal/=extents[i];}}
         }
+    }
+
+    /**
+     * Validates all eligible scatter bounds, then replacement uniqueness, before the unit's
+     * initial copy or any update/scratch write. Inactive earlier and later candidates participate
+     * in neither phase. This is also the ordinary scatter validator; it does not restrict checks
+     * to the output range or allocate state during execution.
+     *
+     * @param storage borrowed prebound integral index storage
+     * @param indexBytes represented index width, four or eight bytes
+     * @param base index layout element offset including any carrier offset
+     * @param indexExtents immutable cold scalar-index extents
+     * @param indexStrides immutable cold index element strides
+     * @param dataExtents immutable cold destination extents
+     * @param updateExtents immutable cold update extents
+     * @param tuplePrefixExtents immutable ND index extents excluding the component axis
+     * @param current invocation-private cursor sized for both index and update ranks
+     * @param earlier separate invocation-private cursor with the same capacity
+     * @param indexCount complete scalar-index count, including when output is empty
+     * @param candidateCount complete replacement-update count, or ND tuple count
+     * @param family cold ordinary scatter family
+     * @param axis selected destination axis for axis scatter
+     * @param batch ND batch-dimension count
+     * @param tuple ND tuple depth
+     * @param replacement whether ordinary NONE reduction requires uniqueness checks
+     * @param temporalOffset additional index element displacement for this step
+     * @param ownerPresent structural occurrence presence, independent of empty domains
+     * @param activity borrowed row bytes, or null for all-active
+     * @param activityOffset byte address of row zero for the scalar-index domain
+     * @param indexRowStride scalar-index ordinals per original row coordinate, or zero for a shared byte
+     * @param indexRowExtent proved row extent in the scalar-index domain
+     * @param candidateActivityOffset independently bound byte address of row zero for replacement candidates
+     * @param candidateRowStride update/tuple ordinals per original row coordinate, or zero for a shared byte
+     * @param candidateRowExtent proved row extent in the replacement-candidate domain
+     * @throws IndexOutOfBoundsException if any eligible index is out of bounds
+     * @throws IllegalArgumentException if eligible replacement candidates address the same destination
+     * @throws ArithmeticException if checked address arithmetic overflows
+     */
+    public static void validateTemporalScatter(MemorySegment storage, int indexBytes, long base,
+            long[] indexExtents, long[] indexStrides, long[] dataExtents, long[] updateExtents,
+            long[] tuplePrefixExtents, long[] current, long[] earlier,
+            long indexCount, long candidateCount,
+            io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr.Family family,
+            int axis, int batch, int tuple, boolean replacement, long temporalOffset,
+            boolean ownerPresent, MemorySegment activity, long activityOffset,
+            long indexRowStride, long indexRowExtent,
+            long candidateActivityOffset, long candidateRowStride, long candidateRowExtent) {
+        if (!ownerPresent) return;
+        long origin = Math.addExact(base, temporalOffset);
+        java.util.Arrays.fill(current, 0L);
+        long address = origin;
+        boolean nd = family
+                == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr.Family.SCATTER_ND;
+        for (long ordinal = 0; ordinal < indexCount; ordinal++) {
+            if (CpuBooleanInputValidator.isActive(ordinal, activity, activityOffset,
+                    indexRowStride, indexRowExtent)) {
+                long value = readIndex(storage, address, indexBytes);
+                int selectedAxis = nd ? batch + (int) (ordinal % tuple) : axis;
+                long extent = dataExtents[selectedAxis];
+                if (value < 0 || value >= extent)
+                    throw new IndexOutOfBoundsException(family.name() + " index at logical position "
+                            + ordinal + " for data axis " + selectedAxis
+                            + " is out of bounds: value=" + value + ", extent=" + extent);
+            }
+            address = advanceAddress(address, indexExtents, indexStrides, current);
+        }
+        if (!replacement || family
+                == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr.Family.SCATTER_ADD) return;
+        long[] candidateExtents = nd ? tuplePrefixExtents : updateExtents;
+        for (long later = 1; later < candidateCount; later++) {
+            if (!CpuBooleanInputValidator.isActive(later, activity, candidateActivityOffset,
+                    candidateRowStride, candidateRowExtent)) continue;
+            ScatterValidation.coordinates(later, candidateExtents, current);
+            for (long first = 0; first < later; first++) {
+                if (!CpuBooleanInputValidator.isActive(first, activity, candidateActivityOffset,
+                        candidateRowStride, candidateRowExtent)) continue;
+                ScatterValidation.coordinates(first, candidateExtents, earlier);
+                if (scatterTargetEqual(storage, indexBytes, origin, indexExtents, indexStrides,
+                        current, earlier, nd, axis, batch, tuple)) {
+                    if (nd) throw new IllegalArgumentException(
+                            "SCATTER_ND duplicate target tuple at logical tuple position " + later
+                            + "; first addressed at logical tuple position " + first);
+                    throw new IllegalArgumentException(
+                            "SCATTER_ELEMENTS duplicate target at logical update position " + later
+                            + "; first addressed at logical update position " + first);
+                }
+            }
+        }
+    }
+
+    private static boolean scatterTargetEqual(MemorySegment storage, int indexBytes, long base,
+            long[] extents, long[] strides, long[] left, long[] right,
+            boolean nd, int axis, int batch, int tuple) {
+        if (!nd) {
+            for (int dimension = 0; dimension < extents.length; dimension++)
+                if (dimension != axis && left[dimension] != right[dimension]) return false;
+            return scatterIndexAt(storage, indexBytes, base, extents, strides, left, -1)
+                    == scatterIndexAt(storage, indexBytes, base, extents, strides, right, -1);
+        }
+        for (int dimension = 0; dimension < batch; dimension++)
+            if (left[dimension] != right[dimension]) return false;
+        for (int component = 0; component < tuple; component++)
+            if (scatterIndexAt(storage, indexBytes, base, extents, strides, left, component)
+                    != scatterIndexAt(storage, indexBytes, base, extents, strides, right, component))
+                return false;
+        return true;
+    }
+
+    private static long scatterIndexAt(MemorySegment storage, int indexBytes, long base,
+            long[] extents, long[] strides, long[] coordinate, int component) {
+        long address = base;
+        int prefix = extents.length - 1;
+        for (int dimension = 0; dimension < (component < 0 ? extents.length : prefix); dimension++)
+            address = Math.addExact(address, Math.multiplyExact(coordinate[dimension], strides[dimension]));
+        if (component >= 0)
+            address = Math.addExact(address, Math.multiplyExact(component, strides[prefix]));
+        return readIndex(storage, address, indexBytes);
     }
 
     private final class Invocation extends BoundInvocation {

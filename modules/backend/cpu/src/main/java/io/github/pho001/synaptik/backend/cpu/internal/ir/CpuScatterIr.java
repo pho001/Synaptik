@@ -110,4 +110,21 @@ public record CpuScatterIr(Family family, ScatterReduction reduction,
 
     /** @return the deterministic canonical structural key */
     @Override public String structuralKey() { return encodedKernelIr().structuralKey(); }
+    /**
+     * Reads the existing reduction discriminator without allocating decoded geometry.
+     * @param ir non-null canonical scatter envelope
+     * @return the encoded Model reduction
+     * @throws NullPointerException if the envelope is null
+     * @throws IllegalArgumentException if the family or reduction is malformed
+     */
+    public static ScatterReduction encodedReduction(CpuKernelIr ir) {
+        String identity = Objects.requireNonNull(ir, "ir").familyIdentity();
+        int marker = identity.indexOf(":reduction=");
+        if (!identity.startsWith("scatter:") || marker < 0)
+            throw new IllegalArgumentException("wrong encoded scatter family");
+        int start = marker + ":reduction=".length(), end = identity.indexOf(':', start);
+        if (end < 0) throw new IllegalArgumentException("missing encoded reduction");
+        return ScatterReduction.valueOf(identity.substring(start, end));
+    }
+
 }

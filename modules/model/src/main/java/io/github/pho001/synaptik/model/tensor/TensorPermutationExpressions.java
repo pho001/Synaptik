@@ -50,16 +50,33 @@ final class TensorPermutationExpressions {
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
      */
     static Tensor apply(Tensor input, int[] requestedAxes) {
-        Objects.requireNonNull(input, "input");
-        Objects.requireNonNull(requestedAxes, "requestedAxes");
-        TensorDescriptor inputDescriptor = input.descriptor();
-        Shape inputShape = inputDescriptor.shape();
-        int[] normalizedAxes = normalizePermutation(inputShape.rank(), requestedAxes);
-        Shape resultShape = permuteShape(inputShape, normalizedAxes);
-        Optional<LayoutDescriptor> resultLayout =
-                resolveViewLayout(inputDescriptor, resultShape, normalizedAxes);
-        return create(
-                input, inputDescriptor, resultShape, normalizedAxes, resultLayout);
+        return applyChecked(input, requestedAxes, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null tensor retained as the exact sole provenance input; it is not mutated
+     * @param requestedAxes non-null caller-owned complete output-to-input permutation; negative
+     *     entries add the input rank once, and an empty array is valid for scalar input
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input} or {@code requestedAxes} is null, with the
+     *     corresponding parameter name as the message
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if axis count differs from rank or a normalized axis is
+     *     outside the rank or duplicated
+     * @throws ArithmeticException if resolved result-layout classification or span arithmetic
+     *     overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    static Tensor applyChecked(Tensor input, int[] requestedAxes,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return applyDescriptors(
+                input == null ? null : input.descriptor(),
+                requestedAxes,
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -79,13 +96,30 @@ final class TensorPermutationExpressions {
      *     overflows
      */
     static Tensor transpose(Tensor input) {
-        Objects.requireNonNull(input, "input");
-        int rank = input.descriptor().shape().rank();
-        if (rank != 2) {
-            throw new IllegalStateException(
-                    "transpose() requires rank-2 tensor, got rank=" + rank);
-        }
-        return apply(input, new int[] {1, 0});
+        return transposeChecked(input, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null rank-two tensor retained as the exact sole provenance input
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input} is null, with message {@code input}
+     * @throws IllegalStateException if rank is not two, with exact message
+     *     {@code transpose() requires rank-2 tensor, got rank=<rank>}, or if identifier space is
+     *     exhausted during final creation
+     * @throws ArithmeticException if resolved result-layout classification or span arithmetic
+     *     overflows
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata
+     */
+    static Tensor transposeChecked(Tensor input,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return transposeDescriptors(
+                input == null ? null : input.descriptor(),
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -198,35 +232,31 @@ final class TensorPermutationExpressions {
                 true));
     }
 
+
     /**
-     * Creates exact permutation attributes, descriptor, operation, provenance, and Tensor once.
-     *
-     * <p>The normalized primitive axes are boxed in exact order into an immutable list. The result
-     * descriptor retains input data type and gradient eligibility with the supplied Shape/layout.
-     * The operation uses exact {@link AxisTransformKind#PERMUTE} and one
-     * {@link PermutationAttrs}. The central derived factory is called exactly once with ordered
-     * producer input {@code [input]} and no label or storage, creates index-zero provenance, and
-     * produces a fresh identity even for identity, inverse, repeated, or nested requests.</p>
-     *
-     * @param input non-null exact sole provenance input; not inspected or mutated
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input exact real provenance operand, or null for descriptor completion
      * @param inputDescriptor non-null descriptor supplying exact data type and gradient eligibility
      * @param resultShape non-null reordered Shape retained by the result descriptor
      * @param normalizedAxes non-null normalized complete output-to-input permutation
      * @param resultLayout non-null resolved-view or unresolved-layout value retained by descriptor
-     * @return non-null fresh factory-derived Tensor with exact PERMUTE provenance and no label or
-     *     storage
-     * @throws IllegalArgumentException if completed semantic or descriptor invariants reject the
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if completed semantic or descriptor invariants reject the
      *     supplied metadata
      * @throws ArithmeticException if descriptor layout reconstruction arithmetic overflows
      * @throws IllegalStateException if tensor identifier space is exhausted at the single factory
      *     delegation
      */
-    private static Tensor create(
+    private static Tensor createChecked(
             Tensor input,
             TensorDescriptor inputDescriptor,
             Shape resultShape,
             int[] normalizedAxes,
-            Optional<LayoutDescriptor> resultLayout) {
+            Optional<LayoutDescriptor> resultLayout,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         List<Integer> axes = Arrays.stream(normalizedAxes).boxed().toList();
         PermutationAttrs attrs = new PermutationAttrs(axes);
         TensorDescriptor descriptor = new TensorDescriptor(
@@ -235,6 +265,81 @@ final class TensorPermutationExpressions {
                 resultLayout,
                 inputDescriptor.requiresGrad());
         Operation operation = new Operation(AxisTransformKind.PERMUTE, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
+    }
+
+    /**
+     * Completes ordinary checked semantics synchronously without creating Tensor identities.
+     * The real construction path calls these same descriptor guards and result helpers.
+     * @param operation non-null canonical operation selecting this family and its attributes
+     * @param inputs non-null ordered operand descriptors, retaining aliases and positions
+     * @param outputCount exact canonical sibling count, one
+     * @param sink non-null unretained consumer called once with checked semantics and all outputs
+     * @throws NullPointerException if a required reference is null
+     * @throws IllegalArgumentException if cardinality or ordinary semantic guards reject input
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(operation, "operation");
+        Objects.requireNonNull(inputs, "inputs");
+        Objects.requireNonNull(sink, "sink");
+        if (inputs.size() != 1 || outputCount != 1) {
+            throw new IllegalArgumentException("invalid ordinary descriptor cardinality");
+        }
+        for (TensorDescriptor input : inputs) {
+            Objects.requireNonNull(input, "input descriptor");
+        }
+        applyDescriptors(inputs.get(0),
+                ((PermutationAttrs) operation.attrs()).axes().stream().mapToInt(Integer::intValue).toArray(),
+                sink, null);
+    }
+
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param input exact operand descriptor, subject to ordinary null/semantic guards
+     * @param requestedAxes ordinary checked construction parameter
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalInput exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor applyDescriptors(
+            TensorDescriptor input,
+            int[] requestedAxes,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(requestedAxes, "requestedAxes");
+        TensorDescriptor inputDescriptor = input;
+        Shape inputShape = inputDescriptor.shape();
+        int[] normalizedAxes = normalizePermutation(inputShape.rank(), requestedAxes);
+        Shape resultShape = permuteShape(inputShape, normalizedAxes);
+        Optional<LayoutDescriptor> resultLayout =
+                resolveViewLayout(inputDescriptor, resultShape, normalizedAxes);
+        return createChecked(originalInput, inputDescriptor, resultShape, normalizedAxes, resultLayout, descriptorCheck);
+    }
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param input exact operand descriptor, subject to ordinary null/semantic guards
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalInput exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor transposeDescriptors(
+            TensorDescriptor input,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        int rank = input.shape().rank();
+        if (rank != 2) {
+            throw new IllegalStateException(
+                    "transpose() requires rank-2 tensor, got rank=" + rank);
+        }
+        return applyDescriptors(input, new int[] {1, 0}, descriptorCheck, originalInput);
     }
 }

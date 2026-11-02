@@ -54,17 +54,34 @@ final class TensorSelectExpressions {
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
      */
     static Tensor apply(Tensor input, int axis, long index) {
-        Objects.requireNonNull(input, "input");
-        TensorDescriptor inputDescriptor = input.descriptor();
-        Shape inputShape = inputDescriptor.shape();
-        int normalizedAxis = inputShape.normalizeAxis(axis);
-        Dimension selected = inputShape.dimensions().get(normalizedAxis);
-        long normalizedIndex = normalizeIndex(selected, normalizedAxis, index);
-        SelectAttrs attrs = new SelectAttrs(normalizedAxis, normalizedIndex);
-        Shape resultShape = removeAxis(inputShape, normalizedAxis);
-        Optional<LayoutDescriptor> resultLayout =
-                resolveViewLayout(inputDescriptor, resultShape, normalizedAxis, normalizedIndex);
-        return create(input, inputDescriptor, resultShape, resultLayout, attrs);
+        return applyChecked(input, axis, index, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null tensor retained as the exact sole provenance input and never mutated
+     * @param axis positive or negative existing input axis normalized once against the input rank
+     * @param index scalar coordinate normalized against a static selected extent, or a
+     *     non-negative coordinate retained for a dynamic selected extent
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input} is null, with message {@code input}
+     * @throws IndexOutOfBoundsException if the axis is invalid or a static selected coordinate is
+     *     outside its extent
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if a negative index targets a dynamic selected extent
+     * @throws ArithmeticException if checked result-element-count or layout arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    static Tensor applyChecked(Tensor input, int axis, long index,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return applyDescriptors(
+                input == null ? null : input.descriptor(),
+                axis,
+                index,
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -179,38 +196,94 @@ final class TensorSelectExpressions {
                 LayoutDescriptor.of(resultShape, resultStrides, resultOffset, true));
     }
 
+
+
     /**
-     * Creates the exact descriptor, SELECT operation, one-input provenance, and fresh Tensor.
-     *
-     * <p>The descriptor retains the exact input data type and gradient eligibility with the
-     * derived Shape and resolved-or-unresolved layout. The operation retains the exact normalized
-     * attributes, and the single derived-factory call receives ordered producer input
-     * {@code [input]} with no label or storage and creates index-zero provenance. Repeated, nested,
-     * and same-coordinate requests remain separate fresh expressions rather than being folded or
-     * canonicalized.</p>
-     *
-     * @param input non-null exact sole provenance input
-     * @param inputDescriptor non-null exact descriptor supplying type and gradient eligibility
-     * @param resultShape non-null derived result Shape
-     * @param resultLayout non-null resolved-view or unresolved-layout optional
-     * @param attrs non-null exact normalized SELECT attributes retained by the operation
-     * @return a non-null fresh factory-derived Tensor without label or storage
-     * @throws IllegalArgumentException if descriptor invariants reject supplied metadata
-     * @throws ArithmeticException if descriptor layout reconstruction arithmetic overflows
-     * @throws IllegalStateException if tensor identifier space is exhausted at factory delegation
+     * Completes ordinary checked semantics synchronously without creating Tensor identities.
+     * The same descriptor guard core serves real construction; the sink is never retained.
+     * @param operation non-null ordinary operation selecting this family and its attributes
+     * @param inputs non-null ordered operand descriptors, including repeated occurrences
+     * @param outputCount exact canonical sibling count
+     * @param sink non-null consumer called exactly once with checked semantics and all outputs
+     * @throws NullPointerException if a required reference is null
+     * @throws IllegalArgumentException if cardinality or ordinary semantic guards reject the request
      */
-    private static Tensor create(
-            Tensor input,
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(operation, "operation");
+        Objects.requireNonNull(inputs, "inputs");
+        Objects.requireNonNull(sink, "sink");
+        if (inputs.size() != 1 || outputCount != 1) {
+            throw new IllegalArgumentException("invalid ordinary descriptor cardinality");
+        }
+        for (TensorDescriptor input : inputs) {
+            Objects.requireNonNull(input, "input descriptor");
+        }
+        SelectAttrs attrs = (SelectAttrs) operation.attrs();
+        applyDescriptors(inputs.get(0), attrs.axis(), attrs.index(), sink, null);
+    }
+
+    /**
+     * Runs the shared descriptor guards; provenance references are used only for real construction.
+     * @param axis ordinary checked construction parameter
+     * @param index ordinary checked construction parameter
+     * @param descriptorCheck synchronous, unretained sink; null selects real construction
+     * @param originalInput exact real operand, or null for descriptor completion
+     * @return the real result, or null after synchronous descriptor completion
+     */
+    private static Tensor applyDescriptors(
+            TensorDescriptor input,
+            int axis,
+            long index,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        TensorDescriptor inputDescriptor = input;
+        Shape inputShape = inputDescriptor.shape();
+        int normalizedAxis = inputShape.normalizeAxis(axis);
+        Dimension selected = inputShape.dimensions().get(normalizedAxis);
+        long normalizedIndex = normalizeIndex(selected, normalizedAxis, index);
+        SelectAttrs attrs = new SelectAttrs(normalizedAxis, normalizedIndex);
+        Shape resultShape = removeAxis(inputShape, normalizedAxis);
+        Optional<LayoutDescriptor> resultLayout =
+                resolveViewLayout(inputDescriptor, resultShape, normalizedAxis, normalizedIndex);
+        return createDescriptors(
+                inputDescriptor,
+                resultShape,
+                resultLayout,
+                attrs,
+                descriptorCheck,
+                originalInput);
+    }
+
+    /**
+     * Runs the shared descriptor guards; provenance references are used only for real construction.
+     * @param input descriptor supplying ordinary operand metadata
+     * @param inputDescriptor ordinary checked construction parameter
+     * @param resultShape ordinary checked construction parameter
+     * @param resultLayout ordinary checked construction parameter
+     * @param attrs ordinary checked construction parameter
+     * @param descriptorCheck synchronous, unretained sink; null selects real construction
+     * @param originalInput exact real operand, or null for descriptor completion
+     * @return the real result, or null after synchronous descriptor completion
+     */
+    private static Tensor createDescriptors(
             TensorDescriptor inputDescriptor,
             Shape resultShape,
             Optional<LayoutDescriptor> resultLayout,
-            SelectAttrs attrs) {
+            SelectAttrs attrs,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
         TensorDescriptor descriptor = new TensorDescriptor(
                 inputDescriptor.dataType(),
                 resultShape,
                 resultLayout,
                 inputDescriptor.requiresGrad());
         Operation operation = new Operation(SelectKind.SELECT, attrs);
-        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(originalInput));
     }
 }

@@ -68,7 +68,7 @@ class CpuSoftmaxGeneratedKernelTest {
         byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
         retainEvidence(SoftmaxKind.LOG_SOFTMAX, DataType.FLOAT32, 1, route, bytes);
         float[] source = {99, 1, 2, 3, 99, -3, -2, -1}; float[] result = new float[6];
-        generator.defineClassBytes(route.specialization(), bytes).entryPoint().invokeWithArguments(
+        generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes).entryPoint().invokeWithArguments(
                 MemorySegment.ofArray(source), result,
                 plan.softmaxGeometry().orElseThrow().pack(new long[2]), 0L, 2L);
         assertEquals(1.0, StrictMath.exp(result[0]) + StrictMath.exp(result[1])
@@ -90,8 +90,7 @@ class CpuSoftmaxGeneratedKernelTest {
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         double[] input = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
         double[] output = new double[40]; java.util.Arrays.fill(output, -77);
         artifact.entryPoint().invokeWithArguments(input, output,
@@ -116,11 +115,15 @@ class CpuSoftmaxGeneratedKernelTest {
             var carriers = List.of((pattern & 1) == 0 ? arrayCarrier(type)
                             : CarrierAccess.MEMORY_SEGMENT,
                     (pattern & 2) == 0 ? arrayCarrier(type) : CarrierAccess.MEMORY_SEGMENT);
+            if (type == DataType.BFLOAT16 || type == DataType.FLOAT16) {
+                assertThrows(IllegalArgumentException.class,
+                        () -> plan(kind, type, Shape.of(2, 3), 1, carriers));
+                continue;
+            }
             var plan = plan(kind, type, Shape.of(2, 3), 1, carriers);
             var route = plan.units().getFirst().portablePlan();
             var generator = new CpuClassFileKernelGenerator();
-            var artifact = generator.defineClassBytes(route.specialization(),
-                    generator.generateClassBytes(route.specialization(), route.kernelIr()));
+            var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
             retainEvidence(kind, type, pattern, route, artifact.classBytes());
             Object input = represented(type, new double[] {1, 2, 3, -3, -2, -1});
             Object output = represented(type, new double[6]);
@@ -148,56 +151,58 @@ class CpuSoftmaxGeneratedKernelTest {
     @Test void stableFiniteOverflowUnderflowAndOffsetsMatchCleanJavaOracle() throws Throwable {
         for (SoftmaxKind kind : SoftmaxKind.values()) for (DataType type : List.of(
                 DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
-            double[][] examples = {{1000, 1000}, {0, -1000}, {1000, 1008}};
-            for (double[] example : examples) {
-                var plan = plan(kind, type, Shape.of(2), 0,
-                        List.of(arrayCarrier(type), arrayCarrier(type)));
-                var route = plan.units().getFirst().portablePlan();
-                var generator = new CpuClassFileKernelGenerator();
-                var artifact = generator.defineClassBytes(route.specialization(),
-                        generator.generateClassBytes(route.specialization(), route.kernelIr()));
-                Object input = represented(type, example), output = represented(type, new double[2]);
-                artifact.entryPoint().invokeWithArguments(input, output,
-                        plan.softmaxGeometry().orElseThrow().pack(new long[2]), 0L, 1L);
-                double[] actual = decoded(type, output);
-                double[] expected = CpuSoftmaxReferenceKernel.evaluate(kind, type, example,
-                        new long[] {2}, 0, new long[] {1}, 0);
-                for (int i = 0; i < 2; i++) assertEquals(raw(type, expected[i]),
-                        raw(type, actual[i]), kind + "/" + type + "/" + java.util.Arrays.toString(example));
-                if (example[0] == 1000 && example[1] == 1000) assertEquals(
-                        kind == SoftmaxKind.SOFTMAX ? 0.5 : -Math.log(2), actual[0],
-                        type == DataType.BFLOAT16 ? 0.005 : type == DataType.FLOAT16 ? 0.001 : 2e-7);
-                if (example[0] == 0 && example[1] == -1000) {
-                    assertEquals(kind == SoftmaxKind.SOFTMAX ? 0 : -1000, actual[1]);
+                    io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(type, () -> {
+                        double[][] examples = {{1000, 1000}, {0, -1000}, {1000, 1008}};
+                        for (double[] example : examples) {
+                            var plan = plan(kind, type, Shape.of(2), 0,
+                                    List.of(arrayCarrier(type), arrayCarrier(type)));
+                            var route = plan.units().getFirst().portablePlan();
+                            var generator = new CpuClassFileKernelGenerator();
+                            var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
+                            Object input = represented(type, example), output = represented(type, new double[2]);
+                            artifact.entryPoint().invokeWithArguments(input, output,
+                                    plan.softmaxGeometry().orElseThrow().pack(new long[2]), 0L, 1L);
+                            double[] actual = decoded(type, output);
+                            double[] expected = CpuSoftmaxReferenceKernel.evaluate(kind, type, example,
+                                    new long[] {2}, 0, new long[] {1}, 0);
+                            for (int i = 0; i < 2; i++) assertEquals(raw(type, expected[i]),
+                                    raw(type, actual[i]), kind + "/" + type + "/" + java.util.Arrays.toString(example));
+                            if (example[0] == 1000 && example[1] == 1000) assertEquals(
+                                    kind == SoftmaxKind.SOFTMAX ? 0.5 : -Math.log(2), actual[0],
+                                    type == DataType.BFLOAT16 ? 0.005 : type == DataType.FLOAT16 ? 0.001 : 2e-7);
+                            if (example[0] == 0 && example[1] == -1000) {
+                                assertEquals(kind == SoftmaxKind.SOFTMAX ? 0 : -1000, actual[1]);
+                            }
+                        }
+                    });
                 }
-            }
-        }
     }
 
     @Test void logSoftmaxKeepsFiniteUnderflowDistanceAfterRoundedSoftmaxBecomesZero()
             throws Throwable {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32,
                 DataType.BFLOAT16, DataType.FLOAT16)) {
-            double[] results = new double[2];
-            int kindIndex = 0;
-            for (SoftmaxKind kind : SoftmaxKind.values()) {
-                var plan = plan(kind, type, Shape.of(2), 0,
-                        List.of(arrayCarrier(type), arrayCarrier(type)));
-                var route = plan.units().getFirst().portablePlan();
-                var generator = new CpuClassFileKernelGenerator();
-                var artifact = generator.defineClassBytes(route.specialization(),
-                        generator.generateClassBytes(route.specialization(), route.kernelIr()));
-                Object input = represented(type, new double[] {0, -1000});
-                Object output = represented(type, new double[2]);
-                artifact.entryPoint().invokeWithArguments(input, output,
-                        plan.softmaxGeometry().orElseThrow().pack(new long[2]), 0L, 1L);
-                results[kindIndex++] = decoded(type, output)[1];
-            }
-            assertEquals(0, results[0], "rounded softmax underflows for " + type);
-            assertEquals(-1000, results[1], "log-softmax retains the finite shift for " + type);
-            assertNotEquals(Math.log(results[0]), results[1],
-                    "executed log-softmax must not log the executed rounded softmax for " + type);
-        }
+                    io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(type, () -> {
+                        double[] results = new double[2];
+                        int kindIndex = 0;
+                        for (SoftmaxKind kind : SoftmaxKind.values()) {
+                            var plan = plan(kind, type, Shape.of(2), 0,
+                                    List.of(arrayCarrier(type), arrayCarrier(type)));
+                            var route = plan.units().getFirst().portablePlan();
+                            var generator = new CpuClassFileKernelGenerator();
+                            var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
+                            Object input = represented(type, new double[] {0, -1000});
+                            Object output = represented(type, new double[2]);
+                            artifact.entryPoint().invokeWithArguments(input, output,
+                                    plan.softmaxGeometry().orElseThrow().pack(new long[2]), 0L, 1L);
+                            results[kindIndex++] = decoded(type, output)[1];
+                        }
+                        assertEquals(0, results[0], "rounded softmax underflows for " + type);
+                        assertEquals(-1000, results[1], "log-softmax retains the finite shift for " + type);
+                        assertNotEquals(Math.log(results[0]), results[1],
+                                "executed log-softmax must not log the executed rounded softmax for " + type);
+                    });
+                }
     }
 
     @Test void admittedFloat32ExtremeWorkingOverflowHasDefinedOutputClasses() throws Throwable {
@@ -207,8 +212,7 @@ class CpuSoftmaxGeneratedKernelTest {
                     List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY));
             var route = plan.units().getFirst().portablePlan();
             var generator = new CpuClassFileKernelGenerator();
-            var artifact = generator.defineClassBytes(route.specialization(),
-                    generator.generateClassBytes(route.specialization(), route.kernelIr()));
+            var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
             float[] input = {-Float.MAX_VALUE, Float.MAX_VALUE}, output = new float[2];
             artifact.entryPoint().invokeWithArguments(input, output,
                     plan.softmaxGeometry().orElseThrow().pack(new long[2]), 0L, 1L);
@@ -225,8 +229,7 @@ class CpuSoftmaxGeneratedKernelTest {
                 List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY));
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         float[] input = (float[]) represented(DataType.FLOAT32, values);
         float[] output = new float[2048];
         artifact.entryPoint().invokeWithArguments(input, output,
@@ -245,7 +248,7 @@ class CpuSoftmaxGeneratedKernelTest {
             var route = plan.units().getFirst().portablePlan();
             var generator = new CpuClassFileKernelGenerator();
             byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
-            var artifact = generator.defineClassBytes(route.specialization(), bytes);
+            var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes);
             double[] input = {1, 2, 3, -3, -2, -1}; double[] output = new double[6];
             artifact.entryPoint().invokeWithArguments(input, output,
                     plan.softmaxGeometry().orElseThrow().pack(new long[2]), 0L, 2L);
@@ -272,25 +275,27 @@ class CpuSoftmaxGeneratedKernelTest {
     @Test void floatWorkingBodiesHaveNoDoubleArithmeticOrStoreRoundTrip() {
         for (SoftmaxKind kind : SoftmaxKind.values()) for (DataType type : List.of(
                 DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
-            var plan = plan(kind, type, Shape.of(2, 3), 1,
-                    List.of(arrayCarrier(type), arrayCarrier(type)));
-            var route = plan.units().getFirst().portablePlan();
-            byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(
-                    route.specialization(), route.kernelIr());
-            var instructions = ClassFile.of().parse(bytes).methods().getFirst()
-                    .code().orElseThrow().elementStream()
-                    .filter(java.lang.classfile.Instruction.class::isInstance)
-                    .map(java.lang.classfile.Instruction.class::cast).toList();
-            for (var instruction : instructions) assertFalse(java.util.Set.of(
-                    java.lang.classfile.Opcode.DLOAD, java.lang.classfile.Opcode.DSTORE,
-                    java.lang.classfile.Opcode.DADD, java.lang.classfile.Opcode.DSUB,
-                    java.lang.classfile.Opcode.DDIV).contains(instruction.opcode()),
-                    kind + "/" + type + " double working/store local: " + instruction.opcode());
-            assertTrue(instructions.stream().anyMatch(instruction -> instruction.opcode()
-                    == java.lang.classfile.Opcode.FSUB));
-            if (kind == SoftmaxKind.SOFTMAX) assertTrue(instructions.stream()
-                    .anyMatch(instruction -> instruction.opcode() == java.lang.classfile.Opcode.FDIV));
-        }
+                    io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(type, () -> {
+                        var plan = plan(kind, type, Shape.of(2, 3), 1,
+                                List.of(arrayCarrier(type), arrayCarrier(type)));
+                        var route = plan.units().getFirst().portablePlan();
+                        byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(
+                                route.specialization(), route.kernelIr());
+                        var instructions = ClassFile.of().parse(bytes).methods().getFirst()
+                                .code().orElseThrow().elementStream()
+                                .filter(java.lang.classfile.Instruction.class::isInstance)
+                                .map(java.lang.classfile.Instruction.class::cast).toList();
+                        for (var instruction : instructions) assertFalse(java.util.Set.of(
+                                java.lang.classfile.Opcode.DLOAD, java.lang.classfile.Opcode.DSTORE,
+                                java.lang.classfile.Opcode.DADD, java.lang.classfile.Opcode.DSUB,
+                                java.lang.classfile.Opcode.DDIV).contains(instruction.opcode()),
+                                kind + "/" + type + " double working/store local: " + instruction.opcode());
+                        assertTrue(instructions.stream().anyMatch(instruction -> instruction.opcode()
+                                == java.lang.classfile.Opcode.FSUB));
+                        if (kind == SoftmaxKind.SOFTMAX) assertTrue(instructions.stream()
+                                .anyMatch(instruction -> instruction.opcode() == java.lang.classfile.Opcode.FDIV));
+                    });
+                }
     }
 
     private static io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan

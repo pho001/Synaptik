@@ -35,6 +35,7 @@ class TensorBatchNormInferenceExpressionTest {
                 Tensor.class, ScalarValue.class);
         List<Method> entries = Arrays.stream(
                         TensorBatchNormInferenceExpressions.class.getDeclaredMethods())
+                        .filter(descriptorMethod -> !descriptorMethod.getName().endsWith("Checked"))
                 .filter(candidate -> !Modifier.isPrivate(candidate.getModifiers()))
                 .toList();
         assertAll(

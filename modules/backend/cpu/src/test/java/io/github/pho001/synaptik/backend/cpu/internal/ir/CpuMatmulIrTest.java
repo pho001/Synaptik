@@ -52,6 +52,26 @@ final class CpuMatmulIrTest {
                         .map(Enum::name).toList());
     }
 
+    @Test void vectorTanhIsRestrictedToHomogeneousFloatingTypesAndKeysEverySuffix() {
+        for (var form : List.of(Realization.DIRECT_N_VECTOR, Realization.TILED_N_VECTOR_2X2)) {
+            for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+                var keys = new java.util.HashSet<String>();
+                for (var order : Epilogue.AddInputOrder.values()) {
+                    var suffix = new Epilogue(order, Epilogue.Terminal.TANH, null);
+                    var vector = new CpuMatmulIr(type, type, type, form, suffix, 128,
+                            NumericalForm.SEQUENTIAL, suffix.hasBias() ? List.of(READ, READ, READ)
+                                    : List.of(READ, READ), WRITE);
+                    assertEquals(true, keys.add(vector.structuralKey()));
+                }
+            }
+            for (var type : List.of(DataType.INT32, DataType.INT64, DataType.BFLOAT16, DataType.FLOAT16)) {
+                assertThrows(IllegalArgumentException.class, () -> new CpuMatmulIr(type, type, type,
+                        form, new Epilogue(Epilogue.AddInputOrder.NONE, Epilogue.Terminal.TANH, null),
+                        128, NumericalForm.SEQUENTIAL, List.of(READ, READ), WRITE));
+            }
+        }
+    }
+
     private static CpuMatmulIr ir(Epilogue epilogue, NumericalForm form) {
         return new CpuMatmulIr(DataType.FLOAT32, DataType.FLOAT32, DataType.FLOAT32,
                 Realization.DIRECT_SCALAR, epilogue, 0, form,

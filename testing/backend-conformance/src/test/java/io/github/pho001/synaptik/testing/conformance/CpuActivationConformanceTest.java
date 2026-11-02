@@ -61,8 +61,9 @@ final class CpuActivationConformanceTest {
                 Optional.of(LayoutDescriptor.of(SHAPE, new long[] {stride}, 1, true)), false);
         int span = Math.toIntExact(descriptor.layout().orElseThrow().referencedElementSpan());
         var operation = new Operation(kind, NoOperationAttrs.INSTANCE);
-        assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(operation,
-                List.of(descriptor), List.of(descriptor))));
+        assertEquals(type != DataType.BFLOAT16 && type != DataType.FLOAT16,
+                new CpuCapabilityProvider().supports(new OperationCapabilityQuery(operation,
+                        List.of(descriptor), List.of(descriptor))));
         var node = new CompiledNode(new NodeId(0), operation, List.of(new ValueId(0)), List.of(new ValueId(1)));
         var partition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID, List.of(node.id()));
         CarrierAccess heap = type == DataType.FLOAT64 ? CarrierAccess.DOUBLE_ARRAY
@@ -78,6 +79,7 @@ final class CpuActivationConformanceTest {
                                 List.of(), true)), Map.of(), new CpuPartitionAnalysisInputs(false,
                         List.of(nativeIn ? CarrierAccess.MEMORY_SEGMENT : heap,
                                 nativeOut ? CarrierAccess.MEMORY_SEGMENT : heap), config));
+        if (CpuProfileFreeConformanceTest.assertLockedNumerical(context)) return;
         var analysis = new CpuPartitionPreparer().analyze(context);
         assertEquals(vector ? CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR
                 : CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR,

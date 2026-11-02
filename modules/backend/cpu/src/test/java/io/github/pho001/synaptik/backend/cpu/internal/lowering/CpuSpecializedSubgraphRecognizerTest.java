@@ -115,7 +115,7 @@ class CpuSpecializedSubgraphRecognizerTest {
                         .stream().mapToInt(Integer::intValue).max().orElseThrow()));
     }
 
-    @Test void eightOneNodeFactsReachTheParentCeilingAndARealTwoUnitSuffixReachesItsCeiling() {
+    @Test void eightOneNodeFactsReachTheParentCeilingAndExecutableReductionTailIsTruthful() {
         var eight = new CpuPartitionPreparer().analyze(independentSoftmax(8)).plan();
         var twoUnits = new CpuPartitionPreparer().analyze(reductionAddRelu()).plan();
         var reduction = assertInstanceOf(ReductionEpilogue.class,
@@ -124,28 +124,21 @@ class CpuSpecializedSubgraphRecognizerTest {
                 () -> assertEquals(8, eight.specializedSubgraphs().size()),
                 () -> assertEquals(8, eight.specializedSubgraphs().stream()
                         .flatMap(fact -> fact.memberNodeOrdinals().stream()).distinct().count()),
-                () -> assertEquals(2, twoUnits.units().size()),
-                () -> assertEquals(List.of(0, 1), reduction.baselineUnitIndices()),
-                () -> assertEquals(2,
+                () -> assertEquals(1, twoUnits.units().size()),
+                () -> assertEquals(ExecutionDisposition.EXISTING_SPECIALIZED,reduction.disposition()),
+                () -> assertEquals(List.of(0), reduction.baselineUnitIndices()),
+                () -> assertEquals(1,
                         reduction.structuralIdentity().baselineUnits().size()),
                 () -> assertEquals(twoUnits.units().getFirst().portablePlan().specialization(),
                         reduction.structuralIdentity().baselineUnits().getFirst()
                                 .execution().specialization()),
-                () -> assertEquals(twoUnits.units().get(1).portablePlan().specialization(),
-                        reduction.structuralIdentity().baselineUnits().get(1)
-                                .execution().specialization()),
                 () -> assertEquals(RuntimeTopology.AGGREGATE,
                         reduction.structuralIdentity().baselineUnits().getFirst()
                                 .execution().runtimeTopology()),
-                () -> assertEquals(RuntimeTopology.POINTWISE,
-                        reduction.structuralIdentity().baselineUnits().get(1)
-                                .execution().runtimeTopology()),
                 () -> assertEquals(2, reduction.epilogue().operationCount()),
-                () -> assertEquals(List.of(0),
+                () -> assertEquals(List.of(0,1,2),
                         twoUnits.units().getFirst().memberNodeOrdinals()),
-                () -> assertEquals(List.of(1, 2),
-                        twoUnits.units().get(1).memberNodeOrdinals()),
-                () -> assertEquals(List.of(0), twoUnits.units().get(1).dependencies()));
+                () -> assertTrue(twoUnits.units().getFirst().dependencies().isEmpty()));
     }
 
     @Test void twentyFourthAttemptRetainsPriorFactsAndTheNextAttemptLeavesWorkOrdinary() {

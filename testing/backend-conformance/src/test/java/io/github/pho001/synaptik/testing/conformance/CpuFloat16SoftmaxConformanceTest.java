@@ -28,7 +28,7 @@ import java.lang.foreign.ValueLayout;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 
-/** FLOAT16 softmax provider, prepare, binding, and execution on exact heap/native strided regions. */
+/** FLOAT16 softmax rejects before preparation for every exact heap/native strided fixture. */
 final class CpuFloat16SoftmaxConformanceTest {
     private static final Shape SHAPE = Shape.of(2, 3);
     private static final float[] VALUES = {-1, 0, 1, 1, 2, 3};
@@ -46,7 +46,7 @@ final class CpuFloat16SoftmaxConformanceTest {
         var output = descriptor(new long[] {9, 2});
         var operation = new Operation(kind, new SoftmaxAttrs(axis));
         var provider = new CpuCapabilityProvider();
-        assertTrue(provider.supports(new OperationCapabilityQuery(operation, List.of(input), List.of(output))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(operation, List.of(input), List.of(output))));
         var node = new CompiledNode(new NodeId(0), operation,
                 List.of(new ValueId(0)), List.of(new ValueId(1)));
         var partition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID, List.of(node.id()));
@@ -59,6 +59,7 @@ final class CpuFloat16SoftmaxConformanceTest {
                 new CpuPartitionAnalysisInputs(false, List.of(nativeInput ? CarrierAccess.MEMORY_SEGMENT
                         : CarrierAccess.SHORT_ARRAY, nativeOutput ? CarrierAccess.MEMORY_SEGMENT
                         : CarrierAccess.SHORT_ARRAY)));
+        if (CpuProfileFreeConformanceTest.assertLockedNumerical(context)) return;
         var executable = finalizePortable(new CpuPartitionPreparer().analyze(context));
         try (Arena arena = Arena.ofConfined(); var integration = CpuBackendIntegration.open()) {
             int inputSpan = Math.toIntExact(input.layout().orElseThrow().referencedElementSpan());

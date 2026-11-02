@@ -604,7 +604,9 @@ public sealed interface CpuSpecializedSubgraph permits CpuSpecializedSubgraph.Ma
     }
 
     /**
-     * Floating-reduction recognition fact retaining ordinary split execution.
+     * Floating-reduction recognition fact associated with the actual selected baseline. Only
+     * a baseline carrying executable ordinary aggregate fusion may report specialized execution;
+     * recognition by itself never eliminates a store or changes numerical policy.
      * @param form exact admitted floating-reduction form
      * @param memberNodeOrdinals stable semantic member ordinals
      * @param baselineUnitIndices exact associated unchanged unit indices
@@ -626,9 +628,14 @@ public sealed interface CpuSpecializedSubgraph permits CpuSpecializedSubgraph.Ma
             requireIdentity(structuralIdentity, Family.REDUCTION, form, epilogue,
                     inputDataTypes, resultDataTypes, accessFacts, baselineUnitIndices);
         }
-        /** Returns the unchanged split disposition.
-         * @return always {@link ExecutionDisposition#ORDINARY_SPLIT} */
-        @Override public ExecutionDisposition disposition() { return ExecutionDisposition.ORDINARY_SPLIT; }
+        /** Reports executable fusion only when the associated baseline owns that typed recipe.
+         * @return specialized for one fused baseline, otherwise ordinary split */
+        @Override public ExecutionDisposition disposition() {
+            return structuralIdentity.baselineUnits().size() == 1
+                    && structuralIdentity.baselineUnits().getFirst().execution().specialization()
+                        .aggregateFusionIr().isPresent()
+                    ? ExecutionDisposition.EXISTING_SPECIALIZED : ExecutionDisposition.ORDINARY_SPLIT;
+        }
     }
 
     /**

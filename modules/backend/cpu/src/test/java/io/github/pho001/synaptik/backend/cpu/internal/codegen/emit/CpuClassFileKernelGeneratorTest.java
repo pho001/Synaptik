@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test;
 
 class CpuClassFileKernelGeneratorTest {
     @Test void emitsAndDefinesAScalarBfloat16PointwiseChain() {
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
         Shape shape = Shape.of(7);
         var descriptor = new TensorDescriptor(DataType.BFLOAT16, shape,
                 Optional.of(LayoutDescriptor.contiguous(shape)), false);
@@ -38,8 +39,7 @@ class CpuClassFileKernelGeneratorTest {
         assertAll(
                 () -> assertEquals("scalar", analysis.plan().executionStrategy().toString()),
                 () -> assertEquals(59, route.specialization().classIdentitySchema()),
-                () -> assertDoesNotThrow(() -> generator.defineClassBytes(
-                        route.specialization(), bytes)),
+                () -> assertDoesNotThrow(() -> generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes)),
                 () -> assertThrows(IllegalArgumentException.class, () -> generator.generateClassBytes(
                         new io.github.pho001.synaptik.backend.cpu.internal.cache
                                 .CpuKernelSpecialization(route.specialization().loweringFingerprint(),
@@ -48,6 +48,7 @@ class CpuClassFileKernelGeneratorTest {
                                 route.specialization().carrierPattern(), 0, -1,
                                 route.specialization().scalarPowerRealizations(), false, 52),
                         route.kernelIr())));
+        });
     }
 
     @Test void emitsExactRandomEntryDescriptorsForRepresentativeCarrierAndAddressForms() {
@@ -143,8 +144,65 @@ class CpuClassFileKernelGeneratorTest {
         assertAll(
                 () -> assertEquals("vector", analysis.plan().executionStrategy().toString()),
                 () -> assertArrayEquals(first, second),
-                () -> assertDoesNotThrow(() -> generator.defineClassBytes(
-                        route.specialization(), first)));
+                () -> assertDoesNotThrow(() -> generator.defineClassBytes(route.specialization(), route.kernelIr(), first)));
+    }
+
+    @Test void controlledOrdinalsGuardNonleadingRowsBeforeOutOfBoundsOperandLoads() throws Throwable {
+        double[] input = {10, 11, Double.NaN, Double.NaN, Double.NaN, Double.NaN, 16, 17};
+        double[] output = new double[12];
+        java.util.Arrays.fill(output, -7.0);
+        invokeRowGuardWitness(false, 2, input, output, new long[] {2, 3, 2}, 12);
+        assertArrayEquals(new double[] {10, 11, -7, -7, -7, -7, 16, 17, -7, -7, -7, -7}, output);
+    }
+
+    @Test void controlledSliceOrdinalsRetainRowsWhenTheOmittedFeatureExtentIsZero() throws Throwable {
+        double[] input = {10, Double.NaN, Double.NaN, 13};
+        double[] output = {-7, -7, -7, -7, -7, -7};
+        invokeRowGuardWitness(true, 0, input, output, new long[] {2, 3, 0}, 6);
+        assertArrayEquals(new double[] {10, -7, -7, 13, -7, -7}, output);
+    }
+
+    private static void invokeRowGuardWitness(boolean sliced, long logicalRowStride,
+            double[] input, double[] output, long[] geometry, long count) throws Throwable {
+        var segment = java.lang.constant.ClassDesc.of("java.lang.foreign.MemorySegment");
+        var type = java.lang.constant.MethodTypeDesc.of(java.lang.constant.ConstantDescs.CD_void,
+                java.lang.constant.ConstantDescs.CD_double.arrayType(),
+                java.lang.constant.ConstantDescs.CD_double.arrayType(),
+                java.lang.constant.ConstantDescs.CD_long.arrayType(),
+                java.lang.constant.ConstantDescs.CD_long, java.lang.constant.ConstantDescs.CD_long, segment);
+        var row = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(1, logicalRowStride);
+        var facts = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl(
+                List.of(row, row), List.of(row, row));
+        byte[] bytes = CpuCarrierEmitter.withControlFacts(facts, () -> ClassFile.of().build(
+                java.lang.constant.ClassDesc.of(CpuClassFileKernelGeneratorTest.class.getPackageName()
+                        + ".ControlledRowGuardWitness"),
+                owner -> owner.withMethodBody("apply", type, ClassFile.ACC_PUBLIC | ClassFile.ACC_STATIC,
+                        code -> CpuCarrierEmitter.withDescriptor(type, true, () -> {
+                            int ordinal = code.allocateLocal(java.lang.classfile.TypeKind.LONG);
+                            var loop = code.newLabel(); var done = code.newLabel(); var advance = code.newLabel();
+                            code.lload(3).lstore(ordinal).labelBinding(loop);
+                            code.lload(ordinal).lload(5).lcmp().branch(java.lang.classfile.Opcode.IFGE, done);
+                            if (sliced) CpuLoopEmitter.emitActiveSliceGuard(code, 1, ordinal,
+                                    java.lang.classfile.TypeKind.LONG, 2, 0,
+                                    new boolean[] {false, false, true}, advance);
+                            else CpuLoopEmitter.emitActiveOrdinalGuard(code, 1, ordinal,
+                                    java.lang.classfile.TypeKind.LONG, advance);
+                            code.aload(1).lload(ordinal).l2i().aload(0).lload(ordinal).l2i().daload().dastore();
+                            code.labelBinding(advance).lload(ordinal).loadConstant(1L).ladd().lstore(ordinal)
+                                    .branch(java.lang.classfile.Opcode.GOTO, loop).labelBinding(done).return_();
+                        }))));
+        var lookup = java.lang.invoke.MethodHandles.lookup().defineHiddenClass(bytes, true);
+        var method = lookup.findStatic(lookup.lookupClass(), "apply", java.lang.invoke.MethodType.methodType(
+                void.class, double[].class, double[].class, long[].class, long.class, long.class,
+                java.lang.foreign.MemorySegment.class));
+        try (var arena = java.lang.foreign.Arena.ofConfined()) {
+            var control = arena.allocate(19, Long.BYTES);
+            control.fill((byte) 0);
+            control.set(java.lang.foreign.ValueLayout.JAVA_BYTE, 0, (byte) 1);
+            control.set(java.lang.foreign.ValueLayout.JAVA_LONG, 8, 3L);
+            control.set(java.lang.foreign.ValueLayout.JAVA_BYTE, 16, (byte) 1);
+            method.invokeExact(input, output, geometry, 0L, count, control);
+        }
     }
 
     private static int codeLength(TensorDescriptor first, Shape target) {

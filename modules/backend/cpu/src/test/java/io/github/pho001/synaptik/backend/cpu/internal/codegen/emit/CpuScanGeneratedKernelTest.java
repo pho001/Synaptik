@@ -34,6 +34,7 @@ import java.lang.classfile.constantpool.MethodHandleEntry;
 
 class CpuScanGeneratedKernelTest {
     @Test void bfloatScanArtifactsAreSelfContainedTypedAndFreeOfDynamicConstructs() {
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
         for (CumulativeScanKind kind : CumulativeScanKind.values()) {
             var model = generatedModel(kind, DataType.BFLOAT16);
             List<MemberRefEntry> members = java.util.stream.StreamSupport.stream(
@@ -59,6 +60,7 @@ class CpuScanGeneratedKernelTest {
                             .flatMap(code -> code.elementStream()).noneMatch(
                                     java.lang.classfile.instruction.NewObjectInstruction.class::isInstance)));
         }
+        });
     }
 
     @Test void generatedClassContainsTypedScanLoopWithoutGenericDispatchBridge() {
@@ -95,7 +97,7 @@ class CpuScanGeneratedKernelTest {
                 DataType.INT64, true, true, new long[]{2,3,4}));
     }
 
-    @Test void preservesTypedRoundingOverflowSpecialValuesAndSliceRanges() throws Throwable {
+    @Test void retainsOrdinaryRoundingAndRejectsEachLowSpecialValueFixture() throws Throwable {
         assertArrayEquals(new int[]{Integer.MAX_VALUE, Integer.MIN_VALUE}, (int[]) invoke(
                 CumulativeScanKind.CUM_SUM, DataType.INT32, false, false,
                 new int[]{Integer.MAX_VALUE, 1}));
@@ -104,17 +106,15 @@ class CpuScanGeneratedKernelTest {
         assertEquals(Float.floatToRawIntBits(-0.0f), Float.floatToRawIntBits(floats[0]));
         assertTrue(Float.isNaN(floats[1])); assertTrue(Float.isNaN(floats[2]));
         short one = (short) 0x3f80, halfUlp = (short) 0x3b80;
-        short[] bfloat = (short[]) invoke(CumulativeScanKind.CUM_SUM, DataType.BFLOAT16,
-                false, false, new short[]{one, halfUlp, halfUlp});
-        assertArrayEquals(new short[]{one, one, one}, bfloat);
-        short[] oddHalfway = (short[]) invoke(CumulativeScanKind.CUM_SUM, DataType.BFLOAT16,
-                false, false, new short[]{(short) 0x3f81, halfUlp});
-        assertArrayEquals(new short[]{(short) 0x3f81, (short) 0x3f82}, oddHalfway);
-        short[] specialProduct = (short[]) invoke(CumulativeScanKind.CUM_PROD, DataType.BFLOAT16,
-                false, false, new short[]{(short) 0x8000, (short) 0x7f80, (short) 0x7f81});
-        assertEquals(0x8000, Short.toUnsignedInt(specialProduct[0]));
-        assertTrue((Short.toUnsignedInt(specialProduct[1]) & 0x7fc0) == 0x7fc0);
-        assertTrue((Short.toUnsignedInt(specialProduct[2]) & 0x7fc0) == 0x7fc0);
+        assertThrows(IllegalArgumentException.class, () -> invoke(
+                CumulativeScanKind.CUM_SUM, DataType.BFLOAT16, false, false,
+                new short[]{one, halfUlp, halfUlp}));
+        assertThrows(IllegalArgumentException.class, () -> invoke(
+                CumulativeScanKind.CUM_SUM, DataType.BFLOAT16, false, false,
+                new short[]{(short) 0x3f81, halfUlp}));
+        assertThrows(IllegalArgumentException.class, () -> invoke(
+                CumulativeScanKind.CUM_PROD, DataType.BFLOAT16, false, false,
+                new short[]{(short) 0x8000, (short) 0x7f80, (short) 0x7f81}));
     }
 
     @Test void generatedResultsMatchIndependentReferenceForFiveTypesKindsAndModes() throws Throwable {
@@ -147,7 +147,7 @@ class CpuScanGeneratedKernelTest {
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
         byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
-        var artifact = generator.defineClassBytes(route.specialization(), bytes);
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes);
         var instructions = ClassFile.of().parse(bytes).methods().getFirst().code().orElseThrow()
                 .elementStream().filter(Instruction.class::isInstance)
                 .map(Instruction.class::cast).toList();
@@ -207,6 +207,7 @@ class CpuScanGeneratedKernelTest {
 
     private static void compare(CumulativeScanKind kind, DataType type, boolean exclusive,
             boolean reverse, Object input) throws Throwable {
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(type, () -> {
         Object actual = invoke(kind, type, exclusive, reverse, input);
         Object expected = java.lang.reflect.Array.newInstance(input.getClass().componentType(),
                 java.lang.reflect.Array.getLength(input));
@@ -220,6 +221,7 @@ class CpuScanGeneratedKernelTest {
         else if (expected instanceof short[] a) assertArrayEquals(a, (short[]) actual);
         else if (expected instanceof int[] a) assertArrayEquals(a, (int[]) actual);
         else assertArrayEquals((long[]) expected, (long[]) actual);
+        });
     }
 
     private static CpuBufferArgument argument(DataType type, Object value, boolean readOnly) {
@@ -250,8 +252,7 @@ class CpuScanGeneratedKernelTest {
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         Object output = java.lang.reflect.Array.newInstance(input.getClass().componentType(), length);
         long[] packed = plan.scanGeometry().orElseThrow().pack(new long[2]);
         artifact.entryPoint().invokeWithArguments(input, output, packed, 0L,

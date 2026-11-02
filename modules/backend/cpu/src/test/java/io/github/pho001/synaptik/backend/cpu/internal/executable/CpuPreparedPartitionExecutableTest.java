@@ -34,6 +34,85 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class CpuPreparedPartitionExecutableTest {
+    @Test void nonfixedContainerSelectionsMustBelongToAnActualDynamicChild() {
+        var fixed = io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionFinalizerTest
+                .finalizeExecutable(Shape.of(4), Optional.empty());
+        for (boolean extraWorkspace : List.of(false, true)) {
+            var buffers = new ArrayList<>(fixed.memoryPlan().buffers());
+            var workspaces = new ArrayList<PreparedMemoryPlan.WorkspaceEntry>();
+            var batchBytes = new io.github.pho001.synaptik.backend.cpu.internal.memory
+                    .CpuRepresentationRecipes.BatchByteSize(0, 0, Double.BYTES);
+            if (extraWorkspace) workspaces.add(new PreparedMemoryPlan.WorkspaceEntry(
+                    new WorkspaceSlot(0), batchBytes, Double.BYTES));
+            else buffers.add(new PreparedMemoryPlan.BufferEntry(new BufferSlot(buffers.size()),
+                    batchBytes, Double.BYTES));
+            var plan = new PreparedMemoryPlan(buffers, workspaces, true);
+            var childSelections = java.util.stream.IntStream.range(0, fixed.bufferSelectionCount())
+                    .mapToObj(fixed::bufferSelection).toList();
+            var child = new CpuPreparedExecutable(plan, childSelections, fixed.artifact(),
+                    fixed.accessBindings(), fixed.artifact().specialization().carrierPattern(), 0, 4);
+            var selections = new ArrayList<>(childSelections);
+            var accesses = new ArrayList<PreparedExecutable.BufferAccess>();
+            for (int p = 0; p < childSelections.size(); p++) accesses.add(child.bufferAccess(p));
+            if (!extraWorkspace) {
+                selections.add(new PreparedExecutable.BufferSelection(buffers.size() - 1, 0));
+                accesses.add(PreparedExecutable.BufferAccess.READ_ONLY);
+            }
+            var selectedWorkspaces = extraWorkspace
+                    ? List.of(new PreparedExecutable.WorkspaceSelection(0))
+                    : List.<PreparedExecutable.WorkspaceSelection>of();
+            var executable = new CpuPreparedPartitionExecutable(plan, selections, selectedWorkspaces,
+                    accesses, List.of(child), List.of(List.of()));
+            var bindings = new ArrayList<List<BufferRepresentationBinding>>();
+            for (int p = 0; p < buffers.size(); p++) {
+                var carrier = new double[p < childSelections.size() ? 4 : 0];
+                var borrowed = CpuBorrowedBuffer.borrow(new MemorySegmentStorage(DataType.FLOAT64,
+                        carrier.length, MemorySegment.ofArray(carrier)));
+                bindings.add(List.of(new BufferRepresentationBinding(borrowed, RunResourceOwnership.BORROWED)));
+            }
+            List<io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation> scratch = extraWorkspace
+                    ? List.of(io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace.allocate(0, 8))
+                    : List.of();
+            try (var run = new RunState(plan, bindings, scratch,
+                    RunMemoryGeometry.resolve(plan, OptionalLong.of(0)))) {
+                assertThrows(IllegalArgumentException.class, () -> executable.bind(run));
+            }
+        }
+    }
+
+    @Test void fixedCompositeKeepsBothChildrenFixedAcrossCompleteBatchRuns() {
+        var executable = finalizeSequence(new CpuPartitionPreparer().analyze(context()), true);
+        var first = assertInstanceOf(CpuPreparedExecutable.class, executable.children().get(0));
+        var second = assertInstanceOf(CpuPreparedExecutable.class, executable.children().get(1));
+        var firstArtifact = first.artifact();
+        var secondArtifact = second.artifact();
+        for (long batch : new long[] {0, 13, 0, 1}) {
+            float[] intermediate = new float[4], output = new float[4];
+            try (var run = state(executable, List.of(new float[] {1, -2, 3, 4},
+                    new float[] {2}, new float[] {.5f}, intermediate,
+                    new float[] {-3, 2, -10, 1}, output), OptionalLong.of(batch))) {
+                var bound = executable.bind(run);
+                bound.execute();
+                bound.execute();
+                assertArrayEquals(new float[] {2.5f, -3.5f, 6.5f, 8.5f}, intermediate);
+                assertArrayEquals(new float[] {0, 0, 0, 9.5f}, output);
+                assertSame(firstArtifact, first.artifact());
+                assertSame(secondArtifact, second.artifact());
+            }
+        }
+        float[] shared = {1, -2, 3, 4};
+        try (var run = state(executable, List.of(shared, new float[] {2}, new float[] {.5f},
+                new float[4], new float[] {-3, 2, -10, 1}, shared), OptionalLong.of(0))) {
+            assertThrows(IllegalArgumentException.class, () -> executable.bind(run));
+            assertArrayEquals(new float[] {1, -2, 3, 4}, shared);
+        }
+        var staticExecutable = finalizeSequence(new CpuPartitionPreparer().analyze(context()));
+        try (var foreign = state(staticExecutable, List.of(new float[4], new float[1], new float[1],
+                new float[4], new float[4], new float[4]))) {
+            assertThrows(IllegalArgumentException.class, () -> executable.bind(foreign));
+        }
+    }
+
     @Test void realizesTwoArtifactsAndExecutesStrictlyThroughOneComposite() {
         var analysis = new CpuPartitionPreparer().analyze(context());
         assertAll(() -> assertEquals(CpuPartitionPreparationPlan.PlanForm
@@ -159,6 +238,11 @@ class CpuPreparedPartitionExecutableTest {
 
     private static CpuPreparedPartitionExecutable finalizeSequence(
             BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis) {
+        return finalizeSequence(analysis, false);
+    }
+
+    private static CpuPreparedPartitionExecutable finalizeSequence(
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis, boolean requiresBatch) {
         var buffers = new ArrayList<PreparedMemoryPlan.BufferEntry>();
         var assignments = new ArrayList<PreparationResourceAssignment>();
         for (var requirement : analysis.requirements()) {
@@ -168,13 +252,18 @@ class CpuPreparedPartitionExecutableTest {
                     buffer.byteAlignment()));
             assignments.add(new PreparationResourceAssignment.Buffer(buffer, slot, buffers.size() - 1, 0));
         }
-        var memory = new PreparedMemoryPlan(buffers, List.of());
+        var memory = new PreparedMemoryPlan(buffers, List.of(), requiresBatch);
         return (CpuPreparedPartitionExecutable) new CpuPartitionFinalizer().finalizePartition(
                 new BackendPartitionFinalization<>(analysis, memory, assignments)).executable();
     }
 
     private static RunState state(CpuPreparedPartitionExecutable executable,
             List<float[]> carriers) {
+        return state(executable, carriers, OptionalLong.empty());
+    }
+
+    private static RunState state(CpuPreparedPartitionExecutable executable,
+            List<float[]> carriers, OptionalLong batch) {
         var bindings = new ArrayList<List<BufferRepresentationBinding>>();
         for (int i = 0; i < carriers.size(); i++) {
             float[] carrier = carriers.get(i);
@@ -183,6 +272,7 @@ class CpuPreparedPartitionExecutableTest {
             bindings.add(List.of(new BufferRepresentationBinding(CpuBorrowedBuffer.borrow(storage),
                     RunResourceOwnership.BORROWED)));
         }
-        return new RunState(executable.memoryPlan(), bindings, List.of());
+        return new RunState(executable.memoryPlan(), bindings, List.of(),
+                RunMemoryGeometry.resolve(executable.memoryPlan(), batch));
     }
 }

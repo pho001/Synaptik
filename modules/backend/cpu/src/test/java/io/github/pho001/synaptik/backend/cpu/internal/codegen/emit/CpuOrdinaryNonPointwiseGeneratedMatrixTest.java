@@ -77,7 +77,9 @@ class CpuOrdinaryNonPointwiseGeneratedMatrixTest {
                 var context = configured(base.context(), request);
                 var node = context.nodes().getFirst();
                 var query = new OperationCapabilityQuery(node.operation(), CpuGeneratedDirectEvidenceClosureTest.descriptors(context, node.inputs()), CpuGeneratedDirectEvidenceClosureTest.descriptors(context, node.outputs()));
-                assertTrue(new CpuCapabilityProvider().supports(query), base.id() + '/' + request.id());
+                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(new CpuCapabilityProvider(), query, base.id() + '/' + request.id());
+                if (CpuGeneratedCoverageEvidenceRegistry.lowUnsupported(
+                        "ordinary:" + base.id() + '/' + request.id(), context)) continue;
                 var plan = new CpuPartitionPreparer().analyze(context).plan();
                 var route = plan.units().getFirst().portablePlan();
                 var specialization = route.specialization();

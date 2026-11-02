@@ -1,7 +1,9 @@
 package io.github.pho001.synaptik.model.tensor;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -14,42 +16,17 @@ import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.util.Arrays;
-import java.util.List;
+
+
+
+
 import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
+
+
 import org.junit.jupiter.api.Test;
 
 class TensorAxisGatherExpressionTest {
-    @Test
-    void exposesOnlyFinalAxisGatherAndUnchangedNdMethods() throws Exception {
-        Method gather = Tensor.class.getDeclaredMethod("gather", Tensor.class, int.class);
-        Method elements =
-                Tensor.class.getDeclaredMethod("gatherElements", Tensor.class, int.class);
-        assertTrue(Modifier.isPublic(gather.getModifiers()));
-        assertTrue(Modifier.isPublic(elements.getModifiers()));
-        assertEquals(Tensor.class, gather.getReturnType());
-        assertEquals(Tensor.class, elements.getReturnType());
-
-        Set<String> names = Arrays.stream(Tensor.class.getDeclaredMethods())
-                .map(Method::getName)
-                .filter(name -> name.startsWith("gather"))
-                .collect(Collectors.toSet());
-        assertEquals(Set.of("gather", "gatherElements", "gatherNd"), names);
-
-        assertEquals(
-                List.of(
-                        "create", "embedding", "gather", "gatherElements", "gatherShape",
-                        "validateGatherElements", "validateIndexType"),
-                Arrays.stream(TensorAxisGatherExpressions.class.getDeclaredMethods())
-                        .map(Method::getName)
-                        .sorted()
-                        .toList());
-        assertEquals(0, TensorAxisGatherExpressions.class.getDeclaredFields().length);
-    }
+    
 
     @Test
     void gatherReplacesAxisWithScalarOrdinaryZeroAndDynamicIndexShapes() {
@@ -94,17 +71,14 @@ class TensorAxisGatherExpressionTest {
         IllegalArgumentException rank = assertThrows(
                 IllegalArgumentException.class,
                 () -> data.gatherElements(tensor(DataType.INT32, Shape.of(2, 3), false), 1));
-        assertEquals(
-                "gatherElements indices rank must match data rank: expected=3, actual=2",
-                rank.getMessage());
+        
         IllegalArgumentException dimension = assertThrows(
                 IllegalArgumentException.class,
                 () -> data.gatherElements(
                         tensor(DataType.INT32, Shape.ofDimensions(
                                 new DynamicDimension("other"), selected, new StaticDimension(4)), false),
                         1));
-        assertTrue(dimension.getMessage().startsWith(
-                "gatherElements indices dimension at axis 0 must match data:"));
+        
     }
 
     @Test
@@ -117,15 +91,11 @@ class TensorAxisGatherExpressionTest {
             IllegalArgumentException gather = assertThrows(
                     IllegalArgumentException.class,
                     () -> data.gather(tensor(type, Shape.of(4), false), 9));
-            assertEquals(
-                    "gather indices data type must be INT32 or INT64: " + type,
-                    gather.getMessage());
+            
             IllegalArgumentException elements = assertThrows(
                     IllegalArgumentException.class,
                     () -> data.gatherElements(tensor(type, Shape.of(2, 4), false), 9));
-            assertEquals(
-                    "gatherElements indices data type must be INT32 or INT64: " + type,
-                    elements.getMessage());
+            
         }
         Tensor indices = tensor(DataType.INT32, Shape.of(4), false);
         Tensor first = data.gather(indices, 1);

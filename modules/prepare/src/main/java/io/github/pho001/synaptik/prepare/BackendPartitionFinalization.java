@@ -11,7 +11,9 @@ import java.util.Objects;
  *
  * <p>The assignment snapshot follows the analysis requirement order exactly. Construction proves
  * that every assignment refers to the corresponding exact declaration and to sufficient geometry
- * in the supplied plan. The value contains no physical resource or per-run state.</p>
+ * in the supplied plan. Fixed buffer geometry may be larger; run-bound declarations and their
+ * alignments must agree structurally, without recipe evaluation. Workspace declarations always
+ * match exactly. The value contains no physical resource or per-run state.</p>
  *
  * @param <P> concrete backend-owned immutable selected-plan role
  * @param analysis exact non-null analysis being finalized
@@ -61,8 +63,12 @@ public record BackendPartitionFinalization<P extends BackendPreparationPlan>(
                                 "assignments[" + index + "] buffer slot does not match memoryPlan.buffers["
                                         + planIndex + "]");
                     }
-                    if (entry.byteSize() < buffer.requirement().byteSize()
-                            || entry.byteAlignment() < buffer.requirement().byteAlignment()) {
+                    boolean fixed = entry.size().fixedByteSize().isPresent()
+                            && buffer.requirement().size().fixedByteSize().isPresent();
+                    if (fixed ? entry.byteSize() < buffer.requirement().byteSize()
+                            || entry.byteAlignment() < buffer.requirement().byteAlignment()
+                            : !entry.size().equals(buffer.requirement().size())
+                                || entry.byteAlignment() != buffer.requirement().byteAlignment()) {
                         throw new IllegalArgumentException(
                                 "assignments[" + index + "] buffer geometry does not satisfy requirement");
                     }
@@ -84,7 +90,7 @@ public record BackendPartitionFinalization<P extends BackendPreparationPlan>(
                                 "assignments[" + index + "] workspace slot does not match memoryPlan.workspaces["
                                         + planIndex + "]");
                     }
-                    if (entry.byteSize() != workspace.requirement().byteSize()
+                    if (!entry.size().equals(workspace.requirement().size())
                             || entry.byteAlignment() != workspace.requirement().byteAlignment()) {
                         throw new IllegalArgumentException(
                                 "assignments[" + index + "] workspace geometry does not match requirement");

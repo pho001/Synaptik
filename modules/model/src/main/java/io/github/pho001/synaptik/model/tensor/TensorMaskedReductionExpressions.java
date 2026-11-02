@@ -71,6 +71,62 @@ final class TensorMaskedReductionExpressions {
             Tensor mask,
             AggregateReductionKind kind,
             int axis) {
+        return applyChecked(input, mask, kind, axis, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null floating tensor whose exact type and gradient eligibility are retained
+     * @param mask non-null exact BOOL tensor whose Shape must broadcast exactly to the input Shape;
+     *     the caller retains ownership and the exact reference is stored only in provenance
+     * @param kind non-null reduction kind; must be {@link AggregateReductionKind#SUM} or
+     *     {@link AggregateReductionKind#MEAN}
+     * @param axis input axis in {@code [-rank, rank - 1]}; negative values count from the end
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input}, {@code mask}, or {@code kind} is null, checked
+     *     in that order with the parameter name as the message
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if kind or data-type validation fails, if Shape broadcasting
+     *     is incompatible, or if the broadcast result does not equal the input Shape
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input Shape, including
+     *     every axis for a scalar input
+     * @throws IllegalStateException if tensor identifier space is exhausted after all local
+     *     immutable expression metadata has been constructed
+     */
+    static Tensor applyChecked(
+            Tensor input,
+            Tensor mask,
+            AggregateReductionKind kind,
+            int axis,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(mask, "mask");
+        Objects.requireNonNull(kind, "kind");
+        return applyDescriptors(
+                input.descriptor(), mask.descriptor(), kind, axis, descriptorCheck, input, mask);
+    }
+
+    /**
+     * Runs the shared descriptor guards and completes metadata before real provenance is used.
+     * @param input immutable operand metadata
+     * @param mask immutable operand metadata
+     * @param kind ordinary construction argument, validated in existing order
+     * @param axis ordinary construction argument, validated in existing order
+     * @param descriptorCheck optional synchronous, unretained metadata completion; null constructs a Tensor
+     * @param inputTensor real provenance, unused when metadata completion is supplied
+     * @param maskTensor real provenance, unused when metadata completion is supplied
+     * @return null after metadata completion, otherwise the ordinary result
+     */
+    private static Tensor applyDescriptors(
+            TensorDescriptor input,
+            TensorDescriptor mask,
+            AggregateReductionKind kind,
+            int axis,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor inputTensor,
+            Tensor maskTensor) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(mask, "mask");
         Objects.requireNonNull(kind, "kind");
@@ -78,20 +134,20 @@ final class TensorMaskedReductionExpressions {
             throw new IllegalArgumentException("kind must be SUM or MEAN, but was " + kind);
         }
 
-        DataType inputDataType = input.descriptor().dataType();
+        DataType inputDataType = input.dataType();
         if (!inputDataType.isFloating()) {
             throw new IllegalArgumentException(
                     "input must be a floating data type, but was " + inputDataType);
         }
 
-        DataType maskDataType = mask.descriptor().dataType();
+        DataType maskDataType = mask.dataType();
         if (maskDataType != DataType.BOOL) {
             throw new IllegalArgumentException(
                     "mask must have BOOL data type, but was " + maskDataType);
         }
 
-        Shape inputShape = input.descriptor().shape();
-        Shape maskShape = mask.descriptor().shape();
+        Shape inputShape = input.shape();
+        Shape maskShape = mask.shape();
         int normalizedAxis = inputShape.normalizeAxis(axis);
         Shape broadcastShape = ShapeBroadcast.broadcast(inputShape, maskShape);
         if (!broadcastShape.equals(inputShape)) {
@@ -105,7 +161,7 @@ final class TensorMaskedReductionExpressions {
         }
 
         Shape resultShape = reduceShape(inputShape, normalizedAxis);
-        return create(input, mask, kind, normalizedAxis, resultShape);
+        return createDescriptors(input, mask, kind, normalizedAxis, resultShape, descriptorCheck, inputTensor, maskTensor);
     }
 
     /**
@@ -127,38 +183,59 @@ final class TensorMaskedReductionExpressions {
         return Shape.ofDimensions(resultDimensions);
     }
 
+
     /**
-     * Constructs the exact masked-reduction descriptor, operation, producer, and Tensor.
-     *
-     * <p>Construction creates, in order, one {@link MaskedReductionAttrs}, one unresolved
-     * descriptor retaining input type and gradient eligibility, and one Operation retaining the
-     * exact kind and attributes. One central factory call then creates a one-output producer with
-     * ordered inputs {@code [input, mask]} and output-index-zero provenance. Identifier exhaustion
-     * can occur only at that final boundary.</p>
-     *
-     * @param input validated floating tensor supplying result type and gradient eligibility
-     * @param mask validated BOOL tensor retained as provenance input one
-     * @param kind validated SUM or MEAN kind retained exactly
-     * @param normalizedAxis valid normalized input axis retained in attributes
-     * @param resultShape non-null locally derived axis-removing result Shape
-     * @return the non-null exact fresh, unlabeled, unresolved, storage-free Tensor from the factory
-     * @throws IllegalStateException if tensor identifier space is exhausted after descriptor and
-     *     operation construction
+     * Runs the shared descriptor guards and completes metadata before real provenance is used.
+     * @param input immutable operand metadata
+     * @param mask immutable operand metadata
+     * @param kind ordinary construction argument, validated in existing order
+     * @param normalizedAxis ordinary construction argument, validated in existing order
+     * @param resultShape ordinary construction argument, validated in existing order
+     * @param descriptorCheck optional synchronous, unretained metadata completion; null constructs a Tensor
+     * @param inputTensor real provenance, unused when metadata completion is supplied
+     * @param maskTensor real provenance, unused when metadata completion is supplied
+     * @return null after metadata completion, otherwise the ordinary result
      */
-    private static Tensor create(
-            Tensor input,
-            Tensor mask,
+    private static Tensor createDescriptors(
+            TensorDescriptor input,
+            TensorDescriptor mask,
             AggregateReductionKind kind,
             int normalizedAxis,
-            Shape resultShape) {
+            Shape resultShape,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor inputTensor,
+            Tensor maskTensor) {
         MaskedReductionAttrs attrs = new MaskedReductionAttrs(normalizedAxis);
         TensorDescriptor descriptor = new TensorDescriptor(
-                input.descriptor().dataType(),
+                input.dataType(),
                 resultShape,
                 Optional.empty(),
-                input.descriptor().requiresGrad());
+                input.requiresGrad());
         Operation operation = new Operation(kind, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(
-                descriptor, Optional.empty(), operation, List.of(input, mask));
+                descriptor, Optional.empty(), operation, List.of(inputTensor, maskTensor));
+    }
+
+    /**
+     * Completes one admitted ordinary occurrence synchronously using the real construction guards.
+     * No Tensor or identity is created and the callback is not retained. The owning facade checks
+     * occurrence cardinality and compares the returned canonical operation with the supplied one.
+     *
+     * @param operation non-null ordinary operation admitted to this family by the owning selector
+     * @param inputs non-null immutable operand metadata in canonical input order
+     * @param outputCount complete canonical output count, already validated by the owning facade
+     * @param sink non-null synchronous consumer of the canonical operation and all output metadata
+     * @throws IllegalArgumentException if ordinary semantic guards or the consumer reject metadata
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(sink, "sink");
+        MaskedReductionAttrs attrs = (MaskedReductionAttrs) operation.attrs();
+        applyDescriptors(inputs.get(0), inputs.get(1), (AggregateReductionKind) operation.kind(),
+                attrs.axis(), sink, null, null);
     }
 }

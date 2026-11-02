@@ -89,7 +89,7 @@ final class RepresentativeExecutionSessionTest {
                 openSession(composition, compiled, List.of(input));
         CountDownLatch entered = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
-        var execution = execution(1, 1, () -> {
+        var execution = execution(1, 1, (requestedBytes, requestedAlignment) -> {
             entered.countDown();
             await(release);
             return new TestBuffer("result", null, composition.closeOrder);
@@ -245,7 +245,7 @@ final class RepresentativeExecutionSessionTest {
             Tensor input = leaf(1, 2);
             CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
             var created = new ArrayList<TestBuffer>();
-            PreparedRepresentationPlan.BufferCreator creator = () -> {
+            PreparedRepresentationPlan.BufferCreator creator = (requestedBytes, requestedAlignment) -> {
                 TestBuffer buffer = new TestBuffer("result-" + created.size(), null,
                         composition.closeOrder);
                 created.add(buffer);
@@ -280,7 +280,7 @@ final class RepresentativeExecutionSessionTest {
 
             try (var session = openSession(composition, compiled, List.of(input))) {
                 var reference = session.captureCorrectnessReference(
-                        execution(1, 1, () -> capturedBuffer[0] = new TestBuffer(
+                        execution(1, 1, (requestedBytes, requestedAlignment) -> capturedBuffer[0] = new TestBuffer(
                                 "reference", null, composition.closeOrder, source)),
                         source.length);
                 assertEquals(1, capturedBuffer[0].closeCount.get());
@@ -393,15 +393,15 @@ final class RepresentativeExecutionSessionTest {
             Tensor input = leaf(1, 2);
             CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
             AtomicInteger creations = new AtomicInteger();
-            var firstRejected = execution(1, 1, () -> {
+            var firstRejected = execution(1, 1, (requestedBytes, requestedAlignment) -> {
                 creations.incrementAndGet();
                 return new TestBuffer("result", null, composition.closeOrder, new byte[8]);
             });
-            var secondRejected = execution(1, 1, () -> {
+            var secondRejected = execution(1, 1, (requestedBytes, requestedAlignment) -> {
                 creations.incrementAndGet();
                 return new TestBuffer("result", null, composition.closeOrder, new byte[8]);
             });
-            var accepted = execution(1, 1, () -> {
+            var accepted = execution(1, 1, (requestedBytes, requestedAlignment) -> {
                 creations.incrementAndGet();
                 return new TestBuffer("result", null, composition.closeOrder, new byte[8]);
             });
@@ -428,7 +428,7 @@ final class RepresentativeExecutionSessionTest {
             List<String> order = new ArrayList<>();
             TestPreparedResource resource = new TestPreparedResource("prepared", null, order);
             var trial = execution(1, 1,
-                    () -> new TestBuffer("result", null, order, new byte[8]), resource);
+                    (requestedBytes, requestedAlignment) -> new TestBuffer("result", null, order, new byte[8]), resource);
 
             try (var session = openSession(composition, compiled, List.of(input))) {
                 session.execute(trial);
@@ -448,7 +448,7 @@ final class RepresentativeExecutionSessionTest {
             List<String> order = new ArrayList<>();
             Error expected = new AssertionError("prepared");
             var trial = execution(1, 1,
-                    () -> new TestBuffer("result", null, order, new byte[8]),
+                    (requestedBytes, requestedAlignment) -> new TestBuffer("result", null, order, new byte[8]),
                     new TestPreparedResource("prepared", expected, order));
             var session = openSession(composition, compiled, List.of(input));
 
@@ -545,7 +545,7 @@ final class RepresentativeExecutionSessionTest {
             TestPreparedResource nullReferenceResource =
                     new TestPreparedResource("null-reference", null, new ArrayList<>());
             var nullReferenceTrial = execution(1, 1,
-                    () -> new TestBuffer("unused", null, new ArrayList<>()),
+                    (requestedBytes, requestedAlignment) -> new TestBuffer("unused", null, new ArrayList<>()),
                     nullReferenceResource);
             assertThrows(NullPointerException.class,
                     () -> first.compareCorrectness(null, nullReferenceTrial));
@@ -555,7 +555,7 @@ final class RepresentativeExecutionSessionTest {
             TestPreparedResource wrongReferenceResource =
                     new TestPreparedResource("wrong-reference", null, new ArrayList<>());
             var wrongReferenceTrial = execution(1, 1,
-                    () -> new TestBuffer("unused", null, new ArrayList<>()),
+                    (requestedBytes, requestedAlignment) -> new TestBuffer("unused", null, new ArrayList<>()),
                     wrongReferenceResource);
             assertThrows(IllegalArgumentException.class,
                     () -> first.compareCorrectness(secondReference, wrongReferenceTrial));
@@ -567,7 +567,7 @@ final class RepresentativeExecutionSessionTest {
             TestPreparedResource executeResource =
                     new TestPreparedResource("execute-closed", cleanupFailure, new ArrayList<>());
             var executeTrial = execution(1, 1,
-                    () -> new TestBuffer("unused", null, new ArrayList<>()), executeResource);
+                    (requestedBytes, requestedAlignment) -> new TestBuffer("unused", null, new ArrayList<>()), executeResource);
             IllegalStateException executeRejection = assertThrows(IllegalStateException.class,
                     () -> first.execute(executeTrial));
             assertArrayEquals(new Throwable[] {cleanupFailure}, executeRejection.getSuppressed());
@@ -578,7 +578,7 @@ final class RepresentativeExecutionSessionTest {
             TestPreparedResource captureResource =
                     new TestPreparedResource("capture-closed", null, new ArrayList<>());
             var captureTrial = execution(1, 1,
-                    () -> new TestBuffer("unused", null, new ArrayList<>()), captureResource);
+                    (requestedBytes, requestedAlignment) -> new TestBuffer("unused", null, new ArrayList<>()), captureResource);
             assertThrows(IllegalStateException.class,
                     () -> second.captureCorrectnessReference(captureTrial, 8));
             assertEquals(1, captureResource.closeCount.get());
@@ -587,7 +587,7 @@ final class RepresentativeExecutionSessionTest {
             TestPreparedResource compareResource =
                     new TestPreparedResource("compare-closed", null, new ArrayList<>());
             var compareTrial = execution(1, 1,
-                    () -> new TestBuffer("unused", null, new ArrayList<>()), compareResource);
+                    (requestedBytes, requestedAlignment) -> new TestBuffer("unused", null, new ArrayList<>()), compareResource);
             assertThrows(IllegalStateException.class,
                     () -> third.compareCorrectness(firstReference, compareTrial));
             assertEquals(1, compareResource.closeCount.get());
@@ -618,7 +618,7 @@ final class RepresentativeExecutionSessionTest {
             AtomicInteger creations = new AtomicInteger();
             try (var compareSession = openSession(composition, compiled, List.of(input))) {
                 var reference = compareSession.captureCorrectnessReference(
-                        execution(1, 1, () -> {
+                        execution(1, 1, (requestedBytes, requestedAlignment) -> {
                             creations.incrementAndGet();
                             return new TestBuffer(
                                     "reference", null, new ArrayList<>(), new byte[8]);
@@ -645,7 +645,7 @@ final class RepresentativeExecutionSessionTest {
             AtomicInteger creations = new AtomicInteger();
             TestPreparedResource resource =
                     new TestPreparedResource("missing-reference", null, new ArrayList<>());
-            var trial = execution(1, 1, () -> {
+            var trial = execution(1, 1, (requestedBytes, requestedAlignment) -> {
                 creations.incrementAndGet();
                 return new TestBuffer("unused", null, new ArrayList<>());
             }, resource);
@@ -673,7 +673,7 @@ final class RepresentativeExecutionSessionTest {
             try (var invalidLimitSession = openSession(composition, compiled, List.of(input))) {
                 TestPreparedResource resource =
                         new TestPreparedResource("invalid-limit", null, new ArrayList<>());
-                var trial = execution(1, 1, () -> {
+                var trial = execution(1, 1, (requestedBytes, requestedAlignment) -> {
                     creations.incrementAndGet();
                     return new TestBuffer("unused", null, new ArrayList<>());
                 }, resource);
@@ -689,7 +689,7 @@ final class RepresentativeExecutionSessionTest {
             var poisoned = openSession(composition, compiled, List.of(input));
             TestPreparedResource failingResource = new TestPreparedResource(
                     "invalid-limit-failing", cleanupFailure, new ArrayList<>());
-            var failingTrial = execution(1, 1, () -> {
+            var failingTrial = execution(1, 1, (requestedBytes, requestedAlignment) -> {
                 creations.incrementAndGet();
                 return new TestBuffer("unused", null, new ArrayList<>());
             }, failingResource);
@@ -721,7 +721,7 @@ final class RepresentativeExecutionSessionTest {
                 TestPreparedResource resource =
                         new TestPreparedResource(name, null, new ArrayList<>());
                 resources.add(resource);
-                trials.add(execution(1, 1, () -> {
+                trials.add(execution(1, 1, (requestedBytes, requestedAlignment) -> {
                     creations.incrementAndGet();
                     return new TestBuffer("unused", null, new ArrayList<>());
                 }, resource));
@@ -794,7 +794,7 @@ final class RepresentativeExecutionSessionTest {
             Tensor input = leaf(1, 2);
             CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
             var session = openSession(composition, compiled, List.of(input));
-            var execution = execution(1, 1, () -> new TestBuffer(
+            var execution = execution(1, 1, (requestedBytes, requestedAlignment) -> new TestBuffer(
                     "result", resultCleanup, composition.closeOrder, new byte[8]));
 
             RuntimeException observed = assertThrows(RuntimeException.class,
@@ -891,7 +891,7 @@ final class RepresentativeExecutionSessionTest {
             CompiledGraph compiled = engine.compile(List.of(input.contiguous()));
             var session = openSession(composition, compiled, List.of(input));
             var execution = execution(1, 1,
-                    () -> new TestBuffer("result", resultCleanup, composition.closeOrder));
+                    (requestedBytes, requestedAlignment) -> new TestBuffer("result", resultCleanup, composition.closeOrder));
 
             RuntimeException observed = assertThrows(RuntimeException.class,
                     () -> session.execute(execution));
@@ -1515,7 +1515,7 @@ final class RepresentativeExecutionSessionTest {
                     List<String> closeOrder,
                     byte[]... publications) {
         AtomicInteger index = new AtomicInteger();
-        return execution(inputCount, publications.length, () -> {
+        return execution(inputCount, publications.length, (requestedBytes, requestedAlignment) -> {
             int current = index.getAndIncrement();
             return new TestBuffer("result-" + current, null, closeOrder,
                     publications[current]);
@@ -1536,7 +1536,7 @@ final class RepresentativeExecutionSessionTest {
             entries.add(new PreparedMemoryPlan.BufferEntry(new BufferSlot(index), 8, 4));
             preparations.add(index < inputCount
                     ? List.of(new CallerInput())
-                    : List.of(new InitializedBuffer(() -> new TestBuffer(
+                    : List.of(new InitializedBuffer((requestedBytes, requestedAlignment) -> new TestBuffer(
                             "alias-result", null, closeOrder, payload))));
         }
         PreparedMemoryPlan plan = new PreparedMemoryPlan(entries, List.of());
@@ -1701,7 +1701,7 @@ final class RepresentativeExecutionSessionTest {
             TestPreparedResource resource = new TestPreparedResource(
                     "trial-prepared-" + candidate, null, new ArrayList<>());
             trialPreparedResources.add(resource);
-            lastTrial = execution(1, 1, () -> {
+            lastTrial = execution(1, 1, (requestedBytes, requestedAlignment) -> {
                 trialRunCount.incrementAndGet();
                 candidateRuns[candidate - 1].incrementAndGet();
                 rethrow(trialExecutionFailure);
@@ -1779,7 +1779,7 @@ final class RepresentativeExecutionSessionTest {
             TestPreparedResource resource = new TestPreparedResource(
                     "complete-prepared-" + candidate, null, new ArrayList<>());
             completeTrialPreparedResources.add(resource);
-            return execution(1, 1, () -> {
+            return execution(1, 1, (requestedBytes, requestedAlignment) -> {
                 completeTrialRunCount.incrementAndGet();
                 rethrow(completeTrialExecutionFailure);
                 return new TestBuffer("complete-" + candidate, null, new ArrayList<>(),
@@ -1800,7 +1800,7 @@ final class RepresentativeExecutionSessionTest {
                     "selected-prepared-" + decision.candidate(), null, new ArrayList<>());
             selectedPreparedResources.add(resource);
             return execution(1, 1,
-                    () -> new TestBuffer("selected-" + decision.candidate(), null,
+                    (requestedBytes, requestedAlignment) -> new TestBuffer("selected-" + decision.candidate(), null,
                             new ArrayList<>()), resource);
         }
     }

@@ -55,40 +55,28 @@ final class TensorCompositionExpressions {
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     static Tensor concat(int axis, Tensor[] inputs) {
+        return concatChecked(axis, inputs, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param axis positive or negative existing axis
+     * @param inputs non-null caller-owned non-empty array with no null elements
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code inputs} or an indexed element is null
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if input count, type, rank, or non-axis Shape rules fail
+     * @throws IndexOutOfBoundsException if {@code axis} is outside the first input's rank
+     * @throws ArithmeticException if a static selected extent, symbolic coefficient, or symbolic
+     *     offset overflows {@code long}
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    static Tensor concatChecked(int axis, Tensor[] inputs,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         List<Tensor> snapshot = snapshotInputs("concat", inputs);
-        TensorDescriptor firstDescriptor = snapshot.getFirst().descriptor();
-        Shape firstShape = firstDescriptor.shape();
-        DataType dataType = firstDescriptor.dataType();
-        int normalizedAxis = normalizeExistingAxis("concat", axis, firstShape.rank());
-        boolean requiresGrad = false;
-        for (int inputIndex = 0; inputIndex < snapshot.size(); inputIndex++) {
-            TensorDescriptor descriptor = snapshot.get(inputIndex).descriptor();
-            if (descriptor.dataType() != dataType) {
-                throw new IllegalArgumentException(
-                        "concat inputs must have matching data types: inputs[" + inputIndex
-                                + "] is " + descriptor.dataType() + ", expected " + dataType);
-            }
-            Shape shape = descriptor.shape();
-            if (shape.rank() != firstShape.rank()) {
-                throw new IllegalArgumentException(
-                        "concat inputs must have matching ranks: inputs[" + inputIndex + "] has "
-                                + shape.rank() + ", expected " + firstShape.rank());
-            }
-            for (int shapeAxis = 0; shapeAxis < shape.rank(); shapeAxis++) {
-                if (shapeAxis != normalizedAxis
-                        && !shape.dimensions().get(shapeAxis)
-                                .equals(firstShape.dimensions().get(shapeAxis))) {
-                    throw new IllegalArgumentException(
-                            "concat inputs differ at non-concat axis " + shapeAxis + ": inputs["
-                                    + inputIndex + "]");
-                }
-            }
-            requiresGrad |= descriptor.requiresGrad();
-        }
-        Shape resultShape = concatShape(snapshot, firstShape, normalizedAxis);
-        Operation operation = new Operation(
-                TensorCompositionKind.CONCAT, new CompositionAxisAttrs(normalizedAxis));
-        return create(dataType, resultShape, requiresGrad, operation, snapshot);
+        return concatDescriptors(axis, snapshot, Tensor::descriptor, snapshot, descriptorCheck);
     }
 
     /**
@@ -109,30 +97,26 @@ final class TensorCompositionExpressions {
      * @throws IllegalStateException if tensor identifier space is exhausted
      */
     static Tensor stack(int axis, Tensor[] inputs) {
+        return stackChecked(axis, inputs, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param axis positive or negative result-axis insertion position
+     * @param inputs non-null caller-owned non-empty array with no null elements
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code inputs} or an indexed element is null
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if input count, exact type, or Shape equality fails
+     * @throws IndexOutOfBoundsException if {@code axis} is outside the insertion range
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    static Tensor stackChecked(int axis, Tensor[] inputs,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         List<Tensor> snapshot = snapshotInputs("stack", inputs);
-        TensorDescriptor firstDescriptor = snapshot.getFirst().descriptor();
-        Shape firstShape = firstDescriptor.shape();
-        DataType dataType = firstDescriptor.dataType();
-        int normalizedAxis = normalizeInsertionAxis(axis, firstShape.rank());
-        boolean requiresGrad = false;
-        for (int inputIndex = 0; inputIndex < snapshot.size(); inputIndex++) {
-            TensorDescriptor descriptor = snapshot.get(inputIndex).descriptor();
-            if (descriptor.dataType() != dataType) {
-                throw new IllegalArgumentException(
-                        "stack inputs must have matching data types: inputs[" + inputIndex
-                                + "] is " + descriptor.dataType() + ", expected " + dataType);
-            }
-            if (!descriptor.shape().equals(firstShape)) {
-                throw new IllegalArgumentException(
-                        "stack inputs must have identical shapes: inputs[" + inputIndex
-                                + "] differs from inputs[0]");
-            }
-            requiresGrad |= descriptor.requiresGrad();
-        }
-        Shape resultShape = stackShape(firstShape, normalizedAxis, snapshot.size());
-        Operation operation = new Operation(
-                TensorCompositionKind.STACK, new CompositionAxisAttrs(normalizedAxis));
-        return create(dataType, resultShape, requiresGrad, operation, snapshot);
+        return stackDescriptors(axis, snapshot, Tensor::descriptor, snapshot, descriptorCheck);
     }
 
     /**
@@ -264,16 +248,19 @@ final class TensorCompositionExpressions {
      * @return a non-null same-rank immutable result Shape
      * @throws ArithmeticException if a static selected extent, symbolic coefficient, or symbolic
      *     offset overflows {@code long}
+     * @param <T> operand representation, Tensor or TensorDescriptor
+     * @param descriptorOf stateless access to exact operand metadata
      */
-    private static Shape concatShape(
-            List<Tensor> inputs, Shape firstShape, int normalizedAxis) {
+    private static <T> Shape concatShape(
+            List<T> inputs, Shape firstShape, int normalizedAxis,
+            java.util.function.Function<T, TensorDescriptor> descriptorOf) {
         Dimension[] resultDimensions = new Dimension[firstShape.rank()];
         for (int axis = 0; axis < firstShape.rank(); axis++) {
             resultDimensions[axis] = firstShape.dimensions().get(axis);
         }
         Dimension selectedExtent = new StaticDimension(0);
-        for (Tensor input : inputs) {
-            Dimension selected = input.descriptor().shape().dimensions().get(normalizedAxis);
+        for (T input : inputs) {
+            Dimension selected = descriptorOf.apply(input).shape().dimensions().get(normalizedAxis);
             selectedExtent = DimensionExpressions.add(selectedExtent, selected);
         }
         resultDimensions[normalizedAxis] = selectedExtent;
@@ -302,25 +289,149 @@ final class TensorCompositionExpressions {
         return Shape.ofDimensions(resultDimensions);
     }
 
+
     /**
-     * Creates one unresolved descriptor and delegates exact producer state for one fresh Tensor.
-     *
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
      * @param dataType non-null exact result element type
      * @param resultShape non-null exact locally derived result Shape
      * @param requiresGrad gradient-eligibility value for the result descriptor
      * @param operation non-null exact composition operation
-     * @param inputs non-null immutable ordered exact provenance inputs
-     * @return a non-null fresh unlabeled, storage-free Tensor with unresolved layout
+     * @param inputs exact ordered real provenance inputs, unused for descriptor completion
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
      * @throws IllegalStateException if tensor identifier space is exhausted
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata
      */
-    private static Tensor create(
+    private static Tensor createChecked(
             DataType dataType,
             Shape resultShape,
             boolean requiresGrad,
             Operation operation,
-            List<Tensor> inputs) {
+            List<Tensor> inputs,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         TensorDescriptor descriptor =
                 new TensorDescriptor(dataType, resultShape, Optional.empty(), requiresGrad);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(descriptor, Optional.empty(), operation, inputs);
+    }
+
+    /**
+     * Completes ordinary composition semantics without Tensor allocation or callback retention.
+     * The existing collection guards use exact ordered descriptors including repeated inputs.
+     * @param operation non-null CONCAT or STACK operation and composition-axis attributes
+     * @param inputs non-null non-empty ordered operand descriptors
+     * @param outputCount exact canonical output count, one
+     * @param sink non-null synchronous consumer of checked operation and complete output metadata
+     * @throws NullPointerException if a required reference or input descriptor is null
+     * @throws IllegalArgumentException if cardinality or ordinary composition guards reject input
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(operation, "operation");
+        Objects.requireNonNull(inputs, "inputs");
+        Objects.requireNonNull(sink, "sink");
+        if (inputs.isEmpty() || outputCount != 1) {
+            throw new IllegalArgumentException("invalid ordinary descriptor cardinality");
+        }
+        List<TensorDescriptor> snapshot = List.copyOf(inputs);
+        int axis = ((CompositionAxisAttrs) operation.attrs()).axis();
+        switch ((TensorCompositionKind) operation.kind()) {
+            case CONCAT -> concatDescriptors(
+                    axis, snapshot, java.util.function.Function.identity(), null, sink);
+            case STACK -> stackDescriptors(
+                    axis, snapshot, java.util.function.Function.identity(), null, sink);
+        }
+    }
+
+
+    /**
+     * Shares existing collection guards without a real-path descriptor wrapper list.
+     * @param <T> operand representation, Tensor or TensorDescriptor
+     * @param axis ordinary requested composition axis
+     * @param snapshot immutable ordered operands retaining aliases and positions
+     * @param descriptorOf stateless access to exact operand metadata
+     * @param realInputs exact real provenance inputs, unused for descriptor completion
+     * @param descriptorCheck synchronous unretained sink, or null for real construction
+     * @return the real result, or null after descriptor completion
+     */
+    private static <T> Tensor concatDescriptors(int axis, List<T> snapshot,
+            java.util.function.Function<T, TensorDescriptor> descriptorOf, List<Tensor> realInputs,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        TensorDescriptor firstDescriptor = descriptorOf.apply(snapshot.getFirst());
+        Shape firstShape = firstDescriptor.shape();
+        DataType dataType = firstDescriptor.dataType();
+        int normalizedAxis = normalizeExistingAxis("concat", axis, firstShape.rank());
+        boolean requiresGrad = false;
+        for (int inputIndex = 0; inputIndex < snapshot.size(); inputIndex++) {
+            TensorDescriptor descriptor = descriptorOf.apply(snapshot.get(inputIndex));
+            if (descriptor.dataType() != dataType) {
+                throw new IllegalArgumentException(
+                        "concat inputs must have matching data types: inputs[" + inputIndex
+                                + "] is " + descriptor.dataType() + ", expected " + dataType);
+            }
+            Shape shape = descriptor.shape();
+            if (shape.rank() != firstShape.rank()) {
+                throw new IllegalArgumentException(
+                        "concat inputs must have matching ranks: inputs[" + inputIndex + "] has "
+                                + shape.rank() + ", expected " + firstShape.rank());
+            }
+            for (int shapeAxis = 0; shapeAxis < shape.rank(); shapeAxis++) {
+                if (shapeAxis != normalizedAxis
+                        && !shape.dimensions().get(shapeAxis)
+                                .equals(firstShape.dimensions().get(shapeAxis))) {
+                    throw new IllegalArgumentException(
+                            "concat inputs differ at non-concat axis " + shapeAxis + ": inputs["
+                                    + inputIndex + "]");
+                }
+            }
+            requiresGrad |= descriptor.requiresGrad();
+        }
+        Shape resultShape = concatShape(snapshot, firstShape, normalizedAxis, descriptorOf);
+        Operation operation = new Operation(
+                TensorCompositionKind.CONCAT, new CompositionAxisAttrs(normalizedAxis));
+        return createChecked(dataType, resultShape, requiresGrad, operation, realInputs, descriptorCheck);
+    }
+
+    /**
+     * Shares existing collection guards without a real-path descriptor wrapper list.
+     * @param <T> operand representation, Tensor or TensorDescriptor
+     * @param axis ordinary requested composition axis
+     * @param snapshot immutable ordered operands retaining aliases and positions
+     * @param descriptorOf stateless access to exact operand metadata
+     * @param realInputs exact real provenance inputs, unused for descriptor completion
+     * @param descriptorCheck synchronous unretained sink, or null for real construction
+     * @return the real result, or null after descriptor completion
+     */
+    private static <T> Tensor stackDescriptors(int axis, List<T> snapshot,
+            java.util.function.Function<T, TensorDescriptor> descriptorOf, List<Tensor> realInputs,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        TensorDescriptor firstDescriptor = descriptorOf.apply(snapshot.getFirst());
+        Shape firstShape = firstDescriptor.shape();
+        DataType dataType = firstDescriptor.dataType();
+        int normalizedAxis = normalizeInsertionAxis(axis, firstShape.rank());
+        boolean requiresGrad = false;
+        for (int inputIndex = 0; inputIndex < snapshot.size(); inputIndex++) {
+            TensorDescriptor descriptor = descriptorOf.apply(snapshot.get(inputIndex));
+            if (descriptor.dataType() != dataType) {
+                throw new IllegalArgumentException(
+                        "stack inputs must have matching data types: inputs[" + inputIndex
+                                + "] is " + descriptor.dataType() + ", expected " + dataType);
+            }
+            if (!descriptor.shape().equals(firstShape)) {
+                throw new IllegalArgumentException(
+                        "stack inputs must have identical shapes: inputs[" + inputIndex
+                                + "] differs from inputs[0]");
+            }
+            requiresGrad |= descriptor.requiresGrad();
+        }
+        Shape resultShape = stackShape(firstShape, normalizedAxis, snapshot.size());
+        Operation operation = new Operation(
+                TensorCompositionKind.STACK, new CompositionAxisAttrs(normalizedAxis));
+        return createChecked(dataType, resultShape, requiresGrad, operation, realInputs, descriptorCheck);
     }
 }

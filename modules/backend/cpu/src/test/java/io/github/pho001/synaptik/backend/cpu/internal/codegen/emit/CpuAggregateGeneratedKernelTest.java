@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuAggregateLoweringTest;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuScatterLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
@@ -18,10 +20,13 @@ import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Scan;
+import io.github.pho001.synaptik.model.tensor.ScanBody;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -39,6 +44,165 @@ import java.lang.classfile.constantpool.MethodHandleEntry;
 import java.lang.reflect.AccessFlag;
 
 class CpuAggregateGeneratedKernelTest {
+    @Test void controlledTerminalSumSkipsPoisonBeforeLoadsAndKeepsRepresentedRounding()
+            throws Throwable {
+        var base = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM, DataType.FLOAT32,
+                Shape.of(3, 3), NoOperationAttrs.INSTANCE, Shape.scalar());
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY)));
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
+        var route = plan.units().getFirst().portablePlan();
+        var row = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(0, 3);
+        var shared = io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row.shared();
+        var facts = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl(
+                List.of(row, shared), List.of(row, shared));
+        float[] input = {1e20f, 1f, -1e20f, Float.NaN, Float.NaN, Float.NaN, 3f, 4f, 5f};
+        float[] output = {-19f};
+        invokeControlledAggregate(route, facts, input, output,
+                plan.aggregateGeometry().orElseThrow().pack(new long[2]), true, true, false, true);
+        assertArrayEquals(new float[]{12f}, output,
+                "inactive poison is never a factor; active factors retain sequential rounding");
+        output[0] = -19f;
+        invokeControlledAggregate(route, facts, input, output,
+                plan.aggregateGeometry().orElseThrow().pack(new long[2]), false, true, true, true);
+        assertArrayEquals(new float[]{-19f}, output, "owner absence dominates the reduction");
+    }
+
+    @Test void controlledNonleadingRowOutputSkipsEagerReadsButRetainsOrdinaryExactSum()
+            throws Throwable {
+        var base = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM, DataType.FLOAT32,
+                Shape.of(2, 3, 3), new AxisReductionAttrs(2, false), Shape.of(2, 3));
+        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+                        List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.FLOAT_ARRAY)));
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
+        var inputRow = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(1, 3);
+        var outputRow = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(1, 1);
+        var facts = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl(
+                List.of(inputRow, outputRow), List.of(inputRow, outputRow));
+        float[] input = {1e20f, 1f, -1e20f, Float.NaN, Float.NaN, Float.NaN, 2, 3, 4,
+                1e20f, 1f, -1e20f, Float.NaN, Float.NaN, Float.NaN, 5, 6, 7};
+        float[] output = {-19, -19, -19, -19, -19, -19};
+        invokeControlledAggregate(plan.units().getFirst().portablePlan(), facts,
+                MemorySegment.ofArray(input), output,
+                plan.aggregateGeometry().orElseThrow().pack(new long[2]), true, true, false, true);
+        assertArrayEquals(new float[]{1, -19, 9, 1, -19, 18}, output);
+    }
+
+    @Test void controlledSymbolicNonleadingTerminalUsesActualRowsAndCanonicalOrder()
+            throws Throwable {
+        Shape source = Shape.ofDimensions(new io.github.pho001.synaptik.model.shape.StaticDimension(2),
+                new io.github.pho001.synaptik.model.shape.DynamicDimension("B"),
+                new io.github.pho001.synaptik.model.shape.StaticDimension(2));
+        var route = CpuOrdinaryDynamicBatchTest.aggregateTyped(DataType.FLOAT64,
+                new Operation(AggregateReductionKind.SUM,
+                        new MultiAxisReductionAttrs(List.of(0, 1), false)), source, Shape.of(2));
+        var row = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(1, 2);
+        var shared = io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row.shared();
+        var facts = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl(
+                List.of(row, shared), List.of(row, shared));
+        double[] input = {1e100, 2, Double.NaN, Double.NaN, 1, 3,
+                -1e100, 4, Double.NaN, Double.NaN, 7, 5};
+        double[] output = {-19, -19};
+        invokeControlledAggregate(route, facts, MemorySegment.ofArray(input),
+                MemorySegment.ofArray(output), route.batchAggregate().orElseThrow().bind(3)
+                        .pack(new long[2]), true, true, false, true);
+        assertArrayEquals(new double[]{7, 14}, output);
+    }
+
+    @Test void controlledEmptyOccurrenceAndSingletonCopyDoNotInferPresenceFromContributors()
+            throws Throwable {
+        var emptyBase = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM, DataType.FLOAT32,
+                Shape.of(0, 3), NoOperationAttrs.INSTANCE, Shape.scalar());
+        var emptyPlan = new CpuPartitionPreparer().analyze(emptyBase).plan();
+        var row = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(0, 3);
+        var shared = io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row.shared();
+        var emptyFacts = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl(
+                List.of(row, shared), List.of(row, shared));
+        float[] output = {-19};
+        var emptyRoute = emptyPlan.units().getFirst().portablePlan();
+        Object emptyInput = emptyRoute.specialization().carrierPattern().getFirst()
+                == CarrierAccess.MEMORY_SEGMENT ? MemorySegment.ofArray(new float[0]) : new float[0];
+        Object emptyOutput = emptyRoute.specialization().carrierPattern().getLast()
+                == CarrierAccess.MEMORY_SEGMENT ? MemorySegment.ofArray(output) : output;
+        invokeControlledAggregate(emptyRoute, emptyFacts, emptyInput, emptyOutput,
+                emptyPlan.aggregateGeometry().orElseThrow().pack(new long[2]), true);
+        assertEquals(0, Float.floatToRawIntBits(output[0]),
+                "a present all-valid empty occurrence still completes positive zero");
+
+        var route = CpuOrdinaryDynamicBatchTest.aggregateTyped(DataType.FLOAT64,
+                new Operation(AggregateReductionKind.SUM, new SumToShapeAttrs(Shape.of(1, 3))),
+                CpuOrdinaryDynamicBatchTest.symbolic(3), Shape.of(1, 3));
+        var singletonFacts = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl(
+                List.of(row, shared), List.of(row, shared));
+        double[] input = {-0d, Double.longBitsToDouble(0x7ff8123456789abcL), Double.MIN_VALUE};
+        double[] copied = new double[3];
+        invokeControlledAggregate(route, singletonFacts, MemorySegment.ofArray(input),
+                MemorySegment.ofArray(copied), route.batchAggregate().orElseThrow().bind(1)
+                        .pack(new long[2]), true, true);
+        assertEquals(-1, MemorySegment.ofArray(input).mismatch(MemorySegment.ofArray(copied)));
+    }
+
+    /**
+     * Emits and invokes the real controlled ordinary helper with a separate occurrence header.
+     * @param route selected ordinary route
+     * @param facts proved actual boundary provenance
+     * @param input input with the selected carrier
+     * @param output output with the selected carrier
+     * @param geometry invocation-owned ordinary pack
+     * @param present complete-occurrence presence independent of the row-bit count
+     * @param active original-row activity bits
+     * @throws Throwable if generation, linkage, or generated numerical execution fails
+     */
+    private static void invokeControlledAggregate(
+            io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan route,
+            io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl facts,
+            Object input, Object output, long[] geometry, boolean present, boolean... active)
+            throws Throwable {
+        invokeControlledAggregateBoundaries(route, facts, List.of(input, output), geometry, present, active);
+    }
+
+    /**
+     * Invokes a generated aggregate or aggregate-fusion helper with its actual boundary inventory.
+     * @param route selected ordinary route
+     * @param facts proved actual boundary and removed-producing-value provenance
+     * @param boundaries selected carriers in exact ABI order, including output
+     * @param geometry invocation-owned ordinary or fusion pack
+     * @param present complete-occurrence presence independent of contributor count
+     * @param active original-row activity bits
+     * @throws Throwable if generation, linkage, or generated numerical execution fails
+     */
+    static void invokeControlledAggregateBoundaries(
+            io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan route,
+            io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl facts,
+            List<?> boundaries, long[] geometry, boolean present, boolean... active) throws Throwable {
+        var owner = java.lang.constant.ClassDesc.of(
+                "io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.ControlledAggregateFixture");
+        var inventory = new ArrayList<CpuClassFileKernelGenerator.GeneratedMethod>();
+        byte[] bytes = ClassFile.of().build(owner, builder -> {
+            builder.withVersion(ClassFile.JAVA_26_VERSION, 0).withFlags(AccessFlag.FINAL);
+            inventory.addAll(CpuClassFileKernelGenerator.emitMethods(builder, owner, "",
+                    route.specialization(), route.kernelIr(), facts));
+        });
+        var lookup = java.lang.invoke.MethodHandles.lookup().defineHiddenClass(bytes, true);
+        var declaration = inventory.getLast();
+        var methodType = java.lang.invoke.MethodType.fromMethodDescriptorString(
+                declaration.type().descriptorString(), lookup.lookupClass().getClassLoader());
+        var entry = lookup.findStatic(lookup.lookupClass(), declaration.name(), methodType);
+        try (var arena = Arena.ofConfined()) {
+            var control = arena.allocate(16L + active.length, 8);
+            control.set(ValueLayout.JAVA_BYTE, 0, (byte) (present ? 1 : 0));
+            control.set(ValueLayout.JAVA_LONG_UNALIGNED, 8, active.length);
+            for (int i = 0; i < active.length; i++)
+                control.set(ValueLayout.JAVA_BYTE, 16L + i, (byte) (active[i] ? 1 : 0));
+            var arguments = new ArrayList<Object>(boundaries);
+            if (route.specialization().scratchParameter()) arguments.add(arena.allocate(4096, 8));
+            arguments.add(geometry); arguments.add(0L); arguments.add(geometry[6]); arguments.add(control);
+            entry.invokeWithArguments(arguments);
+        }
+    }
+
     @Test void sumToShapeGeneratedBodiesCoverFiveTypesAndRepresentedCopy() throws Throwable {
         Shape source = Shape.of(2,3,4), target = Shape.of(3,1);
         var attrs = new SumToShapeAttrs(target);
@@ -73,12 +237,13 @@ class CpuAggregateGeneratedKernelTest {
                 List.of(inputDescriptor), outputDescriptor);
         PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
                 CarrierAccess.SHORT_ARRAY)));
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
         byte[] firstBytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
         byte[] secondBytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
-        var artifact = generator.defineClassBytes(route.specialization(), firstBytes);
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), firstBytes);
         short[] physical = new short[32];
         for (int i = 0; i < physical.length; i++) physical[i] = (short) ((i & 1) == 0
                 ? 0x3f80 : 0xbf80);
@@ -118,8 +283,7 @@ class CpuAggregateGeneratedKernelTest {
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         float[] physical = new float[9];
         int[] bits = {0x7fa12345, 0x80000000, 0xffa54321, 0x00000001};
         for (int i = 0; i < bits.length; i++) physical[1 + 2 * i] = Float.intBitsToFloat(bits[i]);
@@ -140,16 +304,16 @@ class CpuAggregateGeneratedKernelTest {
     @Test void sumToShapeEvidenceMatrixHasTypedDeterministicSelfContainedClassFiles() {
         var f64 = sumToShapeRoute(DataType.FLOAT64, Shape.of(64,128,256), Shape.of(128,1),
                 List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY));
-        var bf16 = sumToShapeRoute(DataType.BFLOAT16, Shape.of(2,3,4), Shape.of(3,1),
-                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.SHORT_ARRAY));
+        assertThrows(IllegalArgumentException.class, () -> sumToShapeRoute(DataType.BFLOAT16,
+                Shape.of(2,3,4), Shape.of(3,1),
+                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.SHORT_ARRAY)));
         var i64 = sumToShapeRoute(DataType.INT64, Shape.of(8,16), Shape.of(8,1),
                 List.of(CarrierAccess.LONG_ARRAY, CarrierAccess.LONG_ARRAY));
         var copy = sumToShapeRoute(DataType.FLOAT32, Shape.of(32,32), Shape.of(32,32),
                 List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY));
         var generator = new CpuClassFileKernelGenerator();
-        var routes = List.of(f64, bf16, i64, copy);
+        var routes = List.of(f64, i64, copy);
         var descriptors = List.of("([D[DLjava/lang/foreign/MemorySegment;[JJJ)V",
-                "(Ljava/lang/foreign/MemorySegment;[SLjava/lang/foreign/MemorySegment;[JJJ)V",
                 "([J[J[JJJ)V", "([F[F[JJJ)V");
         for (int index = 0; index < routes.size(); index++) {
             int current = index;
@@ -208,11 +372,12 @@ class CpuAggregateGeneratedKernelTest {
                 List.of(inputDescriptor), outputDescriptor);
         PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
                 CarrierAccess.SHORT_ARRAY)));
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
         byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
-        var artifact = generator.defineClassBytes(route.specialization(), bytes);
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes);
 
         short[] physical = new short[64 * 64 * 64];
         java.util.Arrays.fill(physical, (short) 0x4000);
@@ -274,6 +439,7 @@ class CpuAggregateGeneratedKernelTest {
                 List.of(inputDescriptor), outputDescriptor);
         PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
                 CarrierAccess.SHORT_ARRAY)));
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
                 .portablePlan();
         var model = ClassFile.of().parse(new CpuClassFileKernelGenerator().generateClassBytes(
@@ -332,8 +498,7 @@ class CpuAggregateGeneratedKernelTest {
         var meanPlan = new CpuPartitionPreparer().analyze(meanContext).plan();
         var meanRoute = meanPlan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var meanArtifact = generator.defineClassBytes(meanRoute.specialization(),
-                generator.generateClassBytes(meanRoute.specialization(), meanRoute.kernelIr()));
+        var meanArtifact = generator.defineClassBytes(meanRoute.specialization(), meanRoute.kernelIr(), generator.generateClassBytes(meanRoute.specialization(), meanRoute.kernelIr()));
 
         Shape productInputShape = Shape.of(4, 16_384, 4);
         Shape productOutputShape = Shape.of(1, 16_384, 1);
@@ -347,11 +512,8 @@ class CpuAggregateGeneratedKernelTest {
                 List.of(productInputDescriptor), productOutputDescriptor);
         PrepareContext<CpuPartitionAnalysisInputs> productContext = new PrepareContext<>(productBase.partition(), productBase.nodes(), productBase.values(), productBase.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.MEMORY_SEGMENT)));
-        var productPlan = new CpuPartitionPreparer().analyze(productContext).plan();
-        var productRoute = productPlan.units().getFirst().portablePlan();
-        var productArtifact = generator.defineClassBytes(productRoute.specialization(),
-                generator.generateClassBytes(productRoute.specialization(),
-                        productRoute.kernelIr()));
+        assertTrue(io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                .assertLowUnsupported(productContext));
 
         try (var arena = Arena.ofConfined()) {
             int meanPhysicalCount = 3 + 2 * 128 * 2048;
@@ -390,37 +552,6 @@ class CpuAggregateGeneratedKernelTest {
             meanArtifact.entryPoint().invokeWithArguments(meanInput, meanActual, meanScratch,
                     meanGeometry, 91L, 128L);
 
-            short[] productInput = new short[4 * 16_384 * 4];
-            java.util.Arrays.fill(productInput, (short) 0x3f80);
-            productInput[4] = (short) 0xbf80;
-            productInput[8] = (short) 0x8000;
-            productInput[12] = (short) 0x7f80;
-            productInput[(3 * 16_384) * 4 + 12] = 0;
-            productInput[16] = (short) 0xff81;
-            int productPhysicalCount = 3 + 2 * 16_384;
-            MemorySegment productExpected = arena.allocate(
-                    (long) productPhysicalCount * Short.BYTES, Short.BYTES).fill((byte) 0x5a);
-            MemorySegment productActual = arena.allocate(
-                    (long) productPhysicalCount * Short.BYTES, Short.BYTES).fill((byte) 0x5a);
-            CpuScalarReferenceKernel.execute((CpuAggregateIr) productRoute.portableKernelIr(),
-                    productPlan.aggregateGeometry().orElseThrow(), List.of(
-                            new CpuBufferArgument.Shorts(productInput, 0,
-                                    (long) productInput.length * Short.BYTES, true),
-                            new CpuBufferArgument.Segment(DataType.BFLOAT16, productExpected,
-                                    productExpected.byteSize(), false)));
-            long productBytes = productPlan.aggregateGeometry().orElseThrow().workspaceBytes(1);
-            MemorySegment productOwner = arena.allocate(productBytes + 16, 8).fill((byte) 0x5a);
-            MemorySegment productScratch = productOwner.asSlice(8, productBytes);
-            long[] productGeometry = productPlan.aggregateGeometry().orElseThrow()
-                    .pack(new long[2]);
-            productArtifact.entryPoint().invokeWithArguments(productInput, productActual,
-                    productScratch, productGeometry, 0L, 0L);
-            productArtifact.entryPoint().invokeWithArguments(productInput, productActual,
-                    productScratch, productGeometry, 0L, 4097L);
-            productArtifact.entryPoint().invokeWithArguments(productInput, productActual,
-                    productScratch, productGeometry, 4097L, 12_001L);
-            productArtifact.entryPoint().invokeWithArguments(productInput, productActual,
-                    productScratch, productGeometry, 12_001L, 16_384L);
 
             int[] expectedMeanBits = new int[meanExpected.length];
             int[] actualMeanBits = new int[meanActual.length];
@@ -430,15 +561,10 @@ class CpuAggregateGeneratedKernelTest {
             }
             assertAll(
                     () -> assertArrayEquals(expectedMeanBits, actualMeanBits),
-                    () -> assertEquals(-1L, productExpected.mismatch(productActual)),
                     () -> assertEquals((byte) 0x5a,
                             meanOwner.get(ValueLayout.JAVA_BYTE, 0)),
                     () -> assertEquals((byte) 0x5a,
-                            meanOwner.get(ValueLayout.JAVA_BYTE, meanBytes + 15)),
-                    () -> assertEquals((byte) 0x5a,
-                            productOwner.get(ValueLayout.JAVA_BYTE, 0)),
-                    () -> assertEquals((byte) 0x5a,
-                            productOwner.get(ValueLayout.JAVA_BYTE, productBytes + 15)));
+                            meanOwner.get(ValueLayout.JAVA_BYTE, meanBytes + 15)));
         }
     }
 
@@ -469,20 +595,15 @@ class CpuAggregateGeneratedKernelTest {
                 List.of(productInputDescriptor), productOutputDescriptor);
         PrepareContext<CpuPartitionAnalysisInputs> productContext = new PrepareContext<>(productBase.partition(), productBase.nodes(), productBase.values(), productBase.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.MEMORY_SEGMENT)));
-        var productRoute = new CpuPartitionPreparer().analyze(productContext).plan().units()
-                .getFirst().portablePlan();
+        assertTrue(io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                .assertLowUnsupported(productContext));
 
         var generator = new CpuClassFileKernelGenerator();
         var meanModel = ClassFile.of().parse(generator.generateClassBytes(
                 meanRoute.specialization(), meanRoute.kernelIr()));
-        var productModel = ClassFile.of().parse(generator.generateClassBytes(
-                productRoute.specialization(), productRoute.kernelIr()));
         assertBoundedNumericalArtifact(meanModel,
                 "(Ljava/lang/foreign/MemorySegment;[FLjava/lang/foreign/MemorySegment;[JJJ)V",
                 true);
-        assertBoundedNumericalArtifact(productModel,
-                "([SLjava/lang/foreign/MemorySegment;Ljava/lang/foreign/MemorySegment;[JJJ)V",
-                false);
     }
 
     @Test void zeroStrideAnyVisitsTheFullDomainInOneDirectPrimitiveLoopAndRetainsFallback()
@@ -503,7 +624,7 @@ class CpuAggregateGeneratedKernelTest {
         byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
         var model = ClassFile.of().parse(bytes);
         var code = model.methods().getFirst().code().orElseThrow();
-        var artifact = generator.defineClassBytes(route.specialization(), bytes);
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes);
         byte[] physical = {1, 0, 1, 0, 0, 1};
         byte[] full = new byte[13], ranged = new byte[13];
         java.util.Arrays.fill(full, (byte) -1);
@@ -675,6 +796,38 @@ class CpuAggregateGeneratedKernelTest {
                 Shape.scalar(), new byte[]{0, 0, 1, 0});
     }
 
+    /** Shared aggregate ownership must not substitute exact ordinary math for Scan's represented fold. */
+    @Test void commonOwnerRetainsExactOrdinaryAndSequentialScanCancellationAlgorithms() throws Throwable {
+        for (DataType type : List.of(DataType.FLOAT32,DataType.FLOAT64)) {
+            Object values = type == DataType.FLOAT32 ? new float[]{1e20f,1f,-1e20f} : new double[]{1e20,1,-1e20};
+            Object exact = invoke(AggregateReductionKind.SUM,type,Shape.of(3),NoOperationAttrs.INSTANCE,Shape.scalar(),values);
+            assertEquals(1d,type == DataType.FLOAT32 ? ((float[])exact)[0] : ((double[])exact)[0]);
+            var h = CpuGeneralScanLoweringTest.tensor(type,false,3);
+            var x = CpuGeneralScanLoweringTest.tensor(type,false,3);
+            var scan = Scan.apply(List.of(
+                    CpuGeneralScanLoweringTest.tensor(type,false,3)),
+                    List.of(CpuGeneralScanLoweringTest.tensor(type,false,1,3)),
+                    List.of(),new ScanBody(List.of(h),List.of(x),List.of(),List.of(h),List.of(x.sum())),false);
+            var facts = CpuGeneralScanLowering.analyze(
+                    CpuGeneralScanLoweringTest.query(scan.outputs()));
+            var generated = CpuGeneralScanGeneratedKernelTest.generated(facts);
+            try (var arena = Arena.ofConfined()) {
+                var args = new ArrayList<Object>();
+                for (long span : facts.spans()) args.add(arena.allocate(span*type.byteWidth(),type.byteWidth()));
+                MemorySegment sequence = (MemorySegment)args.get(facts.ir().actualReads().get(1));
+                for (int i = 0; i < 3; i++) {
+                    if (type == DataType.FLOAT32) sequence.setAtIndex(ValueLayout.JAVA_FLOAT,i,((float[])values)[i]);
+                    else sequence.setAtIndex(ValueLayout.JAVA_DOUBLE,i,((double[])values)[i]);
+                }
+                MemorySegment output = (MemorySegment)args.get(facts.ir().scalarReads().size());
+                if (generated.specialization().scratchParameter()) args.add(arena.allocate(facts.geometry().scratchBytes(),type.byteWidth()));
+                args.add(facts.pack(3)); args.add(0L); args.add(3L);
+                generated.entryPoint().invokeWithArguments(args);
+                assertEquals(0d,type == DataType.FLOAT32 ? output.getAtIndex(ValueLayout.JAVA_FLOAT,0) : output.getAtIndex(ValueLayout.JAVA_DOUBLE,0));
+            }
+        }
+    }
+
     @Test void numericalAggregatesRoundExactFiniteValuesAndCanonicalizeSpecialValues()
             throws Throwable {
         double[] cancellation = (double[]) invoke(AggregateReductionKind.SUM, DataType.FLOAT64,
@@ -829,9 +982,9 @@ class CpuAggregateGeneratedKernelTest {
                 new AxisReductionAttrs(1,false)), List.of(0), List.of(inputDescriptor), outputDescriptor);
         PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.MEMORY_SEGMENT,
                 CarrierAccess.FLOAT_ARRAY)));
-        var plan = new CpuPartitionPreparer().analyze(context).plan(); var route = plan.units().getFirst().portablePlan();
-        var generator = new CpuClassFileKernelGenerator(); var artifact = generator.defineClassBytes(
-                route.specialization(),generator.generateClassBytes(route.specialization(),route.kernelIr()));
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
+        var route = plan.units().getFirst().portablePlan();
+        var generator = new CpuClassFileKernelGenerator(); var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         try (var arena = Arena.ofConfined()) {
             var segment = arena.allocate(6L*Float.BYTES,Float.BYTES);
             float[] physical={1,4,2,5,3,6};
@@ -856,8 +1009,7 @@ class CpuAggregateGeneratedKernelTest {
                 CarrierAccess.FLOAT_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
-        var generator = new CpuClassFileKernelGenerator(); var artifact = generator.defineClassBytes(
-                route.specialization(),generator.generateClassBytes(route.specialization(),route.kernelIr()));
+        var generator = new CpuClassFileKernelGenerator(); var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         try (var arena = Arena.ofConfined()) {
             var segment = arena.allocate(6L*Float.BYTES,Float.BYTES);
             float[] physical={1,4,2,5,3,6};
@@ -877,8 +1029,7 @@ class CpuAggregateGeneratedKernelTest {
                 CarrierAccess.DOUBLE_ARRAY)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(),route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         double[] input={1,2,3,4,5,6,7,8,9,10,11,12};
         double[] output={-7,-7,-7,-7};
         try (var arena = Arena.ofConfined()) {
@@ -899,9 +1050,9 @@ class CpuAggregateGeneratedKernelTest {
                 new AxisReductionAttrs(1,false)),List.of(0),List.of(inputDescriptor),outputDescriptor);
         PrepareContext<CpuPartitionAnalysisInputs> context=new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,List.of(CarrierAccess.FLOAT_ARRAY,
                 CarrierAccess.FLOAT_ARRAY)));
-        var plan=new CpuPartitionPreparer().analyze(context).plan(); var route=plan.units().getFirst().portablePlan();
-        var generator=new CpuClassFileKernelGenerator(); var artifact=generator.defineClassBytes(
-                route.specialization(),generator.generateClassBytes(route.specialization(),route.kernelIr()));
+        var plan=new CpuPartitionPreparer().analyze(context).plan();
+        var route = plan.units().getFirst().portablePlan();
+        var generator=new CpuClassFileKernelGenerator(); var artifact=generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         float[] input={-0.0f,0.0f,Float.intBitsToFloat(0x7fc00042),-3,4,-5,
                 Float.POSITIVE_INFINITY,Float.NEGATIVE_INFINITY};
         float[] full=new float[8], ranged=new float[8];
@@ -917,6 +1068,7 @@ class CpuAggregateGeneratedKernelTest {
 
     private static void compare(AggregateReductionKind kind, DataType type, Shape inputShape,
             OperationAttrs attrs, Shape outputShape, Object input) throws Throwable {
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(kind == AggregateReductionKind.SUM || kind == AggregateReductionKind.MEAN || kind == AggregateReductionKind.PROD ? type : DataType.FLOAT32, () -> {
         Object actual = invoke(kind, type, inputShape, attrs, outputShape, input);
         Object expected = java.lang.reflect.Array.newInstance(input.getClass().componentType(),
                 Math.toIntExact(outputShape.knownElementCount().orElseThrow()));
@@ -940,6 +1092,7 @@ class CpuAggregateGeneratedKernelTest {
         else if (expected instanceof int[] a) assertArrayEquals(a,(int[])actual);
         else if (expected instanceof long[] a) assertArrayEquals(a,(long[])actual);
         else assertArrayEquals((byte[])expected,(byte[])actual);
+        });
     }
 
     private static Object invoke(AggregateReductionKind kind, DataType type, Shape inputShape,
@@ -949,8 +1102,7 @@ class CpuAggregateGeneratedKernelTest {
         PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,List.of(carrier,carrier)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(),route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         Object output = java.lang.reflect.Array.newInstance(input.getClass().componentType(),
                 Math.toIntExact(outputShape.knownElementCount().orElseThrow()));
         long[] packed = plan.aggregateGeometry().orElseThrow().pack(new long[2]);
@@ -1029,6 +1181,7 @@ class CpuAggregateGeneratedKernelTest {
                 NoOperationAttrs.INSTANCE, Shape.scalar());
         CarrierAccess carrier = carrier(type);
         PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(carrier, carrier)));
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst().portablePlan();
         var model = ClassFile.of().parse(new CpuClassFileKernelGenerator().generateClassBytes(
                 route.specialization(), route.kernelIr()));

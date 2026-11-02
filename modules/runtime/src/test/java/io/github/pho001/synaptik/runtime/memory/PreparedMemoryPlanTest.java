@@ -33,7 +33,7 @@ class PreparedMemoryPlanTest {
                 () -> assertTrue(Modifier.isPublic(type.getModifiers())),
                 () -> assertTrue(Modifier.isFinal(type.getModifiers())),
                 () -> assertTrue(type.isRecord()),
-                () -> assertEquals(2, components.length),
+                () -> assertEquals(3, components.length),
                 () -> assertEquals("buffers", components[0].getName()),
                 () -> assertEquals(List.class, components[0].getType()),
                 () -> assertGenericListComponent(components[0], PreparedMemoryPlan.BufferEntry.class),
@@ -41,11 +41,13 @@ class PreparedMemoryPlanTest {
                 () -> assertEquals(List.class, components[1].getType()),
                 () -> assertGenericListComponent(
                         components[1], PreparedMemoryPlan.WorkspaceEntry.class),
-                () -> assertEquals(2, type.getDeclaredFields().length),
-                () -> assertEquals(1, type.getDeclaredConstructors().length),
+                () -> assertEquals("requiresBatchSize", components[2].getName()),
+                () -> assertEquals(boolean.class, components[2].getType()),
+                () -> assertEquals(3, type.getDeclaredFields().length),
+                () -> assertEquals(2, type.getDeclaredConstructors().length),
                 () -> assertArrayEquals(
                         new Class<?>[] {List.class, List.class},
-                        type.getDeclaredConstructors()[0].getParameterTypes()),
+                        type.getConstructor(List.class, List.class).getParameterTypes()),
                 () -> assertTrue(
                         Modifier.isPublic(type.getDeclaredConstructors()[0].getModifiers())),
                 () -> assertEquals(0, type.getInterfaces().length),
@@ -53,10 +55,12 @@ class PreparedMemoryPlanTest {
                 () -> assertEquals(
                         Set.of(
                                 PreparedMemoryPlan.BufferEntry.class,
+                                PreparedMemoryPlan.ByteSize.class,
+                                PreparedMemoryPlan.FixedByteSize.class,
                                 PreparedMemoryPlan.WorkspaceEntry.class),
                         Set.of(nestedTypes)),
                 () -> assertEquals(
-                        Set.of("buffers", "workspaces", "equals", "hashCode", "toString"),
+                        Set.of("buffers", "workspaces", "requiresBatchSize", "equals", "hashCode", "toString"),
                         publicMethodNames(type)));
     }
 
@@ -341,10 +345,10 @@ class PreparedMemoryPlanTest {
                 () -> assertEquals(first.hashCode(), equal.hashCode()),
                 () -> assertNotEquals(first, different),
                 () -> assertEquals(
-                        "BufferEntry[slot=BufferSlot[value=2], byteSize=16, byteAlignment=8]",
+                        "BufferEntry[slot=BufferSlot[value=2], size=FixedByteSize[bytes=16], byteAlignment=8]",
                         buffer.toString()),
                 () -> assertEquals(
-                        "WorkspaceEntry[slot=WorkspaceSlot[value=3], byteSize=32, "
+                        "WorkspaceEntry[slot=WorkspaceSlot[value=3], size=FixedByteSize[bytes=32], "
                                 + "byteAlignment=16]",
                         workspace.toString()),
                 () -> assertEquals(
@@ -352,7 +356,7 @@ class PreparedMemoryPlanTest {
                                 + buffer
                                 + "], workspaces=["
                                 + workspace
-                                + "]]",
+                                + "], requiresBatchSize=false]",
                         first.toString()));
     }
 
@@ -377,15 +381,15 @@ class PreparedMemoryPlanTest {
                 () -> assertEquals(3, components.length),
                 () -> assertEquals("slot", components[0].getName()),
                 () -> assertEquals(slotType, components[0].getType()),
-                () -> assertEquals("byteSize", components[1].getName()),
-                () -> assertEquals(long.class, components[1].getType()),
+                () -> assertEquals("size", components[1].getName()),
+                () -> assertEquals(PreparedMemoryPlan.ByteSize.class, components[1].getType()),
                 () -> assertEquals("byteAlignment", components[2].getName()),
                 () -> assertEquals(long.class, components[2].getType()),
                 () -> assertEquals(3, type.getDeclaredFields().length),
-                () -> assertEquals(1, type.getDeclaredConstructors().length),
+                () -> assertEquals(2, type.getDeclaredConstructors().length),
                 () -> assertArrayEquals(
                         new Class<?>[] {slotType, long.class, long.class},
-                        type.getDeclaredConstructors()[0].getParameterTypes()),
+                        type.getConstructor(slotType, long.class, long.class).getParameterTypes()),
                 () -> assertTrue(
                         Modifier.isPublic(type.getDeclaredConstructors()[0].getModifiers())),
                 () -> assertEquals(0, type.getInterfaces().length),
@@ -395,6 +399,7 @@ class PreparedMemoryPlanTest {
                         Set.of(
                                 "slot",
                                 "byteSize",
+                                "size",
                                 "byteAlignment",
                                 "equals",
                                 "hashCode",

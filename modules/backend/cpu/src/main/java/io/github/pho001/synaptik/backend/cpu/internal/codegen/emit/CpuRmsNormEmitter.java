@@ -15,6 +15,9 @@ import java.lang.constant.ClassDesc;
  * and concrete carriers. The first emitted pass derives an overflow-resistant uncentered root;
  * the second normalizes, optionally scales, and stores each result once. RMS execution declares
  * no workspace and performs no run-time semantic dispatch.</p>
+ * <p>Controlled ordinary emission guards normalization slices by input provenance. Affine-introduced
+ * ROW activity independently guards each result coordinate before scale loads or publication.
+ * Uncontrolled emission adds no activity instructions.</p>
  */
 public final class CpuRmsNormEmitter {
     private static final ClassDesc MATH = ClassDesc.of(Math.class.getName());
@@ -76,6 +79,11 @@ public final class CpuRmsNormEmitter {
         code.lload(start).lstore(slice);
         var slices = code.newLabel(); var done = code.newLabel();
         code.labelBinding(slices).lload(slice).lload(end).lcmp().branch(Opcode.IFGE, done);
+        var advance = code.newLabel();
+        boolean[] omitted = new boolean[rank[inputBoundary]];
+        java.util.Arrays.fill(omitted, omitted.length - normalizedRank, omitted.length, true);
+        CpuLoopEmitter.emitActiveSliceGuard(code, inputBoundary, slice, TypeKind.LONG,
+                geometry, extent[inputBoundary], omitted, advance);
         CpuLayerNormEmitter.emitSliceBases(code, geometry, slice, normalizedRank, rank, extent,
                 stride, bases, remaining, coordinate);
         code.loadConstant(0).istore(nan).loadConstant(0).istore(infinity)
@@ -122,6 +130,9 @@ public final class CpuRmsNormEmitter {
         CpuLayerNormEmitter.emitLoop(code, geometry, normalizedRank, rank[inputBoundary], normalizedExtents,
                 hotStride[inputBoundary], bases[inputBoundary], ordinal, remaining, coordinate, address,
                 () -> {
+                    var nextResult = code.newLabel();
+                    CpuLayerNormEmitter.emitResultGuard(code, inputBoundary, boundaries - 1, slice,
+                            ordinal, domain, nextResult);
                     CpuLayerNormEmitter.load(code, carriers, specialization, inputBoundary,
                             representedInput, value, address);
                     CpuLayerNormEmitter.arithmetic(code, resultType, value, root, Opcode.DDIV, result);
@@ -139,7 +150,9 @@ public final class CpuRmsNormEmitter {
                             bases[boundaries - 1], ordinal, remaining, coordinate, address);
                     CpuNormEmitter.emitStore(code, carriers, specialization, resultType,
                             boundaries - 1, address, result, false, true);
+                    code.labelBinding(nextResult);
                 });
+        code.labelBinding(advance);
         code.lload(slice).loadConstant(1L).ladd().lstore(slice)
                 .branch(Opcode.GOTO, slices).labelBinding(done);
     }

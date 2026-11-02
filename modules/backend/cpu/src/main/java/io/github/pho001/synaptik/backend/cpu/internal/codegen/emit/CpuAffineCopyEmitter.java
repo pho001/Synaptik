@@ -28,6 +28,10 @@ import java.lang.constant.MethodTypeDesc;
  * address-pair body. Neither body converts or numerically interprets the BFLOAT16 payload. The
  * emitted hot loops follow the matching optimal clean-Java algorithm and dataflow without helper
  * dispatch, allocation, boxing, reflection, or planner/Runtime selection.</p>
+ *
+ * <p>Controlled emission reuses the general address-pair traversal, guarding the proved original
+ * result row before every source load and writing exact positive carrier zero when inactive.
+ * The retained uncontrolled entry and its guarded specializations keep their existing code shape.</p>
  */
 final class CpuAffineCopyEmitter {
     private static final ClassDesc SEGMENT = ClassDesc.of("java.lang.foreign.MemorySegment");
@@ -111,6 +115,10 @@ final class CpuAffineCopyEmitter {
      * @param ir non-null instruction-free encoded affine copy form matching the specialization
      */
     void emit(CodeBuilder code, CpuKernelSpecialization specialization, CpuKernelIr ir) {
+        if (CpuCarrierEmitter.controlFacts().isPresent()) {
+            emitGeneralLong(code, specialization, ir);
+            return;
+        }
         if (specialization.loopAddressing(ir)
                 == CpuKernelSpecialization.LoopAddressing.DENSE_HEAP_ARRAY_INT) {
             emitDenseArrayInt(code, specialization, ir);
@@ -208,6 +216,9 @@ final class CpuAffineCopyEmitter {
         int index = code.allocateLocal(TypeKind.LONG);
         int sourceAddress = code.allocateLocal(TypeKind.LONG);
         int resultAddress = code.allocateLocal(TypeKind.LONG);
+        boolean originalOrdinals = CpuCarrierEmitter.controlFacts().isPresent()
+                && ir.familyIdentity().endsWith(":DISTINCT_ADDRESSES");
+        long pairStride = originalOrdinals ? 3L : 2L;
         code.lload(3).lstore(index);
         var done = code.newLabel();
         var loop = code.newLabel();
@@ -218,10 +229,15 @@ final class CpuAffineCopyEmitter {
                                 .DENSE_LINEAR);
         if (denseResult) {
             code.lload(index).lload(5).lcmp().branch(Opcode.IFGE, done);
-            code.aload(2).lload(index).loadConstant(2L).lmul().loadConstant(1L).ladd()
+            code.aload(2).lload(index).loadConstant(pairStride).lmul().loadConstant(1L).ladd()
                     .l2i().laload().lstore(resultAddress);
             code.labelBinding(loop);
-            code.aload(2).lload(index).loadConstant(2L).lmul().l2i().laload()
+            boolean controlled = CpuCarrierEmitter.controlFacts()
+                    .map(facts -> facts.boundaryRows().get(1).rowIndexed()).orElse(false);
+            var inactive = controlled ? code.newLabel() : null;
+            var valueReady = controlled ? code.newLabel() : null;
+            emitOriginalOrdinalGuard(code, index, originalOrdinals, inactive);
+            code.aload(2).lload(index).loadConstant(pairStride).lmul().l2i().laload()
                     .lstore(sourceAddress);
             emitDirectLoad(code, type, specialization.carrierPattern().get(0), 0,
                     sourceAddress);
@@ -231,6 +247,7 @@ final class CpuAffineCopyEmitter {
                 case BFLOAT16, FLOAT16, INT32, BOOL -> code.istore(value);
                 case INT64 -> code.lstore(value);
             }
+            emitInactiveZero(code, type, value, controlled, inactive, valueReady);
             emitDirectStore(code, type, specialization.carrierPattern().get(1), 1,
                     resultAddress, value);
             code.lload(index).loadConstant(1L).ladd().lstore(index);
@@ -242,9 +259,14 @@ final class CpuAffineCopyEmitter {
         var carriers = new CpuCarrierEmitter(code);
         code.labelBinding(loop);
         code.lload(index).lload(5).lcmp().branch(Opcode.IFGE, done);
-        code.aload(2).lload(index).loadConstant(2L).lmul().l2i().laload().lstore(sourceAddress);
-        code.aload(2).lload(index).loadConstant(2L).lmul().loadConstant(1L).ladd()
+        code.aload(2).lload(index).loadConstant(pairStride).lmul().l2i().laload().lstore(sourceAddress);
+        code.aload(2).lload(index).loadConstant(pairStride).lmul().loadConstant(1L).ladd()
                 .l2i().laload().lstore(resultAddress);
+        boolean controlled = CpuCarrierEmitter.controlFacts()
+                .map(facts -> facts.boundaryRows().get(1).rowIndexed()).orElse(false);
+        var inactive = controlled ? code.newLabel() : null;
+        var valueReady = controlled ? code.newLabel() : null;
+        emitOriginalOrdinalGuard(code, index, originalOrdinals, inactive);
         carriers.load(type, specialization.carrierPattern().get(0), 0, sourceAddress);
         switch (type) {
             case FLOAT64 -> code.dstore(value);
@@ -252,11 +274,58 @@ final class CpuAffineCopyEmitter {
             case BFLOAT16, FLOAT16, INT32, BOOL -> code.istore(value);
             case INT64 -> code.lstore(value);
         }
+        emitInactiveZero(code, type, value, controlled, inactive, valueReady);
         carriers.store(type, specialization.carrierPattern().get(1), 1,
                 resultAddress, value);
         code.lload(index).loadConstant(1L).ladd().lstore(index);
         code.branch(Opcode.GOTO, loop);
         code.labelBinding(done);
+    }
+
+    /**
+     * Uses the deduplication owner's original logical coordinate, not compressed pair order.
+     * SHARED results need no row guard and never decode the retained ordinal cell.
+     * @param code ordinary helper body
+     * @param pairIndex current distinct-write index
+     * @param originalOrdinals whether controlled triples retain original logical ordinals
+     * @param inactive branch taken before any source operand load
+     */
+    private static void emitOriginalOrdinalGuard(CodeBuilder code, int pairIndex,
+            boolean originalOrdinals, java.lang.classfile.Label inactive) {
+        if (!CpuCarrierEmitter.controlFacts()
+                .map(facts -> facts.boundaryRows().get(1).rowIndexed()).orElse(false)) return;
+        if (!originalOrdinals) {
+            CpuLoopEmitter.emitActiveOrdinalGuard(code, 1, pairIndex, TypeKind.LONG, inactive);
+            return;
+        }
+        int logical = code.allocateLocal(TypeKind.LONG);
+        code.aload(2).lload(pairIndex).loadConstant(3L).lmul().loadConstant(2L).ladd()
+                .l2i().laload().lstore(logical);
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, 1, logical, TypeKind.LONG, inactive);
+    }
+
+    /**
+     * Joins a controlled source-load path with exact positive carrier zero for an inactive row.
+     *
+     * @param code generated body
+     * @param type represented payload type
+     * @param value primitive destination local
+     * @param controlled whether row control is present
+     * @param inactive controlled branch target, otherwise null
+     * @param ready controlled merge target, otherwise null
+     */
+    private static void emitInactiveZero(CodeBuilder code, DataType type, int value,
+            boolean controlled, java.lang.classfile.Label inactive,
+            java.lang.classfile.Label ready) {
+        if (!controlled) return;
+        code.branch(Opcode.GOTO, ready).labelBinding(inactive);
+        switch (type) {
+            case FLOAT64 -> code.loadConstant(0.0d).dstore(value);
+            case FLOAT32 -> code.loadConstant(0.0f).fstore(value);
+            case INT64 -> code.loadConstant(0L).lstore(value);
+            case BFLOAT16, FLOAT16, INT32, BOOL -> code.loadConstant(0).istore(value);
+        }
+        code.labelBinding(ready);
     }
 
     private static void emitDirectStore(CodeBuilder code, DataType type,

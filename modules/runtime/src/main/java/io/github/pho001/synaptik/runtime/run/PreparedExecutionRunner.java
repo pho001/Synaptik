@@ -35,6 +35,8 @@ public final class PreparedExecutionRunner {
 
     /**
      * Executes the prepared schedule once and leases its complete state to a result.
+     * This absent-B overload rejects a batch-required plan after unique lease admission but
+     * before any creator invocation or ownership acceptance, even for all-constant byte sizes.
      *
      * <p>Caller inputs are dense borrowed representations and remain caller-owned. A non-empty
      * memory plan requires the schedule's first occurrence to create representations. A wholly
@@ -56,7 +58,7 @@ public final class PreparedExecutionRunner {
      * @throws NullPointerException if {@code execution}, {@code callerInputs}, or an existing
      *     creation, binding, or result contract input is {@code null}
      * @throws IllegalArgumentException if creation is absent for non-empty memory, caller inputs
-     *     are supplied without creation, or an existing creation or binding contract rejects an
+     *     are supplied without creation, the plan requires explicit B, or a creation/binding contract rejects an
      *     input
      * @throws IllegalStateException if an executable read is invalid or an existing action,
      *     publication, result, or prepared-execution lifecycle contract rejects the call
@@ -66,11 +68,39 @@ public final class PreparedExecutionRunner {
     public RunResult run(
             PreparedExecution execution,
             List<BufferRepresentation> callerInputs) {
+        return runInternal(execution, callerInputs, null, false);
+    }
+
+    /**
+     * Executes with authenticated numeric geometry after acquiring the unique prepared lease.
+     * All creations and actions use this one run's sizes; the prepared recipe is never mutated.
+     * @param execution non-null exact prepared execution
+     * @param callerInputs non-null dense borrowed inputs without null or repeated identities
+     * @param geometry non-null sizing authenticated to execution's exact memory plan
+     * @return completed result owning one isolated run state
+     * @throws NullPointerException if an argument is null, after prepared lease admission
+     * @throws IllegalArgumentException if geometry or input bindings disagree with the recipe
+     * @throws IllegalStateException if the prepared owner is closed or a binding is invalid
+     */
+    public RunResult run(PreparedExecution execution, List<BufferRepresentation> callerInputs,
+            RunMemoryGeometry geometry) {
+        return runInternal(execution, callerInputs, geometry, true);
+    }
+
+    private RunResult runInternal(PreparedExecution execution,
+            List<BufferRepresentation> callerInputs, RunMemoryGeometry suppliedGeometry,
+            boolean explicitGeometry) {
         Objects.requireNonNull(execution, "execution");
         PreparedExecution.RunLease lease = execution.acquireRunLease();
         RunResult result;
         try {
-            result = runAdmitted(execution, Objects.requireNonNull(callerInputs, "callerInputs"));
+            RunMemoryGeometry geometry = explicitGeometry
+                    ? Objects.requireNonNull(suppliedGeometry, "geometry")
+                    : RunMemoryGeometry.resolve(execution.memoryPlan(), java.util.OptionalLong.empty());
+            if (geometry.memoryPlan() != execution.memoryPlan()) {
+                throw new IllegalArgumentException("geometry belongs to another memory plan");
+            }
+            result = runAdmitted(execution, Objects.requireNonNull(callerInputs, "callerInputs"), geometry);
         } catch (RuntimeException | Error failure) {
             closeLeaseAfterFailure(lease, failure);
             throw failure;
@@ -87,13 +117,13 @@ public final class PreparedExecutionRunner {
 
     private static RunResult runAdmitted(
             PreparedExecution execution,
-            List<BufferRepresentation> callerInputs) {
+            List<BufferRepresentation> callerInputs, RunMemoryGeometry geometry) {
         List<PreparedSchedule.Step> steps = execution.schedule().steps();
         RunState state;
         int firstBoundIndex;
         if (!steps.isEmpty()
                 && steps.getFirst() instanceof PreparedSchedule.RepresentationCreationStep creation) {
-            state = RunStateCreation.create(creation.representationPlan(), callerInputs);
+            state = RunStateCreation.create(creation.representationPlan(), callerInputs, geometry);
             firstBoundIndex = 1;
         } else {
             if (!execution.memoryPlan().buffers().isEmpty()
@@ -105,7 +135,7 @@ public final class PreparedExecutionRunner {
                 throw new IllegalArgumentException(
                         "callerInputs size must equal caller-input preparation count 0");
             }
-            state = new RunState(execution.memoryPlan(), List.of(), List.of());
+            state = new RunState(execution.memoryPlan(), List.of(), List.of(), geometry);
             firstBoundIndex = 0;
         }
 

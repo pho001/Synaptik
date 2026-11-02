@@ -20,8 +20,10 @@ import java.util.Objects;
  *
  * <p>The ordinary surface compiles Tensor expressions and prepares one explicit
  * {@link PreparedExecution} owner for repeated or concurrent runs. {@link #run} accepts exact
- * compiled input identities in arbitrary order; {@link #runValues} accepts fresh exact-descriptor
- * values in final compiled order. Each run returns independent publication leases whose exact
+ * compiled input identities in arbitrary order; {@link #runValues} accepts fresh fully static
+ * values in final compiled order. Static descriptors remain exact; the bounded CPU-only named-B
+ * graph binds actual B without recompilation, route selection or prepared mutation. Each run
+ * returns independent publication leases whose exact
  * occurrences can be materialized as detached immutable host values. A
  * one-shot compute convenience discovers reachable expression leaves, then performs fresh
  * compilation, preparation, execution, complete publication and aggregate-byte preflight,
@@ -420,8 +422,18 @@ public final class Engine implements AutoCloseable {
      * Runs fresh Tensor values in {@link CompiledGraph#inputs()} order on one preparation.
      *
      * <p>Unlike {@link #run}, Tensor identities need not match. The count and full descriptors
-     * must match exactly, including fully static shape, data type, layout presence/geometry and
-     * requiresGrad. One value may fill multiple matching slots. All storage associations are
+     * must match exactly for static slots, including shape, type, layout and requiresGrad.
+     * A qualified single named-B CPU graph instead derives consistent B from fully static actual
+     * descriptors, preserving fixed axes and gradient flags. This includes bounded ordinary FLOAT32
+     * closure, all-valid FLOAT32 Scan, and homogeneous FLOAT32/FLOAT64 length-aware Scan with its
+     * bounded typed outer/control closure. Time/features remain fixed; all-valid symbolic FLOAT64
+     * and ordinary symbolic FLOAT64 MATMUL are not admitted. Caller
+     * symbolic positions require present canonical zero-offset dense layouts, including read
+     * views. Semantic predicates and numeric int/byte limits for every declared logical domain
+     * are checked before borrowing. Actual result descriptors use generated values, not target
+     * flags. Length values are validated after their producers and before any Scan-local writes,
+     * not during descriptor admission. This enables no native/mixed routes or NN/Training sessions.
+     * One value may fill multiple matching slots. All storage associations are
      * snapshotted once and validated before any borrow. Resolved layouts use checked referenced
      * spans; absent layouts use checked canonical static element/byte geometry. Unknown or
      * overflowing geometry rejects without restricting the identity-based run path.</p>
@@ -441,6 +453,8 @@ public final class Engine implements AutoCloseable {
      * @throws NullPointerException if a handle, list or indexed value is null after admission
      * @throws IllegalArgumentException if ownership, count, descriptor, static geometry, storage
      *     type/capacity or inward binding is invalid
+     * @throws ArithmeticException if bound dimensions, strides, counts, bytes or aggregate
+     *     allocation geometry overflow their supported limits
      * @throws IllegalStateException if Engine/prepared closure has begun, storage is absent, dead
      *     or inaccessible, or inward execution state is invalid
      * @throws RuntimeException if execution, publication or cleanup reports another unchecked failure

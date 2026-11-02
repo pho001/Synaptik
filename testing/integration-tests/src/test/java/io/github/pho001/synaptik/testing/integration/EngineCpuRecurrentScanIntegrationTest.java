@@ -31,6 +31,7 @@ final class EngineCpuRecurrentScanIntegrationTest {
                 var p = parts(kind, biased, direction, true, type, mode);
                 var roots = new ArrayList<>(p.outputs()); Collections.reverse(roots);
                 assertTrue(roots.stream().allMatch(t -> t.descriptor().requiresGrad()));
+                if (assertLocked(engine, type, roots)) continue;
                 var compiled = engine.compile(roots); // ordinary FORWARD_ONLY despite eligibility flags
                 try (var prepared = engine.prepare(compiled)) {
                     var reverseInputs = new ArrayList<>(ordered(compiled, p.inputs())); Collections.reverse(reverseInputs);
@@ -60,6 +61,7 @@ final class EngineCpuRecurrentScanIntegrationTest {
     @Test void finalCellOnlyStillExecutesSiblingOutputsAndConcurrentRunsHaveIsolatedScratch() throws Exception {
         for (var type : floatingTypes()) try (Engine engine = Engine.standard()) {
             var p = parts(RecurrentScanKind.LSTM, true, RecurrentDirection.REVERSE, false, type, 1);
+            if (assertLocked(engine, type, List.of(p.outputs().get(2)))) continue;
             var compiled = engine.compile(List.of(p.outputs().get(2)));
             try (var prepared = engine.prepare(compiled); var executor = Executors.newFixedThreadPool(2)) {
                 var valuesA = freshValues(ordered(compiled, p.inputs()), p.lengths(), new long[] {0, 1});
@@ -80,6 +82,7 @@ final class EngineCpuRecurrentScanIntegrationTest {
         for (var type : floatingTypes()) try (Engine engine = Engine.standard()) {
             var p = parts(RecurrentScanKind.RNN_TANH, false, RecurrentDirection.FORWARD, false, type, 1);
             var h = p.outputs().get(1); var alias = h.neg().neg();
+            if (assertLocked(engine, type, List.of(alias, p.outputs().get(0), h, h.add(h)))) continue;
             var compiled = engine.compile(List.of(alias, p.outputs().get(0), h, h.add(h)));
             try (var prepared = engine.prepare(compiled); var result = engine.run(prepared, ordered(compiled, p.inputs()))) {
                 assertEquals(4, result.resultCount()); assertNotSame(result.publications().get(0), result.publications().get(2));
@@ -125,6 +128,7 @@ final class EngineCpuRecurrentScanIntegrationTest {
             var w = floating(type, Shape.of(1, 1), false, 1, 1); var u = floating(type, Shape.of(1, 1), false, 1, 0);
             var scan = RecurrentScan.rnn(x, source.cast(DataType.INT64), h, w, u, RecurrentDirection.FORWARD);
             var pool = List.of(x, source, h, w, u);
+            if (assertLocked(engine, type, List.of(scan.finalHidden(), scan.outputs()))) continue;
             var compiled = engine.compile(List.of(scan.finalHidden(), scan.outputs()));
             try (var prepared = engine.prepare(compiled); var result = engine.run(prepared, ordered(compiled, pool))) {
                 assertEquals(0d, numbers(result, 1, type)[2]);
@@ -134,6 +138,13 @@ final class EngineCpuRecurrentScanIntegrationTest {
                 try (var next = engine.runValues(prepared, ordered(compiled, pool))) { assertEquals(bytes(result, 0), bytes(next, 0)); }
             }
         }
+    }
+
+    /** Low storage remains valid Model state, but fixed numerical recurrence has no CPU owner. */
+    private static boolean assertLocked(Engine engine, DataType type, List<Tensor> roots) {
+        if (type != DataType.BFLOAT16 && type != DataType.FLOAT16) return false;
+        assertThrows(IllegalStateException.class, () -> engine.compile(roots));
+        return true;
     }
 
     private static List<Tensor> ordered(io.github.pho001.synaptik.engine.CompiledGraph compiled, List<Tensor> pool) {

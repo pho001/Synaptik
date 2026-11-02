@@ -79,7 +79,7 @@ final class CpuConvSimdEvidenceTest {
             CpuKernelSpecialization vector, byte[] vectorBytes) { }
 
     @Test void stageBSemanticMatrixExecutesExactlyFortyEightRawBitRows() throws Throwable {
-        assertEquals(70, CpuGeneratorSchema.CURRENT_VERSION);
+        assertEquals(71, CpuGeneratorSchema.CURRENT_VERSION);
         List<SemanticRow> rows = semanticRows();
         assertEquals(48, rows.size());
         assertEquals(48, rows.stream().distinct().count());
@@ -133,13 +133,13 @@ final class CpuConvSimdEvidenceTest {
             if (dossier.rank == Rank.CONV2D && dossier.type == DataType.FLOAT32
                     && !dossier.bias && dossier.carriers == CarrierForm.ARRAYS) {
                 assertNotEquals(SCHEMA_68_STAGE_A_SCALAR_CLASS_SHA256, sha256(route.scalarBytes),
-                        "schema-70 artifact does not impersonate Stage-A schema-68 bytes");
+                        "schema-71 artifact does not impersonate Stage-A schema-68 bytes");
                 assertNotEquals(SCHEMA_68_STAGE_A_SCALAR_STRUCTURAL_KEY, route.scalar.structuralKey(),
-                        "schema-70 artifact does not impersonate Stage-A schema-68 identity");
-                assertEquals("543702d9171cb5af32b9aae0f3f74d2ed75b784b6504989ac877eeda2de1aa0b",
-                        sha256(route.scalarBytes), "schema-70 Stage-A scalar class bytes");
-                assertEquals("cd2fe27b1038f5049479810c42af430eb78b4346fcd2197b9c0326745f61727d",
-                        route.scalar.structuralKey(), "schema-70 scalar identity");
+                        "schema-71 artifact does not impersonate Stage-A schema-68 identity");
+                assertEquals("889ecb6cf6905efb4b65bae43ad2bc67d7c2285413991814380309be5a1ce66c",
+                        sha256(route.scalarBytes), "schema-71 Stage-A scalar class bytes");
+                assertEquals("da65eac5a9d8a12b182050da33810514573f7d5f5ab202c9d6c2e027c05953db",
+                        route.scalar.structuralKey(), "schema-71 scalar identity");
             }
             retain(dossier, route);
         }
@@ -197,10 +197,8 @@ final class CpuConvSimdEvidenceTest {
             Storage scalar = Storage.create(row, route.scalar, geometry(row, route), arena);
             Storage vector = scalar.copyForOutput(row, route.vector, arena);
             byte[][] immutable = scalar.inputSnapshots();
-            MethodHandle scalarHandle = new CpuClassFileKernelGenerator().defineClassBytes(
-                    route.scalar, route.scalarBytes).entryPoint();
-            MethodHandle vectorHandle = new CpuClassFileKernelGenerator().defineClassBytes(
-                    route.vector, route.vectorBytes).entryPoint();
+            MethodHandle scalarHandle = new CpuClassFileKernelGenerator().defineClassBytes(route.scalar, route.ir, route.scalarBytes).entryPoint();
+            MethodHandle vectorHandle = new CpuClassFileKernelGenerator().defineClassBytes(route.vector, route.ir, route.vectorBytes).entryPoint();
             for (Range range : ranges(row, scalar.outputElements())) {
                 invoke(scalarHandle, scalar.arguments(range));
                 invoke(vectorHandle, vector.arguments(range));
@@ -217,8 +215,7 @@ final class CpuConvSimdEvidenceTest {
         try (Arena arena = Arena.ofConfined()) {
             Storage scalar = Storage.create(row, route.scalar, geometry(row, route), arena);
             byte[][] immutable = scalar.inputSnapshots();
-            MethodHandle handle = new CpuClassFileKernelGenerator().defineClassBytes(
-                    route.scalar, route.scalarBytes).entryPoint();
+            MethodHandle handle = new CpuClassFileKernelGenerator().defineClassBytes(route.scalar, route.ir, route.scalarBytes).entryPoint();
             for (Range range : ranges(row, scalar.outputElements())) invoke(handle, scalar.arguments(range));
             assertMatchesReference(row, scalar);
             scalar.assertOutsideRangesAreSentinels(ranges(row, scalar.outputElements()), row.toString());

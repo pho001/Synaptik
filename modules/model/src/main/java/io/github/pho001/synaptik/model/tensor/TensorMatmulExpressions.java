@@ -58,13 +58,55 @@ final class TensorMatmulExpressions {
      *     delegation
      */
     static Tensor apply(Tensor left, Tensor right) {
+        return applyChecked(left, right, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param left non-null ordered left operand retained by exact reference in provenance
+     * @param right non-null ordered right operand retained by exact reference in provenance
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code left} or {@code right} is null, checked in that order
+     *     with the parameter name as the message
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if type promotion fails; an operand has rank zero; static
+     *     contraction extents differ; batch extents are unequal static non-singletons; or two
+     *     unequal unresolved batch extents cannot produce an exact local result dimension
+     * @throws IllegalStateException if Tensor identifier space is exhausted during final factory
+     *     delegation
+     */
+    static Tensor applyChecked(Tensor left, Tensor right,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        Objects.requireNonNull(left, "left");
+        Objects.requireNonNull(right, "right");
+        return applyDescriptors(
+                left.descriptor(), right.descriptor(), descriptorCheck, left, right);
+    }
+
+    /**
+     * Runs the shared descriptor guards and completes metadata before real provenance is used.
+     * @param left immutable operand metadata
+     * @param right immutable operand metadata
+     * @param descriptorCheck optional synchronous, unretained metadata completion; null constructs a Tensor
+     * @param leftTensor real provenance, unused when metadata completion is supplied
+     * @param rightTensor real provenance, unused when metadata completion is supplied
+     * @return null after metadata completion, otherwise the ordinary result
+     */
+    private static Tensor applyDescriptors(
+            TensorDescriptor left,
+            TensorDescriptor right,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor leftTensor,
+            Tensor rightTensor) {
         Objects.requireNonNull(left, "left");
         Objects.requireNonNull(right, "right");
 
         DataType resultType = DataTypePromotion.promoteNumeric(
-                left.descriptor().dataType(), right.descriptor().dataType());
-        Shape leftShape = left.descriptor().shape();
-        Shape rightShape = right.descriptor().shape();
+                left.dataType(), right.dataType());
+        Shape leftShape = left.shape();
+        Shape rightShape = right.shape();
         int leftRank = leftShape.rank();
         int rightRank = rightShape.rank();
         if (leftRank < 1) {
@@ -117,10 +159,14 @@ final class TensorMatmulExpressions {
                 resultType,
                 resultShape,
                 Optional.empty(),
-                left.descriptor().requiresGrad() || right.descriptor().requiresGrad());
+                left.requiresGrad() || right.requiresGrad());
         Operation operation = new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(
-                descriptor, Optional.empty(), operation, List.of(left, right));
+                descriptor, Optional.empty(), operation, List.of(leftTensor, rightTensor));
     }
 
     /**
@@ -164,5 +210,22 @@ final class TensorMatmulExpressions {
         throw new IllegalArgumentException(
                 "cannot derive exact matmul batch dimension at result batch axis " + resultAxis
                         + ": left=" + left + ", right=" + right);
+    }
+
+    /**
+     * Completes one admitted ordinary occurrence synchronously using the real construction guards.
+     * No Tensor or identity is created and the callback is not retained. The owning facade checks
+     * occurrence cardinality and compares the returned canonical operation with the supplied one.
+     *
+     * @param operation non-null ordinary operation admitted to this family by the owning selector
+     * @param inputs non-null immutable operand metadata in canonical input order
+     * @param outputCount complete canonical output count, already validated by the owning facade
+     * @param sink non-null synchronous consumer of the canonical operation and all output metadata
+     * @throws IllegalArgumentException if ordinary semantic guards or the consumer reject metadata
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(sink, "sink");
+        applyDescriptors(inputs.get(0), inputs.get(1), sink, null, null);
     }
 }

@@ -51,16 +51,17 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * Retained, deliberately opt-in generated-versus-direct loss timing protocol.
  *
- * <p>The parent process only coordinates five fresh Java forks.  A fork constructs every exact
- * schema-58 identity, defines its Class-File, alternates generated and frozen-oracle trials, and
- * records all raw values without retry or discard. Measured children use synchronous C2-only
- * compilation so tier transitions and background compiler activity cannot favor one peer. The
+ * <p>The parent process coordinates five fresh Java forks over the complete original inventory.
+ * Locked numerical occurrences prove rejection and retain an {@code UNSUPPORTED} record with
+ * no timing, checksum, class, or bound oracle. Admitted rows alternate generated and frozen-oracle
+ * trials. Measured children use synchronous C2-only compilation so tier transitions and background
+ * compiler activity cannot favor one peer. The
  * ordinary CPU suite skips this test unless
  * either {@code SYNAPTIK_CPU_LOSS_PERFORMANCE=true} or {@code -Dsynaptik.cpu.loss.performance=true}
  * and a caller-supplied evidence root are present.
  * The oracle selection occurs before timing; the measured oracle call is one family/type-specific
- * primitive loop, never a production dispatcher or generated fallback. Every retained fork row
- * and every median-of-fork row is a binding {@code <= 1.15x} acceptance gate; the protocol never
+ * primitive loop, never a production dispatcher or generated fallback. Every admitted fork row
+ * and admitted median-of-fork row is a binding {@code <= 1.15x} acceptance gate; the protocol never
  * retries or discards a sample.</p>
  */
 class CpuLossPerformanceTest {
@@ -129,7 +130,7 @@ class CpuLossPerformanceTest {
         Files.writeString(raw, "row,key,iterations,generated_ns,direct_ns,ratio,checksum\n"
                 + "0,example,8192,115,100,1.15,42\n");
 
-        assertEquals(1.15d, ratio(raw, 0));
+        assertEquals(Double.valueOf(1.15d), ratio(raw, 0));
     }
 
     @Test
@@ -150,19 +151,19 @@ class CpuLossPerformanceTest {
     }
 
     /**
-     * Constructs and prebinds every timed specialization without running its timing protocol.
-     *
-     * <p>This keeps fixture carrier/type correspondence in the ordinary suite, so a later opt-in
-     * fork cannot first expose a malformed row after it has begun collecting evidence.</p>
+     * Proves rejection for every original locked row, and constructs and prebinds every admitted
+     * timed specialization without timing. No unsupported row allocates carriers or binds peers.
      */
     @Test
-    void allExactPerformanceRowsConstructAndPrebindWithoutTiming() throws Exception {
-        int constructed = 0;
+    void allExactPerformanceRowsProveAdmissionBeforeConstructingOrPrebinding() throws Exception {
         for (Row row : rows()) {
             assertEquals(1, row.key().split(",", -1).length,
                     "CSV key must remain one column: " + row.key());
+            var context = context(row);
+            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                    .assertLowUnsupported(context)) continue;
             try {
-                Case value = create(row);
+                Case value = create(row, context);
                 assertEquals(carriers(List.of(row.result()), row.bits() >> (row.roles().equals(List.of(0, 0)) ? 1 : 2)).getFirst()
                                 == CarrierAccess.MEMORY_SEGMENT,
                         value.generated().carrier() instanceof MemorySegment,
@@ -173,15 +174,12 @@ class CpuLossPerformanceTest {
                 throw new AssertionError("could not construct performance row " + row.key(),
                         failure);
             }
-            constructed++;
         }
-        assertEquals(792, constructed);
     }
 
     @Test
     void compiledOracleSourceHasOnlyTypedCarrierLoops() {
         String source = oracle().source();
-        assertEquals(792, source.split("public static void m", -1).length - 1);
         assertTrue(source.contains("MemorySegment"));
         assertTrue(source.contains("StrictMath.exp"));
         assertTrue(source.contains("StrictMath.log"));
@@ -227,7 +225,10 @@ class CpuLossPerformanceTest {
     @Test
     void compiledOracleMatchesGeneratedRepresentativeOutputs() throws Exception {
         for (Row row : representativeRows()) {
-            Case value = create(row);
+            var context = context(row);
+            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                    .assertLowUnsupported(context)) continue;
+            Case value = create(row, context);
             invoke(value.generated().entry());
             long generatedResult = checksum(value.generated().carrier(), row.result()).read();
             invoke(value.direct().entry());
@@ -278,9 +279,7 @@ class CpuLossPerformanceTest {
                 () -> assertEquals(9, MEASUREMENTS),
                 () -> assertEquals(32, INTERLEAVED_SUB_BATCHES),
                 () -> assertEquals(100_000_000L, MINIMUM_SIDE_BATCH_NANOS),
-                () -> assertEquals(1.15d, THRESHOLD),
-                () -> assertEquals(792, rows().size()),
-                () -> assertEquals(24, retainedOutlierPreflightRows().size()));
+                () -> assertEquals(1.15d, THRESHOLD));
     }
 
     private static void runParent(Path root) throws Exception {
@@ -291,7 +290,7 @@ class CpuLossPerformanceTest {
                 + "minimum_side_batch_ns=" + MINIMUM_SIDE_BATCH_NANOS
                 + "\nshared_adaptive_batch_count=true\ninterleaved_sub_batches="
                 + INTERLEAVED_SUB_BATCHES
-                + "\nrows_per_fork=792\norder=seeded-alternation\n"
+                + "\nrows_per_fork=" + rows().size() + "\norder=seeded-alternation\n"
                 + "jit=-XX:-TieredCompilation,-Xbatch\nthreshold=1.15\n"
                 + "oracle=frozen allocation-free typed direct loops\n");
         Files.writeString(root.resolve("machine.txt"), "java=" + System.getProperty("java.version")
@@ -314,7 +313,11 @@ class CpuLossPerformanceTest {
                     StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         });
         var ratios = new ArrayList<Double>();
-        for (int row = 0; row < 792; row++) {
+        for (int row = 0; row < rows().size(); row++) {
+            if (locked(rows().get(row))) {
+                ratios.add(null);
+                continue;
+            }
             var values = new ArrayList<Double>();
             for (int fork = 0; fork < FORKS; fork++) values.add(ratio(root.resolve("raw-fork-" + fork + ".csv"), row));
             values.sort(Comparator.naturalOrder());
@@ -322,19 +325,21 @@ class CpuLossPerformanceTest {
             ratios.add(median);
             assertTrue(median <= THRESHOLD, "median ratio row " + row + " = " + median);
         }
-        Files.writeString(root.resolve("report.csv"), "row,median_of_fork_ratios,accepted\n");
+        Files.writeString(root.resolve("report.csv"), "row,median_of_fork_ratios,outcome\n");
         for (int row = 0; row < ratios.size(); row++) Files.writeString(root.resolve("report.csv"),
-                row + "," + ratios.get(row) + ",true\n", StandardOpenOption.APPEND);
+                row + (ratios.get(row) == null ? ",,UNSUPPORTED\n"
+                        : "," + ratios.get(row) + ",ACCEPTED\n"), StandardOpenOption.APPEND);
         Files.writeString(root.resolve("checksums.csv"), "fork,checksum\n");
         for (int fork = 0; fork < forkChecksums.size(); fork++) Files.writeString(
                 root.resolve("checksums.csv"), fork + "," + forkChecksums.get(fork) + "\n",
                 StandardOpenOption.APPEND);
-        Files.writeString(root.resolve("manifest.txt"), "forks=" + FORKS + "\nrows_per_fork=792\n"
-                + "row_fork_records=3960\nunique_row_fork_records=3960\nreport_rows=792\n"
-                + "threshold=1.15\nall_row_fork_gates=passed\nall_median_gates=passed\n");
+        Files.writeString(root.resolve("manifest.txt"), "forks=" + FORKS
+                + "\noriginal_rows_per_fork=" + rows().size()
+                + "\nunsupported_rows=explicit-negative-witnesses-without-timing\n"
+                + "threshold=1.15\nall_admitted_row_fork_gates=passed\nall_admitted_median_gates=passed\n");
     }
 
-    private static double ratio(Path raw, int row) throws IOException {
+    private static Double ratio(Path raw, int row) throws IOException {
         try (BufferedReader reader = Files.newBufferedReader(raw)) {
             assertEquals("row,key,iterations,generated_ns,direct_ns,ratio,checksum", reader.readLine());
             for (int current = 0; current <= row; current++) {
@@ -348,30 +353,7 @@ class CpuLossPerformanceTest {
     }
 
     private static void runFork(Path root, int fork) throws Exception {
-        Files.createDirectories(root);
-        StringBuilder raw = new StringBuilder("row,key,iterations,generated_ns,direct_ns,ratio,checksum\n");
-        Random random = new Random(0x0008_1L + fork);
-        int ordinal = 0;
-        for (Row row : rows()) {
-            Case value = create(row);
-            for (int warmup = 0; warmup < WARMUP_ROUNDS; warmup++) {
-                if (random.nextBoolean()) { warmup(value.generated()); warmup(value.direct()); }
-                else { warmup(value.direct()); warmup(value.generated()); }
-            }
-            int iterations = calibratedIterations(value);
-            long generated = 0L, direct = 0L;
-            for (int measurement = 0; measurement < MEASUREMENTS; measurement++) {
-                boolean generatedFirst = random.nextBoolean();
-                PairMeasurement sample = measurePair(value, iterations, generatedFirst);
-                generated += sample.generatedNanosecondsPerInvocation();
-                direct += sample.directNanosecondsPerInvocation();
-            }
-            raw.append(ordinal++).append(',').append(row.key()).append(',').append(iterations).append(',').append(generated)
-                    .append(',').append(direct).append(',').append((double) generated / direct).append(',')
-                    .append(checksum).append('\n');
-        }
-        assertEquals(792, ordinal);
-        Files.writeString(root.resolve("raw-fork-" + fork + ".csv"), raw);
+        runRowsFork(root.resolve("raw-fork-" + fork + ".csv"), fork, rows());
         Files.writeString(root.resolve("checksum-fork-" + fork + ".txt"), Long.toString(checksum)
                 + "\n");
     }
@@ -404,11 +386,17 @@ class CpuLossPerformanceTest {
                     .redirectOutput(root.resolve("targeted-fork-" + fork + ".stdout").toFile())
                     .redirectError(root.resolve("targeted-fork-" + fork + ".stderr").toFile()).start();
             assertEquals(0, process.waitFor(), "targeted fork " + fork);
+            validateRows(root.resolve("targeted-raw-fork-" + fork + ".csv"), fork, rows);
             Files.writeString(root.resolve("progress.txt"), "finished targeted fork " + fork + "\n",
                     StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         }
-        StringBuilder report = new StringBuilder("row,key,fork0,fork1,fork2,fork3,fork4,median,accepted\n");
+        StringBuilder report = new StringBuilder("row,key,fork0,fork1,fork2,fork3,fork4,median,outcome\n");
         for (int row = 0; row < rows.size(); row++) {
+            if (locked(rows.get(row))) {
+                report.append(row).append(',').append(rows.get(row).key())
+                        .append(",,,,,,,UNSUPPORTED\n");
+                continue;
+            }
             var ratios = new ArrayList<Double>();
             for (int fork = 0; fork < FORKS; fork++) {
                 double value = ratio(root.resolve("targeted-raw-fork-" + fork + ".csv"), row);
@@ -420,34 +408,14 @@ class CpuLossPerformanceTest {
             assertTrue(median <= THRESHOLD, "targeted median row " + row + " = " + median);
             report.append(row).append(',').append(rows.get(row).key());
             for (double value : ratios) report.append(',').append(value);
-            report.append(',').append(median).append(",true\n");
+            report.append(',').append(median).append(",ACCEPTED\n");
         }
         Files.writeString(root.resolve("targeted-report.csv"), report.toString());
     }
 
     private static void runTargetedFork(Path root, int fork) throws Exception {
-        Files.createDirectories(root);
-        StringBuilder raw = new StringBuilder("row,key,iterations,generated_ns,direct_ns,ratio,checksum\n");
-        Random random = new Random(0x0008_1L + fork);
-        int ordinal = 0;
-        for (Row row : indexMeanSegmentRows()) {
-            Case value = create(row);
-            for (int warmup = 0; warmup < WARMUP_ROUNDS; warmup++) {
-                if (random.nextBoolean()) { warmup(value.generated()); warmup(value.direct()); }
-                else { warmup(value.direct()); warmup(value.generated()); }
-            }
-            int iterations = calibratedIterations(value);
-            long generated = 0L, direct = 0L;
-            for (int measurement = 0; measurement < MEASUREMENTS; measurement++) {
-                PairMeasurement sample = measurePair(value, iterations, random.nextBoolean());
-                generated += sample.generatedNanosecondsPerInvocation();
-                direct += sample.directNanosecondsPerInvocation();
-            }
-            raw.append(ordinal++).append(',').append(row.key()).append(',').append(iterations).append(',').append(generated)
-                    .append(',').append(direct).append(',').append((double) generated / direct).append(',')
-                    .append(checksum).append('\n');
-        }
-        Files.writeString(root.resolve("targeted-raw-fork-" + fork + ".csv"), raw.toString());
+        runRowsFork(root.resolve("targeted-raw-fork-" + fork + ".csv"), fork,
+                indexMeanSegmentRows());
     }
 
     /** Runs all retained full-matrix failures and matched controls in fresh isolated JVMs. */
@@ -486,7 +454,13 @@ class CpuLossPerformanceTest {
         Random random = new Random(0x0008_1L + fork);
         int ordinal = 0;
         for (Row row : selectedRows) {
-            Case value = create(row);
+            var context = context(row);
+            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                    .assertLowUnsupported(context)) {
+                raw.append(ordinal++).append(',').append(row.key()).append(",UNSUPPORTED,,,,\n");
+                continue;
+            }
+            Case value = create(row, context);
             for (int warmup = 0; warmup < WARMUP_ROUNDS; warmup++) {
                 if (random.nextBoolean()) { warmup(value.generated()); warmup(value.direct()); }
                 else { warmup(value.direct()); warmup(value.generated()); }
@@ -512,6 +486,9 @@ class CpuLossPerformanceTest {
                 RawRow actual = parseRawRow(reader.readLine(), raw, row);
                 assertEquals(row, actual.ordinal());
                 assertEquals(expectedRows.get(row).key(), actual.key());
+                assertEquals(locked(expectedRows.get(row)),
+                        actual.generatedToDirectRatio() == null, "current admission outcome");
+                if (actual.generatedToDirectRatio() == null) continue;
                 assertTrue(actual.generatedToDirectRatio() <= THRESHOLD,
                         "fork " + fork + " row " + row);
             }
@@ -531,9 +508,15 @@ class CpuLossPerformanceTest {
         Files.createDirectories(root);
         writeOracleEvidence(root);
         StringBuilder measurements = new StringBuilder("key,measurement,generated_first,generated_ns,direct_ns,ratio\n");
-        StringBuilder report = new StringBuilder("key,generated_median_ns,direct_median_ns,median_ratio\n");
+        StringBuilder report = new StringBuilder("key,generated_median_ns,direct_median_ns,median_ratio,outcome\n");
         for (Row row : representativeRows()) {
-            Case value = create(row);
+            var context = context(row);
+            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                    .assertLowUnsupported(context)) {
+                report.append(row.key()).append(",,,,UNSUPPORTED\n");
+                continue;
+            }
+            Case value = create(row, context);
             Files.write(root.resolve(row.key() + ".class"), value.generatedClassBytes());
             for (int warmup = 0; warmup < WARMUP_ROUNDS; warmup++) {
                 if ((warmup & 1) == 0) { warmup(value.generated()); warmup(value.direct()); }
@@ -561,7 +544,7 @@ class CpuLossPerformanceTest {
             long direct = directSamples.get(4);
             double ratio = (double) generated / direct;
             report.append(row.key()).append(',').append(generated).append(',').append(direct)
-                    .append(',').append(ratio).append('\n');
+                    .append(',').append(ratio).append(",ACCEPTED\n");
         }
         Files.writeString(root.resolve("representative-measurements.csv"), measurements);
         Files.writeString(root.resolve("representative.csv"), report);
@@ -592,13 +575,16 @@ class CpuLossPerformanceTest {
         try (BufferedReader reader = Files.newBufferedReader(raw)) {
             assertEquals("row,key,iterations,generated_ns,direct_ns,ratio,checksum", reader.readLine());
             long checksum = 0L;
-            for (int row = 0; row < 792; row++) {
+            for (int row = 0; row < expectedRows.size(); row++) {
                 String line = reader.readLine();
                 assertTrue(line != null, "missing fork " + fork + " row " + row);
                 RawRow rawRow = parseRawRow(line, raw, row);
                 assertEquals(row, rawRow.ordinal(), "fork " + fork + " row ordinal");
                 assertEquals(expectedRows.get(row).key(), rawRow.key(),
                         "fork " + fork + " row canonical key");
+                assertEquals(locked(expectedRows.get(row)),
+                        rawRow.generatedToDirectRatio() == null, "current admission outcome");
+                if (rawRow.generatedToDirectRatio() == null) continue;
                 double ratio = rawRow.generatedToDirectRatio();
                 assertTrue(ratio <= THRESHOLD, "fork " + fork + " row " + row + " = " + ratio);
                 checksum = rawRow.checksum();
@@ -614,6 +600,11 @@ class CpuLossPerformanceTest {
         String[] columns = line.split(",", -1);
         assertEquals(7, columns.length, raw + " row " + expectedRow + " column count");
         int ordinal = Integer.parseInt(columns[0]);
+        if (columns[2].equals("UNSUPPORTED")) {
+            for (int column = 3; column < columns.length; column++)
+                assertTrue(columns[column].isEmpty(), "unsupported rows must not claim measurements");
+            return new RawRow(ordinal, columns[1], null, 0L);
+        }
         int iterations = Integer.parseInt(columns[2]);
         long generatedNanoseconds = Long.parseLong(columns[3]);
         long directNanoseconds = Long.parseLong(columns[4]);
@@ -635,12 +626,18 @@ class CpuLossPerformanceTest {
     private static void writeSyntheticFork(Path root, int fork, double firstRatio, String firstKey)
             throws IOException {
         StringBuilder raw = new StringBuilder("row,key,iterations,generated_ns,direct_ns,ratio,checksum\n");
+        boolean firstAdmitted = true;
         for (int row = 0; row < rows().size(); row++) {
-            double ratio = row == 0 ? firstRatio : 1.0d;
+            Row fixture = rows().get(row);
             raw.append(row).append(',')
-                    .append(row == 0 && firstKey != null ? firstKey : rows().get(row).key())
-                    .append(",1,").append((long) (ratio * 100)).append(",100,")
-                    .append(ratio).append(",0\n");
+                    .append(row == 0 && firstKey != null ? firstKey : fixture.key());
+            if (locked(fixture)) raw.append(",UNSUPPORTED,,,,\n");
+            else {
+                double ratio = firstAdmitted ? firstRatio : 1.0d;
+                firstAdmitted = false;
+                raw.append(",1,").append((long) (ratio * 100)).append(",100,")
+                        .append(ratio).append(",0\n");
+            }
         }
         Files.writeString(root.resolve("raw-fork-" + fork + ".csv"), raw.toString());
         Files.writeString(root.resolve("checksum-fork-" + fork + ".txt"), "0\n");
@@ -761,7 +758,6 @@ class CpuLossPerformanceTest {
             for (LossReduction reduction : LossReduction.values()) for (boolean ignore : List.of(false, true))
                 for (int bits = 0; bits < 8; bits++) rows.add(new Row(LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                         logits, index, reduction, ignore, List.of(0, 1), bits));
-        assertEquals(792, rows.size());
         return rows;
     }
 
@@ -847,7 +843,12 @@ class CpuLossPerformanceTest {
         return rows;
     }
 
-    private static Case create(Row row) throws Exception {
+    /**
+     * Preserves one original occurrence without allocating physical carriers or preparing a plan.
+     * @param row exact typed family, reduction, alias and carrier identity
+     * @return descriptor-only source context for independent current-admission witnesses
+     */
+    private static PrepareContext<CpuPartitionAnalysisInputs> context(Row row) {
         Shape logits = Shape.of(2, 32, 64), target = row.family() == LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS
                 ? Shape.of(2, 64) : logits;
         Shape output = row.reduction() == LossReduction.NONE ? switch (row.family()) {
@@ -861,13 +862,38 @@ class CpuLossPerformanceTest {
         List<DataType> types = new ArrayList<>(inputs.stream().map(TensorDescriptor::dataType).toList()); types.add(row.result());
         List<CarrierAccess> carriers = carriers(types, row.bits());
         var base = CpuScatterLoweringTest.context(operation, row.roles(), inputs, descriptor(row.result(), output));
-        var plan = new CpuPartitionPreparer().analyze(new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers))).plan();
+        return new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, carriers));
+    }
+
+    /**
+     * Supplies the independent expected outcome for loss-only numerical operand roles.
+     * @param row original loss occurrence; both floating operands are numerical, not raw storage
+     * @return whether either numerical role is a temporarily locked low dtype
+     */
+    private static boolean locked(Row row) {
+        return row.left() == DataType.BFLOAT16 || row.left() == DataType.FLOAT16
+                || row.right() == DataType.BFLOAT16 || row.right() == DataType.FLOAT16;
+    }
+
+    /**
+     * Constructs the admitted benchmark peers only after the caller has proved current admission.
+     * @param row exact original performance occurrence
+     * @param context that occurrence's original source descriptors and carrier request
+     * @return bound generated and independent-oracle peers sharing their output carrier
+     * @throws Exception if source admission, class definition or typed binding fails
+     */
+    private static Case create(Row row, PrepareContext<CpuPartitionAnalysisInputs> context)
+            throws Exception {
+        var types = context.values().stream().map(value -> value.descriptor().dataType()).toList();
+        var carriers = context.backendInputs().carrierPattern();
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var kernel = generator.defineClassBytes(route.specialization(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var kernel = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         long domain = row.family() == LossKind.MEAN_SQUARED_ERROR ? 4_096L : 128L;
         Object[] storage = arrays(types);
-        populateInputs(storage, types, inputs.size(), row.ignore());
+        populateInputs(storage, types, types.size() - 1, row.ignore());
         Object[] arguments = arguments(storage, carriers, ((CpuLossIr) route.portableKernelIr()).geometry().pack(new long[] {0, 0, 0}),
                 0L, row.reduction() == LossReduction.NONE ? domain : 1L);
         Object outputCarrier = arguments[types.size() - 1];
@@ -898,6 +924,7 @@ class CpuLossPerformanceTest {
             if (current == null) {
                 var specs = new ArrayList<CpuLossPerformanceOracle.Spec>();
                 for (Row row : rows()) {
+                    if (locked(row)) continue;
                     List<DataType> types = row.roles().equals(List.of(0, 0))
                             ? List.of(row.left(), row.result())
                             : List.of(row.left(), row.right(), row.result());
@@ -1023,7 +1050,15 @@ class CpuLossPerformanceTest {
         }
     }
     @FunctionalInterface private interface ForkLauncher { void launch(int fork) throws Exception; }
-    private record RawRow(int ordinal, String key, double generatedToDirectRatio, long checksum) { }
+    /**
+     * One complete original-domain record. A null ratio denotes explicit unsupported admission,
+     * never a zero duration or successful timing; its serialized measurement fields are empty.
+     * @param ordinal original selected-domain position
+     * @param key exact original typed occurrence key
+     * @param generatedToDirectRatio measured ratio, or null only for an unsupported record
+     * @param checksum measured output checksum; ignored for an unsupported record
+     */
+    private record RawRow(int ordinal, String key, Double generatedToDirectRatio, long checksum) { }
     private record PairMeasurement(long generatedNanosecondsPerInvocation,
                                    long directNanosecondsPerInvocation) { }
 

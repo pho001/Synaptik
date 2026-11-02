@@ -1848,7 +1848,7 @@ final class EngineTypedLifecycleTest {
                 if (index < inputCount) {
                     preparations.add(List.of(new CallerInput()));
                 } else {
-                    preparations.add(List.of(new InitializedBuffer(() -> new TestBuffer(
+                    preparations.add(List.of(new InitializedBuffer((requestedBytes, requestedAlignment) -> new TestBuffer(
                             runtimeCloseFailure, closeOrder, "runtime-result"))));
                 }
             }

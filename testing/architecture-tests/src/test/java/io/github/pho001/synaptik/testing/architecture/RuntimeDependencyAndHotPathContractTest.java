@@ -44,6 +44,7 @@ final class RuntimeDependencyAndHotPathContractTest {
             "io/github/pho001/synaptik/runtime/run/PreparedPublication.java",
             "io/github/pho001/synaptik/runtime/run/RunResourceOwnership.java",
             "io/github/pho001/synaptik/runtime/run/RunResult.java",
+            "io/github/pho001/synaptik/runtime/run/RunMemoryGeometry.java",
             "io/github/pho001/synaptik/runtime/run/RunStateCreation.java",
             "io/github/pho001/synaptik/runtime/run/package-info.java",
             "io/github/pho001/synaptik/runtime/schedule/PreparedSchedule.java",

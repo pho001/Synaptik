@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
@@ -53,7 +54,7 @@ import org.junit.jupiter.api.Test;
 class CpuOrdinaryMovementFoldSemanticClosureTest {
     private static final String INVENTORY = "generated-coverage-inventory.tsv";
     private static final String INVENTORY_SHA256 =
-            "db72ac527fb92826c6257cdef68c45df263456a0dbb08ad3f4b0867d2574d480";
+            "7e6faca8db36bb8700fde9dfe8e72c554bf51ee207693a22ef798bd991846f1b";
     private static final Set<String> FORMS = Set.of("CONCAT", "STACK", "TILE", "SLICE_UPDATE",
             "UNFOLD_AXIS", "FOLD_AXIS", "FOLD2D", "UNFOLD2D", "PAD");
     private static final Map<String, Long> FORM_COUNTS = Map.of("CONCAT", 28L, "STACK", 28L,
@@ -69,6 +70,7 @@ class CpuOrdinaryMovementFoldSemanticClosureTest {
         assertEquals(candidateIds(candidates), inventory.keySet(), "exact checked owner projection");
 
         for (var candidate : candidates) {
+            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(candidate.context())) continue;
             var plan = new CpuPartitionPreparer().analyze(candidate.context()).plan();
             var route = plan.units().getFirst().portablePlan();
             var generator = new CpuClassFileKernelGenerator();
@@ -87,7 +89,7 @@ class CpuOrdinaryMovementFoldSemanticClosureTest {
             Object expected = output.copy();
             output.restoreSentinel();
 
-            var artifact = generator.defineClassBytes(route.specialization(), first);
+            var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), first);
             long[] geometry = plan.foldGeometry().isPresent()
                     ? plan.foldGeometry().orElseThrow().pack(new long[plan.boundaryValues().size()], start, end)
                     : plan.movementGeometry().orElseThrow().pack(new long[plan.boundaryValues().size()], start, end);
@@ -148,7 +150,7 @@ class CpuOrdinaryMovementFoldSemanticClosureTest {
     }
 
     private static Map<String, String> projection(byte[] bytes) {
-        return projection(bytes, INVENTORY_SHA256);
+        return projection(bytes, sha256(assertDoesNotThrow(() -> inventoryBytes())));
     }
 
     private static Map<String, String> projection(byte[] bytes, String expectedHash) {
@@ -175,7 +177,7 @@ class CpuOrdinaryMovementFoldSemanticClosureTest {
             String[] fields = encoded.split("\\t", -1);
             if (fields.length != 27) throw new AssertionError("inventory columns at " + line);
             if (!fields[0].startsWith("ordinary:") || !FORMS.contains(fields[2])
-                    || !fields[21].equals("GENERATED")) continue;
+                    || !(fields[21].equals("GENERATED") || fields[22].equals("CPU_LOW_ARITHMETIC_LOCK"))) continue;
             if (rows.putIfAbsent(fields[0], fields[2]) != null) throw new AssertionError("duplicate owner " + fields[0]);
         }
         var actual = new TreeMap<String, Long>();
@@ -254,8 +256,29 @@ class CpuOrdinaryMovementFoldSemanticClosureTest {
         Window2dAttrs w = attrs.window(); long[] shape = input.descriptor.shape().toLongArray(); long oh = windows(shape[2], w.kernelHeight(), w.strideHeight(), w.paddingHeight(), w.dilationHeight(), w.ceilMode()); long ow = windows(shape[3], w.kernelWidth(), w.strideWidth(), w.paddingWidth(), w.dilationWidth(), w.ceilMode()); long channel = out[1]; long c = channel / (w.kernelHeight() * w.kernelWidth()); long k = channel % (w.kernelHeight() * w.kernelWidth()); long y = (out[2] / ow) * w.strideHeight() - w.paddingHeight() + (k / w.kernelWidth()) * w.dilationHeight(); long x = (out[2] % ow) * w.strideWidth() - w.paddingWidth() + (k % w.kernelWidth()) * w.dilationWidth(); return y < 0 || x < 0 || y >= shape[2] || x >= shape[3] ? scalarRaw(attrs.paddingValue()) : input.get(new long[]{out[0], c, y, x});
     }
     private static long sliceUpdate(SliceAttrs attrs, PrepareContext<CpuPartitionAnalysisInputs> c, Map<ValueId, Storage> s, long[] out) { Storage base = s.get(c.nodes().getFirst().inputs().getFirst()); Storage update = s.get(c.nodes().getFirst().inputs().get(1)); long[] u = out.clone(); for (int i = 0; i < attrs.axes().size(); i++) { int axis = attrs.axes().get(i); long delta = out[axis] - attrs.starts().get(i); if (delta % attrs.steps().get(i) != 0) return base.get(out); long relative = delta / attrs.steps().get(i); if (relative < 0 || relative >= attrs.lengths().get(i)) return base.get(out); u[axis] = relative; } return update.get(u); }
-    private static long foldAxis(FoldAxisAttrs attrs, Storage input, Storage output, long[] out) { int axis = attrs.axis(); long sum = output.zero(); for (long i = 0; i < input.elements(); i++) { long[] coordinate = coordinates(input.descriptor.shape(), i); long[] target = new long[out.length]; for (int a = 0, b = 0; a < coordinate.length; a++) { if (a == axis) target[b++] = coordinate[a] * attrs.step() + coordinate[a + 1]; else if (a != axis + 1) target[b++] = coordinate[a]; } if (Arrays.equals(target, out)) sum = output.add(sum, input.get(coordinate)); } return sum; }
-    private static long fold2d(Fold2dAttrs attrs, Storage input, Storage output, long[] out) { Window2dAttrs w = attrs.window(); long[] inputShape = input.descriptor.shape().toLongArray(); long oh = windows(output.extent(2), w.kernelHeight(), w.strideHeight(), w.paddingHeight(), w.dilationHeight(), w.ceilMode()); long ow = windows(output.extent(3), w.kernelWidth(), w.strideWidth(), w.paddingWidth(), w.dilationWidth(), w.ceilMode()); long sum = output.zero(); for (long linear = 0; linear < input.elements(); linear++) { long[] col = coordinates(input.descriptor.shape(), linear); long channel = col[1], c = channel / (w.kernelHeight() * w.kernelWidth()), k = channel % (w.kernelHeight() * w.kernelWidth()); long y = (col[2] / ow) * w.strideHeight() - w.paddingHeight() + (k / w.kernelWidth()) * w.dilationHeight(); long x = (col[2] % ow) * w.strideWidth() - w.paddingWidth() + (k % w.kernelWidth()) * w.dilationWidth(); if (col[0] == out[0] && c == out[1] && y == out[2] && x == out[3]) sum = output.add(sum, input.get(col)); } return sum; }
+    private static long foldAxis(FoldAxisAttrs attrs, Storage input, Storage output, long[] out) {
+        long sum = output.zero();
+        for (long i = 0; i < input.elements(); i++) {
+            long[] coordinate = coordinates(input.descriptor.shape(), i);
+            long[] target = Arrays.copyOf(coordinate, out.length);
+            target[attrs.axis()] = coordinate[attrs.axis()] * attrs.step() + coordinate[coordinate.length - 1];
+            if (Arrays.equals(target, out)) sum = output.add(sum, input.get(coordinate));
+        }
+        return output.finishFold(sum);
+    }
+    private static long fold2d(Fold2dAttrs attrs, Storage input, Storage output, long[] out) {
+        Window2dAttrs w = attrs.window();
+        long ow = windows(output.extent(3), w.kernelWidth(), w.strideWidth(), w.paddingWidth(), w.dilationWidth(), w.ceilMode());
+        long sum = output.zero();
+        for (long linear = 0; linear < input.elements(); linear++) {
+            long[] col = coordinates(input.descriptor.shape(), linear);
+            long c = col[1] / (w.kernelHeight() * w.kernelWidth()), k = col[1] % (w.kernelHeight() * w.kernelWidth());
+            long y = (col[2] / ow) * w.strideHeight() - w.paddingHeight() + (k / w.kernelWidth()) * w.dilationHeight();
+            long x = (col[2] % ow) * w.strideWidth() - w.paddingWidth() + (k % w.kernelWidth()) * w.dilationWidth();
+            if (col[0] == out[0] && c == out[1] && y == out[2] && x == out[3]) sum = output.add(sum, input.get(col));
+        }
+        return output.finishFold(sum);
+    }
     private static long windows(long size, long kernel, long stride, long pad, long dilation, boolean ceil) { long numerator = size + 2 * pad - (dilation * (kernel - 1) + 1); return (ceil ? Math.floorDiv(numerator + stride - 1, stride) : Math.floorDiv(numerator, stride)) + 1; }
 
     private static TensorDescriptor descriptor(PrepareContext<CpuPartitionAnalysisInputs> c, ValueId id) { return c.values().stream().filter(value -> value.id().equals(id)).findFirst().orElseThrow().descriptor(); }
@@ -275,7 +298,25 @@ class CpuOrdinaryMovementFoldSemanticClosureTest {
         long get(long[] c) { int p = Math.toIntExact(address(descriptor, c)); return switch (descriptor.dataType()) { case FLOAT64 -> Double.doubleToRawLongBits(((double[]) array)[p]); case FLOAT32 -> Float.floatToRawIntBits(((float[]) array)[p]); case BFLOAT16, FLOAT16 -> ((short[]) array)[p] & 0xffffL; case INT32 -> ((int[]) array)[p] & 0xffffffffL; case INT64 -> ((long[]) array)[p]; case BOOL -> ((byte[]) array)[p] & 0xffL; }; }
         void set(long[] c, long raw) { int p = Math.toIntExact(address(descriptor, c)); switch (descriptor.dataType()) { case FLOAT64 -> ((double[]) array)[p] = Double.longBitsToDouble(raw); case FLOAT32 -> ((float[]) array)[p] = Float.intBitsToFloat((int) raw); case BFLOAT16, FLOAT16 -> ((short[]) array)[p] = (short) raw; case INT32 -> ((int[]) array)[p] = (int) raw; case INT64 -> ((long[]) array)[p] = raw; case BOOL -> ((byte[]) array)[p] = (byte) raw; } }
         long sample(long i) { return switch (descriptor.dataType()) { case FLOAT64 -> Double.doubleToRawLongBits((i % 7 - 3) * 1.25); case FLOAT32 -> Float.floatToRawIntBits((float) ((i % 7 - 3) * 1.25)); case BFLOAT16 -> bfloat((float) ((i % 7 - 3) * 1.25)); case FLOAT16 -> Float.floatToFloat16((float) ((i % 7 - 3) * 1.25)) & 0xffffL; case INT32 -> (i % 7 - 3) * 0x40000001L; case INT64 -> (i % 7 - 3) * 0x4000000000000001L; case BOOL -> i & 1; }; }
-        long add(long left, long right) { return switch (descriptor.dataType()) { case FLOAT64 -> Double.doubleToRawLongBits(Double.longBitsToDouble(left) + Double.longBitsToDouble(right)); case FLOAT32 -> Float.floatToRawIntBits(Float.intBitsToFloat((int) left) + Float.intBitsToFloat((int) right)); case BFLOAT16 -> bfloat(Float.intBitsToFloat((int) left << 16) + Float.intBitsToFloat((int) right << 16)); case FLOAT16 -> Float.floatToFloat16(Float.float16ToFloat((short) left) + Float.float16ToFloat((short) right)) & 0xffffL; case INT32 -> (int) left + (int) right; case INT64 -> left + right; case BOOL -> throw new AssertionError(); }; }
+        /**
+         * Keeps low fold partial sums as raw FLOAT32 bits, never as narrowed storage bits.
+         * @param left working accumulator bits; FLOAT32 bits for either low boundary type
+         * @param right exact stored contributor bits in this storage's boundary type
+         * @return working sum bits, or modular integer sum bits for an integral fold
+         */
+        long add(long left, long right) { return switch (descriptor.dataType()) { case FLOAT64 -> Double.doubleToRawLongBits(Double.longBitsToDouble(left) + Double.longBitsToDouble(right)); case FLOAT32 -> Float.floatToRawIntBits(Float.intBitsToFloat((int) left) + Float.intBitsToFloat((int) right)); case BFLOAT16 -> Float.floatToRawIntBits(Float.intBitsToFloat((int) left) + Float.intBitsToFloat((int) right << 16)); case FLOAT16 -> Float.floatToRawIntBits(Float.intBitsToFloat((int) left) + Float.float16ToFloat((short) right)); case INT32 -> (int) left + (int) right; case INT64 -> left + right; case BOOL -> throw new AssertionError(); }; }
+        /**
+         * Converts a completed working sum to output storage only once.
+         * @param accumulator working bits returned by add; FLOAT32 bits for either low type
+         * @return represented low bits after ties-to-even narrowing, or unchanged nonlow bits
+         */
+        long finishFold(long accumulator) {
+            return switch (descriptor.dataType()) {
+                case BFLOAT16 -> io.github.pho001.synaptik.model.datatype.BFloat16Bits.fromFloat(Float.intBitsToFloat((int) accumulator)) & 0xffffL;
+                case FLOAT16 -> Float.floatToFloat16(Float.intBitsToFloat((int) accumulator)) & 0xffffL;
+                default -> accumulator;
+            };
+        }
         private static long bfloat(float value) { int bits = Float.floatToRawIntBits(value); int upper = bits >>> 16, lower = bits & 0xffff; return (lower > 0x8000 || lower == 0x8000 && (upper & 1) != 0 ? upper + 1 : upper) & 0xffffL; }
     }
     private static long address(TensorDescriptor d, long[] coordinates) { long[] strides = d.layout().orElseThrow().strides(); long result = d.layout().orElseThrow().storageOffset(); for (int i = 0; i < coordinates.length; i++) result += coordinates[i] * strides[i]; return result; }

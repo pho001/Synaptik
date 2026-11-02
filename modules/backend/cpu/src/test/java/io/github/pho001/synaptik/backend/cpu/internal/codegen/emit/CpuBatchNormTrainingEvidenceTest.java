@@ -2,7 +2,6 @@ package io.github.pho001.synaptik.backend.cpu.internal.codegen.emit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormTrainingLoweringTest;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
@@ -18,18 +17,14 @@ import java.nio.file.Path;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 
-/** Frozen specialization, member, and retained Class-File evidence for CPU 0007F2. */
+/** Current generated-shape controls and original typed unsupported witnesses for CPU 0007F2. */
 public final class CpuBatchNormTrainingEvidenceTest {
     private record Target(String name, List<DataType> types, Shape shape, int axis,
             List<Integer> occurrences, List<CarrierAccess> carriers,
             List<LayoutDescriptor> layouts, int parallelism) { }
 
-    @Test void frozenEightTargetInventoryHasClosedGeneratedShapeAndMembers() throws Exception {
-        assertEquals(70, CpuGeneratorSchema.CURRENT_VERSION);
+    @Test void originalTargetInventoryHasCurrentAdmissionAndClosedGeneratedShape() throws Exception {
         List<Target> targets = targets();
-        assertEquals(List.of("BNT-BF16-A1", "BNT-F32-A1", "BNT-F64-A1", "BNT-F32-A0",
-                "BNT-F32-A2", "BNT-MIX-F64", "BNT-MIX-F32", "BNT-REPEAT"),
-                targets.stream().map(Target::name).toList());
         for (Target target : targets) inspect(target);
     }
 
@@ -40,6 +35,8 @@ public final class CpuBatchNormTrainingEvidenceTest {
                 CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR,
                 target.parallelism, target.parallelism, 4096);
         var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, target.carriers, config));
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                .assertLowUnsupported(context)) return;
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();

@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.backend.cpu.internal.codegen.emit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
@@ -42,6 +43,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import org.junit.jupiter.api.Test;
 
@@ -67,11 +69,15 @@ public final class CpuTrailingNormalizationEvidenceTest {
             long[] generatedRounds, long[] directRounds) { }
     private record Prepared(MethodHandle handle, MemorySegment scratch, long[] geometry,
             byte[] classBytes, byte[] compatibility, String specialization) { }
+    /** Keeps every frozen owner while only admitted cases carry executable timing actions. */
+    private record Inventory(List<Case> admitted, List<String> unsupported) { }
 
     static List<CpuBatchNormTrainingPerformanceTest.BenchmarkCase> trainingControls(Arena arena)
             throws Throwable {
         List<Case> retained = new ArrayList<>();
-        addDense(retained, arena, DataType.FLOAT32, true, false);
+        List<String> unsupported = new ArrayList<>();
+        addDense(retained, unsupported, arena, DataType.FLOAT32, true, false);
+        assertTrue(unsupported.isEmpty());
         addVarianceControl(retained, arena);
         addPointwiseControl(retained);
         List<String> names = List.of("CONTROL_F32_LAYER_NORM", "CONTROL_F32_VARIANCE",
@@ -105,9 +111,11 @@ public final class CpuTrailingNormalizationEvidenceTest {
     @Test void mixedSegmentSpecializationsUseFrozenNativeLayouts() throws Throwable {
         try (Arena arena = Arena.ofConfined()) {
             List<Case> cases = new ArrayList<>();
-            addMixedLayer(cases, arena);
-            addMixedRms(cases, arena);
-            assertEquals(2, cases.size());
+            List<String> unsupported = new ArrayList<>();
+            addMixedLayer(cases, unsupported, arena);
+            addMixedRms(cases, unsupported, arena);
+            assertTrue(cases.isEmpty());
+            assertEquals(List.of("MIXED_LAYER_AFFINE_GENERAL", "MIXED_RMS_SCALED_GENERAL"), unsupported);
         }
     }
 
@@ -115,7 +123,10 @@ public final class CpuTrailingNormalizationEvidenceTest {
     public static void main(String[] arguments) throws Throwable {
         long fork = arguments.length == 0 ? 0 : Long.parseLong(arguments[0]);
         try (Arena arena = Arena.ofConfined()) {
-            List<Case> cases = cases(arena);
+            Inventory inventory = cases(arena);
+            for (String name : inventory.unsupported())
+                System.out.println("UNSUPPORTED," + name);
+            List<Case> cases = inventory.admitted();
             for (Case value : cases) { value.generated.run(); value.direct.run(); value.verify.run(); }
             int[] repetitions = new int[cases.size() * 2];
             for (int index = 0; index < cases.size(); index++) {
@@ -168,58 +179,67 @@ public final class CpuTrailingNormalizationEvidenceTest {
         result.add("CONTROL_F32_ADD"); return List.copyOf(result);
     }
 
-    private static List<Case> cases(Arena arena) throws Throwable {
+    private static Inventory cases(Arena arena) throws Throwable {
         List<Case> result = new ArrayList<>();
+        List<String> unsupported = new ArrayList<>();
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
-            addDense(result, arena, type, true, false);
-            addDense(result, arena, type, true, true);
-            addDense(result, arena, type, false, false);
-            addDense(result, arena, type, false, true);
+            addDense(result, unsupported, arena, type, true, false);
+            addDense(result, unsupported, arena, type, true, true);
+            addDense(result, unsupported, arena, type, false, false);
+            addDense(result, unsupported, arena, type, false, true);
         }
-        addMixedLayer(result, arena); addMixedRms(result, arena);
+        addMixedLayer(result, unsupported, arena); addMixedRms(result, unsupported, arena);
         addVarianceControl(result, arena); addSoftmaxControl(result); addPointwiseControl(result);
-        if (!result.stream().map(Case::name).toList().equals(frozenNames()))
-            throw new AssertionError("frozen case order disagrees");
-        return result;
+        List<String> owners = new ArrayList<>(result.stream().map(Case::name).toList());
+        owners.addAll(unsupported);
+        assertEquals(frozenNames().size(), owners.size(), "every frozen fixture has one outcome");
+        assertEquals(new java.util.HashSet<>(frozenNames()), new java.util.HashSet<>(owners));
+        assertEquals(frozenNames().stream().filter(name -> !unsupported.contains(name)).toList(),
+                result.stream().map(Case::name).toList(), "admitted owner order");
+        return new Inventory(List.copyOf(result), List.copyOf(unsupported));
     }
 
-    private static void addDense(List<Case> cases, Arena arena, DataType type,
+    private static void addDense(List<Case> cases, List<String> unsupported, Arena arena, DataType type,
             boolean layer, boolean affine) throws Throwable {
         int inputCount = affine ? layer ? 3 : 2 : 1;
         List<CarrierAccess> carriers = new ArrayList<>();
         for (int index = 0; index <= inputCount; index++) carriers.add(arrayCarrier(type));
-        Prepared prepared = normalization(type, layer, affine, carriers, arena,
+        String owner = type + "_" + (layer ? "LAYER" : "RMS")
+                + (affine ? layer ? "_AFFINE" : "_SCALED" : "") + "_HEAP";
+        Optional<Prepared> outcome = normalization(type, layer, affine, carriers, arena,
                 (layer ? "layer" : "rms") + (affine ? layer ? "-affine" : "-scaled" : "-plain") + "-"
                         + type.name().toLowerCase(Locale.ROOT));
+        if (outcome.isEmpty()) { unsupported.add(owner); return; }
+        Prepared prepared = outcome.orElseThrow();
         Object input = input(type), scale = parameter(type, false), bias = parameter(type, true);
         Object generatedOutput = output(type), directOutput = output(type);
         Action generated = denseGenerated(type, layer, affine, prepared, input, scale, bias,
                 generatedOutput);
         Action direct = denseDirect(type, layer, affine, arena, input, scale, bias, directOutput);
-        cases.add(new Case(type + "_" + (layer ? "LAYER" : "RMS")
-                + (affine ? layer ? "_AFFINE" : "_SCALED" : "") + "_HEAP", generated, direct,
+        cases.add(new Case(owner, generated, direct,
                 () -> equal(type, generatedOutput, directOutput), new long[9], new long[9]));
     }
 
-    private static Prepared normalization(DataType type, boolean layer, boolean affine,
+    private static Optional<Prepared> normalization(DataType type, boolean layer, boolean affine,
             List<CarrierAccess> carriers, Arena arena, String retainedName) throws Exception {
         var base = CpuTrailingNormalizationLoweringTest.context(layer, affine, type,
                 Shape.of(ROWS, WIDTH), Shape.of(WIDTH), affine
                         ? layer ? List.of(0, 1, 2) : List.of(0, 1) : List.of(0));
         var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                .assertLowUnsupported(context)) return Optional.empty();
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
         byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
         retain(retainedName, bytes, route.specialization().compatibilityBytes(),
-                route.specialization().toString(), generator.defineClassBytes(
-                        route.specialization(), bytes).entryPoint().type().toString());
+                route.specialization().toString(), generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes).entryPoint().type().toString());
         long scratchBytes = plan.trailingNormalizationGeometry().orElseThrow().scratchSliceBytes();
-        return new Prepared(generator.defineClassBytes(route.specialization(), bytes).entryPoint(),
+        return Optional.of(new Prepared(generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes).entryPoint(),
                 scratchBytes == 0 ? null : arena.allocate(scratchBytes, 8),
                 plan.trailingNormalizationGeometry().orElseThrow().pack(new long[inputCount(layer,
                         affine) + 1]), bytes, route.specialization().compatibilityBytes(),
-                route.specialization().toString());
+                route.specialization().toString()));
     }
 
     private static int inputCount(boolean layer, boolean affine) {
@@ -415,7 +435,7 @@ public final class CpuTrailingNormalizationEvidenceTest {
         double root = (float) Math.hypot(scale * Math.sqrt(squares / WIDTH), Math.sqrt(bfloatEpsilon()));
         return nan ? Double.NaN : infinity ? Double.POSITIVE_INFINITY : root; }
 
-    private static void addMixedLayer(List<Case> cases, Arena arena) throws Throwable {
+    private static void addMixedLayer(List<Case> cases, List<String> unsupported, Arena arena) throws Throwable {
         Shape inputShape = Shape.of(ROWS, WIDTH), normalized = Shape.of(WIDTH);
         int inputStride = WIDTH + 3, outputStride = WIDTH + 5;
         TensorDescriptor inputDescriptor = descriptor(DataType.BFLOAT16, inputShape,
@@ -429,9 +449,11 @@ public final class CpuTrailingNormalizationEvidenceTest {
                 new AffineLayerNormAttrs(normalized, ScalarValue.float64(EPSILON64))),
                 List.of(0, 1, 2), List.of(inputDescriptor, scaleDescriptor, biasDescriptor),
                 outputDescriptor);
-        Prepared prepared = mixedPrepared(base, List.of(CarrierAccess.MEMORY_SEGMENT,
+        Optional<Prepared> outcome = mixedPrepared(base, List.of(CarrierAccess.MEMORY_SEGMENT,
                 CarrierAccess.FLOAT_ARRAY, CarrierAccess.MEMORY_SEGMENT,
                 CarrierAccess.DOUBLE_ARRAY), arena, "mixed-layer-affine-general");
+        if (outcome.isEmpty()) { unsupported.add("MIXED_LAYER_AFFINE_GENERAL"); return; }
+        Prepared prepared = outcome.orElseThrow();
         MemorySegment input = arena.allocate((1L + ROWS * (long) inputStride) * Short.BYTES, 2);
         for (int row = 0; row < ROWS; row++) for (int i = 0; i < WIDTH; i++)
             input.set(SHORT, (1L + row * (long) inputStride + i) * Short.BYTES,
@@ -470,7 +492,7 @@ public final class CpuTrailingNormalizationEvidenceTest {
         cases.add(new Case("MIXED_LAYER_AFFINE_GENERAL", generatedAction, directAction,
                 () -> equalMixed64(generated, direct, outputStride, 3), new long[9], new long[9]));
     }
-    private static void addMixedRms(List<Case> cases, Arena arena) throws Throwable {
+    private static void addMixedRms(List<Case> cases, List<String> unsupported, Arena arena) throws Throwable {
         Shape inputShape = Shape.of(ROWS, WIDTH), normalized = Shape.of(WIDTH);
         int inputStride = WIDTH + 3, outputStride = WIDTH + 5;
         TensorDescriptor inputDescriptor = descriptor(DataType.BFLOAT16, inputShape,
@@ -481,9 +503,11 @@ public final class CpuTrailingNormalizationEvidenceTest {
         var base = CpuScatterLoweringTest.context(new Operation(RmsNormKind.RMS_NORM,
                 new RmsNormAttrs(normalized, ScalarValue.float32(EPSILON32))), List.of(0, 1),
                 List.of(inputDescriptor, scaleDescriptor), outputDescriptor);
-        Prepared prepared = mixedPrepared(base, List.of(CarrierAccess.MEMORY_SEGMENT,
+        Optional<Prepared> outcome = mixedPrepared(base, List.of(CarrierAccess.MEMORY_SEGMENT,
                 CarrierAccess.FLOAT_ARRAY, CarrierAccess.MEMORY_SEGMENT), arena,
                 "mixed-rms-scaled-general");
+        if (outcome.isEmpty()) { unsupported.add("MIXED_RMS_SCALED_GENERAL"); return; }
+        Prepared prepared = outcome.orElseThrow();
         MemorySegment input = arena.allocate((1L + ROWS * (long) inputStride) * Short.BYTES, 2);
         for (int row = 0; row < ROWS; row++) for (int i = 0; i < WIDTH; i++)
             input.set(SHORT, (1L + row * (long) inputStride + i) * Short.BYTES,
@@ -520,17 +544,19 @@ public final class CpuTrailingNormalizationEvidenceTest {
                 java.util.Optional.of(LayoutDescriptor.of(shape, strides, offset, true)), false);
     }
 
-    private static Prepared mixedPrepared(PrepareContext<CpuPartitionAnalysisInputs> base,
+    private static Optional<Prepared> mixedPrepared(PrepareContext<CpuPartitionAnalysisInputs> base,
             List<CarrierAccess> carriers, Arena arena, String name) throws Exception {
         var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                .assertLowUnsupported(context)) return Optional.empty();
         var plan = new CpuPartitionPreparer().analyze(context).plan(); var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator(); byte[] bytes = generator.generateClassBytes(
-                route.specialization(), route.kernelIr()); var artifact = generator.defineClassBytes(route.specialization(), bytes);
+                route.specialization(), route.kernelIr()); var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes);
         retain(name, bytes, route.specialization().compatibilityBytes(), route.specialization().toString(),
                 artifact.entryPoint().type().toString()); long scratch = plan.trailingNormalizationGeometry().orElseThrow().scratchSliceBytes();
-        return new Prepared(artifact.entryPoint(), scratch == 0 ? null : arena.allocate(scratch, 8),
+        return Optional.of(new Prepared(artifact.entryPoint(), scratch == 0 ? null : arena.allocate(scratch, 8),
                 plan.trailingNormalizationGeometry().orElseThrow().pack(new long[carriers.size()]),
-                bytes, route.specialization().compatibilityBytes(), route.specialization().toString());
+                bytes, route.specialization().compatibilityBytes(), route.specialization().toString()));
     }
 
     private static void validateMixed(MemorySegment input, float[] scale, MemorySegment bias,
@@ -564,10 +590,10 @@ public final class CpuTrailingNormalizationEvidenceTest {
                 new StatisticalReductionAttrs(List.of(1), false, 1), Shape.of(ROWS));
         var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY)));
-        var plan = new CpuPartitionPreparer().analyze(context).plan(); var route = plan.units().getFirst().portablePlan();
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
+        var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator(); byte[] bytes = generator.generateClassBytes(
-                route.specialization(), route.kernelIr()); var artifact = generator.defineClassBytes(
-                        route.specialization(), bytes); MethodHandle handle = artifact.entryPoint();
+                route.specialization(), route.kernelIr()); var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes); MethodHandle handle = artifact.entryPoint();
         retain("control-f32-variance", bytes, route.specialization().compatibilityBytes(),
                 route.specialization().toString(), handle.type().toString());
         var geometry = plan.advancedReductionGeometry().orElseThrow();
@@ -597,10 +623,10 @@ public final class CpuTrailingNormalizationEvidenceTest {
                 DataType.FLOAT32, Shape.of(ROWS, WIDTH), 1);
         var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY)));
-        var plan = new CpuPartitionPreparer().analyze(context).plan(); var route = plan.units().getFirst().portablePlan();
+        var plan = new CpuPartitionPreparer().analyze(context).plan();
+        var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator(); byte[] bytes = generator.generateClassBytes(
-                route.specialization(), route.kernelIr()); MethodHandle handle = generator.defineClassBytes(
-                        route.specialization(), bytes).entryPoint();
+                route.specialization(), route.kernelIr()); MethodHandle handle = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes).entryPoint();
         retain("control-f32-softmax", bytes, route.specialization().compatibilityBytes(),
                 route.specialization().toString(), handle.type().toString());
         float[] input = (float[]) input(DataType.FLOAT32), generated = new float[ELEMENTS], direct = new float[ELEMENTS];
@@ -637,7 +663,7 @@ public final class CpuTrailingNormalizationEvidenceTest {
         List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY),
         0, -1); var generator = new CpuClassFileKernelGenerator(); byte[] bytes =
                 generator.generateClassBytes(specialization, ir); MethodHandle handle =
-                generator.defineClassBytes(specialization, bytes).entryPoint();
+                generator.defineClassBytes(specialization, ir, bytes).entryPoint();
         retain("control-f32-add", bytes, specialization.compatibilityBytes(),
                 specialization.toString(), handle.type().toString());
         float[] left = (float[]) input(DataType.FLOAT32), right = (float[]) parameterBody(),

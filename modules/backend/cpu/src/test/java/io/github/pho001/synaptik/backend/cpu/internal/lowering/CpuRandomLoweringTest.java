@@ -21,10 +21,10 @@ import org.junit.jupiter.api.Test;
 public class CpuRandomLoweringTest {
     @Test void lowersZeroInputInitializerAndFiveBoundaryDropoutExactly() {
         var initial = new CpuPartitionLowering().lower(initialContext(0x1234L, -7L));
-        var dropout = new CpuPartitionLowering().lower(dropoutContext(DataType.FLOAT32,
-                Shape.of(2, 3), .25d));
-        var bfloat16 = new CpuPartitionLowering().lower(dropoutContext(DataType.BFLOAT16,
-                Shape.of(3), .2d));
+        var dropout = new CpuPartitionLowering().lower(dropoutContext(DataType.FLOAT32, Shape.of(2, 3), .25d));
+        for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16))
+            assertTrue(io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                    .assertLowUnsupported(dropoutContext(type, Shape.of(3), .2d)));
         assertAll(
                 () -> assertEquals(CpuRandomIr.Family.INITIAL_STATE,
                         ((CpuRandomIr) initial.portableKernelIr()).family()),
@@ -35,9 +35,6 @@ public class CpuRandomLoweringTest {
                         ((CpuRandomIr) dropout.portableKernelIr()).family()),
                 () -> assertEquals(List.of(DataType.FLOAT32, DataType.INT64, DataType.FLOAT32,
                         DataType.BOOL, DataType.INT64), dropout.boundaryDataTypes()),
-                () -> assertEquals(List.of(DataType.BFLOAT16, DataType.INT64,
-                        DataType.BFLOAT16, DataType.BOOL, DataType.INT64),
-                        bfloat16.boundaryDataTypes()),
                 () -> assertEquals(6, dropout.elementCount()),
                 () -> assertTrue(dropout.randomGeometry().isPresent()));
     }

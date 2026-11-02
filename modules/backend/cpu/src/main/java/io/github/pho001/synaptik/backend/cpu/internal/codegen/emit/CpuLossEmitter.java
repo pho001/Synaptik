@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.codegen.emit;
 
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization;
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema;
+import io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuClassFileKernelGenerator.GeneratedMethod;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -16,6 +17,7 @@ import java.lang.constant.ClassDesc;
 import java.lang.constant.ConstantDescs;
 import java.lang.constant.MethodTypeDesc;
 import java.lang.reflect.AccessFlag;
+import java.util.List;
 
 /**
  * Emits field-free direct Class-File bodies for the CPU loss family.
@@ -37,6 +39,13 @@ import java.lang.reflect.AccessFlag;
  * prepared executable's cold pre-write validator proves every non-ignored target is in range
  * before this entry can run, so the generated hot loop neither allocates an exception nor repeats
  * whole-invocation validation.</p>
+ *
+ * <p>Controlled ROW execution uses the existing scalar affine traversal, because ordinary vector
+ * chunks and frozen contiguous address loops do not represent arbitrary original-row activity.
+ * A sample is guarded before either semantic operand is loaded. Inactive NONE outputs receive
+ * positive zero; reduced contributors are skipped, retaining represented contribution order and
+ * the ordinary addition/rounding sites. The invocation owner performs canonical pre-write loss
+ * validation over the complete eligible active domain.</p>
  */
 public final class CpuLossEmitter {
     /** Name of the private body selected when cold geometry proves contiguous int addresses. */
@@ -52,35 +61,52 @@ public final class CpuLossEmitter {
     public CpuLossEmitter() { }
 
     /**
-     * Emits one complete typed loss entry body.
+     * Emits the direct loss entry and both private bodies in one deterministic namespace.
+     * The empty prefix retains standalone names, declaration order, access and code shape.
+     * A nonempty prefix namespaces both direct dispatch targets. A descriptor with one
+     * additional trailing MemorySegment forwards that invocation-owned control to both bodies;
+     * ordinary carrier/geometry/range slots remain unchanged. A null builder collects only the
+     * actual declaration inventory. The central generator authenticates numerical admission
+     * and specialization/IR agreement before calling here.
      *
-     * @param classBuilder non-null Class-File builder receiving the generated body
-     * @param owner non-null generated class that declares the direct entry and private bodies
-     * @param type non-null typed descriptor shared by the generated entry and both private bodies
-     * @param specialization non-null schema-58 scalar or schema-62 vector MSE carrier
-     *     specialization
+     * @param classBuilder Class-File builder receiving all declarations, or null for inventory
+     * @param owner non-null declaring class used for both direct static calls
+     * @param prefix non-null caller-owned deterministic namespace, empty for standalone generation
+     * @param type non-null typed descriptor shared by the entry and both private bodies
+     * @param specialization non-null schema-58 scalar or schema-62 vector MSE carrier specialization
      * @param ir non-null canonical loss identity with no executable instructions
-     * @throws NullPointerException if any parameter is {@code null}
+     * @return immutable inventory of the three actual declarations in emission order
+     * @throws NullPointerException if a required fact is null
      * @throws IllegalArgumentException if the supplied facts do not describe one direct loss form
      */
-    public void emit(ClassBuilder classBuilder, ClassDesc owner, MethodTypeDesc type,
-            CpuKernelSpecialization specialization, CpuKernelIr ir) {
-        classBuilder.withMethod(CpuGeneratorSchema.ENTRY_NAME, type,
-                AccessFlag.PUBLIC.mask() | AccessFlag.STATIC.mask(),
-                method -> method.withCode(code -> emitDispatch(code, owner, type, specialization, ir)));
-        classBuilder.withMethod(CONTIGUOUS_INT_NAME, type,
-                AccessFlag.PRIVATE.mask() | AccessFlag.STATIC.mask(), method -> method.withCode(code -> {
-                    emitContiguousIntBody(code, specialization, ir); code.return_();
-                }));
-        classBuilder.withMethod(GENERIC_AFFINE_NAME, type,
-                AccessFlag.PRIVATE.mask() | AccessFlag.STATIC.mask(), method -> method.withCode(code -> {
-                    emitGenericAffine(code, specialization, ir); code.return_();
-                }));
+    public List<GeneratedMethod> emit(ClassBuilder classBuilder, ClassDesc owner, String prefix,
+            MethodTypeDesc type, CpuKernelSpecialization specialization, CpuKernelIr ir) {
+        String entryName = prefix + CpuGeneratorSchema.ENTRY_NAME;
+        String contiguousName = prefix + CONTIGUOUS_INT_NAME;
+        String genericName = prefix + GENERIC_AFFINE_NAME;
+        int entryFlags = AccessFlag.PUBLIC.mask() | AccessFlag.STATIC.mask();
+        int bodyFlags = AccessFlag.PRIVATE.mask() | AccessFlag.STATIC.mask();
+        boolean controlled = type.parameterCount() == specialization.entryType().parameterCount() + 1;
+        CpuClassFileKernelGenerator.declareMethod(classBuilder, entryName, type, entryFlags, controlled,
+                code -> emitDispatch(code, owner, type, contiguousName, genericName, specialization, ir));
+        CpuClassFileKernelGenerator.declareMethod(classBuilder, contiguousName, type, bodyFlags, controlled,
+                code -> { emitContiguousIntBody(code, specialization, ir); code.return_(); });
+        CpuClassFileKernelGenerator.declareMethod(classBuilder, genericName, type, bodyFlags, controlled,
+                code -> { emitGenericAffine(code, specialization, ir); code.return_(); });
+        return List.of(new GeneratedMethod(entryName, type, entryFlags),
+                new GeneratedMethod(contiguousName, type, bodyFlags),
+                new GeneratedMethod(genericName, type, bodyFlags));
     }
 
     private static void emitDispatch(CodeBuilder code, ClassDesc owner, MethodTypeDesc type,
+            String contiguousName, String genericName,
             CpuKernelSpecialization specialization, CpuKernelIr ir) {
         int geometry = specialization.boundaryDataTypes().size();
+        if (rowControlled()) {
+            invokeHelper(code, owner, genericName, type, geometry);
+            code.return_();
+            return;
+        }
         int rank = code.allocateLocal(TypeKind.INT), axis = code.allocateLocal(TypeKind.INT);
         int targetRank = code.allocateLocal(TypeKind.INT), outputRank = code.allocateLocal(TypeKind.INT);
         geometry(code, geometry, 0).l2i().istore(rank);
@@ -98,19 +124,27 @@ public final class CpuLossEmitter {
                     geometry + 1, geometry + 3,
                     LossReduction.valueOf(field(ir.familyIdentity(), "reduction=")), generic, outer, inner);
         }
-        invokeHelper(code, owner, CONTIGUOUS_INT_NAME, type, geometry); code.return_();
+        invokeHelper(code, owner, contiguousName, type, geometry); code.return_();
         code.labelBinding(generic);
-        invokeHelper(code, owner, GENERIC_AFFINE_NAME, type, geometry); code.return_();
+        invokeHelper(code, owner, genericName, type, geometry); code.return_();
     }
 
     private static void invokeHelper(CodeBuilder code, ClassDesc owner, String name,
             MethodTypeDesc type, int geometry) {
         for (int parameter = 0; parameter <= geometry; parameter++) code.aload(parameter);
-        code.lload(geometry + 1).lload(geometry + 3).invokestatic(owner, name, type);
+        code.lload(geometry + 1).lload(geometry + 3);
+        int ordinaryParameters = geometry + 3;
+        if (type.parameterCount() > ordinaryParameters)
+            code.aload(code.parameterSlot(ordinaryParameters));
+        code.invokestatic(owner, name, type);
     }
 
     private static void emitContiguousIntBody(CodeBuilder code, CpuKernelSpecialization specialization,
             CpuKernelIr ir) {
+        if (rowControlled()) {
+            emitGenericAffine(code, specialization, ir);
+            return;
+        }
         LossKind kind = LossKind.valueOf(field(ir.familyIdentity(), "kind="));
         LossReduction reduction = LossReduction.valueOf(field(ir.familyIdentity(), "reduction="));
         DataType predictionType = DataType.valueOf(field(ir.familyIdentity(), "prediction="));
@@ -597,6 +631,13 @@ public final class CpuLossEmitter {
         int outputBoundary = boundaryCount - 1;
         var carriers = new CpuCarrierEmitter(code);
 
+        boolean outputRow = reduction == LossReduction.NONE && CpuCarrierEmitter.controlFacts()
+                .map(control -> control.boundaryRows().get(outputBoundary).rowIndexed()).orElse(false);
+        var predictionRow = CpuCarrierEmitter.controlFacts()
+                .map(control -> control.boundaryRows().get(predictionBoundary));
+        boolean contributorRow = reduction != LossReduction.NONE
+                && predictionRow.map(row -> row.rowIndexed()).orElse(false);
+        int activityRow = contributorRow ? code.allocateLocal(TypeKind.LONG) : -1;
         int rank = code.allocateLocal(TypeKind.INT);
         int axis = code.allocateLocal(TypeKind.INT);
         int targetRank = code.allocateLocal(TypeKind.INT);
@@ -632,6 +673,7 @@ public final class CpuLossEmitter {
         geometry(code, geometry, 2).l2i().istore(targetRank);
         geometry(code, geometry, 3).l2i().istore(outputRank);
         zero(code, f64, reduced);
+        if (contributorRow) code.loadConstant(0L).lstore(activityRow);
         if (included >= 0) code.loadConstant(0L).lstore(included);
         if (reduction == LossReduction.NONE) {
             code.lload(start).lstore(ordinal);
@@ -646,8 +688,13 @@ public final class CpuLossEmitter {
         code.labelBinding(loop).lload(ordinal).lload(limit).lcmp().branch(Opcode.IFGE, done);
         addresses(code, geometry, kind, reduction, rank, axis, targetRank, outputRank, ordinal,
                 remainder, coordinate, logicalAxis, targetAxis, predictionAddress, targetAddress,
-                outputAddress);
+                outputAddress, contributorRow ? predictionRow.orElseThrow().axis() : -1, activityRow);
         Label next = code.newLabel();
+        Label inactive = outputRow ? code.newLabel() : null;
+        if (outputRow)
+            CpuLoopEmitter.emitActiveOrdinalGuard(code, outputBoundary, ordinal, TypeKind.LONG, inactive);
+        if (contributorRow)
+            CpuCarrierEmitter.emitActiveRowGuard(code, activityRow, TypeKind.LONG, next);
         if (kind == LossKind.MEAN_SQUARED_ERROR) {
             loadFloating(code, carriers, specialization, predictionType, predictionBoundary,
                     predictionAddress, predictionRepresented, value, f64);
@@ -715,16 +762,22 @@ public final class CpuLossEmitter {
             store(code, carriers, specialization, resultType, outputBoundary, outputAddress, loss);
         } else {
             add(code, f64, reduced, loss, reduced);
-            if (kind == LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS && included >= 0) {
+            if ((kind == LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS || contributorRow)
+                    && included >= 0) {
                 code.lload(included).loadConstant(1L).ladd().lstore(included);
             }
+        }
+        if (outputRow) {
+            code.branch(Opcode.GOTO, next).labelBinding(inactive);
+            zero(code, f64, loss);
+            store(code, carriers, specialization, resultType, outputBoundary, outputAddress, loss);
         }
         code.labelBinding(next).lload(ordinal).loadConstant(1L).ladd().lstore(ordinal)
                 .branch(Opcode.GOTO, loop).labelBinding(done);
 
         if (reduction != LossReduction.NONE) {
             if (reduction == LossReduction.MEAN) {
-                if (kind == LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS) {
+                if (kind == LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS || contributorRow) {
                     divideByCount(code, f64, reduced, included);
                 } else {
                     geometry(code, geometry, 9).lstore(included);
@@ -734,6 +787,15 @@ public final class CpuLossEmitter {
             geometry(code, geometry, 6).lstore(outputAddress);
             store(code, carriers, specialization, resultType, outputBoundary, outputAddress, reduced);
         }
+    }
+
+    /**
+     * Selects scalar affine activity only when the authenticated ABI contains a ROW boundary.
+     * @return whether this generated method needs original-row sample guards
+     */
+    private static boolean rowControlled() {
+        return CpuCarrierEmitter.controlFacts().map(control -> control.boundaryRows().stream()
+                .anyMatch(row -> row.rowIndexed())).orElse(false);
     }
 
     /** Emits a cold proof that all three MSE layouts are dense row-major views. */
@@ -1537,7 +1599,7 @@ public final class CpuLossEmitter {
     private static void addresses(CodeBuilder code, int geometry, LossKind kind,
             LossReduction reduction, int rank, int axis, int targetRank, int outputRank,
             int ordinal, int remainder, int coordinate, int logicalAxis, int targetAxis,
-            int prediction, int target, int output) {
+            int prediction, int target, int output, int originalRowAxis, int activityRow) {
         geometry(code, geometry, 4).lstore(prediction);
         geometry(code, geometry, 5).lstore(target);
         geometry(code, geometry, 6).lstore(output);
@@ -1554,6 +1616,11 @@ public final class CpuLossEmitter {
         }
         code.lload(remainder); extent(code, geometry, logicalAxis).lrem().lstore(coordinate);
         code.lload(remainder); extent(code, geometry, logicalAxis).ldiv().lstore(remainder);
+        if (originalRowAxis >= 0) {
+            Label notRow = code.newLabel();
+            code.iload(logicalAxis).loadConstant(originalRowAxis).branch(Opcode.IF_ICMPNE, notRow);
+            code.lload(coordinate).lstore(activityRow).labelBinding(notRow);
+        }
         code.lload(prediction).lload(coordinate); predictionStride(code, geometry, rank, logicalAxis)
                 .lmul().ladd().lstore(prediction);
         if (kind == LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS) {

@@ -12,25 +12,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
+import io.github.pho001.synaptik.model.graph.CompiledScanBody;
+import io.github.pho001.synaptik.model.graph.GraphValue;
+import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.OperationSignature;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
+import io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection;
+import io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind;
+import io.github.pho001.synaptik.model.operation.scan.ScanAttrs;
+import io.github.pho001.synaptik.model.operation.scan.ScanKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
-import java.io.Serializable;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.RecordComponent;
-import java.lang.reflect.Type;
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -43,93 +47,6 @@ class BackendCapabilityContractTest {
     private static final TensorDescriptor FLOAT_MATRIX =
             new TensorDescriptor(DataType.FLOAT64, Shape.of(2, 3), Optional.empty(), true);
 
-    @Test
-    void queryHasTheExactGenericPublicRecordShape() throws ReflectiveOperationException {
-        Class<OperationCapabilityQuery> type = OperationCapabilityQuery.class;
-        RecordComponent[] components = type.getRecordComponents();
-        Constructor<?>[] constructors = type.getDeclaredConstructors();
-        ParameterizedType inputsType = (ParameterizedType) components[1].getGenericType();
-        ParameterizedType outputsType = (ParameterizedType) components[2].getGenericType();
-
-        assertAll(
-                () ->
-                        assertEquals(
-                                "io.github.pho001.synaptik.planning.capability",
-                                type.getPackageName()),
-                () -> assertTrue(Modifier.isPublic(type.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(type.getModifiers())),
-                () -> assertTrue(type.isRecord()),
-                () ->
-                        assertArrayEquals(
-                                new String[] {"operation", "inputs", "outputs"},
-                                Arrays.stream(components)
-                                        .map(RecordComponent::getName)
-                                        .toArray(String[]::new)),
-                () ->
-                        assertArrayEquals(
-                                new Class<?>[] {
-                                    Operation.class, List.class, List.class
-                                },
-                                Arrays.stream(components)
-                                        .map(RecordComponent::getType)
-                                        .toArray(Class<?>[]::new)),
-                () -> assertEquals(List.class, inputsType.getRawType()),
-                () ->
-                        assertArrayEquals(
-                                new Type[] {TensorDescriptor.class},
-                                inputsType.getActualTypeArguments()),
-                () -> assertEquals(List.class, outputsType.getRawType()),
-                () ->
-                        assertArrayEquals(
-                                new Type[] {TensorDescriptor.class},
-                                outputsType.getActualTypeArguments()),
-                () -> assertEquals(3, type.getDeclaredFields().length),
-                () ->
-                        assertArrayEquals(
-                                new String[] {"operation", "inputs", "outputs"},
-                                Arrays.stream(type.getDeclaredFields())
-                                        .map(field -> field.getName())
-                                        .toArray(String[]::new)),
-                () -> assertEquals(1, constructors.length),
-                () -> assertTrue(Modifier.isPublic(constructors[0].getModifiers())),
-                () ->
-                        assertArrayEquals(
-                                new Class<?>[] {
-                                    Operation.class, List.class, List.class
-                                },
-                                constructors[0].getParameterTypes()),
-                () -> assertEquals(0, type.getInterfaces().length),
-                () -> assertEquals(0, type.getDeclaredClasses().length),
-                () -> assertFalse(Serializable.class.isAssignableFrom(type)),
-                () -> assertEquals(6, type.getDeclaredMethods().length),
-                () ->
-                        assertEquals(
-                                Set.of(
-                                        "operation",
-                                        "inputs",
-                                        "outputs",
-                                        "equals",
-                                        "hashCode",
-                                        "toString"),
-                                Arrays.stream(type.getDeclaredMethods())
-                                        .filter(method -> Modifier.isPublic(method.getModifiers()))
-                                        .map(Method::getName)
-                                        .collect(Collectors.toSet())),
-                () ->
-                        assertEquals(
-                                Operation.class,
-                                type.getDeclaredMethod("operation").getReturnType()),
-                () -> assertEquals(List.class, type.getDeclaredMethod("inputs").getReturnType()),
-                () -> assertEquals(List.class, type.getDeclaredMethod("outputs").getReturnType()),
-                () ->
-                        assertEquals(
-                                inputsType,
-                                type.getDeclaredMethod("inputs").getGenericReturnType()),
-                () ->
-                        assertEquals(
-                                outputsType,
-                                type.getDeclaredMethod("outputs").getGenericReturnType()));
-    }
 
     @Test
     void validatesTopLevelReferencesInExactOrderWithExactMessages() {
@@ -374,6 +291,96 @@ class BackendCapabilityContractTest {
 
     private static Operation unaryOperation() {
         return new Operation(UnaryElementwiseKind.ABS, NoOperationAttrs.INSTANCE);
+    }
+
+    @Test
+    void emptyBodyConstructionRetainsOrdinaryFixedAndMissingScanQuestions() {
+        for (Operation operation : List.of(unaryOperation(),
+                new Operation(RecurrentScanKind.RNN_TANH, RecurrentDirection.FORWARD), scan())) {
+            List<TensorDescriptor> inputs = java.util.Collections.nCopies(
+                    operation.signature().minimumInputs(), FLOAT_VECTOR);
+            List<TensorDescriptor> outputs = java.util.Collections.nCopies(
+                    operation.signature().minimumOutputs(), FLOAT_VECTOR);
+            OperationCapabilityQuery old = new OperationCapabilityQuery(operation, inputs, outputs);
+            OperationCapabilityQuery explicit = new OperationCapabilityQuery(operation, inputs, outputs, Optional.empty(), Optional.empty());
+            assertEquals(old, explicit);
+            assertEquals(old.hashCode(), explicit.hashCode());
+            assertTrue(old.scanBody().isEmpty());
+        }
+    }
+
+    @Test
+    void bodyChecksFollowAllExistingValidationAndRejectNonScanAttachments() {
+        Optional<CompiledScanBody> body = Optional.of(body(List.of(0)));
+        assertEquals("operation", assertThrows(NullPointerException.class,
+                () -> new OperationCapabilityQuery(null, null, null, null, Optional.empty())).getMessage());
+        assertEquals("inputs", assertThrows(NullPointerException.class,
+                () -> new OperationCapabilityQuery(unaryOperation(), null, null, null, Optional.empty())).getMessage());
+        assertEquals("outputs", assertThrows(NullPointerException.class,
+                () -> new OperationCapabilityQuery(unaryOperation(), Arrays.asList((TensorDescriptor) null), null, null, Optional.empty())).getMessage());
+        assertEquals("inputs[0]", assertThrows(NullPointerException.class,
+                () -> new OperationCapabilityQuery(unaryOperation(), Arrays.asList((TensorDescriptor) null), List.of(), null, Optional.empty())).getMessage());
+        assertEquals("outputs[0]", assertThrows(NullPointerException.class,
+                () -> new OperationCapabilityQuery(unaryOperation(), List.of(), Arrays.asList((TensorDescriptor) null), null, Optional.empty())).getMessage());
+        assertEquals("input count 0 is outside accepted range [1, 1]",
+                assertThrows(IllegalArgumentException.class,
+                        () -> new OperationCapabilityQuery(unaryOperation(), List.of(), List.of(), null, Optional.empty())).getMessage());
+        assertEquals("output count 0 is outside accepted range [1, 1]",
+                assertThrows(IllegalArgumentException.class,
+                        () -> new OperationCapabilityQuery(unaryOperation(), List.of(FLOAT_VECTOR), List.of(), body, Optional.empty())).getMessage());
+        assertEquals("scanBody", assertThrows(NullPointerException.class,
+                () -> new OperationCapabilityQuery(unaryOperation(), List.of(FLOAT_VECTOR), List.of(FLOAT_VECTOR), null, Optional.empty())).getMessage());
+        for (Operation operation : List.of(unaryOperation(),
+                new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE),
+                new Operation(RecurrentScanKind.RNN_TANH, RecurrentDirection.FORWARD))) {
+            List<TensorDescriptor> inputs = java.util.Collections.nCopies(operation.signature().minimumInputs(), FLOAT_VECTOR);
+            List<TensorDescriptor> outputs = java.util.Collections.nCopies(operation.signature().minimumOutputs(), FLOAT_VECTOR);
+            assertEquals("ordinary/fixed operations cannot contain a scan body",
+                    assertThrows(IllegalArgumentException.class,
+                            () -> new OperationCapabilityQuery(operation, inputs, outputs, body, Optional.empty())).getMessage());
+            assertTrue(assertThrows(IllegalArgumentException.class,
+                    () -> new OperationCapabilityQuery(operation, List.of(), outputs, body, Optional.empty()))
+                    .getMessage().startsWith("input count 0 is outside accepted range"));
+        }
+    }
+
+    @Test
+    void bodyReferenceSnapshotsEqualityHashAndDiagnosticTextIncludeAttachment() {
+        Operation operation = scan();
+        CompiledScanBody body = body(List.of(0));
+        Optional<CompiledScanBody> attachment = Optional.of(body);
+        List<TensorDescriptor> inputs = new ArrayList<>(List.of(FLOAT_VECTOR, FLOAT_VECTOR));
+        List<TensorDescriptor> outputs = new ArrayList<>(List.of(FLOAT_MATRIX, FLOAT_MATRIX));
+        OperationCapabilityQuery query = new OperationCapabilityQuery(operation, inputs, outputs, attachment, Optional.empty());
+        inputs.clear();
+        outputs.clear();
+        OperationCapabilityQuery equal = new OperationCapabilityQuery(operation, query.inputs(), query.outputs(), Optional.of(body(List.of(0))), Optional.empty());
+        OperationCapabilityQuery different = new OperationCapabilityQuery(operation, query.inputs(), query.outputs(), Optional.of(body(List.of())), Optional.empty());
+        assertSame(operation, query.operation());
+        assertSame(attachment, query.scanBody());
+        assertSame(body, query.scanBody().orElseThrow());
+        assertSame(body.graph(), query.scanBody().orElseThrow().graph());
+        assertSame(FLOAT_VECTOR, query.inputs().get(0));
+        assertSame(FLOAT_VECTOR, query.inputs().get(1));
+        assertSame(FLOAT_MATRIX, query.outputs().get(1));
+        assertThrows(UnsupportedOperationException.class, () -> query.outputs().clear());
+        assertEquals(query, equal);
+        assertEquals(query.hashCode(), equal.hashCode());
+        assertNotEquals(query, different);
+        assertNotEquals(query.hashCode(), different.hashCode());
+        assertTrue(query.toString().contains("scanBody=Optional[CompiledScanBody"));
+    }
+
+    private static Operation scan() {
+        return new Operation(ScanKind.SCAN, new ScanAttrs(4, 1, 1, 0, 1, 0, false));
+    }
+
+    private static CompiledScanBody body(List<Integer> demand) {
+        ValueId carry = new ValueId(0), step = new ValueId(1);
+        CompiledGraphModel graph = new CompiledGraphModel(
+                List.of(new GraphValue(carry, FLOAT_VECTOR), new GraphValue(step, FLOAT_VECTOR)),
+                List.of(), List.of(carry, step), List.of(carry), Map.of());
+        return new CompiledScanBody(graph, List.of(carry), List.of(carry), List.of(), demand);
     }
 
     private record TestKind(String name, List<OperationSignature> signatures)

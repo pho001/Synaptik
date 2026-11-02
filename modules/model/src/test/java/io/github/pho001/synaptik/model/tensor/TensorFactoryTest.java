@@ -167,7 +167,7 @@ class TensorFactoryTest {
         Method createDerivedOutputs = TensorFactory.class.getDeclaredMethod(
                 "createDerivedOutputs", Operation.class, List.class, List.class);
         Method allocator = TensorFactory.class.getDeclaredMethod("nextTensorId");
-        assertEquals(38, TensorFactory.class.getDeclaredMethods().length);
+        assertEquals(39, TensorFactory.class.getDeclaredMethods().length);
         assertEquals(
                 34,
                 Arrays.stream(TensorFactory.class.getDeclaredMethods())

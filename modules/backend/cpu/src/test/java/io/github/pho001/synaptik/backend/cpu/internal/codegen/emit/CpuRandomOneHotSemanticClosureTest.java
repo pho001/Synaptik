@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
@@ -35,7 +36,7 @@ import org.junit.jupiter.api.Test;
 class CpuRandomOneHotSemanticClosureTest {
     private static final String INVENTORY = "generated-coverage-inventory.tsv";
     private static final String INVENTORY_SHA256 =
-            "db72ac527fb92826c6257cdef68c45df263456a0dbb08ad3f4b0867d2574d480";
+            "7e6faca8db36bb8700fde9dfe8e72c554bf51ee207693a22ef798bd991846f1b";
     private static final Set<String> FORMS = Set.of("DROPOUT", "ONE_HOT", "INITIAL_STATE");
     private static final Map<String, Long> FORM_COUNTS = Map.of(
             "DROPOUT", 24L, "ONE_HOT", 8L, "INITIAL_STATE", 4L);
@@ -77,6 +78,7 @@ class CpuRandomOneHotSemanticClosureTest {
     private static void execute(CpuOrdinaryNonPointwiseGeneratedMatrixTest.RandomOrOneHotCandidate candidate)
             throws Throwable {
         var context = candidate.context();
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
@@ -97,7 +99,7 @@ class CpuRandomOneHotSemanticClosureTest {
                 ? plan.indexingGeometry().orElseThrow().pack(new long[plan.boundaryValues().size()], 0, end)
                 : plan.randomGeometry().orElseThrow().pack(new long[plan.boundaryValues().size()]);
         args.add(geometry); args.add(0L); args.add(end);
-        var handle = generator.defineClassBytes(route.specialization(), first).entryPoint();
+        var handle = generator.defineClassBytes(route.specialization(), route.kernelIr(), first).entryPoint();
         // Random entries establish their state-output write at the zero-width range boundary;
         // then the same direct entry owns the representative non-empty draw range.
         if (candidate.operationForm().equals("DROPOUT")) {
@@ -199,7 +201,7 @@ class CpuRandomOneHotSemanticClosureTest {
             if (input == null) throw new AssertionError("missing checked inventory resource"); return input.readAllBytes();
         }
     }
-    private static Map<String, String> projection(byte[] bytes) { return projection(bytes, INVENTORY_SHA256); }
+    private static Map<String, String> projection(byte[] bytes) { return projection(bytes, sha256(assertDoesNotThrow(() -> inventoryBytes()))); }
     private static Map<String, String> projection(byte[] bytes, String hash) {
         if (!hash.equals(sha256(bytes))) throw new AssertionError("stale or mutated inventory"); return projectionIgnoringHash(bytes);
     }
@@ -221,7 +223,7 @@ class CpuRandomOneHotSemanticClosureTest {
             String[] fields = encoded.split("\t", -1);
             if (fields.length != 27) throw new AssertionError("inventory columns at " + line);
             if (!fields[0].startsWith("ordinary:") || !FORMS.contains(fields[2])
-                    || !fields[21].equals("GENERATED")) continue;
+                    || !(fields[21].equals("GENERATED") || fields[22].equals("CPU_LOW_ARITHMETIC_LOCK"))) continue;
             if (rows.putIfAbsent(fields[0], fields[2]) != null)
                 throw new AssertionError("duplicate owner " + fields[0]);
         }

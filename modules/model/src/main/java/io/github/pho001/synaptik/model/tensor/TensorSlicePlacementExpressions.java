@@ -1,5 +1,6 @@
 package io.github.pho001.synaptik.model.tensor;
 
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.layout.CropToShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
@@ -22,13 +23,50 @@ import java.util.Optional;
  * any unresolved extent remains an obligation for later compiler binding proof or execution.
  * Model stores no deferred constraint object.</p>
  *
- * <p>Both transformations create storage-free metadata and exact producer provenance. This
- * field-free helper reads no values or storage, mutates no input, promises no view or copy, and
- * performs no binding, graph capture, gradient construction, lowering, or execution.</p>
+ * <p>Expression construction creates storage-free metadata and exact producer provenance without
+ * promising a view or copy. Separately, cold computed-layout completion can prove an exact positive
+ * static crop view without constructing a Tensor. Neither path reads values/storage or performs
+ * binding, graph capture, gradient construction, lowering or execution.</p>
  */
 final class TensorSlicePlacementExpressions {
     /** Prevents instantiation because slice-placement construction owns no state. */
     private TensorSlicePlacementExpressions() {
+    }
+
+    /**
+     * Derives the existing positive-static crop layout recipe for an independently inferred result.
+     * Ordinary crop constructors remain layout-unresolved. This helper does not infer Shapes,
+     * retain deferred constraints or establish operation admission.
+     * @param base non-null current input descriptor with its existing backing geometry
+     * @param attrs non-null already checked target-relative crop attributes
+     * @param output non-null independently inferred result to check for exact type/Shape agreement
+     * @return exact inherited-stride/offset view, or empty for unresolved, empty or unproved geometry
+     * @throws NullPointerException if an argument is null
+     * @throws ArithmeticException if checked positive static coordinate or offset arithmetic overflows
+     */
+    static Optional<LayoutDescriptor> cropLayout(
+            TensorDescriptor base, CropToShapeAttrs attrs, TensorDescriptor output) {
+        Objects.requireNonNull(base, "base");
+        Objects.requireNonNull(attrs, "attrs");
+        Objects.requireNonNull(output, "output");
+        if (base.layout().isEmpty() || !base.shape().isFullyStatic()
+                || !attrs.targetShape().isFullyStatic() || !attrs.prefixShape().isFullyStatic()
+                || attrs.targetShape().rank() != base.shape().rank()
+                || attrs.prefixShape().rank() != base.shape().rank()
+                || output.dataType() != base.dataType() || !output.shape().equals(attrs.targetShape())) {
+            return Optional.empty();
+        }
+        LayoutDescriptor backing = base.layout().orElseThrow();
+        long offset = backing.storageOffset();
+        for (int axis = 0; axis < base.shape().rank(); axis++) {
+            long prefix = ((StaticDimension) attrs.prefixShape().dimension(axis)).size();
+            long target = ((StaticDimension) attrs.targetShape().dimension(axis)).size();
+            long size = ((StaticDimension) base.shape().dimension(axis)).size();
+            long end = Math.addExact(prefix, target);
+            if (target == 0 || end > size) return Optional.empty();
+            offset = Math.addExact(offset, Math.multiplyExact(prefix, backing.stride(axis)));
+        }
+        return Optional.of(LayoutDescriptor.of(attrs.targetShape(), backing.strides(), offset, true));
     }
 
     /**
@@ -58,43 +96,40 @@ final class TensorSlicePlacementExpressions {
      */
     static Tensor update(
             Tensor base, Tensor update, long[] starts, int[] axes, long[] steps) {
-        Objects.requireNonNull(base, "base");
-        Objects.requireNonNull(update, "update");
-        Objects.requireNonNull(starts, "starts");
-        Objects.requireNonNull(axes, "axes");
-        Objects.requireNonNull(steps, "steps");
-        if (starts.length != axes.length || starts.length != steps.length) {
-            throw new IllegalArgumentException(
-                    "starts, axes, and steps must have matching lengths");
-        }
+        return updateChecked(base, update, starts, axes, steps, null);
+    }
 
-        long[] privateStarts = starts.clone();
-        int[] privateAxes = axes.clone();
-        long[] privateSteps = steps.clone();
-        TensorDescriptor baseDescriptor = base.descriptor();
-        TensorDescriptor updateDescriptor = update.descriptor();
-        if (baseDescriptor.dataType() != updateDescriptor.dataType()) {
-            throw new IllegalArgumentException(
-                    "slice update data types must match: base=" + baseDescriptor.dataType()
-                            + ", update=" + updateDescriptor.dataType());
-        }
-        Shape baseShape = baseDescriptor.shape();
-        Shape updateShape = updateDescriptor.shape();
-        if (updateShape.rank() != baseShape.rank()) {
-            throw new IllegalArgumentException(
-                    "slice update rank must match base rank: base=" + baseShape.rank()
-                            + ", update=" + updateShape.rank());
-        }
-
-        SliceAttrs attrs = normalizeUpdate(
-                baseShape, updateShape, privateStarts, privateAxes, privateSteps);
-        Shape expected = expectedUpdateShape(baseShape, updateShape, attrs);
-        if (!updateShape.equals(expected)) {
-            throw new IllegalArgumentException(
-                    "slice update shape must match base Shape with selected axes replaced: "
-                            + "expected=" + expected + ", actual=" + updateShape);
-        }
-        return createUpdate(base, update, baseDescriptor, updateDescriptor, attrs);
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param base the non-null base Tensor retained as provenance input zero and never mutated
+     * @param update the non-null same-type, same-rank update Tensor retained as input one
+     * @param starts the non-null caller-owned raw inclusive starts paired by entry; never retained
+     * @param axes the non-null caller-owned positive or negative base axes paired by entry
+     * @param steps the non-null caller-owned signed non-zero coordinate increments paired by entry
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if a reference is null, checked in parameter order with the
+     *     parameter name as the message
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if array lengths, data types, ranks, an axis, duplicate
+     *     axis, step, selected update extent, start, coordinate sequence, or complete update Shape
+     *     violates the functional-update contract
+     * @throws ArithmeticException if checked coordinate arithmetic overflows
+     * @throws IllegalStateException if Tensor identifier space is exhausted at final construction
+     */
+    static Tensor updateChecked(
+            Tensor base, Tensor update, long[] starts, int[] axes, long[] steps,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return updateDescriptors(
+                base == null ? null : base.descriptor(),
+                update == null ? null : update.descriptor(),
+                starts,
+                axes,
+                steps,
+                descriptorCheck,
+                base,
+                update);
     }
 
     /**
@@ -125,45 +160,33 @@ final class TensorSlicePlacementExpressions {
      * @throws IllegalStateException if Tensor identifier space is exhausted at final creation
      */
     static Tensor update(Tensor base, Tensor update, Shape prefixShape) {
-        Objects.requireNonNull(base, "base");
-        Objects.requireNonNull(update, "update");
-        Objects.requireNonNull(prefixShape, "prefixShape");
-        TensorDescriptor baseDescriptor = base.descriptor();
-        TensorDescriptor updateDescriptor = update.descriptor();
-        if (baseDescriptor.dataType() != updateDescriptor.dataType()) {
-            throw new IllegalArgumentException(
-                    "slice update data types must match: base=" + baseDescriptor.dataType()
-                            + ", update=" + updateDescriptor.dataType());
-        }
-        Shape baseShape = baseDescriptor.shape();
-        Shape updateShape = updateDescriptor.shape();
-        if (updateShape.rank() != baseShape.rank()) {
-            throw new IllegalArgumentException(
-                    "slice update rank must match base rank: base=" + baseShape.rank()
-                            + ", update=" + updateShape.rank());
-        }
-        if (prefixShape.rank() != baseShape.rank()) {
-            throw new IllegalArgumentException(
-                    "slice update prefix rank must match base rank: base=" + baseShape.rank()
-                            + ", prefix=" + prefixShape.rank());
-        }
-        for (int axis = 0; axis < baseShape.rank(); axis++) {
-            Dimension baseDimension = baseShape.dimension(axis);
-            Dimension prefixDimension = prefixShape.dimension(axis);
-            Dimension updateDimension = updateShape.dimension(axis);
-            if (baseDimension instanceof StaticDimension baseStatic
-                    && prefixDimension instanceof StaticDimension prefixStatic
-                    && updateDimension instanceof StaticDimension updateStatic
-                    && Math.addExact(prefixStatic.size(), updateStatic.size())
-                            > baseStatic.size()) {
-                throw new IllegalArgumentException(
-                        "slice update region exceeds base extent at axis " + axis + ": base="
-                                + baseStatic.size() + ", prefix=" + prefixStatic.size()
-                                + ", update=" + updateStatic.size());
-            }
-        }
-        CropToShapeAttrs attrs = new CropToShapeAttrs(updateShape, prefixShape);
-        return createUpdate(base, update, baseDescriptor, updateDescriptor, attrs);
+        return updateChecked(base, update, prefixShape, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param base the non-null base Tensor retained as provenance input zero and never mutated
+     * @param update the non-null same-type, same-rank replacement Tensor retained as input one
+     * @param prefixShape the non-null exact same-rank per-axis prefix Shape retained in attributes
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if a reference is null, checked in parameter order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if types or ranks differ or a fully static region is out of
+     *     bounds
+     * @throws ArithmeticException if checked prefix-plus-update arithmetic overflows
+     * @throws IllegalStateException if Tensor identifier space is exhausted at final creation
+     */
+    static Tensor updateChecked(Tensor base, Tensor update, Shape prefixShape,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return updateDescriptors(
+                base == null ? null : base.descriptor(),
+                update == null ? null : update.descriptor(),
+                prefixShape,
+                descriptorCheck,
+                base,
+                update);
     }
 
     /**
@@ -186,24 +209,33 @@ final class TensorSlicePlacementExpressions {
      * @throws IllegalStateException if Tensor identifier space is exhausted at final construction
      */
     static Tensor cropToShape(Tensor input, Shape targetShape, Shape prefixShape) {
-        Objects.requireNonNull(input, "input");
-        Objects.requireNonNull(targetShape, "targetShape");
-        Objects.requireNonNull(prefixShape, "prefixShape");
-        TensorDescriptor inputDescriptor = input.descriptor();
-        Shape inputShape = inputDescriptor.shape();
-        if (targetShape.rank() != inputShape.rank()) {
-            throw new IllegalArgumentException(
-                    "crop target rank must match input rank: input=" + inputShape.rank()
-                            + ", target=" + targetShape.rank());
-        }
-        if (prefixShape.rank() != inputShape.rank()) {
-            throw new IllegalArgumentException(
-                    "crop prefix rank must match input rank: input=" + inputShape.rank()
-                            + ", prefix=" + prefixShape.rank());
-        }
-        validateStaticCropBounds(inputShape, targetShape, prefixShape);
-        CropToShapeAttrs attrs = new CropToShapeAttrs(targetShape, prefixShape);
-        return createCrop(input, inputDescriptor, attrs);
+        return cropToShapeChecked(input, targetShape, prefixShape, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input the non-null source Tensor retained as the sole provenance input and not mutated
+     * @param targetShape the non-null exact logical result Shape retained in attributes/descriptor
+     * @param prefixShape the non-null exact per-axis prefix-extent Shape retained in attributes
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if a reference is null, checked in parameter order with the
+     *     parameter name as the message
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if target or prefix rank differs from input rank, or the
+     *     first fully static crop region exceeds its input extent
+     * @throws ArithmeticException if checked static prefix-plus-target addition overflows
+     * @throws IllegalStateException if Tensor identifier space is exhausted at final construction
+     */
+    static Tensor cropToShapeChecked(Tensor input, Shape targetShape, Shape prefixShape,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return cropToShapeDescriptors(
+                input == null ? null : input.descriptor(),
+                targetShape,
+                prefixShape,
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -365,85 +397,296 @@ final class TensorSlicePlacementExpressions {
         }
     }
 
+
     /**
-     * Constructs exact functional-update metadata and one fresh derived Tensor.
-     *
-     * @param base validated exact provenance input zero and result-Shape source
-     * @param update validated exact provenance input one
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param base exact real provenance operand, or null for descriptor completion
+     * @param update exact real provenance operand, or null for descriptor completion
      * @param baseDescriptor exact base descriptor supplying type, Shape, and eligibility
      * @param updateDescriptor exact update descriptor supplying eligibility
      * @param attrs exact normalized finite coordinate sequences
-     * @return the non-null fresh storage-free SLICE_UPDATE Tensor
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
      * @throws IllegalStateException if Tensor identifier space is exhausted
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata
      */
-    private static Tensor createUpdate(
+    private static Tensor createUpdateChecked(
             Tensor base,
             Tensor update,
             TensorDescriptor baseDescriptor,
             TensorDescriptor updateDescriptor,
-            SliceAttrs attrs) {
+            SliceAttrs attrs,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         TensorDescriptor descriptor = new TensorDescriptor(
                 baseDescriptor.dataType(),
                 baseDescriptor.shape(),
                 Optional.empty(),
                 baseDescriptor.requiresGrad() || updateDescriptor.requiresGrad());
         Operation operation = new Operation(SliceKind.SLICE_UPDATE, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(
                 descriptor, Optional.empty(), operation, List.of(base, update));
     }
 
+
     /**
-     * Constructs exact target-relative functional-update metadata and one fresh derived Tensor.
-     *
-     * <p>The caller has already validated exact base/update type and rank, prefix rank, and every
-     * fully static fit. This method preserves the base Shape/type, combines eligibility, leaves
-     * layout unresolved, and creates one {@link SliceKind#SLICE_UPDATE} producer with exact
-     * ordered inputs {@code [base, update]}. Identifier allocation is the only expected failure.</p>
-     *
-     * @param base non-null validated exact provenance input zero and result-Shape source; not
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param base exact real provenance operand, or null for descriptor completion
      *     mutated
-     * @param update non-null validated exact provenance input one; not mutated
+     * @param update exact real provenance operand, or null for descriptor completion
      * @param baseDescriptor non-null exact base descriptor supplying type, Shape, and eligibility
      * @param updateDescriptor non-null exact update descriptor supplying eligibility
      * @param attrs non-null exact update-region and prefix Shapes retained by the operation
-     * @return the non-null fresh canonical, unlabeled, storage-free SLICE_UPDATE Tensor with
-     *     output-index-zero provenance
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
      * @throws IllegalStateException if Tensor identifier space is exhausted
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata
      */
-    private static Tensor createUpdate(
+    private static Tensor createUpdateChecked(
             Tensor base,
             Tensor update,
             TensorDescriptor baseDescriptor,
             TensorDescriptor updateDescriptor,
-            CropToShapeAttrs attrs) {
+            CropToShapeAttrs attrs,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         TensorDescriptor descriptor = new TensorDescriptor(
                 baseDescriptor.dataType(),
                 baseDescriptor.shape(),
                 Optional.empty(),
                 baseDescriptor.requiresGrad() || updateDescriptor.requiresGrad());
         Operation operation = new Operation(SliceKind.SLICE_UPDATE, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(
                 descriptor, Optional.empty(), operation, List.of(base, update));
     }
 
+
     /**
-     * Constructs exact target-relative extraction metadata and one fresh derived Tensor.
-     *
-     * @param input validated exact sole provenance input
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input exact real provenance operand, or null for descriptor completion
      * @param inputDescriptor exact input descriptor supplying type and eligibility
      * @param attrs exact target/prefix Shapes retained by the operation
-     * @return the non-null fresh storage-free SLICE Tensor with exact target Shape
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
      * @throws IllegalStateException if Tensor identifier space is exhausted
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata
      */
-    private static Tensor createCrop(
-            Tensor input, TensorDescriptor inputDescriptor, CropToShapeAttrs attrs) {
+    private static Tensor createCropChecked(
+            Tensor input, TensorDescriptor inputDescriptor, CropToShapeAttrs attrs,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         TensorDescriptor descriptor = new TensorDescriptor(
                 inputDescriptor.dataType(),
                 attrs.targetShape(),
                 Optional.empty(),
                 inputDescriptor.requiresGrad());
         Operation operation = new Operation(SliceKind.SLICE, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(
                 descriptor, Optional.empty(), operation, List.of(input));
+    }
+
+    /**
+     * Completes ordinary checked semantics synchronously without creating Tensor identities.
+     * The real construction path calls these same descriptor guards and result helpers.
+     * @param operation non-null canonical operation selecting this family and its attributes
+     * @param inputs non-null ordered operand descriptors, retaining aliases and positions
+     * @param outputCount exact canonical sibling count, one
+     * @param sink non-null unretained consumer called once with checked semantics and all outputs
+     * @throws NullPointerException if a required reference is null
+     * @throws IllegalArgumentException if cardinality or ordinary semantic guards reject input
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(operation, "operation");
+        Objects.requireNonNull(inputs, "inputs");
+        Objects.requireNonNull(sink, "sink");
+        if (inputs.size() != (operation.kind() == SliceKind.SLICE ? 1 : 2) || outputCount != 1) {
+            throw new IllegalArgumentException("invalid ordinary descriptor cardinality");
+        }
+        for (TensorDescriptor input : inputs) {
+            Objects.requireNonNull(input, "input descriptor");
+        }
+        if (operation.attrs() instanceof CropToShapeAttrs attrs) {
+            if (operation.kind() == SliceKind.SLICE) {
+                cropToShapeDescriptors(inputs.get(0), attrs.targetShape(), attrs.prefixShape(), sink, null);
+            } else {
+                updateDescriptors(inputs.get(0), inputs.get(1), attrs.prefixShape(), sink, null, null);
+            }
+        } else {
+            SliceAttrs attrs = (SliceAttrs) operation.attrs();
+            updateDescriptors(inputs.get(0), inputs.get(1),
+                    attrs.starts().stream().mapToLong(Long::longValue).toArray(),
+                    attrs.axes().stream().mapToInt(Integer::intValue).toArray(),
+                    attrs.steps().stream().mapToLong(Long::longValue).toArray(), sink, null, null);
+        }
+    }
+
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param base exact operand descriptor, subject to ordinary null/semantic guards
+     * @param update exact operand descriptor, subject to ordinary null/semantic guards
+     * @param starts ordinary checked construction parameter
+     * @param axes ordinary checked construction parameter
+     * @param steps ordinary checked construction parameter
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalBase exact provenance operand, or null for descriptor completion
+     * @param originalUpdate exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor updateDescriptors(
+            TensorDescriptor base,
+            TensorDescriptor update,
+            long[] starts,
+            int[] axes,
+            long[] steps,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalBase,
+            Tensor originalUpdate) {
+        Objects.requireNonNull(base, "base");
+        Objects.requireNonNull(update, "update");
+        Objects.requireNonNull(starts, "starts");
+        Objects.requireNonNull(axes, "axes");
+        Objects.requireNonNull(steps, "steps");
+        if (starts.length != axes.length || starts.length != steps.length) {
+            throw new IllegalArgumentException(
+                    "starts, axes, and steps must have matching lengths");
+        }
+
+        long[] privateStarts = starts.clone();
+        int[] privateAxes = axes.clone();
+        long[] privateSteps = steps.clone();
+        TensorDescriptor baseDescriptor = base;
+        TensorDescriptor updateDescriptor = update;
+        if (baseDescriptor.dataType() != updateDescriptor.dataType()) {
+            throw new IllegalArgumentException(
+                    "slice update data types must match: base=" + baseDescriptor.dataType()
+                            + ", update=" + updateDescriptor.dataType());
+        }
+        Shape baseShape = baseDescriptor.shape();
+        Shape updateShape = updateDescriptor.shape();
+        if (updateShape.rank() != baseShape.rank()) {
+            throw new IllegalArgumentException(
+                    "slice update rank must match base rank: base=" + baseShape.rank()
+                            + ", update=" + updateShape.rank());
+        }
+
+        SliceAttrs attrs = normalizeUpdate(
+                baseShape, updateShape, privateStarts, privateAxes, privateSteps);
+        Shape expected = expectedUpdateShape(baseShape, updateShape, attrs);
+        if (!updateShape.equals(expected)) {
+            throw new IllegalArgumentException(
+                    "slice update shape must match base Shape with selected axes replaced: "
+                            + "expected=" + expected + ", actual=" + updateShape);
+        }
+        return createUpdateChecked(originalBase, originalUpdate, baseDescriptor, updateDescriptor, attrs, descriptorCheck);
+    }
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param base exact operand descriptor, subject to ordinary null/semantic guards
+     * @param update exact operand descriptor, subject to ordinary null/semantic guards
+     * @param prefixShape ordinary checked construction parameter
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalBase exact provenance operand, or null for descriptor completion
+     * @param originalUpdate exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor updateDescriptors(
+            TensorDescriptor base,
+            TensorDescriptor update,
+            Shape prefixShape,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalBase,
+            Tensor originalUpdate) {
+        Objects.requireNonNull(base, "base");
+        Objects.requireNonNull(update, "update");
+        Objects.requireNonNull(prefixShape, "prefixShape");
+        TensorDescriptor baseDescriptor = base;
+        TensorDescriptor updateDescriptor = update;
+        if (baseDescriptor.dataType() != updateDescriptor.dataType()) {
+            throw new IllegalArgumentException(
+                    "slice update data types must match: base=" + baseDescriptor.dataType()
+                            + ", update=" + updateDescriptor.dataType());
+        }
+        Shape baseShape = baseDescriptor.shape();
+        Shape updateShape = updateDescriptor.shape();
+        if (updateShape.rank() != baseShape.rank()) {
+            throw new IllegalArgumentException(
+                    "slice update rank must match base rank: base=" + baseShape.rank()
+                            + ", update=" + updateShape.rank());
+        }
+        if (prefixShape.rank() != baseShape.rank()) {
+            throw new IllegalArgumentException(
+                    "slice update prefix rank must match base rank: base=" + baseShape.rank()
+                            + ", prefix=" + prefixShape.rank());
+        }
+        for (int axis = 0; axis < baseShape.rank(); axis++) {
+            Dimension baseDimension = baseShape.dimension(axis);
+            Dimension prefixDimension = prefixShape.dimension(axis);
+            Dimension updateDimension = updateShape.dimension(axis);
+            if (baseDimension instanceof StaticDimension baseStatic
+                    && prefixDimension instanceof StaticDimension prefixStatic
+                    && updateDimension instanceof StaticDimension updateStatic
+                    && Math.addExact(prefixStatic.size(), updateStatic.size())
+                            > baseStatic.size()) {
+                throw new IllegalArgumentException(
+                        "slice update region exceeds base extent at axis " + axis + ": base="
+                                + baseStatic.size() + ", prefix=" + prefixStatic.size()
+                                + ", update=" + updateStatic.size());
+            }
+        }
+        CropToShapeAttrs attrs = new CropToShapeAttrs(updateShape, prefixShape);
+        return createUpdateChecked(originalBase, originalUpdate, baseDescriptor, updateDescriptor, attrs, descriptorCheck);
+    }
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param input exact operand descriptor, subject to ordinary null/semantic guards
+     * @param targetShape ordinary checked construction parameter
+     * @param prefixShape ordinary checked construction parameter
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalInput exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor cropToShapeDescriptors(
+            TensorDescriptor input,
+            Shape targetShape,
+            Shape prefixShape,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(targetShape, "targetShape");
+        Objects.requireNonNull(prefixShape, "prefixShape");
+        TensorDescriptor inputDescriptor = input;
+        Shape inputShape = inputDescriptor.shape();
+        if (targetShape.rank() != inputShape.rank()) {
+            throw new IllegalArgumentException(
+                    "crop target rank must match input rank: input=" + inputShape.rank()
+                            + ", target=" + targetShape.rank());
+        }
+        if (prefixShape.rank() != inputShape.rank()) {
+            throw new IllegalArgumentException(
+                    "crop prefix rank must match input rank: input=" + inputShape.rank()
+                            + ", prefix=" + prefixShape.rank());
+        }
+        validateStaticCropBounds(inputShape, targetShape, prefixShape);
+        CropToShapeAttrs attrs = new CropToShapeAttrs(targetShape, prefixShape);
+        return createCropChecked(originalInput, inputDescriptor, attrs, descriptorCheck);
     }
 }

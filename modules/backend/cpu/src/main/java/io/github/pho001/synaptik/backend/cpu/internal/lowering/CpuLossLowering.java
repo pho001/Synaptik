@@ -1,5 +1,7 @@
 package io.github.pho001.synaptik.backend.cpu.internal.lowering;
 
+import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize;
+
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr;
@@ -30,8 +32,79 @@ import java.util.Optional;
  * rank, extents, layouts, strides, carrier bases, and ignore-value bits out of generated-class
  * identity.  In particular, a dense categorical target has the logits rank, whereas an index
  * categorical target has one fewer axis because it has no class coordinate.</p>
+ * <p>The separate {@link #lowerBatch} path authenticates the original canonical named-B
+ * occurrence and retains only checked numeric coefficients. Cold binding creates this owner's
+ * existing concrete geometry and pack once; nonleading batch axes and exact boundary types are
+ * preserved without a representative graph or a batch-specialized generated class.</p>
  */
 public final class CpuLossLowering {
+    /**
+     * Lowers the original one-canonical-B occurrence to an unresolved numeric recipe.
+     * No descriptor, graph or generated identity is specialized to a representative batch.
+     * @param context complete original one-node analysis projection
+     * @return immutable ordinary family recipe, resolved only during cold invocation binding
+     * @throws IllegalArgumentException if original attributes, types, shapes or layouts disagree
+     * @throws ArithmeticException if structural coefficient or scratch arithmetic overflows
+     */
+    public CpuPartitionLowering.LoweredPartition lowerBatch(
+            PrepareContext<? extends BackendAnalysisInputs> context) {
+        return lowerBatch(context,CpuPartitionLowering.batchLayouts(context));
+    }
+
+    /**
+     * Authenticates an ordinary symbolic occurrence using complete enclosing physical layouts.
+     * @param context original one-node projection with exact semantic descriptors
+     * @param layouts immutable full-local numeric layout map, including views outside this unit
+     * @return unresolved family recipe retaining those exact physical coefficients
+     * @throws IllegalArgumentException if original semantics or physical geometry are unproved
+     * @throws ArithmeticException if structural arithmetic overflows
+     */
+    public CpuPartitionLowering.LoweredPartition lowerBatch(
+            PrepareContext<? extends BackendAnalysisInputs> context,
+            Map<ValueId,CpuAccessPlan.BatchBinding> layouts) {
+        var query = CpuAggregateLowering.batchQuery(context);
+        var node = context.nodes().getFirst();
+        CpuPartitionLowering.requireBatchContext(context);
+        if (node.inputs().size() != 2 || !(node.operation().kind() instanceof LossKind kind))
+            throw new IllegalArgumentException("loss batch occurrence must have two inputs");
+        var prediction = query.inputs().getFirst(); var target = query.inputs().getLast(); var output = query.outputs().getFirst();
+        int axis = -1; boolean ignore = false; long ignoreValue = 0; LossReduction reduction;
+        if (kind == LossKind.MEAN_SQUARED_ERROR && node.operation().attrs() instanceof MeanSquaredErrorAttrs attrs)
+            reduction = attrs.reduction();
+        else if (kind == LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS
+                && node.operation().attrs() instanceof DenseCategoricalCrossEntropyWithLogitsAttrs attrs) {
+            reduction = attrs.reduction(); axis = attrs.axis();
+        } else if (kind == LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS
+                && node.operation().attrs() instanceof IndexCategoricalCrossEntropyWithLogitsAttrs attrs) {
+            reduction = attrs.reduction(); axis = attrs.axis(); ignore = attrs.ignoreIndex().isPresent();
+            if (ignore) { var scalar = attrs.ignoreIndex().orElseThrow();
+                if (scalar.dataType() != target.dataType()) throw new IllegalArgumentException("loss ignore type disagrees");
+                ignoreValue = scalar.dataType() == io.github.pho001.synaptik.model.datatype.DataType.INT32 ? scalar.int32Value() : scalar.int64Value(); }
+        } else throw new IllegalArgumentException("loss kind and attributes disagree");
+        if (axis >= prediction.shape().rank()) throw new IllegalArgumentException("loss axis outside prediction rank");
+        var sampleDimensions = new ArrayList<io.github.pho001.synaptik.model.shape.Dimension>();
+        for (int a = 0; a < prediction.shape().rank(); a++) if (a != axis) sampleDimensions.add(prediction.shape().dimension(a));
+        var sampleShape = io.github.pho001.synaptik.model.shape.Shape.ofDimensions(sampleDimensions.toArray(io.github.pho001.synaptik.model.shape.Dimension[]::new));
+        boolean index = kind == LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS;
+        if (!target.shape().equals(index ? sampleShape : prediction.shape())
+                || !output.shape().equals(reduction == LossReduction.NONE ? sampleShape : io.github.pho001.synaptik.model.shape.Shape.scalar())
+                || output.requiresGrad() != (prediction.requiresGrad() || !index && target.requiresGrad()))
+            throw new IllegalArgumentException("loss batch shape or differentiation equations disagree");
+        var unique = new ArrayList<ValueId>(); var roles = new ArrayList<Integer>();
+        for (var id : node.inputs()) { int position = unique.indexOf(id); if (position < 0) {position = unique.size(); unique.add(id);} roles.add(position); }
+        var boundaries = new ArrayList<ValueId>(unique); boundaries.add(node.outputs().getFirst());
+        var bindings = CpuAggregateLowering.batchBindings(context,boundaries,layouts);
+        var types = new ArrayList<io.github.pho001.synaptik.model.datatype.DataType>();
+        for (var id : boundaries) types.add(context.values().stream().filter(v -> v.id().equals(id)).findFirst().orElseThrow().descriptor().dataType());
+        var ir = new CpuLossIr(kind,prediction.dataType(),target.dataType(),output.dataType(),reduction,ignore,roles,types,
+                bindings.stream().map(CpuAccessPlan.BatchBinding::plan).toList(),reduction == LossReduction.NONE
+                ? CpuLossIr.RangeForm.INDEPENDENT_DOMAIN : CpuLossIr.RangeForm.COMPLETE_REDUCTION,Geometry.unavailable());
+        int selectedAxis = axis;
+        var count = reduction == LossReduction.NONE ? CpuAggregateLowering.batchCount(bindings.get(roles.getFirst()),
+                java.util.stream.IntStream.range(0,prediction.shape().rank()).filter(a -> a != selectedAxis).toArray()) : new BatchByteSize(1,0,1);
+        return new CpuPartitionLowering.LoweredPartition(new Geometry.BatchGeometry(ir,boundaries,types,bindings,count,new BatchByteSize(0,0,1),axis,ignoreValue));
+    }
+
     private final CpuCapabilityProvider capabilities = new CpuCapabilityProvider();
     /** Creates a stateless loss lowerer. */
     public CpuLossLowering() { }
@@ -119,6 +192,10 @@ public final class CpuLossLowering {
      * prevents an index target from consuming a fabricated class coordinate while preserving
      * dense targets' exact logits-shaped layout.</p>
      *
+     * <p>Equality and hashing include every component, comparing retained extent and stride
+     * arrays by contents rather than identity. Arrays are defensively copied at construction
+     * and access, so separately lowered equal geometry remains an immutable value.</p>
+     *
      * @param extents non-null non-negative prediction/logits extents
      * @param axis {@code -1} for MSE, otherwise normalized non-negative logits class axis
      * @param targetRank target coordinate rank, as described above
@@ -138,6 +215,124 @@ public final class CpuLossLowering {
             long predictionOffset, long targetOffset, long outputOffset,
             long[] predictionStrides, long[] targetStrides,
             long[] outputStrides, boolean ignorePresent, long ignoreValue) {
+        /**
+         * Immutable coefficient-only ordinary recipe; no graph, descriptor or invocation storage
+         * survives lowering. The structural IR is reused for every actual batch.
+         * @param ir authenticated structural ordinary IR
+         * @param boundaries unique input/output IDs in carrier order
+         * @param boundaryTypes exact represented type of every boundary
+         * @param bindings numeric extent/stride coefficients in boundary order
+         * @param iterationCount affine independent-range count
+         * @param scratchBytes checked affine reserved scratch bytes
+         * @param axis class axis, or minus one for MSE
+         * @param ignoreValue exact integral ignore bits when present
+         */
+        public record BatchGeometry(CpuLossIr ir, List<ValueId> boundaries,
+                List<io.github.pho001.synaptik.model.datatype.DataType> boundaryTypes,
+                List<CpuAccessPlan.BatchBinding> bindings, BatchByteSize iterationCount,
+                BatchByteSize scratchBytes, int axis, long ignoreValue) implements CpuPartitionLowering.BatchUnitGeometry {
+            /**
+             * Snapshots the authenticated structural/numeric recipe without retaining a graph.
+             * @param ir non-null ordinary structural IR
+             * @param boundaries unique ordered boundary IDs, copied
+             * @param boundaryTypes exact represented boundary types, copied
+             * @param bindings complete physical coefficient recipes, copied
+             * @param iterationCount checked affine capacity in complete helper ranges
+             * @param scratchBytes checked affine scratch reservation in bytes
+             * @param axis normalized categorical class axis, or minus one for MSE
+             * @param ignoreValue exact integral ignore bits when present
+             * @throws NullPointerException if a required reference is null
+             * @throws IllegalArgumentException if boundary cardinalities disagree
+             */
+            public BatchGeometry {
+                Objects.requireNonNull(ir,"ir"); boundaries = List.copyOf(boundaries);
+                boundaryTypes = List.copyOf(boundaryTypes); bindings = List.copyOf(bindings);
+                Objects.requireNonNull(iterationCount,"iterationCount"); Objects.requireNonNull(scratchBytes,"scratchBytes");
+                if (boundaries.size() != bindings.size() || boundaries.size() != boundaryTypes.size())
+                    throw new IllegalArgumentException("batch boundary cardinality disagrees");
+            }
+            /** @return no mutable family cursor cells; loss cursors are generated locals */
+            @Override public List<io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset> resets() { return List.of(); }
+            /** @return deterministic coefficient identity, excluding actual B and storage */
+            @Override public String identity() { return ir.structuralKey()+":bindings="+bindings+":ranges="+iterationCount+":scratch="+scratchBytes+":axis="+axis+":ignore="+ignoreValue; }
+            /**
+             * Resolves existing concrete family geometry exactly once during cold binding.
+             * @param batch non-negative actual int-representable batch
+             * @return ordinary typed lowering with numeric geometry and unchanged structural key
+             * @throws IllegalArgumentException if actual numerical domain policy is violated
+             * @throws ArithmeticException if checked invocation geometry overflows
+             */
+            @Override public CpuPartitionLowering.LoweredPartition bind(long batch) {
+                var actual = bindings.stream().map(b -> b.bind(batch)).toList();
+                scratchBytes.byteSize(batch);
+
+                var prediction = actual.get(ir.roleBoundaryPositions().getFirst());
+                var target = actual.get(ir.roleBoundaryPositions().getLast()); var output = actual.getLast();
+                var geometry = new Geometry(prediction.extents().stream().mapToLong(Long::longValue).toArray(),axis,
+                        target.extents().size(),output.extents().size(),prediction.baseElementOffset(),target.baseElementOffset(),output.baseElementOffset(),
+                        prediction.effectiveStrides().stream().mapToLong(Long::longValue).toArray(),
+                        target.effectiveStrides().stream().mapToLong(Long::longValue).toArray(),
+                        output.effectiveStrides().stream().mapToLong(Long::longValue).toArray(),ir.indexIgnorePresent(),ignoreValue);
+                var boundIr = new CpuLossIr(ir.kind(),ir.predictionType(),ir.targetType(),ir.resultType(),ir.reduction(),ir.indexIgnorePresent(),
+                        ir.roleBoundaryPositions(),ir.boundaryTypes(),ir.boundaryAccesses(),ir.rangeForm(),geometry);
+                long work = iterationCount.byteSize(batch);
+                return new CpuPartitionLowering.LoweredPartition(boundIr,boundaries,actual,
+                        actual.stream().map(CpuAccessPlan.Binding::referencedElementSpan).toList(),boundaryTypes,List.of(),
+                        new long[] {work},work,"legal: bound ordinary batch loss",new long[0],Optional.empty());
+            }
+        }
+
+
+        /**
+         * One fixed generated assignment of a boundary's element base plus a layout delta.
+         * @param cell non-negative destination cell in this family's packed geometry
+         * @param boundary boundary position in the pack's carrier-base order
+         * @param elementDelta immutable element offset added with checked arithmetic
+         */
+        public record BaseCell(int cell, int boundary, long elementDelta) { }
+
+        /**
+         * One original cursor seed restored before every temporal helper call, including retry.
+         * @param cell non-negative destination cell in this family's packed geometry
+         * @param value original range-start cursor value
+         */
+        public record ResetCell(int cell, long value) { }
+
+        /**
+         * Cold, immutable facts for emitting fixed numeric assignments, never a runtime program.
+         * Scratch range offsets and invariant geometry remain bound once per invocation.
+         * @param bases non-null boundary-base assignments, defensively snapshotted
+         * @param resets non-null mutable-cursor assignments, defensively snapshotted
+         */
+        public record TemporalRebind(List<BaseCell> bases, List<ResetCell> resets) {
+            /**
+             * Snapshots the generation-time assignments; retains no invocation storage.
+             * @param bases non-null base facts without null entries
+             * @param resets non-null reset facts without null entries
+             * @throws NullPointerException if either list or an entry is null
+             */
+            public TemporalRebind {
+                bases = List.copyOf(bases);
+                resets = List.copyOf(resets);
+            }
+        }
+
+        /**
+         * Describes temporal base rebinding and restoration of this family's original cursors.
+         * Construct these facts only during generation or cold numeric binding; generated code
+         * emits the assignments directly, without calling pack, allocating, or iterating facts.
+         * Each boundary base is normalized using that boundary's own element width beforehand.
+         * @param start non-negative inclusive ordinary helper range start
+         * @return immutable owner-defined base locations and original cursor seeds
+         * @throws IllegalArgumentException if start is negative
+         * @throws ArithmeticException if checked layout or cursor arithmetic overflows
+         */
+        public TemporalRebind temporalRebind(long start) {
+            if (start < 0) throw new IllegalArgumentException("negative temporal range start");
+            return new TemporalRebind(List.of(new BaseCell(4, 0, predictionOffset),
+                    new BaseCell(5, 1, targetOffset), new BaseCell(6, 2, outputOffset)), List.of());
+        }
+
         /**
          * Returns a rank-zero unavailable marker used only by legacy structural constructors.
          *
@@ -213,6 +408,43 @@ public final class CpuLossLowering {
          */
         @Override public long[] outputStrides() {
             return outputStrides.clone();
+        }
+
+        /**
+         * Compares every immutable layout and ignore-policy component, including array contents.
+         * @param other any candidate object, including null
+         * @return true exactly for equal extents, strides, ranks, axis, offsets and ignore metadata
+         */
+        @Override public boolean equals(Object other) {
+            return this == other || other instanceof Geometry geometry
+                    && Arrays.equals(extents, geometry.extents)
+                    && axis == geometry.axis
+                    && targetRank == geometry.targetRank && outputRank == geometry.outputRank
+                    && predictionOffset == geometry.predictionOffset
+                    && targetOffset == geometry.targetOffset && outputOffset == geometry.outputOffset
+                    && Arrays.equals(predictionStrides, geometry.predictionStrides)
+                    && Arrays.equals(targetStrides, geometry.targetStrides)
+                    && Arrays.equals(outputStrides, geometry.outputStrides)
+                    && ignorePresent == geometry.ignorePresent && ignoreValue == geometry.ignoreValue;
+        }
+
+        /**
+         * Hashes every component with the array-content semantics of {@link #equals(Object)}.
+         * @return content hash without boxing components or copying retained arrays
+         */
+        @Override public int hashCode() {
+            int result = Arrays.hashCode(extents);
+            result = 31 * result + Integer.hashCode(axis);
+            result = 31 * result + Integer.hashCode(targetRank);
+            result = 31 * result + Integer.hashCode(outputRank);
+            result = 31 * result + Long.hashCode(predictionOffset);
+            result = 31 * result + Long.hashCode(targetOffset);
+            result = 31 * result + Long.hashCode(outputOffset);
+            result = 31 * result + Arrays.hashCode(predictionStrides);
+            result = 31 * result + Arrays.hashCode(targetStrides);
+            result = 31 * result + Arrays.hashCode(outputStrides);
+            result = 31 * result + Boolean.hashCode(ignorePresent);
+            return 31 * result + Long.hashCode(ignoreValue);
         }
 
         /**

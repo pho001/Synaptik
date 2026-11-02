@@ -1,5 +1,7 @@
 package io.github.pho001.synaptik.backend.cpu.internal.lowering;
 
+import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize;
+
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMaskedReductionIr;
@@ -29,8 +31,67 @@ import java.util.Optional;
  * directional right-aligned broadcast mapping without materialization, and sizes one fixed exact
  * sum state slice per simultaneously used output-cell range. Selected count remains generated
  * invocation-local state.</p>
+ * <p>The separate {@link #lowerBatch} path authenticates the original canonical named-B
+ * occurrence and retains only checked numeric coefficients. Cold binding creates this owner's
+ * existing concrete geometry and pack once; nonleading batch axes and exact boundary types are
+ * preserved without a representative graph or a batch-specialized generated class.</p>
  */
 public final class CpuMaskedReductionLowering {
+    /**
+     * Lowers the original one-canonical-B occurrence to an unresolved numeric recipe.
+     * No descriptor, graph or generated identity is specialized to a representative batch.
+     * @param context complete original one-node analysis projection
+     * @return immutable ordinary family recipe, resolved only during cold invocation binding
+     * @throws IllegalArgumentException if original attributes, types, shapes or layouts disagree
+     * @throws ArithmeticException if structural coefficient or scratch arithmetic overflows
+     */
+    public CpuPartitionLowering.LoweredPartition lowerBatch(
+            PrepareContext<? extends BackendAnalysisInputs> context) {
+        return lowerBatch(context,CpuPartitionLowering.batchLayouts(context));
+    }
+
+    /**
+     * Authenticates an ordinary symbolic occurrence using complete enclosing physical layouts.
+     * @param context original one-node projection with exact semantic descriptors
+     * @param layouts immutable full-local numeric layout map, including views outside this unit
+     * @return unresolved family recipe retaining those exact physical coefficients
+     * @throws IllegalArgumentException if original semantics or physical geometry are unproved
+     * @throws ArithmeticException if structural arithmetic overflows
+     */
+    public CpuPartitionLowering.LoweredPartition lowerBatch(
+            PrepareContext<? extends BackendAnalysisInputs> context,
+            Map<ValueId,CpuAccessPlan.BatchBinding> layouts) {
+        CpuPartitionLowering.requireBatchContext(context);
+        var query = CpuAggregateLowering.batchQuery(context);
+        var node = context.nodes().getFirst();
+        if (node.inputs().size() != 2 || (node.operation().kind() != AggregateReductionKind.SUM
+                    && node.operation().kind() != AggregateReductionKind.MEAN)
+                || !(node.operation().attrs() instanceof MaskedReductionAttrs attrs))
+            throw new IllegalArgumentException("masked batch attributes disagree");
+        var data = query.inputs().getFirst(); var mask = query.inputs().getLast(); var output = query.outputs().getFirst();
+        var type = data.dataType();
+        if (type != output.dataType() || mask.dataType() != DataType.BOOL
+                || !ShapeBroadcast.broadcast(data.shape(),mask.shape()).equals(data.shape()))
+            throw new IllegalArgumentException("masked batch types or broadcast disagree");
+        CpuAggregateLowering.normalizedAxes(data.shape(),output.shape(),
+                new io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs(attrs.axis(),false));
+        var boundaries = List.of(node.inputs().getFirst(),node.inputs().getLast(),node.outputs().getFirst());
+        if (boundaries.stream().distinct().count() != 3) throw new IllegalArgumentException("masked boundaries must be distinct");
+        var types = List.of(type,DataType.BOOL,type);
+        var bindings = CpuAggregateLowering.batchBindings(context,boundaries,layouts);
+        var in = bindings.getFirst(); var out = bindings.getLast();
+        boolean[] singleton = new boolean[data.shape().rank()]; int omitted = data.shape().rank()-mask.shape().rank();
+        for (int axis = 0; axis < mask.shape().rank(); axis++) singleton[omitted+axis] =
+                mask.shape().dimension(axis).equals(new io.github.pho001.synaptik.model.shape.StaticDimension(1));
+        long budget = CpuAggregateLowering.batchDomainBudget(CpuAggregateLowering.batchCount(in,new int[] {attrs.axis()}));
+        int limbs = stateLimbCount(type,budget); long scratch = Math.addExact(8,Math.multiplyExact(8L,limbs));
+        var kind = node.operation().kind() == AggregateReductionKind.SUM ? CpuMaskedReductionIr.Kind.SUM : CpuMaskedReductionIr.Kind.MEAN;
+        var ir = new CpuMaskedReductionIr(kind,type,attrs.axis(),mask.shape().rank(),singleton,budget,limbs,scratch,
+                in.plan(),bindings.get(1).plan(),out.plan());
+        return new CpuPartitionLowering.LoweredPartition(new Geometry.BatchGeometry(ir,
+                boundaries, types, bindings, CpuAggregateLowering.batchCount(out), new BatchByteSize(scratch,0,8)));
+    }
+
     private final CpuCapabilityProvider capabilities = new CpuCapabilityProvider();
 
     /** Creates a stateless focused masked-reduction lowerer. */
@@ -274,7 +335,137 @@ public final class CpuMaskedReductionLowering {
     public record Geometry(CpuMaskedReductionIr.Kind kind, DataType dataType, int axis,
             Layout data, Layout mask, Layout output, long outputCount, long maximumDomainCount,
             int stateLimbCount, long scratchSliceBytes) {
-        /** Validates one complete masked geometry. */
+        /**
+         * Immutable coefficient-only ordinary recipe; no graph, descriptor or invocation storage
+         * survives lowering. The structural IR is reused for every actual batch.
+         * @param ir authenticated structural ordinary IR
+         * @param boundaries unique input/output IDs in carrier order
+         * @param boundaryTypes exact represented type of every boundary
+         * @param bindings numeric extent/stride coefficients in boundary order
+         * @param iterationCount affine independent-range count
+         * @param scratchBytes checked affine reserved scratch bytes
+         */
+        public record BatchGeometry(CpuMaskedReductionIr ir, List<ValueId> boundaries,
+                List<io.github.pho001.synaptik.model.datatype.DataType> boundaryTypes,
+                List<CpuAccessPlan.BatchBinding> bindings, BatchByteSize iterationCount,
+                BatchByteSize scratchBytes) implements CpuPartitionLowering.BatchUnitGeometry {
+            /**
+             * Snapshots the authenticated structural/numeric recipe without retaining a graph.
+             * @param ir non-null ordinary structural IR
+             * @param boundaries unique ordered boundary IDs, copied
+             * @param boundaryTypes exact represented boundary types, copied
+             * @param bindings complete physical coefficient recipes, copied
+             * @param iterationCount checked affine capacity in complete helper ranges
+             * @param scratchBytes checked affine scratch reservation in bytes
+             * @throws NullPointerException if a required reference is null
+             * @throws IllegalArgumentException if boundary cardinalities disagree
+             */
+            public BatchGeometry {
+                Objects.requireNonNull(ir,"ir"); boundaries = List.copyOf(boundaries);
+                boundaryTypes = List.copyOf(boundaryTypes); bindings = List.copyOf(bindings);
+                Objects.requireNonNull(iterationCount,"iterationCount"); Objects.requireNonNull(scratchBytes,"scratchBytes");
+                if (boundaries.size() != bindings.size() || boundaries.size() != boundaryTypes.size())
+                    throw new IllegalArgumentException("batch boundary cardinality disagrees");
+            }
+            /** @return original zero-based mutable cursor seeds restored before every call */
+            @Override public List<io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset> resets() {
+                return List.of();
+            }
+            /** @return deterministic coefficient identity, excluding actual B and storage */
+            @Override public String identity() { return ir.structuralKey()+":bindings="+bindings+":ranges="+iterationCount+":scratch="+scratchBytes; }
+            /**
+             * Resolves existing concrete family geometry exactly once during cold binding.
+             * @param batch non-negative actual int-representable batch
+             * @return ordinary typed lowering with numeric geometry and unchanged structural key
+             * @throws IllegalArgumentException if actual numerical domain policy is violated
+             * @throws ArithmeticException if checked invocation geometry overflows
+             */
+            @Override public CpuPartitionLowering.LoweredPartition bind(long batch) {
+                var actual = bindings.stream().map(b -> b.bind(batch)).toList();
+                scratchBytes.byteSize(batch);
+                var dataBinding = actual.get(0);
+                var data = new Layout(dataBinding.extents().stream().mapToLong(Long::longValue).toArray(),
+                        dataBinding.baseElementOffset(),dataBinding.effectiveStrides().stream().mapToLong(Long::longValue).toArray());
+                var maskBinding = actual.get(1);
+                var mask = new Layout(maskBinding.extents().stream().mapToLong(Long::longValue).toArray(),
+                        maskBinding.baseElementOffset(),maskBinding.effectiveStrides().stream().mapToLong(Long::longValue).toArray());
+                var outputBinding = actual.get(2);
+                var output = new Layout(outputBinding.extents().stream().mapToLong(Long::longValue).toArray(),
+                        outputBinding.baseElementOffset(),outputBinding.effectiveStrides().stream().mapToLong(Long::longValue).toArray());
+                long work = iterationCount.byteSize(batch);
+                var geometry = new Geometry(ir.kind(),ir.dataType(),ir.axis(),data,mask,output,work,data.extents[ir.axis()],
+                        ir.stateLimbCount(),ir.scratchSliceBytes());
+                return new CpuPartitionLowering.LoweredPartition(ir,boundaries,actual,
+                        actual.stream().map(CpuAccessPlan.Binding::referencedElementSpan).toList(),
+                        boundaryTypes,List.of(),new long[] {work},work,"legal: bound ordinary batch geometry",new long[0],
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.of(geometry), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.<CpuPartitionLowering.LoweredPartition.MatmulFacts>empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+            }
+        }
+
+
+        /**
+         * One fixed generated assignment of a boundary's element base plus a layout delta.
+         * @param cell non-negative destination cell in this family's packed geometry
+         * @param boundary boundary position in the pack's carrier-base order
+         * @param elementDelta immutable element offset added with checked arithmetic
+         */
+        public record BaseCell(int cell, int boundary, long elementDelta) { }
+
+        /**
+         * One original cursor seed restored before every temporal helper call, including retry.
+         * @param cell non-negative destination cell in this family's packed geometry
+         * @param value original range-start cursor value
+         */
+        public record ResetCell(int cell, long value) { }
+
+        /**
+         * Cold, immutable facts for emitting fixed numeric assignments, never a runtime program.
+         * Scratch range offsets and invariant geometry remain bound once per invocation.
+         * @param bases non-null boundary-base assignments, defensively snapshotted
+         * @param resets non-null mutable-cursor assignments, defensively snapshotted
+         */
+        public record TemporalRebind(List<BaseCell> bases, List<ResetCell> resets) {
+            /**
+             * Snapshots the generation-time assignments; retains no invocation storage.
+             * @param bases non-null base facts without null entries
+             * @param resets non-null reset facts without null entries
+             * @throws NullPointerException if either list or an entry is null
+             */
+            public TemporalRebind {
+                bases = List.copyOf(bases);
+                resets = List.copyOf(resets);
+            }
+        }
+
+        /**
+         * Describes temporal base rebinding and restoration of this family's original cursors.
+         * Construct these facts only during generation or cold numeric binding; generated code
+         * emits the assignments directly, without calling pack, allocating, or iterating facts.
+         * Each boundary base is normalized using that boundary's own element width beforehand.
+         * @param start non-negative inclusive ordinary helper range start
+         * @return immutable owner-defined base locations and original cursor seeds
+         * @throws IllegalArgumentException if start is negative
+         * @throws ArithmeticException if checked layout or cursor arithmetic overflows
+         */
+        public TemporalRebind temporalRebind(long start) {
+            if (start < 0) throw new IllegalArgumentException("negative temporal range start");
+            int maskLayout = 13 + 2 * data.extents.length;
+            int outputLayout = maskLayout + 2 + 2 * mask.extents.length;
+            return new TemporalRebind(List.of(new BaseCell(12, 0, data.offset),
+                    new BaseCell(maskLayout + 1, 1, mask.offset),
+                    new BaseCell(outputLayout + 1, 2, output.offset)), List.of());
+        }
+
+        /**
+         * Validates complete numeric geometry and sufficient exact-state capacity. Symbolic
+         * recipes retain their all-admitted-count structural limb budget even when actual B
+         * needs fewer limbs; a static occurrence still supplies its original exact width.
+         */
         public Geometry {
             Objects.requireNonNull(kind, "kind"); Objects.requireNonNull(dataType, "dataType");
             Objects.requireNonNull(data, "data"); Objects.requireNonNull(mask, "mask");
@@ -286,7 +477,7 @@ public final class CpuMaskedReductionLowering {
                     || !Arrays.equals(remove(data.extents, axis), output.extents)
                     || outputCount != elementCount(output.extents)
                     || maximumDomainCount != data.extents[axis]
-                    || stateLimbCount != CpuMaskedReductionLowering.stateLimbCount(
+                    || stateLimbCount < CpuMaskedReductionLowering.stateLimbCount(
                             dataType, maximumDomainCount)
                     || scratchSliceBytes != Math.addExact(8L,
                             Math.multiplyExact(8L, stateLimbCount))) {

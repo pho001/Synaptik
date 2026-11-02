@@ -8,6 +8,7 @@ import io.github.pho001.synaptik.model.graph.GraphPhase;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.NodeId;
 import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.operation.scan.ScanAttrs;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
@@ -36,10 +37,16 @@ import java.util.Set;
  *
  * <p>A guarded occurrence may be {@link GraphPhase#FORWARD FORWARD} or
  * {@link GraphPhase#BACKWARD BACKWARD}. Every bypass still requires exactly one non-graph-output
- * result, complete equality between that output descriptor and the selected input descriptor,
- * and {@code requiresGrad == false}. The scan compares already-remapped inputs, so an earlier
+ * result that is not a length-mode actual binding site, complete equality between that output
+ * descriptor and the selected input descriptor, and {@code requiresGrad == false}.
+ * The scan compares already-remapped inputs, so an earlier
  * bypass can expose a later identity without iteration. It preserves the occurrence phase and
  * neither discovers or creates Tensor constants nor evaluates arithmetic.</p>
+ * <p>Every surviving scan retains its complete body attachment, including saved-site identities,
+ * even when a neighboring ordinary rewrite forces rebuilding the outer graph.</p>
+ * <p>Length-mode actual binding sites are preserved rather than bypassed. Descriptor-equal values
+ * may identify incompatible ROW/SHARED coordinates, so tying their IDs requires more than the
+ * ordinary arithmetic identity. All-valid and fixed-scan rewrite guards remain unchanged.</p>
  */
 final class ForwardExactArithmeticRewriting {
     private ForwardExactArithmeticRewriting() {}
@@ -82,6 +89,13 @@ final class ForwardExactArithmeticRewriting {
 
         Map<ValueId, GraphValue> originalValues = valuesById(graph);
         Set<ValueId> graphOutputs = new HashSet<>(graph.outputs());
+        // A descriptor-equal bypass could tie previously distinct ROW/SHARED actuals.
+        // Preserve these binding sites just like public outputs; all-valid rules are unchanged.
+        for (CompiledNode node : graph.nodes()) {
+            if (node.scanBody().isPresent() && ((ScanAttrs) node.operation().attrs()).lengthAware()) {
+                graphOutputs.addAll(node.inputs());
+            }
+        }
         Map<ValueId, ValueId> valueRemapping = new HashMap<>();
         List<GraphValue> values = new ArrayList<>(graph.values().size());
         List<ValueId> inputs = new ArrayList<>(graph.inputs().size());
@@ -118,7 +132,7 @@ final class ForwardExactArithmeticRewriting {
             }
             NodeId rebuiltNode = new NodeId(nextNodeId++);
             nodes.add(new CompiledNode(
-                    rebuiltNode, node.operation(), remappedInputs, rebuiltOutputs));
+                    rebuiltNode, node.operation(), remappedInputs, rebuiltOutputs, node.scanBody()));
             sourceNodeIds.add(node.id());
             phases.put(rebuiltNode, graph.nodePhases().get(node.id()));
         }

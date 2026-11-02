@@ -57,16 +57,62 @@ final class TensorMultiAxisReductionExpressions {
      */
     static Tensor applyOrdinary(
             Tensor input, AggregateReductionKind kind, int[] axes, boolean keepDimensions) {
+        return applyOrdinaryChecked(input, kind, axes, keepDimensions, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input the non-null sole provenance input, retained by exact reference and not mutated
+     * @param kind one of SUM, MEAN, PROD, MIN, MAX, ALL, or ANY
+     * @param axes the non-null caller-owned positive or negative axes; may be empty and is cloned
+     * @param keepDimensions whether selected axes remain with extent one
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input}, {@code kind}, or {@code axes} is null, checked
+     *     in that order with the parameter name as message
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if the kind or input type is unsupported or normalized axes
+     *     repeat; kind/type failures precede axis handling
+     * @throws IndexOutOfBoundsException if a caller axis is invalid for the input Shape
+     * @throws IllegalStateException if tensor identifier space is exhausted after valid metadata
+     */
+    static Tensor applyOrdinaryChecked(
+            Tensor input, AggregateReductionKind kind, int[] axes, boolean keepDimensions,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(kind, "kind");
+        Objects.requireNonNull(axes, "axes");
+        return applyOrdinaryDescriptors(
+                input.descriptor(), kind, axes, keepDimensions, descriptorCheck, input);
+    }
+
+    /**
+     * Runs the shared descriptor guards and completes metadata before real provenance is used.
+     * @param input immutable operand metadata
+     * @param kind ordinary construction argument, validated in existing order
+     * @param axes ordinary construction argument, validated in existing order
+     * @param keepDimensions ordinary construction argument, validated in existing order
+     * @param descriptorCheck optional synchronous, unretained metadata completion; null constructs a Tensor
+     * @param inputTensor real provenance, unused when metadata completion is supplied
+     * @return null after metadata completion, otherwise the ordinary result
+     */
+    private static Tensor applyOrdinaryDescriptors(
+            TensorDescriptor input,
+            AggregateReductionKind kind,
+            int[] axes,
+            boolean keepDimensions,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor inputTensor) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(axes, "axes");
         validateOrdinaryKind(kind);
         validateOrdinaryInput(input, kind);
         int[] copiedAxes = axes.clone();
-        List<Integer> normalizedAxes = normalizeAxes(input.descriptor().shape(), copiedAxes);
-        Shape resultShape = reduceShape(input.descriptor().shape(), normalizedAxes, keepDimensions);
-        return create(input, kind,
-                new MultiAxisReductionAttrs(normalizedAxes, keepDimensions), resultShape);
+        List<Integer> normalizedAxes = normalizeAxes(input.shape(), copiedAxes);
+        Shape resultShape = reduceShape(input.shape(), normalizedAxes, keepDimensions);
+        return createDescriptors(input, kind, new MultiAxisReductionAttrs(normalizedAxes, keepDimensions), resultShape, descriptorCheck, inputTensor);
     }
 
     /**
@@ -85,16 +131,61 @@ final class TensorMultiAxisReductionExpressions {
      */
     static Tensor applyAdvanced(
             Tensor input, AggregateReductionKind kind, int[] axes, boolean keepDimensions) {
+        return applyAdvancedChecked(input, kind, axes, keepDimensions, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input the non-null floating sole provenance input
+     * @param kind LOG_SUM_EXP, L1_NORM, or L2_NORM
+     * @param axes the non-null caller-owned axes; may be empty and is cloned
+     * @param keepDimensions whether selected axes remain with extent one
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input}, {@code kind}, or {@code axes} is null, in order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if {@code kind} is not supported, the input is not floating,
+     *     or normalized axes repeat; these failures occur before identity allocation
+     * @throws IndexOutOfBoundsException if a caller axis is invalid for the input Shape
+     * @throws IllegalStateException if tensor identifier space is exhausted after valid metadata
+     */
+    static Tensor applyAdvancedChecked(
+            Tensor input, AggregateReductionKind kind, int[] axes, boolean keepDimensions,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(kind, "kind");
+        Objects.requireNonNull(axes, "axes");
+        return applyAdvancedDescriptors(
+                input.descriptor(), kind, axes, keepDimensions, descriptorCheck, input);
+    }
+
+    /**
+     * Runs the shared descriptor guards and completes metadata before real provenance is used.
+     * @param input immutable operand metadata
+     * @param kind ordinary construction argument, validated in existing order
+     * @param axes ordinary construction argument, validated in existing order
+     * @param keepDimensions ordinary construction argument, validated in existing order
+     * @param descriptorCheck optional synchronous, unretained metadata completion; null constructs a Tensor
+     * @param inputTensor real provenance, unused when metadata completion is supplied
+     * @return null after metadata completion, otherwise the ordinary result
+     */
+    private static Tensor applyAdvancedDescriptors(
+            TensorDescriptor input,
+            AggregateReductionKind kind,
+            int[] axes,
+            boolean keepDimensions,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor inputTensor) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(axes, "axes");
         validateAdvancedKind(kind);
         validateFloating(input);
         int[] copiedAxes = axes.clone();
-        List<Integer> normalizedAxes = normalizeAxes(input.descriptor().shape(), copiedAxes);
-        Shape resultShape = reduceShape(input.descriptor().shape(), normalizedAxes, keepDimensions);
-        return create(input, kind,
-                new MultiAxisReductionAttrs(normalizedAxes, keepDimensions), resultShape);
+        List<Integer> normalizedAxes = normalizeAxes(input.shape(), copiedAxes);
+        Shape resultShape = reduceShape(input.shape(), normalizedAxes, keepDimensions);
+        return createDescriptors(input, kind, new MultiAxisReductionAttrs(normalizedAxes, keepDimensions), resultShape, descriptorCheck, inputTensor);
     }
 
     /**
@@ -122,6 +213,59 @@ final class TensorMultiAxisReductionExpressions {
             int[] axes,
             boolean keepDimensions,
             long correction) {
+        return applyStatisticalChecked(input, kind, axes, keepDimensions, correction, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input the non-null floating sole provenance input
+     * @param kind VARIANCE or STANDARD_DEVIATION
+     * @param axes the non-null caller-owned axes; may be empty and is cloned
+     * @param keepDimensions whether selected axes remain with extent one
+     * @param correction non-negative value subtracted from selected-domain count
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input}, {@code kind}, or {@code axes} is null, in order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if kind/type/correction/duplicate-axis validation fails, or
+     *     if a static selected-domain count is not greater than correction
+     * @throws IndexOutOfBoundsException if a caller axis is invalid for the input Shape
+     * @throws IllegalStateException if tensor identifier space is exhausted after valid metadata
+     */
+    static Tensor applyStatisticalChecked(
+            Tensor input,
+            AggregateReductionKind kind,
+            int[] axes,
+            boolean keepDimensions,
+            long correction,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(kind, "kind");
+        Objects.requireNonNull(axes, "axes");
+        return applyStatisticalDescriptors(
+                input.descriptor(), kind, axes, keepDimensions, correction, descriptorCheck, input);
+    }
+
+    /**
+     * Runs the shared descriptor guards and completes metadata before real provenance is used.
+     * @param input immutable operand metadata
+     * @param kind ordinary construction argument, validated in existing order
+     * @param axes ordinary construction argument, validated in existing order
+     * @param keepDimensions ordinary construction argument, validated in existing order
+     * @param correction ordinary construction argument, validated in existing order
+     * @param descriptorCheck optional synchronous, unretained metadata completion; null constructs a Tensor
+     * @param inputTensor real provenance, unused when metadata completion is supplied
+     * @return null after metadata completion, otherwise the ordinary result
+     */
+    private static Tensor applyStatisticalDescriptors(
+            TensorDescriptor input,
+            AggregateReductionKind kind,
+            int[] axes,
+            boolean keepDimensions,
+            long correction,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor inputTensor) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(axes, "axes");
@@ -131,13 +275,11 @@ final class TensorMultiAxisReductionExpressions {
             throw new IllegalArgumentException("correction must be non-negative: " + correction);
         }
         int[] copiedAxes = axes.clone();
-        Shape inputShape = input.descriptor().shape();
+        Shape inputShape = input.shape();
         List<Integer> normalizedAxes = normalizeAxes(inputShape, copiedAxes);
         validateStaticDomainCount(inputShape, normalizedAxes, correction);
         Shape resultShape = reduceShape(inputShape, normalizedAxes, keepDimensions);
-        return create(input, kind,
-                new StatisticalReductionAttrs(normalizedAxes, keepDimensions, correction),
-                resultShape);
+        return createDescriptors(input, kind, new StatisticalReductionAttrs(normalizedAxes, keepDimensions, correction), resultShape, descriptorCheck, inputTensor);
     }
 
     /**
@@ -192,13 +334,13 @@ final class TensorMultiAxisReductionExpressions {
     /**
      * Enforces the existing kind-specific ordinary input domains without conversion.
      *
-     * @param input non-null Tensor whose immutable data type is inspected
+     * @param input non-null descriptor whose immutable data type is inspected
      * @param kind validated ordinary kind
      * @throws IllegalArgumentException if ALL/ANY is not BOOL, MEAN is not floating, or another
      *     ordinary numeric kind receives non-numeric input, with the existing exact messages
      */
-    private static void validateOrdinaryInput(Tensor input, AggregateReductionKind kind) {
-        DataType dataType = input.descriptor().dataType();
+    private static void validateOrdinaryInput(TensorDescriptor input, AggregateReductionKind kind) {
+        DataType dataType = input.dataType();
         if (kind == AggregateReductionKind.ALL || kind == AggregateReductionKind.ANY) {
             if (dataType != DataType.BOOL) {
                 throw new IllegalArgumentException(
@@ -215,12 +357,12 @@ final class TensorMultiAxisReductionExpressions {
     /**
      * Requires exact floating input without cast or promotion.
      *
-     * @param input non-null Tensor whose immutable data type is inspected
+     * @param input non-null descriptor whose immutable data type is inspected
      * @throws IllegalArgumentException if the input is integral or BOOL, with the exact floating
      *     type message
      */
-    private static void validateFloating(Tensor input) {
-        DataType dataType = input.descriptor().dataType();
+    private static void validateFloating(TensorDescriptor input) {
+        DataType dataType = input.dataType();
         if (!dataType.isFloating()) {
             throw new IllegalArgumentException(
                     "input must have a floating data type, but was " + dataType);
@@ -347,32 +489,65 @@ final class TensorMultiAxisReductionExpressions {
         return selected;
     }
 
+
     /**
-     * Constructs exact descriptor, operation, and one-input derived Tensor metadata.
-     *
-     * <p>The descriptor preserves exact input type and gradient eligibility with the supplied
-     * Shape and unresolved layout. One Operation retains the exact kind and attributes; one
-     * central factory delegation records ordered input {@code [input]}, one output descriptor,
-     * output index zero, no label, and no storage.</p>
-     *
-     * @param input validated sole producer input retained by exact reference
-     * @param kind validated aggregate kind retained exactly
-     * @param attrs non-null immutable attributes retained exactly
-     * @param shape non-null derived result Shape
-     * @return the non-null fresh Tensor returned by the central factory
-     * @throws IllegalStateException if tensor identifier space is exhausted
+     * Runs the shared descriptor guards and completes metadata before real provenance is used.
+     * @param input immutable operand metadata
+     * @param kind ordinary construction argument, validated in existing order
+     * @param attrs ordinary construction argument, validated in existing order
+     * @param shape ordinary construction argument, validated in existing order
+     * @param descriptorCheck optional synchronous, unretained metadata completion; null constructs a Tensor
+     * @param inputTensor real provenance, unused when metadata completion is supplied
+     * @return null after metadata completion, otherwise the ordinary result
      */
-    private static Tensor create(
-            Tensor input,
+    private static Tensor createDescriptors(
+            TensorDescriptor input,
             AggregateReductionKind kind,
             OperationAttrs attrs,
-            Shape shape) {
+            Shape shape,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor inputTensor) {
         TensorDescriptor descriptor = new TensorDescriptor(
-                input.descriptor().dataType(),
+                input.dataType(),
                 shape,
                 Optional.empty(),
-                input.descriptor().requiresGrad());
+                input.requiresGrad());
         Operation operation = new Operation(kind, attrs);
-        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(inputTensor));
+    }
+
+    /**
+     * Completes one admitted ordinary occurrence synchronously using the real construction guards.
+     * No Tensor or identity is created and the callback is not retained. The owning facade checks
+     * occurrence cardinality and compares the returned canonical operation with the supplied one.
+     *
+     * @param operation non-null ordinary operation admitted to this family by the owning selector
+     * @param inputs non-null immutable operand metadata in canonical input order
+     * @param outputCount complete canonical output count, already validated by the owning facade
+     * @param sink non-null synchronous consumer of the canonical operation and all output metadata
+     * @throws IllegalArgumentException if ordinary semantic guards or the consumer reject metadata
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(sink, "sink");
+        AggregateReductionKind kind = (AggregateReductionKind) operation.kind();
+        if (operation.attrs() instanceof StatisticalReductionAttrs attrs) {
+            int[] axes = attrs.axes().stream().mapToInt(Integer::intValue).toArray();
+            applyStatisticalDescriptors(inputs.get(0), kind, axes, attrs.keepDimensions(),
+                    attrs.correction(), sink, null);
+        } else {
+            MultiAxisReductionAttrs attrs = (MultiAxisReductionAttrs) operation.attrs();
+            int[] axes = attrs.axes().stream().mapToInt(Integer::intValue).toArray();
+            if (kind == AggregateReductionKind.LOG_SUM_EXP
+                    || kind == AggregateReductionKind.L1_NORM || kind == AggregateReductionKind.L2_NORM) {
+                applyAdvancedDescriptors(inputs.get(0), kind, axes, attrs.keepDimensions(), sink, null);
+            } else {
+                applyOrdinaryDescriptors(inputs.get(0), kind, axes, attrs.keepDimensions(), sink, null);
+            }
+        }
     }
 }

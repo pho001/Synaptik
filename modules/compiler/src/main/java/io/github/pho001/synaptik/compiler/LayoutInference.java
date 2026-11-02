@@ -7,6 +7,7 @@ import io.github.pho001.synaptik.model.shape.Dimension;
 import io.github.pho001.synaptik.model.shape.DimensionExpressions;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
+import io.github.pho001.synaptik.model.tensor.ScanBody;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,9 +28,9 @@ import java.util.Optional;
  * upper-bound constraint; an empty sequence needs no bound. {@code CropToShapeAttrs} extraction
  * returns the exact target Shape, while placement validates the update against that target and
  * returns the exact base Shape. Both retain one {@code prefix + target <= base} obligation per axis
- * when it cannot yet be proved. A fully static positive-count extraction whose bounds are already
- * proved against a resolved base layout also derives the exact prefix-relative logical view,
- * preserving every base stride (including zero) and its checked storage offset.
+ * when it cannot yet be proved. After this owner independently infers crop type/Shape and records
+ * its per-axis bounds, shared Model computed-layout completion supplies any proved positive-static
+ * inherited-stride/offset view. This owner retains no separate crop geometry recipe.
  *
  * <p>General-axis window transforms retain their existing static transformed-axis contract. Two-
  * and three-dimensional unfold and fold preserve symbolic batch, channel, and spatial expressions
@@ -57,7 +58,7 @@ final class LayoutInference {
         if(op.kind() instanceof ContiguousKind)return contiguous(in);
         if(op.kind() instanceof ShapeTransformKind k)return shapeTransform(k,(TargetShapeAttrs)op.attrs(),in);
         if(op.kind() instanceof AxisTransformKind k)return axisTransform(k,op.attrs(),in);
-        if(op.kind() instanceof SliceKind k)return slice(k,op.attrs(),in);
+        if(op.kind() instanceof SliceKind)return slice(op,in);
         if(op.kind() instanceof PadKind)return pad((PadAttrs)op.attrs(),in);
         if(op.kind() instanceof TileKind)return tile((TileAttrs)op.attrs(),in);
         if(op.kind() instanceof TensorCompositionKind k)return composition(k,(CompositionAxisAttrs)op.attrs(),in);
@@ -111,7 +112,9 @@ final class LayoutInference {
         return CapturedGraphInference.InferenceResult.of(new TensorDescriptor(x.dataType(),shape,layout,x.requiresGrad()));
     }
     private static CapturedGraphInference.InferenceResult slice(
-            SliceKind kind, Object raw, List<TensorDescriptor> in) {
+            Operation operation, List<TensorDescriptor> in) {
+        SliceKind kind = (SliceKind) operation.kind();
+        Object raw = operation.attrs();
         TensorDescriptor base = in.getFirst();
         if (raw instanceof CropToShapeAttrs attrs) {
             if (attrs.targetShape().rank() != base.shape().rank()
@@ -119,50 +122,18 @@ final class LayoutInference {
                 throw new IllegalArgumentException("crop rank mismatch");
             }
             List<CapturedGraphInference.ConstraintRequest> constraints = new ArrayList<>();
-      Optional<LayoutDescriptor> cropLayout = Optional.empty();
-      boolean resolvedPositiveCrop =
-          kind == SliceKind.SLICE
-              && base.layout().isPresent()
-              && base.shape().isFullyStatic()
-              && attrs.targetShape().isFullyStatic()
-              && attrs.prefixShape().isFullyStatic();
-      long cropOffset = base.layout().map(LayoutDescriptor::storageOffset).orElse(0L);
             for (int axis = 0; axis < base.shape().rank(); axis++) {
-                Dimension prefix =
-                        attrs.prefixShape().dimension(axis);
-        Dimension target =
-                        attrs.targetShape().dimension(axis);
-        Dimension region = DimensionExpressions.add(prefix, target);
+                Dimension region = DimensionExpressions.add(
+                        attrs.prefixShape().dimension(axis), attrs.targetShape().dimension(axis));
                 constraints.add(new CapturedGraphInference.ConstraintRequest(
                         "crop axis " + axis,
                         FitsWithin.dimension(0, region, base.shape().dimension(axis))));
-        if (resolvedPositiveCrop) {
-          long prefixSize = ((StaticDimension) prefix).size();
-          long targetSize = ((StaticDimension) target).size();
-          long baseSize = ((StaticDimension) base.shape().dimension(axis)).size();
-          long end = Math.addExact(prefixSize, targetSize);
-          if (targetSize == 0L || end > baseSize) {
-            resolvedPositiveCrop = false;
-          } else {
-            cropOffset =
-                Math.addExact(
-                    cropOffset,
-                    Math.multiplyExact(prefixSize, base.layout().orElseThrow().stride(axis)));
-          }
-        }
-      }
-      if (resolvedPositiveCrop) {
-        cropLayout =
-            Optional.of(
-                LayoutDescriptor.of(
-                    attrs.targetShape(), base.layout().orElseThrow().strides(), cropOffset, true));
             }
             if (kind == SliceKind.SLICE) {
+                TensorDescriptor output = new TensorDescriptor(
+                        base.dataType(), attrs.targetShape(), Optional.empty(), base.requiresGrad());
                 return new CapturedGraphInference.InferenceResult(
-                        List.of(
-                new TensorDescriptor(
-                                base.dataType(), attrs.targetShape(), cropLayout, base.requiresGrad())),
-                        constraints);
+                        ScanBody.closeOrdinaryLayouts(operation, in, List.of(output)), constraints);
             }
             TensorDescriptor update = in.get(1);
             if (update.dataType() != base.dataType()

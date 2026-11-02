@@ -49,6 +49,17 @@ import java.util.Set;
  * materialized operation families, explicit contiguous requests, and compile-time splat inputs;
  * caller-bindable inputs and affine/view results remain unchanged.</p>
  *
+ * <p>General scans preserve independently scoped bodies in all modes. First-order expansion uses
+ * one opposite-traversal sibling per occurrence before the combined capture. Final publication
+ * and ordinary-use demand, not sibling liveness, select scan ports. Capability queries carry the
+ * complete validated body and roles to one whole-occurrence owner; child support alone is not
+ * binder support. This grants no Prepare, backend execution, fixed-scan BPTT or NN admission.</p>
+ * <p>Length-mode inference preserves explicit row roles and an INT64 lengths actual without a
+ * body formal. First-order AD requires all original carries and all original sequences to be
+ * ROW(0), including unused/non-gradient declarations; reverse histories may have mixed roles.
+ * The opposite-traversal sibling retains the same lengths. Cold capture/reconstruction remains
+ * unsupported for length mode, independently of ordinary inference and provider answers.</p>
+ *
  * <p>The original direct entry returns internal graph-stage state. A package-private complete
  * overload additionally derives publication bindings, logical constants and diagnostics, selects
  * backend ownership once per final node, and invokes Planning's partition and logical-memory
@@ -114,6 +125,7 @@ final class GraphCompiler {
                             PublishedCompileTimeConstantDescriptorClosure.close(
                                     ForwardGraphOptimization.optimize(
                                             inferred, optimizationConfig))));
+            optimized = ScanBodyInference.refreshDemand(optimized);
             List<ValueId> finalForward = List.copyOf(optimized.graph().outputs());
             return new GraphCompilation(
                     mode, optimized, finalForward, List.of(), optimized.derivatives());
@@ -137,6 +149,8 @@ final class GraphCompiler {
         Set<TensorProducer> secondOwned = java.util.Collections.newSetFromMap(
                 new IdentityHashMap<>());
         CompileTimeConstantGraph.Ingress combinedIngress = first.ingress();
+        var activityDrafts = new IdentityHashMap<TensorProducer, ScanGradientRules.ActivityDraft>();
+        activityDrafts.putAll(first.scanActivityDrafts());
         int firstResultCount = first.targetGradients().size();
         if (request.stages().size() == 2) {
             AutogradPreflight.StagePlan secondPlan =
@@ -151,6 +165,7 @@ final class GraphCompiler {
             targetGradients.addAll(second.targetGradients());
             secondOwned.addAll(second.stageProducers());
             combinedIngress = second.ingress();
+            activityDrafts.putAll(second.scanActivityDrafts());
         }
         GraphCapture.CombinedCapture captured = GraphCapture.captureCombined(
                 forwardOutputs,
@@ -158,7 +173,7 @@ final class GraphCompiler {
                 initial.originalProducers(),
                 firstOwned,
                 secondOwned,
-                combinedIngress);
+                combinedIngress, activityDrafts);
         ValidatedGraph inferred =
                 CapturedGraphInference.inferAndValidate(
                         captured.constantGraph(), captured.derivatives());
@@ -167,6 +182,7 @@ final class GraphCompiler {
                         PublishedCompileTimeConstantDescriptorClosure.close(
                                 ForwardGraphOptimization.optimize(inferred, optimizationConfig))));
 
+        optimized = ScanBodyInference.refreshDemand(optimized);
         List<ValueId> finalForward = List.copyOf(
                 optimized.graph().outputs().subList(0, captured.forwardOutputCount()));
         List<GradientPublicationBinding> gradientResults =
@@ -299,7 +315,8 @@ final class GraphCompiler {
                 outputs.add(descriptors.get(output));
             }
             OperationCapabilityQuery query =
-                    new OperationCapabilityQuery(node.operation(), inputs, outputs);
+                    new OperationCapabilityQuery(node.operation(), inputs, outputs, node.scanBody(),
+                            Optional.ofNullable(compilation.derivatives().scanActivityByNode().get(node.id())));
             BackendId owner;
             try {
                 owner = BackendOwnerPlanning.selectOwner(

@@ -8,6 +8,7 @@ import io.github.pho001.synaptik.model.graph.NodeId;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind;
+import io.github.pho001.synaptik.model.operation.scan.ScanAttrs;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,7 +27,12 @@ import java.util.Set;
  * remaps every output slot as one indivisible occurrence. {@code FORWARD} and {@code BACKWARD}
  * occurrences never compare equal, and graph-output producers are never candidates or
  * representatives. Fixed recurrent-scan occurrences are also excluded because each Model
- * producer is an identity-distinct occurrence even when its immutable structure is equal.</p>
+ * producer is an identity-distinct occurrence even when its immutable structure is equal.
+ * General scans are likewise ineligible, including repeated uses of the same body template.
+ * Their attachments retain local saved-site identities and are not recursively optimized.</p>
+ * <p>Length-mode actual-producing sites are not merged: distinct source values may bind ROW and
+ * SHARED positions with equal descriptors, especially at B=1. Descriptor equality cannot prove
+ * compatible row identity. This guard does not alter ordinary/all-valid CSE eligibility.</p>
  */
 final class ForwardCommonSubexpressionElimination {
     private ForwardCommonSubexpressionElimination() {}
@@ -77,6 +83,12 @@ final class ForwardCommonSubexpressionElimination {
             originalValues.put(value.id(), value);
         }
         Set<ValueId> graphOutputs = new HashSet<>(graph.outputs());
+        Set<ValueId> lengthBindings = new HashSet<>();
+        for (CompiledNode node : graph.nodes()) {
+            if (node.scanBody().isPresent() && ((ScanAttrs) node.operation().attrs()).lengthAware()) {
+                lengthBindings.addAll(node.inputs());
+            }
+        }
         Map<ValueId, ValueId> valueRemapping = new HashMap<>();
         List<GraphValue> values = new ArrayList<>();
         List<ValueId> inputs = new ArrayList<>(graph.inputs().size());
@@ -102,7 +114,9 @@ final class ForwardCommonSubexpressionElimination {
             List<ValueId> remappedInputs = remap(node.inputs(), valueRemapping);
             List<TensorDescriptor> outputDescriptors = descriptors(
                     node.outputs(), originalValues);
-            boolean eligible = !(node.operation().kind() instanceof RecurrentScanKind)
+            boolean eligible = node.scanBody().isEmpty()
+                    && !(node.operation().kind() instanceof RecurrentScanKind)
+                    && node.outputs().stream().noneMatch(lengthBindings::contains)
                     && node.outputs().stream().noneMatch(graphOutputs::contains);
             ExpressionKey key = eligible
                     ? new ExpressionKey(
@@ -130,7 +144,7 @@ final class ForwardCommonSubexpressionElimination {
             }
             NodeId rebuiltNode = new NodeId(nextNodeId++);
             nodes.add(new CompiledNode(
-                    rebuiltNode, node.operation(), remappedInputs, rebuiltOutputs));
+                    rebuiltNode, node.operation(), remappedInputs, rebuiltOutputs, node.scanBody()));
             sourceNodeIds.add(node.id());
             phases.put(rebuiltNode, phase);
             if (eligible) {

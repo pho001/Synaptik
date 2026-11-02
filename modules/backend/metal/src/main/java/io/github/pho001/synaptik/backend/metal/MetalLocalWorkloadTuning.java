@@ -274,7 +274,8 @@ public final class MetalLocalWorkloadTuning {
                 projectedContext.values(),
                 projectedContext.memoryRequirements(),
                 projectedContext.constants(),
-                new MetalNegAnalysisInputs(context, handoff, producer));
+                new MetalNegAnalysisInputs(context, handoff, producer),
+                projectedContext.scanActivityPlans());
         BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
                 preparer.analyze(contextWithInputs);
         MetalNegTuningBatch batch = generator.generate(

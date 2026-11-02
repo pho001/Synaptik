@@ -166,16 +166,26 @@ final class FunctionalGradientTestSupport {
 
     static FunctionalGradientRequest.Stage stage(
             Tensor objective, List<Tensor> targets) {
+        return stage(objective, targets, FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+    }
+
+    static FunctionalGradientRequest.Stage stage(
+            Tensor objective, List<Tensor> targets, FunctionalGradientRequest.DisconnectedPolicy policy) {
         return new FunctionalGradientRequest.Stage(
                 List.of(new FunctionalGradientRequest.ForwardTensorReference(objective)),
                 List.of(Optional.empty()),
                 targets,
                 false,
-                FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+                policy);
     }
 
     static FunctionalGradientRequest request(
             Tensor objective, List<Tensor> targets) {
-        return new FunctionalGradientRequest(List.of(stage(objective, targets)));
+        return request(objective, targets, FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+    }
+
+    static FunctionalGradientRequest request(
+            Tensor objective, List<Tensor> targets, FunctionalGradientRequest.DisconnectedPolicy policy) {
+        return new FunctionalGradientRequest(List.of(stage(objective, targets, policy)));
     }
 }

@@ -45,16 +45,59 @@ final class TensorAveragePool3dExpressions {
      * @throws IllegalStateException if Tensor identifier space is exhausted
      */
     static Tensor apply(Tensor input, AveragePool3dAttrs attrs) {
+        return applyChecked(input, attrs, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null floating rank-five NCDHW input retained as the sole producer input
+     * @param attrs non-null exact kernel, stride, padding, dilation, and ceil-mode semantics
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input} or {@code attrs} is null, checked in that order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if input type, rank, or static spatial geometry is invalid
+     * @throws ArithmeticException if checked geometry arithmetic overflows {@code long}
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    static Tensor applyChecked(Tensor input, AveragePool3dAttrs attrs,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(attrs, "attrs");
+        TensorDescriptor descriptor = describeInput(input.descriptor(), attrs);
+        Operation operation = new Operation(Pool3dKind.AVERAGE_POOL3D, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
+        return TensorFactory.createDerived(
+                descriptor, Optional.empty(), operation, List.of(input));
+    }
 
-        DataType dataType = input.descriptor().dataType();
+    /**
+     * Delivers the canonical checked pooling descriptor once without constructing a Tensor.
+     * @param operation pooling operation whose exact attributes are retained
+     * @param inputs ordered input descriptors validated by the metadata facade
+     * @param outputCount output cardinality validated by the metadata facade
+     * @param sink synchronous, unretained receiver of canonical metadata
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        AveragePool3dAttrs attrs = (AveragePool3dAttrs) operation.attrs();
+        TensorDescriptor descriptor = describeInput(inputs.getFirst(), attrs);
+        sink.accept(new Operation(Pool3dKind.AVERAGE_POOL3D, attrs), List.of(descriptor));
+    }
+
+    private static TensorDescriptor describeInput(TensorDescriptor input, AveragePool3dAttrs attrs) {
+
+        DataType dataType = input.dataType();
         if (!dataType.isFloating()) {
             throw new IllegalArgumentException(
                     "averagePool3d input must have a floating data type, but was " + dataType);
         }
 
-        Shape inputShape = input.descriptor().shape();
+        Shape inputShape = input.shape();
         if (inputShape.rank() != 5) {
             throw new IllegalArgumentException(
                     "averagePool3d input rank must be 5: " + inputShape.rank());
@@ -72,11 +115,8 @@ final class TensorAveragePool3dExpressions {
         Shape outputShape = Shape.ofDimensions(
                 inputShape.dimension(0), inputShape.dimension(1),
                 outputDepth, outputHeight, outputWidth);
-        TensorDescriptor descriptor = new TensorDescriptor(
-                dataType, outputShape, Optional.empty(), input.descriptor().requiresGrad());
-        Operation operation = new Operation(Pool3dKind.AVERAGE_POOL3D, attrs);
-        return TensorFactory.createDerived(
-                descriptor, Optional.empty(), operation, List.of(input));
+        return new TensorDescriptor(
+                dataType, outputShape, Optional.empty(), input.requiresGrad());
     }
 
     private static Dimension outputDimension(

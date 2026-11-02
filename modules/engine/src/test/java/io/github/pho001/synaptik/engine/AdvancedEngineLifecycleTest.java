@@ -134,7 +134,7 @@ final class AdvancedEngineLifecycleTest {
         RuntimeException backendFailure = new RuntimeException("backend");
         AtomicInteger sequence = new AtomicInteger();
         RecordingComposition composition = new RecordingComposition(
-                createdBufferExecution(() -> sequence.getAndIncrement() == 0
+                createdBufferExecution((requestedBytes, requestedAlignment) -> sequence.getAndIncrement() == 0
                         ? new TestBuffer(laterFailure, order, "first")
                         : new TestBuffer(firstFailure, order, "second")));
         composition.closeFailure = backendFailure;
@@ -157,7 +157,7 @@ final class AdvancedEngineLifecycleTest {
     void concurrentEngineAndResultCloseAreExactlyOnce() throws Exception {
         List<String> order = java.util.Collections.synchronizedList(new ArrayList<>());
         TestBuffer buffer = new TestBuffer(null, order, "result");
-        RecordingComposition composition = new RecordingComposition(createdBufferExecution(() -> buffer));
+        RecordingComposition composition = new RecordingComposition(createdBufferExecution((requestedBytes, requestedAlignment) -> buffer));
         AdvancedEngine engine = new AdvancedEngine(composition, composition::prepare);
         AdvancedRunResult result = engine.run(
                 engine.prepare(compile(engine, leaf().neg())), List.of());
@@ -180,7 +180,7 @@ final class AdvancedEngineLifecycleTest {
         Error resultFailure = new AssertionError("result");
         RuntimeException backendFailure = new RuntimeException("backend");
         RecordingComposition composition = new RecordingComposition(
-                createdBufferExecution(() -> new TestBuffer(resultFailure, order, "result")));
+                createdBufferExecution((requestedBytes, requestedAlignment) -> new TestBuffer(resultFailure, order, "result")));
         composition.closeFailure = backendFailure;
         composition.closeOrder = order;
         AdvancedEngine engine = new AdvancedEngine(composition, composition::prepare);
@@ -225,7 +225,7 @@ final class AdvancedEngineLifecycleTest {
             int index = preparationIndex.incrementAndGet();
             return resourceAndCreatedBufferExecution(
                     new TestPreparedResource(null, order, "prepared-" + index),
-                    () -> new TestBuffer(null, order, "result-" + index));
+                    (requestedBytes, requestedAlignment) -> new TestBuffer(null, order, "result-" + index));
         });
         composition.closeOrder = order;
         AdvancedEngine engine = new AdvancedEngine(composition, composition::prepare);
@@ -417,7 +417,7 @@ final class AdvancedEngineLifecycleTest {
         PreparedMemoryPlan plan = new PreparedMemoryPlan(List.of(
                 new PreparedMemoryPlan.BufferEntry(new BufferSlot(0), 4, 4)), List.of());
         var creation = new PreparedRepresentationPlan(plan,
-                List.of(List.of(new CreatedBuffer(() -> owned))), List.of());
+                List.of(List.of(new CreatedBuffer((requestedBytes, requestedAlignment) -> owned))), List.of());
         PreparedExecutable executable = new BlockingExecutable(plan, entered, release);
         return new PreparedExecution(plan, new PreparedSchedule(plan, List.of(
                 new PreparedSchedule.RepresentationCreationStep(creation),

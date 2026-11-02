@@ -28,12 +28,13 @@ class CpuScatterSemanticClosureTest {
 
     private static void execute(CpuOrdinaryNonPointwiseGeneratedMatrixTest.ScatterCandidate candidate) throws Throwable {
         var context = candidate.context();
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
         byte[] first = generator.generateClassBytes(route.specialization(), route.kernelIr());
         assertArrayEquals(first, generator.generateClassBytes(route.specialization(), route.kernelIr()), candidate.ownerId());
-        var entry = generator.defineClassBytes(route.specialization(), first).entryPoint();
+        var entry = generator.defineClassBytes(route.specialization(), route.kernelIr(), first).entryPoint();
         DataType valueType = context.values().getFirst().descriptor().dataType();
         DataType indexType = context.values().get(1).descriptor().dataType();
         Object base = storage(valueType, capacity(context, 0));

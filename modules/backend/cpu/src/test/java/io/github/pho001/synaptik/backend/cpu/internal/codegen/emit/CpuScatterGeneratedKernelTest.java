@@ -36,9 +36,133 @@ import java.lang.foreign.ValueLayout;
 import java.util.*;
 
 class CpuScatterGeneratedKernelTest {
+    @Test void inactiveReplacementIndicesCannotRedirectUpdatesIntoAnActiveRow() throws Throwable {
+        for (var type : List.of(DataType.FLOAT64, DataType.INT64))
+            for (var reduction : List.of(ScatterReduction.NONE, ScatterReduction.ADD,
+                    ScatterReduction.MUL, ScatterReduction.MIN, ScatterReduction.MAX))
+                for (boolean segments : List.of(false, true)) for (int rowAxis : List.of(0, 1)) {
+                    Shape shape = rowAxis == 0 ? Shape.of(2, 3) : Shape.of(3, 2);
+                    var selected = context(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                            new ScatterElementsAttrs(1 - rowAxis, reduction)), List.of(
+                            desc(type, shape), desc(DataType.INT64, shape), desc(type, shape)),
+                            desc(type, shape), segments);
+                    var row = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(
+                            rowAxis, rowAxis == 0 ? 3 : 1);
+                    Object base = values(type, rowAxis == 0 ? new int[] {10, 20, 30, -3, -3, -3}
+                            : new int[] {10, -3, 20, -3, 30, -3});
+                    long[] indices = rowAxis == 0 ? new long[] {0, 1, 2, -3, -3, -3}
+                            : new long[] {0, -3, 1, -3, 2, -3};
+                    Object updates = values(type, rowAxis == 0 ? new int[] {7, 8, 9, -3, -3, -3}
+                            : new int[] {7, -3, 8, -3, 9, -3});
+                    Object output = values(type, -77, -77, -77, -77, -77, -77);
+                    invokeControlled(selected, List.of(row, row, row, row),
+                            List.of(segments ? segment(base) : base,
+                                    segments ? MemorySegment.ofArray(indices) : indices,
+                                    segments ? segment(updates) : updates,
+                                    segments ? segment(output) : output), 6);
+                    int[] expected = {-77, -77, -77, -77, -77, -77};
+                    for (int feature = 0; feature < 3; feature++) {
+                        int left = 10 * (feature + 1), right = 7 + feature;
+                        expected[rowAxis == 0 ? feature : 2 * feature] = switch (reduction) {
+                            case NONE -> right;
+                            case ADD -> left + right;
+                            case MUL -> left * right;
+                            case MIN -> Math.min(left, right);
+                            case MAX -> Math.max(left, right);
+                        };
+                    }
+                    assertCarrier(values(type, expected), output, type + "/" + reduction + "/"
+                            + segments + "/ROW" + rowAxis + "/L[1,0]");
+                }
+    }
+
+    @Test void genericRowScatterAndSharedAddSkipMissingInactiveOperands() throws Throwable {
+        for (var type : List.of(DataType.FLOAT64, DataType.INT64))
+            for (boolean sharedTarget : List.of(false, true)) {
+                Shape outputShape = sharedTarget ? Shape.of(3) : Shape.of(2, 3);
+                Shape indexShape = sharedTarget ? Shape.of(2, 3) : Shape.of(2, 3, 1);
+                Operation operation = sharedTarget
+                        ? new Operation(AxisScatterKind.SCATTER_ADD, new IndexAxisAttrs(0))
+                        : new Operation(ScatterNdKind.SCATTER_ND,
+                                new ScatterNdAttrs(1, ScatterReduction.NONE));
+                var selected = context(operation, List.of(desc(type, outputShape),
+                        desc(DataType.INT64, indexShape), desc(type, Shape.of(2, 3))),
+                        desc(type, outputShape));
+                var row = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(0, 3);
+                var target = sharedTarget
+                        ? io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row.shared() : row;
+                Object output = values(type, sharedTarget ? new int[] {-77, -77, -77}
+                        : new int[] {-77, -77, -77, -77, -77, -77});
+                invokeControlled(selected, List.of(target, row, row, target),
+                        List.of(values(type, 10, 20, 30), new long[] {0, 1, 2},
+                                values(type, 7, 8, 9), output), sharedTarget ? 3 : 6);
+                assertCarrier(values(type, sharedTarget ? new int[] {17, 28, 39}
+                        : new int[] {7, 8, 9, -77, -77, -77}), output, type + "/" + sharedTarget);
+            }
+    }
+
+    @Test void rankOneSharedAddGuardsInactiveIndexBeforeLoadingIt() throws Throwable {
+        for (boolean offset : List.of(false, true)) {
+            var vector = desc(DataType.FLOAT64, Shape.of(3), new long[] {1}, offset ? 1 : 0);
+            var indices = desc(DataType.INT64, Shape.of(2));
+            var updates = desc(DataType.FLOAT64, Shape.of(2));
+            var selected = context(new Operation(AxisScatterKind.SCATTER_ADD, new IndexAxisAttrs(0)),
+                    List.of(vector, indices, updates), vector);
+            var row = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(0, 1);
+            var shared = io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row.shared();
+            double[] output = offset ? new double[] {-77, -77, -77, -77} : new double[3];
+            invokeControlled(selected, List.of(shared, row, row, shared),
+                    List.of(offset ? new double[] {-77, 10, 20, 30} : new double[] {10, 20, 30},
+                            new long[] {0}, new double[] {7}, output), 3);
+            assertArrayEquals(offset ? new double[] {-77, 17, 20, 30} : new double[] {17, 20, 30},
+                    output);
+        }
+    }
+
+    @Test void singletonSharedUpdatesRetainOutputRowCandidateActivity() throws Throwable {
+        var row = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(0, 3);
+        var shared = io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row.shared();
+        for (boolean nd : List.of(false, true)) {
+            Shape shape = Shape.of(1, 3), indexShape = nd ? Shape.of(1, 3, 1) : shape;
+            var selected = context(nd ? new Operation(ScatterNdKind.SCATTER_ND,
+                    new ScatterNdAttrs(1, ScatterReduction.NONE))
+                    : new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                            new ScatterElementsAttrs(1, ScatterReduction.NONE)),
+                    List.of(desc(DataType.FLOAT64, shape), desc(DataType.INT64, indexShape),
+                            desc(DataType.FLOAT64, shape)), desc(DataType.FLOAT64, shape));
+            double[] output = {-77, -77, -77};
+            invokeControlled(selected, List.of(row, shared, shared, row),
+                    List.of(new double[0], new long[0], new double[0], output), 3, (byte) 0);
+            assertArrayEquals(new double[] {-77, -77, -77}, output);
+        }
+    }
+
+    private static MemorySegment segment(Object values) {
+        return values instanceof double[] doubles ? MemorySegment.ofArray(doubles)
+                : MemorySegment.ofArray((long[]) values);
+    }
+
+    private static void invokeControlled(PrepareContext<CpuPartitionAnalysisInputs> selected,
+            List<io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row> rows,
+            List<Object> boundaries, long end, byte... activity) throws Throwable {
+        var plan = new CpuPartitionPreparer().analyze(selected).plan();
+        var entry = CpuAffineCopyGeneratedKernelTest.controlledEntry(
+                plan.units().getFirst().portablePlan(), rows);
+        var args = new ArrayList<Object>(boundaries);
+        try (Arena arena = Arena.ofConfined()) {
+            if (plan.workspaceDeclaration().isPresent())
+                args.add(arena.allocate(plan.workspaceDeclaration().orElseThrow().byteSize(), 8));
+            args.add(plan.scatterGeometry().orElseThrow().pack(new long[4], 0, end, 0));
+            args.add(0L);
+            args.add(end);
+            args.add(CpuAffineCopyGeneratedKernelTest.control(
+                    activity.length == 0 ? new byte[] {1, 0} : activity));
+            entry.invokeWithArguments(args);
+        }
+    }
+
     @Test
-    void everyGeneratedScatterClassHasAStableDirectTypedShape() {
-        var generated = new ArrayList<GeneratedScatterClass>();
+    void everyOriginalScatterFixtureHasCurrentAdmissionOrAStableDirectTypedShape() {
         for (DataType dataType : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) {
             var reductions =
                     dataType == DataType.BOOL
@@ -52,33 +176,17 @@ class CpuScatterGeneratedKernelTest {
             for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
                 for (boolean segments : List.of(false, true)) {
                     for (ScatterReduction reduction : reductions) {
-                        generated.add(
-                                generatedClass(
-                                        "SCATTER_ELEMENTS",
-                                        reduction,
-                                        dataType,
-                                        indexType,
-                                        segments));
-                        generated.add(
-                                generatedClass(
-                                        "SCATTER_ND", reduction, dataType, indexType, segments));
+                        assertCurrentClassShape("SCATTER_ELEMENTS", reduction, dataType,
+                                indexType, segments);
+                        assertCurrentClassShape("SCATTER_ND", reduction, dataType,
+                                indexType, segments);
                     }
                     if (dataType != DataType.BOOL) {
-                        generated.add(
-                                generatedClass(
-                                        "SCATTER_ADD",
-                                        ScatterReduction.ADD,
-                                        dataType,
-                                        indexType,
-                                        segments));
+                        assertCurrentClassShape("SCATTER_ADD", ScatterReduction.ADD,
+                                dataType, indexType, segments);
                     }
                 }
             }
-        }
-
-        assertEquals(228, generated.size());
-        for (GeneratedScatterClass generatedClass : generated) {
-            assertDirectGeneratedShape(generatedClass);
         }
     }
 
@@ -115,22 +223,15 @@ class CpuScatterGeneratedKernelTest {
                                         desc(DataType.INT64, Shape.of(2, 1)),
                                         desc(DataType.INT64, Shape.of(2, 3))),
                                 desc(DataType.INT64, Shape.of(2, 3))));
-        var products =
-                List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16).stream()
-                        .map(
-                                type ->
-                                        code(
-                                                context(
-                                                        new Operation(
-                                                                AxisScatterKind.SCATTER_ELEMENTS,
-                                                                new ScatterElementsAttrs(
-                                                                        0, ScatterReduction.MUL)),
-                                                        List.of(
-                                                                desc(type, Shape.of(3)),
-                                                                desc(DataType.INT32, Shape.of(4)),
-                                                                desc(type, Shape.of(4))),
-                                                        desc(type, Shape.of(3)))))
-                        .toList();
+        var products = new java.util.ArrayList<java.lang.classfile.CodeModel>();
+        for (var type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
+            var product = context(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                    new ScatterElementsAttrs(0, ScatterReduction.MUL)), List.of(
+                    desc(type, Shape.of(3)), desc(DataType.INT32, Shape.of(4)), desc(type, Shape.of(4))),
+                    desc(type, Shape.of(3)));
+            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(product)) continue;
+            products.add(code(product));
+        }
         assertAll(
                 () -> assertTrue(opcodeCount(none, Opcode.FALOAD) >= 2),
                 () -> assertTrue(opcodeCount(none, Opcode.IALOAD) > 0),
@@ -380,7 +481,7 @@ class CpuScatterGeneratedKernelTest {
                                 && call.name().stringValue().equals("min")
                                 && call.type().stringValue().equals("(JJ)J"))));
 
-        var artifact = generator.defineClassBytes(route.specialization(), bytes);
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes);
         long[] indices = new long[tuples];
         long[] updates = new long[tuples * width];
         try (Arena arena = Arena.ofConfined()) {
@@ -459,6 +560,7 @@ class CpuScatterGeneratedKernelTest {
                                 case MAX -> 7;
                                 default -> throw new AssertionError(reduction);
                             };
+                    io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome((reduction == ScatterReduction.ADD || reduction == ScatterReduction.MUL) ? type : DataType.FLOAT32, () -> {
                     Object elementsOutput = values(type, 0, 0, 0);
                     invoke(
                             context(
@@ -480,6 +582,8 @@ class CpuScatterGeneratedKernelTest {
                             elementsOutput,
                             "SCATTER_ELEMENTS/" + type + "/" + indexType + "/" + reduction);
 
+                    });
+                    io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome((reduction == ScatterReduction.ADD || reduction == ScatterReduction.MUL) ? type : DataType.FLOAT32, () -> {
                     Object ndOutput = values(type, 0, 0, 0);
                     invoke(
                             context(
@@ -496,8 +600,10 @@ class CpuScatterGeneratedKernelTest {
                             values(type, 2, middle, 4),
                             ndOutput,
                             "SCATTER_ND/" + type + "/" + indexType + "/" + reduction);
+                    });
                 }
 
+                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(type, () -> {
                 Object addOutput = values(type, 0, 0, 0);
                 invoke(
                         context(
@@ -510,6 +616,7 @@ class CpuScatterGeneratedKernelTest {
                         List.of(values(type, 2, 3, 4), indices, values(type, 5, 7), addOutput));
                 assertCarrier(
                         values(type, 2, 15, 4), addOutput, "SCATTER_ADD/" + type + "/" + indexType);
+                });
             }
         }
     }
@@ -664,48 +771,27 @@ class CpuScatterGeneratedKernelTest {
     }
 
     @Test
-    void additionUsesLogicalContributionOrderAndRoundsBfloat16AfterEveryStep() throws Throwable {
+    void additionRetainsLogicalContributionOrderAndRejectsLowArithmetic() throws Throwable {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32)) {
             double large = type == DataType.FLOAT64 ? 1e300 : 1e30;
             Object output = emptyCarrier(type, 1);
-            invoke(
-                    context(
-                            new Operation(
-                                    AxisScatterKind.SCATTER_ELEMENTS,
-                                    new ScatterElementsAttrs(0, ScatterReduction.ADD)),
-                            List.of(
-                                    desc(type, Shape.of(1)),
-                                    desc(DataType.INT32, Shape.of(2)),
-                                    desc(type, Shape.of(2))),
-                            desc(type, Shape.of(1))),
-                    List.of(
-                            floatingValues(type, large),
-                            new int[] {0, 0},
-                            floatingValues(type, -large, 3.0),
-                            output));
+            invoke(context(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
+                            new ScatterElementsAttrs(0, ScatterReduction.ADD)),
+                    List.of(desc(type, Shape.of(1)), desc(DataType.INT32, Shape.of(2)),
+                            desc(type, Shape.of(2))), desc(type, Shape.of(1))),
+                    List.of(floatingValues(type, large), new int[] {0, 0},
+                            floatingValues(type, -large, 3.0), output));
             assertRawCarrier(floatingValues(type, 3.0), output, type.name());
         }
-        short[] bfloatOutput = new short[1];
-        invoke(
-                context(
-                        new Operation(
-                                AxisScatterKind.SCATTER_ELEMENTS,
+        assertThrows(IllegalArgumentException.class, () -> invoke(
+                context(new Operation(AxisScatterKind.SCATTER_ELEMENTS,
                                 new ScatterElementsAttrs(0, ScatterReduction.ADD)),
-                        List.of(
-                                desc(DataType.BFLOAT16, Shape.of(1)),
-                                desc(DataType.INT32, Shape.of(3)),
+                        List.of(desc(DataType.BFLOAT16, Shape.of(1)), desc(DataType.INT32, Shape.of(3)),
                                 desc(DataType.BFLOAT16, Shape.of(3))),
                         desc(DataType.BFLOAT16, Shape.of(1))),
-                List.of(
-                        floatingValues(DataType.BFLOAT16, 1.0),
-                        new int[] {0, 0, 0},
-                        floatingValues(
-                                DataType.BFLOAT16,
-                                Math.scalb(1.0, -8),
-                                Math.scalb(1.0, -8),
-                                Math.scalb(1.0, -7)),
-                        bfloatOutput));
-        assertArrayEquals(new short[] {(short) 0x3f81}, bfloatOutput);
+                List.of(floatingValues(DataType.BFLOAT16, 1.0), new int[] {0, 0, 0},
+                        floatingValues(DataType.BFLOAT16, Math.scalb(1.0, -8),
+                                Math.scalb(1.0, -8), Math.scalb(1.0, -7)), new short[1])));
     }
 
     @Test
@@ -781,9 +867,7 @@ class CpuScatterGeneratedKernelTest {
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
         var artifact =
-                generator.defineClassBytes(
-                        route.specialization(),
-                        generator.generateClassBytes(route.specialization(), route.kernelIr()));
+                generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         int[] output = {-7, -7, -7, -7};
         var arguments =
                 new ArrayList<Object>(
@@ -819,9 +903,7 @@ class CpuScatterGeneratedKernelTest {
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
         var artifact =
-                generator.defineClassBytes(
-                        route.specialization(),
-                        generator.generateClassBytes(route.specialization(), route.kernelIr()));
+                generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         int[] output = {-7, -7, -7, -7};
         var arguments =
                 new ArrayList<Object>(
@@ -917,9 +999,7 @@ class CpuScatterGeneratedKernelTest {
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
         var artifact =
-                generator.defineClassBytes(
-                        route.specialization(),
-                        generator.generateClassBytes(route.specialization(), route.kernelIr()));
+                generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         long[] bases = new long[carriers.size()];
         long[] geometry =
                 plan.scatterGeometry().orElseThrow().pack(bases, 0, plan.elementCount(), 0);
@@ -970,7 +1050,7 @@ class CpuScatterGeneratedKernelTest {
                                 .generateClassBytes(route.specialization(), route.kernelIr()));
     }
 
-    private static GeneratedScatterClass generatedClass(
+    private static void assertCurrentClassShape(
             String family,
             ScatterReduction reduction,
             DataType dataType,
@@ -1001,8 +1081,10 @@ class CpuScatterGeneratedKernelTest {
                                 desc(dataType, updateShape)),
                         desc(dataType, dataShape),
                         segments);
-        return new GeneratedScatterClass(
-                family, reduction, dataType, indexType, segments, generatedModel(context));
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                .assertLowUnsupported(context)) return;
+        assertDirectGeneratedShape(new GeneratedScatterClass(
+                family, reduction, dataType, indexType, segments, generatedModel(context)));
     }
 
     private static void assertDirectGeneratedShape(GeneratedScatterClass generated) {
@@ -1272,6 +1354,7 @@ class CpuScatterGeneratedKernelTest {
     private static void assertGeneratedMatchesReference(
             DataType type, ScatterReduction reduction, Object base, int[] indices, Object updates)
             throws Throwable {
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(reduction == ScatterReduction.ADD || reduction == ScatterReduction.MUL ? type : DataType.FLOAT32, () -> {
         int outputCount = java.lang.reflect.Array.getLength(base);
         int updateCount = indices.length;
         var operation =
@@ -1298,6 +1381,7 @@ class CpuScatterGeneratedKernelTest {
         Object actual = emptyCarrier(type, outputCount);
         invoke(prepare, List.of(base, indices, updates, actual));
         assertRawCarrier(expected, actual, type.name());
+        });
     }
 
     private static Object floatingValues(DataType type, double... values) {

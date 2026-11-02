@@ -22,6 +22,9 @@ import java.lang.foreign.Arena;
 import io.github.pho001.synaptik.runtime.run.BufferRepresentationBinding;
 import io.github.pho001.synaptik.runtime.run.RunResourceOwnership;
 import io.github.pho001.synaptik.runtime.run.RunState;
+import io.github.pho001.synaptik.runtime.run.RunMemoryGeometry;
+import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
+import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -29,6 +32,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import org.junit.jupiter.api.Test;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference;
@@ -83,11 +87,159 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuIndexingLoweri
 import java.lang.foreign.Arena;
 
 class CpuPreparedExecutableTest {
+    @Test void fixedOrderingWorkspaceRejectsRunBoundAndWrongFixedScratchInCompleteBatchMode() {
+        var base = CpuOrderingLoweringTest.context(new Operation(
+                io.github.pho001.synaptik.model.operation.ordering.OrderingKind.SORT,
+                new io.github.pho001.synaptik.model.operation.ordering.SortAttrs(1, false)),
+                DataType.INT64, Shape.of(2, 3), Shape.of(2, 3), false);
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(
+                base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(),
+                new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.LONG_ARRAY, CarrierAccess.LONG_ARRAY)));
+        var analysis = new CpuPartitionPreparer().analyze(context);
+        var fixed = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
+        var selection = new io.github.pho001.synaptik.runtime.execution.PreparedExecutable.WorkspaceSelection(0);
+        var original = fixed.memoryPlan().workspaces().getFirst();
+        var selections = java.util.stream.IntStream.range(0, fixed.bufferSelectionCount())
+                .mapToObj(fixed::bufferSelection).toList();
+        for (PreparedMemoryPlan.ByteSize size : List.of(
+                new PreparedMemoryPlan.FixedByteSize(original.byteSize()),
+                new BatchByteSize(original.byteSize(), 0, Long.BYTES),
+                new PreparedMemoryPlan.FixedByteSize(original.byteSize() + Long.BYTES))) {
+            var declaration = new PreparedMemoryPlan.WorkspaceEntry(original.slot(), size, original.byteAlignment());
+            var plan = new PreparedMemoryPlan(fixed.memoryPlan().buffers(), List.of(declaration), true);
+            var executable = new CpuPreparedExecutable(plan, selections, fixed.artifact(),
+                    fixed.accessBindings(), analysis.plan().carrierPattern(), analysis.plan().generatedCarrierPattern(),
+                    0, analysis.plan().elementCount(), 1, 1, null, Optional.empty(), Optional.of(selection),
+                    null, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                    analysis.plan().orderingGeometry());
+            for (long batch : new long[] {0, 7}) {
+                long[] input = {3, 1, 2, 6, 4, 5}, output = {-9, -9, -9, -9, -9, -9};
+                var geometry = RunMemoryGeometry.resolve(plan, OptionalLong.of(batch));
+                var bindings = List.of(
+                        List.of(new BufferRepresentationBinding(borrow(input), RunResourceOwnership.BORROWED)),
+                        List.of(new BufferRepresentationBinding(borrow(output), RunResourceOwnership.BORROWED)));
+                var workspace = CpuContiguousWorkspace.allocate(geometry.workspaceByteSize(0), original.byteAlignment());
+                try (var run = new RunState(plan, bindings, List.of(workspace), geometry)) {
+                    if (size instanceof PreparedMemoryPlan.FixedByteSize fixedSize
+                            && fixedSize.bytes() == original.byteSize()) {
+                        executable.bind(run).execute();
+                        assertArrayEquals(new long[] {1, 2, 3, 4, 5, 6}, output);
+                    } else {
+                        assertThrows(IllegalArgumentException.class, () -> executable.bind(run));
+                        assertArrayEquals(new long[] {-9, -9, -9, -9, -9, -9}, output);
+                    }
+                }
+                assertFalse(workspace.isAccessible());
+            }
+        }
+    }
+
+    @Test void fixedEntryKeepsItsArtifactAndDomainInsideCompleteBatchMode() {
+        var fixed = CpuPartitionFinalizerTest.finalizeExecutable(Shape.of(4), Optional.empty());
+        var plan = new PreparedMemoryPlan(fixed.memoryPlan().buffers(), List.of(), true);
+        var selections = java.util.stream.IntStream.range(0, fixed.bufferSelectionCount())
+                .mapToObj(fixed::bufferSelection).toList();
+        var executable = new CpuPreparedExecutable(plan, selections, fixed.artifact(),
+                fixed.accessBindings(), fixed.artifact().specialization().carrierPattern(), 0, 4);
+        assertSame(fixed.artifact(), executable.artifact());
+        assertEquals(fixed.accessBindings(), executable.accessBindings());
+        for (long batch : new long[] {0, 7, 0, Long.MAX_VALUE}) {
+            var buffers = new ArrayList<CpuNativeBuffer>();
+            var bindings = new ArrayList<List<BufferRepresentationBinding>>();
+            for (var declaration : plan.buffers()) {
+                var buffer = CpuNativeBuffer.allocate(DataType.FLOAT64, declaration.byteSize(),
+                        declaration.byteAlignment());
+                buffers.add(buffer);
+                bindings.add(List.of(new BufferRepresentationBinding(buffer, RunResourceOwnership.RUN_OWNED)));
+            }
+            try (var run = new RunState(plan, bindings, List.of(),
+                    RunMemoryGeometry.resolve(plan, OptionalLong.of(batch)))) {
+                for (int p = 0; p < 4; p++) {
+                    buffers.get(0).segment().set(DOUBLE, p * 8L, p - 1.0);
+                    buffers.get(1).segment().set(DOUBLE, p * 8L, .5);
+                    buffers.get(2).segment().set(DOUBLE, p * 8L, 3.0);
+                }
+                var bound = executable.bind(run);
+                bound.execute();
+                bound.execute();
+                for (int p = 0; p < 4; p++) assertEquals(
+                        CpuScalarReferenceKernel.gelu(p - .5) * 3.0,
+                        buffers.get(3).segment().get(DOUBLE, p * 8L), 0.0);
+                run.close();
+                assertThrows(IllegalStateException.class, bound::execute);
+                assertThrows(IllegalStateException.class, () -> executable.bind(run));
+            }
+        }
+    }
+
+    @Test void fixedEntryRejectsRunBoundOrDifferentFixedDeclarationsBeforeWriting() {
+        var fixed = CpuPartitionFinalizerTest.finalizeExecutable(Shape.of(4), Optional.empty());
+        var selections = java.util.stream.IntStream.range(0, fixed.bufferSelectionCount())
+                .mapToObj(fixed::bufferSelection).toList();
+        for (int changed = 0; changed < fixed.bufferSelectionCount(); changed++) {
+            for (boolean runBound : List.of(false, true)) {
+                var declarations = new ArrayList<>(fixed.memoryPlan().buffers());
+                var old = declarations.get(changed);
+                PreparedMemoryPlan.ByteSize size = runBound
+                        ? new BatchByteSize(old.byteSize(), 0, Double.BYTES)
+                        : new PreparedMemoryPlan.FixedByteSize(old.byteSize() + Double.BYTES);
+                declarations.set(changed, new PreparedMemoryPlan.BufferEntry(old.slot(), size, old.byteAlignment()));
+                var plan = new PreparedMemoryPlan(declarations, List.of(), true);
+                var executable = new CpuPreparedExecutable(plan, selections, fixed.artifact(),
+                        fixed.accessBindings(), fixed.artifact().specialization().carrierPattern(), 0, 4);
+                var geometry = RunMemoryGeometry.resolve(plan, OptionalLong.of(0));
+                var buffers = new ArrayList<CpuNativeBuffer>();
+                var bindings = new ArrayList<List<BufferRepresentationBinding>>();
+                for (int p = 0; p < declarations.size(); p++) {
+                    var buffer = CpuNativeBuffer.allocate(DataType.FLOAT64, geometry.bufferByteSize(p),
+                            declarations.get(p).byteAlignment());
+                    buffer.segment().fill((byte) 0x5a);
+                    buffers.add(buffer);
+                    bindings.add(List.of(new BufferRepresentationBinding(buffer, RunResourceOwnership.RUN_OWNED)));
+                }
+                try (var run = new RunState(plan, bindings, List.of(), geometry)) {
+                    assertThrows(IllegalArgumentException.class, () -> executable.bind(run));
+                    assertEquals((byte) 0x5a, buffers.get(3).segment().get(ValueLayout.JAVA_BYTE, 0));
+                    var equalButForeign = new PreparedMemoryPlan(declarations, List.of(), true);
+                    assertThrows(IllegalArgumentException.class, () -> new RunState(plan, bindings,
+                            List.of(), RunMemoryGeometry.resolve(equalButForeign, OptionalLong.of(0))));
+                }
+            }
+        }
+    }
+
+    @Test void fixedEntryInBatchModeStillRejectsWrongDtypeAndReadOnlyOutput() {
+        var fixed = CpuPartitionFinalizerTest.finalizeExecutable(Shape.of(4), Optional.empty());
+        var plan = new PreparedMemoryPlan(fixed.memoryPlan().buffers(), List.of(), true);
+        var selections = java.util.stream.IntStream.range(0, fixed.bufferSelectionCount())
+                .mapToObj(fixed::bufferSelection).toList();
+        var executable = new CpuPreparedExecutable(plan, selections, fixed.artifact(),
+                fixed.accessBindings(), fixed.artifact().specialization().carrierPattern(), 0, 4);
+        try (var arena = Arena.ofConfined()) {
+            for (boolean wrongType : List.of(false, true)) {
+                var bindings = new ArrayList<List<BufferRepresentationBinding>>();
+                MemorySegment output = arena.allocate(32, 8);
+                output.fill((byte) 0x5a);
+                for (int p = 0; p < 4; p++) {
+                    MemorySegment segment = p == 3
+                            ? (wrongType ? output : output.asReadOnly()) : arena.allocate(32, 8);
+                    DataType type = wrongType && p == 0 ? DataType.INT64 : DataType.FLOAT64;
+                    var buffer = borrowed(type, 4, segment);
+                    bindings.add(List.of(new BufferRepresentationBinding(buffer, RunResourceOwnership.BORROWED)));
+                }
+                try (var run = new RunState(plan, bindings, List.of(),
+                        RunMemoryGeometry.resolve(plan, OptionalLong.of(9)))) {
+                    assertThrows(IllegalArgumentException.class, () -> executable.bind(run));
+                    assertEquals((byte) 0x5a, output.get(ValueLayout.JAVA_BYTE, 0));
+                }
+            }
+        }
+    }
+
     @Test void untrustedAnalysisEvidenceCannotSelectPartialReduction() {
         var intBase = CpuAggregateLoweringTest.context(AggregateReductionKind.SUM, DataType.INT32,
                 Shape.of(16), NoOperationAttrs.INSTANCE, Shape.scalar());
-        var intAnalysis = new CpuPartitionPreparer().analyze(
-                new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(intBase.partition(), intBase.nodes(), intBase.values(), intBase.memoryRequirements(), intBase.constants(), new CpuPartitionAnalysisInputs(
+        var availabilityContext89 = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(intBase.partition(), intBase.nodes(), intBase.values(), intBase.memoryRequirements(), intBase.constants(), new CpuPartitionAnalysisInputs(
                         false, List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY),
                         new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 4),
                         CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED, false,
@@ -95,11 +247,12 @@ class CpuPreparedExecutableTest {
                                 io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr.Kind.SUM,
                                 DataType.INT32,
                                 io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr.Form.FULL,
-                                2))));
+                                2)));
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext89)) return;
+        var intAnalysis = new CpuPartitionPreparer().analyze(availabilityContext89);
         var longBase = CpuAggregateLoweringTest.context(AggregateReductionKind.PROD, DataType.INT64,
                 Shape.of(2, 16), new AxisReductionAttrs(1, false), Shape.of(2));
-        var longAnalysis = new CpuPartitionPreparer().analyze(
-                new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(longBase.partition(), longBase.nodes(), longBase.values(), longBase.memoryRequirements(), longBase.constants(), new CpuPartitionAnalysisInputs(
+        var availabilityContext101 = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(longBase.partition(), longBase.nodes(), longBase.values(), longBase.memoryRequirements(), longBase.constants(), new CpuPartitionAnalysisInputs(
                         false, List.of(CarrierAccess.LONG_ARRAY, CarrierAccess.LONG_ARRAY),
                         new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 4),
                         CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED, false,
@@ -107,7 +260,9 @@ class CpuPreparedExecutableTest {
                                 io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr.Kind.PROD,
                                 DataType.INT64,
                                 io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr.Form.SINGLE_AXIS,
-                                4))));
+                                4)));
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext101)) return;
+        var longAnalysis = new CpuPartitionPreparer().analyze(availabilityContext101);
         assertTrue(intAnalysis.plan().partialReductionRecipe().isEmpty());
         assertTrue(longAnalysis.plan().partialReductionRecipe().isEmpty());
         assertTrue(intAnalysis.plan().workspaceDeclaration().isEmpty());
@@ -149,7 +304,9 @@ class CpuPreparedExecutableTest {
         var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, List.of(
                 CarrierAccess.FLOAT_ARRAY, CarrierAccess.INT_ARRAY,
                 CarrierAccess.FLOAT_ARRAY), config));
-        var analysis = new CpuPartitionPreparer().analyze(context);
+        var availabilityContext152 = context;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext152)) return;
+        var analysis = new CpuPartitionPreparer().analyze(availabilityContext152);
         assertAll(() -> assertEquals(4, analysis.plan().selectedRangeCount()),
                 () -> assertTrue(analysis.plan().workspaceDeclaration().isEmpty()));
         try (var workers = new CpuWorkerGroup(4)) {
@@ -244,7 +401,9 @@ class CpuPreparedExecutableTest {
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
         var parallelContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY), config));
-        var analysis = new CpuPartitionPreparer().analyze(parallelContext);
+        var availabilityContext247 = parallelContext;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext247)) return;
+        var analysis = new CpuPartitionPreparer().analyze(availabilityContext247);
         assertAll(() -> assertTrue(analysis.plan().workspaceDeclaration().isEmpty()),
                 () -> assertTrue(analysis.plan().materialization().isEmpty()),
                 () -> assertEquals(4, analysis.plan().selectedRangeCount()));
@@ -283,7 +442,9 @@ class CpuPreparedExecutableTest {
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
         var parallelContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY), config));
-        var analysis = new CpuPartitionPreparer().analyze(parallelContext);
+        var availabilityContext286 = parallelContext;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext286)) return;
+        var analysis = new CpuPartitionPreparer().analyze(availabilityContext286);
         try (var workers = new CpuWorkerGroup(4)) {
             var parallel = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
                     Optional.empty(), Optional.of(workers));
@@ -359,7 +520,9 @@ class CpuPreparedExecutableTest {
         var parallelInputs=new CpuPartitionAnalysisInputs(false,java.util.Collections.nCopies(3,
                 CarrierAccess.FLOAT_ARRAY),new PortableExecutionConfig(ComputePreference.SCALAR,4,4,1));
         var parallelContext=new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), parallelInputs);
-        var analysis=new CpuPartitionPreparer().analyze(parallelContext);
+        var availabilityContext362 = parallelContext;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext362)) return;
+        var analysis=new CpuPartitionPreparer().analyze(availabilityContext362);
         try(var workers=new CpuWorkerGroup(4)){var executable=CpuPartitionFinalizerTest.finalizeExecutable(
                 analysis,Optional.empty(),Optional.of(workers));float[] actual=new float[128];
             var run=state(executable,List.of(borrow(left,0,left.length),borrow(right,0,right.length),
@@ -384,7 +547,9 @@ class CpuPreparedExecutableTest {
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
         var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
         java.util.Collections.nCopies(10, CarrierAccess.FLOAT_ARRAY), config));
-        var analysis = new CpuPartitionPreparer().analyze(context);
+        var availabilityContext387 = context;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext387)) return;
+        var analysis = new CpuPartitionPreparer().analyze(availabilityContext387);
         assertEquals(3, analysis.plan().selectedRangeCount());
         try (var workers = new CpuWorkerGroup(3)) {
             var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
@@ -423,7 +588,9 @@ class CpuPreparedExecutableTest {
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
         var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 java.util.Collections.nCopies(6, CarrierAccess.FLOAT_ARRAY), config));
-        var analysis = new CpuPartitionPreparer().analyze(context);
+        var availabilityContext426 = context;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext426)) return;
+        var analysis = new CpuPartitionPreparer().analyze(availabilityContext426);
         assertAll(() -> assertEquals(4, analysis.plan().selectedRangeCount()),
                 () -> assertTrue(analysis.plan().workspaceDeclaration().isEmpty()),
                 () -> assertTrue(analysis.plan().materialization().isEmpty()));
@@ -480,7 +647,9 @@ class CpuPreparedExecutableTest {
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 2, 1);
         var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY), config));
-        var analysis = new CpuPartitionPreparer().analyze(context);
+        var availabilityContext483 = context;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext483)) return;
+        var analysis = new CpuPartitionPreparer().analyze(availabilityContext483);
         var declaration = analysis.plan().workspaceDeclaration().orElseThrow();
         assertAll(() -> assertTrue(analysis.plan().selectedRangeCount() >= 2),
                 () -> assertEquals(analysis.plan().trailingNormalizationGeometry().orElseThrow()
@@ -524,7 +693,9 @@ class CpuPreparedExecutableTest {
                 Shape.of(1, 2), Shape.of(2), List.of(0));
         var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY)));
-        var analysis = new CpuPartitionPreparer().analyze(context);
+        var availabilityContext527 = context;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext527)) return;
+        var analysis = new CpuPartitionPreparer().analyze(availabilityContext527);
         assertTrue(analysis.plan().workspaceDeclaration().isEmpty());
         var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
         double scale = Double.MAX_VALUE / 2.0;
@@ -546,7 +717,9 @@ class CpuPreparedExecutableTest {
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
         var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY), config));
-        var analysis = new CpuPartitionPreparer().analyze(context);
+        var availabilityContext549 = context;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext549)) return;
+        var analysis = new CpuPartitionPreparer().analyze(availabilityContext549);
         try (var workers = new CpuWorkerGroup(4)) {
             var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
                     Optional.empty(), Optional.of(workers));
@@ -591,7 +764,9 @@ class CpuPreparedExecutableTest {
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
         var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY), config));
-        var analysis = new CpuPartitionPreparer().analyze(context);
+        var availabilityContext594 = context;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext594)) return;
+        var analysis = new CpuPartitionPreparer().analyze(availabilityContext594);
         var declaration = analysis.plan().workspaceDeclaration().orElseThrow();
         var workers = new CpuWorkerGroup(4);
         try {
@@ -630,7 +805,9 @@ class CpuPreparedExecutableTest {
         var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.BYTE_ARRAY,
                         CarrierAccess.DOUBLE_ARRAY), config));
-        var analysis = new CpuPartitionPreparer().analyze(context);
+        var availabilityContext633 = context;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext633)) return;
+        var analysis = new CpuPartitionPreparer().analyze(availabilityContext633);
         var declaration = analysis.plan().workspaceDeclaration().orElseThrow();
         var workers = new CpuWorkerGroup(4);
         try {
@@ -685,8 +862,9 @@ class CpuPreparedExecutableTest {
 
     @Test void zeroInputInitializerExecutesItsSinglePrologueWithNoWorkspace() {
         var base = CpuRandomLoweringTest.initialContext(Long.MIN_VALUE, Long.MAX_VALUE);
-        var analysis = new CpuPartitionPreparer().analyze(
-                new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.LONG_ARRAY))));
+        var availabilityContext688 = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.LONG_ARRAY)));
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext688)) return;
+        var analysis = new CpuPartitionPreparer().analyze(availabilityContext688);
         var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
         long[] stateWords = new long[2];
         var run = state(executable, List.of(borrow(stateWords)));
@@ -715,7 +893,9 @@ class CpuPreparedExecutableTest {
 
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
         var parallelContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers, config));
-        var analysis = new CpuPartitionPreparer().analyze(parallelContext);
+        var availabilityContext718 = parallelContext;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext718)) return;
+        var analysis = new CpuPartitionPreparer().analyze(availabilityContext718);
         try (var workers = new CpuWorkerGroup(4)) {
             var parallel = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty(),
                     Optional.of(workers));
@@ -802,7 +982,9 @@ class CpuPreparedExecutableTest {
                 DataType.FLOAT32, Shape.of(2, 5), Shape.of(2, 3), true);
         var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
                 CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT)));
-        var analysis = new CpuPartitionPreparer().analyze(context);
+        var availabilityContext805 = context;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext805)) return;
+        var analysis = new CpuPartitionPreparer().analyze(availabilityContext805);
         var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment input = arena.allocate(10L * 4, 8);
@@ -870,7 +1052,9 @@ class CpuPreparedExecutableTest {
         var parallel = new PortableExecutionConfig(ComputePreference.SCALAR, 2, 2, 1);
         var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY), parallel));
-        var analysis = new CpuPartitionPreparer().analyze(context);
+        var availabilityContext873 = context;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext873)) return;
+        var analysis = new CpuPartitionPreparer().analyze(availabilityContext873);
         float[] input = {1, 5, 3, 2, 4, -0.0f, +0.0f, Float.NaN, 9, 9,
                 -4, -2, -3, -1, -5, Float.POSITIVE_INFINITY, 7, 8, 6, Float.NEGATIVE_INFINITY};
         float[] actual = new float[20];
@@ -1163,19 +1347,28 @@ class CpuPreparedExecutableTest {
                     floatCount, mask, floatConfigurations.get(strategy),
                     strategy == 0 ? "vector" : "parallel-vector", DataType.FLOAT32);
         }
-        // BFLOAT16 has no vector body.  These two representative boundary assignments prove that
-        // the same generated scalar entry is used for scalar and caller-parallel execution, with
-        // each logical ADD, GELU, and MUL result rounded before its next consumer.
+        // Preserve both original BFLOAT16 carrier assignments as preparation-time witnesses:
+        // neither a scalar request nor caller-parallel work authorizes ADD/GELU/MUL.
         int bfloatCount = 97;
         Shape bfloatShape = Shape.of(bfloatCount);
         var bfloatDescriptor = new TensorDescriptor(DataType.BFLOAT16, bfloatShape,
                 Optional.of(LayoutDescriptor.contiguous(bfloatShape)), false);
-        executeCarrierPattern(bfloatDescriptor, bfloatCount, 0,
-                new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1),
-                "scalar", DataType.BFLOAT16);
-        executeCarrierPattern(bfloatDescriptor, bfloatCount, 0b0101,
-                new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 3, 2, 1),
-                "parallel-scalar", DataType.BFLOAT16);
+        assertTrue(io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                .assertLowUnsupported(CpuPartitionPreparerTest.context(bfloatDescriptor,
+                        bfloatDescriptor, bfloatDescriptor, bfloatDescriptor,
+                        new CpuPartitionAnalysisInputs(false,
+                                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT,
+                                        CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT),
+                                new PortableExecutionConfig(
+                                        ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1)))));
+        assertTrue(io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                .assertLowUnsupported(CpuPartitionPreparerTest.context(bfloatDescriptor,
+                        bfloatDescriptor, bfloatDescriptor, bfloatDescriptor,
+                        new CpuPartitionAnalysisInputs(false,
+                                List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.MEMORY_SEGMENT,
+                                        CarrierAccess.SHORT_ARRAY, CarrierAccess.MEMORY_SEGMENT),
+                                new PortableExecutionConfig(
+                                        ComputePreference.VECTOR_IF_ELIGIBLE, 3, 2, 1)))));
     }
 
     private static void executeCarrierPattern(TensorDescriptor descriptor, int count, int mask,
@@ -1183,7 +1376,6 @@ class CpuPreparedExecutableTest {
             var pattern = new ArrayList<CarrierAccess>();
             for (int i = 0; i < 4; i++) pattern.add((mask & (1 << i)) != 0
                     ? dataType == DataType.FLOAT32 ? CarrierAccess.FLOAT_ARRAY
-                            : dataType == DataType.BFLOAT16 ? CarrierAccess.SHORT_ARRAY
                             : CarrierAccess.DOUBLE_ARRAY : CarrierAccess.MEMORY_SEGMENT);
             var analysis = CpuPartitionPreparerTest.analyze(descriptor, descriptor, descriptor,
                     descriptor, new CpuPartitionAnalysisInputs(false, pattern, config));
@@ -1200,9 +1392,7 @@ class CpuPreparedExecutableTest {
                 if (pattern.get(i) != CarrierAccess.MEMORY_SEGMENT) {
                     var storage = new MemorySegmentStorage(dataType, count,
                             dataType == DataType.FLOAT32 ? MemorySegment.ofArray(new float[count])
-                                    : dataType == DataType.BFLOAT16
-                                            ? MemorySegment.ofArray(new short[count])
-                                            : MemorySegment.ofArray(new double[count]));
+                                    : MemorySegment.ofArray(new double[count]));
                     resource = CpuBorrowedBuffer.borrow(storage);
                     ownership = RunResourceOwnership.BORROWED;
                 } else {
@@ -1220,16 +1410,6 @@ class CpuPreparedExecutableTest {
                         segment(resources.get(0)).set(FLOAT, i * 4L, i - 1.0f);
                         segment(resources.get(1)).set(FLOAT, i * 4L, 0.5f);
                         segment(resources.get(2)).set(FLOAT, i * 4L, 2.0f);
-                    } else if (dataType == DataType.BFLOAT16) {
-                        segment(resources.get(0)).set(ValueLayout.JAVA_SHORT_UNALIGNED
-                                .withOrder(ByteOrder.nativeOrder()), i * 2L,
-                                BFloat16Bits.fromFloat(i - 1.0f));
-                        segment(resources.get(1)).set(ValueLayout.JAVA_SHORT_UNALIGNED
-                                .withOrder(ByteOrder.nativeOrder()), i * 2L,
-                                BFloat16Bits.fromFloat(.5f));
-                        segment(resources.get(2)).set(ValueLayout.JAVA_SHORT_UNALIGNED
-                                .withOrder(ByteOrder.nativeOrder()), i * 2L,
-                                BFloat16Bits.fromFloat(2.0f));
                     } else {
                         segment(resources.get(0)).set(DOUBLE, i * 8L, i - 1.0);
                         segment(resources.get(1)).set(DOUBLE, i * 8L, 0.5);
@@ -1244,14 +1424,6 @@ class CpuPreparedExecutableTest {
                         assertEquals(expected, segment(resources.get(3)).get(FLOAT, i * 4L),
                                 Math.max(2e-5f, 2e-5f * Math.abs(expected)),
                                 expectedStrategy + " carrier mask " + mask + " index " + i);
-                    } else if (dataType == DataType.BFLOAT16) {
-                        short sum = BFloat16Bits.fromFloat((i - 1.0f) + .5f);
-                        short gelu = BFloat16Bits.fromFloat((float) CpuScalarReferenceKernel.gelu(
-                                BFloat16Bits.toFloat(sum)));
-                        short expected = BFloat16Bits.fromFloat(BFloat16Bits.toFloat(gelu) * 2.0f);
-                        assertEquals(expected, segment(resources.get(3)).get(
-                                ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.nativeOrder()),
-                                i * 2L), expectedStrategy + " carrier mask " + mask + " index " + i);
                     } else assertEquals(CpuScalarReferenceKernel.gelu(i - 0.5) * 2.0,
                             segment(resources.get(3)).get(DOUBLE, i * 8L),
                             2e-7 * Math.max(1.0, Math.abs(i - 0.5)),
@@ -1499,7 +1671,9 @@ class CpuPreparedExecutableTest {
         var parallelContext = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY),
                 new PortableExecutionConfig(ComputePreference.SCALAR, 2, 2, 1)));
-        var analysis = new CpuPartitionPreparer().analyze(parallelContext);
+        var availabilityContext1502 = parallelContext;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext1502)) return;
+        var analysis = new CpuPartitionPreparer().analyze(availabilityContext1502);
         try (var workers = new CpuWorkerGroup(2)) {
             var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
                     Optional.empty(), Optional.of(workers));
@@ -1541,7 +1715,9 @@ class CpuPreparedExecutableTest {
             var pattern = List.of(inputSegment ? CarrierAccess.MEMORY_SEGMENT : CarrierAccess.BYTE_ARRAY,
                     outputSegment ? CarrierAccess.MEMORY_SEGMENT : CarrierAccess.BYTE_ARRAY);
             var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, pattern, parallel));
-            var analysis = new CpuPartitionPreparer().analyze(context);
+            var availabilityContext1544 = context;
+            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext1544)) continue;
+            var analysis = new CpuPartitionPreparer().analyze(availabilityContext1544);
             assertEquals("parallel-scalar", analysis.plan().executionStrategy().toString(),
                     "preflight must precede the selected worker path for " + pattern);
             try (var workers = new CpuWorkerGroup(2)) {
@@ -1585,7 +1761,9 @@ class CpuPreparedExecutableTest {
         var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.INT_ARRAY, CarrierAccess.MEMORY_SEGMENT,
                         CarrierAccess.INT_ARRAY), config));
-        var analysis = new CpuPartitionPreparer().analyze(context);
+        var availabilityContext1588 = context;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext1588)) return;
+        var analysis = new CpuPartitionPreparer().analyze(availabilityContext1588);
         int[] baseBits = {99, 10, 99, 20, 99, 30, 99, 40};
         int[] baseSnapshot = baseBits.clone();
         int[] outputBits = new int[30];
@@ -1932,7 +2110,9 @@ class CpuPreparedExecutableTest {
                 4, 4, 1);
         var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.LONG_ARRAY, CarrierAccess.BYTE_ARRAY), config));
-        var analysis = new CpuPartitionPreparer().analyze(context);
+        var availabilityContext1935 = context;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext1935)) return;
+        var analysis = new CpuPartitionPreparer().analyze(availabilityContext1935);
         var workers = new CpuWorkerGroup(4);
         try {
             var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
@@ -1980,7 +2160,9 @@ class CpuPreparedExecutableTest {
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
         var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY), config));
-        var analysis = new CpuPartitionPreparer().analyze(context);
+        var availabilityContext1983 = context;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext1983)) return;
+        var analysis = new CpuPartitionPreparer().analyze(availabilityContext1983);
         var workers = new CpuWorkerGroup(4);
         try {
             var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
@@ -2017,7 +2199,9 @@ class CpuPreparedExecutableTest {
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
         var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY), config));
-        var analysis = new CpuPartitionPreparer().analyze(context);
+        var availabilityContext2020 = context;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext2020)) return;
+        var analysis = new CpuPartitionPreparer().analyze(availabilityContext2020);
         var workers = new CpuWorkerGroup(4);
         try {
             var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis,
@@ -2045,7 +2229,9 @@ class CpuPreparedExecutableTest {
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 2, 1);
         var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY), config));
-        var analysis = new CpuPartitionPreparer().analyze(context);
+        var availabilityContext2048 = context;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext2048)) return;
+        var analysis = new CpuPartitionPreparer().analyze(availabilityContext2048);
         assertAll(() -> assertEquals(2, analysis.plan().bufferDeclarations().size()),
                 () -> assertTrue(analysis.plan().workspaceDeclaration().isEmpty()),
                 () -> assertEquals(2, analysis.plan().selectedRangeCount()));
@@ -2082,7 +2268,9 @@ class CpuPreparedExecutableTest {
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
         var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
                 List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY), config));
-        var analysis = new CpuPartitionPreparer().analyze(context);
+        var availabilityContext2085 = context;
+        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(availabilityContext2085)) return;
+        var analysis = new CpuPartitionPreparer().analyze(availabilityContext2085);
         var declaration = analysis.plan().workspaceDeclaration().orElseThrow();
         assertEquals(analysis.plan().aggregateGeometry().orElseThrow().workspaceBytes(4),
                 declaration.byteSize());
@@ -2292,9 +2480,10 @@ class CpuPreparedExecutableTest {
                         new ScatterElementsAttrs(0, ScatterReduction.MUL)), List.of(0, 1, 2),
                 inputs, CpuScatterLoweringTest.desc(DataType.FLOAT64, Shape.of(outputCount)));
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
-        List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.INT_ARRAY,
-                CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY), config));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(),
+                base.nodes(), base.values(), base.memoryRequirements(), base.constants(),
+                new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.MEMORY_SEGMENT,
+                        CarrierAccess.INT_ARRAY, CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(context);
         assertEquals(4, analysis.plan().selectedRangeCount());
         var workers = new CpuWorkerGroup(4);
@@ -2338,9 +2527,10 @@ class CpuPreparedExecutableTest {
                         new ScatterElementsAttrs(0, ScatterReduction.NONE)), List.of(0, 1, 2),
                 inputs, CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(count)));
         var config = new PortableExecutionConfig(ComputePreference.SCALAR, 4, 4, 1);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, List.of(
-                CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY,
-                CarrierAccess.INT_ARRAY), config));
+        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(),
+                base.nodes(), base.values(), base.memoryRequirements(), base.constants(),
+                new CpuPartitionAnalysisInputs(false, List.of(CarrierAccess.INT_ARRAY,
+                        CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY), config));
         var analysis = new CpuPartitionPreparer().analyze(context);
         var workers = new CpuWorkerGroup(4);
         try {

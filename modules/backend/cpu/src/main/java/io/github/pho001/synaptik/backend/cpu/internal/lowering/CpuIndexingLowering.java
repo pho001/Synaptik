@@ -1,8 +1,10 @@
 package io.github.pho001.synaptik.backend.cpu.internal.lowering;
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
+import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuIndexingIr;
+import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
@@ -13,6 +15,7 @@ import io.github.pho001.synaptik.model.operation.index.GatherNdKind;
 import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotAttrs;
 import io.github.pho001.synaptik.model.operation.index.OneHotKind;
+import io.github.pho001.synaptik.model.shape.StaticDimension;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
@@ -26,7 +29,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Lowers one fully static, resolved-layout gather or one-hot occurrence.
+ * Lowers one resolved-layout static or canonical single-named-B gather or one-hot occurrence.
  * Lowering preserves Model-owned coordinate meaning while deriving unique CPU boundary order,
  * structural generated identity, and compact immutable geometry. It creates no carrier, slot,
  * workspace, per-index table, or per-output address table.
@@ -115,6 +118,88 @@ public final class CpuIndexingLowering {
                 Optional.empty(), Optional.of(geometry));
     }
 
+    /**
+     * Proves the original symbolic descriptors and retains only numeric boundary recipes.
+     * No representative batch, graph reconstruction, or invocation-time semantic lowering occurs.
+     * Index bounds remain the ordinary validator's responsibility, including empty outputs.
+     * @param context non-null one-node indexing projection with one common named batch symbol
+     * @return unresolved ordinary IR and family-owned numeric geometry
+     * @throws IllegalArgumentException if descriptors, attributes, identities or layouts disagree
+     * @throws ArithmeticException if fixed geometry coefficients overflow
+     */
+    public CpuPartitionLowering.LoweredPartition lowerBatch(
+            PrepareContext<? extends BackendAnalysisInputs> context) {
+        return lowerBatch(context, CpuPartitionLowering.batchLayouts(context));
+    }
+
+    /**
+     * Lowers against the complete lexical body's already-proved physical view recipes.
+     * @param context non-null original one-node occurrence projection
+     * @param layouts non-null complete local value-to-layout map, including incoming views
+     * @return ordinary IR and unresolved numeric indexing geometry
+     * @throws IllegalArgumentException if ordinary descriptors or numeric layouts disagree
+     */
+    public CpuPartitionLowering.LoweredPartition lowerBatch(
+            PrepareContext<? extends BackendAnalysisInputs> context,
+            Map<ValueId, CpuAccessPlan.BatchBinding> layouts) {
+        CpuPartitionLowering.requireBatchContext(context);
+        if (context.nodes().size() != 1) throw invalidBatch();
+        var node = context.nodes().getFirst();
+        Map<ValueId, GraphValue> values = new LinkedHashMap<>();
+        context.values().forEach(v -> values.put(v.id(), v));
+        Object kind = node.operation().kind();
+        CpuIndexingIr.Family family;
+        Geometry.Variant variant;
+        if (kind == OneHotKind.ONE_HOT && node.operation().attrs() instanceof OneHotAttrs hot) {
+            family = CpuIndexingIr.Family.ONE_HOT;
+            variant = new Geometry.Hot(hot.depth());
+        } else if (kind instanceof AxisGatherKind axisKind
+                && node.operation().attrs() instanceof IndexAxisAttrs attrs) {
+            family = axisKind == AxisGatherKind.GATHER ? CpuIndexingIr.Family.GATHER
+                    : CpuIndexingIr.Family.GATHER_ELEMENTS;
+            variant = new Geometry.Axis(attrs.axis());
+        } else if (kind == GatherNdKind.GATHER_ND
+                && node.operation().attrs() instanceof GatherNdAttrs attrs) {
+            var shape = require(values, node.inputs().get(1)).descriptor().shape().dimensions();
+            if (!(shape.getLast() instanceof StaticDimension depth)) throw invalidBatch();
+            family = CpuIndexingIr.Family.GATHER_ND;
+            variant = new Geometry.Nd(attrs.batchDimensions(), Math.toIntExact(depth.size()));
+        } else throw invalidBatch();
+        var unique = new LinkedHashMap<ValueId, Integer>();
+        var map = new ArrayList<Integer>();
+        for (var id : node.inputs()) map.add(unique.computeIfAbsent(id, ignored -> unique.size()));
+        if (unique.containsKey(node.outputs().getFirst())) throw invalidBatch();
+        var ids = new ArrayList<>(unique.keySet());
+        ids.add(node.outputs().getFirst());
+        var types = new ArrayList<DataType>();
+        var accesses = new ArrayList<CpuAccessPlan.BatchBinding>();
+        for (int b = 0; b < ids.size(); b++) {
+            var access = layouts.get(ids.get(b));
+            if (access == null) throw invalidBatch();
+            var plan = access.plan();
+            var permission = new CpuAccessPlan(b + 1 == ids.size() ? CpuAccessPlan.AccessKind.WRITE
+                    : CpuAccessPlan.AccessKind.READ, plan.regime(), plan.iterationRank(),
+                    plan.axisRoles(), plan.contiguousSuffix());
+            accesses.add(new CpuAccessPlan.BatchBinding(permission, access.extentConstants(),
+                    access.extentBatchFactors(), access.baseElementOffset(),
+                    access.strideConstants(), access.strideBatchFactors()));
+            types.add(require(values, ids.get(b)).descriptor().dataType());
+        }
+        var ir = new CpuIndexingIr(family, map, types,
+                accesses.stream().map(CpuAccessPlan.BatchBinding::plan).toList());
+        return new CpuPartitionLowering.LoweredPartition(
+                new Geometry.BatchGeometry(ir, ids, types, accesses, variant));
+    }
+
+
+    private static IllegalArgumentException invalidBatch() {
+        return new IllegalArgumentException("inconsistent symbolic indexing geometry");
+    }
+
+    private static BatchByteSize batchCount(CpuAccessPlan.BatchBinding access) {
+        return CpuPartitionLowering.batchElements(access);
+    }
+
     private static GraphValue require(Map<ValueId, GraphValue> values, ValueId id) {
         GraphValue value = values.get(id);
         if (value == null) throw new IllegalArgumentException("partition value is not projected: " + id);
@@ -186,6 +271,136 @@ public final class CpuIndexingLowering {
      */
     public record Geometry(CpuIndexingIr.Family family, List<Integer> occurrenceToBoundary,
             List<Layout> boundaries, List<DataType> boundaryTypes, Variant variant) {
+
+        /**
+         * Numeric symbolic indexing recipe. Binding resolves ordinary layouts once, retaining the
+         * exact prepared IR; bounds checks and numerical mapping keep their existing owners.
+         * @param ir immutable ordinary structural indexing IR
+         * @param boundaries unique inputs then output identities
+         * @param boundaryTypes actual represented boundary types
+         * @param bindings checked affine element recipes
+         * @param variant numeric axis, tuple-depth or one-hot-depth facts
+         */
+        public record BatchGeometry(CpuIndexingIr ir, List<ValueId> boundaries,
+                List<DataType> boundaryTypes, List<CpuAccessPlan.BatchBinding> bindings,
+                Variant variant) implements CpuPartitionLowering.BatchUnitGeometry {
+            /**
+             * Snapshots immutable numeric preparation facts, without retaining Model descriptors.
+             * @param ir non-null ordinary IR
+             * @param boundaries non-null ordered identities
+             * @param boundaryTypes non-null represented types
+             * @param bindings non-null affine access facts
+             * @param variant non-null numeric mapping facts
+             */
+            public BatchGeometry {
+                Objects.requireNonNull(ir, "ir");
+                boundaries = List.copyOf(boundaries);
+                boundaryTypes = List.copyOf(boundaryTypes);
+                bindings = List.copyOf(bindings);
+                Objects.requireNonNull(variant, "variant");
+            }
+            /** @return exact affine output element count, in unit-width cells */
+            @Override public BatchByteSize iterationCount() { return batchCount(bindings.getLast()); }
+            /** @return zero numeric scratch bytes */
+            @Override public BatchByteSize scratchBytes() { return new BatchByteSize(0, 0, 1); }
+            /** @return original output-coordinate pack cells snapshotted by numeric binding */
+            @Override public List<PackReset> resets() {
+                int first = 11 + ir.occurrenceToBoundary().size();
+                int rank = bindings.getLast().plan().iterationRank();
+                var cells = new ArrayList<PackReset>(rank);
+                for (int axis = 0; axis < rank; axis++) cells.add(new PackReset(first + axis, 0));
+                return List.copyOf(cells);
+            }
+            /** @return batch-independent, identity-free numeric recipe encoding */
+            @Override public String identity() { return "indexing:" + bindings + ":" + variant; }
+            /**
+             * Resolves numeric invocation geometry without invoking a semantic lowerer.
+             * @param batch non-negative actual batch extent
+             * @return concrete ordinary lowering with the identical prepared IR
+             * @throws ArithmeticException if counts, spans or strides exceed CPU limits
+             */
+            @Override public CpuPartitionLowering.LoweredPartition bind(long batch) {
+                var access = bindings.stream().map(b -> b.bind(batch)).toList();
+                var layouts = access.stream().map(b -> new Layout(
+                        b.extents().stream().mapToLong(Long::longValue).toArray(),
+                        b.baseElementOffset(),
+                        b.effectiveStrides().stream().mapToLong(Long::longValue).toArray())).toList();
+                var geometry = new Geometry(ir.family(), ir.occurrenceToBoundary(), layouts,
+                        boundaryTypes, variant);
+                return new CpuPartitionLowering.LoweredPartition(ir, boundaries, access,
+                        access.stream().map(CpuAccessPlan.Binding::referencedElementSpan).toList(),
+                        boundaryTypes, List.of(), layouts.getLast().extents(),
+                        access.getLast().elementCount(), "legal: bound symbolic indexing",
+                        new long[0], Optional.empty(), Optional.of(geometry));
+            }
+        }
+
+        /**
+         * One fixed generated assignment of a boundary's element base plus a layout delta.
+         * @param cell non-negative destination cell in this family's packed geometry
+         * @param boundary boundary position in the pack's carrier-base order
+         * @param elementDelta immutable element offset added with checked arithmetic
+         */
+        public record BaseCell(int cell, int boundary, long elementDelta) { }
+
+        /**
+         * One original cursor seed restored before every temporal helper call, including retry.
+         * @param cell non-negative destination cell in this family's packed geometry
+         * @param value original range-start cursor value
+         */
+        public record ResetCell(int cell, long value) { }
+
+        /**
+         * Cold, immutable facts for emitting fixed numeric assignments, never a runtime program.
+         * Scratch range offsets and invariant geometry remain bound once per invocation.
+         * @param bases non-null boundary-base assignments, defensively snapshotted
+         * @param resets non-null mutable-cursor assignments, defensively snapshotted
+         */
+        public record TemporalRebind(List<BaseCell> bases, List<ResetCell> resets) {
+            /**
+             * Snapshots the generation-time assignments; retains no invocation storage.
+             * @param bases non-null base facts without null entries
+             * @param resets non-null reset facts without null entries
+             * @throws NullPointerException if either list or an entry is null
+             */
+            public TemporalRebind {
+                bases = List.copyOf(bases);
+                resets = List.copyOf(resets);
+            }
+        }
+
+        /**
+         * Describes temporal base rebinding and restoration of this family's original cursors.
+         * Construct these facts only during generation or cold numeric binding; generated code
+         * emits the assignments directly, without calling pack, allocating, or iterating facts.
+         * Each boundary base is normalized using that boundary's own element width beforehand.
+         * @param start non-negative inclusive ordinary helper range start
+         * @return immutable owner-defined base locations and original cursor seeds
+         * @throws IllegalArgumentException if start is negative
+         * @throws ArithmeticException if checked layout or cursor arithmetic overflows
+         */
+        public TemporalRebind temporalRebind(long start) {
+            if (start < 0) throw new IllegalArgumentException("negative temporal range start");
+            int rank = boundaries.getLast().extents.length;
+            int coordinates = 11 + occurrenceToBoundary.size();
+            var resets = new ArrayList<ResetCell>(rank);
+            long remainder = start;
+            for (int axis = rank - 1; axis >= 0; axis--) {
+                long extent = boundaries.getLast().extents[axis];
+                long value = extent == 0 ? 0 : remainder % extent;
+                if (extent != 0) remainder /= extent;
+                resets.add(new ResetCell(coordinates + axis, value));
+            }
+            var bases = new ArrayList<BaseCell>(boundaries.size());
+            int cell = coordinates + rank;
+            for (int i = 0; i < boundaries.size(); i++) {
+                var layout = boundaries.get(i);
+                bases.add(new BaseCell(cell + 1, i, layout.offset));
+                cell += 2 + 2 * layout.extents.length;
+            }
+            return new TemporalRebind(bases, resets);
+        }
+
         /**
          * Static resolved layout of one unique input or output boundary.
          *

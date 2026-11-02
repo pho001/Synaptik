@@ -32,11 +32,16 @@ import java.lang.invoke.MethodHandles;
  * explicit array-form copies keep their classified carrier. A child may be the
  * narrow native MATMUL recipe when the already-selected route uses one copy. Runtime owns the
  * surrounding atomic validity transition and each run's resources and never selects a candidate.
+ * Complete batch mode authenticates each selection against the exact run geometry. Fixed child
+ * units retain their own fixed declarations; nonfixed boundaries must select an actual child
+ * binding, whose genuine dynamic route is checked before the composite invocation is returned.
+ * Fixed generated copy units retain their original affine and workspace facts.
  */
 public final class CpuPreparedPartitionExecutable extends PreparedExecutable {
     private final List<PreparedExecutable> children;
     private final List<List<Integer>> dependencies;
     private final List<CopyUnit> copies;
+    private final List<WorkspaceSelection> selectedWorkspaces;
 
     /**
      * Creates one immutable fixed partition composite.
@@ -82,6 +87,7 @@ public final class CpuPreparedPartitionExecutable extends PreparedExecutable {
             List<BufferAccess> accesses, List<CopyUnit> copies,
             List<? extends PreparedExecutable> children, List<List<Integer>> dependencies) {
         super(memoryPlan, buffers, workspaces, accesses);
+        selectedWorkspaces = List.copyOf(workspaces);
         this.copies = List.copyOf(copies);
         this.children = List.copyOf(children);
         this.dependencies = dependencies.stream().map(List::copyOf).toList();
@@ -147,6 +153,93 @@ public final class CpuPreparedPartitionExecutable extends PreparedExecutable {
      */
     public List<List<Integer>> dependencies() { return dependencies; }
 
+    /**
+     * Checks complete-plan geometry without confusing a dynamic child with a fixed sibling.
+     * @param state exact open run with authenticated sizing
+     * @param index outer boundary selection position
+     * @param representation selected CPU boundary, or an incompatible representation to reject
+     * @return whether physical bytes/alignment agree and any nonfixed selection reaches a child
+     */
+    @Override protected boolean acceptsBufferRepresentation(RunState state, int index,
+            BufferRepresentation representation) {
+        if (!state.memoryPlan().requiresBatchSize()) return super.acceptsBufferRepresentation(state, index, representation);
+        if (!acceptsBufferRepresentation(index, representation)
+                || state.memoryPlan() != memoryPlan() || state.geometry().memoryPlan() != memoryPlan()) return false;
+        var cpu = (CpuBufferRepresentation) representation;
+        int position = bufferSelection(index).bufferIndex();
+        var declaration = memoryPlan().buffers().get(position);
+        if (cpu.byteSize() != state.geometry().bufferByteSize(position)) return false;
+        var fixed = declaration.size().fixedByteSize();
+        if (fixed.isPresent()) return cpu.acceptsFixedGeometry(state, memoryPlan(), position, fixed.getAsLong());
+        if (!hasChildSelection(bufferSelection(index))) return false;
+        try {
+            var argument = cpu.argument();
+            return argument.byteOffset() % cpu.dataType().byteWidth() == 0
+                    && argument.byteSize() % cpu.dataType().byteWidth() == 0
+                    && cpu.segment().address() % declaration.byteAlignment() == 0;
+        } catch (IllegalArgumentException | IllegalStateException incompatible) {
+            return false;
+        }
+    }
+
+    /**
+     * Preserves dynamic child scratch while authenticating fixed scratch declarations explicitly.
+     * @param state exact open run with authenticated sizing
+     * @param index outer workspace selection position
+     * @param representation selected CPU scratch, or an incompatible representation to reject
+     * @return whether declared physical geometry and writable lifetime agree
+     */
+    @Override protected boolean acceptsWorkspaceRepresentation(RunState state, int index,
+            WorkspaceRepresentation representation) {
+        if (!state.memoryPlan().requiresBatchSize()) return super.acceptsWorkspaceRepresentation(state, index, representation);
+        if (!acceptsWorkspaceRepresentation(index, representation)
+                || state.memoryPlan() != memoryPlan() || state.geometry().memoryPlan() != memoryPlan()) return false;
+        var cpu = (CpuContiguousWorkspace) representation;
+        int position = selectedWorkspaces.get(index).workspaceIndex();
+        var declaration = memoryPlan().workspaces().get(position);
+        var fixed = declaration.size().fixedByteSize();
+        if (fixed.isPresent()) return CpuBufferRepresentation.acceptsFixedWorkspaceGeometry(
+                state, memoryPlan(), position, fixed.getAsLong(), cpu);
+        if (!hasDynamicWorkspaceSelection(selectedWorkspaces.get(index))) return false;
+        try {
+            var segment = cpu.writableSegment();
+            return cpu.byteSize() == state.geometry().workspaceByteSize(position)
+                    && cpu.byteAlignment() >= declaration.byteAlignment() && !segment.isReadOnly()
+                    && segment.address() % declaration.byteAlignment() == 0;
+        } catch (IllegalArgumentException | IllegalStateException incompatible) {
+            return false;
+        }
+    }
+
+    /**
+     * Requires an exact scratch selection on a genuine dynamic child, including nested composites.
+     * @param selection dense workspace position selected by this container
+     * @return whether a retained dynamic child authenticates this exact workspace at binding
+     */
+    private boolean hasDynamicWorkspaceSelection(WorkspaceSelection selection) {
+        for (PreparedExecutable child : children) {
+            if (child instanceof CpuPreparedExecutable ordinary
+                    && ordinary.hasDynamicWorkspaceSelection(selection)) return true;
+            if (child instanceof CpuGeneralScanPreparedExecutable scan
+                    && scan.hasDynamicWorkspaceSelection(selection)) return true;
+            if (child instanceof CpuPreparedPartitionExecutable nested
+                    && nested.hasDynamicWorkspaceSelection(selection)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Finds an exact child resource selection, not just a matching logical buffer position.
+     * @param selection outer buffer and representation positions
+     * @return whether an already-retained child authenticates this exact selection at binding
+     */
+    private boolean hasChildSelection(BufferSelection selection) {
+        for (PreparedExecutable child : children)
+            for (int p = 0; p < child.bufferSelectionCount(); p++)
+                if (child.bufferSelection(p).equals(selection)) return true;
+        return false;
+    }
+
     @Override protected boolean acceptsBufferRepresentation(int index,
             BufferRepresentation representation) {
         if (!(representation instanceof CpuBufferRepresentation cpu) || !cpu.isAccessible())
@@ -205,6 +298,16 @@ public final class CpuPreparedPartitionExecutable extends PreparedExecutable {
                     "CPU copy source carrier changed after analysis");
             CpuContiguousWorkspace target = (CpuContiguousWorkspace)
                     workspaces[copy.workspacePosition()];
+            if (state.memoryPlan().requiresBatchSize()
+                    && (!sourceBuffer.acceptsFixedGeometry(state, memoryPlan(),
+                            bufferSelection(copy.bufferPosition()).bufferIndex(),
+                            Math.multiplyExact(copy.plan().sourceBinding().referencedElementSpan(),
+                                    (long) copy.plan().dataType().byteWidth()))
+                        || !CpuBufferRepresentation.acceptsFixedWorkspaceGeometry(state, memoryPlan(),
+                            selectedWorkspaces.get(copy.workspacePosition()).workspaceIndex(),
+                            copy.plan().byteCount(), target))) {
+                throw new IllegalArgumentException("CPU fixed copy declarations disagree with retained geometry");
+            }
             MemorySegment segment = target.writableSegment();
             if (segment.asOverlappingSlice(segment(source)).isPresent()) throw new IllegalArgumentException(
                     "CPU materialization workspace overlaps its source");

@@ -3,7 +3,6 @@ package io.github.pho001.synaptik.backend.cpu.internal.reference;
 import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.*;
-import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.pooling.*;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -65,9 +64,31 @@ class CpuPool2dReferenceTest {
     }
 
     @Test
-    void averagePreservesAnAllNegativeZeroWindow() {
+    void exactLowMaxRetainsSignedZeroAndSubnormalWinners() {
+        var geometry = new CpuPool2dLowering().lower(CpuPool2dLoweringTest.context(
+                Pool2dKind.MAX_POOL2D, new MaxPool2dAttrs(1, 2, 1, 1, 0, 0, 1, 1, false),
+                DataType.BFLOAT16, Shape.of(1, 1, 1, 2), Shape.of(1, 1, 1, 1)))
+                .pool2dGeometry().orElseThrow();
+        short[] output = new short[1];
+        CpuPool2dReferenceKernel.evaluate(geometry, new short[]{(short) 0x8000, 0}, output, 0, 1);
+        assertEquals((short) 0, output[0]);
+        CpuPool2dReferenceKernel.evaluate(geometry, new short[]{1, 0}, output, 0, 1);
+        assertEquals((short) 1, output[0]);
+    }
+
+    @Test
+    void averageRejectsLowNumericalWindowsAndPreservesEligibleNegativeZero() {
         var attrs = new AveragePool2dAttrs(1, 2, 1, 1, 0, 0, 1, 1, false);
-        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            assertTrue(io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                    .assertLowUnsupported(CpuPool2dLoweringTest.context(
+                            Pool2dKind.AVERAGE_POOL2D, attrs, type,
+                            Shape.of(1, 1, 1, 2), Shape.of(1, 1, 1, 1))));
+            assertThrows(IllegalArgumentException.class, () -> new CpuPool2dLowering().lower(
+                    CpuPool2dLoweringTest.context(Pool2dKind.AVERAGE_POOL2D, attrs, type,
+                            Shape.of(1, 1, 1, 2), Shape.of(1, 1, 1, 1))));
+        }
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
             var geometry =
                     new CpuPool2dLowering()
                             .lower(
@@ -80,16 +101,6 @@ class CpuPool2dReferenceTest {
                             .pool2dGeometry()
                             .orElseThrow();
             switch (type) {
-                case BFLOAT16 -> {
-                    short[] output = new short[1];
-                    CpuPool2dReferenceKernel.evaluate(
-                            geometry,
-                            new short[] {BFloat16Bits.fromFloat(-0.0f), BFloat16Bits.fromFloat(-0.0f)},
-                            output,
-                            0,
-                            1);
-                    assertEquals(BFloat16Bits.fromFloat(-0.0f), output[0]);
-                }
                 case FLOAT32 -> {
                     float[] output = new float[1];
                     CpuPool2dReferenceKernel.evaluate(geometry, new float[] {-0.0f, -0.0f}, output, 0, 1);

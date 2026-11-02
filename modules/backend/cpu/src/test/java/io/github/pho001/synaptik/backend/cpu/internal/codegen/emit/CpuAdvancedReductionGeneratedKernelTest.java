@@ -27,6 +27,57 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class CpuAdvancedReductionGeneratedKernelTest {
+    @Test void controlledStatisticsAndLogSumExpSkipInactiveNonleadingRows() throws Throwable {
+        for (var kind : List.of(AggregateReductionKind.LOG_SUM_EXP, AggregateReductionKind.VARIANCE,
+                AggregateReductionKind.STANDARD_DEVIATION)) {
+            OperationAttrs attrs = kind == AggregateReductionKind.LOG_SUM_EXP
+                    ? new MultiAxisReductionAttrs(List.of(2), false)
+                    : new StatisticalReductionAttrs(List.of(2), false, 0);
+            var plan = plan(kind, DataType.FLOAT64, Shape.of(2, 2, 2), attrs, Shape.of(2, 2),
+                    List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY));
+            var route = plan.units().getFirst().portablePlan();
+            var inputRow = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(1, 2);
+            var outputRow = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(1, 1);
+            var control = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl(
+                    List.of(inputRow, outputRow), List.of(inputRow, outputRow));
+            var owner = java.lang.constant.ClassDesc.of(
+                    "io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.ControlledAdvancedRows");
+            var inventory = CpuClassFileKernelGenerator.methodInventory(
+                    owner, "row$", route.specialization(), route.kernelIr(), true);
+            byte[] bytes = ClassFile.of().build(owner, builder -> {
+                builder.withVersion(ClassFile.JAVA_26_VERSION, 0).withFlags(AccessFlag.FINAL);
+                CpuClassFileKernelGenerator.emitMethods(builder, owner, "row$",
+                        route.specialization(), route.kernelIr(), control);
+            });
+            CpuClassFileKernelGenerator.verifyMethodInventory(bytes, inventory);
+            var lookup = java.lang.invoke.MethodHandles.lookup().defineHiddenClass(bytes, true);
+            var entry = lookup.findStatic(lookup.lookupClass(), "row$invoke",
+                    inventory.getFirst().type().resolveConstantDesc(lookup));
+            try (Arena arena = Arena.ofConfined()) {
+                var activity = arena.allocate(18, 8);
+                activity.set(java.lang.foreign.ValueLayout.JAVA_BYTE, 0, (byte) 1);
+                activity.set(java.lang.foreign.ValueLayout.JAVA_LONG, 8, 2L);
+                activity.set(java.lang.foreign.ValueLayout.JAVA_BYTE, 16, (byte) 1);
+                double[] input = {1, 3, Double.NaN, Double.NaN, 3, 5};
+                double[] output = {-9, -9, -9, -9};
+                var geometry = plan.advancedReductionGeometry().orElseThrow();
+                if (route.specialization().scratchParameter()) {
+                    var scratch = arena.allocate(geometry.scratchSliceBytes(), 8);
+                    entry.invokeWithArguments(input, output, scratch, geometry.pack(new long[2]),
+                            0L, 4L, activity);
+                } else {
+                    entry.invokeWithArguments(input, output, geometry.pack(new long[2]), 0L, 4L, activity);
+                }
+                double first = kind == AggregateReductionKind.LOG_SUM_EXP
+                        ? 3 + Math.log1p(Math.exp(-2)) : 1;
+                double second = kind == AggregateReductionKind.LOG_SUM_EXP ? first + 2 : 1;
+                assertArrayEquals(new double[]{first, 0, second, 0}, output, 2e-15, kind.name());
+                assertEquals(0L, Double.doubleToRawLongBits(output[1]));
+                assertEquals(0L, Double.doubleToRawLongBits(output[3]));
+            }
+        }
+    }
+
     @Test void focusedEmittersOwnNumericalBodiesWithoutSelectorDelegation() {
         assertAll(
                 () -> assertTrue(java.util.Arrays.stream(CpuLogSumExpEmitter.class
@@ -76,18 +127,24 @@ class CpuAdvancedReductionGeneratedKernelTest {
     @Test void everyFloatingTypeAndHeapSegmentPairUsesTheSameRepresentedResult() throws Throwable {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
             for (int pattern = 0; pattern < 4; pattern++) {
-                Object input = represented(type, new double[] {-3, 4});
-                Object output = represented(type, new double[] {0});
-                Object inputCarrier = (pattern & 1) == 0 ? input : segment(input);
-                Object outputCarrier = (pattern & 2) == 0 ? output : segment(output);
-                var plan = plan(AggregateReductionKind.L2_NORM, type, 2, 0,
-                        List.of((pattern & 1) == 0 ? arrayCarrier(type) : CarrierAccess.MEMORY_SEGMENT,
-                                (pattern & 2) == 0 ? arrayCarrier(type) : CarrierAccess.MEMORY_SEGMENT));
-                invoke(plan, inputCarrier, outputCarrier);
-                assertEquals(type == DataType.FLOAT64 ? Double.doubleToRawLongBits(5.0)
-                        : type == DataType.FLOAT32 ? Integer.toUnsignedLong(
-                            Float.floatToRawIntBits(5.0f)) : 0x40a0L,
-                        bits(type, output), type + "/pattern=" + pattern);
+                int carrierPattern = pattern;
+                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                        .assertNumericalOutcome(type, () -> {
+                            Object input = represented(type, new double[] {-3, 4});
+                            Object output = represented(type, new double[] {0});
+                            Object inputCarrier = (carrierPattern & 1) == 0 ? input : segment(input);
+                            Object outputCarrier = (carrierPattern & 2) == 0 ? output : segment(output);
+                            var plan = plan(AggregateReductionKind.L2_NORM, type, 2, 0,
+                                    List.of((carrierPattern & 1) == 0 ? arrayCarrier(type)
+                                                    : CarrierAccess.MEMORY_SEGMENT,
+                                            (carrierPattern & 2) == 0 ? arrayCarrier(type)
+                                                    : CarrierAccess.MEMORY_SEGMENT));
+                            invoke(plan, inputCarrier, outputCarrier);
+                            assertEquals(type == DataType.FLOAT64 ? Double.doubleToRawLongBits(5.0)
+                                    : type == DataType.FLOAT32 ? Integer.toUnsignedLong(
+                                        Float.floatToRawIntBits(5.0f)) : 0x40a0L,
+                                    bits(type, output), type + "/pattern=" + carrierPattern);
+                        });
             }
         }
     }
@@ -97,25 +154,29 @@ class CpuAdvancedReductionGeneratedKernelTest {
             for (AggregateReductionKind kind : List.of(AggregateReductionKind.LOG_SUM_EXP,
                     AggregateReductionKind.VARIANCE, AggregateReductionKind.STANDARD_DEVIATION,
                     AggregateReductionKind.L1_NORM, AggregateReductionKind.L2_NORM)) {
-                boolean statistics = kind == AggregateReductionKind.VARIANCE
-                        || kind == AggregateReductionKind.STANDARD_DEVIATION;
-                double[] values = kind == AggregateReductionKind.L2_NORM
-                        ? new double[] {3, 4} : kind == AggregateReductionKind.L1_NORM
-                        ? new double[] {-1, 2} : new double[] {1, 3};
-                double expected = switch (kind) {
-                    case LOG_SUM_EXP -> 3 + StrictMath.log1p(StrictMath.exp(-2));
-                    case VARIANCE -> 2;
-                    case STANDARD_DEVIATION -> StrictMath.sqrt(2);
-                    case L1_NORM -> 3;
-                    case L2_NORM -> 5;
-                    default -> throw new AssertionError();
-                };
-                Object input = represented(type, values), output = represented(type, new double[] {0});
-                var plan = plan(kind, type, 2, statistics ? 1 : 0,
-                        List.of(arrayCarrier(type), arrayCarrier(type)));
-                invoke(plan, input, output);
-                assertEquals(bits(type, represented(type, new double[] {expected})),
-                        bits(type, output), type + "/" + kind);
+                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                        .assertNumericalOutcome(type, () -> {
+                            boolean statistics = kind == AggregateReductionKind.VARIANCE
+                                    || kind == AggregateReductionKind.STANDARD_DEVIATION;
+                            double[] values = kind == AggregateReductionKind.L2_NORM
+                                    ? new double[] {3, 4} : kind == AggregateReductionKind.L1_NORM
+                                    ? new double[] {-1, 2} : new double[] {1, 3};
+                            double expected = switch (kind) {
+                                case LOG_SUM_EXP -> 3 + StrictMath.log1p(StrictMath.exp(-2));
+                                case VARIANCE -> 2;
+                                case STANDARD_DEVIATION -> StrictMath.sqrt(2);
+                                case L1_NORM -> 3;
+                                case L2_NORM -> 5;
+                                default -> throw new AssertionError();
+                            };
+                            Object input = represented(type, values);
+                            Object output = represented(type, new double[] {0});
+                            var plan = plan(kind, type, 2, statistics ? 1 : 0,
+                                    List.of(arrayCarrier(type), arrayCarrier(type)));
+                            invoke(plan, input, output);
+                            assertEquals(bits(type, represented(type, new double[] {expected})),
+                                    bits(type, output), type + "/" + kind);
+                        });
             }
         }
     }
@@ -224,8 +285,7 @@ class CpuAdvancedReductionGeneratedKernelTest {
             io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan plan,
             Object input, Object output) throws Throwable {
         var route = plan.units().getFirst().portablePlan(); var generator = new CpuClassFileKernelGenerator();
-        var artifact = generator.defineClassBytes(route.specialization(),
-                generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
         long bytes = plan.advancedReductionGeometry().orElseThrow()
                 .scratchSliceBytes();
         try (Arena arena = Arena.ofConfined()) {

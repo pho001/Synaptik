@@ -29,6 +29,26 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class CpuDataMovementGeneratedKernelTest {
+    @Test void controlledTileAdvancesInactiveCursorsWithoutLoadingInputs() throws Throwable {
+        var selected = context(new Operation(TileKind.TILE, new TileAttrs(List.of(1L, 2L))),
+                List.of(0), List.of(CpuNonAffineMovementLoweringTest.descriptor(
+                        DataType.FLOAT32, Shape.of(2, 2))),
+                CpuNonAffineMovementLoweringTest.descriptor(DataType.FLOAT32, Shape.of(2, 4)));
+        var plan = new CpuPartitionPreparer().analyze(selected).plan();
+        var inputRow = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(0, 2);
+        var outputRow = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(0, 4);
+        var entry = CpuAffineCopyGeneratedKernelTest.controlledEntry(
+                plan.units().getFirst().portablePlan(), List.of(inputRow, outputRow));
+        float[] output = new float[8];
+        Arrays.fill(output, -99);
+        entry.invokeWithArguments(new float[]{-0.0f, 7}, output,
+                plan.movementGeometry().orElseThrow().pack(new long[2], 0, 8),
+                0L, 8L, CpuAffineCopyGeneratedKernelTest.control(new byte[]{1, 0}));
+        assertArrayEquals(new float[]{-0.0f, 7, -0.0f, 7, 0, 0, 0, 0}, output);
+        assertEquals(Integer.MIN_VALUE, Float.floatToRawIntBits(output[2]));
+        for (int cell = 4; cell < output.length; cell++)
+            assertEquals(0, Float.floatToRawIntBits(output[cell]));
+    }
     @Test void canonicalBoolStackUsesOccurrenceMajorDirectLoopsAndRetainsLongFallback()
             throws Throwable {
         var stack = withCarrierPattern(context(new Operation(TensorCompositionKind.STACK,
@@ -666,7 +686,7 @@ class CpuDataMovementGeneratedKernelTest {
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
         byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
-        var artifact = generator.defineClassBytes(route.specialization(), bytes);
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes);
         long[] bases = new long[carriers.size()];
         long[] geometry = plan.movementGeometry().orElseThrow().pack(bases, start, end);
         var arguments = new ArrayList<Object>(carriers);

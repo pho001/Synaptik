@@ -22,9 +22,11 @@ import java.util.Objects;
  * @param epsilonBits raw result-type bits for the finite positive epsilon
  * @param inputRank static input rank, at least two
  * @param channelAxis normalized channel axis in {@code [0, inputRank)}
- * @param algorithmVersion generated arithmetic version; currently exactly {@code 1}
+ * @param algorithmVersion {@code 1} for a fixed domain; {@code 2} for an invocation-bound
+ *     domain read from the existing numeric pack, with identical normalization arithmetic
  * @param passCount number of complete non-channel traversals; currently exactly {@code 3}
- * @param reductionCount number of non-channel coordinates in each channel domain
+ * @param reductionCount fixed non-channel coordinate count for version one; zero denotes the
+ *     explicitly unresolved invocation domain for version two, never a representative count
  * @param stateLimbCount exact-sum limb count, or zero only for empty channel work
  * @param scratchSliceBytes bytes in one range-private exact-state slice, or zero only for empty
  *     channel work
@@ -62,10 +64,12 @@ public record CpuBatchNormTrainingIr(List<DataType> inputTypes, DataType resultT
                 || inputAccesses.size() != unique || inputAccesses.isEmpty()
                 || outputAccesses.size() != 5 || promoted != resultType || !supported(resultType)
                 || inputTypes.stream().anyMatch(t -> !supported(t)) || inputRank < 2
-                || channelAxis < 0 || channelAxis >= inputRank || algorithmVersion != 1
+                || channelAxis < 0 || channelAxis >= inputRank
+                || (algorithmVersion != 1 && algorithmVersion != 2)
                 || passCount != 3 || reductionCount < 0
+                || algorithmVersion == 2 && reductionCount != 0
                 || (scratchSliceBytes == 0) != (stateLimbCount == 0)
-                || scratchSliceBytes > 0 && (reductionCount < 2 || stateLimbCount <= 0
+                || scratchSliceBytes > 0 && (algorithmVersion == 1 && reductionCount < 2 || stateLimbCount <= 0
                     || scratchSliceBytes != Math.addExact(Long.BYTES,
                     Math.multiplyExact(Long.BYTES, stateLimbCount)))
                 || inputAccesses.stream().anyMatch(a -> a.accessKind() != CpuAccessPlan.AccessKind.READ)
@@ -108,6 +112,7 @@ public record CpuBatchNormTrainingIr(List<DataType> inputTypes, DataType resultT
                 + ":axis=" + channelAxis + ":algorithm=" + algorithmVersion + ":passes="
                 + passCount + ":domain=" + reductionCount + ":map=" + positionToBoundary
                 + ":limbs=" + stateLimbCount + ":slice=" + scratchSliceBytes;
+        if (algorithmVersion == 2) family += ":symbolic-domain=true";
         return new CpuKernelIr(values, List.of(), new CpuKernelIr.Loop("start", "end"), stores, family);
     }
 

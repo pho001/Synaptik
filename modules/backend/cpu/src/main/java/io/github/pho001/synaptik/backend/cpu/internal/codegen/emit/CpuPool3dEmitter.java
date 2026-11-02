@@ -18,6 +18,10 @@ import java.lang.constant.MethodTypeDesc;
  * typed array or segment access, visits each cell's full dilated window, and writes that cell once.
  * The emitter does not allocate window storage, split a window across workers, or call a
  * Synaptik-owned numerical helper.
+ *
+ * <p>Controlled entries use proved boundary ROW provenance at the full logical output ordinal
+ * before loading any window primal. An inactive original row stores represented positive zero
+ * rather than executing either pooling algorithm.</p>
  */
 public final class CpuPool3dEmitter {
     private static final ClassDesc FLOAT = ClassDesc.of(Float.class.getName());
@@ -36,8 +40,9 @@ public final class CpuPool3dEmitter {
      * @throws IllegalArgumentException if identity, boundary, or strategy facts disagree
      */
     public void emit(CodeBuilder code, CpuKernelSpecialization specialization, CpuKernelIr ir) {
-        boolean max = ir.familyIdentity().startsWith("pool3d:kind=MAX:");
-        boolean average = ir.familyIdentity().startsWith("pool3d:kind=AVERAGE:");
+        boolean max = io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool3dIr.encodedKind(ir)
+                == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool3dIr.Kind.MAX;
+        boolean average = !max;
         DataType type = specialization.boundaryDataTypes().getFirst();
         if ((!max && !average)
                 || specialization.carrierPattern().size() != 2
@@ -72,6 +77,10 @@ public final class CpuPool3dEmitter {
         code.lload(start).lstore(cell);
         var cells = code.newLabel();
         var done = code.newLabel();
+        boolean rowControlled = CpuCarrierEmitter.controlFacts()
+                .map(control -> control.boundaryRows().get(1).axis() >= 0).orElse(false);
+        var inactive = code.newLabel();
+        var advance = code.newLabel();
         code.labelBinding(cells).lload(cell).lload(end).lcmp().branch(Opcode.IFGE, done);
         code.lload(cell).lstore(r);
         decode(code, geometry, 16, r, ow);
@@ -89,6 +98,7 @@ public final class CpuPool3dEmitter {
         g(code, geometry, 27).lmul();
         g(code, geometry, 30).lsub().lstore(iw);
         address(code, geometry, 1, 17, n, c, od, oh, ow, outAddress);
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, 1, cell, TypeKind.LONG, inactive);
         if (max)
             emitMax(
                     code,
@@ -123,6 +133,16 @@ public final class CpuPool3dEmitter {
                     iw,
                     inAddress,
                     outAddress);
+        if (rowControlled) {
+            code.branch(Opcode.GOTO, advance).labelBinding(inactive);
+            int representedZero = represented(code, type);
+            if (type == DataType.FLOAT64) code.loadConstant(+0.0d).dstore(representedZero);
+            else if (type == DataType.FLOAT32) code.loadConstant(+0.0f).fstore(representedZero);
+            else code.loadConstant(0).istore(representedZero);
+            carriers.storeFrozen(type, specialization.carrierPattern().get(1), 1,
+                    outAddress, representedZero, false);
+            code.labelBinding(advance);
+        }
         code.lload(cell)
                 .loadConstant(1L)
                 .ladd()

@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.lowering;
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuTrailingNormalizationIr;
+import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.DataTypePromotion;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
@@ -22,6 +23,8 @@ import java.util.*;
  * layouts, deduplicates repeated logical inputs in first-use order, derives checked leading and
  * normalized counts, and declares Layer-only exact-mean scratch geometry. It does not recognize
  * decomposed graphs or choose run-time carriers, worker ranges, or physical resources.</p>
+ * <p>The single-B entry retains arbitrary leading axes and fixed normalized features as
+ * numeric coefficients. Binding preserves this family's original geometry and arithmetic.</p>
  */
 public final class CpuTrailingNormalizationLowering {
     private final CpuCapabilityProvider capabilities = new CpuCapabilityProvider();
@@ -135,6 +138,122 @@ public final class CpuTrailingNormalizationLowering {
                 Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(geometry));
     }
 
+    /**
+     * Retains exact trailing normalization facts over arbitrary leading single-B axes.
+     * @param context complete one-node projection with original symbolic descriptors
+     * @return unresolved per-boundary geometry and fixed normalized-feature arithmetic
+     * @throws NullPointerException if the context or a required fact is null
+     * @throws IllegalArgumentException if operand, output, attribute or promotion facts disagree
+     * @throws ArithmeticException if fixed feature or exact-state arithmetic overflows
+     */
+    public CpuPartitionLowering.LoweredPartition lowerBatch(
+            PrepareContext<? extends BackendAnalysisInputs> context) {
+        return lowerBatch(context, CpuPartitionLowering.batchLayouts(context));
+    }
+
+    /**
+     * Lowers using the complete local graph's already proved physical access mappings.
+     * No subset graph is used to reconstruct view strides, origins, or symbolic axis positions.
+     * @param context original complete one-node descriptor projection
+     * @param layouts complete local value-to-layout recipes; neither retained nor mutated
+     * @return unresolved family geometry retaining only immutable numeric access facts
+     * @throws NullPointerException if either argument or a required fact is null
+     * @throws IllegalArgumentException if a mapping, descriptor or family predicate disagrees
+     * @throws ArithmeticException if fixed coefficients exceed supported geometry limits
+     */
+    public CpuPartitionLowering.LoweredPartition lowerBatch(
+            PrepareContext<? extends BackendAnalysisInputs> context,
+            Map<ValueId, CpuAccessPlan.BatchBinding> layouts) {
+        Objects.requireNonNull(layouts, "layouts");
+        Objects.requireNonNull(context, "context");
+        CpuPartitionLowering.requireBatchContext(context);
+        if (context.nodes().size() != 1) throw new IllegalArgumentException("normalization needs one node");
+        var node = context.nodes().getFirst();
+        CpuTrailingNormalizationIr.Kind kind; CpuTrailingNormalizationIr.Form form;
+        io.github.pho001.synaptik.model.shape.Shape normalized; ScalarValue epsilon; int expected;
+        if (node.operation().kind() == LayerNormKind.LAYER_NORM
+                && node.operation().attrs() instanceof LayerNormAttrs attrs) {
+            kind = CpuTrailingNormalizationIr.Kind.LAYER; form = CpuTrailingNormalizationIr.Form.LAYER;
+            normalized = attrs.normalizedShape(); epsilon = attrs.epsilon(); expected = 1;
+        } else if (node.operation().kind() == LayerNormKind.LAYER_NORM
+                && node.operation().attrs() instanceof AffineLayerNormAttrs attrs) {
+            kind = CpuTrailingNormalizationIr.Kind.LAYER; form = CpuTrailingNormalizationIr.Form.LAYER_AFFINE;
+            normalized = attrs.normalizedShape(); epsilon = attrs.epsilon(); expected = 3;
+        } else if (node.operation().kind() == RmsNormKind.RMS_NORM
+                && node.operation().attrs() instanceof RmsNormAttrs attrs
+                && node.inputs().size() >= 1 && node.inputs().size() <= 2) {
+            kind = CpuTrailingNormalizationIr.Kind.RMS;
+            form = node.inputs().size() == 1 ? CpuTrailingNormalizationIr.Form.RMS
+                    : CpuTrailingNormalizationIr.Form.RMS_SCALED;
+            normalized = attrs.normalizedShape(); epsilon = attrs.epsilon(); expected = node.inputs().size();
+        } else throw new IllegalArgumentException("unsupported symbolic trailing normalization");
+        if (node.inputs().size() != expected || node.outputs().size() != 1
+                || node.inputs().contains(node.outputs().getFirst())
+                || !normalized.isFullyStatic() || normalized.rank() <= 0)
+            throw new IllegalArgumentException("trailing normalization cardinality or features disagree");
+        Map<ValueId, GraphValue> values = new LinkedHashMap<>();
+        context.values().forEach(value -> values.put(value.id(), value));
+        var operands = node.inputs().stream().map(id -> require(values, id)).toList();
+        var output = require(values, node.outputs().getFirst());
+        var input = operands.getFirst().descriptor(); var out = output.descriptor();
+        int leadingRank = input.shape().rank() - normalized.rank();
+        DataType result = out.dataType();
+        var ids = new ArrayList<ValueId>(); var map = new ArrayList<Integer>();
+        for (var id : node.inputs()) { int b = ids.indexOf(id);
+            if (b < 0) { b = ids.size(); ids.add(id); } map.add(b); }
+        var bindings = new ArrayList<CpuAccessPlan.BatchBinding>(); var types = new ArrayList<DataType>();
+        for (var id : ids) { var value = require(values, id);
+            bindings.add(batchBinding(value, CpuAccessPlan.AccessKind.READ, layouts)); types.add(value.descriptor().dataType()); }
+        var write = batchBinding(output, CpuAccessPlan.AccessKind.WRITE, layouts);
+        bindings.add(write); ids.add(output.id()); types.add(result);
+        long normalizedCount = elementCount(normalized.toLongArray());
+        var iterations = batchProduct(write, 0, leadingRank);
+        if (normalizedCount == 0) iterations = new BatchByteSize(0, 0, 1);
+        DataType exact = result == DataType.FLOAT16 || result == DataType.BFLOAT16 ? DataType.FLOAT32 : result;
+        long scratch = kind == CpuTrailingNormalizationIr.Kind.LAYER && normalizedCount != 0
+                && (iterations.constantBytes() != 0 || iterations.bytesPerBatch() != 0)
+                ? exactStateSliceBytes(exact, normalizedCount) : 0;
+        int limbs = scratch == 0 ? 0 : Math.toIntExact(scratch / Long.BYTES - 1);
+        var ir = new CpuTrailingNormalizationIr(kind, form,
+                operands.stream().map(v -> v.descriptor().dataType()).toList(), result,
+                epsilonBits(result, epsilon), normalized.rank(), 1,
+                kind == CpuTrailingNormalizationIr.Kind.LAYER ? 3 : 2, normalizedCount, limbs, scratch,
+                map, bindings.subList(0, bindings.size() - 1).stream().map(CpuAccessPlan.BatchBinding::plan).toList(),
+                write.plan());
+        return new CpuPartitionLowering.LoweredPartition(new Geometry.BatchGeometry(ir, ids, types,
+                bindings, iterations, new BatchByteSize(scratch, 0, 1)));
+    }
+
+
+    private static CpuAccessPlan.BatchBinding batchBinding(GraphValue value,
+            CpuAccessPlan.AccessKind kind, Map<ValueId, CpuAccessPlan.BatchBinding> layouts) {
+        var source = layouts.get(value.id());
+        if (source == null || source.plan().iterationRank() != value.descriptor().shape().rank())
+            throw new IllegalArgumentException("missing or inconsistent full-local normalization layout");
+        var exact = CpuPartitionLowering.batchAccess(kind, source.extentConstants(),
+                source.extentBatchFactors(), source.strideConstants(), source.strideBatchFactors());
+        return new CpuAccessPlan.BatchBinding(exact.plan(), exact.extentConstants(),
+                exact.extentBatchFactors(), source.baseElementOffset(), exact.strideConstants(),
+                exact.strideBatchFactors());
+    }
+
+    private static BatchByteSize batchProduct(CpuAccessPlan.BatchBinding binding, int begin, int end) {
+        long constant = 1, factor = 0;
+        for (int axis = begin; axis < end; axis++) {
+            long ec = binding.extentConstants().get(axis), ef = binding.extentBatchFactors().get(axis);
+            if (factor != 0 && ef != 0) throw new IllegalArgumentException("non-affine normalization count");
+            factor = Math.addExact(Math.multiplyExact(factor, ec), Math.multiplyExact(constant, ef));
+            constant = Math.multiplyExact(constant, ec);
+        }
+        return new BatchByteSize(constant, factor, 1);
+    }
+
+    private static Layout boundLayout(CpuAccessPlan.Binding binding) {
+        return new Layout(binding.extents().stream().mapToLong(Long::longValue).toArray(),
+                binding.baseElementOffset(), binding.effectiveStrides().stream()
+                        .mapToLong(Long::longValue).toArray());
+    }
+
     private static long epsilonBits(DataType resultType, ScalarValue epsilon) {
         if (resultType == DataType.FLOAT16 && epsilon.dataType() == DataType.FLOAT32)
             return Float.floatToFloat16(epsilon.float32Value()) & 0xffffL;
@@ -210,6 +329,13 @@ public final class CpuTrailingNormalizationLowering {
     }
     private static void validateInjective(Layout layout) {
         long count = elementCount(layout.extents); if (count == 0) return;
+        // Canonical numeric recipes prove injectivity without enumerating invocation elements.
+        long expected = 1; boolean canonical = true;
+        for (int axis = layout.extents.length - 1; axis >= 0; axis--) {
+            if (layout.strides[axis] != expected) { canonical = false; break; }
+            expected = Math.multiplyExact(expected, layout.extents[axis]);
+        }
+        if (canonical) return;
         if (count <= 1_000_000) {
             var addresses = new HashSet<Long>(); long[] c = new long[layout.extents.length];
             for (long logical = 0; logical < count; logical++) {
@@ -288,6 +414,127 @@ public final class CpuTrailingNormalizationLowering {
             long epsilonBits, int normalizedRank, long normalizedCount, long leadingCount,
             List<Integer> positionToBoundary, List<Layout> inputs, Layout output,
             long scratchSliceBytes) {
+
+        /**
+         * Numeric single-B geometry, retaining no graph, descriptor, or invocation storage.
+         * Coefficients are resolved only at the cold invocation boundary; the compiled IR is
+         * identical for every admitted B and each output retains its canonical semantic slot.
+         * @param ir structurally qualified family IR, independent of actual B
+         * @param boundaries unique reads followed by every ordered semantic output
+         * @param boundaryTypes exact represented types in boundary order
+         * @param bindings immutable per-boundary affine element geometry
+         * @param iterationCount affine complete-range count, in items rather than bytes
+         * @param scratchBytes fixed exact-state capacity for one simultaneous range, in bytes
+         */
+        public record BatchGeometry(CpuTrailingNormalizationIr ir, List<ValueId> boundaries,
+                List<DataType> boundaryTypes, List<CpuAccessPlan.BatchBinding> bindings,
+                BatchByteSize iterationCount, BatchByteSize scratchBytes)
+                implements CpuPartitionLowering.BatchUnitGeometry {
+            /** Snapshots the immutable numeric recipe and its structural boundary inventory. */
+            public BatchGeometry {
+                Objects.requireNonNull(ir, "ir");
+                boundaries = List.copyOf(boundaries); boundaryTypes = List.copyOf(boundaryTypes);
+                bindings = List.copyOf(bindings);
+                Objects.requireNonNull(iterationCount, "iterationCount");
+                Objects.requireNonNull(scratchBytes, "scratchBytes");
+                if (boundaries.size() != bindings.size() || boundaries.size() != boundaryTypes.size())
+                    throw new IllegalArgumentException("normalization boundary recipe disagrees");
+            }
+            /**
+             * Declares that these normalization packs have no mutable ordinary cursor cells.
+             * @return an immutable empty reset inventory
+             */
+            @Override public List<io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset>
+                    resets() { return List.of(); }
+            /**
+             * Returns deterministic coefficients and family identity, never resolved B.
+             * @return immutable specialization recipe identity
+             */
+            @Override public String identity() {
+                return ir.structuralKey() + ":normalization-batch-v1:" + bindings
+                        + ":items=" + iterationCount + ":scratch=" + scratchBytes;
+            }
+            /**
+             * Resolves checked numeric geometry without invoking semantic lowering.
+             * @param batch non-negative invocation B, checked against access count/address limits
+             * @return ordinary concrete family geometry with the identical compiled IR
+             * @throws IllegalArgumentException if a positive-axis or training-domain rule fails
+             * @throws ArithmeticException if resolved geometry exceeds supported limits
+             */
+            @Override public CpuPartitionLowering.LoweredPartition bind(long batch) {
+                var resolved = bindings.stream().map(binding -> binding.bind(batch)).toList();
+                var layouts = resolved.stream().map(CpuTrailingNormalizationLowering::boundLayout).toList();
+                int unique = layouts.size() - 1;
+                var output = layouts.getLast();
+                long leading = prefixCount(output.extents, output.extents.length - ir.normalizedRank());
+                long items = iterationCount.byteSize(batch);
+                var geometry = new Geometry(ir.kind(), ir.form(), ir.inputTypes(), ir.resultType(),
+                        ir.epsilonBits(), ir.normalizedRank(), ir.normalizedCount(), leading,
+                        ir.positionToBoundary(), layouts.subList(0, unique), output,
+                        scratchBytes.byteSize(batch));
+                return new CpuPartitionLowering.LoweredPartition(ir, boundaries, resolved,
+                        resolved.stream().map(CpuAccessPlan.Binding::referencedElementSpan).toList(),
+                        boundaryTypes, List.of(), new long[] {items}, items,
+                        "legal: symbolic trailing normalization", new long[0], Optional.empty(),
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(geometry));
+            }
+        }
+
+        /**
+         * One fixed generated assignment of a boundary's element base plus a layout delta.
+         * @param cell non-negative destination cell in this family's packed geometry
+         * @param boundary boundary position in the pack's carrier-base order
+         * @param elementDelta immutable element offset added with checked arithmetic
+         */
+        public record BaseCell(int cell, int boundary, long elementDelta) { }
+
+        /**
+         * One original cursor seed restored before every temporal helper call, including retry.
+         * @param cell non-negative destination cell in this family's packed geometry
+         * @param value original range-start cursor value
+         */
+        public record ResetCell(int cell, long value) { }
+
+        /**
+         * Cold, immutable facts for emitting fixed numeric assignments, never a runtime program.
+         * Scratch range offsets and invariant geometry remain bound once per invocation.
+         * @param bases non-null boundary-base assignments, defensively snapshotted
+         * @param resets non-null mutable-cursor assignments, defensively snapshotted
+         */
+        public record TemporalRebind(List<BaseCell> bases, List<ResetCell> resets) {
+            /**
+             * Snapshots the generation-time assignments; retains no invocation storage.
+             * @param bases non-null base facts without null entries
+             * @param resets non-null reset facts without null entries
+             * @throws NullPointerException if either list or an entry is null
+             */
+            public TemporalRebind {
+                bases = List.copyOf(bases);
+                resets = List.copyOf(resets);
+            }
+        }
+
+        /**
+         * Describes temporal base rebinding and restoration of this family's original cursors.
+         * Construct these facts only during generation or cold numeric binding; generated code
+         * emits the assignments directly, without calling pack, allocating, or iterating facts.
+         * Each boundary base is normalized using that boundary's own element width beforehand.
+         * @param start non-negative inclusive ordinary helper range start
+         * @return immutable owner-defined base locations and original cursor seeds
+         * @throws IllegalArgumentException if start is negative
+         * @throws ArithmeticException if checked layout or cursor arithmetic overflows
+         */
+        public TemporalRebind temporalRebind(long start) {
+            if (start < 0) throw new IllegalArgumentException("negative temporal range start");
+            var bases = new ArrayList<BaseCell>(inputs.size() + 1);
+            for (int i = 0; i < inputs.size(); i++)
+                bases.add(new BaseCell(11 + i, i, inputs.get(i).offset));
+            bases.add(new BaseCell(11 + inputs.size(), inputs.size(), output.offset));
+            return new TemporalRebind(bases, List.of());
+        }
+
         /**
          * Validates and snapshots one geometry.
          *

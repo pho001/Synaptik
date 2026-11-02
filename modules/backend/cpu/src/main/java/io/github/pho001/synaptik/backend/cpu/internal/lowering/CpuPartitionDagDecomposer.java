@@ -55,7 +55,19 @@ import java.util.Set;
  * candidate dependencies and their unit-index accounting remain CPU-owned. Established affine
  * and numerical-family lowerings remain indivisible seeds, including proved private rank-two
  * transpose inputs of MATMUL; only the ordinary pointwise IR is
- * contracted, and a rejected contraction leaves the split topology unchanged.
+ * contracted, and a rejected contraction leaves the split topology unchanged. Before ordinary
+ * seed decomposition, separately bounded row-map/multiple-terminal candidates use complete
+ * partition uses and view origins to prove a convex full-body unit. Their own 64 attempts per
+ * anchor do not truncate the partition or change unrelated pointwise-search budgets.
+ * Proved static typed-one count chains are selected first by exact producers, even across
+ * unrelated interleaved nodes. Full consumer occurrences and protected logical-memory facts
+ * prevent absorbing any observable intermediate; original node ordinals and dependencies survive.
+ * Ordinary exact SUM/MEAN candidates then follow private single-use chains in their separate
+ * contribution/result domains. Before those generic chains, the two fixed four-node softmax
+ * derivatives follow exact producer edges and prove private uses, convexity and disjointness.
+ * Unrelated interleaving changes no membership or original dependency ordinals. Generic chains stay
+ * within eight nodes including the reduction. Convexity and full
+ * outside uses are proved before seed selection; failed boundaries retain split storage.
  */
 public final class CpuPartitionDagDecomposer {
     /** Maximum compiled nodes admitted by one contracted pointwise or affine unit. */
@@ -361,7 +373,8 @@ public final class CpuPartitionDagDecomposer {
      * @param lowering current non-null family lowering owner
      * @return non-empty immutable units in stable topological order, with no fixed eight-node
      *     complete-partition ceiling; each contracted pointwise or affine unit contains at most
-     *     eight compiled nodes
+     *     eight compiled nodes. Private compact-fold chains follow producer edges with full-graph
+     *     barriers projected before removing raw mapping storage; their stored source is not absorbed
      * @throws NullPointerException if either argument is {@code null}
      * @throws IllegalArgumentException if ownership, topology, projection, seed support, or a
      *     selected unit contract is invalid
@@ -484,17 +497,139 @@ public final class CpuPartitionDagDecomposer {
         }
     }
 
+    /**
+     * Selects cold region or established-family seeds without declaring shared resources.
+     * Complete partition uses/origins supplement each compact region candidate before acceptance.
+     * @param context immutable complete partition projection
+     * @param lowering permanent existing lowering owner
+     * @param ordinals exact compiled-node identity to stable source position
+     * @return disjoint seeds covering every source node, with unchanged fallback on rejection
+     * @throws IllegalArgumentException if an independently unsupported node has no legal seed
+     */
     private static List<MutableUnit> seeds(PrepareContext<CpuPartitionAnalysisInputs> context,
             CpuPartitionLowering lowering, Map<CompiledNode, Integer> ordinals) {
         var result = new ArrayList<MutableUnit>();
         List<CompiledNode> partitionNodes = context.partitionDag().nodes();
+        // Follow producers, not adjacency: unrelated topologically interleaved nodes are not
+        // members of the count unit. Projection protects every outside/public/saved use.
+        var counts = new IdentityHashMap<CompiledNode, MutableUnit>();
+        var countLowering = new CpuAggregateLowering();
+        var folds = new IdentityHashMap<CompiledNode, MutableUnit>();
+        var foldLowering = new CpuFoldLowering();
+        for (var fold : partitionNodes) {
+            if (fold.operation().kind() != io.github.pho001.synaptik.model.operation.layout.WindowTransformKind.FOLD2D) continue;
+            var members = new ArrayList<CompiledNode>(); members.add(fold);
+            var cursor = fold;
+            while (members.size() < MAX_NODES && cursor.inputs().size() == 1) {
+                var producer = context.partitionDag().producer(cursor.inputs().getFirst());
+                if (producer.isEmpty()) break;
+                var node = producer.orElseThrow().node(); var kind = node.operation().kind();
+                if (kind != io.github.pho001.synaptik.model.operation.layout.AxisTransformKind.EXPAND_DIMS
+                        && kind != io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind.EXPAND
+                        && kind != io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind.RESHAPE
+                        && kind != io.github.pho001.synaptik.model.operation.layout.ContiguousKind.CONTIGUOUS) break;
+                members.addFirst(node); cursor = node;
+                var compact = foldLowering.kernelBroadcast(project(context, members, context.backendInputs()));
+                if (compact.isPresent()) {
+                    folds.put(node, new MutableUnit(members, compact.orElseThrow()));
+                    break;
+                }
+            }
+        }
+        for (var sum : partitionNodes) {
+            if (sum.operation().kind() != io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.SUM) continue;
+            var members = new ArrayList<CompiledNode>(); members.add(sum);
+            var cursor = sum;
+            while (members.size() < 3 && cursor.inputs().size() == 1) {
+                var producer = context.partitionDag().producer(cursor.inputs().getFirst());
+                if (producer.isEmpty()) break;
+                var node = producer.orElseThrow().node();
+                if (node.operation().kind() != io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind.EXPAND
+                        && node.operation().kind() != io.github.pho001.synaptik.model.operation.layout.ContiguousKind.CONTIGUOUS) break;
+                members.addFirst(node); cursor = node;
+            }
+            var lowered = countLowering.foldStaticTypedOne(project(context, members, context.backendInputs()));
+            if (lowered.isPresent()) counts.put(members.getFirst(), new MutableUnit(members, lowered.orElseThrow()));
+        }
+        var claimed = java.util.Collections.newSetFromMap(new IdentityHashMap<CompiledNode, Boolean>());
+        var reserved = java.util.Collections.newSetFromMap(new IdentityHashMap<CompiledNode, Boolean>());
+        counts.values().forEach(u -> reserved.addAll(u.nodes));
+        folds.values().forEach(u -> reserved.addAll(u.nodes));
+        var backwards = new IdentityHashMap<CompiledNode,MutableUnit>();
+        for (var root : partitionNodes) {
+            var candidate = softmaxBackwardMembers(context,root,reserved);
+            if (candidate.isEmpty()) continue;
+            var fused = countLowering.fuseSoftmaxBackward(project(context,candidate,context.backendInputs()),lowering);
+            if (fused.isPresent()) {
+                backwards.put(candidate.getFirst(),new MutableUnit(candidate,fused.orElseThrow()));
+                reserved.addAll(candidate);
+            }
+        }
+        var aggregates = new IdentityHashMap<CompiledNode,MutableUnit>();
+        for (var anchor : partitionNodes) {
+            var kind = anchor.operation().kind();
+            if (reserved.contains(anchor) || kind != io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.SUM
+                    && kind != io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.MEAN) continue;
+            var members = aggregateMembers(context,anchor,reserved);
+            if (members.size() < 2) continue;
+            int center = members.indexOf(anchor);
+            boolean admitted = false;
+            for (int end = members.size(); !admitted && end > center; end--)
+                for (int begin = 0; !admitted && begin <= center; begin++) {
+                    var candidate = members.subList(begin,end);
+                    var fused = countLowering.fuse(project(context,candidate,context.backendInputs()),lowering);
+                    if (fused.isPresent()) {
+                        aggregates.put(candidate.getFirst(),new MutableUnit(candidate,fused.orElseThrow()));
+                        reserved.addAll(candidate); admitted = true;
+                    }
+                }
+        }
         int index = 0;
         while (index < partitionNodes.size()) {
-            MutableUnit selected = null;
+            if (claimed.contains(partitionNodes.get(index))) { index++; continue; }
+            MutableUnit selected = counts.get(partitionNodes.get(index));
+            if (selected == null) selected = folds.get(partitionNodes.get(index));
+            if (selected == null) selected = backwards.get(partitionNodes.get(index));
+            if (selected == null) selected = aggregates.get(partitionNodes.get(index));
             IllegalArgumentException lastFailure = null;
+            // Row candidates have their own bounded attempts and do not inherit the old
+            // eight-node pointwise cap. Full-DAG proof precedes every selected resource plan.
+            for (int end = Math.min(partitionNodes.size(),index+64); selected == null && end > index+1; end--) {
+                var nodes = partitionNodes.subList(index,end);
+                if (nodes.stream().anyMatch(n -> claimed.contains(n) || reserved.contains(n))) continue;
+                if (nodes.stream().noneMatch(n -> n.operation().kind()
+                        == io.github.pho001.synaptik.model.operation.linalg.MatmulKind.MATMUL)) continue;
+                try {
+                    var lowered = lowering.lower(project(context,nodes,context.backendInputs()));
+                    if (!(lowered.portableKernelIr() instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr region)) continue;
+                    var ids = new HashMap<ValueId,Integer>();
+                    int inputs = (int)region.arithmetic().values().stream().filter(v -> v.kind() == CpuKernelIr.Value.Kind.INPUT).count();
+                    int read = 0, write = inputs, virtual = 0;
+                    for (var value : region.arithmetic().values()) {
+                        ValueId id = switch (value.kind()) {
+                            case INPUT -> lowered.boundaryValues().get(read++);
+                            case OUTPUT -> lowered.boundaryValues().get(write++);
+                            case VIRTUAL -> lowered.virtualValues().get(virtual++);
+                        };
+                        ids.put(id,value.ordinal());
+                    }
+                    for (var value : context.values()) if (!ids.containsKey(value.id())) ids.put(value.id(),ids.size());
+                    var uses = new ArrayList<List<Integer>>();
+                    for (int v = 0; v < ids.size(); v++) uses.add(new ArrayList<>());
+                    for (var node : partitionNodes) for (var input : node.inputs()) for (var out : node.outputs())
+                        uses.get(ids.get(input)).add(ids.get(out));
+                    for (int v = 0; v < region.viewOrigins().size(); v++) if (region.viewOrigins().get(v) != v
+                            && !uses.get(region.viewOrigins().get(v)).contains(v)) uses.get(region.viewOrigins().get(v)).add(v);
+                    if (CpuRowMapReductionLowering.prove(region,uses,
+                            java.util.stream.IntStream.range(0,ids.size()).mapToObj(v -> List.<Integer>of()).toList()).isPresent()) {
+                        selected = new MutableUnit(nodes,lowered); break;
+                    }
+                } catch (IllegalArgumentException rejected) { /* Unchanged seeds remain below. */ }
+            }
             for (int end = Math.min(partitionNodes.size(), index + MAX_NODES);
-                    end > index; end--) {
+                    selected == null && end > index; end--) {
                 List<CompiledNode> nodes = partitionNodes.subList(index, end);
+                if (nodes.stream().anyMatch(n -> claimed.contains(n) || reserved.contains(n))) continue;
                 if (nodes.size() > 1 && !establishedMultiNodeCandidate(nodes)) continue;
                 try {
                     var lowered = lowering.lower(project(context, nodes,
@@ -510,9 +645,113 @@ public final class CpuPartitionDagDecomposer {
                     "CPU partition contains an independently unsupported node at ordinal " + index,
                     lastFailure);
             result.add(selected);
-            index += selected.nodes.size();
+            claimed.addAll(selected.nodes);
+            index++;
         }
         return result;
+    }
+
+    /**
+     * Follows complete single-use edges around one exact reduction, without absorbing movement
+     * or crossing a protected store. Counts already selected by CPU0048 have precedence.
+     * @param context complete partition projection
+     * @param anchor one ordinary SUM/MEAN node
+     * @param reserved nodes owned by earlier disjoint seeds
+     * @return stable candidate members, at most eight; the caller still proves lowering
+     */
+    private static List<CompiledNode> aggregateMembers(PrepareContext<CpuPartitionAnalysisInputs> context,
+            CompiledNode anchor, Set<CompiledNode> reserved) {
+        var members = new ArrayList<CompiledNode>(); members.add(anchor);
+        var cursor = anchor;
+        while (members.size() < MAX_NODES && aggregatePrivate(context,cursor)) {
+            var next = context.partitionDag().consumers(cursor.outputs().getFirst()).getFirst().node();
+            Object kind = next.operation().kind();
+            if (reserved.contains(next) || !(kind == io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind.ADD
+                    && members.size() == 1 || kind == io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind.RELU)) break;
+            members.add(next); cursor = next;
+            if (kind == io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind.RELU) break;
+        }
+        cursor = anchor;
+        while (members.size() < MAX_NODES) {
+            CompiledNode previous = null;
+            for (var id : cursor.inputs()) {
+                var occurrence = context.partitionDag().producer(id);
+                if (occurrence.isEmpty()) continue;
+                var node = occurrence.orElseThrow().node();
+                try { CpuPartitionLowering.opcode(node.operation().kind()); }
+                catch (IllegalArgumentException notPointwise) { continue; }
+                if (reserved.contains(node) || !aggregatePrivate(context,node)) continue;
+                if (previous != null) { previous = null; break; }
+                previous = node;
+            }
+            if (previous == null) break;
+            members.addFirst(previous); cursor = previous;
+        }
+        // Contracting a non-convex set would make an external read depend on its own unit.
+        var set = java.util.Collections.newSetFromMap(new IdentityHashMap<CompiledNode,Boolean>());
+        set.addAll(members);
+        var pending = new ArrayList<CompiledNode>();
+        for (var node : members) for (var id : node.inputs()) context.partitionDag().producer(id)
+                .filter(p -> !set.contains(p.node())).ifPresent(p -> pending.add(p.node()));
+        var visited = java.util.Collections.newSetFromMap(new IdentityHashMap<CompiledNode,Boolean>());
+        for (int i = 0; i < pending.size(); i++) {
+            var node = pending.get(i);
+            if (set.contains(node)) return List.of(anchor);
+            if (visited.add(node)) for (var id : node.inputs()) context.partitionDag().producer(id)
+                    .ifPresent(p -> pending.add(p.node()));
+        }
+        return members;
+    }
+
+    /**
+     * Checks exact complete-partition use occurrences and protected logical-memory obligations.
+     * @param context complete partition facts
+     * @param producer producing node whose sole output might be removed
+     * @return true only for one private output with one in-partition consumer occurrence
+     */
+    private static boolean aggregatePrivate(PrepareContext<CpuPartitionAnalysisInputs> context, CompiledNode producer) {
+        if (producer.outputs().size() != 1) return false;
+        var id = producer.outputs().getFirst();
+        return context.partitionDag().consumers(id).size() == 1 && context.memoryRequirements().stream()
+                .filter(r -> r.valueId().equals(id)).anyMatch(r -> !r.graphOutput()
+                    && r.consumerPartitions().stream().allMatch(p -> p.equals(context.partition())));
+    }
+
+    /**
+     * Follows only the two fixed four-node producer patterns before generic aggregate seeds.
+     * External uses remain protected by projection. A full ancestor walk proves convexity,
+     * admitting unrelated interleaving without introducing a dependency cycle.
+     * @param context complete partition DAG and memory obligations
+     * @param root possible final MUL or SUB occurrence
+     * @param reserved members already owned by earlier seeds
+     * @return original-order four-member candidate, or empty when not proved convex/disjoint
+     */
+    private static List<CompiledNode> softmaxBackwardMembers(PrepareContext<CpuPartitionAnalysisInputs> context,
+            CompiledNode root, Set<CompiledNode> reserved) {
+        var mul = io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind.MUL;
+        var sub = io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind.SUB;
+        boolean log = root.operation().kind() == sub;
+        if ((!log && root.operation().kind() != mul) || root.inputs().size() != 2) return List.of();
+        var second = context.partitionDag().producer(root.inputs().get(1)).map(p -> p.node()).orElse(null);
+        if (second == null || second.inputs().size() != 2) return List.of();
+        var sum = context.partitionDag().producer(second.inputs().get(1)).map(p -> p.node()).orElse(null);
+        if (sum == null || sum.inputs().size() != 1) return List.of();
+        var first = context.partitionDag().producer(log ? second.inputs().getFirst() : sum.inputs().getFirst())
+                .map(p -> p.node()).orElse(null);
+        if (first == null) return List.of();
+        var set = java.util.Collections.newSetFromMap(new IdentityHashMap<CompiledNode,Boolean>());
+        set.addAll(List.of(first,sum,second,root));
+        if (set.size() != 4 || set.stream().anyMatch(reserved::contains)) return List.of();
+        var pending = new ArrayList<CompiledNode>();
+        for (var n : set) for (var id : n.inputs()) context.partitionDag().producer(id)
+                .filter(p -> !set.contains(p.node())).ifPresent(p -> pending.add(p.node()));
+        var visited = java.util.Collections.newSetFromMap(new IdentityHashMap<CompiledNode,Boolean>());
+        for (int i = 0; i < pending.size(); i++) {
+            var n = pending.get(i);
+            if (set.contains(n)) return List.of();
+            if (visited.add(n)) for (var id : n.inputs()) context.partitionDag().producer(id).ifPresent(p -> pending.add(p.node()));
+        }
+        return context.nodes().stream().filter(set::contains).toList();
     }
 
     private static boolean establishedMultiNodeCandidate(List<CompiledNode> nodes) {
@@ -700,12 +939,14 @@ public final class CpuPartitionDagDecomposer {
         var ordinaryByFirst = new HashMap<Integer, MutableUnit>();
         ordinary.forEach(unit -> ordinaryByFirst.put(ordinals.get(unit.nodes.getFirst()), unit));
         var result = new ArrayList<MutableUnit>();
+        var claimed = new HashSet<Integer>();
         int ordinal = 0;
         while (ordinal < context.partitionDag().nodes().size()) {
+            if (claimed.contains(ordinal)) { ordinal++; continue; }
             Unit locked = lockedByFirst.get(ordinal);
             if (locked != null) {
                 result.add(new MutableUnit(locked.nodes(), locked.lowering()));
-                ordinal = Math.addExact(ordinal, locked.nodes().size());
+                claimed.addAll(locked.memberNodeOrdinals()); ordinal++;
                 continue;
             }
             MutableUnit seed = ordinaryByFirst.get(ordinal);
@@ -718,7 +959,7 @@ public final class CpuPartitionDagDecomposer {
             if (overlapsLocked) throw new IllegalArgumentException(
                     "recognition baseline association disagrees with canonical seeds");
             result.add(seed);
-            ordinal = Math.addExact(ordinal, seed.nodes.size());
+            seed.nodes.stream().map(ordinals::get).forEach(claimed::add); ordinal++;
         }
         return result;
     }
@@ -915,9 +1156,21 @@ public final class CpuPartitionDagDecomposer {
                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
     }
 
-    private static PrepareContext<CpuPartitionAnalysisInputs> project(
-            PrepareContext<CpuPartitionAnalysisInputs> source, List<CompiledNode> nodes,
-            CpuPartitionAnalysisInputs inputs) {
+    /**
+     * Projects an exact subset while protecting outside uses and retaining only original input
+     * constants. Also serves the count proof's ordinary SUM geometry check, without changing
+     * shared Prepare source roles.
+     * @param <I> immutable backend-input role retained opaquely
+     * @param source complete immutable source projection
+     * @param nodes identity-preserving ordered subset
+     * @param inputs non-null selected immutable backend inputs
+     * @return immutable subset projection with outside/publication barriers
+     * @throws NullPointerException if a required reference or subset node is {@code null}
+     * @throws IllegalArgumentException if shared projection validation rejects the subset
+     * @throws ArithmeticException if existing shared projection geometry checks overflow
+     */
+    static <I extends io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs> PrepareContext<I> project(
+            PrepareContext<I> source, List<CompiledNode> nodes, I inputs) {
         Set<CompiledNode> nodeSet = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
         nodeSet.addAll(nodes);
         var partition = new PlannedPartition(source.partition().owner(),
@@ -949,7 +1202,13 @@ public final class CpuPartitionDagDecomposer {
         source.constants().forEach((id, value) -> {
             if (consumed.contains(id) && !produced.contains(id)) constants.put(id, value);
         });
-        return new PrepareContext<>(partition, nodes, source.values(), requirements, constants, inputs);
+        var activity = new LinkedHashMap<io.github.pho001.synaptik.model.graph.NodeId,
+                io.github.pho001.synaptik.planning.capability.ScanActivityPlan>();
+        for (CompiledNode node : nodes) {
+            var plan = source.scanActivityPlans().get(node.id());
+            if (plan != null) activity.put(node.id(), plan);
+        }
+        return new PrepareContext<>(partition, nodes, source.values(), requirements, constants, inputs, activity);
     }
 
     private static final class MutableUnit {

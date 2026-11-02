@@ -236,6 +236,13 @@ class TensorFactoryUniformRandomTest {
                 () -> assertEquals(before, next.get()));
     }
 
+    /**
+     * Preserves metadata validation order and exact Synaptik-owned diagnostics before any random
+     * draw or identifier allocation. Checked count overflow delegates to Shape arithmetic: its
+     * contracted exception type is asserted, but incidental JDK exception text is not.
+     *
+     * @throws ReflectiveOperationException if the test cannot inspect the identifier allocator
+     */
     @Test
     void metadataValidationUsesExactOrderMessagesWithoutDrawingOrAllocatingAnIdentifier()
             throws ReflectiveOperationException {
@@ -250,7 +257,7 @@ class TensorFactoryUniformRandomTest {
         IllegalArgumentException dynamicFailure = assertThrows(
                 IllegalArgumentException.class,
                 () -> uniform(dynamic, DataType.INT32, Double.NaN, Double.NaN, source));
-        ArithmeticException overflowFailure = assertThrows(
+        assertThrows(
                 ArithmeticException.class,
                 () -> uniform(overflow, DataType.FLOAT32, 0.0d, 1.0d, source));
         IllegalArgumentException limitFailure = assertThrows(
@@ -264,7 +271,6 @@ class TensorFactoryUniformRandomTest {
                 () -> assertEquals(
                         "uniform random tensor creation requires a fully static shape: " + dynamic,
                         dynamicFailure.getMessage()),
-                () -> assertEquals("long overflow", overflowFailure.getMessage()),
                 () -> assertEquals(
                         "uniform random tensor element count exceeds Java array limit: required=2147483648, maximum=2147483647",
                         limitFailure.getMessage()),

@@ -31,7 +31,7 @@ class RunStateTest {
         var type = RunState.class;
         var constructors = type.getDeclaredConstructors();
         var fields = type.getDeclaredFields();
-        var constructor = constructors[0];
+        var constructor = type.getDeclaredConstructor(PreparedMemoryPlan.class,List.class,List.class);
 
         assertAll(
                 () -> assertTrue(Modifier.isPublic(type.getModifiers())),
@@ -39,13 +39,15 @@ class RunStateTest {
                 () -> assertFalse(type.isRecord()),
                 () -> assertArrayEquals(
                         new Class<?>[] {AutoCloseable.class}, type.getInterfaces()),
-                () -> assertEquals(1, constructors.length),
+                () -> assertEquals(2, constructors.length),
+                () -> assertTrue(Modifier.isPublic(type.getDeclaredConstructor(PreparedMemoryPlan.class,List.class,List.class,RunMemoryGeometry.class).getModifiers())),
                 () -> assertTrue(Modifier.isPublic(constructor.getModifiers())),
                 () -> assertArrayEquals(
                         new Class<?>[] {PreparedMemoryPlan.class, List.class, List.class},
                         constructor.getParameterTypes()),
                 () -> assertConstructorGenericSurface(constructor.getGenericParameterTypes()),
-                () -> assertEquals(5, fields.length),
+                () -> assertEquals(6, fields.length),
+                () -> assertField(type, "geometry", RunMemoryGeometry.class, true),
                 () -> assertField(type, "memoryPlan", PreparedMemoryPlan.class, true),
                 () -> assertField(
                         type,
@@ -63,6 +65,7 @@ class RunStateTest {
                 () -> assertEquals(
                         Set.of(
                                 "memoryPlan",
+                                "geometry",
                                 "bufferSlotCount",
                                 "bufferRepresentationCount",
                                 "bufferRepresentation",

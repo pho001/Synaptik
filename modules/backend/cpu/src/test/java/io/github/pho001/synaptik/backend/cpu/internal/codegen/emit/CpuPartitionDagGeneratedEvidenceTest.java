@@ -72,7 +72,7 @@ class CpuPartitionDagGeneratedEvidenceTest {
         String constants = new String(first, StandardCharsets.ISO_8859_1);
         assertAll(
                 () -> assertFalse(plan.fusionDecisions().isEmpty()),
-                () -> assertEquals(70, CpuGeneratorSchema.CURRENT_VERSION),
+                () -> assertEquals(71, CpuGeneratorSchema.CURRENT_VERSION),
                 () -> assertArrayEquals(first, second),
                 () -> assertFalse(constants.contains("CpuFusionDecision")),
                 () -> assertFalse(constants.contains("CpuFusionProfitabilitySelector")),
@@ -201,7 +201,7 @@ class CpuPartitionDagGeneratedEvidenceTest {
                 () -> assertTrue(model.fields().isEmpty()),
                 () -> assertEquals(1, model.methods().size()),
                 () -> assertEquals(2, ir.stores().size()));
-        MethodHandle entry = generator.defineClassBytes(specialization, bytes).entryPoint();
+        MethodHandle entry = generator.defineClassBytes(specialization, ir, bytes).entryPoint();
         double[] left = {1, -2, Double.NaN, -0.0};
         double[] right = {-3, 4, Double.POSITIVE_INFINITY, 0.0};
         double[] first = new double[4], second = new double[4];
@@ -304,8 +304,7 @@ class CpuPartitionDagGeneratedEvidenceTest {
         CpuKernelIr ir = ir();
         CpuKernelSpecialization specialization = specialization(ir);
         var generator = new CpuClassFileKernelGenerator();
-        MethodHandle generated = generator.defineClassBytes(specialization,
-                generator.generateClassBytes(specialization, ir)).entryPoint();
+        MethodHandle generated = generator.defineClassBytes(specialization, ir, generator.generateClassBytes(specialization, ir)).entryPoint();
         long[] geometry = geometry(size);
         for (int warm = 0; warm < 2_000; warm++) {
             generated.invokeExact(left, right, generatedFirst, generatedSecond, geometry, 0L,
@@ -406,8 +405,7 @@ class CpuPartitionDagGeneratedEvidenceTest {
     private static MethodHandle generatedHandle(CpuClassFileKernelGenerator generator,
             CpuKernelIr ir) {
         CpuKernelSpecialization specialization = intSpecialization(ir);
-        return generator.defineClassBytes(specialization,
-                generator.generateClassBytes(specialization, ir)).entryPoint();
+        return generator.defineClassBytes(specialization, ir, generator.generateClassBytes(specialization, ir)).entryPoint();
     }
 
     private static long fusedTime(MethodHandle fused, int[] input, int[] output,

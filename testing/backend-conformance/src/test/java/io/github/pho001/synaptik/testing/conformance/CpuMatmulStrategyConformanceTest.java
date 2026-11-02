@@ -34,12 +34,69 @@ import org.junit.jupiter.api.Test;
 
 /** Portable MATMUL realization and prepared compute strategy must describe one work domain. */
 final class CpuMatmulStrategyConformanceTest {
+    @Test void ordinaryTanhUsesTheSameVectorAndParallelWorkDomainsWithOrderedBias() {
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            for (boolean tiled : List.of(false, true)) for (int biasOrder : new int[] {-1, 0, 1}) {
+                for (int threads : new int[] {1, 4}) {
+                    int m = tiled ? 33 : 2, k = tiled ? 127 : 63, n = tiled ? 257 : 129;
+                    var base = context(type, m, k, n, ComputePreference.VECTOR_IF_ELIGIBLE, false);
+                    var nodes = new ArrayList<>(base.nodes());
+                    var values = new ArrayList<>(base.values());
+                    ValueId current = new ValueId(2);
+                    if (biasOrder >= 0) {
+                        var bias = new TensorDescriptor(type, Shape.of(n),
+                                Optional.of(LayoutDescriptor.contiguous(Shape.of(n))), false);
+                        values.add(new GraphValue(new ValueId(3), bias));
+                        values.add(new GraphValue(new ValueId(4), values.get(2).descriptor()));
+                        nodes.add(new CompiledNode(new NodeId(1), new Operation(
+                                io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind.ADD,
+                                NoOperationAttrs.INSTANCE), biasOrder == 0
+                                    ? List.of(current, new ValueId(3)) : List.of(new ValueId(3), current),
+                                List.of(new ValueId(4))));
+                        current = new ValueId(4);
+                    }
+                    ValueId output = new ValueId(values.size());
+                    values.add(new GraphValue(output, values.get(2).descriptor()));
+                    nodes.add(new CompiledNode(new NodeId(nodes.size()), new Operation(
+                            io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind.TANH,
+                            NoOperationAttrs.INSTANCE), List.of(current), List.of(output)));
+                    var partition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID,
+                            nodes.stream().map(CompiledNode::id).toList());
+                    var memory = values.stream().map(value -> new LogicalMemoryRequirement(value.id(),
+                            value.descriptor(), nodes.stream().anyMatch(node -> node.outputs().contains(value.id()))
+                                ? Optional.of(partition) : Optional.empty(),
+                            value.id().equals(output) ? List.of() : List.of(partition),
+                            value.id().equals(output))).toList();
+                    var inputs = new CpuPartitionAnalysisInputs(false, List.of(),
+                            new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, threads, threads, 1));
+                    var plan = new CpuPartitionPreparer().analyze(new PrepareContext<>(partition,
+                            nodes, values, memory, Map.of(), inputs)).plan();
+                    assertEquals(1, plan.units().size());
+                    var unit = plan.units().getFirst();
+                    var ir = unit.portablePlan().specialization().matmulIr().orElseThrow();
+                    assertEquals(tiled ? Realization.TILED_N_VECTOR_2X2 : Realization.DIRECT_N_VECTOR,
+                            ir.realization());
+                    assertEquals(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr
+                            .Epilogue.Terminal.TANH, ir.epilogue().terminal());
+                    assertEquals(biasOrder < 0 ? "NONE" : biasOrder == 0 ? "MATMUL_LEFT" : "MATMUL_RIGHT",
+                            ir.epilogue().addInputOrder().name());
+                    assertEquals(threads == 1 ? ExecutionStrategy.VECTOR : ExecutionStrategy.PARALLEL_VECTOR,
+                            unit.executionStrategy());
+                    int lanes = bits(type) / type.bitWidth();
+                    assertEquals(tiled ? ((m + 1L) / 2) * ((n + 2L * lanes - 1) / (2L * lanes)) : m,
+                            unit.elementCount());
+                }
+            }
+        }
+    }
+
     @Test void privateTransposesPreserveScalarVectorAndParallelSelectionWithoutCopyResources() {
         for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.INT32,
                 DataType.INT64, DataType.BFLOAT16, DataType.FLOAT16)) {
             for (var preference : ComputePreference.values()) for (int threads : new int[] {1, 4}) {
                 for (boolean right : List.of(false, true)) {
                     var context = transposedContext(type, preference, threads, right);
+                    if (CpuProfileFreeConformanceTest.assertLockedNumerical(context)) continue;
                     var analysis = new CpuPartitionPreparer().analyze(context);
                     var plan = analysis.plan();
                     assertEquals(1, plan.units().size());
@@ -90,8 +147,8 @@ final class CpuMatmulStrategyConformanceTest {
             var base = context(DataType.INT32, 2, 63, 128, preference, false);
             var inputs = new CpuPartitionAnalysisInputs(false, List.of(),
                     new PortableExecutionConfig(preference, 4, 4, 1));
-            var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                    base.memoryRequirements(), base.constants(), inputs);
+            var context = new PrepareContext<>(base.partitionDag(), base.values(),
+                    base.memoryRequirements(), base.constants(), inputs, base.scanActivityPlans());
             var unit = new CpuPartitionPreparer().analyze(context).plan().units().getFirst();
             assertEquals(preference == ComputePreference.SCALAR
                     ? ExecutionStrategy.PARALLEL_SCALAR : ExecutionStrategy.PARALLEL_VECTOR,

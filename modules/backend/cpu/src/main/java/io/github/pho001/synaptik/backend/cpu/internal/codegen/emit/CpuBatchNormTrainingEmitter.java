@@ -15,6 +15,12 @@ import java.lang.constant.ClassDesc;
  * represented-value mean, corrected biased and unbiased variances, four channel-statistic
  * outputs, and the normalized affine output in three complete non-channel traversals. The body
  * reuses the invocation's exact-state slice and retains no state after invocation.</p>
+ * <p>Controlled ordinary helpers guard the proved channel ROW before the complete occurrence's
+ * exact-state reset, all three traversals, affine loads, and saved-statistic publications.
+ * Non-channel axes are explicitly omitted from the channel ordinal rather than inferred from
+ * matching extents.</p>
+ * <p>Only explicit algorithm-version-two symbolic domains read their denominator from packed
+ * geometry. Fixed-domain emission retains its original constants and generated instructions.</p>
  */
 public final class CpuBatchNormTrainingEmitter {
     private static final ClassDesc MATH = ClassDesc.of(Math.class.getName());
@@ -74,11 +80,23 @@ public final class CpuBatchNormTrainingEmitter {
         int[] vectorRep=new int[4]; for(int p=1;p<5;p++)vectorRep[p-1]=CpuLayerNormEmitter.represented(code,specialization.boundaryDataTypes().get(map[p]));
         code.loadConstant(CpuLayerNormEmitter.epsilon(identity,resultType)).dstore(epsilon);
         code.loadConstant(scalar(identity,":momentum=",resultType)).dstore(momentum);
-        code.loadConstant(1.0).dstore(one); code.loadConstant((double)Long.parseLong(CpuLayerNormEmitter.field(identity,":domain="))).dstore(n);
+        code.loadConstant(1.0).dstore(one);
+        // Only the explicit symbolic-domain branch reads the invocation denominator. The
+        // retained fixed-domain branch appends the original instruction sequence unchanged.
+        if (identity.contains(":symbolic-domain=true")) {
+            code.aload(geometry).loadConstant(7).laload().l2d().dstore(n);
+        } else {
+            code.loadConstant((double)Long.parseLong(CpuLayerNormEmitter.field(identity,":domain="))).dstore(n);
+        }
         code.dload(n).loadConstant(1.0).dsub().dstore(nm1);
         CpuExactSumEmitter exact=new CpuExactSumEmitter(code,exactType,true,true,scratch,geometry,Integer.parseInt(CpuLayerNormEmitter.field(identity,":limbs=")));
         code.lload(start).lstore(channel); var channels=code.newLabel(); var done=code.newLabel();
         code.labelBinding(channels).lload(channel).lload(end).lcmp().branch(Opcode.IFGE,done);
+        var advance = code.newLabel();
+        boolean[] omitted = new boolean[rank];
+        java.util.Arrays.fill(omitted, true); omitted[axis] = false;
+        CpuLoopEmitter.emitActiveSliceGuard(code, unique, channel, TypeKind.LONG, geometry,
+                extents[unique], omitted, advance);
         exact.emitReset();
         loop(code,geometry,rank,axis,extents[map[0]],strides[map[0]],11+map[0],channel,ordinal,remaining,coordinate,address,()->{
             CpuLayerNormEmitter.load(code,carriers,specialization,map[0],inputRep,input,address);
@@ -127,6 +145,7 @@ public final class CpuBatchNormTrainingEmitter {
             CpuLayerNormEmitter.arithmetic(code,resultType,result,scale,Opcode.DMUL,result);
             CpuLayerNormEmitter.arithmetic(code,resultType,result,bias,Opcode.DADD,result);
         },carriers,specialization,resultType,out,result);
+        code.labelBinding(advance);
         code.lload(channel).loadConstant(1L).ladd().lstore(channel).branch(Opcode.GOTO,channels).labelBinding(done);
     }
 

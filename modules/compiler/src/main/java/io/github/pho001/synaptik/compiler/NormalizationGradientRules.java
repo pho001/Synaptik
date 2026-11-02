@@ -12,10 +12,9 @@ import io.github.pho001.synaptik.model.operation.normalization.RmsNormKind;
 import io.github.pho001.synaptik.model.shape.Dimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
-import io.github.pho001.synaptik.model.tensor.Tensor;
-import io.github.pho001.synaptik.model.tensor.TensorProducer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Builds first-order Layer, RMS, and batch-normalization formulas selected by preflight.
@@ -35,9 +34,23 @@ import java.util.List;
  * batch statistics nor creates a tape, physical buffer, publication requirement, backend route,
  * or gradient-specific numerical policy. Preflight owns exact signatures, output-slot roles,
  * promotion, Shape implications, and failure ordering.</p>
+ *
+ * <p>Descriptor access preserves original source roles without resolving primal values.
+ * Real construction uses Tensor references directly; checked metadata construction retains
+ * the same eager operation sites, including temporaries not used by a returned cotangent.</p>
+ *
+ * @param <V> direct Tensor or checked metadata operand representation
  */
-final class NormalizationGradientRules {
-    private NormalizationGradientRules() {}
+final class NormalizationGradientRules<V> {
+    private final OrdinaryConstruction<V> ops;
+
+    /**
+     * Binds this formula owner to one compile-local construction route.
+     * @param ops non-null direct Tensor or checked metadata construction
+     */
+    NormalizationGradientRules(OrdinaryConstruction<V> ops) {
+        this.ops = java.util.Objects.requireNonNull(ops);
+    }
 
     /**
      * Builds selected input cotangents for one approved normalization output route.
@@ -48,39 +61,37 @@ final class NormalizationGradientRules {
      * @param gradient non-null accumulated cotangent for that output
      * @param selectedInputs non-null input-position-aligned selected-role flags from successful
      *     preflight
-     * @param constants non-null request-local exact typed logical-splat owner
+     * @param primal total lexical binding of original value operands and saved outputs
      * @return a new input-position-aligned contribution array with {@code null} for unselected
      *     roles
      * @throws IllegalStateException if called for a row not approved by preflight
      */
-    static Tensor[] apply(
-            TensorProducer producer,
-            int outputIndex,
-            Tensor gradient,
-            boolean[] selectedInputs,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        if (producer.operation().kind() == LayerNormKind.LAYER_NORM) {
-            return layerNorm(producer, gradient, selectedInputs);
-        }
-        if (producer.operation().kind() == RmsNormKind.RMS_NORM) {
-            return rmsNorm(producer, gradient, selectedInputs);
-        }
-        if (producer.operation().kind() == BatchNormKind.BATCH_NORM_INFERENCE) {
-            return batchInference(producer, gradient, selectedInputs, constants);
-        }
-        if (producer.operation().kind() == BatchNormKind.BATCH_NORM_TRAINING) {
-            return batchTraining(
-                    producer, outputIndex, gradient, selectedInputs, constants);
-        }
-        throw new IllegalStateException(
-                "normalization operation was not preflight-approved: "
-                        + producer.operation().kind());
+    V[] apply(OrdinaryConstruction.Source<V> producer, int outputIndex, V gradient, boolean[] selectedInputs, Function<V, V> primal) {
+            if (producer.operation().kind() == LayerNormKind.LAYER_NORM) {
+                return layerNorm(producer, gradient, selectedInputs, primal);
+            }
+            if (producer.operation().kind() == RmsNormKind.RMS_NORM) {
+                return rmsNorm(producer, gradient, selectedInputs, primal);
+            }
+            if (producer.operation().kind() == BatchNormKind.BATCH_NORM_INFERENCE) {
+                return batchInference(producer, gradient, selectedInputs, primal);
+            }
+            if (producer.operation().kind() == BatchNormKind.BATCH_NORM_TRAINING) {
+                return batchTraining(
+                        producer, outputIndex, gradient, selectedInputs, primal);
+            }
+            throw new IllegalStateException(
+                    "normalization operation was not preflight-approved: "
+                            + producer.operation().kind());
     }
 
-    private static Tensor[] layerNorm(
-            TensorProducer producer, Tensor gradient, boolean[] selectedInputs) {
-        Tensor input = producer.inputs().getFirst();
-        Tensor output = producer.output(0);
+    private V[] layerNorm(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient,
+            boolean[] selectedInputs,
+            Function<V, V> primal) {
+        V input = producer.inputs().getFirst();
+        V output = producer.output(0);
         Shape normalizedShape;
         io.github.pho001.synaptik.model.datatype.ScalarValue epsilon;
         if (producer.operation().attrs() instanceof LayerNormAttrs attrs) {
@@ -93,40 +104,32 @@ final class NormalizationGradientRules {
             epsilon = attrs.epsilon();
         }
         int[] normalizedAxes = trailingAxes(
-                input.descriptor().shape(), normalizedShape.rank());
+                ops.descriptor(input).shape(), normalizedShape.rank());
         int[] prefixAxes = prefixAxes(
-                input.descriptor().shape(), normalizedShape.rank());
-        DataType outputType = output.descriptor().dataType();
-        Tensor promotedInput = cast(input, outputType);
-        Tensor mean = promotedInput.mean(normalizedAxes, true);
-        Tensor centered = promotedInput.sub(mean);
-        Tensor inverseStandardDeviation = centered.mul(centered)
-                .mean(normalizedAxes, true)
-                .add(epsilon)
-                .rsqrt();
-        Tensor h = gradient;
+                ops.descriptor(input).shape(), normalizedShape.rank());
+        DataType outputType = ops.descriptor(output).dataType();
+        V promotedInput = cast(primal.apply(input), outputType);
+        V mean = ops.mean(promotedInput, normalizedAxes, true);
+        V centered = ops.sub(promotedInput, mean);
+        V inverseStandardDeviation = ops.rsqrt(ops.add(ops.mean(ops.mul(centered, centered), normalizedAxes, true), epsilon));
+        V h = gradient;
         if (producer.inputs().size() == 3) {
-            h = h.mul(align(
-                    cast(producer.inputs().get(1), outputType),
-                    input.descriptor().shape(),
+            h = ops.mul(h, align(
+                    cast(primal.apply(producer.inputs().get(1)), outputType),
+                    ops.descriptor(input).shape(),
                     normalizedAxes));
         }
-        Tensor inputContribution = inverseStandardDeviation.mul(
-                h.sub(h.mean(normalizedAxes, true))
-                        .sub(centered
-                                .mul(inverseStandardDeviation)
-                                .mul(inverseStandardDeviation)
-                                .mul(h.mul(centered).mean(normalizedAxes, true))));
-
-        Tensor[] result = new Tensor[producer.inputs().size()];
+        V inputContribution = ops.mul(inverseStandardDeviation, ops.sub(ops.sub(h, ops.mean(h, normalizedAxes, true)), ops.mul(ops.mul(ops.mul(centered, inverseStandardDeviation), inverseStandardDeviation), ops.mean(ops.mul(h, centered), normalizedAxes, true))));
+        
+        V[] result = ops.array(producer.inputs().size());
         if (selectedInputs[0]) {
-            result[0] = cast(inputContribution, input.descriptor().dataType());
+            result[0] = cast(inputContribution, ops.descriptor(input).dataType());
         }
         if (producer.inputs().size() == 3) {
-            Tensor normalized = centered.mul(inverseStandardDeviation);
+            V normalized = ops.mul(centered, inverseStandardDeviation);
             if (selectedInputs[1]) {
                 result[1] = reduceTo(
-                        gradient.mul(normalized),
+                        ops.mul(gradient, normalized),
                         producer.inputs().get(1),
                         prefixAxes);
             }
@@ -140,85 +143,80 @@ final class NormalizationGradientRules {
         return result;
     }
 
-    private static Tensor[] rmsNorm(
-            TensorProducer producer, Tensor gradient, boolean[] selectedInputs) {
-        Tensor input = producer.inputs().getFirst();
-        Tensor output = producer.output(0);
+    private V[] rmsNorm(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient,
+            boolean[] selectedInputs,
+            Function<V, V> primal) {
+        V input = producer.inputs().getFirst();
+        V output = producer.output(0);
         RmsNormAttrs attrs = (RmsNormAttrs) producer.operation().attrs();
         int[] normalizedAxes = trailingAxes(
-                input.descriptor().shape(), attrs.normalizedShape().rank());
+                ops.descriptor(input).shape(), attrs.normalizedShape().rank());
         int[] prefixAxes = prefixAxes(
-                input.descriptor().shape(), attrs.normalizedShape().rank());
-        DataType outputType = output.descriptor().dataType();
-        Tensor promotedInput = cast(input, outputType);
-        Tensor inverseRootMeanSquare = promotedInput.mul(promotedInput)
-                .mean(normalizedAxes, true)
-                .add(attrs.epsilon())
-                .rsqrt();
-        Tensor h = gradient;
+                ops.descriptor(input).shape(), attrs.normalizedShape().rank());
+        DataType outputType = ops.descriptor(output).dataType();
+        V promotedInput = cast(primal.apply(input), outputType);
+        V inverseRootMeanSquare = ops.rsqrt(ops.add(ops.mean(ops.mul(promotedInput, promotedInput), normalizedAxes, true), attrs.epsilon()));
+        V h = gradient;
         if (producer.inputs().size() == 2) {
-            h = h.mul(align(
-                    cast(producer.inputs().get(1), outputType),
-                    input.descriptor().shape(),
+            h = ops.mul(h, align(
+                    cast(primal.apply(producer.inputs().get(1)), outputType),
+                    ops.descriptor(input).shape(),
                     normalizedAxes));
         }
-        Tensor inputContribution = inverseRootMeanSquare.mul(h)
-                .sub(promotedInput
-                        .mul(inverseRootMeanSquare)
-                        .mul(inverseRootMeanSquare)
-                        .mul(inverseRootMeanSquare)
-                        .mul(h.mul(promotedInput).mean(normalizedAxes, true)));
-
-        Tensor[] result = new Tensor[producer.inputs().size()];
+        V inputContribution = ops.sub(ops.mul(inverseRootMeanSquare, h), ops.mul(ops.mul(ops.mul(ops.mul(promotedInput, inverseRootMeanSquare), inverseRootMeanSquare), inverseRootMeanSquare), ops.mean(ops.mul(h, promotedInput), normalizedAxes, true)));
+        
+        V[] result = ops.array(producer.inputs().size());
         if (selectedInputs[0]) {
-            result[0] = cast(inputContribution, input.descriptor().dataType());
+            result[0] = cast(inputContribution, ops.descriptor(input).dataType());
         }
         if (producer.inputs().size() == 2 && selectedInputs[1]) {
             result[1] = reduceTo(
-                    gradient.mul(promotedInput).mul(inverseRootMeanSquare),
+                    ops.mul(ops.mul(gradient, promotedInput), inverseRootMeanSquare),
                     producer.inputs().get(1),
                     prefixAxes);
         }
         return result;
     }
 
-    private static Tensor[] batchInference(
-            TensorProducer producer,
-            Tensor gradient,
+    private V[] batchInference(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient,
             boolean[] selectedInputs,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        Tensor input = producer.inputs().getFirst();
-        Tensor output = producer.output(0);
+            Function<V, V> primal) {
+        V input = producer.inputs().getFirst();
+        V output = producer.output(0);
         BatchNormInferenceAttrs attrs =
                 (BatchNormInferenceAttrs) producer.operation().attrs();
         int channelAxis = attrs.channelAxis();
         int[] channelAxes = new int[] {channelAxis};
-        int[] reducedAxes = excludingAxis(input.descriptor().shape(), channelAxis);
-        DataType outputType = output.descriptor().dataType();
-        Tensor promotedInput = cast(input, outputType);
-        Tensor scale = align(
-                cast(producer.inputs().get(1), outputType),
-                input.descriptor().shape(),
+        int[] reducedAxes = excludingAxis(ops.descriptor(input).shape(), channelAxis);
+        DataType outputType = ops.descriptor(output).dataType();
+        V promotedInput = cast(primal.apply(input), outputType);
+        V scale = align(
+                cast(primal.apply(producer.inputs().get(1)), outputType),
+                ops.descriptor(input).shape(),
                 channelAxes);
-        Tensor mean = align(
-                cast(producer.inputs().get(3), outputType),
-                input.descriptor().shape(),
+        V mean = align(
+                cast(primal.apply(producer.inputs().get(3)), outputType),
+                ops.descriptor(input).shape(),
                 channelAxes);
-        Tensor variance = align(
-                cast(producer.inputs().get(4), outputType),
-                input.descriptor().shape(),
+        V variance = align(
+                cast(primal.apply(producer.inputs().get(4)), outputType),
+                ops.descriptor(input).shape(),
                 channelAxes);
-        Tensor inverseStandardDeviation = variance.add(attrs.epsilon()).rsqrt();
-        Tensor centered = promotedInput.sub(mean);
-        Tensor scaledGradient = gradient.mul(scale).mul(inverseStandardDeviation);
+        V inverseStandardDeviation = ops.rsqrt(ops.add(variance, attrs.epsilon()));
+        V centered = ops.sub(promotedInput, mean);
+        V scaledGradient = ops.mul(ops.mul(gradient, scale), inverseStandardDeviation);
 
-        Tensor[] result = new Tensor[5];
+        V[] result = ops.array(5);
         if (selectedInputs[0]) {
-            result[0] = cast(scaledGradient, input.descriptor().dataType());
+            result[0] = cast(scaledGradient, ops.descriptor(input).dataType());
         }
         if (selectedInputs[1]) {
             result[1] = reduceTo(
-                    gradient.mul(centered).mul(inverseStandardDeviation),
+                    ops.mul(ops.mul(gradient, centered), inverseStandardDeviation),
                     producer.inputs().get(1),
                     reducedAxes);
         }
@@ -230,64 +228,54 @@ final class NormalizationGradientRules {
         }
         if (selectedInputs[3]) {
             result[3] = reduceTo(
-                    scaledGradient.neg(),
+                    ops.neg(scaledGradient),
                     producer.inputs().get(3),
                     reducedAxes);
         }
         if (selectedInputs[4]) {
             result[4] = reduceTo(
-                    gradient.mul(constants.negativeHalf(outputType))
-                            .mul(scale)
-                            .mul(centered)
-                            .mul(inverseStandardDeviation)
-                            .mul(inverseStandardDeviation)
-                            .mul(inverseStandardDeviation),
+                    ops.mul(ops.mul(ops.mul(ops.mul(ops.mul(ops.mul(gradient, ops.negativeHalf(outputType)), scale), centered), inverseStandardDeviation), inverseStandardDeviation), inverseStandardDeviation),
                     producer.inputs().get(4),
                     reducedAxes);
         }
         return result;
     }
 
-    private static Tensor[] batchTraining(
-            TensorProducer producer,
+    private V[] batchTraining(
+            OrdinaryConstruction.Source<V> producer,
             int outputIndex,
-            Tensor gradient,
+            V gradient,
             boolean[] selectedInputs,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        Tensor input = producer.inputs().getFirst();
-        Tensor output = producer.output(outputIndex);
+            Function<V, V> primal) {
+        V input = producer.inputs().getFirst();
+        V output = producer.output(outputIndex);
         BatchNormTrainingAttrs attrs =
                 (BatchNormTrainingAttrs) producer.operation().attrs();
         int channelAxis = attrs.channelAxis();
         int[] channelAxes = new int[] {channelAxis};
-        int[] reducedAxes = excludingAxis(input.descriptor().shape(), channelAxis);
-        DataType outputType = output.descriptor().dataType();
-        Tensor promotedInput = cast(input, outputType);
-        Tensor savedMean = align(
-                producer.output(3), input.descriptor().shape(), channelAxes);
+        int[] reducedAxes = excludingAxis(ops.descriptor(input).shape(), channelAxis);
+        DataType outputType = ops.descriptor(output).dataType();
+        V promotedInput = cast(primal.apply(input), outputType);
+        V savedMean = align(
+                primal.apply(producer.output(3)), ops.descriptor(input).shape(), channelAxes);
 
-        Tensor[] result = new Tensor[5];
+        V[] result = ops.array(5);
         if (outputIndex == 0) {
-            Tensor savedInverseStandardDeviation = align(
-                    producer.output(4), input.descriptor().shape(), channelAxes);
-            Tensor scale = align(
-                    cast(producer.inputs().get(1), outputType),
-                    input.descriptor().shape(),
+            V savedInverseStandardDeviation = align(
+                    primal.apply(producer.output(4)), ops.descriptor(input).shape(), channelAxes);
+            V scale = align(
+                    cast(primal.apply(producer.inputs().get(1)), outputType),
+                    ops.descriptor(input).shape(),
                     channelAxes);
-            Tensor centered = promotedInput.sub(savedMean);
-            Tensor h = gradient.mul(scale);
+            V centered = ops.sub(promotedInput, savedMean);
+            V h = ops.mul(gradient, scale);
             if (selectedInputs[0]) {
-                Tensor contribution = savedInverseStandardDeviation.mul(
-                        h.sub(h.mean(reducedAxes, true))
-                                .sub(centered
-                                        .mul(savedInverseStandardDeviation)
-                                        .mul(savedInverseStandardDeviation)
-                                        .mul(h.mul(centered).mean(reducedAxes, true))));
-                result[0] = cast(contribution, input.descriptor().dataType());
+                V contribution = ops.mul(savedInverseStandardDeviation, ops.sub(ops.sub(h, ops.mean(h, reducedAxes, true)), ops.mul(ops.mul(ops.mul(centered, savedInverseStandardDeviation), savedInverseStandardDeviation), ops.mean(ops.mul(h, centered), reducedAxes, true))));
+                result[0] = cast(contribution, ops.descriptor(input).dataType());
             }
             if (selectedInputs[1]) {
                 result[1] = reduceTo(
-                        gradient.mul(centered).mul(savedInverseStandardDeviation),
+                        ops.mul(ops.mul(gradient, centered), savedInverseStandardDeviation),
                         producer.inputs().get(1),
                         reducedAxes);
             }
@@ -299,46 +287,43 @@ final class NormalizationGradientRules {
             }
             return result;
         }
-        Tensor count = count(promotedInput, reducedAxes, constants);
+        V count = count(promotedInput, reducedAxes);
         if (outputIndex == 1) {
             if (selectedInputs[0]) {
-                Tensor aligned = align(
-                        gradient.mul(attrs.momentum()),
-                        input.descriptor().shape(),
+                V aligned = align(
+                        ops.mul(gradient, attrs.momentum()),
+                        ops.descriptor(input).shape(),
                         channelAxes);
                 result[0] = cast(
-                        aligned.div(count.expand(input.descriptor().shape())),
-                        input.descriptor().dataType());
+                        ops.div(aligned, ops.expand(count, ops.descriptor(input).shape())),
+                        ops.descriptor(input).dataType());
             }
             if (selectedInputs[3]) {
-                Tensor oneMinusMomentum =
-                        constants.oneLike(gradient).sub(attrs.momentum());
+                V oneMinusMomentum =
+                        ops.sub(ops.oneLike(gradient), attrs.momentum());
                 result[3] = cast(
-                        gradient.mul(oneMinusMomentum),
-                        producer.inputs().get(3).descriptor().dataType());
+                        ops.mul(gradient, oneMinusMomentum),
+                        ops.descriptor(producer.inputs().get(3)).dataType());
             }
             return result;
         }
         if (outputIndex == 2) {
             if (selectedInputs[0]) {
-                Tensor numerator = align(
-                                gradient.mul(attrs.momentum()),
-                                input.descriptor().shape(),
-                                channelAxes)
-                        .mul(constants.two(outputType))
-                        .mul(promotedInput.sub(savedMean));
-                Tensor denominator = count.sub(constants.oneLike(count))
-                        .expand(input.descriptor().shape());
+                V numerator = ops.mul(ops.mul(align(
+                                ops.mul(gradient, attrs.momentum()),
+                                ops.descriptor(input).shape(),
+                                channelAxes), ops.two(outputType)), ops.sub(promotedInput, savedMean));
+                V denominator = ops.expand(ops.sub(count, ops.oneLike(count)), ops.descriptor(input).shape());
                 result[0] = cast(
-                        numerator.div(denominator),
-                        input.descriptor().dataType());
+                        ops.div(numerator, denominator),
+                        ops.descriptor(input).dataType());
             }
             if (selectedInputs[4]) {
-                Tensor oneMinusMomentum =
-                        constants.oneLike(gradient).sub(attrs.momentum());
+                V oneMinusMomentum =
+                        ops.sub(ops.oneLike(gradient), attrs.momentum());
                 result[4] = cast(
-                        gradient.mul(oneMinusMomentum),
-                        producer.inputs().get(4).descriptor().dataType());
+                        ops.mul(gradient, oneMinusMomentum),
+                        ops.descriptor(producer.inputs().get(4)).dataType());
             }
             return result;
         }
@@ -347,15 +332,12 @@ final class NormalizationGradientRules {
                         + outputIndex);
     }
 
-    private static Tensor count(
-            Tensor tensor,
-            int[] axes,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        return constants.oneLike(tensor).sum(axes, true);
+    private V count(V tensor, int[] axes) {
+        return ops.sum(ops.oneLike(tensor), axes, true);
     }
 
-    private static Tensor align(Tensor tensor, Shape target, int[] mappedAxes) {
-        if (tensor.descriptor().shape().rank() != mappedAxes.length) {
+    private V align(V tensor, Shape target, int[] mappedAxes) {
+        if (ops.descriptor(tensor).shape().rank() != mappedAxes.length) {
             throw new IllegalStateException("preflight-approved alignment rank changed");
         }
         Dimension[] dimensions = new Dimension[target.rank()];
@@ -364,29 +346,29 @@ final class NormalizationGradientRules {
         }
         for (int index = 0; index < mappedAxes.length; index++) {
             dimensions[mappedAxes[index]] =
-                    tensor.descriptor().shape().dimension(index);
+                    ops.descriptor(tensor).shape().dimension(index);
         }
         Shape alignedShape = Shape.ofDimensions(dimensions);
-        Tensor aligned = tensor.descriptor().shape().equals(alignedShape)
+        V aligned = ops.descriptor(tensor).shape().equals(alignedShape)
                 ? tensor
-                : tensor.reshape(alignedShape);
-        return aligned.descriptor().shape().equals(target)
+                : ops.reshape(tensor, alignedShape);
+        return ops.descriptor(aligned).shape().equals(target)
                 ? aligned
-                : aligned.expand(target);
+                : ops.expand(aligned, target);
     }
 
-    private static Tensor reduceTo(Tensor tensor, Tensor target, int[] axes) {
-        Tensor reduced = tensor.sum(axes, false);
-        if (!reduced.descriptor().shape().equals(target.descriptor().shape())) {
-            reduced = reduced.reshape(target.descriptor().shape());
+    private V reduceTo(V tensor, V target, int[] axes) {
+        V reduced = ops.sum(tensor, axes, false);
+        if (!ops.descriptor(reduced).shape().equals(ops.descriptor(target).shape())) {
+            reduced = ops.reshape(reduced, ops.descriptor(target).shape());
         }
-        return cast(reduced, target.descriptor().dataType());
+        return cast(reduced, ops.descriptor(target).dataType());
     }
 
-    private static Tensor cast(Tensor tensor, DataType dataType) {
-        return tensor.descriptor().dataType() == dataType
+    private V cast(V tensor, DataType dataType) {
+        return ops.descriptor(tensor).dataType() == dataType
                 ? tensor
-                : tensor.cast(dataType);
+                : ops.cast(tensor, dataType);
     }
 
     private static int[] trailingAxes(Shape input, int count) {

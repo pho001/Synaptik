@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
-/** Public CPU sessions publish activation extremes and low named-site cancellation unchanged. */
+/** Public CPU sessions retain F64 activation numerics and exact low storage while rejecting low composites. */
 final class EngineCpuActivationIntegrationTest {
     @Test void doubleErfAndGeluPublishHugeFiniteValuesAndSpecialClasses() {
         double[] values = {-1e100, 1e100, -Double.MAX_VALUE, Double.MAX_VALUE, -0d, 0d,
@@ -38,7 +38,7 @@ final class EngineCpuActivationIntegrationTest {
         }
     }
 
-    @Test void bothLowTypesPublishNegativeZeroGeluAtMinusSix() {
+    @Test void bothLowTypesRejectNumericalGeluAndRetainExactAbsBits() {
         for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
             short[] values = type == DataType.BFLOAT16 ? new short[] {(short) 0xc0c0, (short) 0x40c0,
                     (short) 0x8000, 0, (short) 0xff80, (short) 0x7f80, (short) 0x7fc0}
@@ -47,16 +47,11 @@ final class EngineCpuActivationIntegrationTest {
             try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
                 Tensor input = tensor(arena, type, MemorySegment.ofArray(values), values.length);
                 for (boolean tanh : List.of(false, true)) {
-                    ByteBuffer bytes = run(engine, input,
-                            tanh ? input.geluTanhApproximation() : input.gelu(), values.length * 2L);
-                    short[] expected = {(short) 0x8000, values[1], (short) 0x8000, 0,
-                            (short) 0x8000, values[5]};
-                    for (short value : expected) assertEquals(value, bytes.getShort());
-                    short nan = bytes.getShort();
-                    float decoded = type == DataType.BFLOAT16 ? Float.intBitsToFloat(nan << 16)
-                            : Float.float16ToFloat(nan);
-                    assertTrue(Float.isNaN(decoded));
+                    Tensor output = tanh ? input.geluTanhApproximation() : input.gelu();
+                    assertThrows(IllegalStateException.class, () -> engine.compile(List.of(output)));
                 }
+                ByteBuffer exact = run(engine, input, input.abs(), values.length * 2L);
+                for (short value : values) assertEquals((short) (value & 0x7fff), exact.getShort());
             }
         }
     }

@@ -12,8 +12,9 @@ import java.util.Objects;
  * production lowering or numerical helpers: softmax does not evaluate a logarithm, while
  * log-softmax evaluates one logarithm per complete normalization slice. FLOAT64 works in double;
  * FLOAT32 and both low types work in float, with one final low narrowing. The reference shares
- * the CPU route's finite-input domain and dtype-specific shift admission, not Model's separate
- * NaN/infinity slice results.</p>
+ * the CPU route's finite-input domain: FLOAT32 and FLOAT64 admit negative-infinity working
+ * shifts from finite subtraction overflow, while BFLOAT16 requires finite working shifts.
+ * Model's separate NaN/infinity slice results are not admitted.</p>
  */
 public final class CpuSoftmaxReferenceKernel {
     private CpuSoftmaxReferenceKernel() { }
@@ -29,8 +30,8 @@ public final class CpuSoftmaxReferenceKernel {
      * @param axis normalized selected axis with positive extent
      * @return a new dense logical result rounded to {@code type}
      * @throws NullPointerException if a reference argument is {@code null}
-     * @throws IllegalArgumentException if geometry, span, non-finite input, or the FLOAT64 or
-     *     BFLOAT16 finite-shift requirement is invalid
+     * @throws IllegalArgumentException if geometry, span, non-finite input, or the BFLOAT16
+     *     finite-shift requirement is invalid
      * @throws ArithmeticException if count or address arithmetic overflows
      */
     public static double[] evaluate(SoftmaxKind kind, DataType type, double[] input,
@@ -71,7 +72,7 @@ public final class CpuSoftmaxReferenceKernel {
         double sum = 0, compensation = 0;
         for (long c = 0; c < extents[axis]; c++) {
             coordinates[axis] = c; double shift = value(input, offset, strides, coordinates) - maximum;
-            requireFinite(shift); double addend = StrictMath.exp(shift) - compensation;
+            double addend = StrictMath.exp(shift) - compensation;
             double temporary = sum + addend;
             compensation = (temporary - sum) - addend; sum = temporary;
         }

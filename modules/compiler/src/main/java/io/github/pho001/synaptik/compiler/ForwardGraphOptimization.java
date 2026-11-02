@@ -17,6 +17,9 @@ import java.util.Objects;
  * whole-graph sidecar-aware cleanup DCE, once each in that order. Compiler verification is
  * repeated only after a helper returns a changed immutable candidate and before the next
  * transform consumes it.</p>
+ * <p>Each changed candidate refreshes ordinary-use scan-port demand independently of sibling
+ * liveness. Body attachments and exact saved sites remain intact; this pass introduces no
+ * body rewrite, fusion, recomputation, or history allocation.</p>
  *
  * <p>No pass reads Tensor storage, evaluates floating-point arithmetic, materializes constants,
  * iterates to a fixed point, merges across phases, plans a backend, or executes computation.</p>
@@ -49,8 +52,8 @@ final class ForwardGraphOptimization {
                 GraphCanonicalization.canonicalize(validatedGraph.derivatives());
         CompileTimeConstantGraph canonicalConstants =
                 validatedGraph.constantGraph().replaceGraphPreservingInputRoles(canonical.graph());
-        ValidatedGraph current = CapturedGraphInference.inferAndValidate(
-                canonicalConstants, canonical.derivatives());
+        ValidatedGraph current = ScanBodyInference.refreshDemand(CapturedGraphInference.inferAndValidate(
+                canonicalConstants, canonical.derivatives()));
         if (!optimizationConfig.optionalOptimizationsEnabled()) {
             return current;
         }
@@ -91,6 +94,6 @@ final class ForwardGraphOptimization {
         if (candidate == current.constantGraph()) {
             return current;
         }
-        return CapturedGraphInference.inferAndValidate(candidate, derivatives);
+        return ScanBodyInference.refreshDemand(CapturedGraphInference.inferAndValidate(candidate, derivatives));
     }
 }

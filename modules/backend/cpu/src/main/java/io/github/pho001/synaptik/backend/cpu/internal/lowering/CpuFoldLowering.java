@@ -10,6 +10,10 @@ import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
+import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
+import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import io.github.pho001.synaptik.prepare.analysis.BackendAnalysisInputs;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
@@ -24,7 +28,8 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Lowers exactly one fully static resolved-layout FOLD_AXIS or FOLD2D occurrence.
+ * Lowers static or one-named-batch FOLD_AXIS/FOLD2D with fixed windows, or proves a bounded
+ * private static F32/F64 raw kernel-repetition chain feeding compact storage to FOLD2D.
  * The lowerer revalidates the Model signature, derives compact checked coordinate geometry, and
  * proves a distinct injective output. It allocates no Runtime resource and declares no workspace.
  */
@@ -33,6 +38,216 @@ public final class CpuFoldLowering {
 
     /** Creates a stateless fold lowerer. */
     public CpuFoldLowering() { }
+
+    /**
+     * Validates original symbolic overlap-fold equations and records numeric mapping parameters.
+     * @param context complete one-node fold projection with fixed folded/window axes
+     * @return explicit unresolved numeric fold geometry
+     * @throws IllegalArgumentException if original types, ranks or dimension equations disagree
+     * @throws ArithmeticException if fixed window geometry overflows
+     */
+    public CpuPartitionLowering.LoweredPartition lowerBatch(PrepareContext<? extends BackendAnalysisInputs> context) {
+        return lowerBatch(context,CpuPartitionLowering.batchLayouts(context));
+    }
+
+    /**
+     * Lowers original descriptors using the complete local graph's proved physical mappings.
+     * The map is consumed only during lowering; the recipe retains numeric boundary facts only.
+     * @param context complete original ordinary unit projection
+     * @param layouts non-null full-local value mappings, preserving view strides and offsets
+     * @return unresolved numeric family geometry with B-independent generated facts
+     * @throws NullPointerException if a required mapping or input is absent
+     * @throws IllegalArgumentException if original semantics or numeric mappings disagree
+     * @throws ArithmeticException if fixed geometry arithmetic overflows
+     */
+    public CpuPartitionLowering.LoweredPartition lowerBatch(PrepareContext<? extends BackendAnalysisInputs> context,
+            Map<ValueId,CpuAccessPlan.BatchBinding> layouts) {
+        var values = batchValues(context);
+        if (context.nodes().size() != 1) throw new IllegalArgumentException("fold requires one node");
+        var node = context.nodes().getFirst();
+        if (node.inputs().size() != 1 || node.outputs().size() != 1 || node.inputs().contains(node.outputs().getFirst()))
+            throw new IllegalArgumentException("fold boundary arity or alias disagrees");
+        var input = require(values,node.inputs().getFirst()); var output = require(values,node.outputs().getFirst());
+        var type = input.descriptor().dataType();
+        if (type != output.descriptor().dataType() || type == DataType.BOOL)
+            throw new IllegalArgumentException("fold original types disagree");
+        int inRank = input.descriptor().shape().rank(), outRank = output.descriptor().shape().rank();
+        CpuFoldIr.Family family; long[] parameters;
+        if (node.operation().kind() == WindowTransformKind.FOLD_AXIS && node.operation().attrs() instanceof FoldAxisAttrs a) {
+            family = CpuFoldIr.Family.FOLD_AXIS;
+            if (inRank < 2 || outRank != inRank-1 || a.axis() < 0 || a.axis() >= outRank
+                    || fixed(output,a.axis()) != a.outputSize()) throw new IllegalArgumentException("fold axis rank/target disagrees");
+            for (int axis = 0; axis < outRank; axis++) if (axis != a.axis()) sameAxis(input,axis,output,axis);
+            long window = fixed(input,inRank-1), windows = fixed(input,a.axis());
+            if (window <= 0 || a.outputSize() != 0 && window > a.outputSize())
+                throw new IllegalArgumentException("fold window is invalid");
+            long expected = a.outputSize() == 0 ? 0 : Math.addExact((a.outputSize()-window)/a.step(),1);
+            if (windows != expected) throw new IllegalArgumentException("fold original window-count equation disagrees");
+            if (expected != 0) Math.addExact(Math.multiplyExact(expected-1,a.step()),window-1);
+            parameters = new long[]{a.axis(),a.outputSize(),a.step(),window};
+        } else if (node.operation().kind() == WindowTransformKind.FOLD2D && node.operation().attrs() instanceof Fold2dAttrs a) {
+            family = CpuFoldIr.Family.FOLD2D;
+            if (inRank != 3 || outRank != 4 || !output.descriptor().shape().equals(a.outputShape())
+                    || type != DataType.FLOAT32 && type != DataType.FLOAT64)
+                throw new IllegalArgumentException("Fold2d original shape/type disagrees");
+            var w = a.window();
+            long eh = Math.addExact(Math.multiplyExact(w.dilationHeight(),w.kernelHeight()-1),1);
+            long ew = Math.addExact(Math.multiplyExact(w.dilationWidth(),w.kernelWidth()-1),1);
+            long oh = windowCount(fixed(output,2),w.paddingHeight(),eh,w.strideHeight(),w.ceilMode());
+            long ow = windowCount(fixed(output,3),w.paddingWidth(),ew,w.strideWidth(),w.ceilMode());
+            proveTwoDimensionalCoordinates(w,oh,ow); sameAxis(input,0,output,0);
+            if (fixed(input,1) != Math.multiplyExact(Math.multiplyExact(fixed(output,1),w.kernelHeight()),w.kernelWidth())
+                    || fixed(input,2) != Math.multiplyExact(oh,ow)) throw new IllegalArgumentException("Fold2d original columns equation disagrees");
+            parameters = new long[]{w.kernelHeight(),w.kernelWidth(),w.strideHeight(),w.strideWidth(),w.paddingHeight(),w.paddingWidth(),w.dilationHeight(),w.dilationWidth(),oh,ow};
+        } else throw new IllegalArgumentException("unsupported fold kind/attributes");
+        var in = batchBinding(input,layouts); var out = writeRecipe(batchBinding(output,layouts));
+        var ir = new CpuFoldIr(family,type,in.plan(),writePlan(out),CpuFoldIr.CANONICAL_SEQUENTIAL_ADDITION);
+        return new CpuPartitionLowering.LoweredPartition(new Geometry.BatchGeometry(ir,List.of(input.id(),output.id()),
+                List.of(type,type),List.of(in,out),List.of(),parameters));
+    }
+
+    private static Map<ValueId, GraphValue> batchValues(PrepareContext<?> context) {
+        CpuPartitionLowering.requireBatchContext(context);
+        var values = new LinkedHashMap<ValueId, GraphValue>();
+        context.values().forEach(value -> values.put(value.id(),value));
+        return values;
+    }
+
+    private static long fixed(GraphValue value, int axis) {
+        var dimension = value.descriptor().shape().dimensions().get(axis);
+        if (!(dimension instanceof io.github.pho001.synaptik.model.shape.StaticDimension fixed))
+            throw new IllegalArgumentException("window and feature dimensions must be fixed");
+        return fixed.size();
+    }
+
+    private static void sameAxis(GraphValue left, int a, GraphValue right, int b) {
+        if (!left.descriptor().shape().dimensions().get(a).equals(
+                right.descriptor().shape().dimensions().get(b)))
+            throw new IllegalArgumentException("symbolic dimension equation disagrees");
+    }
+
+    private static CpuAccessPlan.BatchBinding batchBinding(GraphValue value,
+            Map<ValueId,CpuAccessPlan.BatchBinding> layouts) {
+        var mapping = Objects.requireNonNull(layouts.get(value.id()), "missing full-local layout");
+        var canonical = CpuPartitionLowering.batchCanonical(value.descriptor(),CpuAccessPlan.AccessKind.READ);
+        if (!mapping.extentConstants().equals(canonical.extentConstants())
+                || !mapping.extentBatchFactors().equals(canonical.extentBatchFactors()))
+            throw new IllegalArgumentException("full-local mapping disagrees with original symbolic shape");
+        var p = mapping.plan();
+        var read = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ,p.regime(),p.iterationRank(),p.axisRoles(),p.contiguousSuffix());
+        return new CpuAccessPlan.BatchBinding(read,mapping.extentConstants(),mapping.extentBatchFactors(),
+                mapping.baseElementOffset(),mapping.strideConstants(),mapping.strideBatchFactors());
+    }
+
+    private static CpuAccessPlan writePlan(CpuAccessPlan.BatchBinding binding) {
+        var p = binding.plan();
+        return new CpuAccessPlan(CpuAccessPlan.AccessKind.WRITE, p.regime(), p.iterationRank(),
+                p.axisRoles(), p.contiguousSuffix());
+    }
+
+    private static CpuAccessPlan.BatchBinding writeRecipe(CpuAccessPlan.BatchBinding binding) {
+        return new CpuAccessPlan.BatchBinding(writePlan(binding),binding.extentConstants(),
+                binding.extentBatchFactors(),binding.baseElementOffset(),binding.strideConstants(),
+                binding.strideBatchFactors());
+    }
+
+    private static String batchIdentity(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPortableKernelIr ir,
+            List<CpuAccessPlan.BatchBinding> bindings, long[] parameters) {
+        var key = new StringBuilder(ir.structuralKey());
+        for (var b : bindings) key.append('|').append(b.extentConstants()).append(b.extentBatchFactors())
+                .append(b.baseElementOffset()).append(b.strideConstants()).append(b.strideBatchFactors());
+        return key.append('|').append(Arrays.toString(parameters)).toString();
+    }
+
+    /**
+     * Proves a private same-type kernel repetition chain ending in FOLD2D. The physical source
+     * remains a real stored boundary; DIV and all other arithmetic are never absorbed. Complete
+     * projected publication/outside-use obligations protect every removed mapping.
+     * @param context non-null static unit projection, with full-graph barriers already projected
+     * @param <I> exact immutable backend-input projection type
+     * @return compact lowering, or empty when any shape, use, layout or arithmetic proof fails
+     * @throws NullPointerException if {@code context} is null
+     */
+    public <I extends BackendAnalysisInputs> Optional<CpuPartitionLowering.LoweredPartition> kernelBroadcast(
+            PrepareContext<I> context) {
+        var nodes = context.nodes();
+        if (context.requiresBatchSize() || nodes.size() < 4 || nodes.size() > 8
+                || nodes.getLast().operation().kind() != WindowTransformKind.FOLD2D) return Optional.empty();
+        if (context.backendInputs() instanceof io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs cpu
+                && (cpu.portableExecution().computePreference()
+                    != io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR
+                    || cpu.portableExecution().configuredMaximumParallelism() != 1)) return Optional.empty();
+        try {
+            var values = new LinkedHashMap<ValueId, GraphValue>();
+            context.values().forEach(v -> values.put(v.id(), v));
+            var fold = lower(CpuPartitionDagDecomposer.project(context, List.of(nodes.getLast()), context.backendInputs()));
+            var old = fold.foldGeometry().orElseThrow();
+            if (old.dataType != DataType.FLOAT32 && old.dataType != DataType.FLOAT64) return Optional.empty();
+            var two = (TwoDimensionalGeometry) old.mapping;
+            long k = Math.multiplyExact(two.kernelHeight, two.kernelWidth);
+            if (k <= 1) return Optional.empty();
+            long[] out = old.output.extents;
+            long p = Math.multiplyExact(two.outputColumnsHeight, two.outputColumnsWidth);
+            long[] compact = {out[0], out[1], p};
+            long[] singleton = {out[0], out[1], 1, p};
+            long[] repeated = {out[0], out[1], k, p};
+            long[] columns = {out[0], Math.multiplyExact(out[1], k), p};
+            ValueId source = nodes.getFirst().inputs().getFirst(), previous = source;
+            var input = require(values, source);
+            Layout physical = layout(input);
+            var read = compactBinding(physical);
+            if (!Arrays.equals(physical.extents, compact)
+                    || read.plan().regime() != CpuAccessPlan.Regime.DENSE_LINEAR) return Optional.empty();
+            var memory = new LinkedHashMap<ValueId, io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement>();
+            context.memoryRequirements().forEach(r -> memory.put(r.valueId(), r));
+            int stage = 0;
+            for (int i = 0; i < nodes.size() - 1; i++) {
+                var node = nodes.get(i);
+                if (node.inputs().size() != 1 || node.outputs().size() != 1
+                        || !node.inputs().getFirst().equals(previous)) return Optional.empty();
+                var from = require(values, previous); var to = require(values, node.outputs().getFirst());
+                if (from.descriptor().dataType() != old.dataType || to.descriptor().dataType() != old.dataType
+                        || !from.descriptor().shape().isFullyStatic() || !to.descriptor().shape().isFullyStatic()
+                        || !capabilities.supports(new OperationCapabilityQuery(node.operation(),
+                            List.of(from.descriptor()), List.of(to.descriptor())))) return Optional.empty();
+                for (var value : List.of(from, to)) Math.multiplyExact(
+                        binding(layout(value), CpuAccessPlan.AccessKind.READ).referencedElementSpan(), old.dataType.byteWidth());
+                long[] shape = to.descriptor().shape().toLongArray();
+                Object kind = node.operation().kind();
+                if (kind == ContiguousKind.CONTIGUOUS
+                        || kind == ShapeTransformKind.RESHAPE && from.descriptor().shape().equals(to.descriptor().shape())) {
+                    if (!from.descriptor().shape().equals(to.descriptor().shape())) return Optional.empty();
+                } else if (stage == 0 && (kind == AxisTransformKind.EXPAND_DIMS
+                        && ((AxisTransformAttrs) node.operation().attrs()).axis() == 2
+                        || kind == ShapeTransformKind.RESHAPE) && Arrays.equals(shape, singleton)) stage = 1;
+                else if (stage == 1 && kind == ShapeTransformKind.EXPAND && Arrays.equals(shape, repeated)) stage = 2;
+                else if (stage == 2 && kind == ShapeTransformKind.RESHAPE && Arrays.equals(shape, columns)
+                        && from.descriptor().layout().orElseThrow().isContiguous()) stage = 3;
+                else return Optional.empty();
+                var obligation = memory.get(to.id()); var uses = context.partitionDag().consumers(to.id());
+                if (obligation == null || obligation.graphOutput()
+                        || obligation.consumerPartitions().stream().anyMatch(part -> !part.equals(context.partition()))
+                        || uses.size() != 1 || uses.getFirst().node() != nodes.get(i + 1)) return Optional.empty();
+                previous = to.id();
+            }
+            if (stage != 3 || !nodes.getLast().inputs().equals(List.of(previous))) return Optional.empty();
+            // Prove both extrema of y+pad-ky*dilation and x+pad-kx*dilation before emission.
+            Math.addExact(Math.max(0, out[2] - 1), two.paddingHeight);
+            Math.addExact(Math.max(0, out[3] - 1), two.paddingWidth);
+            Math.multiplyExact(two.kernelHeight - 1, two.dilationHeight);
+            Math.multiplyExact(two.kernelWidth - 1, two.dilationWidth);
+            var geometry = new Geometry(old.family, old.dataType, physical, old.output, old.mapping, true);
+            var ir = new CpuFoldIr(old.family, old.dataType, read.plan(), fold.accessBindings().getLast().plan(),
+                    CpuFoldIr.CANONICAL_SEQUENTIAL_ADDITION, true);
+            return Optional.of(new CpuPartitionLowering.LoweredPartition(ir,
+                    List.of(source, fold.boundaryValues().getLast()), List.of(read, fold.accessBindings().getLast()),
+                    List.of(read.referencedElementSpan(), fold.referencedElementSpans().getLast()),
+                    List.of(old.dataType, old.dataType), nodes.subList(0, nodes.size() - 1).stream()
+                        .map(n -> n.outputs().getFirst()).toList(), out, fold.elementCount(),
+                    "legal: private raw kernel repetition; compact stored fold input", new long[0],
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(geometry), Optional.empty()));
+        } catch (IllegalArgumentException | ArithmeticException unproved) { return Optional.empty(); }
+    }
 
     /**
      * Lowers one supported current fold occurrence.
@@ -167,6 +382,26 @@ public final class CpuFoldLowering {
         long count = elementCount(layout.extents);
         return CpuAccessPlan.Binding.create(plan, layout.extents, layout.offset, layout.strides,
                 count, 0, count, referencedSpan(layout));
+    }
+
+    /**
+     * Binds only canonical physical compact storage, including existing empty canonical domains.
+     * Zero dimensions may give earlier canonical strides zero; no input is read in those domains.
+     * This selected-only proof leaves ordinary fold access identity unchanged.
+     * @param layout non-null resolved physical rank-three layout with nonnegative offset
+     * @return immutable dense read binding for the physical span
+     * @throws IllegalArgumentException if strides are not canonical or the rank is not three
+     * @throws ArithmeticException if span or logical count arithmetic overflows
+     */
+    private static CpuAccessPlan.Binding compactBinding(Layout layout) {
+        if (layout.extents.length != 3 || !Arrays.equals(layout.strides,
+                LayoutDescriptor.contiguous(io.github.pho001.synaptik.model.shape.Shape.of(layout.extents)).strides())) {
+            throw new IllegalArgumentException("compact fold source must be canonical dense storage");
+        }
+        var plan = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ,CpuAccessPlan.Regime.DENSE_LINEAR,
+                3,List.of(CpuAccessPlan.AxisRole.CONTIGUOUS,CpuAccessPlan.AxisRole.CONTIGUOUS,CpuAccessPlan.AxisRole.CONTIGUOUS),3);
+        long count = elementCount(layout.extents);
+        return CpuAccessPlan.Binding.create(plan,layout.extents,layout.offset,layout.strides,count,0,count,referencedSpan(layout));
     }
 
     private static long referencedSpan(Layout layout) {
@@ -327,9 +562,147 @@ public final class CpuFoldLowering {
      * @param input resolved input layout
      * @param output resolved output layout
      * @param mapping matching family-specific mapping
+     * @param kernelBroadcastInput whether physical input is compact F32/F64 [N,C,P]
      */
     public record Geometry(CpuFoldIr.Family family, DataType dataType, Layout input, Layout output,
-            Mapping mapping) {
+            Mapping mapping, boolean kernelBroadcastInput) {
+
+        /**
+         * Unresolved numeric invocation recipe. No representative shape, graph or invocation is retained.
+         * @param ir exact B-independent generated facts
+         * @param boundaries ordered physical boundaries
+         * @param boundaryTypes exact boundary storage types
+         * @param bindings affine numeric mappings, including the output mapping
+         * @param virtualValues private removed intermediate values
+         * @param parameters fixed family geometry, defensively copied
+
+         */
+        public record BatchGeometry(CpuFoldIr ir, List<ValueId> boundaries,
+                List<io.github.pho001.synaptik.model.datatype.DataType> boundaryTypes,
+                List<CpuAccessPlan.BatchBinding> bindings, List<ValueId> virtualValues,
+                long[] parameters) implements CpuPartitionLowering.BatchUnitGeometry {
+            /**
+             * Snapshots immutable compile facts and checked numeric coefficients.
+             * @param ir B-independent generated facts
+             * @param boundaries ordered physical boundary identities
+             * @param boundaryTypes physical storage types in boundary order
+             * @param bindings affine layout coefficients in boundary order
+             * @param virtualValues private removed intermediates
+             * @param parameters fixed family-specific numeric geometry
+             */
+            public BatchGeometry {
+                Objects.requireNonNull(ir, "ir");
+                boundaries = List.copyOf(boundaries); boundaryTypes = List.copyOf(boundaryTypes);
+                bindings = List.copyOf(bindings); virtualValues = List.copyOf(virtualValues);
+                parameters = parameters.clone();
+            }
+            /**
+             * Returns fixed overlap-fold geometry cells used during numeric batch binding.
+             * Actual B is resolved separately through the affine boundary mappings.
+             * Mutating the result cannot alter this graph-free recipe.
+             * @return a new non-null caller-owned copy of the fixed numeric geometry
+             */
+            @Override public long[] parameters() { return parameters.clone(); }
+            /** @return checked affine complete-unit work count, not bytes */
+            @Override public io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize iterationCount() { return CpuPartitionLowering.batchElements(bindings.getLast()); }
+            /** @return simultaneous direct-scalar workspace bytes */
+            @Override public io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize scratchBytes() { return new io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize(0, 0, 1); }
+            /** @return structural identity independent of actual B and value identities */
+            @Override public String identity() { return batchIdentity(ir, bindings, parameters); }
+            /** @return no mutable packed traversal cursors for this ordinary family */
+            @Override public List<io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.PackReset> resets() { return List.of(); }
+            /**
+             * Resolves only numeric geometry on the cold invocation boundary.
+             * @param batch non-negative int-representable actual B
+             * @return ordinary resolved family geometry with identical generated facts
+             * @throws IllegalArgumentException if batch is negative
+             * @throws ArithmeticException if geometry exceeds checked host limits
+             */
+            @Override public CpuPartitionLowering.LoweredPartition bind(long batch) {
+                var resolved = new ArrayList<CpuAccessPlan.Binding>();
+                for (var binding : bindings) resolved.add(binding.bind(batch));
+                Mapping mapping = ir.family() == CpuFoldIr.Family.FOLD_AXIS
+                        ? new AxisGeometry(Math.toIntExact(parameters[0]),parameters[1],parameters[2],parameters[3])
+                        : new TwoDimensionalGeometry(parameters[0],parameters[1],parameters[2],parameters[3],parameters[4],parameters[5],parameters[6],parameters[7],parameters[8],parameters[9]);
+                var out = resolved.getLast();
+                var geometry = new Geometry(ir.family(),ir.dataType(),new Layout(resolved.getFirst().extents().stream().mapToLong(Long::longValue).toArray(),resolved.getFirst().baseElementOffset(),resolved.getFirst().effectiveStrides().stream().mapToLong(Long::longValue).toArray()),new Layout(out.extents().stream().mapToLong(Long::longValue).toArray(),out.baseElementOffset(),out.effectiveStrides().stream().mapToLong(Long::longValue).toArray()),mapping);
+                return new CpuPartitionLowering.LoweredPartition(ir, boundaries, resolved,
+                        resolved.stream().map(CpuAccessPlan.Binding::referencedElementSpan).toList(),
+                        boundaryTypes, virtualValues, out.extents().stream().mapToLong(Long::longValue).toArray(), out.elementCount(),
+                        "legal: checked symbolic ordinary geometry", new long[0],
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.of(geometry),
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.<CpuPartitionLowering.LoweredPartition.MatmulFacts>empty(), Optional.empty(), Optional.empty(),
+                        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+            }
+        }
+
+        /**
+         * One fixed generated assignment of a boundary's element base plus a layout delta.
+         * @param cell non-negative destination cell in this family's packed geometry
+         * @param boundary boundary position in the pack's carrier-base order
+         * @param elementDelta immutable element offset added with checked arithmetic
+         */
+        public record BaseCell(int cell, int boundary, long elementDelta) { }
+
+        /**
+         * One original cursor seed restored before every temporal helper call, including retry.
+         * @param cell non-negative destination cell in this family's packed geometry
+         * @param value original range-start cursor value
+         */
+        public record ResetCell(int cell, long value) { }
+
+        /**
+         * Cold, immutable facts for emitting fixed numeric assignments, never a runtime program.
+         * Scratch range offsets and invariant geometry remain bound once per invocation.
+         * @param bases non-null boundary-base assignments, defensively snapshotted
+         * @param resets non-null mutable-cursor assignments, defensively snapshotted
+         */
+        public record TemporalRebind(List<BaseCell> bases, List<ResetCell> resets) {
+            /**
+             * Snapshots the generation-time assignments; retains no invocation storage.
+             * @param bases non-null base facts without null entries
+             * @param resets non-null reset facts without null entries
+             * @throws NullPointerException if either list or an entry is null
+             */
+            public TemporalRebind {
+                bases = List.copyOf(bases);
+                resets = List.copyOf(resets);
+            }
+        }
+
+        /**
+         * Describes temporal base rebinding and restoration of this family's original cursors.
+         * Construct these facts only during generation or cold numeric binding; generated code
+         * emits the assignments directly, without calling pack, allocating, or iterating facts.
+         * Each boundary base is normalized using that boundary's own element width beforehand.
+         * @param start non-negative inclusive ordinary helper range start
+         * @return immutable owner-defined base locations and original cursor seeds
+         * @throws IllegalArgumentException if start is negative
+         * @throws ArithmeticException if checked layout or cursor arithmetic overflows
+         */
+        public TemporalRebind temporalRebind(long start) {
+            if (start < 0) throw new IllegalArgumentException("negative temporal range start");
+            int inputRank = input.extents.length, outputRank = output.extents.length;
+            int layout = 8 + inputRank + 2 * outputRank;
+            // The ordinary emitter initializes local cursors from immutable packed seeds.
+            return new TemporalRebind(List.of(new BaseCell(layout + 1, 0, input.offset),
+                    new BaseCell(layout + 3 + 2 * inputRank, 1, output.offset)), List.of());
+        }
+
+        /**
+         * Creates unchanged ordinary fold geometry.
+         * @param family non-null fold family
+         * @param dataType non-null represented type
+         * @param input non-null physical input layout
+         * @param output non-null output layout
+         * @param mapping non-null family mapping
+         */
+        public Geometry(CpuFoldIr.Family family, DataType dataType, Layout input, Layout output, Mapping mapping) {
+            this(family, dataType, input, output, mapping, false);
+        }
         /**
          * Creates one immutable family-specific fold mapping for a prepared recipe.
          *
@@ -338,8 +711,10 @@ public final class CpuFoldLowering {
          * @param input non-null resolved input layout
          * @param output non-null resolved output layout
          * @param mapping non-null family-specific mapping matching the family and ranks
+         * @param kernelBroadcastInput compact F32/F64 input mode; never enabled for low formats
          * @throws NullPointerException if a reference is {@code null}
          * @throws IllegalArgumentException if family, type, rank, or mapping facts disagree
+         * @throws ArithmeticException if compact geometry's checked inverse or physical byte spans overflow
          */
         public Geometry {
             Objects.requireNonNull(family, "family"); Objects.requireNonNull(dataType, "dataType");
@@ -352,8 +727,32 @@ public final class CpuFoldLowering {
                     || family == CpuFoldIr.Family.FOLD2D
                     && (!(mapping instanceof TwoDimensionalGeometry)
                         || input.extents.length != 3 || output.extents.length != 4
-                        || dataType == DataType.INT32 || dataType == DataType.INT64)) {
+                        || dataType == DataType.INT32 || dataType == DataType.INT64)
+                    || kernelBroadcastInput && (family != CpuFoldIr.Family.FOLD2D
+                        || dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64
+                        || compactBinding(input).plan().regime() != CpuAccessPlan.Regime.DENSE_LINEAR
+                        || input.extents[0] != output.extents[0] || input.extents[1] != output.extents[1]
+                        || input.extents[2] != Math.multiplyExact(((TwoDimensionalGeometry)mapping).outputColumnsHeight,
+                            ((TwoDimensionalGeometry)mapping).outputColumnsWidth))) {
                 throw new IllegalArgumentException("fold geometry facts disagree");
+            }
+            if (kernelBroadcastInput) {
+                var two = (TwoDimensionalGeometry) mapping;
+                if (two.kernelHeight <= 0 || two.kernelWidth <= 0
+                        || Math.multiplyExact(two.kernelHeight, two.kernelWidth) <= 1
+                        || two.strideHeight <= 0 || two.strideWidth <= 0
+                        || two.paddingHeight < 0 || two.paddingWidth < 0
+                        || two.dilationHeight <= 0 || two.dilationWidth <= 0
+                        || two.outputColumnsHeight < 0 || two.outputColumnsWidth < 0) {
+                    throw new IllegalArgumentException("compact fold window is invalid");
+                }
+                Math.addExact(Math.max(0, output.extents[2] - 1), two.paddingHeight);
+                Math.addExact(Math.max(0, output.extents[3] - 1), two.paddingWidth);
+                Math.multiplyExact(two.kernelHeight - 1, two.dilationHeight);
+                Math.multiplyExact(two.kernelWidth - 1, two.dilationWidth);
+                validateInjective(output.extents, output.strides);
+                Math.multiplyExact(referencedSpan(input), dataType.byteWidth());
+                Math.multiplyExact(referencedSpan(output), dataType.byteWidth());
             }
         }
 

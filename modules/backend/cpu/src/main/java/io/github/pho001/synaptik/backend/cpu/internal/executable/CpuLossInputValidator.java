@@ -57,8 +57,6 @@ public final class CpuLossInputValidator {
         DataType targetType = targetType(target);
         long[] strides = geometry.targetStrides();
         long samples = sampleCount(extents, axis);
-        long classes = extents[axis];
-        long base = geometry.targetOffset();
         MemorySegment storage = switch (target) {
             case CpuBufferArgument.Ints value -> MemorySegment.ofArray(value.carrier())
                     .asSlice(value.byteOffset(), value.byteSize());
@@ -67,20 +65,50 @@ public final class CpuLossInputValidator {
             case CpuBufferArgument.Segment value -> value.segment();
             default -> throw new IllegalArgumentException("index loss requires integral storage");
         };
-        if (targetType == DataType.INT32) return () -> {
-            for (long ordinal = 0; ordinal < samples; ordinal++) {
-                long address = address(ordinal, base, extents, strides, axis);
-                check(storage.get(ValueLayout.JAVA_INT, Math.multiplyExact(address, Integer.BYTES)),
-                        ordinal, classes, geometry);
-            }
-        };
-        return () -> {
-            for (long ordinal = 0; ordinal < samples; ordinal++) {
-                long address = address(ordinal, base, extents, strides, axis);
-                check(storage.get(ValueLayout.JAVA_LONG, Math.multiplyExact(address, Long.BYTES)),
-                        ordinal, classes, geometry);
-            }
-        };
+        return () -> validateTemporal(storage, targetType.byteWidth(), geometry.targetOffset(),
+                extents, strides, axis, geometry.ignorePresent(), geometry.ignoreValue(),
+                0L, samples, 0L, true, null, 0L, 0L, 0L);
+    }
+
+    /**
+     * Checks the entire eligible non-class target domain before a temporal loss unit writes.
+     * Ignore comparison precedes bounds, including for zero classes. No logits are read and no
+     * finite-value policy is added. Ordinary bound validation uses this same loop.
+     *
+     * @param storage borrowed prebound integral storage
+     * @param targetBytes cold represented target width, either four or eight bytes
+     * @param base target layout element offset
+     * @param extents immutable cold logits extents
+     * @param strides immutable cold target element strides
+     * @param axis logits class axis, excluded from sample ordinals
+     * @param ignorePresent whether the ignore value is enabled
+     * @param ignoreValue ignored target, compared before bounds
+     * @param start inclusive sample ordinal
+     * @param end exclusive sample ordinal for the entire unit domain
+     * @param temporalOffset additional target element displacement for this step
+     * @param ownerPresent structural occurrence presence, independent of empty domains
+     * @param activity borrowed row bytes, or null for all-active
+     * @param activityOffset byte address of row zero
+     * @param rowStride sample ordinals per original row coordinate, or zero for a shared byte
+     * @param rowExtent proved row extent, unused for a shared byte
+     * @throws IndexOutOfBoundsException if an eligible non-ignored target is outside class bounds
+     * @throws ArithmeticException if checked address arithmetic overflows
+     */
+    public static void validateTemporal(MemorySegment storage, int targetBytes, long base,
+            long[] extents, long[] strides, int axis, boolean ignorePresent, long ignoreValue,
+            long start, long end, long temporalOffset, boolean ownerPresent,
+            MemorySegment activity, long activityOffset, long rowStride, long rowExtent) {
+        if (!ownerPresent) return;
+        long origin = Math.addExact(base, temporalOffset);
+        for (long ordinal = start; ordinal < end; ordinal++) {
+            if (!CpuBooleanInputValidator.isActive(ordinal, activity, activityOffset,
+                    rowStride, rowExtent)) continue;
+            long address = address(ordinal, origin, extents, strides, axis);
+            long value = targetBytes == Integer.BYTES
+                    ? storage.get(ValueLayout.JAVA_INT, Math.multiplyExact(address, Integer.BYTES))
+                    : storage.get(ValueLayout.JAVA_LONG, Math.multiplyExact(address, Long.BYTES));
+            check(value, ordinal, extents[axis], ignorePresent, ignoreValue);
+        }
     }
 
     private static long address(long ordinal, long base, long[] extents, long[] strides, int axis) {
@@ -96,8 +124,8 @@ public final class CpuLossInputValidator {
     }
 
     private static void check(long value, long ordinal, long classes,
-            CpuLossLowering.Geometry geometry) {
-        if (geometry.ignorePresent() && value == geometry.ignoreValue()) return;
+            boolean ignorePresent, long ignoreValue) {
+        if (ignorePresent && value == ignoreValue) return;
         if (value < 0 || value >= classes) {
             throw new IndexOutOfBoundsException("index categorical target at logical position "
                     + ordinal + " is out of bounds: value=" + value + ", classes=" + classes);

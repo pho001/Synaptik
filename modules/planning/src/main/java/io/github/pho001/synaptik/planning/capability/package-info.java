@@ -4,8 +4,17 @@
  * <p>A capability question combines immutable backend-independent operation semantics with the
  * ordered logical input and output descriptors of one structurally valid occurrence. An explicitly
  * supplied provider answers whether its named backend can own that complete occurrence under
- * Model's operation semantics. The package also
- * contains an internal per-query step that validates a complete
+ * Model's operation semantics.</p>
+ *
+ * <p>The query transports an optional immutable compiled general-scan body with independently
+ * scoped IDs, ordered formals/results and demanded outer ports. Only general scan semantics may carry a body;
+ * missing bodies and semantic mismatches remain questions for provider rejection. Providers must
+ * qualify the complete body and loop binder, not infer support from supported children. One owner
+ * covers the whole scan, even at zero steps or empty demand. Planning does not capture source
+ * bodies, infer descriptors, compute demand or implement automatic differentiation. This transport
+ * is not downstream Compiler, Prepare or concrete-backend scan support.</p>
+ *
+ * <p>The package also contains an internal per-query step that validates a complete
  * provider-to-availability-snapshot association, applies current availability and one optional
  * exact hard requirement, and retains the supported backend identities that remain eligible. A
  * second internal step selects one owner from that complete ordered candidate set. The public

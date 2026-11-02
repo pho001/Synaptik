@@ -48,7 +48,11 @@ public sealed interface CpuFusionDecision permits CpuFusionDecision.LegalCandida
         /** Exact scatter-product accumulation state. */ SCATTER_PRODUCT,
         /** Stable-ordering index state. */ ORDERING_INDICES,
         /** Exact aggregate, reduction, normalization, or statistic state. */ AGGREGATE_EXACT_STATE,
-        /** Per-row scaled-dot-product attention score state. */ ATTENTION_ROW_STATE
+        /** Per-row scaled-dot-product attention score state. */ ATTENTION_ROW_STATE,
+        /**
+         * Ordinary selected row-region transpose staging and private partial/validity state.
+         * This cold resource role does not admit Scan banks or change reduction arithmetic.
+         */ ROW_REGION_STATE
     }
 
     /** Closed attempted contraction relation. */

@@ -54,57 +54,121 @@ final class TensorSoftmaxExpressions {
      *     construction
      */
     static Tensor apply(Tensor input, SoftmaxKind kind, int axis) {
+        return applyChecked(input, kind, axis, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null floating Tensor retained as the sole provenance input
+     * @param kind non-null exact {@link SoftmaxKind#SOFTMAX} or
+     *     {@link SoftmaxKind#LOG_SOFTMAX} identity retained by the result operation
+     * @param axis positive or negative input axis accepted by {@link Shape#normalizeAxis(int)}
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input} is null, with message {@code input}, or if
+     *     {@code kind} is null, with message {@code kind}; input validation occurs first
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if the input is not floating, with message
+     *     {@code input must have a floating data type, but was <dataType>}
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input Shape, including
+     *     every axis for scalar input
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     construction
+     */
+    static Tensor applyChecked(Tensor input, SoftmaxKind kind, int axis,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(kind, "kind");
+        return applyDescriptors(
+                input.descriptor(), kind, axis, descriptorCheck, input);
+    }
+
+    /**
+     * Runs the shared descriptor guards and completes metadata before real provenance is used.
+     * @param input immutable operand metadata
+     * @param kind ordinary construction argument, validated in existing order
+     * @param axis ordinary construction argument, validated in existing order
+     * @param descriptorCheck optional synchronous, unretained metadata completion; null constructs a Tensor
+     * @param inputTensor real provenance, unused when metadata completion is supplied
+     * @return null after metadata completion, otherwise the ordinary result
+     */
+    private static Tensor applyDescriptors(
+            TensorDescriptor input,
+            SoftmaxKind kind,
+            int axis,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor inputTensor) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(kind, "kind");
         validateFloatingInput(input);
-        Shape inputShape = input.descriptor().shape();
+        Shape inputShape = input.shape();
         int normalizedAxis = inputShape.normalizeAxis(axis);
         SoftmaxAttrs attrs = new SoftmaxAttrs(normalizedAxis);
-        return create(input, kind, inputShape, attrs);
+        return createDescriptors(input, kind, inputShape, attrs, descriptorCheck, inputTensor);
     }
 
     /**
      * Requires one of the four current floating input data types without conversion or promotion.
      *
-     * @param input non-null Tensor whose immutable descriptor supplies the data type
+     * @param input non-null descriptor supplying the data type
      * @throws IllegalArgumentException if the input type is not floating, with message
      *     {@code input must have a floating data type, but was <dataType>}
      */
-    private static void validateFloatingInput(Tensor input) {
-        DataType dataType = input.descriptor().dataType();
+    private static void validateFloatingInput(TensorDescriptor input) {
+        DataType dataType = input.dataType();
         if (!dataType.isFloating()) {
             throw new IllegalArgumentException(
                     "input must have a floating data type, but was " + dataType);
         }
     }
 
+
     /**
-     * Constructs one exact descriptor and operation, then delegates one derived Tensor identity.
-     *
-     * <p>The descriptor retains the exact input data type, supplied Shape reference, and unchanged
-     * gradient eligibility while leaving layout unresolved. The operation retains the exact kind
-     * and attributes references, and the central factory receives exact ordered producer input
-     * {@code [input]} exactly once with no label or storage. The factory creates index-zero
-     * provenance. Construction reads no input label, provenance, layout geometry, storage, Shape
-     * dimensions, element count, or values.</p>
-     *
-     * @param input validated Tensor retained as the exact sole provenance input
-     * @param kind exact non-null normalization kind retained by the operation
-     * @param shape exact non-null immutable input Shape retained by the result descriptor
-     * @param attrs non-null normalized-axis attributes retained by exact reference
-     * @return the non-null fresh unresolved-layout, unlabeled, storage-free Tensor returned by the
-     *     central factory
-     * @throws IllegalStateException if tensor identifier space is exhausted after descriptor,
-     *     operation, and provenance construction
+     * Runs the shared descriptor guards and completes metadata before real provenance is used.
+     * @param input immutable operand metadata
+     * @param kind ordinary construction argument, validated in existing order
+     * @param shape ordinary construction argument, validated in existing order
+     * @param attrs ordinary construction argument, validated in existing order
+     * @param descriptorCheck optional synchronous, unretained metadata completion; null constructs a Tensor
+     * @param inputTensor real provenance, unused when metadata completion is supplied
+     * @return null after metadata completion, otherwise the ordinary result
      */
-    private static Tensor create(
-            Tensor input, SoftmaxKind kind, Shape shape, SoftmaxAttrs attrs) {
+    private static Tensor createDescriptors(
+            TensorDescriptor input,
+            SoftmaxKind kind,
+            Shape shape,
+            SoftmaxAttrs attrs,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor inputTensor) {
         TensorDescriptor descriptor = new TensorDescriptor(
-                input.descriptor().dataType(),
+                input.dataType(),
                 shape,
                 Optional.empty(),
-                input.descriptor().requiresGrad());
+                input.requiresGrad());
         Operation operation = new Operation(kind, attrs);
-        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(inputTensor));
+    }
+
+    /**
+     * Completes one admitted ordinary occurrence synchronously using the real construction guards.
+     * No Tensor or identity is created and the callback is not retained. The owning facade checks
+     * occurrence cardinality and compares the returned canonical operation with the supplied one.
+     *
+     * @param operation non-null ordinary operation admitted to this family by the owning selector
+     * @param inputs non-null immutable operand metadata in canonical input order
+     * @param outputCount complete canonical output count, already validated by the owning facade
+     * @param sink non-null synchronous consumer of the canonical operation and all output metadata
+     * @throws IllegalArgumentException if ordinary semantic guards or the consumer reject metadata
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(sink, "sink");
+        SoftmaxAttrs attrs = (SoftmaxAttrs) operation.attrs();
+        applyDescriptors(inputs.get(0), (SoftmaxKind) operation.kind(), attrs.axis(), sink, null);
     }
 }

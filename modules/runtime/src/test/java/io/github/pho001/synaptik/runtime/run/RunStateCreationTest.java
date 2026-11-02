@@ -77,7 +77,7 @@ class RunStateCreationTest {
                         Modifier.isPrivate(
                                 creationType.getDeclaredConstructors()[0].getModifiers())),
                 () -> assertEquals(
-                        1,
+                        2,
                         Arrays.stream(creationType.getDeclaredMethods())
                                 .filter(method -> !Modifier.isPrivate(method.getModifiers()))
                                 .count()),
@@ -117,14 +117,14 @@ class RunStateCreationTest {
     void planValidatesInExactOrderAndSnapshotsBothListLevelsWithoutCreating() {
         PreparedMemoryPlan plan = memoryPlan(1, 1);
         AtomicInteger callbacks = new AtomicInteger();
-        var created = new CreatedBuffer(() -> {
+        var created = new CreatedBuffer((requestedBytes, requestedAlignment) -> {
             callbacks.incrementAndGet();
             return new TrackingBuffer("created", null, null);
         });
         var inner = new ArrayList<BufferPreparation>(List.of(new CallerInput(), created));
         var buffers = new ArrayList<List<BufferPreparation>>(List.of(inner));
         var workspaceCreators = new ArrayList<PreparedRepresentationPlan.WorkspaceCreator>();
-        workspaceCreators.add(() -> {
+        workspaceCreators.add((requestedBytes, requestedAlignment) -> {
             callbacks.incrementAndGet();
             return new TrackingWorkspace("workspace", null, null);
         });
@@ -168,17 +168,17 @@ class RunStateCreationTest {
                         NullPointerException.class,
                         "bufferPreparations[0]",
                         () -> new PreparedRepresentationPlan(
-                                plan, nullInner, List.of(() -> new TrackingWorkspace("w", null, null)))),
+                                plan, nullInner, List.of((requestedBytes, requestedAlignment) -> new TrackingWorkspace("w", null, null)))),
                 () -> assertFailure(
                         IllegalArgumentException.class,
                         "bufferPreparations[0] must not be empty",
                         () -> new PreparedRepresentationPlan(
-                                plan, List.of(List.of()), List.of(() -> new TrackingWorkspace("w", null, null)))),
+                                plan, List.of(List.of()), List.of((requestedBytes, requestedAlignment) -> new TrackingWorkspace("w", null, null)))),
                 () -> assertFailure(
                         NullPointerException.class,
                         "bufferPreparations[0][0]",
                         () -> new PreparedRepresentationPlan(
-                                plan, List.of(nullPreparation), List.of(() -> new TrackingWorkspace("w", null, null)))),
+                                plan, List.of(nullPreparation), List.of((requestedBytes, requestedAlignment) -> new TrackingWorkspace("w", null, null)))),
                 () -> assertFailure(
                         NullPointerException.class,
                         "workspaceCreators[0]",
@@ -213,7 +213,7 @@ class RunStateCreationTest {
                         memoryPlan(2, 0),
                         List.of(
                                 List.of(new CallerInput()),
-                                List.of(new CallerInput(), new CreatedBuffer(() -> {
+                                List.of(new CallerInput(), new CreatedBuffer((requestedBytes, requestedAlignment) -> {
                                     callbacks.incrementAndGet();
                                     return new TrackingBuffer("created", null, null);
                                 }))),
@@ -261,18 +261,18 @@ class RunStateCreationTest {
                         memoryPlan(2, 1),
                         List.of(
                                 List.of(
-                                        new CreatedBuffer(() -> {
+                                        new CreatedBuffer((requestedBytes, requestedAlignment) -> {
                                             creationOrder.add("created00");
                                             return created00;
                                         }),
                                         new CallerInput()),
                                 List.of(
                                         new CallerInput(),
-                                        new CreatedBuffer(() -> {
+                                        new CreatedBuffer((requestedBytes, requestedAlignment) -> {
                                             creationOrder.add("created11");
                                             return created11;
                                         }))),
-                        List.of(() -> {
+                        List.of((requestedBytes, requestedAlignment) -> {
                             creationOrder.add("workspace0");
                             return workspace0;
                         }));
@@ -309,11 +309,11 @@ class RunStateCreationTest {
                 new PreparedRepresentationPlan(
                         memoryPlan(1, 0),
                         List.of(List.of(
-                                new InitializedBuffer(() -> {
+                                new InitializedBuffer((requestedBytes, requestedAlignment) -> {
                                     creationOrder.add("create-initialized");
                                     return initialized;
                                 }),
-                                new CreatedBuffer(() -> {
+                                new CreatedBuffer((requestedBytes, requestedAlignment) -> {
                                     creationOrder.add("create-ordinary");
                                     return ordinary;
                                 }))),
@@ -353,8 +353,8 @@ class RunStateCreationTest {
                 new PreparedRepresentationPlan(
                         memoryPlan(1, 0),
                         List.of(List.of(
-                                new InitializedBuffer(() -> first),
-                                new InitializedBuffer(() -> null))),
+                                new InitializedBuffer((requestedBytes, requestedAlignment) -> first),
+                                new InitializedBuffer((requestedBytes, requestedAlignment) -> null))),
                         List.of());
 
         NullPointerException nullFailure = assertThrows(
@@ -366,7 +366,7 @@ class RunStateCreationTest {
                 new PreparedRepresentationPlan(
                         memoryPlan(1, 0),
                         List.of(List.of(
-                                new CallerInput(), new InitializedBuffer(() -> caller))),
+                                new CallerInput(), new InitializedBuffer((requestedBytes, requestedAlignment) -> caller))),
                         List.of());
         IllegalArgumentException aliasFailure = assertThrows(
                 IllegalArgumentException.class,
@@ -392,8 +392,8 @@ class RunStateCreationTest {
                         memoryPlan(1, 0),
                         List.of(List.of(
                                 new CallerInput(),
-                                new CreatedBuffer(() -> created),
-                                new CreatedBuffer(() -> null))),
+                                new CreatedBuffer((requestedBytes, requestedAlignment) -> created),
+                                new CreatedBuffer((requestedBytes, requestedAlignment) -> null))),
                         List.of());
         NullPointerException nullFailure =
                 assertThrows(
@@ -404,8 +404,8 @@ class RunStateCreationTest {
         PreparedRepresentationPlan duplicateWorkspace =
                 new PreparedRepresentationPlan(
                         memoryPlan(1, 1),
-                        List.of(List.of(new CreatedBuffer(() -> dual))),
-                        List.of(() -> dual));
+                        List.of(List.of(new CreatedBuffer((requestedBytes, requestedAlignment) -> dual))),
+                        List.of((requestedBytes, requestedAlignment) -> dual));
         IllegalArgumentException duplicateFailure =
                 assertThrows(
                         IllegalArgumentException.class,
@@ -430,7 +430,7 @@ class RunStateCreationTest {
                 new PreparedRepresentationPlan(
                         memoryPlan(1, 0),
                         List.of(List.of(
-                                new CallerInput(), new CreatedBuffer(() -> caller))),
+                                new CallerInput(), new CreatedBuffer((requestedBytes, requestedAlignment) -> caller))),
                         List.of());
         IllegalArgumentException aliasFailure =
                 assertThrows(
@@ -441,8 +441,8 @@ class RunStateCreationTest {
         PreparedRepresentationPlan nullWorkspace =
                 new PreparedRepresentationPlan(
                         memoryPlan(1, 1),
-                        List.of(List.of(new CreatedBuffer(() -> created))),
-                        List.of(() -> null));
+                        List.of(List.of(new CreatedBuffer((requestedBytes, requestedAlignment) -> created))),
+                        List.of((requestedBytes, requestedAlignment) -> null));
         NullPointerException nullFailure =
                 assertThrows(
                         NullPointerException.class,
@@ -468,9 +468,9 @@ class RunStateCreationTest {
                 new PreparedRepresentationPlan(
                         memoryPlan(2, 2),
                         List.of(
-                                List.of(new CreatedBuffer(() -> buffer0), new CallerInput()),
-                                List.of(new CreatedBuffer(() -> buffer1))),
-                        List.of(() -> workspace0, () -> workspace1));
+                                List.of(new CreatedBuffer((requestedBytes, requestedAlignment) -> buffer0), new CallerInput()),
+                                List.of(new CreatedBuffer((requestedBytes, requestedAlignment) -> buffer1))),
+                        List.of((requestedBytes, requestedAlignment) -> workspace0, (requestedBytes, requestedAlignment) -> workspace1));
 
         RunState state = RunStateCreation.create(plan, List.of(caller));
         state.close();
@@ -498,9 +498,9 @@ class RunStateCreationTest {
                 new PreparedRepresentationPlan(
                         memoryPlan(1, 0),
                         List.of(List.of(
-                                new CreatedBuffer(() -> first),
-                                new CreatedBuffer(() -> second),
-                                new CreatedBuffer(() -> {
+                                new CreatedBuffer((requestedBytes, requestedAlignment) -> first),
+                                new CreatedBuffer((requestedBytes, requestedAlignment) -> second),
+                                new CreatedBuffer((requestedBytes, requestedAlignment) -> {
                                     throw original;
                                 }))),
                         List.of());
@@ -528,9 +528,9 @@ class RunStateCreationTest {
                         memoryPlan(1, 1),
                         List.of(List.of(
                                 new CallerInput(),
-                                new CreatedBuffer(() -> new TrackingBuffer(
+                                new CreatedBuffer((requestedBytes, requestedAlignment) -> new TrackingBuffer(
                                         "buffer" + bufferIds.incrementAndGet(), null, null)))),
-                        List.of(() -> new TrackingWorkspace(
+                        List.of((requestedBytes, requestedAlignment) -> new TrackingWorkspace(
                                 "workspace" + workspaceIds.incrementAndGet(), null, null)));
         TrackingBuffer caller = new TrackingBuffer("caller", null, null);
 

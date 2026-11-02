@@ -34,8 +34,6 @@ import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
 import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.loss.LossReduction;
-import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
-import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import io.github.pho001.synaptik.model.tensor.Tensor;
@@ -2573,6 +2571,16 @@ final class EngineExplicitCompositionMetalIntegrationTest {
 
 
 
+    /**
+     * Verifies the exact no-broadcast rank-two first-order graph: one forward MATMUL and two
+     * backward transpose/MATMUL pairs. Each gradient is published directly with its operand's
+     * shape and type, without a redundant same-shape reduction or copy.
+     *
+     * @param artifacts non-null compiled artifacts for this explicitly seeded two-target fixture
+     * @param left non-null original rank-two left operand and first gradient target
+     * @param right non-null original rank-two right operand and second gradient target
+     * @param seed non-null explicit cotangent with the forward output's exact shape and type
+     */
     private static void assertMatmulGradientGraph(
             CompileArtifacts artifacts, Tensor left, Tensor right, Tensor seed) {
         CompiledGraphModel graph = artifacts.graph();
@@ -2589,29 +2597,38 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         var gradients = artifacts.publication().gradientBindings();
         assertEquals(List.of(left.id(), right.id()),
                 gradients.stream().map(binding -> binding.target()).toList());
-        assertEquals(7, graph.nodes().size());
-        assertEquals(6, graph.nodes().stream()
+        assertEquals(List.of(1, 1),
+                gradients.stream().map(binding -> binding.derivativeOrder()).toList());
+        assertEquals(List.of(0, 1),
+                gradients.stream().map(binding -> binding.targetIndex()).toList());
+        assertEquals(5, graph.nodes().size());
+        assertEquals(4, graph.nodes().stream()
                 .filter(node -> graph.nodePhases().get(node.id()) == GraphPhase.BACKWARD)
                 .count());
 
-        CompiledNode leftBoundary = producer(graph, gradients.get(0).valueId());
-        assertShapeRestoration(leftBoundary);
-        CompiledNode leftGradient = producer(graph, leftBoundary.inputs().getFirst());
+        CompiledNode leftGradient = producer(graph, gradients.get(0).valueId());
         assertEquals(MatmulKind.MATMUL, leftGradient.operation().kind());
+        assertEquals(GraphPhase.BACKWARD, graph.nodePhases().get(leftGradient.id()));
+        assertEquals(2, leftGradient.inputs().size());
         assertEquals(seedInput, leftGradient.inputs().get(0));
         assertExactTranspose(graph, leftGradient.inputs().get(1), rightInput);
 
-        CompiledNode rightBoundary = producer(graph, gradients.get(1).valueId());
-        assertShapeRestoration(rightBoundary);
-        CompiledNode rightGradient = producer(graph, rightBoundary.inputs().getFirst());
+        CompiledNode rightGradient = producer(graph, gradients.get(1).valueId());
         assertEquals(MatmulKind.MATMUL, rightGradient.operation().kind());
+        assertEquals(GraphPhase.BACKWARD, graph.nodePhases().get(rightGradient.id()));
+        assertEquals(2, rightGradient.inputs().size());
         assertExactTranspose(graph, rightGradient.inputs().get(0), leftInput);
         assertEquals(seedInput, rightGradient.inputs().get(1));
-    }
 
-    private static void assertShapeRestoration(CompiledNode boundary) {
-        assertEquals(AggregateReductionKind.SUM, boundary.operation().kind());
-        assertTrue(boundary.operation().attrs() instanceof SumToShapeAttrs);
+        List<Tensor> targets = List.of(left, right);
+        for (int index = 0; index < targets.size(); index++) {
+            ValueId gradientValue = gradients.get(index).valueId();
+            TensorDescriptor gradientDescriptor = graph.values().stream()
+                    .filter(value -> value.id().equals(gradientValue))
+                    .findFirst().orElseThrow().descriptor();
+            assertEquals(targets.get(index).descriptor().shape(), gradientDescriptor.shape());
+            assertEquals(targets.get(index).descriptor().dataType(), gradientDescriptor.dataType());
+        }
     }
 
     private static void assertExactTranspose(

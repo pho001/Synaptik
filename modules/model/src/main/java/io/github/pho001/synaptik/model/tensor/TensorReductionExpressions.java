@@ -70,11 +70,54 @@ final class TensorReductionExpressions {
      *     model values have been constructed
      */
     static Tensor applyFull(Tensor input, AggregateReductionKind kind) {
+        return applyFullChecked(input, kind, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null eligible tensor retained by exact reference as the sole provenance
+     *     input; no values, storage, element count, or shape extents are inspected
+     * @param kind non-null aggregate kind; must be {@link AggregateReductionKind#SUM},
+     *     {@link AggregateReductionKind#MEAN}, {@link AggregateReductionKind#PROD}, {@link
+     *     AggregateReductionKind#MIN}, {@link AggregateReductionKind#MAX}, {@link
+     *     AggregateReductionKind#ALL}, or {@link AggregateReductionKind#ANY}
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input} or {@code kind} is null, checked in that order
+     *     with the parameter name as the message
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if {@code kind} is unsupported by this helper or the input
+     *     data type is ineligible for that kind, checked in that order with the documented message
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     model values have been constructed
+     */
+    static Tensor applyFullChecked(Tensor input, AggregateReductionKind kind,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(kind, "kind");
+        return applyFullDescriptors(
+                input.descriptor(), kind, descriptorCheck, input);
+    }
+
+    /**
+     * Runs the shared descriptor guards and completes metadata before real provenance is used.
+     * @param input immutable operand metadata
+     * @param kind ordinary construction argument, validated in existing order
+     * @param descriptorCheck optional synchronous, unretained metadata completion; null constructs a Tensor
+     * @param inputTensor real provenance, unused when metadata completion is supplied
+     * @return null after metadata completion, otherwise the ordinary result
+     */
+    private static Tensor applyFullDescriptors(
+            TensorDescriptor input,
+            AggregateReductionKind kind,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor inputTensor) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(kind, "kind");
         validateKind(kind);
         validateInput(input, kind);
-        return create(input, kind, NoOperationAttrs.INSTANCE, Shape.scalar());
+        return createDescriptors(input, kind, NoOperationAttrs.INSTANCE, Shape.scalar(), descriptorCheck, inputTensor);
     }
 
     /**
@@ -113,16 +156,72 @@ final class TensorReductionExpressions {
             AggregateReductionKind kind,
             int axis,
             boolean keepDimensions) {
+        return applyAxisChecked(input, kind, axis, keepDimensions, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null eligible tensor retained by exact reference as the sole provenance
+     *     input; its metadata, storage association, and values remain unchanged
+     * @param kind non-null aggregate kind; must be {@link AggregateReductionKind#SUM},
+     *     {@link AggregateReductionKind#MEAN}, {@link AggregateReductionKind#PROD}, {@link
+     *     AggregateReductionKind#MIN}, {@link AggregateReductionKind#MAX}, {@link
+     *     AggregateReductionKind#ALL}, or {@link AggregateReductionKind#ANY}
+     * @param axis positive or negative input axis accepted by {@link Shape#normalizeAxis(int)}
+     * @param keepDimensions {@code true} to replace the selected result dimension with extent one,
+     *     or {@code false} to remove it
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input} or {@code kind} is null, checked in that order
+     *     with the parameter name as the message
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if {@code kind} is unsupported by this helper or the input
+     *     data type is ineligible for that kind, checked in that order before axis validation
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input Shape, including
+     *     every axis when the input is scalar
+     * @throws IllegalStateException if tensor identifier space is exhausted after local immutable
+     *     model values have been constructed
+     */
+    static Tensor applyAxisChecked(
+            Tensor input,
+            AggregateReductionKind kind,
+            int axis,
+            boolean keepDimensions,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(kind, "kind");
+        return applyAxisDescriptors(
+                input.descriptor(), kind, axis, keepDimensions, descriptorCheck, input);
+    }
+
+    /**
+     * Runs the shared descriptor guards and completes metadata before real provenance is used.
+     * @param input immutable operand metadata
+     * @param kind ordinary construction argument, validated in existing order
+     * @param axis ordinary construction argument, validated in existing order
+     * @param keepDimensions ordinary construction argument, validated in existing order
+     * @param descriptorCheck optional synchronous, unretained metadata completion; null constructs a Tensor
+     * @param inputTensor real provenance, unused when metadata completion is supplied
+     * @return null after metadata completion, otherwise the ordinary result
+     */
+    private static Tensor applyAxisDescriptors(
+            TensorDescriptor input,
+            AggregateReductionKind kind,
+            int axis,
+            boolean keepDimensions,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor inputTensor) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(kind, "kind");
         validateKind(kind);
         validateInput(input, kind);
 
-        Shape inputShape = input.descriptor().shape();
+        Shape inputShape = input.shape();
         int normalizedAxis = inputShape.normalizeAxis(axis);
         Shape shape = reduceShape(inputShape, normalizedAxis, keepDimensions);
         AxisReductionAttrs attrs = new AxisReductionAttrs(normalizedAxis, keepDimensions);
-        return create(input, kind, attrs, shape);
+        return createDescriptors(input, kind, attrs, shape, descriptorCheck, inputTensor);
     }
 
     /**
@@ -149,7 +248,7 @@ final class TensorReductionExpressions {
     /**
      * Enforces the kind-specific input boundary without conversion or promotion.
      *
-     * @param input non-null Tensor whose descriptor is read only for its immutable data type
+     * @param input non-null descriptor inspected only for its immutable data type
      * @param kind validated non-null ordinary aggregate kind
      * @throws IllegalArgumentException if {@code ALL} or {@code ANY} receives a non-BOOL input,
      *     with message {@code input must have BOOL data type for <kind>, but was <dataType>}; if
@@ -158,8 +257,8 @@ final class TensorReductionExpressions {
      *     non-numeric input, with message {@code input must have a numeric data type for <kind>,
      *     but was <dataType>}
      */
-    private static void validateInput(Tensor input, AggregateReductionKind kind) {
-        DataType dataType = input.descriptor().dataType();
+    private static void validateInput(TensorDescriptor input, AggregateReductionKind kind) {
+        DataType dataType = input.dataType();
         if (kind == AggregateReductionKind.ALL || kind == AggregateReductionKind.ANY) {
             if (dataType != DataType.BOOL) {
                 throw new IllegalArgumentException(
@@ -216,35 +315,56 @@ final class TensorReductionExpressions {
         return Shape.ofDimensions(outputDimensions);
     }
 
+
     /**
-     * Constructs exact descriptor, operation, provenance, and derived Tensor metadata.
-     *
-     * <p>The method creates, in order, one unresolved descriptor with input type and gradient
-     * eligibility and one Operation retaining the exact kind and attributes reference, then
-     * passes exact ordered producer input {@code [input]} to one central
-     * {@link TensorFactory#createDerived(TensorDescriptor, Optional, Operation, List)} call with
-     * no label. The factory creates the producer and index-zero provenance. This method performs
-     * no additional semantic validation and does not access storage or values.</p>
-     *
-     * @param input validated eligible tensor retained as the sole provenance input
-     * @param kind validated aggregate kind retained exactly in the Operation
-     * @param attrs non-null exact immutable full- or axis-reduction attributes reference
-     * @param shape non-null canonical or locally derived result Shape
-     * @return the non-null exact fresh, unlabeled, storage-free Tensor returned by the factory
-     * @throws IllegalStateException if tensor identifier space is exhausted after descriptor,
-     *     operation, and provenance construction
+     * Runs the shared descriptor guards and completes metadata before real provenance is used.
+     * @param input immutable operand metadata
+     * @param kind ordinary construction argument, validated in existing order
+     * @param attrs ordinary construction argument, validated in existing order
+     * @param shape ordinary construction argument, validated in existing order
+     * @param descriptorCheck optional synchronous, unretained metadata completion; null constructs a Tensor
+     * @param inputTensor real provenance, unused when metadata completion is supplied
+     * @return null after metadata completion, otherwise the ordinary result
      */
-    private static Tensor create(
-            Tensor input,
+    private static Tensor createDescriptors(
+            TensorDescriptor input,
             AggregateReductionKind kind,
             OperationAttrs attrs,
-            Shape shape) {
+            Shape shape,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor inputTensor) {
         TensorDescriptor descriptor = new TensorDescriptor(
-                input.descriptor().dataType(),
+                input.dataType(),
                 shape,
                 Optional.empty(),
-                input.descriptor().requiresGrad());
+                input.requiresGrad());
         Operation operation = new Operation(kind, attrs);
-        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(inputTensor));
+    }
+
+    /**
+     * Completes one admitted ordinary occurrence synchronously using the real construction guards.
+     * No Tensor or identity is created and the callback is not retained. The owning facade checks
+     * occurrence cardinality and compares the returned canonical operation with the supplied one.
+     *
+     * @param operation non-null ordinary operation admitted to this family by the owning selector
+     * @param inputs non-null immutable operand metadata in canonical input order
+     * @param outputCount complete canonical output count, already validated by the owning facade
+     * @param sink non-null synchronous consumer of the canonical operation and all output metadata
+     * @throws IllegalArgumentException if ordinary semantic guards or the consumer reject metadata
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(sink, "sink");
+        AggregateReductionKind kind = (AggregateReductionKind) operation.kind();
+        if (operation.attrs() instanceof AxisReductionAttrs attrs) {
+            applyAxisDescriptors(inputs.get(0), kind, attrs.axis(), attrs.keepDimensions(), sink, null);
+        } else {
+            applyFullDescriptors(inputs.get(0), kind, sink, null);
+        }
     }
 }

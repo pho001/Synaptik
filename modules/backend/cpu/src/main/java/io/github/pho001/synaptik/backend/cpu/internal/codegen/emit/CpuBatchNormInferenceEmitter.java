@@ -13,8 +13,10 @@ import java.lang.constant.MethodTypeDesc;
  * Emits one direct arbitrary-axis batch-normalization inference body.
  *
  * <p>The selected channel or non-channel range form is baked into the class. Each channel loop
- * loads scale, bias, running mean, and running variance and computes one square root before its
- * coordinate loop. Every coordinate then performs subtraction, division, multiplication, and
+ * loads scale, bias, running mean, and running variance and computes one square root. In a
+ * ROW-controlled helper these loads are deferred until its first eligible coordinate and
+ * retained for the remaining active coordinates; an inactive channel performs no operand loads.
+ * Every coordinate then performs subtraction, division, multiplication, and
  * addition at the exact result computation boundary and stores directly. Entry coordinates are
  * decoded once and subsequent addresses advance incrementally; BFLOAT16, FLOAT16, and FLOAT32 use
  * real FLOAT32 locals while FLOAT64 uses FLOAT64 locals.</p>
@@ -94,22 +96,47 @@ public final class CpuBatchNormInferenceEmitter {
                 && ir.values().get(outputBoundary).accessPlan().regime()
                 == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan.Regime.DENSE_LINEAR;
         boolean simpleTensorPair = denseTensorPair || rank == 3 && axis == 1;
+        boolean controlledRows = CpuCarrierEmitter.controlFacts()
+                .map(control -> control.boundaryRows().get(outputBoundary).rowIndexed())
+                .orElse(false);
+        int channelReady = controlledRows ? code.allocateLocal(TypeKind.INT) : -1;
+        int savedTensorAddress = controlledRows && simpleTensorPair
+                ? code.allocateLocal(TypeKind.LONG) : -1;
+        if (controlledRows) {
+            for (int position = 1; position < values.length; position++) {
+                if (floatComputation) code.loadConstant(0.0f); else code.loadConstant(0.0);
+                code.storeLocal(computationKind, values[position]);
+            }
+            if (floatComputation) code.loadConstant(0.0f); else code.loadConstant(0.0);
+            code.storeLocal(computationKind, denominator);
+        }
+        Runnable channelValues = () -> emitChannelValues(code, carriers, specialization,
+                geometry, map, strides, represented, values, channel, address, epsilon,
+                radicand, denominator, resultType, floatComputation);
+        Runnable activeChannelValues = () -> {
+            if (!controlledRows) return;
+            var ready = code.newLabel();
+            code.iload(channelReady).branch(Opcode.IFNE, ready);
+            if (simpleTensorPair) code.lload(address).lstore(savedTensorAddress);
+            channelValues.run();
+            if (simpleTensorPair) code.lload(savedTensorAddress).lstore(address);
+            code.loadConstant(1).istore(channelReady).labelBinding(ready);
+        };
 
         if (channelRange) {
             code.lload(start).lstore(channel);
             var channels = code.newLabel(); var complete = code.newLabel();
             code.labelBinding(channels).lload(channel).lload(end).lcmp()
                     .branch(Opcode.IFGE, complete);
-            emitChannelValues(code, carriers, specialization, geometry, map, strides,
-                    represented, values, channel, address, epsilon, radicand, denominator,
-                    resultType, floatComputation);
+            if (controlledRows) code.loadConstant(0).istore(channelReady);
+            else channelValues.run();
             code.loadConstant(0L).lstore(nonChannel);
             emitCoordinateLoop(code, carriers, specialization, geometry, rank, axis, map,
                     extents, strides, represented[0], values, channel, nonChannel, remaining,
                     coordinate, address, denominator, centered, standardized, scaled, result,
                     resultType, 6, false, denseTensorPair, simpleTensorPair,
                     prefixCoordinate, suffixCoordinate, outputAddress, floatComputation,
-                    encodedStore);
+                    encodedStore, activeChannelValues);
             code.lload(channel).loadConstant(1L).ladd().lstore(channel)
                     .branch(Opcode.GOTO, channels).labelBinding(complete);
             return;
@@ -119,16 +146,15 @@ public final class CpuBatchNormInferenceEmitter {
         var channels = code.newLabel(); var complete = code.newLabel();
         code.labelBinding(channels).lload(channel); CpuNormEmitter.geometry(code, geometry, 4)
                 .lcmp().branch(Opcode.IFGE, complete);
-        emitChannelValues(code, carriers, specialization, geometry, map, strides,
-                represented, values, channel, address, epsilon, radicand, denominator,
-                resultType, floatComputation);
+        if (controlledRows) code.loadConstant(0).istore(channelReady);
+        else channelValues.run();
         code.lload(start).lstore(nonChannel);
         emitCoordinateLoop(code, carriers, specialization, geometry, rank, axis, map,
                 extents, strides, represented[0], values, channel, nonChannel, remaining,
                 coordinate, address, denominator, centered, standardized, scaled, result,
                 resultType, -1, true, denseTensorPair, simpleTensorPair,
                 prefixCoordinate, suffixCoordinate, outputAddress, floatComputation,
-                encodedStore);
+                encodedStore, activeChannelValues);
         code.lload(channel).loadConstant(1L).ladd().lstore(channel)
                 .branch(Opcode.GOTO, channels).labelBinding(complete);
     }
@@ -163,7 +189,8 @@ public final class CpuBatchNormInferenceEmitter {
             int centered, int standardized, int scaled, int result, DataType resultType,
             int endGeometryIndex, boolean useEntryEnd, boolean denseTensorPair,
             boolean simpleTensorPair, int prefixCoordinate, int suffixCoordinate,
-            int outputAddress, boolean floatComputation, int encodedStore) {
+            int outputAddress, boolean floatComputation, int encodedStore,
+            Runnable activeChannelValues) {
         int entryEnd = geometry + 3;
         int output = specialization.carrierPattern().size() - 1;
         if (simpleTensorPair) {
@@ -188,6 +215,18 @@ public final class CpuBatchNormInferenceEmitter {
         if (useEntryEnd) code.lload(entryEnd); else CpuNormEmitter.geometry(code, geometry,
                 endGeometryIndex);
         code.lcmp().branch(Opcode.IFGE, done);
+        var advance = code.newLabel();
+        CpuCarrierEmitter.controlFacts().ifPresent(control -> {
+            var row = control.boundaryRows().get(output);
+            if (row.axis() == axis) {
+                CpuCarrierEmitter.emitActiveRowGuard(code, channel, TypeKind.LONG, advance);
+            } else {
+                boolean[] omitted = new boolean[rank]; omitted[axis] = true;
+                CpuLoopEmitter.emitActiveSliceGuard(code, output, nonChannel, TypeKind.LONG,
+                        geometry, extents[output], omitted, advance);
+            }
+        });
+        activeChannelValues.run();
         if (!simpleTensorPair) emitTensorAddress(code, geometry, rank, axis, extents[map[0]], strides[map[0]],
                     9 + map[0], channel, nonChannel, remaining, coordinate, address);
         loadValue(code, carriers, specialization, map[0], inputRepresented, values[0], address,
@@ -214,6 +253,7 @@ public final class CpuBatchNormInferenceEmitter {
                             || resultType == DataType.FLOAT16 ? encodedStore : result,
                     false, true);
         }
+        code.labelBinding(advance);
         code.lload(nonChannel).loadConstant(1L).ladd().lstore(nonChannel);
         if (simpleTensorPair) {
             code.lload(address);

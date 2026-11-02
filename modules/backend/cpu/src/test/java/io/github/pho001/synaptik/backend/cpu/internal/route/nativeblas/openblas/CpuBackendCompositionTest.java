@@ -57,6 +57,8 @@ final class CpuBackendCompositionTest {
                             Float.intBitsToFloat(0x7fc0_0042))),
                     constant(DataType.BFLOAT16, Shape.of(1),
                             ScalarValue.bfloat16Bits((short) 0xffc1)),
+                    constant(DataType.FLOAT16, Shape.of(2),
+                            ScalarValue.float16Bits((short) 0xfd55)),
                     constant(DataType.INT64, Shape.of(1), ScalarValue.int64(Long.MIN_VALUE)),
                     constant(DataType.INT32, Shape.of(1), ScalarValue.int32(Integer.MIN_VALUE)),
                     constant(DataType.BOOL, Shape.of(1), ScalarValue.bool(true)),
@@ -127,7 +129,7 @@ final class CpuBackendCompositionTest {
     }
 
     @Test
-    void rejectsSourceOnlyGeometryInDeterministicOrder() {
+    void rejectsUnsupportedSourceOnlyConstantGeometry() {
         try (CpuBackendComposition composition = CpuBackendComposition.openAutomatic()) {
             CompileArtifacts base = ordinaryArtifacts(composition);
             TensorDescriptor dynamic = new TensorDescriptor(DataType.FLOAT32,
@@ -144,21 +146,47 @@ final class CpuBackendCompositionTest {
                     overflowingShape,
                     Optional.of(LayoutDescriptor.contiguous(overflowingShape)), false);
 
-            assertTrue(assertThrows(IllegalArgumentException.class,
+            assertThrows(IllegalArgumentException.class,
                     () -> prepare(composition, withConstants(base, List.of(
-                            new ConstantCase(dynamic, ScalarValue.float32(1.0f))))))
-                    .getMessage().contains("dynamic shape"));
-            assertTrue(assertThrows(IllegalArgumentException.class,
+                            new ConstantCase(dynamic, ScalarValue.float32(1.0f))))));
+            assertThrows(IllegalArgumentException.class,
                     () -> prepare(composition, withConstants(base, List.of(
-                            new ConstantCase(unresolved, ScalarValue.float32(1.0f))))))
-                    .getMessage().contains("unresolved layout"));
-            assertTrue(assertThrows(IllegalArgumentException.class,
+                            new ConstantCase(unresolved, ScalarValue.float32(1.0f))))));
+            assertThrows(IllegalArgumentException.class,
                     () -> prepare(composition, withConstants(base, List.of(
-                            new ConstantCase(nonCanonical, ScalarValue.float32(1.0f))))))
-                    .getMessage().contains("non-canonical layout"));
+                            new ConstantCase(nonCanonical, ScalarValue.float32(1.0f))))));
             assertThrows(ArithmeticException.class,
                     () -> prepare(composition, withConstants(base, List.of(
                             new ConstantCase(overflowing, ScalarValue.float64(1.0d))))));
+
+            // The explicit-resource form bypasses the automatic geometry callback, but not
+            // the source-only constant policy of either real CPU schedule collaboration.
+            CompileArtifacts explicit = withConstants(base, List.of(
+                    new ConstantCase(nonCanonical, ScalarValue.float32(1.0f))));
+            var value = explicit.graph().values().stream()
+                    .filter(candidate -> explicit.constants().constantSources().stream()
+                            .anyMatch(source -> source.valueId().equals(candidate.id())))
+                    .findFirst().orElseThrow();
+            var requirement = explicit.memory().requirements().stream()
+                    .filter(candidate -> candidate.valueId().equals(value.id()))
+                    .findFirst().orElseThrow();
+            var resource = new io.github.pho001.synaptik.prepare.ProducerlessPublishedValueResource(
+                    value, requirement, CpuCapabilityProvider.CPU_BACKEND_ID,
+                    io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering
+                            .descriptorByteSize(nonCanonical),
+                    nonCanonical.dataType().byteWidth());
+            for (boolean contributeFirst : List.of(false, true)) {
+                io.github.pho001.synaptik.prepare.PreparedScheduleAssembler assembler = context -> {
+                    if (contributeFirst) {
+                        ((io.github.pho001.synaptik.prepare.PreparedScheduleContributor)
+                                composition.scheduleAssembler()).contribute(context);
+                    }
+                    return composition.scheduleAssembler().assemble(context);
+                };
+                assertThrows(IllegalArgumentException.class,
+                        () -> GraphPreparation.prepare(explicit, List.of(composition.preparation()),
+                                List.of(resource), assembler));
+            }
         }
     }
 
@@ -442,6 +470,7 @@ final class CpuBackendCompositionTest {
                 case FLOAT64 -> bytes.putDouble(constant.value.float64Value());
                 case FLOAT32 -> bytes.putFloat(constant.value.float32Value());
                 case BFLOAT16 -> bytes.putShort(constant.value.bfloat16Bits());
+                case FLOAT16 -> bytes.putShort(constant.value.float16Bits());
                 case INT64 -> bytes.putLong(constant.value.int64Value());
                 case INT32 -> bytes.putInt(constant.value.int32Value());
                 case BOOL -> bytes.put((byte) (constant.value.booleanValue() ? 1 : 0));

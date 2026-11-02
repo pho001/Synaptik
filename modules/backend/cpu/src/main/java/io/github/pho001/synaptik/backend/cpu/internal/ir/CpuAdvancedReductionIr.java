@@ -12,6 +12,9 @@ import java.util.Objects;
  * records canonical input-axis membership used by the generated row-major traversal. Concrete
  * extents, offsets, strides, carriers, ranges, and workspace slots remain cold geometry.</p>
  *
+ * <p>Equality and hashing include every record component, comparing the defensively retained
+ * axis arrays by content rather than array identity.</p>
+ *
  * @param kind exact advanced reduction meaning
  * @param dataType identical floating input and output type
  * @param orderedAxes normalized ordered axes, copied defensively
@@ -91,6 +94,45 @@ public record CpuAdvancedReductionIr(Kind kind, DataType dataType, int[] ordered
      * @return a new copy of the canonical input-axis membership flags
      */
     @Override public boolean[] selectedAxes() { return selectedAxes.clone(); }
+
+    /**
+     * Compares every immutable component, including ordered axes and membership by content.
+     *
+     * @param other candidate value; may be {@code null}
+     * @return whether the candidate is an advanced reduction with identical component values
+     */
+    @Override public boolean equals(Object other) {
+        return this == other || other instanceof CpuAdvancedReductionIr ir
+                && kind == ir.kind && dataType == ir.dataType
+                && Arrays.equals(orderedAxes, ir.orderedAxes)
+                && Arrays.equals(selectedAxes, ir.selectedAxes)
+                && keepDimensions == ir.keepDimensions && correction == ir.correction
+                && algorithmVersion == ir.algorithmVersion && passCount == ir.passCount
+                && domainCount == ir.domainCount && stateLimbCount == ir.stateLimbCount
+                && scratchSliceBytes == ir.scratchSliceBytes
+                && inputAccess.equals(ir.inputAccess) && outputAccess.equals(ir.outputAccess);
+    }
+
+    /**
+     * Hashes all immutable components with array-content semantics matching {@link #equals(Object)}.
+     *
+     * @return content hash without boxing components or exposing retained arrays
+     */
+    @Override public int hashCode() {
+        int result = kind.hashCode();
+        result = 31 * result + dataType.hashCode();
+        result = 31 * result + Arrays.hashCode(orderedAxes);
+        result = 31 * result + Arrays.hashCode(selectedAxes);
+        result = 31 * result + Boolean.hashCode(keepDimensions);
+        result = 31 * result + Long.hashCode(correction);
+        result = 31 * result + Integer.hashCode(algorithmVersion);
+        result = 31 * result + Integer.hashCode(passCount);
+        result = 31 * result + Long.hashCode(domainCount);
+        result = 31 * result + Integer.hashCode(stateLimbCount);
+        result = 31 * result + Long.hashCode(scratchSliceBytes);
+        result = 31 * result + inputAccess.hashCode();
+        return 31 * result + outputAccess.hashCode();
+    }
 
     /**
      * Encodes this family for generated-artifact compatibility.

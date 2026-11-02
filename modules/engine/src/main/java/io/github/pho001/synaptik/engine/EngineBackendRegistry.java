@@ -276,7 +276,7 @@ final class EngineBackendRegistry implements AutoCloseable {
             List<BackendId> owners =
                     CompositePreparedScheduleAssembler.ownerOrder(requirement);
             if (owners.isEmpty()) {
-                result.add(producerlessConstantAdapter());
+                result.add(producerlessValueAdapter());
             } else {
                 result.add(requireAdapter(owners.getFirst()));
             }
@@ -284,14 +284,14 @@ final class EngineBackendRegistry implements AutoCloseable {
         return List.copyOf(result);
     }
 
-    private EngineBackendComposition producerlessConstantAdapter() {
+    private EngineBackendComposition producerlessValueAdapter() {
         for (EngineBackendComposition entry : entries) {
             if (entry instanceof CpuEngineBackendComposition) {
                 return entry;
             }
         }
         throw new IllegalArgumentException(
-                "producerless published constants require a registered CPU adapter");
+                "producerless published values require a registered CPU adapter");
     }
 
     /**

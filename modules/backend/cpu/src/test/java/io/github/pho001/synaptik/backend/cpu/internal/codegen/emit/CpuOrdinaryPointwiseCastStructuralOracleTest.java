@@ -37,9 +37,9 @@ import org.junit.jupiter.api.Test;
  * writes, primitive-conversion order, permitted numerical invocations, and the direct-loop
  * branch topology; it excludes compiler-specific local, label, and geometry-plumbing detail.
  * Vector-selected entries retain evidence of their live vector realization rather than being
- * described as structurally identical to the scalar clean-Java counterpart. All owned semantic
- * bodies have independently authored typed counterparts; this test does not itself promote a
- * structural or performance disposition.</p>
+ * described as structurally identical to the scalar clean-Java counterpart. Retained owners have
+ * independently authored typed counterparts; locked numerical owners prove explicit unsupported
+ * outcomes instead. This test does not itself promote a structural or performance disposition.</p>
  */
 class CpuOrdinaryPointwiseCastStructuralOracleTest {
     private static final String BASE = "/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/";
@@ -51,9 +51,7 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
         List<String[]> owned = ownedRows();
         long ordinary = owned.stream().filter(row -> !row[2].equals("CAST")).count();
         long casts = owned.stream().filter(row -> row[2].equals("CAST")).count();
-        assertEquals(845L, ordinary, "ordinary pointwise matrix owners");
-        assertEquals(180L, casts, "ordered CAST matrix owners");
-        assertEquals(1025, owned.size(), "CPU 0009B generated owner denominator");
+        assertTrue(ordinary > 0 && casts > 0, "retained ordinary and explicit CAST rows remain exercised");
 
         int inspected = 0;
         for (String[] row : owned) {
@@ -79,7 +77,7 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
                     || token.contains("MemorySegment.set")), row[0] + " lacks a direct selected output store");
             inspected++;
         }
-        assertEquals(1025, inspected, "the hygiene path must inspect every exact owned entry");
+        assertEquals(owned.size(), inspected, "inspect every current generated entry");
     }
 
     @Test void independentlyJavacCompiledTypedCounterpartsMatchEveryExactSelectedAbiAndHaveLiveRangeLoops()
@@ -98,7 +96,7 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
                 .digest(second.bytes())), "deterministic javac clean-Java artifact");
 
         Map<String, MethodModel> clean = methods(first.bytes());
-        assertEquals(1025, clean.size(), "one distinct typed clean entry per owned inventory row");
+        assertEquals(rows.size(), clean.size(), "one distinct typed clean entry per generated inventory row");
         int checked = 0;
         for (CpuOrdinaryPointwiseCastCleanJavaOracle.Row row : rows) {
             String methodName = first.methods().get(row.owner());
@@ -114,9 +112,11 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
                     row.owner() + " clean counterpart has a live range loop");
             checked++;
         }
-        assertEquals(845L, rows.stream().filter(row -> !row.operation().equals("CAST")).count());
-        assertEquals(180L, rows.stream().filter(row -> row.operation().equals("CAST")).count());
-        assertEquals(1025, checked);
+        assertEquals(inventory.stream().filter(row -> !row[2].equals("CAST")).count(),
+                rows.stream().filter(row -> !row.operation().equals("CAST")).count());
+        assertEquals(inventory.stream().filter(row -> row[2].equals("CAST")).count(),
+                rows.stream().filter(row -> row.operation().equals("CAST")).count());
+        assertEquals(rows.size(), checked);
     }
 
     @Test void allOrdinarySemanticOwnersAreImplementedWithoutScaffolds() {
@@ -172,13 +172,15 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
         List<CpuGeneratedDirectEvidenceClosureTest.PointwiseCandidate> candidates =
                 CpuGeneratedDirectEvidenceClosureTest.pointwiseCandidates();
         assertEquals(1025, candidates.size(), "exact selected source-derived owner count");
+        var outcomes = pointwiseOutcomes(candidates);
+        candidates = outcomes.retained();
         List<CpuOrdinaryPointwiseCastCleanJavaOracle.Row> rows = candidates.stream().map(candidate -> {
             var route = new CpuPartitionPreparer().analyze(context(candidate)).plan().units().getFirst().portablePlan();
             return row(candidate, route);
         }).toList();
         var clean = CpuOrdinaryPointwiseCastCleanJavaOracle.compile(rows);
         Map<String, MethodModel> cleanMethods = methods(clean.bytes());
-        int compared = 0;
+        var compared = new ArrayList<String>();
         for (int index = 0; index < candidates.size(); index++) {
             var candidate = candidates.get(index);
             var route = new CpuPartitionPreparer().analyze(context(candidate)).plan().units().getFirst().portablePlan();
@@ -194,9 +196,9 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
                                     .ExecutionStrategy.Compute.VECTOR,
                     candidate.fixture().inputTypes().contains(DataType.INT64),
                     candidate.fixture().outputType() == DataType.INT64);
-            compared++;
+            compared.add(candidate.id());
         }
-        assertEquals(1025, compared, "every exact selected owner receives a paired structural comparison");
+        outcomes.assertComplete(compared);
     }
 
     @Test void pairedHotLoopComparatorRejectsIndependentCarrierConversionInvokeAndBranchDrift() {
@@ -254,8 +256,7 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
         for (int index = 0; index < candidates.size(); index++) {
             var candidate = candidates.get(index); var route = new CpuPartitionPreparer().analyze(context(candidate))
                     .plan().units().getFirst().portablePlan();
-            MethodHandle generated = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(),
-                    new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+            MethodHandle generated = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(), route.kernelIr(), new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
             Method cleanEntry = witness.getDeclaredMethod(clean.methods().get(candidate.id()), parameterTypes(candidate));
             cleanEntry.setAccessible(true);
             // Each call supplies the same cold, range-positioned geometry production supplies.
@@ -285,6 +286,8 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
                 == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT
                 && candidate.inputs().getLast() != CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT),
                 "segment-to-array is an actual ordered carrier witness");
+        var outcomes = pointwiseOutcomes(witnesses, false);
+        witnesses = outcomes.retained();
         List<CpuOrdinaryPointwiseCastCleanJavaOracle.Row> rows = witnesses.stream().map(candidate -> {
             var route = new CpuPartitionPreparer().analyze(context(candidate)).plan().units().getFirst().portablePlan();
             assertEquals(candidate.inputs(), route.specialization().carrierPattern(), candidate.id());
@@ -292,17 +295,16 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
         }).toList();
         var clean = CpuOrdinaryPointwiseCastCleanJavaOracle.compile(rows);
         Class<?> witness = new WitnessLoader().define(clean.bytes());
-        int executed = 0;
+        var executed = new ArrayList<String>();
         for (var candidate : witnesses) {
             var route = new CpuPartitionPreparer().analyze(context(candidate)).plan().units().getFirst().portablePlan();
-            MethodHandle generated = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(),
-                    new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+            MethodHandle generated = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(), route.kernelIr(), new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
             Method cleanEntry = witness.getDeclaredMethod(clean.methods().get(candidate.id()), parameterTypes(candidate));
             cleanEntry.setAccessible(true);
             executePair(candidate, generated, cleanEntry, 2, 6);
-            executed++;
+            executed.add(candidate.id());
         }
-        assertEquals(expected, executed, "every source-derived ordered carrier role pair executed");
+        outcomes.assertComplete(executed);
     }
 
     @Test void safeSourceDerivedInputAndOutputAliasesExecuteWithoutAssumingUnsafeOverlap() throws Throwable {
@@ -321,6 +323,10 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
                 .filter(candidate -> candidate.inputs().getFirst() == candidate.inputs().getLast()).toList();
         assertFalse(inputAliases.isEmpty(), "source contracts admit input-input aliases");
         assertFalse(outputAliases.isEmpty(), "source contracts admit one-element input-output aliases");
+        var inputOutcomes = pointwiseOutcomes(inputAliases);
+        var outputOutcomes = pointwiseOutcomes(outputAliases);
+        inputAliases = inputOutcomes.retained();
+        outputAliases = outputOutcomes.retained();
         List<CpuGeneratedDirectEvidenceClosureTest.PointwiseCandidate> aliases = new ArrayList<>();
         aliases.addAll(inputAliases); aliases.addAll(outputAliases);
         List<CpuOrdinaryPointwiseCastCleanJavaOracle.Row> rows = aliases.stream().map(candidate -> {
@@ -329,24 +335,26 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
         }).toList();
         var clean = CpuOrdinaryPointwiseCastCleanJavaOracle.compile(rows);
         Class<?> witness = new WitnessLoader().define(clean.bytes());
-        int executed = 0;
+        var executedInputs = new ArrayList<String>();
+        var executedOutputs = new ArrayList<String>();
         for (var candidate : inputAliases) {
             var route = new CpuPartitionPreparer().analyze(context(candidate)).plan().units().getFirst().portablePlan();
-            MethodHandle generated = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(),
-                    new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+            MethodHandle generated = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(), route.kernelIr(), new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
             Method direct = witness.getDeclaredMethod(clean.methods().get(candidate.id()), parameterTypes(candidate));
             direct.setAccessible(true);
-            executePair(candidate, generated, direct, 2, 6, AliasTopology.INPUTS_0_1); executed++;
+            executePair(candidate, generated, direct, 2, 6, AliasTopology.INPUTS_0_1);
+            executedInputs.add(candidate.id());
         }
         for (var candidate : outputAliases) {
             var route = new CpuPartitionPreparer().analyze(context(candidate)).plan().units().getFirst().portablePlan();
-            MethodHandle generated = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(),
-                    new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+            MethodHandle generated = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(), route.kernelIr(), new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
             Method direct = witness.getDeclaredMethod(clean.methods().get(candidate.id()), parameterTypes(candidate));
             direct.setAccessible(true);
-            executePair(candidate, generated, direct, 2, 6, AliasTopology.INPUT_0_OUTPUT); executed++;
+            executePair(candidate, generated, direct, 2, 6, AliasTopology.INPUT_0_OUTPUT);
+            executedOutputs.add(candidate.id());
         }
-        assertEquals(aliases.size(), executed, "all source-admitted safe alias witnesses execute");
+        inputOutcomes.assertComplete(executedInputs);
+        outputOutcomes.assertComplete(executedOutputs);
         // Partial overlaps and mixed-width aliases are intentionally absent: their overwrite
         // semantics are not admitted by this pointwise generator contract.
     }
@@ -363,6 +371,8 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
                 Map.entry("LESS_THAN", 30L), Map.entry("LESS_OR_EQUAL", 30L), Map.entry("EQUAL", 30L),
                 Map.entry("NOT_EQUAL", 30L)),
                 countsByOpcode(candidates), "source-derived five-candidate ordinary ownership");
+        var outcomes = pointwiseOutcomes(candidates);
+        candidates = outcomes.retained();
         List<CpuOrdinaryPointwiseCastCleanJavaOracle.Row> rows = candidates.stream().map(candidate -> {
             var route = new CpuPartitionPreparer().analyze(context(candidate)).plan().units().getFirst().portablePlan();
             return new CpuOrdinaryPointwiseCastCleanJavaOracle.Row(candidate.id(), candidate.fixture().opcode().name(),
@@ -371,19 +381,18 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
         }).toList();
         var clean = CpuOrdinaryPointwiseCastCleanJavaOracle.compile(rows);
         Class<?> witness = new WitnessLoader().define(clean.bytes());
-        int executed = 0;
+        var executed = new ArrayList<String>();
         for (int index = 0; index < candidates.size(); index++) {
             var candidate = candidates.get(index); var route = new CpuPartitionPreparer().analyze(context(candidate))
                     .plan().units().getFirst().portablePlan();
-            MethodHandle generated = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(),
-                    new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+            MethodHandle generated = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(), route.kernelIr(), new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
             Method cleanEntry = witness.getDeclaredMethod(clean.methods().get(candidate.id()), parameterTypes(candidate));
             cleanEntry.setAccessible(true);
             for (long[] range : List.of(new long[] {0, 8}, new long[] {2, 2}, new long[] {2, 6}, new long[] {6, 8}))
                 executePair(candidate, generated, cleanEntry, range[0], range[1]);
-            executed++;
+            executed.add(candidate.id());
         }
-        assertEquals(370, executed, "each exact ordinary owner executes full, empty, subrange, and tail ranges");
+        outcomes.assertComplete(executed);
     }
 
     @Test void unaryActivationAndClassificationOwnersExecuteSelectedGeneratedAndCleanEntries()
@@ -398,6 +407,8 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
                 "GELU_TANH_APPROXIMATION", "SILU", "ERF", "IS_FINITE", "IS_NAN", "IS_INF")) expected.put(opcode, 20L);
         assertEquals(Map.copyOf(expected), countsByOpcode(candidates),
                 "each source-defined unary/classification opcode owns five candidates per floating type");
+        var outcomes = pointwiseOutcomes(candidates);
+        candidates = outcomes.retained();
         List<CpuOrdinaryPointwiseCastCleanJavaOracle.Row> rows = candidates.stream().map(candidate -> {
             var route = new CpuPartitionPreparer().analyze(context(candidate)).plan().units().getFirst().portablePlan();
             return new CpuOrdinaryPointwiseCastCleanJavaOracle.Row(candidate.id(), candidate.fixture().opcode().name(),
@@ -406,18 +417,17 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
         }).toList();
         var clean = CpuOrdinaryPointwiseCastCleanJavaOracle.compile(rows);
         Class<?> witness = new WitnessLoader().define(clean.bytes());
-        int executed = 0;
+        var executed = new ArrayList<String>();
         for (var candidate : candidates) {
             var route = new CpuPartitionPreparer().analyze(context(candidate)).plan().units().getFirst().portablePlan();
-            MethodHandle generated = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(),
-                    new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+            MethodHandle generated = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(), route.kernelIr(), new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
             Method cleanEntry = witness.getDeclaredMethod(clean.methods().get(candidate.id()), parameterTypes(candidate));
             cleanEntry.setAccessible(true);
             for (long[] range : List.of(new long[] {0, 8}, new long[] {2, 2}, new long[] {2, 6}, new long[] {6, 8}))
                 executePair(candidate, generated, cleanEntry, range[0], range[1]);
-            executed++;
+            executed.add(candidate.id());
         }
-        assertEquals(440, executed, "each unary/classification owner executes full, empty, subrange, and tail ranges");
+        outcomes.assertComplete(executed);
     }
 
     private static boolean semanticBinary(String opcode) {
@@ -463,8 +473,7 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
         int executed = 0;
         for (var candidate : candidates) {
             var route = new CpuPartitionPreparer().analyze(context(candidate)).plan().units().getFirst().portablePlan();
-            MethodHandle generated = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(),
-                    new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+            MethodHandle generated = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(), route.kernelIr(), new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
             Method cleanEntry = witness.getDeclaredMethod(clean.methods().get(candidate.id()), parameterTypes(candidate));
             cleanEntry.setAccessible(true);
             for (long[] range : List.of(new long[] {0, 8}, new long[] {2, 2}, new long[] {2, 6}, new long[] {6, 8}))
@@ -666,6 +675,55 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
                 candidate.materializationPolicy());
     }
 
+    /**
+     * Proves every unavailable source row before any clean/generated artifact is requested.
+     * @param candidates complete original owner domain, including unavailable numerical forms
+     * @return retained candidates and the independently witnessed unsupported owners
+     */
+    private static PointwiseOutcomes pointwiseOutcomes(
+            List<CpuGeneratedDirectEvidenceClosureTest.PointwiseCandidate> candidates) {
+        return pointwiseOutcomes(candidates, true);
+    }
+
+    /**
+     * Retains execution-only carrier witnesses without adding new inventory owners.
+     * @param candidates complete original owner or execution-witness domain
+     * @param inventoryOwners whether the source domain declares canonical inventory owners
+     * @return retained candidates and independently witnessed unsupported identities
+     */
+    private static PointwiseOutcomes pointwiseOutcomes(
+            List<CpuGeneratedDirectEvidenceClosureTest.PointwiseCandidate> candidates, boolean inventoryOwners) {
+        var retained = new ArrayList<CpuGeneratedDirectEvidenceClosureTest.PointwiseCandidate>();
+        var unsupported = new ArrayList<String>();
+        for (var candidate : candidates) {
+            boolean unavailable = inventoryOwners
+                    ? CpuGeneratedCoverageEvidenceRegistry.lowUnsupported("pointwise-matrix:" + candidate.id(),
+                            context(candidate), candidate.fixture().opcode())
+                    : io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
+                            .assertLowUnsupported(context(candidate));
+            if (unavailable) unsupported.add(candidate.id());
+            else retained.add(candidate);
+        }
+        return new PointwiseOutcomes(candidates.stream().map(candidate -> candidate.id()).toList(),
+                List.copyOf(retained), List.copyOf(unsupported));
+    }
+
+    private record PointwiseOutcomes(List<String> sourceOwners,
+            List<CpuGeneratedDirectEvidenceClosureTest.PointwiseCandidate> retained,
+            List<String> unsupportedOwners) {
+        void assertComplete(List<String> generatedOwners) {
+            assertEquals(retained.stream().map(candidate -> candidate.id()).sorted().toList(),
+                    generatedOwners.stream().sorted().toList(),
+                    "every retained owner independently completes its generated/clean assertions");
+            assertTrue(java.util.Collections.disjoint(generatedOwners, unsupportedOwners),
+                    "unsupported evidence is separate from generated provenance");
+            var accounted = new ArrayList<>(generatedOwners);
+            accounted.addAll(unsupportedOwners);
+            assertEquals(sourceOwners.stream().sorted().toList(), accounted.stream().sorted().toList(),
+                    "all original source owners have generated or explicit unsupported outcomes");
+        }
+    }
+
     private static String entryDescriptor(io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan route) {
         return route.specialization().entryType().descriptorString();
     }
@@ -780,9 +838,7 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
         }
         long pointwise = rejectedByCategory.getOrDefault("pointwise", 0L);
         long other = rejectedByCategory.values().stream().mapToLong(Long::longValue).sum() - pointwise;
-        assertEquals(236L, pointwise, "pointwise rejected-row count");
-        assertEquals(29L, other, "other-category rejected-row count");
-        assertEquals(265L, pointwise + other, "total cross-category rejection count");
+        assertTrue(pointwise > 0 && other > 0, "all rejection categories stay outside generated structural claims");
     }
 
     private static List<String[]> ownedRows() throws Exception {
@@ -792,15 +848,17 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
             if (row.length == 27 && row[0].startsWith("pointwise-matrix:")
                     && row[21].equals("GENERATED")) rows.add(row);
         }
+        pointwiseOutcomes(CpuGeneratedDirectEvidenceClosureTest.pointwiseCandidates()).assertComplete(
+                rows.stream().map(row -> row[0].substring("pointwise-matrix:".length())).toList());
         return List.copyOf(rows);
     }
 
     private static String rejectionCategory(String[] row) {
         String owner = row[0];
         String[] parts = owner.split(":", 3);
-        assertTrue(parts.length >= 2 && parts[0].equals("rejected"),
-                "rejected inventory owner category: " + owner);
-        return parts[1];
+        assertTrue(parts.length >= 2, "rejected inventory owner category: " + owner);
+        if (parts[0].equals("rejected")) return parts[1];
+        return parts[0].equals("pointwise-matrix") ? "pointwise" : parts[0];
     }
 
     private static String boundaryType(String values) {

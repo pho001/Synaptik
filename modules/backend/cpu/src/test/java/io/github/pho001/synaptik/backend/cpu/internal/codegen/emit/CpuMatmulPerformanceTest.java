@@ -195,7 +195,7 @@ public final class CpuMatmulPerformanceTest {
         var spec=new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), bits==0?CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR:CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR,
         types,carriers,bits,-1,List.of(),false,54,Optional.of(ir));
         var generator=new CpuClassFileKernelGenerator();byte[]bytes=generator.generateClassBytes(spec,ir.encodedKernelIr());
-        retainGenerated(name,bytes,spec,ir);MethodHandle handle=generator.defineClassBytes(spec,bytes).entryPoint();
+        retainGenerated(name,bytes,spec,ir);MethodHandle handle=generator.defineClassBytes(spec, ir.encodedKernelIr(), bytes).entryPoint();
         long[]g=batch==1
                 ?new long[]{0,0,0,batch,m,k,n,k,1,n,1,n,1,0,0,bias?1:0,(long)batch*m*n,1}
                 :new long[]{0,0,0,batch,m,k,n,k,1,n,1,n,1,1,0,bias?1:0,

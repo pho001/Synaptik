@@ -27,7 +27,7 @@ import java.util.Objects;
  * Performs the package-internal complete-set assignment and backend-finalization handoff.
  *
  * <p>The operation validates the complete ordered partition set before deriving any assignment,
- * appends any canonical producerless published-constant declarations after ordinary buffers,
+ * seeds ordinary and source-only callers first, and appends source-only constants last,
  * constructs every typed finalization before invoking a backend, and then invokes finalizers in
  * partition order. Every returned result transfers its persistent resources to this transaction
  * in partition and acquisition order. All unique identities in that result are tracked before
@@ -62,45 +62,16 @@ final class BackendPartitionFinalizationHandoff {
     static Result finalizePartitions(
             List<PlannedPartition> partitions,
             List<? extends Entry<?, ?>> entries) {
-        return finalizePartitions(partitions, entries, List.of());
+        return finalizePartitions(partitions, entries, List.of(), List.of(), false);
     }
 
     /**
-     * Assigns a complete ordered analysis set plus canonical producerless resource contributions
-     * and finalizes partition-owned work against the resulting shared memory plan.
-     *
-     * @param partitions non-null ordered expected partitions; list structure is inspected only
-     *     and caller ownership is unchanged
-     * @param entries non-null ordered partition finalization entries; elements are retained only
-     *     for this synchronous call and caller ownership is unchanged
-     * @param producerlessResources non-null canonical producerless contributions to append after
-     *     all ordinary buffer declarations; elements must be non-null and must not overlap an
-     *     ordinary declaration; supplied geometry is copied unchanged into the immutable memory
-     *     plan and the list is neither retained nor mutated
-     * @return a non-null immutable complete handoff result retaining the exact shared memory-plan
-     *     reference and immutable snapshots of plan-ordered buffer assignments, prepared
-     *     partitions, and identity-unique persistent resources in partition/acquisition order;
-     *     the caller owns the resources and the result is never {@code null}
-     * @throws NullPointerException if a list or indexed element is null, a finalizer backend
-     *     identity is null, or a finalizer returns null
-     * @throws IllegalArgumentException if ordinary coverage, identity, backend, geometry, or
-     *     executable-plan validation fails, a prepared-resource identity is repeated, or a
-     *     contribution overlaps an ordinary buffer declaration or another contribution
-     */
-    static Result finalizePartitions(
-            List<PlannedPartition> partitions,
-            List<? extends Entry<?, ?>> entries,
-            List<ProducerlessPublishedConstantResource> producerlessResources) {
-        return finalizePartitions(partitions, entries, List.of(), producerlessResources);
-    }
-
-    /**
-     * Assigns a complete analysis set while placing selected ordinary buffers first in exact order.
+     * Assigns a complete analysis set with ordinary and source-only bindable callers first.
      *
      * <p>The leading order is used for Compiler bindable inputs so Runtime caller-input recipes
      * retain caller occurrence order independently of partition and backend declaration order.
-     * Remaining ordinary buffers retain first-declaration order, followed by producerless
-     * resources.</p>
+     * Remaining ordinary buffers retain first-declaration order, followed by source-only constants
+     * in canonical graph-value order. Source-only callers receive no partition assignment.</p>
      *
      * <p>Returned resources become transaction-owned before result validation. A duplicate
      * identity rejects its result only after every unique resource in that result has been
@@ -111,7 +82,9 @@ final class BackendPartitionFinalizationHandoff {
      * @param partitions non-null ordered expected partitions
      * @param entries non-null ordered partition finalization entries
      * @param leadingBufferValueIds non-null identity-unique buffer IDs to place first when declared
-     * @param producerlessResources non-null canonical producerless contributions to append last
+     * @param producerlessResources non-null canonical caller or constant source contributions
+     * @param requiresBatchSize complete-graph symbolic mode established by shared shape validation,
+     *     including source-only symbolic declarations with permanently zero physical size
      * @return a non-null immutable complete handoff result; the caller owns its retained resources
      * @throws NullPointerException if an argument or indexed element is {@code null}
      * @throws IllegalArgumentException if a leading ID or prepared-resource identity is duplicated,
@@ -121,7 +94,8 @@ final class BackendPartitionFinalizationHandoff {
             List<PlannedPartition> partitions,
             List<? extends Entry<?, ?>> entries,
             List<ValueId> leadingBufferValueIds,
-            List<ProducerlessPublishedConstantResource> producerlessResources) {
+            List<ProducerlessPublishedValueResource> producerlessResources,
+            boolean requiresBatchSize) {
         Objects.requireNonNull(partitions, "partitions");
         Objects.requireNonNull(entries, "entries");
         Objects.requireNonNull(leadingBufferValueIds, "leadingBufferValueIds");
@@ -155,14 +129,15 @@ final class BackendPartitionFinalizationHandoff {
         for (int index = 0; index < entries.size(); index++) {
             validateEntry(index, partitions.get(index), entries.get(index), firstBufferSources);
         }
-        var producerlessIds = new HashSet<ValueId>();
+        var producerlessById = new LinkedHashMap<ValueId, ProducerlessPublishedValueResource>();
         for (int index = 0; index < producerlessResources.size(); index++) {
-            ValueId valueId = producerlessResources.get(index).value().id();
+            ProducerlessPublishedValueResource resource = producerlessResources.get(index);
+            ValueId valueId = resource.value().id();
             if (firstBufferSources.containsKey(valueId)) {
                 throw new IllegalArgumentException(
                         "producerless resource overlaps ordinary buffer declaration: " + valueId);
             }
-            if (!producerlessIds.add(valueId)) {
+            if (producerlessById.putIfAbsent(valueId, resource) != null) {
                 throw new IllegalArgumentException(
                         "producerlessResources[" + index + "] duplicates " + valueId);
             }
@@ -176,17 +151,19 @@ final class BackendPartitionFinalizationHandoff {
                         "leadingBufferValueIds[" + index + "] duplicates " + valueId);
             }
             Source source = firstBufferSources.get(valueId);
-            if (source == null) {
-                continue;
+            if (source != null) {
+                PreparationResourceRequirement.Buffer requirement = source.firstRequirement;
+                buffers.put(valueId, new BufferAggregate(
+                        new BufferSlot(buffers.size()), buffers.size(),
+                        requirement.size(), requirement.byteAlignment()));
+            } else {
+                ProducerlessPublishedValueResource resource = producerlessById.get(valueId);
+                if (resource != null) {
+                    buffers.put(valueId, new BufferAggregate(
+                            new BufferSlot(buffers.size()), buffers.size(),
+                            resource.size(), resource.byteAlignment(), resource.owner()));
+                }
             }
-            PreparationResourceRequirement.Buffer requirement = source.firstRequirement;
-            buffers.put(
-                    valueId,
-                    new BufferAggregate(
-                            new BufferSlot(buffers.size()),
-                            buffers.size(),
-                            requirement.byteSize(),
-                            requirement.byteAlignment()));
         }
 
         var workspaceEntries = new ArrayList<PreparedMemoryPlan.WorkspaceEntry>();
@@ -204,7 +181,7 @@ final class BackendPartitionFinalizationHandoff {
                             aggregate = new BufferAggregate(
                                     new BufferSlot(buffers.size()),
                                     buffers.size(),
-                                    buffer.byteSize(),
+                                    buffer.size(),
                                     buffer.byteAlignment());
                             buffers.put(buffer.valueId(), aggregate);
                         } else {
@@ -219,7 +196,7 @@ final class BackendPartitionFinalizationHandoff {
                         int planIndex = workspaceEntries.size();
                         WorkspaceSlot slot = new WorkspaceSlot(planIndex);
                         workspaceEntries.add(new PreparedMemoryPlan.WorkspaceEntry(
-                                slot, workspace.byteSize(), workspace.byteAlignment()));
+                                slot, workspace.size(), workspace.byteAlignment()));
                         assignments.add(new PreparationResourceAssignment.Workspace(
                                 workspace, slot, planIndex));
                         workspaceAssignments.add(new PreparedWorkspaceAssignment(
@@ -229,15 +206,12 @@ final class BackendPartitionFinalizationHandoff {
             }
             assignmentLists.add(List.copyOf(assignments));
         }
-        for (ProducerlessPublishedConstantResource resource : producerlessResources) {
-            buffers.put(
-                    resource.value().id(),
-                    new BufferAggregate(
-                            new BufferSlot(buffers.size()),
-                            buffers.size(),
-                            resource.byteSize(),
-                            resource.byteAlignment(),
-                            resource.owner()));
+        for (ProducerlessPublishedValueResource resource : producerlessResources) {
+            if (!buffers.containsKey(resource.value().id())) {
+                buffers.put(resource.value().id(), new BufferAggregate(
+                        new BufferSlot(buffers.size()), buffers.size(),
+                        resource.size(), resource.byteAlignment(), resource.owner()));
+            }
         }
 
         var bufferEntries = new ArrayList<PreparedMemoryPlan.BufferEntry>(buffers.size());
@@ -246,14 +220,15 @@ final class BackendPartitionFinalizationHandoff {
         for (Map.Entry<ValueId, BufferAggregate> entry : buffers.entrySet()) {
             BufferAggregate aggregate = entry.getValue();
             bufferEntries.add(new PreparedMemoryPlan.BufferEntry(
-                    aggregate.slot, aggregate.byteSize, aggregate.byteAlignment));
+                    aggregate.slot, aggregate.size, aggregate.byteAlignment));
             bufferAssignments.add(new PreparedBufferAssignment(
                     entry.getKey(),
                     aggregate.slot,
                     bufferIndex++,
                     aggregate.representationOwners()));
         }
-        PreparedMemoryPlan memoryPlan = new PreparedMemoryPlan(bufferEntries, workspaceEntries);
+        PreparedMemoryPlan memoryPlan = new PreparedMemoryPlan(bufferEntries, workspaceEntries,
+                requiresBatchSize || entries.stream().anyMatch(entry -> entry.context().requiresBatchSize()));
 
         var invocations = new ArrayList<FinalizationInvocation>(entries.size());
         for (int index = 0; index < entries.size(); index++) {
@@ -486,32 +461,37 @@ final class BackendPartitionFinalizationHandoff {
     private static final class BufferAggregate {
         private final BufferSlot slot;
         private final int planIndex;
-        private long byteSize;
+        private PreparedMemoryPlan.ByteSize size;
         private long byteAlignment;
         private final LinkedHashMap<BackendId, Integer> representationIndices =
                 new LinkedHashMap<>();
 
         private BufferAggregate(
-                BufferSlot slot, int planIndex, long byteSize, long byteAlignment) {
+                BufferSlot slot, int planIndex, PreparedMemoryPlan.ByteSize size, long byteAlignment) {
             this.slot = slot;
             this.planIndex = planIndex;
-            this.byteSize = byteSize;
+            this.size = size;
             this.byteAlignment = byteAlignment;
         }
 
         private BufferAggregate(
                 BufferSlot slot,
                 int planIndex,
-                long byteSize,
+                PreparedMemoryPlan.ByteSize size,
                 long byteAlignment,
                 BackendId owner) {
-            this(slot, planIndex, byteSize, byteAlignment);
+            this(slot, planIndex, size, byteAlignment);
             representationIndex(owner);
         }
 
         private void include(PreparationResourceRequirement.Buffer requirement) {
-            byteSize = Math.max(byteSize, requirement.byteSize());
-            byteAlignment = Math.max(byteAlignment, requirement.byteAlignment());
+            if (size.fixedByteSize().isPresent() && requirement.size().fixedByteSize().isPresent()) {
+                size = new PreparedMemoryPlan.FixedByteSize(Math.max(
+                        size.fixedByteSize().getAsLong(), requirement.byteSize()));
+                byteAlignment = Math.max(byteAlignment, requirement.byteAlignment());
+            } else if (!size.equals(requirement.size()) || byteAlignment != requirement.byteAlignment()) {
+                throw new IllegalArgumentException("run-bound buffer declarations must agree structurally");
+            }
         }
 
         private int representationIndex(BackendId owner) {

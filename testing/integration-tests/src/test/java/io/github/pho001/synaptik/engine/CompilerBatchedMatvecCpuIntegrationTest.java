@@ -108,8 +108,7 @@ final class CompilerBatchedMatvecCpuIntegrationTest {
                             Optional.of(new FunctionalGradientRequest(List.of(first, second))),
                             optimization, BackendIntent.unconstrained(), PartitionScoringConfig.neutral());
                     // Reuse the existing staged-compile seam and ordinary publication materializer.
-                    var compiled = new CompiledGraph(
-                            engine, EngineMixedOwnerTestAccess.compileArtifacts(advanced));
+                    var compiled = EngineMixedOwnerTestAccess.ordinaryGraph(engine, advanced);
                     List<Tensor> supplied = List.of(left, right, seed, secondSeed);
                     List<Tensor> inputs = compiled.inputs().stream().map(binding -> supplied.stream()
                             .filter(tensor -> tensor.id().equals(binding.tensorId()))

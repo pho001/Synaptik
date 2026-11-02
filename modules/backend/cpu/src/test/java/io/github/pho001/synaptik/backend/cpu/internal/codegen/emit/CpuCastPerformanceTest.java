@@ -313,7 +313,7 @@ class CpuCastPerformanceTest {
         boundary.stream().map(CpuKernelIr.Value::dataType).toList(), carriers(row), 0, -1,
         List.of(), false, source == target ? 52 : 60);
         var generator = new CpuClassFileKernelGenerator(); MethodHandle entry;
-        try { entry = generator.defineClassBytes(specialization, generator.generateClassBytes(specialization, ir)).entryPoint(); }
+        try { entry = generator.defineClassBytes(specialization, ir, generator.generateClassBytes(specialization, ir)).entryPoint(); }
         catch (IllegalArgumentException failure) { throw new IllegalArgumentException(row.toString(), failure); }
         Object input = input(row), output = output(row);
         return bind(row, entry, input, output, geometry(row));

@@ -19,6 +19,9 @@ import java.lang.constant.MethodTypeDesc;
  * values, retains or replaces the logical coordinate according to the fixed tie policy, and
  * performs exactly one INT64 result store. No selected domain is split and no helper owned by
  * Synaptik is called from generated code.</p>
+ *
+ * <p>Controlled output cells use their proved original-row ordinal before any input load or
+ * comparison; inactive cells publish INT64 zero and preserve the ordinary output traversal.</p>
  */
 public final class CpuArgExtremaEmitter {
     private static final ClassDesc FLOAT = ClassDesc.of(Float.class.getName());
@@ -162,6 +165,12 @@ public final class CpuArgExtremaEmitter {
                         .lstore(outputAddress);
             }
         }
+        boolean controlled = CpuCarrierEmitter.controlFacts()
+                .map(facts -> facts.boundaryRows().get(1).rowIndexed()).orElse(false);
+        var inactive = controlled ? code.newLabel() : null;
+        var resultReady = controlled ? code.newLabel() : null;
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, 1, cell,
+                narrowOutput ? TypeKind.INT : TypeKind.LONG, inactive);
         if (narrowIndex) code.loadConstant(0).istore(bestIndex);
         else code.loadConstant(0L).lstore(bestIndex);
         code.lload(inputBase);
@@ -212,6 +221,11 @@ public final class CpuArgExtremaEmitter {
         code.labelBinding(finishDomain);
         if (narrowIndex) code.iload(bestIndex).i2l().lstore(resultIndex);
         else code.lload(bestIndex).lstore(resultIndex);
+        if (controlled) {
+            code.branch(Opcode.GOTO, resultReady).labelBinding(inactive);
+            code.loadConstant(0L).lstore(resultIndex);
+            code.labelBinding(resultReady);
+        }
         storeCarrier(code, carriers, specialization.carrierPattern().getLast(), 1,
                 outputAddress, resultIndex);
         if (narrowOutput) {

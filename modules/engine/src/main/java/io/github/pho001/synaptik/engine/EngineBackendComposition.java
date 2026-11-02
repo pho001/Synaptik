@@ -56,7 +56,7 @@ interface EngineBackendComposition extends AutoCloseable {
     PreparedScheduleContributor scheduleContributor();
 
     /**
-     * Returns the backend's retained complete assembler for producerless constant geometry.
+     * Returns the backend's retained complete assembler for producerless published-value geometry.
      *
      * @return non-null immutable assembler borrowing this adapter lifetime
      * @throws IllegalStateException if the underlying integration is closed
@@ -104,6 +104,18 @@ interface EngineBackendComposition extends AutoCloseable {
      * @throws Error if backend work reports a fatal failure
      */
     BufferRepresentation borrow(HostTensorStorage storage);
+
+    /**
+     * Borrows exactly the referenced prefix, excluding unused caller capacity and ownership.
+     * Static-only adapters reject this symbolic-run seam by default.
+     * @param storage non-null live caller-owned host storage
+     * @param referencedByteSize non-negative whole-element usable prefix no larger than storage
+     * @return fresh non-null non-owning representation over that exact prefix
+     * @throws IllegalArgumentException if the prefix or symbolic-run adapter is unsupported
+     */
+    default BufferRepresentation borrow(HostTensorStorage storage, long referencedByteSize) {
+        throw new IllegalArgumentException("backend does not support ordinary dynamic batch");
+    }
 
     /**
      * Copies one exact publication representation into detached canonical host bytes.

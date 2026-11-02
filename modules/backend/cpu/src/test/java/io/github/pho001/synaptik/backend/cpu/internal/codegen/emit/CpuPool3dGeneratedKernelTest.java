@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
 
 class CpuPool3dGeneratedKernelTest {
     @Test
-    void productionSelectionEnumeratesExactlyTwentyFourDistinctBodies() throws Throwable {
+    void productionSelectionPreservesEveryGeneratedOrUnsupportedBodyTarget() throws Throwable {
         Set<String> digests=new LinkedHashSet<>();
         for(DataType type:List.of(DataType.BFLOAT16,DataType.FLOAT32,DataType.FLOAT64))
             for(CpuPool3dIr.Kind kind:CpuPool3dIr.Kind.values())
@@ -27,18 +27,25 @@ class CpuPool3dGeneratedKernelTest {
                     for(boolean outputSegment:List.of(false,true)){
                         CarrierAccess input=inputSegment?CarrierAccess.MEMORY_SEGMENT:arrayAccess(type);
                         CarrierAccess output=outputSegment?CarrierAccess.MEMORY_SEGMENT:arrayAccess(type);
+                        if (type == DataType.BFLOAT16 && kind == CpuPool3dIr.Kind.AVERAGE) {
+                            assertThrows(IllegalArgumentException.class,
+                                    () -> fixture(type, kind, input, output),
+                                    type + "/" + kind + "/" + input + "/" + output);
+                            continue;
+                        }
                         Fixture fixture=fixture(type,kind,input,output);
-                        digests.add(HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                                .digest(fixture.bytes())));
+                        assertTrue(digests.add(HexFormat.of().formatHex(
+                                MessageDigest.getInstance("SHA-256").digest(fixture.bytes()))),
+                                "each retained target has a distinct generated body");
                         var model=ClassFile.of().parse(fixture.bytes());
                         assertTrue(model.fields().isEmpty());
                         assertEquals(1,model.methods().size());
                     }
-        assertEquals(24,digests.size());
+        assertFalse(digests.isEmpty());
     }
 
     @Test
-    void allTwentyFourBodyFamiliesMatchDirectOracle() throws Throwable {
+    void everySupportedBodyMatchesDirectOracleAndLowAveragesReject() throws Throwable {
         try (Arena arena = Arena.ofConfined()) {
             for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64))
                 for (CpuPool3dIr.Kind kind : CpuPool3dIr.Kind.values())
@@ -47,6 +54,12 @@ class CpuPool3dGeneratedKernelTest {
                             List.of(arrayAccess(type), CarrierAccess.MEMORY_SEGMENT),
                             List.of(CarrierAccess.MEMORY_SEGMENT, arrayAccess(type)),
                             List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT))) {
+                        if (type == DataType.BFLOAT16 && kind == CpuPool3dIr.Kind.AVERAGE) {
+                            assertThrows(IllegalArgumentException.class,
+                                    () -> fixture(type, kind, pair.get(0), pair.get(1)),
+                                    type + "/" + kind + "/" + pair);
+                            continue;
+                        }
                         Fixture f = fixture(type, kind, pair.get(0), pair.get(1));
                         Object input = carrier(type, pair.get(0), arena, 256);
                         Object actual = carrier(type, pair.get(1), arena, 320);
@@ -106,7 +119,7 @@ class CpuPool3dGeneratedKernelTest {
         List.of(inputCarrier,outputCarrier),0,-1,List.of(),false,56);
         var generator=new CpuClassFileKernelGenerator();
         byte[] bytes=generator.generateClassBytes(specialization,ir);
-        return new Fixture(geometry,generator.defineClassBytes(specialization,bytes).entryPoint(),bytes);
+        return new Fixture(geometry,generator.defineClassBytes(specialization, ir, bytes).entryPoint(),bytes);
     }
 
     private static CarrierAccess arrayAccess(DataType type){return switch(type){

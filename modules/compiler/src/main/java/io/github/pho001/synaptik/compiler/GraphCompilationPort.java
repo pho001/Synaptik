@@ -34,6 +34,22 @@ import java.util.Optional;
  * <p>Compiler-generated derivative formulas consist of ordinary public Tensor operations and
  * inherit Model's operation semantics. Capability questions remain occurrence-specific; neither
  * the request nor its artifacts carry a numerical selector or production tolerance policy.</p>
+ *
+ * <p>Ordinary compilation captures general scan bodies in independent lexical scopes. Per-value
+ * floating and discrete primals use ordinary PURE inference; first-order differentiation proves
+ * the exact selected finite-time root/input routes and the actual generated ordinary closure
+ * before materialization. Joint selected carry/emission seeds create one compact reverse sibling.
+ * Structural cotangent absence is retained separately from numerical zero in component-eight
+ * derivative metadata. Residual differentiation, whole-lexical forward-only exclusions and scan
+ * higher-order requests still reject before derivative allocation. Final capability queries
+ * retain the complete exact body and its applicable activity plan, without granting backend
+ * support. Cold source reconstruction remains independently bounded as documented by
+ * {@link #captureSource(List)}; execution and persistence retain their own gates.</p>
+ * <p>Length-aware ordinary compilation independently checks bounded row semantics. Its first-order
+ * AD requires every original carry and sequence to be ROW(0), even unused/non-gradient positions;
+ * generated reverse histories/seeds retain explicit mixed roles and the same lengths actual.
+ * Cold capture/reconstruction admits only the fully static homogeneous FLOAT32/FLOAT64
+ * length intersection below. Compiler success grants no length-mode backend or codec support.</p>
  */
 public final class GraphCompilationPort {
     private GraphCompilationPort() {}
@@ -48,11 +64,26 @@ public final class GraphCompilationPort {
      * vector indices, one nonempty step-one last-axis rank-two SLICE, biased default
      * CONV2D/CONV3D, nonoverlapping floor MAX_POOL2D with stride equal to kernel, no padding
      * and unit dilation,
-     * and the six biased/unbiased fixed scan signatures in either direction.
+     * and the six biased/unbiased fixed scan signatures in either direction. General SCAN is
+     * additionally admitted with independently scoped bodies in the bounded constructor closure
+     * described below; body-only families do not widen this flat inventory.
      * Index/length values are never read; time/batch may be zero for scans. This grants no scan
      * execution, BPTT or Conv3d gradients. Public constructors retain ordinary family guards.
      * Existing family inference verifies every raw descriptor without rewriting it. This is not
      * the optimized, layout-closed graph returned by {@link CompileArtifacts#graph()}.</p>
+     *
+     * <p>General bodies reuse the flat mappings except scans, and additionally admit tensor DIV,
+     * integral tensor SUB, exact typed scalar ADD/SUB/MUL/DIV, full/axis/ordered-multi-axis/target-Shape
+     * SUM, static EXPAND, scalar/empty RESHAPE, arbitrary normalized EXPAND_DIMS/SQUEEZE,
+     * CONTIGUOUS and identity CAST. Model family/dtype guards still apply, independently of CPU
+     * qualification (including low TANH and FLOAT32 RELU). No other PURE family is implicitly
+     * admitted. Constants are explicit outer bindings to invariant formals or scalar attributes.
+     * All-valid bodies retain every applicable Model dtype. Length bodies require homogeneous
+     * FLOAT32/FLOAT64 across every declaration, actual and interior, with separate non-gradient
+     * INT64[B] lengths and the existing ROW(0), rank-two ROW(1), SHARED and terminal-SHARED rules.
+     * Bodies require empty raw demand and graph outputs equal to first-encounter-unique
+     * next-carry, emission and residual roles in that order. Inference success alone is not cold
+     * admission. Consumers retain independent persistence, execution and AD gates.</p>
      *
      * @param forwardOutputs non-null, non-empty ordered results without nulls, repeated exact
      *     references or duplicate logical outputs; the list is not mutated
@@ -70,10 +101,18 @@ public final class GraphCompilationPort {
     /**
      * Reconstructs a bounded raw graph through ordinary public Tensor family constructors.
      *
-     * <p>Complete cold preflight precedes every producer allocation. Each stored node is built
+     * <p>Complete outer and contained-body cold preflight precedes every formal or producer
+     * allocation, including dead scans and zero-step bodies. Each stored node is built
      * once, preserving every canonical output port, occurrence identity and shared uses, including
-     * unconsumed scan siblings. A call-local reconstruction table is discarded on return or failure;
-     * returned Tensors retain only ordinary provenance. No
+     * unconsumed scan siblings and latent residuals. Each general occurrence receives distinct
+     * fresh canonical storage-free formals for all declarations (including unused positions),
+     * one ordinary body and one Scan.apply, never time-unrolled. Reused templates and repeated
+     * actual/role positions preserve independent scopes and canonical ports. Length reconstruction
+     * preserves ordered row roles and traversal, binding exactly c+s+i formals and the separate
+     * final lengths actual. Newly tied substitutions must identify the same outer row axis or both
+     * be SHARED within each occurrence; these checks precede all IDs. Separate call-local
+     * reconstruction tables are discarded on return or failure; body IDs never resolve outside
+     * their containing scope. Returned Tensors retain only ordinary provenance. No
      * storage is accessed or allocated, and nothing is compiled, prepared or executed.</p>
      *
      * @param graph non-null raw graph in the same static FORWARD slice as {@link #captureSource};
@@ -82,7 +121,8 @@ public final class GraphCompilationPort {
      *     {@code i} supplies {@code graph.inputs().get(i)} with full descriptor equality,
      *     including layout and gradient eligibility; fresh identities, ordinary expressions and
      *     repeated references are permitted, and upstream provenance is neither detached nor
-     *     traversed by source admission; same-descriptor swaps cannot be detected
+     *     traversed by source admission; length-role compatibility is checked per occurrence,
+     *     and same-descriptor swaps cannot otherwise be detected
      * @return non-null immutable outputs in graph order; pass-through outputs are exact supplied
      *     references, so explicit repeated substitutions may produce repeated output references
      * @throws NullPointerException if an argument or supplied element is null
@@ -99,7 +139,11 @@ public final class GraphCompilationPort {
      * Pairs a verified raw source graph with exact provenance-free input references.
      *
      * <p>This borrowed sidecar has no storage ownership, close lifecycle or cache and is never
-     * retained by compile artifacts. Record equality includes both components; Tensor elements
+     * retained by compile artifacts. General bodies are Tensor-free independent graph scopes
+     * with raw empty demand and ordered unique role outputs, not borrowed source templates.
+     * Length bodies retain their explicit row roles and separate lengths input; static homogeneous
+     * body eligibility is checked independently of ordinary inference and of codec eligibility.
+     * Record equality includes both components; Tensor elements
      * retain ordinary identity semantics. The graph remains Tensor-free.</p>
      *
      * @param graph non-null raw graph admitted by the bounded cold source boundary
@@ -134,6 +178,8 @@ public final class GraphCompilationPort {
      * retain the pipeline's declaration-order validation. Capability providers and availability
      * snapshots are encountered in their supplied order when graph nodes are planned; neither
      * list is retained in the result.</p>
+     * <p>General scan source admission and first-order AD do not imply an eligible provider. The
+     * provider must accept the entire body and loop binder; no inner mixed-owner planning occurs.</p>
      *
      * @param mode non-null graph-scope mode
      * @param forwardOutputs non-null, non-empty ordered forward boundary; exact Tensor references

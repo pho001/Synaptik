@@ -61,36 +61,81 @@ final class TensorBatchNormInferenceExpressions {
             Tensor runningMean,
             Tensor runningVariance,
             ScalarValue epsilon) {
+        return applyChecked(input, channelAxis, scale, bias, runningMean, runningVariance, epsilon, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null rank-at-least-two floating data input retained at producer position 0
+     * @param channelAxis positive or negative logical channel axis normalized against input Shape
+     * @param scale non-null floating rank-one per-channel scale retained at position 1
+     * @param bias non-null floating rank-one per-channel bias retained at position 2
+     * @param runningMean non-null floating rank-one estimated mean retained at position 3
+     * @param runningVariance non-null floating rank-one estimated variance retained at position 4
+     * @param epsilon non-null finite positive scalar matching the result type, except FLOAT16 uses FLOAT32
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if a Tensor argument or epsilon is null, checked in logical
+     *     input order and then epsilon
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if an input is non-floating, input rank is less than two,
+     *     a per-channel operand is not rank one or is statically incompatible with the input
+     *     channel extent, or epsilon does not match the result arithmetic type
+     * @throws IndexOutOfBoundsException if {@code channelAxis} is invalid for input Shape
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    static Tensor applyChecked(
+            Tensor input,
+            int channelAxis,
+            Tensor scale,
+            Tensor bias,
+            Tensor runningMean,
+            Tensor runningVariance,
+            ScalarValue epsilon,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(scale, "scale");
         Objects.requireNonNull(bias, "bias");
         Objects.requireNonNull(runningMean, "runningMean");
         Objects.requireNonNull(runningVariance, "runningVariance");
         Objects.requireNonNull(epsilon, "epsilon");
+        return applyCore(input.descriptor(), channelAxis, scale.descriptor(), bias.descriptor(),
+                runningMean.descriptor(), runningVariance.descriptor(), epsilon,
+                input, scale, bias, runningMean, runningVariance, descriptorCheck);
+    }
 
-        DataType inputType = requireFloating(input, "input");
-        DataType scaleType = requireFloating(scale, "scale");
-        DataType biasType = requireFloating(bias, "bias");
-        DataType meanType = requireFloating(runningMean, "runningMean");
-        DataType varianceType = requireFloating(runningVariance, "runningVariance");
+    private static Tensor applyCore(
+            TensorDescriptor inputDescriptor, int channelAxis,
+            TensorDescriptor scaleDescriptor, TensorDescriptor biasDescriptor,
+            TensorDescriptor meanDescriptor, TensorDescriptor varianceDescriptor,
+            ScalarValue epsilon, Tensor input, Tensor scale, Tensor bias,
+            Tensor runningMean, Tensor runningVariance,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
 
-        Shape inputShape = input.descriptor().shape();
+        DataType inputType = requireFloating(inputDescriptor, "input");
+        DataType scaleType = requireFloating(scaleDescriptor, "scale");
+        DataType biasType = requireFloating(biasDescriptor, "bias");
+        DataType meanType = requireFloating(meanDescriptor, "runningMean");
+        DataType varianceType = requireFloating(varianceDescriptor, "runningVariance");
+
+        Shape inputShape = inputDescriptor.shape();
         if (inputShape.rank() < 2) {
             throw new IllegalArgumentException(
                     "batchNormInference input rank must be at least 2, but was "
                             + inputShape.rank());
         }
         int normalizedAxis = inputShape.normalizeAxis(channelAxis);
-        requireVector(scale, "scale");
-        requireVector(bias, "bias");
-        requireVector(runningMean, "runningMean");
-        requireVector(runningVariance, "runningVariance");
+        requireVector(scaleDescriptor, "scale");
+        requireVector(biasDescriptor, "bias");
+        requireVector(meanDescriptor, "runningMean");
+        requireVector(varianceDescriptor, "runningVariance");
 
         Dimension channelDimension = inputShape.dimension(normalizedAxis);
-        requireCompatibleChannel(channelDimension, scale, "scale");
-        requireCompatibleChannel(channelDimension, bias, "bias");
-        requireCompatibleChannel(channelDimension, runningMean, "runningMean");
-        requireCompatibleChannel(channelDimension, runningVariance, "runningVariance");
+        requireCompatibleChannel(channelDimension, scaleDescriptor, "scale");
+        requireCompatibleChannel(channelDimension, biasDescriptor, "bias");
+        requireCompatibleChannel(channelDimension, meanDescriptor, "runningMean");
+        requireCompatibleChannel(channelDimension, varianceDescriptor, "runningVariance");
 
         DataType resultType = DataTypePromotion.promoteFloating(inputType, scaleType);
         resultType = DataTypePromotion.promoteFloating(resultType, biasType);
@@ -105,14 +150,18 @@ final class TensorBatchNormInferenceExpressions {
         }
 
         BatchNormInferenceAttrs attrs = new BatchNormInferenceAttrs(normalizedAxis, epsilon);
-        boolean requiresGrad = input.descriptor().requiresGrad()
-                || scale.descriptor().requiresGrad()
-                || bias.descriptor().requiresGrad()
-                || runningMean.descriptor().requiresGrad()
-                || runningVariance.descriptor().requiresGrad();
+        boolean requiresGrad = inputDescriptor.requiresGrad()
+                || scaleDescriptor.requiresGrad()
+                || biasDescriptor.requiresGrad()
+                || meanDescriptor.requiresGrad()
+                || varianceDescriptor.requiresGrad();
         TensorDescriptor descriptor = new TensorDescriptor(
                 resultType, inputShape, Optional.empty(), requiresGrad);
         Operation operation = new Operation(BatchNormKind.BATCH_NORM_INFERENCE, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(
                 descriptor,
                 Optional.empty(),
@@ -120,8 +169,21 @@ final class TensorBatchNormInferenceExpressions {
                 List.of(input, scale, bias, runningMean, runningVariance));
     }
 
-    private static DataType requireFloating(Tensor tensor, String role) {
-        DataType dataType = tensor.descriptor().dataType();
+    /**
+     * Describes canonical inference metadata through the ordinary construction guards.
+     * The sink is invoked synchronously exactly once without creating Tensor identities.
+     */
+    static void describeChecked(
+            Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        BatchNormInferenceAttrs attrs = (BatchNormInferenceAttrs) operation.attrs();
+        applyCore(inputs.get(0), attrs.channelAxis(), inputs.get(1), inputs.get(2),
+                inputs.get(3), inputs.get(4), attrs.epsilon(),
+                null, null, null, null, null, sink);
+    }
+
+    private static DataType requireFloating(TensorDescriptor descriptor, String role) {
+        DataType dataType = descriptor.dataType();
         if (!dataType.isFloating()) {
             throw new IllegalArgumentException(
                     "batchNormInference " + role
@@ -130,8 +192,8 @@ final class TensorBatchNormInferenceExpressions {
         return dataType;
     }
 
-    private static void requireVector(Tensor tensor, String role) {
-        int rank = tensor.descriptor().shape().rank();
+    private static void requireVector(TensorDescriptor descriptor, String role) {
+        int rank = descriptor.shape().rank();
         if (rank != 1) {
             throw new IllegalArgumentException(
                     "batchNormInference " + role + " rank must be one, but was " + rank);
@@ -139,8 +201,8 @@ final class TensorBatchNormInferenceExpressions {
     }
 
     private static void requireCompatibleChannel(
-            Dimension inputDimension, Tensor tensor, String role) {
-        Dimension operandDimension = tensor.descriptor().shape().dimension(0);
+            Dimension inputDimension, TensorDescriptor descriptor, String role) {
+        Dimension operandDimension = descriptor.shape().dimension(0);
         if (!inputDimension.equals(operandDimension)
                 && inputDimension instanceof StaticDimension
                 && operandDimension instanceof StaticDimension) {

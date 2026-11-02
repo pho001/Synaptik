@@ -51,7 +51,26 @@ final class TensorScatterNdExpressions {
      * @throws IllegalStateException if tensor identifier space is exhausted at final creation
      */
     static Tensor scatterNd(Tensor data, Tensor indices, Tensor updates) {
-        return scatterNd(data, indices, updates, ScatterReduction.NONE, 0);
+        return scatterNdChecked(data, indices, updates, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param data data tensor passed unchanged to the explicit path
+     * @param indices indices tensor passed unchanged to the explicit path
+     * @param updates updates tensor passed unchanged to the explicit path
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if an input is null, checked in declaration order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if type, rank, batch, tuple, or Shape validation fails
+     * @throws ArithmeticException if checked expected-updates-rank arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted at final creation
+     */
+    static Tensor scatterNdChecked(Tensor data, Tensor indices, Tensor updates,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return scatterNdChecked(data, indices, updates, ScatterReduction.NONE, 0, descriptorCheck);
     }
 
     /**
@@ -69,7 +88,28 @@ final class TensorScatterNdExpressions {
      */
     static Tensor scatterNd(
             Tensor data, Tensor indices, Tensor updates, ScatterReduction reduction) {
-        return scatterNd(data, indices, updates, reduction, 0);
+        return scatterNdChecked(data, indices, updates, reduction, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param data data tensor passed unchanged to the explicit path
+     * @param indices indices tensor passed unchanged to the explicit path
+     * @param updates updates tensor passed unchanged to the explicit path
+     * @param reduction reduction passed unchanged to the explicit path
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if an input or reduction is null, checked in declaration order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if type, reduction, rank, tuple, or Shape validation fails
+     * @throws ArithmeticException if checked expected-updates-rank arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted at final creation
+     */
+    static Tensor scatterNdChecked(
+            Tensor data, Tensor indices, Tensor updates, ScatterReduction reduction,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return scatterNdChecked(data, indices, updates, reduction, 0, descriptorCheck);
     }
 
     /**
@@ -104,13 +144,71 @@ final class TensorScatterNdExpressions {
             Tensor updates,
             ScatterReduction reduction,
             int batchDimensions) {
+        return scatterNdChecked(data, indices, updates, reduction, batchDimensions, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param data non-null base tensor retained as provenance input zero and never mutated
+     * @param indices non-null INT32 or INT64 tuple tensor retained as provenance input one
+     * @param updates non-null exact-data-type tensor retained as provenance input two
+     * @param reduction non-null replacement or arithmetic reduction retained exactly
+     * @param batchDimensions non-negative shared leading batch count smaller than both ranks
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if an input or reduction is null, checked in declaration order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if type, reduction, rank, batch, tuple, or Shape validation
+     *     fails
+     * @throws ArithmeticException if checked expected-updates-rank arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted at final creation
+     */
+    static Tensor scatterNdChecked(
+            Tensor data,
+            Tensor indices,
+            Tensor updates,
+            ScatterReduction reduction,
+            int batchDimensions,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         Objects.requireNonNull(data, "data");
         Objects.requireNonNull(indices, "indices");
         Objects.requireNonNull(updates, "updates");
         Objects.requireNonNull(reduction, "reduction");
-        TensorDescriptor dataDescriptor = data.descriptor();
-        TensorDescriptor indicesDescriptor = indices.descriptor();
-        TensorDescriptor updatesDescriptor = updates.descriptor();
+        return scatterNdDescriptors(
+                data.descriptor(), indices.descriptor(), updates.descriptor(), reduction, batchDimensions, descriptorCheck, data, indices, updates);
+    }
+
+    /**
+     * Runs the shared descriptor guards and completes metadata before real provenance is used.
+     * @param data immutable operand metadata
+     * @param indices immutable operand metadata
+     * @param updates immutable operand metadata
+     * @param reduction ordinary construction argument, validated in existing order
+     * @param batchDimensions ordinary construction argument, validated in existing order
+     * @param descriptorCheck optional synchronous, unretained metadata completion; null constructs a Tensor
+     * @param dataTensor real provenance, unused when metadata completion is supplied
+     * @param indicesTensor real provenance, unused when metadata completion is supplied
+     * @param updatesTensor real provenance, unused when metadata completion is supplied
+     * @return null after metadata completion, otherwise the ordinary result
+     */
+    private static Tensor scatterNdDescriptors(
+            TensorDescriptor data,
+            TensorDescriptor indices,
+            TensorDescriptor updates,
+            ScatterReduction reduction,
+            int batchDimensions,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor dataTensor,
+            Tensor indicesTensor,
+            Tensor updatesTensor) {
+        Objects.requireNonNull(data, "data");
+        Objects.requireNonNull(indices, "indices");
+        Objects.requireNonNull(updates, "updates");
+        Objects.requireNonNull(reduction, "reduction");
+        TensorDescriptor dataDescriptor = data;
+        TensorDescriptor indicesDescriptor = indices;
+        TensorDescriptor updatesDescriptor = updates;
         validateIndexType(indicesDescriptor);
         validateMatchingDataType(dataDescriptor, updatesDescriptor);
         validateReductionDataType(dataDescriptor, reduction);
@@ -131,7 +229,7 @@ final class TensorScatterNdExpressions {
                     "scatterNd updates shape must equal indices prefix plus data suffix: expected="
                             + expectedUpdatesShape + ", actual=" + updatesShape);
         }
-        return create(data, indices, updates, dataDescriptor, updatesDescriptor, attrs);
+        return createChecked(dataTensor, indicesTensor, updatesTensor, dataDescriptor, updatesDescriptor, attrs, descriptorCheck);
     }
 
     /**
@@ -277,33 +375,60 @@ final class TensorScatterNdExpressions {
         return Shape.ofDimensions(updatesDimensions);
     }
 
+
     /**
-     * Creates exact descriptor, semantics, ordered provenance, and one fresh derived Tensor.
-     *
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
      * @param data non-null exact provenance input zero and source of result Shape/type
      * @param indices non-null exact provenance input one
      * @param updates non-null exact provenance input two
      * @param dataDescriptor non-null descriptor supplying exact retained metadata
      * @param updatesDescriptor non-null descriptor supplying eligibility to combine
      * @param attrs non-null normalized batch/reduction attributes retained by the operation
-     * @return a non-null fresh unlabeled, storage-free Tensor with unresolved layout
-     * @throws IllegalArgumentException if descriptor invariants reject supplied metadata
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if descriptor invariants reject supplied metadata
      * @throws IllegalStateException if tensor identifier space is exhausted at final delegation
      */
-    private static Tensor create(
+    private static Tensor createChecked(
             Tensor data,
             Tensor indices,
             Tensor updates,
             TensorDescriptor dataDescriptor,
             TensorDescriptor updatesDescriptor,
-            ScatterNdAttrs attrs) {
+            ScatterNdAttrs attrs,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         TensorDescriptor descriptor = new TensorDescriptor(
                 dataDescriptor.dataType(),
                 dataDescriptor.shape(),
                 Optional.empty(),
                 dataDescriptor.requiresGrad() || updatesDescriptor.requiresGrad());
         Operation operation = new Operation(ScatterNdKind.SCATTER_ND, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(
                 descriptor, Optional.empty(), operation, List.of(data, indices, updates));
+    }
+
+    /**
+     * Completes one admitted ordinary occurrence synchronously using the real construction guards.
+     * No Tensor or identity is created and the callback is not retained. The owning facade checks
+     * occurrence cardinality and compares the returned canonical operation with the supplied one.
+     *
+     * @param operation non-null ordinary operation admitted to this family by the owning selector
+     * @param inputs non-null immutable operand metadata in canonical input order
+     * @param outputCount complete canonical output count, already validated by the owning facade
+     * @param sink non-null synchronous consumer of the canonical operation and all output metadata
+     * @throws IllegalArgumentException if ordinary semantic guards or the consumer reject metadata
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(sink, "sink");
+        ScatterNdAttrs attrs = (ScatterNdAttrs) operation.attrs();
+        scatterNdDescriptors(inputs.get(0), inputs.get(1), inputs.get(2), attrs.reduction(),
+                attrs.batchDimensions(), sink, null, null, null);
     }
 }

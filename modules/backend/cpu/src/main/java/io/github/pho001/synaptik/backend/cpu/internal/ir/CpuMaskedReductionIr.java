@@ -12,6 +12,9 @@ import java.util.Objects;
  * structural access regimes, and exact-state shape. Concrete extents, offsets, stride
  * magnitudes, carrier objects, ranges, and workspace slots remain cold invocation geometry.</p>
  *
+ * <p>Equality and hashing include every record component, comparing the defensively retained
+ * singleton-mask axis flags by content rather than array identity.</p>
+ *
  * @param kind exact masked sum or mean meaning
  * @param dataType represented floating data and output type
  * @param axis normalized data axis removed from the result
@@ -80,6 +83,42 @@ public record CpuMaskedReductionIr(Kind kind, DataType dataType, int axis, int m
      * @return a new data-rank array of aligned extent-one mask-axis flags; never {@code null}
      */
     @Override public boolean[] singletonMaskAxes() { return singletonMaskAxes.clone(); }
+
+    /**
+     * Compares every immutable component, including singleton-mask axis flags by content.
+     *
+     * @param other candidate value; may be {@code null}
+     * @return whether the candidate is a masked reduction with identical component values
+     */
+    @Override public boolean equals(Object other) {
+        return this == other || other instanceof CpuMaskedReductionIr ir
+                && kind == ir.kind && dataType == ir.dataType
+                && axis == ir.axis && maskRank == ir.maskRank
+                && Arrays.equals(singletonMaskAxes, ir.singletonMaskAxes)
+                && maximumDomainCount == ir.maximumDomainCount
+                && stateLimbCount == ir.stateLimbCount && scratchSliceBytes == ir.scratchSliceBytes
+                && dataAccess.equals(ir.dataAccess) && maskAccess.equals(ir.maskAccess)
+                && outputAccess.equals(ir.outputAccess);
+    }
+
+    /**
+     * Hashes all immutable components with array-content semantics matching {@link #equals(Object)}.
+     *
+     * @return content hash without boxing components or exposing retained arrays
+     */
+    @Override public int hashCode() {
+        int result = kind.hashCode();
+        result = 31 * result + dataType.hashCode();
+        result = 31 * result + Integer.hashCode(axis);
+        result = 31 * result + Integer.hashCode(maskRank);
+        result = 31 * result + Arrays.hashCode(singletonMaskAxes);
+        result = 31 * result + Long.hashCode(maximumDomainCount);
+        result = 31 * result + Integer.hashCode(stateLimbCount);
+        result = 31 * result + Long.hashCode(scratchSliceBytes);
+        result = 31 * result + dataAccess.hashCode();
+        result = 31 * result + maskAccess.hashCode();
+        return 31 * result + outputAccess.hashCode();
+    }
 
     /**
      * Encodes this family for generated-artifact compatibility.

@@ -3,35 +3,35 @@ package io.github.pho001.synaptik.prepare;
 import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
+import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import java.util.Objects;
 
 /**
- * Contributes physical buffer geometry for one fully resolved compile-time constant that is
- * published without being produced or consumed by a graph partition.
+ * Contributes immutable physical geometry for one caller or constant graph input published
+ * without a producer or consumer.
  *
- * <p>The value retains the exact stable Model graph-value and Planning logical-requirement
- * references supplied by composition. Its component accessors return those same references and
- * the supplied primitive geometry without copying or mutation. Shared Prepare validates their
- * membership and complete source/publication role before asking the schedule assembler for this
- * contribution. The explicit owner supplies the initialized representation used for publication.
- * This record does not create a representation, allocate storage, or materialize the constant.</p>
+ * <p>The exact Model value, Planning requirement and Runtime size recipe are retained by
+ * identity. Complete graph preparation authenticates membership, source role, descriptor policy
+ * and coverage before analysis. This record neither reads payload nor allocates, initializes,
+ * acquires or transfers a representation. Caller storage remains borrowed; constant
+ * initialization belongs to the existing per-run initializer.</p>
  *
  * @param value exact non-null immutable graph value to retain and return by identity from
  *     {@link #value()}
  * @param logicalRequirement exact non-null immutable producerless, consumerless graph-output
  *     requirement for {@code value}, retained and returned by identity from
  *     {@link #logicalRequirement()}
- * @param owner exact non-null backend owner of the initialized representation
- * @param byteSize non-negative physical buffer size in bytes, supplied by concrete composition
- *     and returned unchanged from {@link #byteSize()}
+ * @param owner exact non-null backend representation owner
+ * @param size exact non-null checked physical size recipe, retained unchanged, including
+ *     structurally symbolic recipes whose evaluated size is always zero
  * @param byteAlignment positive power-of-two physical byte alignment supplied by concrete
  *     composition and returned unchanged from {@link #byteAlignment()}
  */
-public record ProducerlessPublishedConstantResource(
+public record ProducerlessPublishedValueResource(
         GraphValue value,
         LogicalMemoryRequirement logicalRequirement,
         BackendId owner,
-        long byteSize,
+        PreparedMemoryPlan.ByteSize size,
         long byteAlignment) {
     /**
      * Validates the standalone association and generic Runtime-compatible physical geometry.
@@ -44,19 +44,17 @@ public record ProducerlessPublishedConstantResource(
      * @param logicalRequirement exact non-null immutable logical requirement to retain by
      *     identity
      * @param owner exact non-null representation owner
-     * @param byteSize non-negative supplied physical buffer size in bytes
+     * @param size exact non-null physical size recipe to retain without evaluation
      * @param byteAlignment positive power-of-two supplied physical byte alignment
-     * @throws NullPointerException if {@code value}, {@code logicalRequirement}, or {@code owner}
-     *     is null, checked in component order
-     * @throws IllegalArgumentException if the references disagree by value identity or
-     *     descriptor, the logical role is not producerless/consumerless/output-required, the
-     *     descriptor is dynamic or unresolved, or the physical geometry is outside its required
-     *     domain
+     * @throws NullPointerException if a reference component is null, checked in component order
+     * @throws IllegalArgumentException if the value and requirement disagree, the logical role
+     *     is not producerless/consumerless/output-required, or alignment is invalid
      */
-    public ProducerlessPublishedConstantResource {
+    public ProducerlessPublishedValueResource {
         Objects.requireNonNull(value, "value");
         Objects.requireNonNull(logicalRequirement, "logicalRequirement");
         Objects.requireNonNull(owner, "owner");
+        Objects.requireNonNull(size, "size");
         if (!logicalRequirement.valueId().equals(value.id())) {
             throw new IllegalArgumentException(
                     "logicalRequirement.valueId must match value.id");
@@ -74,17 +72,6 @@ public record ProducerlessPublishedConstantResource(
         if (!logicalRequirement.graphOutput()) {
             throw new IllegalArgumentException(
                     "logicalRequirement must require graph output");
-        }
-        if (!value.descriptor().shape().isFullyStatic()) {
-            throw new IllegalArgumentException(
-                    "value descriptor shape must be fully static");
-        }
-        if (value.descriptor().layout().isEmpty()) {
-            throw new IllegalArgumentException(
-                    "value descriptor layout must be resolved");
-        }
-        if (byteSize < 0) {
-            throw new IllegalArgumentException("byteSize must be non-negative");
         }
         if (byteAlignment <= 0 || (byteAlignment & (byteAlignment - 1)) != 0) {
             throw new IllegalArgumentException(

@@ -58,11 +58,13 @@ import java.util.Objects;
  *
  * <p>The immutable signature inventory is deliberately exact: 38 current operation-kind enum
  * families, 111 constants, and 133 complete kind/attributes/cardinality fingerprints. It names
- * every accepted current variant instead of deriving the inventory from Model declarations, so
+ * every accepted ordinary variant instead of deriving the inventory from Model declarations, so
  * a newly added or changed production signature fails closed until its first-order disposition
  * is reviewed. This type constructs no Tensor or graph state, scans no class path, uses no
  * reflection, retains no request state, and is neither a public registry nor an extension
- * surface.</p>
+ * surface. General scans use the producer-aware entry, because their exact scalar header and
+ * attached body are required to distinguish public roots from residual ports. They are not an
+ * ordinary per-output signature row; descriptor-only queries without that context fail closed.</p>
  */
 final class FirstOrderGradientCoverage {
     private static final List<SignatureFingerprint> SIGNATURES = buildSignatures();
@@ -83,6 +85,26 @@ final class FirstOrderGradientCoverage {
      */
     static Decision classify(TensorProducer producer, int outputIndex, int inputIndex) {
         Objects.requireNonNull(producer, "producer");
+        if (producer.scanBody().isPresent()) {
+            var attrs = (io.github.pho001.synaptik.model.operation.scan.ScanAttrs) producer.operation().attrs();
+            if (inputIndex < -1 || inputIndex >= producer.inputs().size()) {
+                return fc("selected scan input position is outside the operation occurrence");
+            }
+            if (outputIndex < 0 || outputIndex >= attrs.carryCount() + attrs.emissionCount()) {
+                return fc("scan residual ports cannot be differentiated");
+            }
+            if (!producer.output(outputIndex).descriptor().dataType().isFloating()
+                    || inputIndex >= 0 && !producer.inputs().get(inputIndex).descriptor().dataType().isFloating()) {
+                return nd("discrete Scan positions have no cotangent");
+            }
+            if (inputIndex < 0) return d(FamilyOwner.SCAN);
+            var route = ScanGradientRules.qualify(ScanGradientRules.preflightSource(producer),
+                    outputIndex, inputIndex);
+            if (route.failClosed()) return fc("required finite Scan route crosses an unsupported ordinary role");
+            return route.differentiableRoute() ? d(FamilyOwner.SCAN)
+                    : nd(route.syntacticRoute() ? "intentional non-differentiable finite Scan route"
+                            : "disconnected finite Scan route");
+        }
         DataType inputType = inputIndex >= 0 && inputIndex < producer.inputs().size()
                 ? producer.inputs().get(inputIndex).descriptor().dataType()
                 : null;
@@ -591,6 +613,8 @@ final class FirstOrderGradientCoverage {
      * registry keys, extension identifiers, or serialized state.</p>
      */
     enum FamilyOwner {
+        /** Joint first-order general scan orchestration through existing formula owners. */
+        SCAN,
         /** Binary, scalar, unary, selection, and cast formulas. */
         ELEMENTWISE,
 

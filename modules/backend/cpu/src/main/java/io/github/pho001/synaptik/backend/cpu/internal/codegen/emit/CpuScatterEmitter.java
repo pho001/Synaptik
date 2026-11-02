@@ -6,6 +6,7 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.index.ScatterReduction;
 
 import java.lang.classfile.CodeBuilder;
+import java.lang.classfile.Label;
 import java.lang.classfile.Opcode;
 import java.lang.classfile.TypeKind;
 import java.lang.constant.ClassDesc;
@@ -22,6 +23,11 @@ import java.lang.foreign.ValueLayout;
  * copies the base values in its owned half-open output range and then visits the complete logical
  * update domain once in row-major order, applying only targets in that range. Disjoint ranges
  * therefore preserve deterministic update order without atomics or cross-range state.</p>
+ *
+ * <p>Every controlled traversal checks copied output cells and update candidates using their
+ * authenticated original ROW coordinates. Candidate checks precede index and update loads,
+ * including specialized writers and output-owned product grouping. Complete eligible validation
+ * still precedes the base copy; inactive candidates do not participate in uniqueness.</p>
  *
  * <p>One completely guarded INT64 {@code SCATTER_ND + MIN} form preserves that same algorithm
  * while using its proved {@code [16384,16]} output and {@code [4096,16]} update geometry to emit
@@ -76,6 +82,9 @@ public final class CpuScatterEmitter {
         if (count != p.ranks.length || count < 2 || count > 4)
             throw new IllegalArgumentException(
                     "scatter requires two through four matching unique boundaries");
+        var control = CpuCarrierEmitter.controlFacts();
+        if (control.isPresent() && control.orElseThrow().boundaryRows().size() != count)
+            throw new IllegalArgumentException("controlled scatter boundary provenance disagrees");
         int geometrySlot = count + (specialization.scratchParameter() ? 1 : 0);
         boolean ints =
                 specialization.loopAddressing(ir)
@@ -121,6 +130,7 @@ public final class CpuScatterEmitter {
             emitTypedCopyThenUpdate(code, specialization, p, ints, geometrySlot);
         }
     }
+
 
     private static boolean isGuardedScatterNdMin(
             CpuKernelSpecialization specialization, ScatterEncoding p, boolean ints) {
@@ -179,14 +189,15 @@ public final class CpuScatterEmitter {
         for (int index = 0; index < suffix.length; index++)
             guardGeometryConstant(code, g, 20 + index, suffix[index], fallback);
 
-        emitScatterNdMinDirectLoops(code, startSlot, endSlot, complete);
+        emitScatterNdMinDirectLoops(code, p, startSlot, endSlot, complete);
         code.branch(Opcode.GOTO, complete).labelBinding(fallback);
         emitTypedCopyThenUpdate(code, specialization, p, false, g);
         code.labelBinding(complete);
     }
 
     private static void emitScatterNdMinDirectLoops(
-            CodeBuilder code, int startSlot, int endSlot, java.lang.classfile.Label complete) {
+            CodeBuilder code, ScatterEncoding p, int startSlot, int endSlot,
+            java.lang.classfile.Label complete) {
         int layout = code.allocateLocal(TypeKind.REFERENCE);
         int start = code.allocateLocal(TypeKind.INT);
         int ordinal = code.allocateLocal(TypeKind.INT);
@@ -209,6 +220,8 @@ public final class CpuScatterEmitter {
         var copy = code.newLabel();
         var copied = code.newLabel();
         code.labelBinding(copy).iload(ordinal).iload(end).branch(Opcode.IF_ICMPGE, copied);
+        var nextCopy = code.newLabel();
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, p.outputBoundary, ordinal, TypeKind.INT, nextCopy);
         code.loadConstant(3).iload(ordinal).loadConstant(2).imul().iadd().i2l()
                 .lstore(dataAddress);
         code.loadConstant(4).iload(ordinal).loadConstant(2).imul().iadd().i2l()
@@ -222,6 +235,7 @@ public final class CpuScatterEmitter {
                 code, carriers, DataType.INT64,
                 CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
                 3, outputAddress, value, false, layout);
+        code.labelBinding(nextCopy);
         code.iinc(ordinal, 1).branch(Opcode.GOTO, copy).labelBinding(copied);
 
         code.loadConstant(0).istore(tuple);
@@ -229,15 +243,20 @@ public final class CpuScatterEmitter {
         var done = code.newLabel();
         code.labelBinding(tuples).iload(tuple).loadConstant(4_096)
                 .branch(Opcode.IF_ICMPGE, done);
-        code.aload(1).iload(tuple).laload().l2i().loadConstant(4).ishl().istore(rowBase);
+        Runnable selectTargetRow = () -> code.aload(1).iload(tuple).laload().l2i()
+                .loadConstant(4).ishl().istore(rowBase);
+        boolean controlled = CpuCarrierEmitter.controlFacts().isPresent();
+        if (!controlled) selectTargetRow.run();
         code.iload(tuple).loadConstant(4).ishl().istore(updateBase);
         code.loadConstant(0).istore(column);
         var columns = code.newLabel();
         var nextTuple = code.newLabel();
         code.labelBinding(columns).iload(column).loadConstant(16)
                 .branch(Opcode.IF_ICMPGE, nextTuple);
-        code.iload(rowBase).iload(column).iadd().istore(target);
         var skip = code.newLabel();
+        emitRankTwoCandidateGuard(code, p, tuple, column, true, skip);
+        if (controlled) selectTargetRow.run();
+        code.iload(rowBase).iload(column).iadd().istore(target);
         code.iload(target).iload(start).branch(Opcode.IF_ICMPLT, skip);
         code.iload(target).iload(end).branch(Opcode.IF_ICMPGE, skip);
         code.loadConstant(4).iload(target).loadConstant(2).imul().iadd().i2l()
@@ -325,6 +344,8 @@ public final class CpuScatterEmitter {
         var copy = code.newLabel();
         var copied = code.newLabel();
         code.labelBinding(copy).iload(logical).iload(end).branch(Opcode.IF_ICMPGE, copied);
+        var nextCopy = code.newLabel();
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, p.outputBoundary, logical, TypeKind.INT, nextCopy);
         carriers.load(
                 p.dataType, s.carrierPattern().get(p.dataBoundary), p.dataBoundary, logical, true);
         storeValue(code, p.dataType, value);
@@ -335,6 +356,7 @@ public final class CpuScatterEmitter {
                 logical,
                 value,
                 true);
+        code.labelBinding(nextCopy);
         code.iinc(logical, 1).branch(Opcode.GOTO, copy).labelBinding(copied);
         code.loadConstant(0).istore(update);
         var updates = code.newLabel();
@@ -343,8 +365,9 @@ public final class CpuScatterEmitter {
                 .iload(update)
                 .iload(updateCount)
                 .branch(Opcode.IF_ICMPGE, done);
-        loadIndex(code, carriers, s, p, update, selected, true);
         var skip = code.newLabel();
+        emitRankOneCandidateGuard(code, p, update, skip);
+        loadIndex(code, carriers, s, p, update, selected, true);
         code.iload(selected).iload(start).branch(Opcode.IF_ICMPLT, skip);
         code.iload(selected).iload(end).branch(Opcode.IF_ICMPGE, skip);
         carriers.load(
@@ -409,6 +432,8 @@ public final class CpuScatterEmitter {
         var copy = code.newLabel();
         var copied = code.newLabel();
         code.labelBinding(copy).iload(logical).iload(end).branch(Opcode.IF_ICMPGE, copied);
+        var nextCopy = code.newLabel();
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, p.outputBoundary, logical, TypeKind.INT, nextCopy);
         carriers.load(
                 p.dataType,
                 s.carrierPattern().get(p.dataBoundary),
@@ -423,6 +448,7 @@ public final class CpuScatterEmitter {
                 outputAddress,
                 value,
                 true);
+        code.labelBinding(nextCopy);
         code.iinc(logical, 1)
                 .iinc(dataAddress, 1)
                 .iinc(outputAddress, 1)
@@ -435,10 +461,11 @@ public final class CpuScatterEmitter {
                 .iload(update)
                 .iload(updateCount)
                 .branch(Opcode.IF_ICMPGE, done);
+        var skip = code.newLabel();
+        emitRankOneCandidateGuard(code, p, update, skip);
         code.iload(indexBase).iload(update).iadd().istore(indexAddress);
         code.iload(updateBase).iload(update).iadd().istore(updateAddress);
         loadIndex(code, carriers, s, p, indexAddress, selected, true);
-        var skip = code.newLabel();
         code.iload(selected).iload(start).branch(Opcode.IF_ICMPLT, skip);
         code.iload(selected).iload(end).branch(Opcode.IF_ICMPGE, skip);
         geometry(code, g, p.layouts[p.outputBoundary] + 1)
@@ -520,6 +547,8 @@ public final class CpuScatterEmitter {
         product.emitScatterReset();
         code.labelBinding(outer);
         compareEnd(code, logical, end, true, done);
+        var nextOutput = code.newLabel();
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, p.outputBoundary, logical, TypeKind.INT, nextOutput);
         carriers.load(
                 p.dataType,
                 s.carrierPattern().get(p.dataBoundary),
@@ -537,8 +566,9 @@ public final class CpuScatterEmitter {
                 .iload(update)
                 .iload(updateCount)
                 .branch(Opcode.IF_ICMPGE, contributionsDone);
-        loadIndex(code, carriers, s, p, indexAddress, selected, true);
         var noMatch = code.newLabel();
+        emitRankOneCandidateGuard(code, p, update, noMatch);
+        loadIndex(code, carriers, s, p, indexAddress, selected, true);
         code.iload(selected).iload(logical).branch(Opcode.IF_ICMPNE, noMatch);
         carriers.load(
                 p.dataType,
@@ -569,6 +599,7 @@ public final class CpuScatterEmitter {
                 outputAddress,
                 value,
                 true);
+        code.labelBinding(nextOutput);
         code.iinc(logical, 1)
                 .iload(dataAddress)
                 .iload(dataStride)
@@ -635,6 +666,9 @@ public final class CpuScatterEmitter {
         var copied = code.newLabel();
         code.labelBinding(copy);
         compareEnd(code, logical, end, ints, copied);
+        var nextCopy = code.newLabel();
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, p.outputBoundary, logical,
+                ints ? TypeKind.INT : TypeKind.LONG, nextCopy);
         scatterLoad(
                 code,
                 carriers,
@@ -655,6 +689,7 @@ public final class CpuScatterEmitter {
                 value,
                 ints,
                 valueLayout);
+        code.labelBinding(nextCopy);
         increment(code, logical, ints);
         increment(code, column, ints);
         var copyCarry = code.newLabel();
@@ -685,6 +720,8 @@ public final class CpuScatterEmitter {
         code.labelBinding(updates);
         loadAddress(code, updateRow, ints); loadAddress(code, updateRows, ints);
         if (ints) code.branch(Opcode.IF_ICMPGE, done); else code.lcmp().branch(Opcode.IFGE, done);
+        var skip = code.newLabel();
+        emitRankTwoCandidateGuard(code, p, updateRow, updateColumn, ints, skip);
         loadIndex(code, carriers, s, p, indexAddress, selected, ints);
         var axisOne = code.newLabel();
         var targetReady = code.newLabel();
@@ -697,7 +734,6 @@ public final class CpuScatterEmitter {
         loadAddress(code, selected, ints); add(code, ints); storeAddress(code, targetOrdinal, ints);
         emitRankTwoAddress(code, outputBase, updateRow, outputStride0, selected, outputStride1, outputAddress, ints);
         code.labelBinding(targetReady);
-        var skip = code.newLabel();
         loadAddress(code, targetOrdinal, ints); loadAddress(code, start, ints);
         if (ints) code.branch(Opcode.IF_ICMPLT, skip); else code.lcmp().branch(Opcode.IFLT, skip);
         loadAddress(code, targetOrdinal, ints); loadAddress(code, end, ints);
@@ -746,6 +782,42 @@ public final class CpuScatterEmitter {
         emitRankTwoAddress(code, indexBase, updateRow, indexStride0, updateColumn, indexStride1, indexAddress, ints);
         emitRankTwoAddress(code, updateBase, updateRow, updateStride0, updateColumn, updateStride1, updateAddress, ints);
         code.branch(Opcode.GOTO, updates).labelBinding(done);
+    }
+
+    /**
+     * Guards the identical rank-one index/update coordinate, retaining index-only provenance.
+     * @param code generated method builder
+     * @param p ordinary scatter encoding
+     * @param ordinal rank-one candidate ordinal local
+     * @param inactive target advancing the candidate cursor
+     */
+    private static void emitRankOneCandidateGuard(CodeBuilder code, ScatterEncoding p,
+            int ordinal, Label inactive) {
+        int boundary = CpuCarrierEmitter.controlFacts()
+                .filter(control -> !control.boundaryRows().get(p.updateBoundary).rowIndexed())
+                .map(control -> p.indexBoundary).orElse(p.updateBoundary);
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, boundary, ordinal, TypeKind.INT, inactive);
+    }
+
+    /**
+     * Uses the existing specialized update coordinates before any index or value load.
+     * @param code generated method builder
+     * @param p ordinary scatter encoding
+     * @param row first update coordinate local
+     * @param column second update coordinate local
+     * @param ints whether coordinates use INT locals
+     * @param inactive target advancing the candidate cursor
+     */
+    private static void emitRankTwoCandidateGuard(CodeBuilder code, ScatterEncoding p,
+            int row, int column, boolean ints, Label inactive) {
+        CpuCarrierEmitter.controlFacts().ifPresent(control -> {
+            int axis = control.boundaryRows().get(p.updateBoundary).axis();
+            if (axis < 0) axis = control.boundaryRows().get(p.indexBoundary).axis();
+            if (axis < 0) axis = control.boundaryRows().get(p.outputBoundary).axis();
+            if (axis >= 0)
+                CpuCarrierEmitter.emitActiveRowGuard(code, axis == 0 ? row : column,
+                        ints ? TypeKind.INT : TypeKind.LONG, inactive);
+        });
     }
 
     private static void loadLayoutFacts(CodeBuilder code, int g, int layout, int base, int stride0,
@@ -911,6 +983,9 @@ public final class CpuScatterEmitter {
         var copied = code.newLabel();
         code.labelBinding(copy);
         compareEnd(code, logical, end, ints, copied);
+        var nextCopy = code.newLabel();
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, p.outputBoundary, logical,
+                ints ? TypeKind.INT : TypeKind.LONG, nextCopy);
         address(
                 code,
                 g,
@@ -941,6 +1016,7 @@ public final class CpuScatterEmitter {
                 outputAddress,
                 value,
                 ints);
+        code.labelBinding(nextCopy);
         advancePacked(code, g, copyCoordinate, p.layouts[p.outputBoundary], p.outputRank);
         increment(code, logical, ints);
         code.branch(Opcode.GOTO, copy).labelBinding(copied);
@@ -953,6 +1029,8 @@ public final class CpuScatterEmitter {
         var done = code.newLabel();
         code.labelBinding(updates);
         compareEnd(code, updateOrdinal, updateCount, ints, done);
+        var skip = code.newLabel();
+        emitPackedCandidateGuard(code, p, g, updateCoordinate, updateOrdinal, ints, skip);
         emitTargetCoordinates(
                 code,
                 carriers,
@@ -976,7 +1054,6 @@ public final class CpuScatterEmitter {
             add(code, ints);
             storeAddress(code, targetOrdinal, ints);
         }
-        var skip = code.newLabel();
         loadAddress(code, targetOrdinal, ints);
         loadAddress(code, start, ints);
         if (ints) code.branch(Opcode.IF_ICMPLT, skip);
@@ -1028,6 +1105,54 @@ public final class CpuScatterEmitter {
                 code, g, updateCoordinate, p.layouts[p.updateBoundary], p.ranks[p.updateBoundary]);
         increment(code, updateOrdinal, ints);
         code.branch(Opcode.GOTO, updates).labelBinding(done);
+    }
+
+    /**
+     * Guards the proved candidate row using existing update coordinates. Shared singleton operands
+     * do not erase an index- or output-introduced ROW axis; the ordinary family mapping supplies it.
+     * @param code generated method builder
+     * @param p ordinary scatter encoding
+     * @param g existing invocation geometry local
+     * @param coordinates existing packed update-coordinate origin
+     * @param ordinal full logical update ordinal local
+     * @param ints whether the ordinal uses an INT local
+     * @param inactive target advancing the update cursor
+     */
+    private static void emitPackedCandidateGuard(CodeBuilder code, ScatterEncoding p, int g,
+            int coordinates, int ordinal, boolean ints, Label inactive) {
+        var control = CpuCarrierEmitter.controlFacts().orElse(null);
+        if (control == null) return;
+        if (control.boundaryRows().get(p.updateBoundary).rowIndexed()) {
+            CpuLoopEmitter.emitActiveOrdinalGuard(code, p.updateBoundary, ordinal,
+                    ints ? TypeKind.INT : TypeKind.LONG, inactive);
+            return;
+        }
+        int indexAxis = control.boundaryRows().get(p.indexBoundary).axis();
+        int outputAxis = control.boundaryRows().get(p.outputBoundary).axis();
+        if (indexAxis < 0 && outputAxis < 0) return;
+        int mapped = code.allocateLocal(TypeKind.INT);
+        if (indexAxis >= 0) {
+            code.loadConstant(indexAxis);
+            if (p.family.equals("SCATTER_ADD")) geometry(code, g, 6).l2i().iadd();
+        } else if (p.family.equals("SCATTER_ELEMENTS")) {
+            code.loadConstant(outputAxis);
+        } else {
+            int prefix = p.family.equals("SCATTER_ADD") ? 6 : 7;
+            var suffix = code.newLabel(); var ready = code.newLabel();
+            code.loadConstant(outputAxis); geometry(code, g, prefix).l2i()
+                    .branch(Opcode.IF_ICMPGE, suffix);
+            code.loadConstant(outputAxis).branch(Opcode.GOTO, ready).labelBinding(suffix);
+            code.loadConstant(outputAxis + p.ranks[p.indexBoundary] - 1);
+            if (!p.family.equals("SCATTER_ADD")) {
+                geometry(code, g, 7).l2i().isub();
+                geometry(code, g, 8).l2i().isub();
+            }
+            code.labelBinding(ready);
+        }
+        code.istore(mapped);
+        int row = code.allocateLocal(TypeKind.LONG);
+        code.aload(g).loadConstant(coordinates).iload(mapped).iadd().laload().lstore(row);
+        CpuCarrierEmitter.emitActiveRowGuard(code, row, TypeKind.LONG, inactive);
     }
 
     private static void emitTargetCoordinates(
@@ -1258,6 +1383,9 @@ public final class CpuScatterEmitter {
         if (product != null) product.emitReset();
         code.labelBinding(outer);
         compareEnd(code, logical, end, ints, done);
+        var nextOutput = code.newLabel();
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, p.outputBoundary, logical,
+                ints ? TypeKind.INT : TypeKind.LONG, nextOutput);
         address(
                 code,
                 g,
@@ -1282,6 +1410,8 @@ public final class CpuScatterEmitter {
         code.labelBinding(updates);
         var contributionsDone = code.newLabel();
         compareEnd(code, updateOrdinal, updateCount, ints, contributionsDone);
+        var noMatch = code.newLabel();
+        emitPackedCandidateGuard(code, p, g, updateCoordinate, updateOrdinal, ints, noMatch);
         code.loadConstant(1).istore(match);
         emitMatch(
                 code,
@@ -1295,7 +1425,6 @@ public final class CpuScatterEmitter {
                 selected,
                 match,
                 ints);
-        var noMatch = code.newLabel();
         code.iload(match).branch(Opcode.IFEQ, noMatch);
         address(
                 code,
@@ -1328,6 +1457,7 @@ public final class CpuScatterEmitter {
                 outputAddress,
                 value,
                 ints);
+        code.labelBinding(nextOutput);
         advancePacked(code, g, coordinate, p.layouts[p.outputBoundary], p.outputRank);
         increment(code, logical, ints);
         code.branch(Opcode.GOTO, outer).labelBinding(done);
@@ -1850,11 +1980,7 @@ public final class CpuScatterEmitter {
                 throw new IllegalArgumentException("unsupported scatter identity");
             int familyEnd = identity.indexOf(':', 8);
             String family = identity.substring(8, familyEnd);
-            int reductionStart = identity.indexOf("reduction=") + 10;
-            ScatterReduction reduction =
-                    ScatterReduction.valueOf(
-                            identity.substring(
-                                    reductionStart, identity.indexOf(':', reductionStart)));
+            ScatterReduction reduction = io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr.encodedReduction(ir);
             String mapText =
                     identity.substring(identity.indexOf("map=") + 4, identity.indexOf(":scratch="));
             int[] boundaryMap =

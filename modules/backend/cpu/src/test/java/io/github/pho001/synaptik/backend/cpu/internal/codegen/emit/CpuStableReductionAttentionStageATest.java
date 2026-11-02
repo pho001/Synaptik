@@ -234,8 +234,7 @@ final class CpuStableReductionAttentionStageATest {
     var ir = new CpuAttentionIr(dataType, dataType, dataType, dataType, masked, causal,
         outputCount, roles, types, plans(inputCount, outputCount));
     var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, access, 0, -1, List.of(), true, 57);
-    MethodHandle entry = new CpuClassFileKernelGenerator().defineClassBytes(specialization,
-        new CpuClassFileKernelGenerator().generateClassBytes(specialization, ir.encodedKernelIr())).entryPoint();
+    MethodHandle entry = new CpuClassFileKernelGenerator().defineClassBytes(specialization, ir.encodedKernelIr(), new CpuClassFileKernelGenerator().generateClassBytes(specialization, ir.encodedKernelIr())).entryPoint();
     var geometry = geometry(dataType, rows, s, e, ev, masked, outputCount, logicalRows);
     try (Arena arena = Arena.ofConfined()) {
       Object qCarrier = carrier(type, inputs, q, arena), kCarrier = carrier(type, inputs, k, arena),

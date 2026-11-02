@@ -11,6 +11,8 @@ import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
+import io.github.pho001.synaptik.model.graph.CompiledScanBody;
 import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphPhase;
@@ -33,6 +35,13 @@ import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import io.github.pho001.synaptik.model.tensor.TensorId;
+import io.github.pho001.synaptik.model.tensor.Scan;
+import io.github.pho001.synaptik.model.tensor.ScanBody;
+import io.github.pho001.synaptik.model.tensor.TensorProducer;
+import io.github.pho001.synaptik.model.operation.scan.ScanAttrs;
+import io.github.pho001.synaptik.model.operation.layout.*;
+import io.github.pho001.synaptik.model.operation.convolution.*;
+import io.github.pho001.synaptik.model.operation.pooling.MaxPool2dAttrs;
 import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import java.util.ArrayList;
@@ -44,6 +53,670 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 final class SourceGraphReconstructionTest {
+    @Test
+    void generalBodiesRoundTripTheWholeSelectedArithmeticReductionAndLayoutInventory() {
+        for (DataType type : DataType.values()) {
+            Tensor h = formal(type, 2, 3), x = formal(type, 2, 3), w = formal(type, 3);
+            Tensor scalar = formal(type), empty = formal(type, 0, 3);
+            var emissions = new ArrayList<>(List.of(h.reshape(Shape.of(3, 2)),
+                    h.expandDims(0).squeeze(0), h.expandDims(2).squeeze(2), h.permute(1, 0),
+                    h.contiguous(), h.cast(type), scalar.expand(Shape.of(2, 3)),
+                    scalar.reshape(Shape.scalar()), empty.reshape(Shape.of(3, 0))));
+            // Body-only mappings must remain unavailable at the flat boundary.
+            for (Tensor bodyOnly : List.of(h.expandDims(0), h.contiguous(), h.cast(type),
+                    empty.reshape(Shape.of(3, 0)), scalar.expand(Shape.of(2, 3)))) {
+                assertThrows(IllegalArgumentException.class,
+                        () -> GraphCompilationPort.captureSource(List.of(bodyOnly)));
+            }
+            if (type != DataType.BOOL) {
+                ScalarValue exact = exactScalar(type);
+                emissions.addAll(List.of(h.add(w), h.sub(w), h.mul(w), h.add(exact), h.sub(exact),
+                        h.mul(exact), h.sum(), h.sum(0, false), h.sum(1, true),
+                        h.sum(new int[] {1, 0}, false), h.sum(new int[] {1, 0}, true),
+                        h.sum(new int[] {}, false), h.sum(new int[] {}, true),
+                        h.sumToShape(Shape.of(1, 3)), empty.sum(0), scalar.sum()));
+                if (type.isFloating()) emissions.addAll(List.of(h.div(w), h.div(exact), h.neg(),
+                        h.relu(), h.tanh(), h.sigmoid()));
+                for (Tensor bodyOnly : List.of(h.add(exact), h.sum(), h.sumToShape(Shape.of(1, 3)))) {
+                    assertThrows(IllegalArgumentException.class,
+                            () -> GraphCompilationPort.captureSource(List.of(bodyOnly)));
+                }
+                if (type.isIntegral()) assertThrows(IllegalArgumentException.class,
+                        () -> GraphCompilationPort.captureSource(List.of(h.sub(w))));
+            }
+            var body = new ScanBody(List.of(h), List.of(x), List.of(w, scalar, empty), List.of(h), emissions);
+            for (boolean reverse : List.of(false, true)) for (long time : List.of(0L, 3L)) {
+                assertColdBodyRoundTrip(body, time, reverse);
+            }
+        }
+    }
+
+    @Test
+    void generalBodiesReuseNarrowIndexCnnAndMatmulConstructorsWithoutBackendRestrictions() {
+        for (DataType type : DataType.values()) {
+            Tensor h = formal(type), x = formal(type), matrix = formal(type, 2, 3);
+            Tensor cube = formal(type, 1, 2, 3), indices = formal(DataType.INT64, 1);
+            var invariants = new ArrayList<>(List.of(matrix, cube, indices));
+            var emissions = new ArrayList<>(List.of(cube.select(0, 0), matrix.gather(indices, 0),
+                    matrix.sliceByLength(new long[] {1}, new long[] {2}, new int[] {1}, new long[] {1}),
+                    Tensor.concat(0, cube, cube), Tensor.concat(0, cube, cube).select(0, 1),
+                    Tensor.concat(0, cube, cube).reshape(Shape.of(4, 3))));
+            if (type != DataType.BOOL) {
+                Tensor weights = formal(type, 3, 2), vector = formal(type, 3);
+                Tensor batch = formal(type, 5, 3, 2);
+                invariants.addAll(List.of(weights, vector, batch));
+                emissions.addAll(List.of(matrix.matmul(weights), vector.matmul(vector),
+                        vector.matmul(weights), matrix.matmul(vector), matrix.matmul(batch),
+                        matrix.matmul(weights).reshape(Shape.of(4)),
+                        matrix.matmul(weights).sliceByLength(new long[] {0}, new long[] {1},
+                                new int[] {1}, new long[] {1})));
+            }
+            if (type.isFloating()) {
+                Tensor image = formal(type, 1, 1, 4, 4), kernel = formal(type, 1, 1, 2, 2), bias = formal(type, 1);
+                Tensor volume = formal(type, 1, 1, 3, 3, 3), kernel3 = formal(type, 1, 1, 2, 2, 2);
+                invariants.addAll(List.of(image, kernel, bias, volume, kernel3));
+                emissions.addAll(List.of(image.conv2d(kernel, bias, Conv2dAttrs.defaults()),
+                        volume.conv3d(kernel3, bias, Conv3dAttrs.defaults()),
+                        image.maxPool2d(new MaxPool2dAttrs(2, 2, 2, 2, 0, 0, 1, 1, false))));
+            }
+            assertColdBodyRoundTrip(new ScanBody(List.of(h), List.of(x), invariants, List.of(h), emissions), 2, true);
+        }
+        for (List<DataType> types : List.of(List.of(DataType.INT32, DataType.INT64),
+                List.of(DataType.FLOAT32, DataType.FLOAT64), List.of(DataType.BFLOAT16, DataType.FLOAT16))) {
+            Tensor h = formal(types.getFirst()), x = formal(types.getFirst());
+            Tensor a = formal(types.getFirst(), 2, 3), b = formal(types.getLast(), 3, 4);
+            assertColdBodyRoundTrip(new ScanBody(List.of(h), List.of(x), List.of(a, b),
+                    List.of(h), List.of(a.matmul(b), a.sum().add(b.sum()))), 0, false);
+        }
+    }
+
+    @Test
+    void generalScanRebuildsIndependentScopesAllCanonicalPortsAndRepeatedRolesActuals() {
+        Tensor h = formal(DataType.FLOAT32, 2), h2 = formal(DataType.FLOAT32, 2);
+        Tensor x = formal(DataType.FLOAT32, 2), x2 = formal(DataType.FLOAT32, 2);
+        Tensor w = formal(DataType.FLOAT32, 2), unused = formal(DataType.FLOAT32, 2);
+        Tensor next = h.add(x).add(w).tanh();
+        var template = new ScanBody(List.of(h, h2), List.of(x, x2), List.of(w, unused),
+                List.of(next, next), List.of(next, h, next));
+        Tensor initial = formal(DataType.FLOAT32, 2), seq = formal(DataType.FLOAT32, 5, 2);
+        Tensor constant = formal(DataType.FLOAT32, 2);
+        constant.replaceHostStorage(new io.github.pho001.synaptik.model.storage.MemorySegmentStorage(
+                DataType.FLOAT32, 2, java.lang.foreign.MemorySegment.ofArray(new float[] {1, -0.0f})));
+        // Stored constants enter only through explicit invariant positions.
+        var a = Scan.apply(List.of(initial, initial), List.of(seq, seq), List.of(constant, initial), template, false);
+        var b = Scan.apply(List.of(initial, initial), List.of(seq, seq), List.of(constant, initial), template, true);
+        var roots = new ArrayList<Tensor>();
+        roots.add(a.residuals().getLast().neg());
+        roots.add(a.finalCarry().get(1));
+        roots.addAll(a.outputs());
+        roots.add(a.residuals().getLast());
+        roots.add(b.finalCarry().getFirst());
+        var source = GraphCompilationPort.captureSource(roots);
+        var rebuilt = GraphCompilationPort.reconstructSource(source.graph(), source.leaves());
+        assertEquals(source.graph(), GraphCompilationPort.captureSource(rebuilt).graph());
+        TensorProducer pa = rebuilt.get(1).provenance().orElseThrow().producer();
+        TensorProducer pb = rebuilt.getLast().provenance().orElseThrow().producer();
+        assertNotSame(pa, pb);
+        assertSame(pa.output(1), rebuilt.get(1));
+        assertSame(pa.output(2), rebuilt.get(2));
+        assertSame(pa.output(3), rebuilt.get(3));
+        assertSame(pa.output(4), rebuilt.get(4));
+        assertSame(rebuilt.get(5), rebuilt.getFirst().provenance().orElseThrow().inputs().getFirst());
+        assertSame(pa.inputs().get(0), pa.inputs().get(1));
+        assertSame(pa.inputs().get(2), pa.inputs().get(3));
+        assertSame(initial, pa.inputs().get(5));
+        assertNotSame(template, pa.scanBody().orElseThrow());
+        assertNotSame(pa.scanBody().orElseThrow(), pb.scanBody().orElseThrow());
+        var newFormals = ScanBodyInference.formals(pa.scanBody().orElseThrow());
+        assertEquals(6, newFormals.size());
+        assertEquals(6, newFormals.stream().distinct().count());
+        for (Tensor fresh : newFormals) {
+            assertFalse(ScanBodyInference.formals(template).contains(fresh));
+            assertFalse(pa.inputs().contains(fresh));
+            assertFalse(ScanBodyInference.formals(pb.scanBody().orElseThrow()).contains(fresh));
+            assertTrue(fresh.hostStorage().isEmpty()); assertTrue(fresh.provenance().isEmpty());
+        }
+        var newBody = pa.scanBody().orElseThrow();
+        assertSame(newBody.nextCarry().get(0), newBody.nextCarry().get(1));
+        assertSame(newBody.nextCarry().getFirst(), newBody.emissions().getFirst());
+        for (CompiledNode scan : source.graph().nodes().stream().filter(n -> n.scanBody().isPresent()).toList()) {
+            var body = scan.scanBody().orElseThrow();
+            var ordered = new java.util.LinkedHashSet<>(body.nextCarry());
+            ordered.addAll(body.emissions()); ordered.addAll(body.residuals());
+            assertEquals(List.copyOf(ordered), body.graph().outputs());
+            assertTrue(body.demandedOutputIndices().isEmpty());
+        }
+        // Explicit substitutions can be produced, repeated and cold-unsupported upstream.
+        var substitutions = source.leaves().stream().map(t -> t.abs().contiguous()).toList();
+        var opaque = GraphCompilationPort.reconstructSource(source.graph(), substitutions);
+        var opaqueProducer = opaque.get(1).provenance().orElseThrow().producer();
+        assertSame(substitutions.get(0), opaqueProducer.inputs().get(0));
+        assertSame(substitutions.get(0), opaqueProducer.inputs().get(1));
+        assertThrows(IllegalArgumentException.class, () -> GraphCompilationPort.captureSource(opaque));
+        // Original reusable templates still capture successfully after reconstruction.
+        assertEquals(source.graph(), GraphCompilationPort.captureSource(roots).graph());
+    }
+
+    /**
+     * Binds fresh ordinary actuals, then verifies all ports and O(body) reconstruction count.
+     * @param body source template with canonical declarations
+     * @param time static time count, including zero
+     * @param reverse decreasing traversal flag
+     */
+    private static void assertColdBodyRoundTrip(ScanBody body, long time, boolean reverse) {
+        var carry = body.carry().stream().map(t -> TensorFactory.create(t.descriptor())).toList();
+        var sequences = body.step().stream().map(t -> {
+            long[] dims = new long[t.descriptor().shape().rank() + 1]; dims[0] = time;
+            System.arraycopy(t.descriptor().shape().toLongArray(), 0, dims, 1, dims.length - 1);
+            return formal(t.descriptor().dataType(), dims);
+        }).toList();
+        var invariants = body.invariants().stream().map(t -> TensorFactory.create(t.descriptor())).toList();
+        var scan = Scan.apply(carry, sequences, invariants, body, reverse);
+        var roots = new ArrayList<>(scan.finalCarry()); roots.addAll(scan.outputs()); roots.addAll(scan.residuals());
+        var source = GraphCompilationPort.captureSource(roots);
+        Tensor before = formal(DataType.BOOL);
+        var rebuilt = GraphCompilationPort.reconstructSource(source.graph(), source.leaves());
+        Tensor after = formal(DataType.BOOL);
+        var local = source.graph().nodes().getFirst().scanBody().orElseThrow().graph();
+        long expected = local.inputs().size() + local.nodes().stream().mapToInt(n -> n.outputs().size()).sum() + roots.size();
+        assertEquals(expected + 1, after.id().value() - before.id().value());
+        assertEquals(roots.stream().map(Tensor::descriptor).toList(), rebuilt.stream().map(Tensor::descriptor).toList());
+        assertEquals(source.graph(), GraphCompilationPort.captureSource(rebuilt).graph());
+        var freshBody = rebuilt.getFirst().provenance().orElseThrow().producer().scanBody().orElseThrow();
+        assertEquals(ScanBodyInference.formals(body).size(), ScanBodyInference.formals(freshBody).size());
+        assertNotSame(body, freshBody);
+    }
+
+    /**
+     * Creates a canonical, storage-free non-gradient formal of any Model dtype.
+     * @param type exact Model dtype
+     * @param dims static extents, possibly empty or zero
+     * @return fresh ordinary canonical leaf
+     */
+    private static Tensor formal(DataType type, long... dims) {
+        return ScanBodyInferenceTest.tensor(type, false, dims);
+    }
+
+    /**
+     * Supplies typed raw parameters that would lose information through double conversion.
+     * @param type numeric Model dtype
+     * @return exact typed NaN payload or large integral scalar
+     */
+    private static ScalarValue exactScalar(DataType type) {
+        return switch (type) {
+            case FLOAT64 -> ScalarValue.float64(Double.longBitsToDouble(0xfff8000000000123L));
+            case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(0xffc00123));
+            case FLOAT16 -> ScalarValue.float16Bits((short) 0xfe23);
+            case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0xffc3);
+            case INT64 -> ScalarValue.int64(9_007_199_254_740_993L);
+            case INT32 -> ScalarValue.int32(Integer.MIN_VALUE);
+            default -> throw new AssertionError(type);
+        };
+    }
+
+    @Test
+    void preflightsEveryLateDeadAndEmptyScanScopeBeforeAllocatingAnyTensor() {
+        for (boolean lengthMode : List.of(false, true)) for (long time : List.of(0L, 3L)) {
+            Tensor h = formal(DataType.FLOAT32, 2), x = formal(DataType.FLOAT32, 2);
+            Tensor unused = formal(DataType.FLOAT32, 2);
+            var body = new ScanBody(List.of(h), List.of(x), List.of(unused),
+                    List.of(h.add(x).tanh()), List.of(h));
+            Tensor initial = formal(DataType.FLOAT32, 2), sequence = formal(DataType.FLOAT32, time, 2);
+            Tensor invariant = formal(DataType.FLOAT32, 2), lengths = formal(DataType.INT64, 2);
+            var scan = lengthMode
+                    ? Scan.apply(List.of(initial), List.of(sequence), List.of(invariant), lengths, 1,
+                            List.of(java.util.OptionalInt.of(0)), body, false)
+                    : Scan.apply(List.of(initial), List.of(sequence), List.of(invariant), body, false);
+            Tensor early = formal(DataType.FLOAT32, 2).neg();
+            var source = GraphCompilationPort.captureSource(List.of(early, scan.finalCarry().getFirst()));
+            var node = source.graph().nodes().getLast();
+            var raw = node.scanBody().orElseThrow();
+            var invalidBodies = new ArrayList<CompiledScanBody>();
+            invalidBodies.add(new CompiledScanBody(raw.graph(), raw.nextCarry(), raw.emissions(), raw.residuals(), List.of(0)));
+            var reordered = new ArrayList<>(raw.graph().outputs()); java.util.Collections.reverse(reordered);
+            invalidBodies.add(new CompiledScanBody(withOutputs(raw.graph(), reordered),
+                    raw.nextCarry(), raw.emissions(), raw.residuals(), List.of()));
+            var residuals = new ArrayList<>(raw.residuals()); java.util.Collections.reverse(residuals);
+            invalidBodies.add(new CompiledScanBody(raw.graph(), raw.nextCarry(), raw.emissions(), residuals, List.of()));
+            var phases = new HashMap<>(raw.graph().nodePhases());
+            phases.put(raw.graph().nodes().getLast().id(), GraphPhase.BACKWARD);
+            invalidBodies.add(withBodyGraph(raw, new CompiledGraphModel(raw.graph().values(), raw.graph().nodes(),
+                    raw.graph().inputs(), raw.graph().outputs(), phases)));
+            var nodes = new ArrayList<>(raw.graph().nodes());
+            var last = nodes.getLast();
+            nodes.set(nodes.size() - 1, new CompiledNode(last.id(), operation(UnaryElementwiseKind.ABS), last.inputs(), last.outputs()));
+            invalidBodies.add(withBodyGraph(raw, new CompiledGraphModel(raw.graph().values(), nodes,
+                    raw.graph().inputs(), raw.graph().outputs(), raw.graph().nodePhases())));
+            // Every stored value is checked, including unused formals and wrong raw layout/flags.
+            for (ValueId valueId : List.of(raw.graph().inputs().getLast(), last.outputs().getFirst())) {
+                for (TensorDescriptor invalid : List.of(descriptor(DataType.FLOAT32, Shape.of(2), false),
+                        descriptor(DataType.FLOAT64, Shape.of(2), false),
+                        descriptor(DataType.FLOAT32, Shape.of(2), true),
+                        descriptor(DataType.FLOAT32, Shape.of(Long.MAX_VALUE, 2), false),
+                        descriptor(DataType.FLOAT32, Shape.ofDimensions(new DynamicDimension("N")), false))) {
+                    var values = raw.graph().values().stream().map(v -> v.id().equals(valueId)
+                            ? new GraphValue(v.id(), invalid) : v).toList();
+                    // An unresolved layout is already correct for the TANH result.
+                    if (values.equals(raw.graph().values())) continue;
+                    invalidBodies.add(withBodyGraph(raw, new CompiledGraphModel(values, raw.graph().nodes(),
+                            raw.graph().inputs(), raw.graph().outputs(), raw.graph().nodePhases())));
+                }
+            }
+            for (CompiledScanBody invalidBody : invalidBodies) {
+                var badNode = new CompiledNode(node.id(), node.operation(), node.inputs(), node.outputs(), Optional.of(invalidBody));
+                var badNodes = new ArrayList<>(source.graph().nodes()); badNodes.set(badNodes.size() - 1, badNode);
+                var bad = new CompiledGraphModel(source.graph().values(), badNodes, source.graph().inputs(),
+                        source.graph().outputs(), source.graph().nodePhases());
+                for (CompiledGraphModel graph : List.of(bad, withOutputs(bad, List.of(bad.outputs().getFirst())))) {
+                    assertColdFailureWithoutIds(() -> GraphCompilationPort.reconstructSource(graph, source.leaves()));
+                    assertColdFailureWithoutIds(() -> new GraphCompilationPort.SourceCapture(graph, source.leaves()));
+                }
+            }
+            // Structural missing/extra role outputs and missing attachments remain Model failures.
+            assertColdFailureWithoutIds(() -> new CompiledScanBody(withOutputs(raw.graph(),
+                    raw.graph().outputs().subList(1, raw.graph().outputs().size())),
+                    raw.nextCarry(), raw.emissions(), raw.residuals(), List.of()));
+            var extra = new ArrayList<>(raw.graph().outputs()); extra.add(raw.graph().inputs().get(1));
+            assertColdFailureWithoutIds(() -> new CompiledScanBody(withOutputs(raw.graph(), extra),
+                    raw.nextCarry(), raw.emissions(), raw.residuals(), List.of()));
+            assertColdFailureWithoutIds(() -> new CompiledNode(node.id(), node.operation(), node.inputs(), node.outputs()));
+        }
+    }
+
+    @Test
+    void symbolicLengthModeStillRejectsLateDeadAndZeroTimeBeforeAnyIds() {
+        for (long time : List.of(0L, 3L)) {
+            var batch = new io.github.pho001.synaptik.model.shape.DynamicDimension("Customers");
+            var width = new io.github.pho001.synaptik.model.shape.StaticDimension(2);
+            var row = Shape.ofDimensions(batch, width);
+            java.util.function.BiFunction<DataType, Shape, Tensor> source = (type, shape) -> TensorFactory.create(
+                    new TensorDescriptor(type, shape, shape.isFullyStatic()
+                            ? Optional.of(LayoutDescriptor.contiguous(shape)) : Optional.empty(), false));
+            Tensor h = source.apply(DataType.FLOAT32, row), x = source.apply(DataType.FLOAT32, row);
+            var body = new ScanBody(List.of(h), List.of(x), List.of(), List.of(h.add(x)), List.of());
+            Tensor initial = source.apply(DataType.FLOAT32, row), sequence = source.apply(DataType.FLOAT32,
+                    Shape.ofDimensions(new io.github.pho001.synaptik.model.shape.StaticDimension(time), batch, width));
+            Tensor lengths = source.apply(DataType.INT64, Shape.ofDimensions(batch)), earlyInput = formal(DataType.FLOAT32, 2, 2);
+            Tensor early = earlyInput.neg();
+            var scan = Scan.apply(List.of(initial), List.of(sequence), List.of(), lengths, 1,
+                    List.of(java.util.OptionalInt.of(0)), body, false);
+            var raw = GraphCapture.capture(List.of(early, scan.finalCarry().getFirst()));
+            List<Tensor> leaves = List.of(earlyInput, initial, sequence, lengths);
+            assertEquals(4, raw.inputs().size());
+            for (var graph : List.of(raw, withOutputs(raw, List.of(raw.outputs().getFirst())))) {
+                assertColdFailureWithoutIds(() -> SourceGraphReconstruction.preflight(graph));
+                assertColdFailureWithoutIds(() -> GraphCompilationPort.reconstructSource(graph, leaves));
+                assertColdFailureWithoutIds(() -> new GraphCompilationPort.SourceCapture(graph, leaves));
+            }
+            assertColdFailureWithoutIds(() -> GraphCompilationPort.captureSource(List.of(early, scan.finalCarry().getFirst())));
+            assertColdFailureWithoutIds(() -> GraphCapture.captureSource(List.of(early, scan.finalCarry().getFirst())));
+        }
+    }
+
+    @Test
+    void lengthRoundTripsEveryRolePortAndScopeWithTimeIndependentConstruction() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+            for (long batch : List.of(0L, 1L, 3L)) for (long time : List.of(0L, 3L, 100_000L))
+                for (boolean reverse : List.of(false, true)) {
+                    Tensor h = formal(type, batch, 2), unusedCarry = formal(type, batch, 2);
+                    Tensor accumulator = formal(type, 2);
+                    Tensor x = formal(type, batch, 2), transposed = formal(type, 2, batch);
+                    Tensor shared = formal(type, 2), weight = formal(type, 2), unused = formal(type, 2);
+                    Tensor next = h.add(x).add(transposed.permute(1, 0)).add(shared).add(weight)
+                            .mul(type == DataType.FLOAT32 ? ScalarValue.float32(-0.0f) : ScalarValue.float64(-0.0))
+                            .cast(type).tanh();
+                    var body = new ScanBody(List.of(h, unusedCarry, accumulator), List.of(x, transposed, shared),
+                            List.of(weight, unused), List.of(next, next, accumulator.add(next.sum(0, false))),
+                            List.of(next, h, next));
+                    Tensor initial = formal(type, batch, 2), total = formal(type, 2);
+                    Tensor sequence = formal(type, time, batch, 2), other = formal(type, time, 2, batch);
+                    Tensor sharedSequence = formal(type, time, 2), invariant = formal(type, 2);
+                    Tensor lengths = formal(DataType.INT64, batch);
+                    var a = Scan.apply(List.of(initial, initial, total), List.of(sequence, other, sharedSequence),
+                            List.of(invariant, invariant), lengths, 2,
+                            List.of(java.util.OptionalInt.of(0), java.util.OptionalInt.of(1), java.util.OptionalInt.empty()),
+                            body, reverse);
+                    var b = Scan.apply(List.of(initial, initial, total), List.of(sequence, other, sharedSequence),
+                            List.of(invariant, invariant), lengths, 2,
+                            List.of(java.util.OptionalInt.of(0), java.util.OptionalInt.of(1), java.util.OptionalInt.empty()),
+                            body, !reverse);
+                    var roots = new ArrayList<>(a.finalCarry());
+                    roots.addAll(a.outputs()); roots.addAll(a.residuals()); roots.add(b.finalCarry().getFirst());
+                    var source = GraphCompilationPort.captureSource(roots);
+                    var arbitrary = relabel(source.graph());
+                    Tensor before = formal(DataType.BOOL);
+                    var rebuilt = GraphCompilationPort.reconstructSource(arbitrary, source.leaves());
+                    long expected = source.graph().nodes().stream().mapToLong(n -> {
+                        var local = n.scanBody().orElseThrow().graph();
+                        return local.inputs().size() + local.nodes().stream().mapToLong(p -> p.outputs().size()).sum()
+                                + n.outputs().size();
+                    }).sum();
+                    assertEquals(expected + 1, formal(DataType.BOOL).id().value() - before.id().value());
+                    assertEquals(source.graph(), GraphCompilationPort.captureSource(rebuilt).graph());
+                    var pa = rebuilt.getFirst().provenance().orElseThrow().producer();
+                    var pb = rebuilt.getLast().provenance().orElseThrow().producer();
+                    assertNotSame(pa, pb);
+                    for (int i = 0; i < pa.outputCount(); i++) assertSame(pa.output(i), rebuilt.get(i));
+                    assertEquals(9, pa.inputs().size());
+                    assertSame(lengths, pa.inputs().getLast());
+                    assertSame(invariant, pa.inputs().get(6)); assertSame(invariant, pa.inputs().get(7));
+                    assertSame(pa.inputs().getFirst(), pa.inputs().get(1));
+                    var fresh = pa.scanBody().orElseThrow();
+                    assertEquals(8, ScanBodyInference.formals(fresh).stream().distinct().count());
+                    assertNotSame(body, fresh); assertNotSame(fresh, pb.scanBody().orElseThrow());
+                    for (Tensor f : ScanBodyInference.formals(fresh)) {
+                        assertFalse(ScanBodyInference.formals(body).contains(f));
+                        assertFalse(ScanBodyInference.formals(pb.scanBody().orElseThrow()).contains(f));
+                        assertTrue(f.hostStorage().isEmpty()); assertTrue(f.provenance().isEmpty());
+                    }
+                    assertSame(fresh.nextCarry().getFirst(), fresh.nextCarry().get(1));
+                    assertSame(fresh.nextCarry().getFirst(), fresh.emissions().getFirst());
+                }
+    }
+
+    @Test
+    void lengthSubstitutionTiesAreCheckedPerOccurrenceBeforeEarlierProducerIds() {
+        for (long batch : List.of(0L, 1L, 2L)) {
+            Tensor h = formal(DataType.FLOAT32, batch, 2), x = formal(DataType.FLOAT32, batch, 2);
+            Tensor invariant = formal(DataType.FLOAT32, batch, 2);
+            var body = new ScanBody(List.of(h), List.of(x), List.of(invariant), List.of(h.add(x)), List.of(h));
+            Tensor initial = formal(DataType.FLOAT32, batch, 2), state = formal(DataType.FLOAT32, batch, 2);
+            Tensor sequence = formal(DataType.FLOAT32, 3, batch, 2), lengths = formal(DataType.INT64, batch);
+            var scan = Scan.apply(List.of(initial), List.of(sequence), List.of(state), lengths, 1,
+                    List.of(java.util.OptionalInt.of(0)), body, false);
+            var source = GraphCompilationPort.captureSource(List.of(initial.neg(), scan.finalCarry().getFirst()));
+            var bad = source.leaves().stream().map(t -> t == state ? initial : t).toList();
+            for (var graph : List.of(source.graph(), withOutputs(source.graph(), List.of(source.graph().outputs().getFirst()))))
+                assertColdFailureWithoutIds(() -> GraphCompilationPort.reconstructSource(graph, bad));
+            Tensor opaque = initial.abs().contiguous();
+            var good = source.leaves().stream().map(t -> t == initial ? opaque : t).toList();
+            var rebuilt = GraphCompilationPort.reconstructSource(source.graph(), good);
+            assertSame(opaque, rebuilt.getLast().provenance().orElseThrow().inputs().getFirst());
+            // The same replacement can be ROW in one occurrence and SHARED in another.
+            var second = Scan.apply(List.of(state), List.of(sequence), List.of(initial), lengths, 1,
+                    List.of(java.util.OptionalInt.of(0)), body, true);
+            var independent = GraphCompilationPort.captureSource(List.of(scan.finalCarry().getFirst(), second.finalCarry().getFirst()));
+            assertEquals(independent.graph(), GraphCompilationPort.captureSource(
+                    GraphCompilationPort.reconstructSource(independent.graph(), independent.leaves())).graph());
+        }
+        // Equal sequence descriptors do not prove equal outer row axes (or SHARED).
+        for (java.util.OptionalInt secondRole : List.of(java.util.OptionalInt.of(1), java.util.OptionalInt.empty())) {
+            Tensor h = formal(DataType.FLOAT64, 2, 2), x = formal(DataType.FLOAT64, 2, 2), y = formal(DataType.FLOAT64, 2, 2);
+            var body = new ScanBody(List.of(h), List.of(x, y), List.of(), List.of(h.add(x)), List.of());
+            Tensor initial = formal(DataType.FLOAT64, 2, 2), first = formal(DataType.FLOAT64, 0, 2, 2);
+            Tensor second = formal(DataType.FLOAT64, 0, 2, 2), lengths = formal(DataType.INT64, 2);
+            var scan = Scan.apply(List.of(initial), List.of(first, second), List.of(), lengths, 1,
+                    List.of(java.util.OptionalInt.of(0), secondRole), body, false);
+            var source = GraphCompilationPort.captureSource(scan.finalCarry());
+            var bad = source.leaves().stream().map(t -> t == second ? first : t).toList();
+            assertColdFailureWithoutIds(() -> GraphCompilationPort.reconstructSource(source.graph(), bad));
+        }
+    }
+
+    @Test
+    void newlyTypedLengthDeclarationsAndHiddenCastInteriorsStayColdUnsupported() {
+        for (long batch : List.of(0L, 1L, 2L)) for (long time : List.of(0L, 3L))
+            for (DataType type : DataType.values()) if (type != DataType.FLOAT32) {
+                for (int role = -2; role < 3; role++) {
+                    if (role == -2 && type == DataType.FLOAT64) continue;
+                    var scan = LengthAwareScanBodyInferenceTest.typedLengthSource(type,
+                            new io.github.pho001.synaptik.model.shape.StaticDimension(batch), time, role);
+                    var actuals = scan.finalCarry().getFirst().provenance().orElseThrow().inputs();
+                    Tensor earlyInput = formal(DataType.FLOAT32, 2), early = earlyInput.neg();
+                    var raw = GraphCapture.capture(List.of(early, scan.finalCarry().getFirst()));
+                    var leaves = new ArrayList<>(List.of(earlyInput)); leaves.addAll(actuals);
+                    for (var graph : List.of(raw, withOutputs(raw, List.of(raw.outputs().getFirst())))) {
+                        assertColdFailureWithoutIds(() -> GraphCompilationPort.reconstructSource(graph, leaves));
+                        assertColdFailureWithoutIds(() -> new GraphCompilationPort.SourceCapture(graph, leaves));
+                    }
+                    assertColdFailureWithoutIds(() -> GraphCompilationPort.captureSource(List.of(early, scan.finalCarry().getFirst())));
+                }
+            }
+    }
+
+    @Test
+    void separateLengthOccurrencesMayUseDifferentHomogeneousDtypes() {
+        var roots = new ArrayList<Tensor>();
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            var scan = LengthAwareScanBodyInferenceTest.typedLengthSource(type,
+                    new io.github.pho001.synaptik.model.shape.StaticDimension(2), 3, -2);
+            roots.addAll(scan.finalCarry());
+        }
+        assertRoundTrip(roots);
+    }
+
+    @Test
+    void rawLengthHeadersAndRowFeedbackRejectLateDeadAndEmptyBeforeAnyIds() {
+        for (long batch : List.of(0L, 1L, 2L)) for (long time : List.of(0L, 3L)) {
+            Tensor h = formal(DataType.FLOAT64, batch, 2), x = formal(DataType.FLOAT64, batch, 2);
+            Tensor initial = formal(DataType.FLOAT64, batch, 2), sequence = formal(DataType.FLOAT64, time, batch, 2);
+            Tensor early = initial.neg();
+            for (Tensor root : List.of(h, h.sum(0, true).expand(h.descriptor().shape()),
+                    h.add(x.sum(0, true).expand(h.descriptor().shape())))) {
+                var body = new ScanBody(List.of(h), List.of(x), List.of(), List.of(root), List.of(h));
+                var allValid = Scan.apply(List.of(initial), List.of(sequence), List.of(), body, false);
+                var raw = GraphCapture.capture(List.of(early, allValid.finalCarry().getFirst()));
+                var controls = new ArrayList<>(List.of(formal(DataType.INT32, batch),
+                        formal(DataType.INT64, batch, 1), formal(DataType.INT64, batch + 1)));
+                if (root != h) controls.add(formal(DataType.INT64, batch));
+                for (Tensor control : controls) {
+                    var bad = LengthAwareScanBodyInferenceTest.lengthIR(raw, 1,
+                            List.of(java.util.OptionalInt.of(0)), control.descriptor());
+                    List<Tensor> leaves = List.of(initial, sequence, control);
+                    for (var graph : List.of(bad, withOutputs(bad, List.of(bad.outputs().getFirst())))) {
+                        assertColdFailureWithoutIds(() -> GraphCompilationPort.reconstructSource(graph, leaves));
+                        assertColdFailureWithoutIds(() -> new GraphCompilationPort.SourceCapture(graph, leaves));
+                    }
+                }
+            }
+            Tensor old = formal(DataType.FLOAT64, 2), total = formal(DataType.FLOAT64, 2);
+            for (Tensor badUpdate : List.of(old, old.add(old), old.add(h.sum(0, false)).add(old))) {
+                var body = new ScanBody(List.of(h, old), List.of(x), List.of(), List.of(h, badUpdate), List.of());
+                var allValid = Scan.apply(List.of(initial, total), List.of(sequence), List.of(), body, true);
+                var raw = GraphCapture.capture(List.of(early, allValid.finalCarry().getFirst()));
+                Tensor lengths = formal(DataType.INT64, batch);
+                var bad = LengthAwareScanBodyInferenceTest.lengthIR(raw, 1,
+                        List.of(java.util.OptionalInt.of(0)), lengths.descriptor());
+                for (var graph : List.of(bad, withOutputs(bad, List.of(bad.outputs().getFirst())))) {
+                    assertColdFailureWithoutIds(() -> GraphCompilationPort.reconstructSource(graph, List.of(initial, total, sequence, lengths)));
+                    assertColdFailureWithoutIds(() -> new GraphCompilationPort.SourceCapture(graph, List.of(initial, total, sequence, lengths)));
+                }
+            }
+        }
+    }
+
+    @Test
+    void emptyDomainsCannotHideUnusedFeatureGeometryOverflowBeforeAnyIds() {
+        for (long batch : List.of(0L, 1L, 2L)) for (long time : List.of(0L, 3L)) {
+            Tensor h = formal(DataType.FLOAT32, batch, 2), x = formal(DataType.FLOAT32, batch, 2);
+            Tensor initial = formal(DataType.FLOAT32, batch, 2), sequence = formal(DataType.FLOAT32, time, batch, 2);
+            Tensor lengths = formal(DataType.INT64, batch);
+            var body = new ScanBody(List.of(h), List.of(x), List.of(), List.of(h), List.of());
+            var scan = Scan.apply(List.of(initial), List.of(sequence), List.of(), lengths, 1,
+                    List.of(java.util.OptionalInt.of(0)), body, false);
+            var source = GraphCompilationPort.captureSource(List.of(initial.neg(), scan.finalCarry().getFirst()));
+            var node = source.graph().nodes().getLast();
+            var attachment = node.scanBody().orElseThrow();
+            TensorDescriptor overflow = descriptor(DataType.FLOAT32, Shape.of(batch, Long.MAX_VALUE, 2), false);
+            TensorDescriptor sequenceOverflow = descriptor(DataType.FLOAT32, Shape.of(time, batch, Long.MAX_VALUE, 2), false);
+            var localValues = attachment.graph().values().stream().map(v ->
+                    v.id().equals(attachment.graph().inputs().getLast()) ? new GraphValue(v.id(), overflow) : v).toList();
+            var local = new CompiledGraphModel(localValues, attachment.graph().nodes(), attachment.graph().inputs(),
+                    attachment.graph().outputs(), attachment.graph().nodePhases());
+            var nodes = new ArrayList<>(source.graph().nodes());
+            nodes.set(nodes.size() - 1, new CompiledNode(node.id(), node.operation(), node.inputs(), node.outputs(),
+                    Optional.of(withBodyGraph(attachment, local))));
+            var values = source.graph().values().stream().map(v ->
+                    v.id().equals(node.inputs().get(1)) ? new GraphValue(v.id(), sequenceOverflow) : v).toList();
+            var bad = new CompiledGraphModel(values, nodes, source.graph().inputs(),
+                    source.graph().outputs(), source.graph().nodePhases());
+            for (var graph : List.of(bad, withOutputs(bad, List.of(bad.outputs().getFirst())))) {
+                assertColdFailureWithoutIds(() -> SourceGraphReconstruction.preflight(graph));
+                assertColdFailureWithoutIds(() -> GraphCompilationPort.reconstructSource(graph, source.leaves()));
+                assertColdFailureWithoutIds(() -> new GraphCompilationPort.SourceCapture(graph, source.leaves()));
+            }
+        }
+    }
+
+    @Test
+    void admittedLengthRnnAlgebraRetainsOrdinaryFirstOrderAutograd() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+            for (long time : List.of(0L, 3L)) for (boolean reverse : List.of(false, true)) {
+                Tensor h = ScanBodyInferenceTest.tensor(type, false, 2, 2);
+                Tensor x = ScanBodyInferenceTest.tensor(type, true, 2, 2);
+                Tensor w = ScanBodyInferenceTest.tensor(type, true, 2, 2);
+                Tensor initial = formal(type, 2, 2), sequence = ScanBodyInferenceTest.tensor(type, true, time, 2, 2);
+                Tensor weight = ScanBodyInferenceTest.tensor(type, true, 2, 2), lengths = formal(DataType.INT64, 2);
+                var body = new ScanBody(List.of(h), List.of(x), List.of(w), List.of(h.add(x.matmul(w)).tanh()), List.of(h));
+                var scan = Scan.apply(List.of(initial), List.of(sequence), List.of(weight), lengths, 1,
+                        List.of(java.util.OptionalInt.of(0)), body, reverse);
+                var source = GraphCompilationPort.captureSource(List.of(scan.finalCarry().getFirst()));
+                var rebuilt = GraphCompilationPort.reconstructSource(source.graph(), source.leaves());
+                var originalRoots = List.of(scan.finalCarry().getFirst().sum());
+                var rebuiltRoots = List.of(rebuilt.getFirst().sum());
+                var targets = List.of(sequence, weight);
+                if (time == 0) {
+                    // No cell is entered: final=initial, with no sequence or parameter route.
+                    assertThrows(IllegalArgumentException.class, () -> compile(originalRoots, targets, true));
+                    assertThrows(IllegalArgumentException.class, () -> compile(rebuiltRoots, targets, true));
+                }
+                assertEquivalentCompile(originalRoots, rebuiltRoots, targets, targets, time == 0
+                        ? FunctionalGradientRequest.DisconnectedPolicy.ZERO
+                        : FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+            }
+    }
+
+    @Test
+    void generalScanSupportsArbitraryScopeQualifiedIdsAndTimeIndependentObjectCounts() {
+        Tensor h = formal(DataType.FLOAT64, 2), x = formal(DataType.FLOAT64, 2);
+        var body = new ScanBody(List.of(h), List.of(x), List.of(), List.of(h.add(x).tanh()), List.of(h));
+        for (long time : List.of(0L, 3L, 100_000L)) for (boolean reverse : List.of(false, true)) {
+            assertColdBodyRoundTrip(body, time, reverse);
+        }
+        var scan = Scan.apply(List.of(formal(DataType.FLOAT64, 2)), List.of(formal(DataType.FLOAT64, 3, 2)),
+                List.of(), body, true);
+        var source = GraphCompilationPort.captureSource(List.of(scan.residuals().getLast(), scan.finalCarry().getFirst()));
+        var arbitrary = relabel(source.graph());
+        var local = arbitrary.nodes().getFirst().scanBody().orElseThrow().graph();
+        assertEquals(arbitrary.inputs().getFirst(), local.inputs().getFirst(), "numeric IDs deliberately coincide across scopes");
+        assertEquals(source.graph(), GraphCompilationPort.captureSource(
+                GraphCompilationPort.reconstructSource(arbitrary, source.leaves())).graph());
+        // Logical geometry only: no physical-byte limit or provider restriction belongs here.
+        Tensor hugeH = formal(DataType.FLOAT64, Long.MAX_VALUE), hugeX = formal(DataType.FLOAT64, Long.MAX_VALUE);
+        assertColdBodyRoundTrip(new ScanBody(List.of(hugeH), List.of(hugeX), List.of(), List.of(hugeH), List.of()), 0, false);
+    }
+
+    @Test
+    void generalColdRoundTripPreservesMixedFormalFlagsAndOrdinaryAutograd() {
+        for (long time : List.of(0L, 3L)) for (boolean reverse : List.of(false, true)) {
+            Tensor h = ScanBodyInferenceTest.tensor(DataType.FLOAT32, false);
+            Tensor x = ScanBodyInferenceTest.tensor(DataType.FLOAT32, true);
+            Tensor w = ScanBodyInferenceTest.tensor(DataType.FLOAT32, true);
+            Tensor initial = formal(DataType.FLOAT32);
+            Tensor sequence = ScanBodyInferenceTest.tensor(DataType.FLOAT32, true, time);
+            Tensor weight = ScanBodyInferenceTest.tensor(DataType.FLOAT32, true);
+            var body = new ScanBody(List.of(h), List.of(x), List.of(w), List.of(h.add(x).mul(w).tanh()), List.of(h));
+            var scan = Scan.apply(List.of(initial), List.of(sequence), List.of(weight), body, reverse);
+            var source = GraphCompilationPort.captureSource(List.of(scan.finalCarry().getFirst(), scan.outputs().getFirst()));
+            var rebuilt = GraphCompilationPort.reconstructSource(source.graph(), source.leaves());
+            var rebuiltBody = rebuilt.getFirst().provenance().orElseThrow().producer().scanBody().orElseThrow();
+            assertFalse(rebuiltBody.carry().getFirst().descriptor().requiresGrad());
+            assertTrue(rebuiltBody.step().getFirst().descriptor().requiresGrad());
+            assertTrue(rebuiltBody.invariants().getFirst().descriptor().requiresGrad());
+            assertFalse(rebuiltBody.emissions().getFirst().descriptor().requiresGrad());
+            assertTrue(rebuilt.get(1).descriptor().requiresGrad());
+            var originalRoots = List.of(scan.finalCarry().getFirst());
+            var rebuiltRoots = List.of(rebuilt.getFirst());
+            var targets = List.of(sequence, weight);
+            if (time == 0) {
+                // Mixed formal flags do not create value routes through an unentered cell.
+                assertThrows(IllegalArgumentException.class, () -> compile(originalRoots, targets, true));
+                assertThrows(IllegalArgumentException.class, () -> compile(rebuiltRoots, targets, true));
+            }
+            assertEquivalentCompile(originalRoots, rebuiltRoots, targets, targets, time == 0
+                    ? FunctionalGradientRequest.DisconnectedPolicy.ZERO
+                    : FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+        }
+    }
+
+    @Test
+    void unsupportedPureBodiesAndBodyOnlySignaturesNeverBroadenFlatAdmission() {
+        Tensor h = formal(DataType.FLOAT32, 2, 2), x = formal(DataType.FLOAT32, 2, 2);
+        Tensor scalar = formal(DataType.FLOAT32);
+        for (Tensor unsupported : List.of(h.abs(), h.cast(DataType.FLOAT64), h.permute(0, 1), h.mean(), h.add(x).pow(x))) {
+            var body = new ScanBody(List.of(h), List.of(x), List.of(), List.of(h), List.of(unsupported));
+            var scan = Scan.apply(List.of(formal(DataType.FLOAT32, 2, 2)), List.of(formal(DataType.FLOAT32, 0, 2, 2)),
+                    List.of(), body, false);
+            assertColdFailureWithoutIds(() -> GraphCompilationPort.captureSource(scan.finalCarry()));
+            var raw = GraphCapture.capture(scan.finalCarry());
+            List<Tensor> leaves = List.of(scan.finalCarry().getFirst().provenance().orElseThrow().inputs().get(0),
+                    scan.finalCarry().getFirst().provenance().orElseThrow().inputs().get(1));
+            assertColdFailureWithoutIds(() -> GraphCompilationPort.reconstructSource(raw, leaves));
+        }
+        for (Tensor unsupported : List.of(h.div(x), h.div(ScalarValue.float32(2)),
+                scalar.expand(Shape.of(2, 2)), h.contiguous(), h.cast(DataType.FLOAT32), h.sum(),
+                h.sum(new int[] {}, true), h.sumToShape(Shape.of(2, 2)))) {
+            assertColdFailureWithoutIds(() -> GraphCompilationPort.captureSource(List.of(unsupported)));
+        }
+    }
+
+    /**
+     * Changes only a graph's ordered publication roots, preserving dead stored nodes and values.
+     * @param graph structurally closed input graph
+     * @param outputs valid unique value IDs in desired publication order
+     * @return immutable graph with identical stored facts except outputs
+     */
+    private static CompiledGraphModel withOutputs(CompiledGraphModel graph, List<ValueId> outputs) {
+        return new CompiledGraphModel(graph.values(), graph.nodes(), graph.inputs(), outputs, graph.nodePhases());
+    }
+
+    /**
+     * Replaces a body graph while retaining its raw role bindings and empty demand.
+     * @param body source attachment
+     * @param graph replacement structurally valid local graph with the same IDs
+     * @return immutable attachment retaining ordered roles
+     */
+    private static CompiledScanBody withBodyGraph(CompiledScanBody body, CompiledGraphModel graph) {
+        return new CompiledScanBody(graph, body.nextCarry(), body.emissions(), body.residuals(), List.of());
+    }
+
+    /**
+     * Verifies known cold/structural rejection consumes neither formal nor producer IDs.
+     * @param action fully prepared failure action, with no test-input allocation inside it
+     */
+    private static void assertColdFailureWithoutIds(Runnable action) {
+        Tensor before = formal(DataType.BOOL);
+        assertThrows(IllegalArgumentException.class, action::run);
+        assertEquals(before.id().value() + 1, formal(DataType.BOOL).id().value());
+    }
+
+    /**
+     * Assigns sparse, descending IDs independently in each lexical scope.
+     * @param graph structurally valid source graph
+     * @return equivalent graph with arbitrary local identities and unchanged descriptors/order
+     */
+    private static CompiledGraphModel relabel(CompiledGraphModel graph) {
+        var ids = new HashMap<ValueId, ValueId>();
+        for (int i = 0; i < graph.values().size(); i++) ids.put(graph.values().get(i).id(), id(900 - i * 7L));
+        var phases = new HashMap<NodeId, GraphPhase>();
+        var nodes = new ArrayList<CompiledNode>();
+        for (int i = 0; i < graph.nodes().size(); i++) {
+            var node = graph.nodes().get(i); var nodeId = new NodeId(700 - i * 3L);
+            phases.put(nodeId, graph.nodePhases().get(node.id()));
+            var attachment = node.scanBody().map(b -> {
+                var local = relabel(b.graph());
+                var remap = new HashMap<ValueId, ValueId>();
+                for (int j = 0; j < b.graph().values().size(); j++) remap.put(b.graph().values().get(j).id(), local.values().get(j).id());
+                return new CompiledScanBody(local, b.nextCarry().stream().map(remap::get).toList(),
+                        b.emissions().stream().map(remap::get).toList(), b.residuals().stream().map(remap::get).toList(), List.of());
+            });
+            nodes.add(new CompiledNode(nodeId, node.operation(), node.inputs().stream().map(ids::get).toList(),
+                    node.outputs().stream().map(ids::get).toList(), attachment));
+        }
+        return new CompiledGraphModel(graph.values().stream().map(v -> new GraphValue(ids.get(v.id()), v.descriptor())).toList(),
+                nodes, graph.inputs().stream().map(ids::get).toList(), graph.outputs().stream().map(ids::get).toList(), phases);
+    }
+
     @Test
     void activationsPreserveExactKindsSharingDescriptorsAndOrdinaryAutogradAcrossFloatingTypes() {
         for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
@@ -385,13 +1058,20 @@ final class SourceGraphReconstructionTest {
 
     private static void assertEquivalentCompile(List<Tensor> original, List<Tensor> rebuilt,
             List<Tensor> originalTargets, List<Tensor> rebuiltTargets) {
+        assertEquivalentCompile(original, rebuilt, originalTargets, rebuiltTargets,
+                FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+    }
+
+    private static void assertEquivalentCompile(List<Tensor> original, List<Tensor> rebuilt,
+            List<Tensor> originalTargets, List<Tensor> rebuiltTargets,
+            FunctionalGradientRequest.DisconnectedPolicy policy) {
         Map<TensorId, TensorId> freshIds = new HashMap<>();
         for (int index = 0; index < originalTargets.size(); index++) {
             freshIds.put(originalTargets.get(index).id(), rebuiltTargets.get(index).id());
         }
         for (boolean backward : List.of(false, true)) {
-            CompileArtifacts expected = compile(original, originalTargets, backward);
-            CompileArtifacts actual = compile(rebuilt, rebuiltTargets, backward);
+            CompileArtifacts expected = compile(original, originalTargets, backward, policy);
+            CompileArtifacts actual = compile(rebuilt, rebuiltTargets, backward, policy);
             assertEquals(expected.mode(), actual.mode());
             assertEquals(expected.graph(), actual.graph());
             assertEquals(expected.partitions(), actual.partitions());
@@ -416,13 +1096,18 @@ final class SourceGraphReconstructionTest {
     }
 
     private static CompileArtifacts compile(List<Tensor> outputs, List<Tensor> targets, boolean backward) {
+        return compile(outputs, targets, backward, FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+    }
+
+    private static CompileArtifacts compile(List<Tensor> outputs, List<Tensor> targets, boolean backward,
+            FunctionalGradientRequest.DisconnectedPolicy policy) {
         BackendId backend = new BackendId("cpu");
         BackendCapabilityProvider provider = new BackendCapabilityProvider() {
             @Override public BackendId backendId() { return backend; }
             @Override public boolean supports(OperationCapabilityQuery query) { return true; }
         };
         return GraphCompilationPort.compile(backward ? CompileMode.FORWARD_AND_BACKWARD : CompileMode.FORWARD_ONLY,
-                outputs, backward ? Optional.of(FunctionalGradientTestSupport.request(outputs.getLast(), targets))
+                outputs, backward ? Optional.of(FunctionalGradientTestSupport.request(outputs.getLast(), targets, policy))
                         : Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(),
                 PartitionScoringConfig.neutral(), List.of(provider), List.of(new BackendAvailabilitySnapshot(
                         backend, Map.of(new BackendDeviceId(backend, "0"), DeviceClass.CPU))));

@@ -71,12 +71,62 @@ final class TensorAxisScatterExpressions {
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
      */
     static Tensor scatterAdd(Tensor data, Tensor indices, Tensor updates, int axis) {
+        return scatterAddChecked(data, indices, updates, axis, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param data non-null numeric base tensor retained as provenance input zero and never mutated
+     * @param indices non-null INT32 or INT64 tensor retained as provenance input one
+     * @param updates non-null exact-data-type tensor retained as provenance input two
+     * @param axis raw positive or negative data axis normalized once against the data Shape
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code data}, {@code indices}, or {@code updates} is null,
+     *     checked in order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if index type, update type, numeric type, or the exact
+     *     Gather-compatible updates Shape is invalid
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data Shape
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    static Tensor scatterAddChecked(Tensor data, Tensor indices, Tensor updates, int axis,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         Objects.requireNonNull(data, "data");
         Objects.requireNonNull(indices, "indices");
         Objects.requireNonNull(updates, "updates");
-        TensorDescriptor dataDescriptor = data.descriptor();
-        TensorDescriptor indicesDescriptor = indices.descriptor();
-        TensorDescriptor updatesDescriptor = updates.descriptor();
+        return scatterAddDescriptors(
+                data.descriptor(), indices.descriptor(), updates.descriptor(), axis, descriptorCheck, data, indices, updates);
+    }
+
+    /**
+     * Runs the shared descriptor guards and completes metadata before real provenance is used.
+     * @param data immutable operand metadata
+     * @param indices immutable operand metadata
+     * @param updates immutable operand metadata
+     * @param axis ordinary construction argument, validated in existing order
+     * @param descriptorCheck optional synchronous, unretained metadata completion; null constructs a Tensor
+     * @param dataTensor real provenance, unused when metadata completion is supplied
+     * @param indicesTensor real provenance, unused when metadata completion is supplied
+     * @param updatesTensor real provenance, unused when metadata completion is supplied
+     * @return null after metadata completion, otherwise the ordinary result
+     */
+    private static Tensor scatterAddDescriptors(
+            TensorDescriptor data,
+            TensorDescriptor indices,
+            TensorDescriptor updates,
+            int axis,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor dataTensor,
+            Tensor indicesTensor,
+            Tensor updatesTensor) {
+        Objects.requireNonNull(data, "data");
+        Objects.requireNonNull(indices, "indices");
+        Objects.requireNonNull(updates, "updates");
+        TensorDescriptor dataDescriptor = data;
+        TensorDescriptor indicesDescriptor = indices;
+        TensorDescriptor updatesDescriptor = updates;
         validateIndexType("scatterAdd", indicesDescriptor);
         validateMatchingDataType("scatterAdd", dataDescriptor, updatesDescriptor);
         validateAddDataType(dataDescriptor);
@@ -92,13 +142,7 @@ final class TensorAxisScatterExpressions {
         }
         IndexAxisAttrs attrs = new IndexAxisAttrs(normalizedAxis);
         Operation operation = new Operation(AxisScatterKind.SCATTER_ADD, attrs);
-        return create(
-                data,
-                indices,
-                updates,
-                dataDescriptor,
-                updatesDescriptor,
-                operation);
+        return createChecked(dataTensor, indicesTensor, updatesTensor, dataDescriptor, updatesDescriptor, operation, descriptorCheck);
     }
 
     /**
@@ -115,7 +159,27 @@ final class TensorAxisScatterExpressions {
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
      */
     static Tensor scatterElements(Tensor data, Tensor indices, Tensor updates, int axis) {
-        return scatterElements(data, indices, updates, axis, ScatterReduction.NONE);
+        return scatterElementsChecked(data, indices, updates, axis, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param data data tensor passed unchanged to the explicit path
+     * @param indices indices tensor passed unchanged to the explicit path
+     * @param updates updates tensor passed unchanged to the explicit path
+     * @param axis raw data axis passed unchanged to the explicit path
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code data}, {@code indices}, or {@code updates} is null
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if type, rank, or Shape validation fails
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data Shape
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    static Tensor scatterElementsChecked(Tensor data, Tensor indices, Tensor updates, int axis,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return scatterElementsChecked(data, indices, updates, axis, ScatterReduction.NONE, descriptorCheck);
     }
 
     /**
@@ -150,13 +214,72 @@ final class TensorAxisScatterExpressions {
             Tensor updates,
             int axis,
             ScatterReduction reduction) {
+        return scatterElementsChecked(data, indices, updates, axis, reduction, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param data non-null base tensor retained as provenance input zero and never mutated
+     * @param indices non-null INT32 or INT64 tensor retained as provenance input one
+     * @param updates non-null exact-data-type tensor retained as provenance input two
+     * @param axis raw positive or negative data axis normalized once against the data Shape
+     * @param reduction non-null replacement or arithmetic reduction retained in exact attributes
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code data}, {@code indices}, {@code updates}, or
+     *     {@code reduction} is null, checked in order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if index type, update type, BOOL reduction, rank, or Shape
+     *     compatibility is invalid
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data Shape
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    static Tensor scatterElementsChecked(
+            Tensor data,
+            Tensor indices,
+            Tensor updates,
+            int axis,
+            ScatterReduction reduction,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         Objects.requireNonNull(data, "data");
         Objects.requireNonNull(indices, "indices");
         Objects.requireNonNull(updates, "updates");
         Objects.requireNonNull(reduction, "reduction");
-        TensorDescriptor dataDescriptor = data.descriptor();
-        TensorDescriptor indicesDescriptor = indices.descriptor();
-        TensorDescriptor updatesDescriptor = updates.descriptor();
+        return scatterElementsDescriptors(
+                data.descriptor(), indices.descriptor(), updates.descriptor(), axis, reduction, descriptorCheck, data, indices, updates);
+    }
+
+    /**
+     * Runs the shared descriptor guards and completes metadata before real provenance is used.
+     * @param data immutable operand metadata
+     * @param indices immutable operand metadata
+     * @param updates immutable operand metadata
+     * @param axis ordinary construction argument, validated in existing order
+     * @param reduction ordinary construction argument, validated in existing order
+     * @param descriptorCheck optional synchronous, unretained metadata completion; null constructs a Tensor
+     * @param dataTensor real provenance, unused when metadata completion is supplied
+     * @param indicesTensor real provenance, unused when metadata completion is supplied
+     * @param updatesTensor real provenance, unused when metadata completion is supplied
+     * @return null after metadata completion, otherwise the ordinary result
+     */
+    private static Tensor scatterElementsDescriptors(
+            TensorDescriptor data,
+            TensorDescriptor indices,
+            TensorDescriptor updates,
+            int axis,
+            ScatterReduction reduction,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor dataTensor,
+            Tensor indicesTensor,
+            Tensor updatesTensor) {
+        Objects.requireNonNull(data, "data");
+        Objects.requireNonNull(indices, "indices");
+        Objects.requireNonNull(updates, "updates");
+        Objects.requireNonNull(reduction, "reduction");
+        TensorDescriptor dataDescriptor = data;
+        TensorDescriptor indicesDescriptor = indices;
+        TensorDescriptor updatesDescriptor = updates;
         validateIndexType("scatterElements", indicesDescriptor);
         validateMatchingDataType("scatterElements", dataDescriptor, updatesDescriptor);
         if (dataDescriptor.dataType() == DataType.BOOL && reduction != ScatterReduction.NONE) {
@@ -171,13 +294,7 @@ final class TensorAxisScatterExpressions {
                 dataShape, indicesShape, updatesShape, normalizedAxis);
         ScatterElementsAttrs attrs = new ScatterElementsAttrs(normalizedAxis, reduction);
         Operation operation = new Operation(AxisScatterKind.SCATTER_ELEMENTS, attrs);
-        return create(
-                data,
-                indices,
-                updates,
-                dataDescriptor,
-                updatesDescriptor,
-                operation);
+        return createChecked(dataTensor, indicesTensor, updatesTensor, dataDescriptor, updatesDescriptor, operation, descriptorCheck);
     }
 
     /**
@@ -304,32 +421,65 @@ final class TensorAxisScatterExpressions {
         }
     }
 
+
     /**
-     * Creates exact descriptor, semantics, ordered provenance, and one fresh derived Tensor.
-     *
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
      * @param data non-null exact provenance input zero and source of result Shape/type
      * @param indices non-null exact provenance input one
      * @param updates non-null exact provenance input two
      * @param dataDescriptor non-null exact descriptor supplying retained Shape/type/eligibility
      * @param updatesDescriptor non-null exact descriptor supplying eligibility to combine
      * @param operation non-null already validated exact axis-scatter operation
-     * @return a non-null fresh unlabeled, storage-free Tensor with unresolved layout
-     * @throws IllegalArgumentException if descriptor invariants reject supplied metadata
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if descriptor invariants reject supplied metadata
      * @throws IllegalStateException if tensor identifier space is exhausted at final delegation
      */
-    private static Tensor create(
+    private static Tensor createChecked(
             Tensor data,
             Tensor indices,
             Tensor updates,
             TensorDescriptor dataDescriptor,
             TensorDescriptor updatesDescriptor,
-            Operation operation) {
+            Operation operation,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         TensorDescriptor descriptor = new TensorDescriptor(
                 dataDescriptor.dataType(),
                 dataDescriptor.shape(),
                 Optional.empty(),
                 dataDescriptor.requiresGrad() || updatesDescriptor.requiresGrad());
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(
                 descriptor, Optional.empty(), operation, List.of(data, indices, updates));
+    }
+
+    /**
+     * Completes one admitted ordinary occurrence synchronously using the real construction guards.
+     * No Tensor or identity is created and the callback is not retained. The owning facade checks
+     * occurrence cardinality and compares the returned canonical operation with the supplied one.
+     *
+     * @param operation non-null ordinary operation admitted to this family by the owning selector
+     * @param inputs non-null immutable operand metadata in canonical input order
+     * @param outputCount complete canonical output count, already validated by the owning facade
+     * @param sink non-null synchronous consumer of the canonical operation and all output metadata
+     * @throws IllegalArgumentException if ordinary semantic guards or the consumer reject metadata
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(sink, "sink");
+        if (operation.kind() == AxisScatterKind.SCATTER_ADD) {
+            IndexAxisAttrs attrs = (IndexAxisAttrs) operation.attrs();
+            scatterAddDescriptors(inputs.get(0), inputs.get(1), inputs.get(2), attrs.axis(), sink,
+                    null, null, null);
+        } else {
+            ScatterElementsAttrs attrs = (ScatterElementsAttrs) operation.attrs();
+            scatterElementsDescriptors(inputs.get(0), inputs.get(1), inputs.get(2), attrs.axis(),
+                    attrs.reduction(), sink, null, null, null);
+        }
     }
 }

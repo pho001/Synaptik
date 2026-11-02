@@ -51,20 +51,31 @@ final class TensorRankEditingExpressions {
      * @throws IllegalStateException if tensor identifier space is exhausted at final creation
      */
     static Tensor expandDims(Tensor input, int axis) {
-        Objects.requireNonNull(input, "input");
-        TensorDescriptor inputDescriptor = input.descriptor();
-        Shape inputShape = inputDescriptor.shape();
-        int normalizedAxis = normalizeInsertionAxis(axis, inputShape.rank());
-        Shape resultShape = insertSingleton(inputShape, normalizedAxis);
-        Optional<LayoutDescriptor> resultLayout = resolveInsertedLayout(
-                inputDescriptor, inputShape, resultShape, normalizedAxis);
-        return create(
-                input,
-                inputDescriptor,
-                resultShape,
-                resultLayout,
-                AxisTransformKind.EXPAND_DIMS,
-                normalizedAxis);
+        return expandDimsChecked(input, axis, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null tensor retained as the exact sole provenance input; it is not mutated
+     * @param axis raw insertion position relative to the result rank
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input} is null, with message {@code input}
+     * @throws IndexOutOfBoundsException if {@code axis} is outside the insertion range
+     * @throws ArithmeticException if inserted-stride, layout-classification, or span arithmetic
+     *     overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted at final creation
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata
+     */
+    static Tensor expandDimsChecked(Tensor input, int axis,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return expandDimsDescriptors(
+                input == null ? null : input.descriptor(),
+                axis,
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -87,21 +98,31 @@ final class TensorRankEditingExpressions {
      * @throws IllegalStateException if tensor identifier space is exhausted at final creation
      */
     static Tensor squeeze(Tensor input, int axis) {
-        Objects.requireNonNull(input, "input");
-        TensorDescriptor inputDescriptor = input.descriptor();
-        Shape inputShape = inputDescriptor.shape();
-        int normalizedAxis = inputShape.normalizeAxis(axis);
-        validateSqueezableDimension(inputShape, normalizedAxis);
-        Shape resultShape = removeSingleton(inputShape, normalizedAxis);
-        Optional<LayoutDescriptor> resultLayout =
-                resolveSqueezedLayout(inputDescriptor, resultShape, normalizedAxis);
-        return create(
-                input,
-                inputDescriptor,
-                resultShape,
-                resultLayout,
-                AxisTransformKind.SQUEEZE,
-                normalizedAxis);
+        return squeezeChecked(input, axis, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null tensor retained as the exact sole provenance input; it is not mutated
+     * @param axis positive or negative existing input axis to remove
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input} is null, with message {@code input}
+     * @throws IndexOutOfBoundsException if {@code axis} is outside the input Shape rank, including
+     *     every axis for a scalar
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if the selected dimension is not statically known as one
+     * @throws ArithmeticException if result-layout classification or span arithmetic overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted at final creation
+     */
+    static Tensor squeezeChecked(Tensor input, int axis,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return squeezeDescriptors(
+                input == null ? null : input.descriptor(),
+                axis,
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -275,37 +296,33 @@ final class TensorRankEditingExpressions {
                 true));
     }
 
+
     /**
-     * Creates exact rank-edit attributes, descriptor, operation, provenance, and Tensor once.
-     *
-     * <p>The result retains exact input data type and gradient eligibility with the supplied Shape
-     * and resolved-or-unresolved layout. It records exact {@code kind}, one
-     * {@link AxisTransformAttrs} containing {@code normalizedAxis}, and ordered provenance
-     * {@code [input]}. The single derived-factory call uses no label or storage and therefore gives
-     * every successful request a fresh identity without canonicalizing repeated, nested, or
-     * inverse-like edits.</p>
-     *
-     * @param input non-null exact sole provenance input; not inspected or mutated
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input exact real provenance operand, or null for descriptor completion
      * @param inputDescriptor non-null descriptor supplying exact data type and gradient eligibility
      * @param resultShape non-null inserted or squeezed Shape retained by the result descriptor
      * @param resultLayout non-null resolved-view or unresolved-layout value retained by descriptor
      * @param kind non-null exact {@link AxisTransformKind#EXPAND_DIMS} or
      *     {@link AxisTransformKind#SQUEEZE} selected by the entry method
      * @param normalizedAxis non-negative normalized insertion or removal position
-     * @return non-null fresh factory-derived Tensor with exact one-input provenance and no label or
-     *     host storage
-     * @throws IllegalArgumentException if semantic or descriptor invariants reject supplied metadata
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if semantic or descriptor invariants reject supplied metadata
      * @throws ArithmeticException if descriptor layout reconstruction arithmetic overflows
      * @throws IllegalStateException if tensor identifier space is exhausted at the single factory
      *     delegation
      */
-    private static Tensor create(
+    private static Tensor createChecked(
             Tensor input,
             TensorDescriptor inputDescriptor,
             Shape resultShape,
             Optional<LayoutDescriptor> resultLayout,
             AxisTransformKind kind,
-            int normalizedAxis) {
+            int normalizedAxis,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         AxisTransformAttrs attrs = new AxisTransformAttrs(normalizedAxis);
         TensorDescriptor descriptor = new TensorDescriptor(
                 inputDescriptor.dataType(),
@@ -313,6 +330,87 @@ final class TensorRankEditingExpressions {
                 resultLayout,
                 inputDescriptor.requiresGrad());
         Operation operation = new Operation(kind, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
+    }
+
+    /**
+     * Completes ordinary checked semantics synchronously without creating Tensor identities.
+     * The real construction path calls these same descriptor guards and result helpers.
+     * @param operation non-null canonical operation selecting this family and its attributes
+     * @param inputs non-null ordered operand descriptors, retaining aliases and positions
+     * @param outputCount exact canonical sibling count, one
+     * @param sink non-null unretained consumer called once with checked semantics and all outputs
+     * @throws NullPointerException if a required reference is null
+     * @throws IllegalArgumentException if cardinality or ordinary semantic guards reject input
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(operation, "operation");
+        Objects.requireNonNull(inputs, "inputs");
+        Objects.requireNonNull(sink, "sink");
+        if (inputs.size() != 1 || outputCount != 1) {
+            throw new IllegalArgumentException("invalid ordinary descriptor cardinality");
+        }
+        for (TensorDescriptor input : inputs) {
+            Objects.requireNonNull(input, "input descriptor");
+        }
+        int axis = ((AxisTransformAttrs) operation.attrs()).axis();
+        switch ((AxisTransformKind) operation.kind()) {
+            case EXPAND_DIMS -> expandDimsDescriptors(inputs.get(0), axis, sink, null);
+            case SQUEEZE -> squeezeDescriptors(inputs.get(0), axis, sink, null);
+            default -> throw new IllegalArgumentException("not a rank-editing operation");
+        }
+    }
+
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param input exact operand descriptor, subject to ordinary null/semantic guards
+     * @param axis ordinary checked construction parameter
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalInput exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor expandDimsDescriptors(
+            TensorDescriptor input,
+            int axis,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        TensorDescriptor inputDescriptor = input;
+        Shape inputShape = inputDescriptor.shape();
+        int normalizedAxis = normalizeInsertionAxis(axis, inputShape.rank());
+        Shape resultShape = insertSingleton(inputShape, normalizedAxis);
+        Optional<LayoutDescriptor> resultLayout = resolveInsertedLayout(
+                inputDescriptor, inputShape, resultShape, normalizedAxis);
+        return createChecked(originalInput, inputDescriptor, resultShape, resultLayout, AxisTransformKind.EXPAND_DIMS, normalizedAxis, descriptorCheck);
+    }
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param input exact operand descriptor, subject to ordinary null/semantic guards
+     * @param axis ordinary checked construction parameter
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalInput exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor squeezeDescriptors(
+            TensorDescriptor input,
+            int axis,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        TensorDescriptor inputDescriptor = input;
+        Shape inputShape = inputDescriptor.shape();
+        int normalizedAxis = inputShape.normalizeAxis(axis);
+        validateSqueezableDimension(inputShape, normalizedAxis);
+        Shape resultShape = removeSingleton(inputShape, normalizedAxis);
+        Optional<LayoutDescriptor> resultLayout =
+                resolveSqueezedLayout(inputDescriptor, resultShape, normalizedAxis);
+        return createChecked(originalInput, inputDescriptor, resultShape, resultLayout, AxisTransformKind.SQUEEZE, normalizedAxis, descriptorCheck);
     }
 }

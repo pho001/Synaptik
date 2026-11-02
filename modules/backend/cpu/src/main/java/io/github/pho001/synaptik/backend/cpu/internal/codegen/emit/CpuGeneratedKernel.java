@@ -71,6 +71,59 @@ public final class CpuGeneratedKernel {
         }
     }
 
+    /**
+     * Resolves the selected ordinary region's private row-range helper once during cold binding.
+     * @return direct helper with exactly {@link CpuKernelSpecialization#entryType()}
+     * @throws IllegalArgumentException if this is scalar v1, not an ordinary region, or its
+     *     authenticated selected artifact lacks the exact helper
+     */
+    public MethodHandle ordinaryRowRangeEntryPoint() {
+        return rowHelper("ordinaryRowRange",false,entryPoint.type());
+    }
+
+    /**
+     * Resolves the selected ordinary region's caller-side fixed-order merge helper cold.
+     * @return direct helper with exactly {@link CpuKernelSpecialization#entryType()}
+     * @throws IllegalArgumentException if this is scalar v1, not an ordinary region, or its
+     *     authenticated selected artifact lacks the exact helper
+     */
+    public MethodHandle ordinaryRowMergeEntryPoint() {
+        return rowHelper("ordinaryRowMerge",false,entryPoint.type());
+    }
+
+    /**
+     * Resolves the selected Scan's prebound range helper; no step performs lookup or adaptation.
+     * @return direct {@code (MemorySegment[],long[],long,long,long)void} handle
+     * @throws IllegalArgumentException if this is scalar v1, not a selected parallel Scan, or
+     *     its authenticated artifact lacks the exact helper
+     */
+    public MethodHandle scanRowRangeEntryPoint() {
+        if (specialization.executionStrategy().orchestration()
+                != io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Orchestration.PARALLEL)
+            throw new IllegalArgumentException("Scan range helper requires selected parallel execution");
+        return rowHelper("scanRowRange",true,MethodType.methodType(void.class,
+                java.lang.foreign.MemorySegment[].class,long[].class,long.class,long.class,long.class));
+    }
+
+    /**
+     * Resolves only a statically named selected-row helper through this artifact's defining
+     * lookup. It is not a registry and accepts no invocation-dependent name or type.
+     * @param name one of the three fixed generation-selected names
+     * @param scan whether Scan rather than ordinary row facts are required
+     * @param type exact immutable helper ABI
+     * @return nonnull direct static helper handle
+     * @throws IllegalArgumentException if selected family or helper shape disagrees
+     */
+    private MethodHandle rowHelper(String name,boolean scan,MethodType type) {
+        if (specialization.rowFusionEmission().isEmpty()
+                || (scan ? specialization.generalScanIr().isEmpty() : specialization.rowMapReductionIr().isEmpty()))
+            throw new IllegalArgumentException("row helper requires matching selected exec-v1 facts");
+        try { return lookup.findStatic(lookup.lookupClass(),name,type); }
+        catch (ReflectiveOperationException failure) {
+            throw new IllegalArgumentException("generated row helper is unavailable: "+name,failure);
+        }
+    }
+
     /** Returns verified bytes.
      * @return a new defensive copy of deterministic class bytes */
     public byte[] classBytes() { return classBytes.clone(); }

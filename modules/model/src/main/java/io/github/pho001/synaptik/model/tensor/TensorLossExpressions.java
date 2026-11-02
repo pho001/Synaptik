@@ -72,24 +72,58 @@ final class TensorLossExpressions {
      */
     static Tensor meanSquaredError(
             Tensor prediction, Tensor target, LossReduction reduction) {
+        return meanSquaredErrorChecked(prediction, target, reduction, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param prediction non-null floating prediction retained at producer input position zero
+     * @param target non-null floating exact-shape target retained at producer input position one
+     * @param reduction non-null explicit {@link LossReduction#NONE}, {@link LossReduction#SUM}, or
+     *     {@link LossReduction#MEAN} selection
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if either input is not floating, ranks differ, or unequal
+     *     static dimensions occur at any corresponding axis
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     construction
+     */
+    static Tensor meanSquaredErrorChecked(
+            Tensor prediction, Tensor target, LossReduction reduction,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         Objects.requireNonNull(prediction, "prediction");
         Objects.requireNonNull(target, "target");
         Objects.requireNonNull(reduction, "reduction");
+        return meanSquaredErrorCore(prediction.descriptor(), target.descriptor(), reduction,
+                prediction, target, descriptorCheck);
+    }
 
-        DataType predictionType = requireFloating(prediction, "meanSquaredError", "prediction");
-        DataType targetType = requireFloating(target, "meanSquaredError", "target");
-        Shape predictionShape = prediction.descriptor().shape();
-        Shape targetShape = target.descriptor().shape();
+    private static Tensor meanSquaredErrorCore(
+            TensorDescriptor predictionDescriptor, TensorDescriptor targetDescriptor,
+            LossReduction reduction, Tensor prediction, Tensor target,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+
+        DataType predictionType = requireFloating(predictionDescriptor, "meanSquaredError", "prediction");
+        DataType targetType = requireFloating(targetDescriptor, "meanSquaredError", "target");
+        Shape predictionShape = predictionDescriptor.shape();
+        Shape targetShape = targetDescriptor.shape();
         validateExactShape(
                 predictionShape, targetShape, "meanSquaredError", "prediction");
         DataType resultType = DataTypePromotion.promoteFloating(predictionType, targetType);
         MeanSquaredErrorAttrs attrs = new MeanSquaredErrorAttrs(reduction);
         Shape resultShape = reduction == LossReduction.NONE ? predictionShape : Shape.scalar();
-        boolean requiresGrad = prediction.descriptor().requiresGrad()
-                || target.descriptor().requiresGrad();
+        boolean requiresGrad = predictionDescriptor.requiresGrad()
+                || targetDescriptor.requiresGrad();
         TensorDescriptor descriptor = new TensorDescriptor(
                 resultType, resultShape, Optional.empty(), requiresGrad);
         Operation operation = new Operation(LossKind.MEAN_SQUARED_ERROR, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(
                 descriptor, Optional.empty(), operation, List.of(prediction, target));
     }
@@ -134,20 +168,56 @@ final class TensorLossExpressions {
      */
     static Tensor categoricalCrossEntropyWithLogits(
             Tensor logits, Tensor target, int classAxis, LossReduction reduction) {
+        return categoricalCrossEntropyWithLogitsChecked(logits, target, classAxis, reduction, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param logits non-null floating logits retained at producer input position zero
+     * @param target non-null floating exact-shape dense probability target or exact INT32/INT64
+     *     class-index target retained at input one; construction reads none of its values
+     * @param classAxis positive or negative logits class axis normalized exactly once
+     * @param reduction non-null explicit none, sum, or sample-domain mean reduction
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code logits}, {@code target}, or {@code reduction} is null,
+     *     checked in that order
+     * @throws IndexOutOfBoundsException if {@code classAxis} is outside the logits rank
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if logits is not floating; target is neither floating nor
+     *     exact INT32/INT64; the selected target Shape rule fails; or the no-ignore branch has a
+     *     statically empty class axis and a definitely non-empty sample domain
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    static Tensor categoricalCrossEntropyWithLogitsChecked(
+            Tensor logits, Tensor target, int classAxis, LossReduction reduction,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         Objects.requireNonNull(logits, "logits");
         Objects.requireNonNull(target, "target");
         Objects.requireNonNull(reduction, "reduction");
+        return categoricalCrossEntropyWithLogitsCore(
+                logits.descriptor(), target.descriptor(), classAxis, reduction,
+                logits, target, descriptorCheck);
+    }
+
+    private static Tensor categoricalCrossEntropyWithLogitsCore(
+            TensorDescriptor logitsDescriptor, TensorDescriptor targetDescriptor,
+            int classAxis, LossReduction reduction, Tensor logits, Tensor target,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
 
         DataType logitsType = requireFloating(
-                logits, "categoricalCrossEntropyWithLogits", "logits");
-        DataType targetType = target.descriptor().dataType();
+                logitsDescriptor, "categoricalCrossEntropyWithLogits", "logits");
+        DataType targetType = targetDescriptor.dataType();
         if (targetType == DataType.INT32 || targetType == DataType.INT64) {
-            return indexCategoricalCrossEntropyWithLogits(
-                    logits, target, classAxis, reduction, Optional.empty(), logitsType);
+            return indexCategoricalCrossEntropyWithLogitsCore(
+                    logitsDescriptor, targetDescriptor, classAxis, reduction, Optional.empty(),
+                    logitsType, logits, target, descriptorCheck);
         }
-        requireFloating(target, "categoricalCrossEntropyWithLogits", "target");
-        return denseCategoricalCrossEntropyWithLogits(
-                logits, target, classAxis, reduction, logitsType, targetType);
+        requireFloating(targetDescriptor, "categoricalCrossEntropyWithLogits", "target");
+        return denseCategoricalCrossEntropyWithLogitsCore(
+                logitsDescriptor, targetDescriptor, classAxis, reduction, logitsType, targetType,
+                logits, target, descriptorCheck);
     }
 
     /**
@@ -192,14 +262,51 @@ final class TensorLossExpressions {
             int classAxis,
             LossReduction reduction,
             ScalarValue ignoreIndex) {
+        return categoricalCrossEntropyWithLogitsChecked(logits, target, classAxis, reduction, ignoreIndex, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param logits non-null BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 logits retained at input zero
+     * @param target non-null exact INT32 or INT64 class-index target retained at input one
+     * @param classAxis positive or negative logits class axis normalized exactly once
+     * @param reduction non-null explicit none, sum, or non-ignored-count mean reduction
+     * @param ignoreIndex non-null exact INT32 or INT64 scalar whose type equals target type
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if an argument is null, checked in declaration order
+     * @throws IndexOutOfBoundsException if {@code classAxis} is outside the logits rank
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if logits, target, or ignore type is invalid; ignore and
+     *     target types differ; or target rank or a mapped static dimension mismatches logits
+     * @throws IllegalStateException if tensor identifier space is exhausted
+     */
+    static Tensor categoricalCrossEntropyWithLogitsChecked(
+            Tensor logits,
+            Tensor target,
+            int classAxis,
+            LossReduction reduction,
+            ScalarValue ignoreIndex,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         Objects.requireNonNull(logits, "logits");
         Objects.requireNonNull(target, "target");
         Objects.requireNonNull(reduction, "reduction");
         Objects.requireNonNull(ignoreIndex, "ignoreIndex");
+        return categoricalCrossEntropyWithLogitsCore(
+                logits.descriptor(), target.descriptor(), classAxis, reduction, ignoreIndex,
+                logits, target, descriptorCheck);
+    }
+
+    private static Tensor categoricalCrossEntropyWithLogitsCore(
+            TensorDescriptor logitsDescriptor, TensorDescriptor targetDescriptor,
+            int classAxis, LossReduction reduction, ScalarValue ignoreIndex,
+            Tensor logits, Tensor target,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
 
         DataType logitsType = requireFloating(
-                logits, "categoricalCrossEntropyWithLogits", "logits");
-        DataType targetType = target.descriptor().dataType();
+                logitsDescriptor, "categoricalCrossEntropyWithLogits", "logits");
+        DataType targetType = targetDescriptor.dataType();
         if (targetType != DataType.INT32 && targetType != DataType.INT64) {
             throw new IllegalArgumentException(
                     "categoricalCrossEntropyWithLogits target must have data type INT32 or INT64 "
@@ -215,19 +322,23 @@ final class TensorLossExpressions {
                     "categoricalCrossEntropyWithLogits ignoreIndex data type must equal target "
                             + "data type: target=" + targetType + ", ignoreIndex=" + ignoreType);
         }
-        return indexCategoricalCrossEntropyWithLogits(
-                logits, target, classAxis, reduction, Optional.of(ignoreIndex), logitsType);
+        return indexCategoricalCrossEntropyWithLogitsCore(
+                logitsDescriptor, targetDescriptor, classAxis, reduction, Optional.of(ignoreIndex),
+                logitsType, logits, target, descriptorCheck);
     }
 
-    private static Tensor denseCategoricalCrossEntropyWithLogits(
-            Tensor logits,
-            Tensor target,
+    private static Tensor denseCategoricalCrossEntropyWithLogitsCore(
+            TensorDescriptor logitsDescriptor,
+            TensorDescriptor targetDescriptor,
             int classAxis,
             LossReduction reduction,
             DataType logitsType,
-            DataType targetType) {
-        Shape logitsShape = logits.descriptor().shape();
-        Shape targetShape = target.descriptor().shape();
+            DataType targetType,
+            Tensor logits,
+            Tensor target,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        Shape logitsShape = logitsDescriptor.shape();
+        Shape targetShape = targetDescriptor.shape();
         int normalizedAxis = logitsShape.normalizeAxis(classAxis);
         validateExactShape(
                 logitsShape,
@@ -241,25 +352,32 @@ final class TensorLossExpressions {
         Shape resultShape = reduction == LossReduction.NONE
                 ? removeAxis(logitsShape, normalizedAxis)
                 : Shape.scalar();
-        boolean requiresGrad = logits.descriptor().requiresGrad()
-                || target.descriptor().requiresGrad();
+        boolean requiresGrad = logitsDescriptor.requiresGrad()
+                || targetDescriptor.requiresGrad();
         TensorDescriptor descriptor = new TensorDescriptor(
                 resultType, resultShape, Optional.empty(), requiresGrad);
         Operation operation = new Operation(
                 LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(
                 descriptor, Optional.empty(), operation, List.of(logits, target));
     }
 
-    private static Tensor indexCategoricalCrossEntropyWithLogits(
-            Tensor logits,
-            Tensor target,
+    private static Tensor indexCategoricalCrossEntropyWithLogitsCore(
+            TensorDescriptor logitsDescriptor,
+            TensorDescriptor targetDescriptor,
             int classAxis,
             LossReduction reduction,
             Optional<ScalarValue> ignoreIndex,
-            DataType logitsType) {
-        Shape logitsShape = logits.descriptor().shape();
-        Shape targetShape = target.descriptor().shape();
+            DataType logitsType,
+            Tensor logits,
+            Tensor target,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        Shape logitsShape = logitsDescriptor.shape();
+        Shape targetShape = targetDescriptor.shape();
         int normalizedAxis = logitsShape.normalizeAxis(classAxis);
         validateIndexTargetShape(logitsShape, targetShape, normalizedAxis);
         if (ignoreIndex.isEmpty()) {
@@ -273,16 +391,49 @@ final class TensorLossExpressions {
                 logitsType,
                 resultShape,
                 Optional.empty(),
-                logits.descriptor().requiresGrad());
+                logitsDescriptor.requiresGrad());
         Operation operation = new Operation(
                 LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(
                 descriptor, Optional.empty(), operation, List.of(logits, target));
     }
 
+    /**
+     * Describes the canonical dense, index, or squared-error occurrence using construction's
+     * descriptor guards and dispatch. The sink runs synchronously exactly once without Tensor IDs.
+     */
+    static void describeChecked(
+            Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        TensorDescriptor first = inputs.get(0);
+        TensorDescriptor target = inputs.get(1);
+        switch (operation.attrs()) {
+            case MeanSquaredErrorAttrs attrs ->
+                    meanSquaredErrorCore(first, target, attrs.reduction(), null, null, sink);
+            case DenseCategoricalCrossEntropyWithLogitsAttrs attrs ->
+                    categoricalCrossEntropyWithLogitsCore(
+                            first, target, attrs.axis(), attrs.reduction(), null, null, sink);
+            case IndexCategoricalCrossEntropyWithLogitsAttrs attrs -> {
+                if (attrs.ignoreIndex().isPresent()) {
+                    categoricalCrossEntropyWithLogitsCore(
+                            first, target, attrs.axis(), attrs.reduction(),
+                            attrs.ignoreIndex().orElseThrow(), null, null, sink);
+                } else {
+                    categoricalCrossEntropyWithLogitsCore(
+                            first, target, attrs.axis(), attrs.reduction(), null, null, sink);
+                }
+            }
+            default -> throw new IllegalArgumentException("unknown loss attributes");
+        }
+    }
+
     private static DataType requireFloating(
-            Tensor tensor, String operationName, String role) {
-        DataType dataType = tensor.descriptor().dataType();
+            TensorDescriptor descriptor, String operationName, String role) {
+        DataType dataType = descriptor.dataType();
         if (!dataType.isFloating()) {
             throw new IllegalArgumentException(
                     operationName + " " + role

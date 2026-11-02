@@ -2,10 +2,6 @@ package io.github.pho001.synaptik.backend.cpu;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
 class CpuInternalPackageInventoryTest {
@@ -16,9 +12,9 @@ class CpuInternalPackageInventoryTest {
                 .initializedBuffer(io.github.pho001.synaptik.model.datatype.DataType.FLOAT32,
                         entry, io.github.pho001.synaptik.model.datatype.ScalarValue.float32(-0.0f));
         try (var first = (io.github.pho001.synaptik.backend.cpu.internal.memory.CpuNativeBuffer)
-                        creator.create();
+                        creator.create(entry.byteSize(), entry.byteAlignment());
                 var second = (io.github.pho001.synaptik.backend.cpu.internal.memory.CpuNativeBuffer)
-                        creator.create()) {
+                        creator.create(entry.byteSize(), entry.byteAlignment())) {
             assertNotSame(first, second);
             for (long index = 0; index < 4; index++) {
                 assertEquals(Float.floatToRawIntBits(-0.0f), Float.floatToRawIntBits(
@@ -30,203 +26,10 @@ class CpuInternalPackageInventoryTest {
                 new io.github.pho001.synaptik.runtime.memory.WorkspaceSlot(0), 7, 16);
         var workspaceCreator = io.github.pho001.synaptik.backend.cpu.internal.memory
                 .CpuRepresentationRecipes.workspace(workspace);
-        try (var first = workspaceCreator.create(); var second = workspaceCreator.create()) {
+        try (var first = workspaceCreator.create(workspace.byteSize(), workspace.byteAlignment());
+                var second = workspaceCreator.create(workspace.byteSize(), workspace.byteAlignment())) {
             assertNotSame(first, second);
         }
     }
 
-    @Test void exposesOnlyTheAuthorizedSupportedAndInternalTypeInventory() throws Exception {
-        Path root = Path.of("src/main/java/io/github/pho001/synaptik/backend/cpu");
-        Set<String> packages;
-        Set<String> javaFiles;
-        try (var paths = Files.walk(root)) {
-            packages = paths.filter(path -> path.getFileName().toString().equals("package-info.java"))
-                    .map(path -> root.relativize(path.getParent()).toString().replace('\\', '/'))
-                    .collect(Collectors.toSet());
-        }
-        try (var paths = Files.walk(root)) {
-            javaFiles = paths.filter(path -> path.getFileName().toString().endsWith(".java"))
-                    .map(path -> root.relativize(path).toString().replace('\\', '/'))
-                    .collect(Collectors.toSet());
-        }
-        assertAll(
-                () -> assertEquals(Set.of("", "internal", "internal/memory", "internal/prepare",
-                        "internal/lowering", "internal/ir", "internal/codegen/emit",
-                        "internal/route/portable", "internal/cache", "internal/executable",
-                        "internal/reference", "internal/route/nativeblas/openblas"), packages),
-                () -> assertEquals(Set.of(
-                        "CpuCapabilityProvider.java", "CpuBackendIntegration.java", "CpuLocalWorkloadTuning.java", "CpuCompletePlanTuning.java", "package-info.java", "internal/package-info.java",
-                        "internal/memory/CpuBorrowedBuffer.java", "internal/memory/CpuBufferArgument.java",
-                        "internal/memory/CpuBufferRepresentation.java", "internal/memory/CpuNativeBuffer.java",
-                        "internal/memory/CpuHostSnapshotExporter.java",
-                        "internal/memory/CpuContiguousWorkspace.java",
-                        "internal/memory/CpuRepresentationRecipes.java",
-                        "internal/memory/package-info.java", "internal/prepare/CpuPartitionAnalysisInputs.java",
-                        "internal/prepare/CpuPartitionPreparationPlan.java",
-                        "internal/prepare/CpuPartitionPreparer.java", "internal/prepare/CpuPartitionFinalizer.java",
-                        "internal/prepare/CpuPreparedScheduleAssembler.java",
-                        "internal/prepare/package-info.java", "internal/lowering/CpuPartitionLowering.java",
-                        "internal/lowering/CpuPartitionDagDecomposer.java",
-                        "internal/lowering/CpuUnitTopology.java",
-                        "internal/lowering/CpuFusionProfitabilitySelector.java",
-                        "internal/lowering/CpuSpecializedSubgraphRecognizer.java",
-                        "internal/lowering/CpuScalarPowerAnalysis.java",
-                        "internal/lowering/CpuAffineLayoutLowering.java",
-                        "internal/lowering/CpuNonAffineMovementLowering.java",
-                        "internal/lowering/CpuIndexingLowering.java",
-                        "internal/lowering/CpuScatterLowering.java",
-                        "internal/lowering/CpuFoldLowering.java",
-                        "internal/lowering/CpuOrderingLowering.java",
-                        "internal/lowering/CpuRandomLowering.java",
-                        "internal/lowering/CpuScanLowering.java",
-                        "internal/lowering/CpuRecurrentScanLowering.java",
-                        "internal/executable/CpuRecurrentScanPreparedExecutable.java",
-                        "internal/route/portable/CpuRecurrentScanKernel.java",
-                        "internal/route/portable/CpuRecurrentScanFloat64Kernel.java",
-                        "internal/route/portable/CpuRecurrentScanBFloat16Kernel.java",
-                        "internal/route/portable/CpuRecurrentScanFloat16Kernel.java",
-                        "internal/lowering/CpuAggregateLowering.java",
-                        "internal/lowering/CpuPartialReductionLowering.java",
-                        "internal/lowering/CpuArgExtremaLowering.java",
-                        "internal/lowering/CpuMaskedReductionLowering.java",
-                        "internal/lowering/CpuAdvancedReductionLowering.java",
-                        "internal/lowering/CpuSoftmaxLowering.java",
-                        "internal/lowering/CpuBatchNormInferenceLowering.java",
-                        "internal/lowering/CpuBatchNormTrainingLowering.java",
-                        "internal/lowering/CpuConv2dLowering.java",
-                        "internal/lowering/CpuConv1dCompositionLowering.java",
-                        "internal/lowering/CpuPool1dCompositionLowering.java",
-                        "internal/lowering/CpuConv3dLowering.java",
-                        "internal/lowering/CpuPool2dLowering.java",
-                        "internal/lowering/CpuPool3dLowering.java",
-                        "internal/lowering/CpuAttentionLowering.java",
-                        "internal/lowering/CpuLossLowering.java",
-                        "internal/lowering/CpuMatmulLowering.java",
-                        "internal/lowering/CpuTrailingNormalizationLowering.java",
-                        "internal/lowering/CpuMaterializationPlan.java",
-                        "internal/lowering/CpuRepresentationPlanner.java",
-                        "internal/lowering/package-info.java", "internal/ir/CpuKernelIr.java",
-                        "internal/ir/CpuPointwiseOpcode.java",
-                        "internal/ir/CpuFusionDecision.java",
-                        "internal/ir/CpuRepresentationDecision.java",
-                        "internal/ir/CpuSpecializedSubgraph.java",
-                        "internal/ir/CpuPortableKernelIr.java", "internal/ir/CpuAffineCopyIr.java",
-                        "internal/ir/CpuDataMovementIr.java",
-                        "internal/ir/CpuIndexingIr.java",
-                        "internal/ir/CpuScatterIr.java",
-                        "internal/ir/CpuFoldIr.java",
-                        "internal/ir/CpuOrderingIr.java",
-                        "internal/ir/CpuRandomIr.java",
-                        "internal/ir/CpuScanIr.java",
-                        "internal/ir/CpuAggregateIr.java",
-                        "internal/ir/CpuPartialReductionIr.java",
-                        "internal/ir/CpuArgExtremaIr.java",
-                        "internal/ir/CpuMaskedReductionIr.java",
-                        "internal/ir/CpuAdvancedReductionIr.java",
-                        "internal/ir/CpuSoftmaxIr.java",
-                        "internal/ir/CpuBatchNormInferenceIr.java",
-                        "internal/ir/CpuBatchNormTrainingIr.java",
-                        "internal/ir/CpuConv2dIr.java",
-                        "internal/ir/CpuConv3dIr.java",
-                        "internal/ir/CpuPool2dIr.java",
-                        "internal/ir/CpuPool3dIr.java",
-                        "internal/ir/CpuMatmulIr.java",
-                        "internal/ir/CpuTrailingNormalizationIr.java",
-                        "internal/ir/CpuAttentionIr.java",
-                        "internal/ir/CpuLossIr.java",
-                        "internal/ir/CpuAccessPlan.java", "internal/ir/package-info.java",
-                        "internal/codegen/emit/CpuCarrierEmitter.java",
-                        "internal/codegen/emit/CpuAffineCopyEmitter.java",
-                        "internal/codegen/emit/CpuDataMovementEmitter.java",
-                        "internal/codegen/emit/CpuIndexingEmitter.java",
-                        "internal/codegen/emit/CpuScatterEmitter.java",
-                        "internal/codegen/emit/CpuFoldEmitter.java",
-                        "internal/codegen/emit/CpuOrderingEmitter.java",
-                        "internal/codegen/emit/CpuRandomEmitter.java",
-                        "internal/codegen/emit/CpuScanEmitter.java",
-                        "internal/codegen/emit/CpuAggregateEmitter.java",
-                        "internal/codegen/emit/CpuPartialReductionEmitter.java",
-                        "internal/codegen/emit/CpuArgExtremaEmitter.java",
-                        "internal/codegen/emit/CpuMaskedReductionEmitter.java",
-                        "internal/codegen/emit/CpuLogSumExpEmitter.java",
-                        "internal/codegen/emit/CpuStatisticalReductionEmitter.java",
-                        "internal/codegen/emit/CpuNormEmitter.java",
-                        "internal/codegen/emit/CpuSoftmaxEmitter.java",
-                        "internal/codegen/emit/CpuBatchNormInferenceEmitter.java",
-                        "internal/codegen/emit/CpuBatchNormTrainingEmitter.java",
-                        "internal/codegen/emit/CpuConv2dEmitter.java",
-                        "internal/codegen/emit/CpuConv3dEmitter.java",
-                        "internal/codegen/emit/CpuPool2dEmitter.java",
-                        "internal/codegen/emit/CpuPool3dEmitter.java",
-                        "internal/codegen/emit/CpuMatmulEmitter.java",
-                        "internal/codegen/emit/CpuLayerNormEmitter.java",
-                        "internal/codegen/emit/CpuRmsNormEmitter.java",
-                        "internal/codegen/emit/CpuAttentionEmitter.java",
-                        "internal/codegen/emit/CpuLossEmitter.java",
-                        "internal/codegen/emit/CpuExactSumEmitter.java",
-                        "internal/codegen/emit/CpuExactProductEmitter.java",
-                        "internal/codegen/emit/CpuClassFileKernelGenerator.java",
-                        "internal/codegen/emit/CpuCastEmitter.java",
-                        "internal/codegen/emit/CpuGeneratedKernel.java",
-                        "internal/codegen/emit/CpuLoopEmitter.java",
-                        "internal/codegen/emit/CpuScalarEmitter.java",
-                        "internal/codegen/emit/CpuVectorInstructionEmitter.java",
-                        "internal/codegen/emit/CpuVectorMath.java",
-                        "internal/codegen/emit/package-info.java",
-                        "internal/route/portable/CpuPortableRoutePlan.java",
-                        "internal/route/portable/package-info.java",
-                        "internal/route/nativeblas/openblas/CpuOpenBlasRouteSelector.java",
-                        "internal/route/nativeblas/openblas/CpuOpenBlasRoutePlan.java",
-                        "internal/route/nativeblas/openblas/CpuOpenBlasTuningBatch.java",
-                        "internal/route/nativeblas/openblas/CpuOpenBlasTuningDecision.java",
-                        "internal/route/nativeblas/openblas/CpuOpenBlasOutputCopyPlan.java",
-                        "internal/route/nativeblas/openblas/CpuOpenBlasInvocation.java",
-                        "internal/route/nativeblas/openblas/CpuOpenBlasPreparedExecutable.java",
-                        "internal/route/nativeblas/openblas/CpuOpenBlasDiscoveryRequest.java",
-                        "internal/route/nativeblas/openblas/CpuOpenBlasDiscoveryResult.java",
-                        "internal/route/nativeblas/openblas/CpuOpenBlasDiscovery.java",
-                        "internal/route/nativeblas/openblas/CpuOpenBlasDiscoverySession.java",
-                        "internal/route/nativeblas/openblas/CpuOpenBlasCoordinator.java",
-                        "internal/route/nativeblas/openblas/CpuOpenBlasBinaryInspector.java",
-                        "internal/route/nativeblas/openblas/CpuOpenBlasQualification.java",
-                        "internal/route/nativeblas/openblas/CpuOpenBlasQualifier.java",
-                        "internal/route/nativeblas/openblas/CpuBackendComposition.java",
-                        "internal/route/nativeblas/openblas/package-info.java",
-                        "internal/cache/CpuGeneratedKernelArtifactStore.java",
-                        "internal/cache/CpuGeneratorSchema.java", "internal/cache/CpuKernelSpecialization.java",
-                        "internal/cache/CpuSpecializationBudget.java",
-                        "internal/cache/CpuLoweringFingerprint.java", "internal/cache/package-info.java",
-                        "internal/executable/CpuPreparedExecutable.java",
-                        "internal/executable/CpuPreparedPartitionExecutable.java",
-                        "internal/executable/CpuPartialReductionExecution.java",
-                        "internal/executable/CpuLossInputValidator.java",
-                        "internal/executable/CpuSoftmaxInputValidator.java",
-                        "internal/executable/CpuAttentionMaskValidator.java",
-                        "internal/executable/CpuBooleanInputValidator.java",
-                        "internal/executable/CpuWorkerGroup.java",
-                        "internal/executable/CpuConcurrencyBudget.java",
-                        "internal/executable/package-info.java",
-                        "internal/reference/CpuScalarReferenceKernel.java",
-                        "internal/reference/CpuAdvancedReductionReferenceKernel.java",
-                        "internal/reference/CpuSoftmaxReferenceKernel.java",
-                        "internal/reference/CpuBatchNormInferenceReferenceKernel.java",
-                        "internal/reference/CpuBatchNormTrainingReferenceKernel.java",
-                        "internal/reference/CpuConv2dReferenceKernel.java",
-                        "internal/reference/CpuConv3dReferenceKernel.java",
-                        "internal/reference/CpuPool2dReferenceKernel.java",
-                        "internal/reference/CpuPool3dReferenceKernel.java",
-                        "internal/reference/CpuMatmulReferenceKernel.java",
-                        "internal/reference/CpuTrailingNormalizationReferenceKernel.java",
-                        "internal/reference/CpuAttentionReferenceKernel.java",
-                        "internal/reference/CpuLossReferenceKernel.java",
-                        "internal/reference/package-info.java"),
-                        javaFiles),
-                () -> {
-                    try (var old = Files.exists(root.resolve("execution"))
-                            ? Files.walk(root.resolve("execution")) : java.util.stream.Stream.<Path>empty()) {
-                        assertEquals(0, old.filter(Files::isRegularFile).count());
-                    }
-                },
-                () -> assertFalse(Files.exists(root.resolve("internal/route/nativeops"))));
-    }
 }

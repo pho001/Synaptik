@@ -25,13 +25,17 @@ public final class CpuRecurrentScanLowering {
     public CpuRecurrentScanLowering() { }
 
     /**
-     * Validates the complete implemented descriptor domain, without inspecting storage or lengths.
+     * Validates current F32/F64 computation without inspecting storage or lengths. Retained low
+     * geometry/storage helpers do not grant executable admission, even for empty/inactive work.
      * @param query non-null exact ordered occurrence
      * @return immutable checked geometry, never null
-     * @throws IllegalArgumentException if any type, flag, shape or resolved layout disagrees
+     * @throws IllegalArgumentException if a low numerical type is requested or any type, flag,
+     *     shape or resolved layout disagrees
      * @throws ArithmeticException if dimensions, boundary counts or scratch arithmetic overflow
      */
     public static Geometry geometry(OperationCapabilityQuery query) {
+        if (!CpuPartitionLowering.permitsLowPrecisionUse(query))
+            throw new IllegalArgumentException("CPU low recurrent computation is temporarily unsupported");
         if (!(query.operation().kind() instanceof RecurrentScanKind kind)
                 || !(query.operation().attrs() instanceof RecurrentDirection direction))
             throw new IllegalArgumentException("not a fixed recurrent scan");

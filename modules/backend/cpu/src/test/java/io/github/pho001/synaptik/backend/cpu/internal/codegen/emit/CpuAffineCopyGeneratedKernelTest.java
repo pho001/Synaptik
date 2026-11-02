@@ -30,6 +30,69 @@ import java.lang.reflect.AccessFlag;
 import org.junit.jupiter.api.Test;
 
 class CpuAffineCopyGeneratedKernelTest {
+    @Test void controlledAffineNeverLoadsInactiveSourcesAndWritesPositiveZero() throws Throwable {
+        var plan = new CpuPartitionPreparer().analyze(CpuAffineLayoutLoweringTest.contiguous(
+                DataType.FLOAT64, List.of(CarrierAccess.DOUBLE_ARRAY,
+                        CarrierAccess.DOUBLE_ARRAY), 17)).plan();
+        var row = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(0, 1);
+        var entry = controlledEntry(plan.units().getFirst().portablePlan(), List.of(row, row));
+        byte[] activity = new byte[17];
+        activity[0] = 1;
+        double[] output = new double[17];
+        Arrays.fill(output, -99);
+        entry.invokeWithArguments(new double[]{-0.0d}, output, plan.affineAddressPairs(),
+                0L, 17L, control(activity));
+        assertEquals(Long.MIN_VALUE, Double.doubleToRawLongBits(output[0]));
+        for (int cell = 1; cell < output.length; cell++)
+            assertEquals(0L, Double.doubleToRawLongBits(output[cell]));
+        Arrays.fill(output, -99);
+        var absent = control(activity);
+        absent.set(ValueLayout.JAVA_BYTE, 0L, (byte) 0);
+        entry.invokeWithArguments(new double[0], output, plan.affineAddressPairs(),
+                0L, 17L, absent);
+        assertTrue(Arrays.stream(output).allMatch(value -> value == -99));
+    }
+
+    /**
+     * Emits and binds the real controlled ordinary helper for the focused family tests.
+     *
+     * @param route admitted ordinary scalar route
+     * @param rows independently supplied boundary provenance in exact ABI order
+     * @return direct hidden-class helper handle with its control trailer
+     * @throws IllegalAccessException if the generated hidden class cannot be defined
+     * @throws NoSuchMethodException if the emitted ordinary entry is absent
+     */
+    static java.lang.invoke.MethodHandle controlledEntry(
+            io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan route,
+            List<io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row> rows)
+            throws IllegalAccessException, NoSuchMethodException {
+        var owner = java.lang.constant.ClassDesc.of(
+                "io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.ControlledMovementTest");
+        var facts = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl(rows, rows);
+        byte[] bytes = ClassFile.of().build(owner, builder -> {
+            builder.withVersion(ClassFile.JAVA_26_VERSION, 0).withFlags(AccessFlag.FINAL);
+            CpuClassFileKernelGenerator.emitMethods(builder, owner, "", route.specialization(),
+                    route.kernelIr(), facts);
+        });
+        var lookup = java.lang.invoke.MethodHandles.lookup().defineHiddenClass(bytes, true);
+        return lookup.findStatic(lookup.lookupClass(), "invoke",
+                route.specialization().entryType().appendParameterTypes(MemorySegment.class));
+    }
+
+    /**
+     * Creates an invocation-owned header using the actual occurrence/B/activity byte layout.
+     *
+     * @param activity original-row activity bytes, copied into a fresh test-owned segment
+     * @return present occurrence control with B equal to the activity capacity
+     */
+    static MemorySegment control(byte[] activity) {
+        var control = MemorySegment.ofArray(new byte[16 + activity.length]);
+        control.set(ValueLayout.JAVA_BYTE, 0L, (byte) 1);
+        control.set(ValueLayout.JAVA_LONG_UNALIGNED, 8L, (long) activity.length);
+        for (int row = 0; row < activity.length; row++)
+            control.set(ValueLayout.JAVA_BYTE, 16L + row, activity[row]);
+        return control;
+    }
     @Test void provedDenseSegmentResultLoadsInitialAddressOnceAndAdvancesForSubranges()
             throws Throwable {
         var read = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ,
@@ -49,7 +112,7 @@ class CpuAffineCopyGeneratedKernelTest {
         assertTrue(CpuAffineCopyEmitter.ownsGeneralLongDenseResultCarrierAccess(
                 specialization, affine.encodedKernelIr()));
         byte[] bytes = generator.generateClassBytes(specialization, affine.encodedKernelIr());
-        var artifact = generator.defineClassBytes(specialization, bytes);
+        var artifact = generator.defineClassBytes(specialization, affine.encodedKernelIr(), bytes);
         double[] source = {10, 20, 30, 40, 50, 60};
         long[] geometry = {5, 4, 4, 5, 3, 6, 2, 700, 1, 800, 0, 900};
         try (var arena = java.lang.foreign.Arena.ofConfined()) {
@@ -87,7 +150,7 @@ class CpuAffineCopyGeneratedKernelTest {
         byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
         assertFalse(CpuAffineCopyEmitter.ownsGeneralLongDenseResultCarrierAccess(
                 route.specialization(), route.kernelIr()));
-        var artifact = generator.defineClassBytes(route.specialization(), bytes);
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes);
         long[] geometry = analysis.plan().affineAddressPairs();
         int count = 256 * 32 * 32;
         short canary = (short) 0x55aa;
@@ -220,14 +283,69 @@ class CpuAffineCopyGeneratedKernelTest {
         }
     }
 
+    @Test void materializingReshapeCopiesNativeRawBitsInLogicalOrderWithoutSourceOrCanaryWrites()
+            throws Throwable {
+        long[] addresses = {2, 7, 3, 8, 4, 9};
+        for (DataType type : DataType.values()) {
+            var analysis = new CpuPartitionPreparer().analyze(
+                    CpuAffineLayoutLoweringTest.materializingReshape(type));
+            var route = analysis.plan().units().getFirst().portablePlan();
+            var generator = new CpuClassFileKernelGenerator();
+            var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(),
+                    generator.generateClassBytes(route.specialization(), route.kernelIr()));
+            int width = type.byteWidth();
+            long[] words = switch (width) {
+                case 1 -> new long[]{0, 1, 1, 0, 1, 0};
+                case 2 -> new long[]{0x8000, 0x7fc1, 1, 0xff81, 0x3f80, 0x7f80};
+                case 4 -> new long[]{0x80000000L, 0x7fc12345L, 1, 0xffc54321L,
+                        0x3f800000L, 0x7f800000L};
+                case 8 -> new long[]{0x8000000000000000L, 0x7ff8123456789000L, 1,
+                        0xfff8543210000000L, 0x3ff0000000000000L, 0x7ff0000000000000L};
+                default -> throw new AssertionError(width);
+            };
+            try (var arena = java.lang.foreign.Arena.ofConfined()) {
+                MemorySegment input = arena.allocate(12L * width, width);
+                MemorySegment destination = arena.allocate(10L * width, width);
+                MemorySegment target = destination.asSlice(2L * width, 8L * width);
+                for (int run = 0; run < 2; run++) {
+                    input.fill((byte) 0x6d);
+                    destination.fill((byte) 0x55);
+                    for (int ordinal = 0; ordinal < addresses.length; ordinal++) {
+                        long bits = words[(ordinal + run) % words.length];
+                        long offset = addresses[ordinal] * width;
+                        switch (width) {
+                            case 1 -> input.set(ValueLayout.JAVA_BYTE, offset, (byte) bits);
+                            case 2 -> input.set(ValueLayout.JAVA_SHORT, offset, (short) bits);
+                            case 4 -> input.set(ValueLayout.JAVA_INT, offset, (int) bits);
+                            case 8 -> input.set(ValueLayout.JAVA_LONG, offset, bits);
+                            default -> throw new AssertionError(width);
+                        }
+                    }
+                    byte[] sourceBefore = input.toArray(ValueLayout.JAVA_BYTE);
+                    byte[] expected = new byte[Math.toIntExact(destination.byteSize())];
+                    Arrays.fill(expected, (byte) 0x55);
+                    MemorySegment expectedSegment = MemorySegment.ofArray(expected);
+                    for (int ordinal = 0; ordinal < addresses.length; ordinal++) {
+                        MemorySegment.copy(input, addresses[ordinal] * width,
+                                expectedSegment, (ordinal + 2L) * width, width);
+                    }
+                    artifact.entryPoint().invokeWithArguments(input, target,
+                            analysis.plan().affineAddressPairs(), 0L, 6L);
+                    assertArrayEquals(expected, destination.toArray(ValueLayout.JAVA_BYTE),
+                            type + " changed input " + run);
+                    assertArrayEquals(sourceBefore, input.toArray(ValueLayout.JAVA_BYTE),
+                            type + " source preservation");
+                }
+            }
+        }
+    }
+
     @Test void generatedEntryHonorsArbitraryRangesAndContainsNoSemanticHotDependencies()
             throws Throwable {
         var analysis = new CpuPartitionPreparer().analyze(CpuAffineLayoutLoweringTest.select(
                 DataType.INT32, List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY)));
         var route = analysis.plan().units().getFirst().portablePlan();
-        var artifact = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(),
-                new CpuClassFileKernelGenerator().generateClassBytes(
-                        route.specialization(), route.kernelIr()));
+        var artifact = new CpuClassFileKernelGenerator().defineClassBytes(route.specialization(), route.kernelIr(), new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr()));
         int[] source = {0,11,2,3,44,5,6,77,8};
         int[] result = new int[8];
         artifact.entryPoint().invokeWithArguments(source, result,
@@ -242,7 +360,7 @@ class CpuAffineCopyGeneratedKernelTest {
                 () -> assertFalse(constants.contains("java/util/Map")));
     }
 
-    @Test void preparedExecutableRetainsAffineGeometryForArbitraryRanges() {
+    @Test void preparedRangeDecoratorWritesOnlySelectedAffineOrdinals() {
         var analysis = new CpuPartitionPreparer().analyze(CpuAffineLayoutLoweringTest.select(
                 DataType.INT32, List.of(CarrierAccess.INT_ARRAY, CarrierAccess.INT_ARRAY)));
         var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty())

@@ -10,6 +10,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
+import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
+import io.github.pho001.synaptik.model.graph.CompiledScanBody;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.NodeId;
 import io.github.pho001.synaptik.model.graph.ValueId;
@@ -18,6 +20,8 @@ import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.OperationSignature;
+import io.github.pho001.synaptik.model.operation.scan.ScanAttrs;
+import io.github.pho001.synaptik.model.operation.scan.ScanKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement;
@@ -44,6 +48,109 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class BackendPartitionFinalizationHandoffTest {
+    @Test void finalizationComparesRunRecipesStructurallyWithoutEvaluationAndRetainsStaticRules() {
+        var recipe = new PreparedMemoryPlan.ByteSize() {
+            public java.util.OptionalLong fixedByteSize() { return java.util.OptionalLong.empty(); }
+            public long byteSize(long batch) { throw new AssertionError("Prepare must not evaluate recipes"); }
+        };
+        var buffer = new PreparationResourceRequirement.Buffer(new ValueId(0), recipe, 4);
+        var workspace = new PreparationResourceRequirement.Workspace(0, recipe, 8);
+        var partition = new PlannedPartition(new BackendId("batch"), List.of(new NodeId(0)));
+        var analysis = new BackendPartitionAnalysis<>(partition, new FakePlan("batch"), List.of(buffer, workspace));
+        var slot = new io.github.pho001.synaptik.runtime.memory.BufferSlot(0);
+        var scratch = new io.github.pho001.synaptik.runtime.memory.WorkspaceSlot(0);
+        var assignments = List.<PreparationResourceAssignment>of(new PreparationResourceAssignment.Buffer(buffer, slot, 0, 0),
+                new PreparationResourceAssignment.Workspace(workspace, scratch, 0));
+        var memory = new PreparedMemoryPlan(List.of(new PreparedMemoryPlan.BufferEntry(slot, recipe, 4)),
+                List.of(new PreparedMemoryPlan.WorkspaceEntry(scratch, recipe, 8)), true);
+        assertDoesNotThrowFinalization(analysis, memory, assignments);
+        var wrong = new PreparedMemoryPlan(List.of(new PreparedMemoryPlan.BufferEntry(slot, recipe, 8)), memory.workspaces(), true);
+        assertThrows(IllegalArgumentException.class, () -> new BackendPartitionFinalization<>(analysis, wrong, assignments));
+        var fixedBuffer = new PreparationResourceRequirement.Buffer(new ValueId(0), 4, 4);
+        var fixedWorkspace = new PreparationResourceRequirement.Workspace(0, 8, 8);
+        var fixed = new BackendPartitionAnalysis<>(partition, new FakePlan("fixed"), List.of(fixedBuffer, fixedWorkspace));
+        var fixedAssignments = List.<PreparationResourceAssignment>of(new PreparationResourceAssignment.Buffer(fixedBuffer, slot, 0, 0),
+                new PreparationResourceAssignment.Workspace(fixedWorkspace, scratch, 0));
+        assertDoesNotThrowFinalization(fixed, new PreparedMemoryPlan(List.of(new PreparedMemoryPlan.BufferEntry(slot, 16, 8)),
+                List.of(new PreparedMemoryPlan.WorkspaceEntry(scratch, 8, 8))), fixedAssignments);
+        assertThrows(IllegalArgumentException.class, () -> new BackendPartitionFinalization<>(fixed,
+                new PreparedMemoryPlan(List.of(new PreparedMemoryPlan.BufferEntry(slot, 16, 8)),
+                        List.of(new PreparedMemoryPlan.WorkspaceEntry(scratch, 16, 8))), fixedAssignments));
+    }
+
+    private static void assertDoesNotThrowFinalization(BackendPartitionAnalysis<FakePlan> analysis,
+            PreparedMemoryPlan memory, List<PreparationResourceAssignment> assignments) {
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> new BackendPartitionFinalization<>(analysis, memory, assignments));
+    }
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void scanLocalOnlyIdsCannotDeclareBuffersAndCoincidentIdsRemainOuterAssociations(boolean lengthMode) {
+        PrepareContext<FakeInputs> context = scanContext(lengthMode);
+        var body = context.nodes().getFirst().scanBody().orElseThrow();
+        var finalizer = new FakeFinalizer(context.partition().owner(), "scan", new ArrayList<>());
+        ValueId localOnly = body.graph().inputs().getFirst();
+        assertTrue(context.values().stream().noneMatch(v -> v.id().equals(localOnly)));
+        var invalid = new BackendPartitionAnalysis<>(context.partition(), new FakePlan("scan"),
+                List.of(new PreparationResourceRequirement.Buffer(localOnly, 8, 4)));
+        assertTrue(assertThrows(IllegalArgumentException.class,
+                () -> BackendPartitionFinalizationHandoff.finalizePartitions(List.of(context.partition()),
+                        List.of(new BackendPartitionFinalizationHandoff.Entry<>(context, invalid, finalizer))))
+                .getMessage().contains("buffer valueId is absent from context.values"));
+        assertTrue(finalizer.seen.isEmpty());
+
+        // Equal numeric IDs supply no local-storage provenance: ID 0 always names the outer value,
+        // not the differently shaped body step (including with a separate lengths actual).
+        ValueId coincident = body.graph().inputs().getLast();
+        assertEquals(new ValueId(0), coincident);
+        assertEquals(lengthMode ? Shape.of(2, 3) : Shape.of(2), body.graph().values().getLast().descriptor().shape());
+        assertEquals(lengthMode ? Shape.of(2) : Shape.scalar(), context.values().getFirst().descriptor().shape());
+        var scalar = new PreparationResourceRequirement.Buffer(coincident, lengthMode ? 8 : 4, 4);
+        var residual = new PreparationResourceRequirement.Buffer(new ValueId(3), 0, 4);
+        var scratch = new PreparationResourceRequirement.Workspace(0, 8, 8);
+        var plan = new FakePlan("scan");
+        var analysis = new BackendPartitionAnalysis<>(context.partition(), plan, List.of(scalar, residual, scratch));
+        var result = BackendPartitionFinalizationHandoff.finalizePartitions(List.of(context.partition()),
+                List.of(new BackendPartitionFinalizationHandoff.Entry<>(context, analysis, finalizer)));
+        var seen = finalizer.seen.getFirst();
+        assertSame(plan, seen.analysis().plan());
+        assertEquals(List.of(new ValueId(0), new ValueId(3)), result.bufferAssignments().stream().map(PreparedBufferAssignment::valueId).toList());
+        assertSame(scalar, ((PreparationResourceAssignment.Buffer) seen.assignments().get(0)).requirement());
+        assertSame(residual, ((PreparationResourceAssignment.Buffer) seen.assignments().get(1)).requirement());
+        assertSame(scratch, ((PreparationResourceAssignment.Workspace) seen.assignments().get(2)).requirement());
+        assertEquals(0, result.memoryPlan().buffers().get(1).byteSize());
+        assertEquals(8, result.memoryPlan().workspaces().getFirst().byteSize());
+        // These are declarations only: no body execution or physical history-allocation proof.
+    }
+
+    private static PrepareContext<FakeInputs> scanContext(boolean lengthMode) {
+        Shape scalarShape = lengthMode ? Shape.of(2) : Shape.scalar();
+        Shape stepShape = lengthMode ? Shape.of(2, 3) : Shape.of(2);
+        Shape stackedShape = lengthMode ? Shape.of(0, 2) : Shape.of(0);
+        var scalar = new TensorDescriptor(DataType.FLOAT32, scalarShape, Optional.of(LayoutDescriptor.contiguous(scalarShape)), false);
+        var step = new TensorDescriptor(DataType.FLOAT32, stepShape, Optional.of(LayoutDescriptor.contiguous(stepShape)), false);
+        var stacked = new TensorDescriptor(DataType.FLOAT32, stackedShape, Optional.of(LayoutDescriptor.contiguous(stackedShape)), false);
+        Shape sequenceShape = lengthMode ? Shape.of(0, 2, 3) : Shape.of(0, 2);
+        var sequence = new TensorDescriptor(DataType.FLOAT32, sequenceShape, Optional.of(LayoutDescriptor.contiguous(sequenceShape)), false);
+        var local = new CompiledGraphModel(List.of(new GraphValue(new ValueId(100), scalar), new GraphValue(new ValueId(0), step)),
+                List.of(), List.of(new ValueId(100), new ValueId(0)), List.of(new ValueId(100)), Map.of());
+        var body = new CompiledScanBody(local, List.of(new ValueId(100)), List.of(), List.of(new ValueId(100)), List.of(1));
+        ScanAttrs attrs = lengthMode
+                ? new ScanAttrs(0, 1, 1, 0, 0, 1, false, true, 1, List.of(java.util.OptionalInt.of(0)))
+                : new ScanAttrs(0, 1, 1, 0, 0, 1, false);
+        var node = new CompiledNode(new NodeId(0), new Operation(ScanKind.SCAN, attrs),
+                lengthMode ? List.of(new ValueId(0), new ValueId(1), new ValueId(4)) : List.of(new ValueId(0), new ValueId(1)),
+                List.of(new ValueId(2), new ValueId(3)), Optional.of(body));
+        var partition = new PlannedPartition(new BackendId("scan"), List.of(node.id()));
+        var values = new ArrayList<>(List.of(new GraphValue(new ValueId(0), scalar), new GraphValue(new ValueId(1), sequence),
+                new GraphValue(new ValueId(2), scalar), new GraphValue(new ValueId(3), stacked)));
+        if (lengthMode) values.add(new GraphValue(new ValueId(4), new TensorDescriptor(DataType.INT64,
+                Shape.of(2), Optional.empty(), false)));
+        var requirements = values.stream().map(v -> new LogicalMemoryRequirement(v.id(), v.descriptor(),
+                node.inputs().contains(v.id()) ? Optional.empty() : Optional.of(partition),
+                node.inputs().contains(v.id()) ? List.of(partition) : List.<PlannedPartition>of(), v.id().value() == 3)).toList();
+        return context(partition, node, values, requirements);
+    }
+
     @Test
     void acceptsAnEmptyCompleteSetAndSnapshotsItsResult() {
         var result = BackendPartitionFinalizationHandoff.finalizePartitions(List.of(), List.of());
@@ -147,7 +254,7 @@ class BackendPartitionFinalizationHandoffTest {
                 fixture.partitions,
                 fixture.entries,
                 List.of(fixture.outputValues.get(1).id(), fixture.sharedValue.id()),
-                List.of());
+                List.of(), false);
         var first = fixture.firstFinalizer.seen.getFirst().assignments();
         var second = fixture.secondFinalizer.seen.getFirst().assignments();
 
@@ -528,10 +635,10 @@ class BackendPartitionFinalizationHandoffTest {
     @Test
     void appendsProducerlessBuffersWithoutChangingOrdinaryAssignmentsOrWorkspaces() {
         Fixture fixture = fixture();
-        ProducerlessPublishedConstantResource resource = producerlessResource(90, 37, 32);
+        ProducerlessPublishedValueResource resource = producerlessResource(90, 37, 32);
 
         var result = BackendPartitionFinalizationHandoff.finalizePartitions(
-                fixture.partitions, fixture.entries, List.of(resource));
+                fixture.partitions, fixture.entries, List.of(), List.of(resource), false);
         BackendPartitionFinalization<FakePlan> first = fixture.firstFinalizer.seen.getFirst();
         BackendPartitionFinalization<FakePlan> second = fixture.secondFinalizer.seen.getFirst();
 
@@ -542,6 +649,7 @@ class BackendPartitionFinalizationHandoffTest {
                 () -> assertEquals(3, result.bufferAssignments().get(3).slot().value()),
                 () -> assertEquals(3, result.bufferAssignments().get(3).planIndex()),
                 () -> assertEquals(37, result.memoryPlan().buffers().get(3).byteSize()),
+                () -> assertSame(resource.size(), result.memoryPlan().buffers().get(3).size()),
                 () -> assertEquals(32, result.memoryPlan().buffers().get(3).byteAlignment()),
                 () -> assertEquals(3, first.assignments().size()),
                 () -> assertEquals(3, second.assignments().size()),
@@ -555,17 +663,17 @@ class BackendPartitionFinalizationHandoffTest {
     @Test
     void rejectsProducerlessOverlapBeforeConstructingAPlanOrCallingFinalizers() {
         Fixture fixture = fixture();
-        ProducerlessPublishedConstantResource overlap = producerlessResource(0, 1, 1);
+        ProducerlessPublishedValueResource overlap = producerlessResource(0, 1, 1);
 
         assertFailure(
                 IllegalArgumentException.class,
                 "producerless resource overlaps ordinary buffer declaration: ValueId[value=0]",
                 () -> BackendPartitionFinalizationHandoff.finalizePartitions(
-                        fixture.partitions, fixture.entries, List.of(overlap)));
+                        fixture.partitions, fixture.entries, List.of(), List.of(overlap), false));
         assertTrue(fixture.callOrder.isEmpty());
     }
 
-    private static ProducerlessPublishedConstantResource producerlessResource(
+    private static ProducerlessPublishedValueResource producerlessResource(
             long id, long byteSize, long byteAlignment) {
         Shape shape = Shape.of(1);
         TensorDescriptor descriptor = new TensorDescriptor(
@@ -576,7 +684,7 @@ class BackendPartitionFinalizationHandoffTest {
         GraphValue value = new GraphValue(new ValueId(id), descriptor);
         LogicalMemoryRequirement requirement = new LogicalMemoryRequirement(
                 value.id(), descriptor, Optional.empty(), List.of(), true);
-        return new ProducerlessPublishedConstantResource(value, requirement, new io.github.pho001.synaptik.backend.contract.BackendId("test"), byteSize, byteAlignment);
+        return new ProducerlessPublishedValueResource(value, requirement, new io.github.pho001.synaptik.backend.contract.BackendId("test"), new io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan.FixedByteSize(byteSize), byteAlignment);
     }
 
     private static Fixture fixture() {

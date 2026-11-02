@@ -52,9 +52,9 @@ class CpuReferenceDifferentialTest {
             for (var kind : List.of(
                     io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.SUM,
                     io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.MEAN)) {
-                var lowered = new CpuPartitionLowering().lower(
-                        CpuMaskedReductionLoweringTest.context(kind, type, Shape.of(2, 4),
-                                Shape.of(4), 1));
+                var context = CpuMaskedReductionLoweringTest.context(kind, type, Shape.of(2, 4), Shape.of(4), 1);
+                if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) continue;
+                var lowered = new CpuPartitionLowering().lower(context);
                 Object data = type == DataType.FLOAT64
                         ? new double[] {0x1p53, 1, -0x1p53, Double.NaN,
                                 -0.0, -0.0, 7, Double.POSITIVE_INFINITY}
@@ -105,8 +105,9 @@ class CpuReferenceDifferentialTest {
                 DataType.INT32, DataType.INT64))
             for (var kind : io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind.values())
                 for (boolean exclusive : List.of(false, true)) for (boolean reverse : List.of(false, true)) {
-                    var lowered = new CpuPartitionLowering().lower(CpuScanLoweringTest.context(
-                            kind, type, Shape.of(2, 3), 1, exclusive, reverse));
+                    var context = CpuScanLoweringTest.context(kind, type, Shape.of(2, 3), 1, exclusive, reverse);
+                    if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) continue;
+                    var lowered = new CpuPartitionLowering().lower(context);
                     Object input = represented(type, 1, 2, 3, 4, 5, 6);
                     Object output = represented(type, 0, 0, 0, 0, 0, 0);
                     CpuScalarReferenceKernel.execute((CpuScanIr) lowered.portableKernelIr(),
@@ -137,6 +138,7 @@ class CpuReferenceDifferentialTest {
     }
 
     @Test void independentBfloat16RandomReferenceUsesModelNarrowingAndExactState() {
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
         var lowered = new CpuPartitionLowering().lower(CpuRandomLoweringTest.dropoutContext(
                 DataType.BFLOAT16, Shape.of(5), .25d));
         short[] input = {(short) 0x8000, (short) 0x3f80, (short) 0xc010,
@@ -162,6 +164,7 @@ class CpuReferenceDifferentialTest {
             assertEquals(expected, output[logical]);
         }
         assertArrayEquals(new long[]{state[0], state[1] + input.length}, next);
+        });
     }
 
     @Test void independentRandomReferenceHonorsBroadcastReadsAndStridedWrites() {

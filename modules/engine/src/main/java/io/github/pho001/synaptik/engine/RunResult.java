@@ -32,13 +32,28 @@ public final class RunResult implements AutoCloseable {
      * @throws NullPointerException if an argument or specification is {@code null}
      */
     RunResult(AdvancedRunResult owner, List<CompiledGraph.PublicationSpec> specifications) {
+        this(owner, specifications, specifications.stream().map(specification -> specification.descriptor).toList());
+    }
+
+    /**
+     * Publishes exact occurrence metadata with actual generated-value descriptors for one run.
+     * @param owner non-null inward lifecycle owner
+     * @param specifications non-null ordered authenticated publication specifications
+     * @param actualDescriptors non-null actual descriptors in exact occurrence order, without nulls
+     * @throws NullPointerException if an argument or contained value is null
+     * @throws IllegalArgumentException if occurrence counts differ
+     */
+    RunResult(AdvancedRunResult owner, List<CompiledGraph.PublicationSpec> specifications,
+            List<TensorDescriptor> actualDescriptors) {
         this.owner = Objects.requireNonNull(owner, "owner");
         Objects.requireNonNull(specifications, "specifications");
+        actualDescriptors = List.copyOf(actualDescriptors);
+        if (actualDescriptors.size() != specifications.size()) throw new IllegalArgumentException("publication descriptor count disagrees");
         var snapshot = new ArrayList<Publication>(specifications.size());
         for (int index = 0; index < specifications.size(); index++) {
             CompiledGraph.PublicationSpec spec = Objects.requireNonNull(
                     specifications.get(index), "specifications[" + index + "]");
-            snapshot.add(new Publication(this, index, spec));
+            snapshot.add(new Publication(this, index, spec, actualDescriptors.get(index)));
         }
         publications = List.copyOf(snapshot);
     }
@@ -193,11 +208,11 @@ public final class RunResult implements AutoCloseable {
         private final OptionalInt targetIndex;
 
         private Publication(
-                RunResult result, int index, CompiledGraph.PublicationSpec specification) {
+                RunResult result, int index, CompiledGraph.PublicationSpec specification, TensorDescriptor actualDescriptor) {
             this.result = result;
             this.index = index;
             tensorId = specification.tensorId;
-            descriptor = specification.descriptor;
+            descriptor = actualDescriptor;
             role = specification.role;
             derivativeOrder = role == Role.GRADIENT
                     ? OptionalInt.of(specification.derivativeOrder) : OptionalInt.empty();
@@ -224,7 +239,9 @@ public final class RunResult implements AutoCloseable {
         }
 
         /**
-         * Returns the final descriptor after compilation, including resolved layout state.
+         * Returns this invocation's actual published descriptor, including resolved layout.
+         * For named-B runs Shape/view geometry follow admitted B; type and gradient eligibility
+         * come from the generated value, not its target Tensor.
          *
          * @return the exact immutable descriptor of the final published logical value
          */

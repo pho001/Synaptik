@@ -37,8 +37,10 @@ import java.util.LinkedHashMap;
  * affine-copy artifact. Finalization cannot change unit
  * topology, dependencies, materialization, generated carrier patterns, route, strategy,
  * specialization, or declaration geometry. A multi-unit result is wrapped in one CPU-private
- * atomic sequential composite. A single recurrent unit also uses that composite, while an
- * established generated one-unit result without materialization remains the direct child recipe.
+ * atomic sequential composite. A single recurrent unit also uses that composite. A single
+ * constant-write unit uses the same ValueId-based child selection: mandatory original constant
+ * sources remain partition declarations but never become arguments to its output-only kernel.
+ * Other established generated one-unit results without materialization remain direct child recipes.
  * When the exact
  * analyzed plan contains an explicitly chosen representation candidate, finalization also
  * realizes its one or two generated affine-copy artifacts before consumer artifacts. It does not
@@ -141,8 +143,8 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
      *     partition executable; its immutable resource list is empty because generated artifacts,
      *     worker groups, and native invocations remain existing cached or borrowed state
      * @throws NullPointerException if {@code finalization} is {@code null}
-     * @throws IllegalArgumentException if ownership, assignments, specialization, or artifact
-     *     realization is incompatible with the analyzed plan
+     * @throws IllegalArgumentException if current CPU numerical admission rejects semantic or
+     *     represented units, or ownership, assignments, specialization or realization disagree
      * @throws IllegalStateException if the required OpenBLAS coordinator is not open, or
      *     coordinated configuration, verification, or restoration fails
      * @throws CpuConcurrencyBudget.CpuCoordinationException if interrupted while waiting for a
@@ -153,10 +155,41 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
         return new BackendPartitionFinalizationResult(finalizeExecutable(finalization));
     }
 
+    /**
+     * Resolves every assigned resource before realizing the already-selected partition recipe.
+     * Output-only count units use composite child selection so retained original sources do not
+     * enter their generated argument list.
+     * @param finalization non-null immutable analysis and exact assigned-resource handoff, borrowed
+     * @return non-null immutable executable retaining the selected resource coordinates
+     * @throws NullPointerException if {@code finalization} is {@code null}
+     * @throws IllegalArgumentException if owner, assignments or selected executable facts disagree
+     */
     private PreparedExecutable finalizeExecutable(
             BackendPartitionFinalization<CpuPartitionPreparationPlan> finalization) {
         Objects.requireNonNull(finalization, "finalization");
         var plan = finalization.analysis().plan();
+        for (var unit : plan.units()) {
+            unit.runtimeFacts().recurrentScan().ifPresent(scan -> {
+                var type = scan.geometry().dataType();
+                if (type != io.github.pho001.synaptik.model.datatype.DataType.FLOAT32
+                        && type != io.github.pho001.synaptik.model.datatype.DataType.FLOAT64)
+                    throw new IllegalArgumentException("CPU low recurrent computation is temporarily unsupported");
+            });
+            if (unit.portablePlan() != null) {
+                var route = unit.portablePlan();
+                io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering
+                        .requirePermittedLowPrecisionUse(route.portableKernelIr());
+                io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering
+                        .requirePermittedLowPrecisionUse(route.specialization(), route.kernelIr());
+            }
+        }
+        for (var represented : plan.representationUnits()) {
+            var route = represented.portablePlan();
+            io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering
+                    .requirePermittedLowPrecisionUse(route.portableKernelIr());
+            io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering
+                    .requirePermittedLowPrecisionUse(route.specialization(), route.kernelIr());
+        }
         if (!finalization.analysis().partition().owner().equals(CpuCapabilityProvider.CPU_BACKEND_ID)) {
             throw new IllegalArgumentException("partition owner must be CPU");
         }
@@ -170,7 +203,8 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
             if (match == null) throw new IllegalArgumentException(
                     "buffer declaration has no exact shared assignment: " + declaration.valueId());
             var entry = finalization.memoryPlan().buffers().get(match.planIndex());
-            if (entry.slot() != match.slot() || entry.byteSize() < declaration.byteSize()
+            if (entry.slot() != match.slot() || (entry.size().fixedByteSize().isPresent() && declaration.size().fixedByteSize().isPresent()
+                    ? entry.byteSize() < declaration.byteSize() : !entry.size().equals(declaration.size()))
                     || entry.byteAlignment() < declaration.byteAlignment()) {
                 throw new IllegalArgumentException("buffer assignment geometry disagrees");
             }
@@ -197,7 +231,7 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
             if (match == null) throw new IllegalArgumentException(
                     "workspace declaration has no exact shared assignment");
             var entry = finalization.memoryPlan().workspaces().get(match.planIndex());
-            if (entry.slot() != match.slot() || entry.byteSize() != declaration.byteSize()
+            if (entry.slot() != match.slot() || !entry.size().equals(declaration.size())
                     || entry.byteAlignment() != declaration.byteAlignment()) {
                 throw new IllegalArgumentException("workspace assignment geometry disagrees");
             }
@@ -213,7 +247,11 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
             return finalizeOpenBlas(finalization, selections, workspaceSelections);
         }
         if (plan.units().size() > 1 || !plan.materializations().isEmpty()
-                || plan.units().getFirst().runtimeFacts().recurrentScan().isPresent()) {
+                || plan.units().getFirst().portablePlan() != null && plan.units().getFirst().portablePlan().portableKernelIr()
+                    instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConstantWriteIr
+                || plan.units().getFirst().portablePlan() != null && plan.units().getFirst().portablePlan().specialization().ordinaryBatch()
+                || plan.units().getFirst().runtimeFacts().recurrentScan().isPresent()
+                || plan.units().getFirst().runtimeFacts().generalScan().isPresent()) {
             return finalizeComposite(finalization, selections, workspaceSelections);
         }
         var unit = plan.units().getFirst();
@@ -309,6 +347,16 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 routeWorkspaces, route, invocation, coordinator, inputArtifacts, outputArtifact);
     }
 
+    /**
+     * Maps partition selections to exact unit ValueIds before constructing sequential children.
+     * Partition-only original constant sources retain their read roles without becoming child
+     * kernel arguments or additional outputs.
+     * @param finalization non-null immutable analyzed topology and assigned resources, borrowed
+     * @param outerSelections non-null partition buffer coordinates in declaration order, borrowed
+     * @param workspaceSelections non-null exact declaration-to-workspace coordinate map, borrowed
+     * @return non-null immutable composite with stable child order and dependency metadata
+     * @throws IllegalArgumentException if a unit boundary or declared workspace has no selection
+     */
     private PreparedExecutable finalizeComposite(
             BackendPartitionFinalization<CpuPartitionPreparationPlan> finalization,
             List<PreparedExecutable.BufferSelection> outerSelections,
@@ -356,6 +404,14 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                     : plan.representationUnits().get(index);
             var route = represented == null ? unit.portablePlan() : represented.portablePlan();
             var artifact = artifactStore.loadOrGenerate(route.specialization(), route.kernelIr());
+            if (unit.runtimeFacts().generalScan().isPresent()) {
+                children.add(new io.github.pho001.synaptik.backend.cpu.internal.executable.CpuGeneralScanPreparedExecutable(
+                        finalization.memoryPlan(), localSelections.get(index),
+                        unit.runtimeFacts().workspaceDeclaration().map(workspaceSelections::get),
+                        unit.runtimeFacts().generalScan().orElseThrow(), artifact, concurrencyBudget.orElse(null),
+                        selectedWorkers.get(index),unit.minimumElementsPerWorker()));
+                continue;
+            }
             var consumedCopies = plan.materializations().stream().filter(copy -> copy.consumers()
                     .stream().anyMatch(value -> value.unitPosition() == unitIndex)).toList();
             children.add(unitExecutable(finalization, unit, represented,
@@ -402,6 +458,11 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
             List<io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan> copies,
             List<PreparedExecutable.WorkspaceSelection> copyWorkspaces) {
         var facts = unit.runtimeFacts();
+        if (unit.portablePlan().specialization().ordinaryBatch()) {
+            return new CpuPreparedExecutable(finalization.memoryPlan(), selections, artifact,
+                    unit.portablePlan(), workspace, concurrencyBudget.orElse(null),
+                    unit.selectedRangeCount(),unit.minimumElementsPerWorker(),workers);
+        }
         var bindings = represented == null ? unit.accessBindings() : represented.accessBindings();
         var generatedCarriers = represented == null ? unit.generatedCarrierPattern()
                 : represented.carrierPattern();

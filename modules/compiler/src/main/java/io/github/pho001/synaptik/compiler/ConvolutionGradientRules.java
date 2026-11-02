@@ -7,8 +7,8 @@ import io.github.pho001.synaptik.model.shape.Dimension;
 import io.github.pho001.synaptik.model.shape.DimensionExpressions;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
-import io.github.pho001.synaptik.model.tensor.Tensor;
-import io.github.pho001.synaptik.model.tensor.TensorProducer;
+
+import java.util.function.Function;
 
 /**
  * Builds grouped NCHW convolution cotangents through public window and matrix operations.
@@ -17,12 +17,23 @@ import io.github.pho001.synaptik.model.tensor.TensorProducer;
  * dimensions. The leading group axis prevents cross-group contraction. Folding accumulates
  * overlap into the original input Shape; no transposed-convolution or backward-only kind is
  * introduced.</p>
+ *
+ * <p>Descriptor access preserves original source roles without resolving primal values.
+ * Real construction uses Tensor references directly; checked metadata construction retains
+ * the same eager operation sites, including temporaries not used by a returned cotangent.</p>
+ *
+ * @param <V> direct Tensor or checked metadata operand representation
  */
-final class ConvolutionGradientRules {
+final class ConvolutionGradientRules<V> {
+    private final OrdinaryConstruction<V> ops;
+
     /**
-     * Prevents construction of this stateless formula owner.
+     * Binds this formula owner to one compile-local construction route.
+     * @param ops non-null direct Tensor or checked metadata construction
      */
-    private ConvolutionGradientRules() {}
+    ConvolutionGradientRules(OrdinaryConstruction<V> ops) {
+        this.ops = java.util.Objects.requireNonNull(ops);
+    }
 
     /**
      * Builds selected input, weight, and optional bias cotangents.
@@ -31,22 +42,26 @@ final class ConvolutionGradientRules {
      * @param gradient non-null accumulated cotangent for its sole output
      * @param selectedInputs non-null input-position-aligned selected-route flags; observed but
      *     not mutated
+     * @param primal non-null resolver from original primal wrappers to lexical values
      * @return a new input-position-aligned array of cotangents, with {@code null} for unselected
      *     roles
      */
-    static Tensor[] apply(
-            TensorProducer producer, Tensor gradient, boolean[] selectedInputs) {
-        Tensor originalInput = producer.inputs().get(0);
-        Tensor originalWeight = producer.inputs().get(1);
-        DataType resultType = producer.output(0).descriptor().dataType();
-        Tensor input = cast(originalInput, resultType);
-        Tensor weight = cast(originalWeight, resultType);
+    V[] apply(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient,
+            boolean[] selectedInputs,
+            Function<V, V> primal) {
+        V originalInput = producer.inputs().get(0);
+        V originalWeight = producer.inputs().get(1);
+        DataType resultType = ops.descriptor(producer.output(0)).dataType();
+        V input = cast(primal.apply(originalInput), resultType);
+        V weight = cast(primal.apply(originalWeight), resultType);
         Conv2dAttrs attrs = (Conv2dAttrs) producer.operation().attrs();
         Window2dAttrs window = window(attrs, originalWeight);
-
-        Shape inputShape = input.descriptor().shape();
-        Shape weightShape = weight.descriptor().shape();
-        Shape outputShape = gradient.descriptor().shape();
+        
+        Shape inputShape = ops.descriptor(originalInput).shape();
+        Shape weightShape = ops.descriptor(originalWeight).shape();
+        Shape outputShape = ops.descriptor(gradient).shape();
         Dimension batch = inputShape.dimension(0);
         Dimension outputChannels = weightShape.dimension(0);
         Dimension outputPerGroup =
@@ -61,51 +76,32 @@ final class ConvolutionGradientRules {
         Dimension groupedChannels =
                 DimensionExpressions.multiply(kernelPerGroup, attrs.groups());
         StaticDimension groups = new StaticDimension(attrs.groups());
-
-        Tensor[] result = new Tensor[producer.inputs().size()];
-        Tensor groupedGradient = gradient
-                .reshape(Shape.ofDimensions(
-                        batch, groups, outputPerGroup, outputPositions))
-                .permute(1, 0, 2, 3)
-                .contiguous();
-
+        
+        V[] result = ops.array(producer.inputs().size());
+        V groupedGradient = ops.contiguous(ops.permute(ops.reshape(gradient, Shape.ofDimensions(
+                        batch, groups, outputPerGroup, outputPositions)), 1, 0, 2, 3));
+        
         if (selectedInputs[0]) {
-            Tensor groupedWeight = weight.reshape(
-                            Shape.ofDimensions(groups, outputPerGroup, kernelPerGroup))
-                    .contiguous();
-            Tensor groupedColumns = swapLastTwo(groupedWeight)
-                    .expandDims(1)
-                    .contiguous()
-                    .matmul(groupedGradient);
-            Tensor columns = groupedColumns
-                    .permute(1, 0, 2, 3)
-                    .contiguous()
-                    .reshape(Shape.ofDimensions(batch, groupedChannels, outputPositions))
-                    .contiguous();
+            V groupedWeight = ops.contiguous(ops.reshape(weight, Shape.ofDimensions(groups, outputPerGroup, kernelPerGroup)));
+            V groupedColumns = ops.matmul(ops.contiguous(ops.expandDims(swapLastTwo(groupedWeight), 1)), groupedGradient);
+            V columns = ops.contiguous(ops.reshape(ops.contiguous(ops.permute(groupedColumns, 1, 0, 2, 3)), Shape.ofDimensions(batch, groupedChannels, outputPositions)));
             result[0] = normalize(
-                    columns.fold2d(originalInput.descriptor().shape(), window),
+                    ops.fold2d(columns, ops.descriptor(originalInput).shape(), window),
                     originalInput);
         }
-
+        
         if (selectedInputs[1]) {
-            Tensor inputColumns = input.unfold2d(window)
-                    .reshape(Shape.ofDimensions(
-                            batch, groups, kernelPerGroup, outputPositions))
-                    .permute(1, 0, 2, 3)
-                    .contiguous();
-            Tensor groupedWeightGradient = groupedGradient
-                    .matmul(swapLastTwo(inputColumns))
-                    .sum(1, false);
+            V inputColumns = ops.contiguous(ops.permute(ops.reshape(ops.unfold2d(input, window), Shape.ofDimensions(
+                            batch, groups, kernelPerGroup, outputPositions)), 1, 0, 2, 3));
+            V groupedWeightGradient = ops.sum(ops.matmul(groupedGradient, swapLastTwo(inputColumns)), 1, false);
             result[1] = normalize(
-                    groupedWeightGradient
-                            .reshape(originalWeight.descriptor().shape())
-                            .contiguous(),
+                    ops.contiguous(ops.reshape(groupedWeightGradient, ops.descriptor(originalWeight).shape())),
                     originalWeight);
         }
-
+        
         if (producer.inputs().size() == 3 && selectedInputs[2]) {
             result[2] = normalize(
-                    gradient.sum(new int[] {0, 2, 3}, false),
+                    ops.sum(gradient, new int[] {0, 2, 3}, false),
                     producer.inputs().get(2));
         }
         return result;
@@ -118,8 +114,8 @@ final class ConvolutionGradientRules {
      * @param weight non-null weight Tensor whose static final axes define the kernel
      * @return a new immutable window attribute value for unfold and fold expressions
      */
-    private static Window2dAttrs window(Conv2dAttrs attrs, Tensor weight) {
-        Shape shape = weight.descriptor().shape();
+    private Window2dAttrs window(Conv2dAttrs attrs, V weight) {
+        Shape shape = ops.descriptor(weight).shape();
         return new Window2dAttrs(
                 ((StaticDimension) shape.dimension(2)).size(),
                 ((StaticDimension) shape.dimension(3)).size(),
@@ -139,8 +135,8 @@ final class ConvolutionGradientRules {
      * @param dataType non-null floating result type
      * @return {@code input} when its type already matches; otherwise a new cast expression
      */
-    private static Tensor cast(Tensor input, DataType dataType) {
-        return input.descriptor().dataType() == dataType ? input : input.cast(dataType);
+    private V cast(V input, DataType dataType) {
+        return ops.descriptor(input).dataType() == dataType ? input : ops.cast(input, dataType);
     }
 
     /**
@@ -150,13 +146,13 @@ final class ConvolutionGradientRules {
      * @param input non-null original input whose descriptor is restored
      * @return a non-null ordinary Tensor expression with the input's exact descriptor
      */
-    private static Tensor normalize(Tensor gradient, Tensor input) {
-        Tensor result = gradient.descriptor().shape().equals(input.descriptor().shape())
+    private V normalize(V gradient, V input) {
+        V result = ops.descriptor(gradient).shape().equals(ops.descriptor(input).shape())
                 ? gradient
-                : gradient.sumToShape(input.descriptor().shape());
-        return result.descriptor().dataType() == input.descriptor().dataType()
+                : ops.sumToShape(gradient, ops.descriptor(input).shape());
+        return ops.descriptor(result).dataType() == ops.descriptor(input).dataType()
                 ? result
-                : result.cast(input.descriptor().dataType());
+                : ops.cast(result, ops.descriptor(input).dataType());
     }
 
     /**
@@ -165,14 +161,14 @@ final class ConvolutionGradientRules {
      * @param tensor non-null preflight-approved Tensor with rank at least two
      * @return a new Tensor expression with the final two axes exchanged
      */
-    private static Tensor swapLastTwo(Tensor tensor) {
-        int rank = tensor.descriptor().shape().rank();
+    private V swapLastTwo(V tensor) {
+        int rank = ops.descriptor(tensor).shape().rank();
         int[] axes = new int[rank];
         for (int axis = 0; axis < rank; axis++) {
             axes[axis] = axis;
         }
         axes[rank - 2] = rank - 1;
         axes[rank - 1] = rank - 2;
-        return tensor.permute(axes);
+        return ops.permute(tensor, axes);
     }
 }

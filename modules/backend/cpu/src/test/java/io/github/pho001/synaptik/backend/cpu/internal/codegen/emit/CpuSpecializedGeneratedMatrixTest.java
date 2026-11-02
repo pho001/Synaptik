@@ -88,7 +88,8 @@ class CpuSpecializedGeneratedMatrixTest {
         for (var kind : List.of(AggregateReductionKind.SUM, AggregateReductionKind.MEAN)) for (var type : FLOATING)
             for (var mask : List.of(Shape.scalar(), Shape.of(3), Shape.of(1, 3))) for (int axis : List.of(0, 1))
                 cases.add(row("masked/" + kind + '/' + type + '/' + mask + '/' + axis,
-                        CpuMaskedReductionLoweringTest.context(kind, type, Shape.of(2, 3), mask, axis)));
+                        CpuMaskedReductionLoweringTest.context(kind, type, Shape.of(2, 3), mask, axis),
+                        "MASKED_" + kind.name()));
         for (var kind : List.of(AggregateReductionKind.LOG_SUM_EXP, AggregateReductionKind.L1_NORM, AggregateReductionKind.L2_NORM,
                 AggregateReductionKind.VARIANCE, AggregateReductionKind.STANDARD_DEVIATION)) for (var type : FLOATING)
             for (var axes : List.of(List.of(0), List.of(1), List.of(0, 1))) for (boolean keep : List.of(false, true)) {
@@ -105,13 +106,17 @@ class CpuSpecializedGeneratedMatrixTest {
     @Test void everyAdmittedTrailingAndBatchNormRoleCombinationGeneratesAcrossRequests() {
         var cases = new ArrayList<Case>();
         for (var input : FLOATING) {
-            cases.add(row("layer/plain/" + input, trailingContext(true, List.of(input))));
-            cases.add(row("rms/plain/" + input, trailingContext(false, List.of(input))));
+            cases.add(row("layer/plain/" + input, trailingContext(true, List.of(input)),
+                    io.github.pho001.synaptik.backend.cpu.internal.ir.CpuTrailingNormalizationIr.Form.LAYER.name()));
+            cases.add(row("rms/plain/" + input, trailingContext(false, List.of(input)),
+                    io.github.pho001.synaptik.backend.cpu.internal.ir.CpuTrailingNormalizationIr.Form.RMS.name()));
         }
         for (var input : FLOATING) for (var scale : FLOATING) {
-            cases.add(row("rms/scaled/" + input + '/' + scale, trailingContext(false, List.of(input, scale))));
+            cases.add(row("rms/scaled/" + input + '/' + scale, trailingContext(false, List.of(input, scale)),
+                    io.github.pho001.synaptik.backend.cpu.internal.ir.CpuTrailingNormalizationIr.Form.RMS_SCALED.name()));
             for (var bias : FLOATING) cases.add(row("layer/affine/" + input + '/' + scale + '/' + bias,
-                    trailingContext(true, List.of(input, scale, bias))));
+                    trailingContext(true, List.of(input, scale, bias)),
+                    io.github.pho001.synaptik.backend.cpu.internal.ir.CpuTrailingNormalizationIr.Form.LAYER_AFFINE.name()));
         }
         for (var types : floatingRoleCombinations()) for (int axis : List.of(0, 1)) {
             cases.add(row("batch-inference/" + types + '/' + axis, CpuBatchNormInferenceLoweringTest.context(types, Shape.of(2, 3, 4), axis, List.of(0, 1, 2, 3, 4))));
@@ -258,8 +263,14 @@ class CpuSpecializedGeneratedMatrixTest {
     private static void assertGenerated(List<Case> cases) {
         assertFalse(cases.isEmpty()); var counts = new TreeMap<String, Integer>();
         for (Case value : cases) for (Request request : Request.values()) {
-            var context = configure(value.context(), request); assertTrue(supports(context), value.id() + '/' + request);
-            var plan = new CpuPartitionPreparer().analyze(context).plan(); assertEquals(1, plan.units().size(), value.id());
+            var context = configure(value.context(), request);
+            if (CpuGeneratedCoverageEvidenceRegistry.lowUnsupported("specialized:" + value.id() + '/' + request,
+                    context, value.operationForm())) {
+                counts.merge(value.id().substring(0, value.id().indexOf('/')) + '/' + request + "->REJECTED_LOW_ARITHMETIC", 1, Integer::sum);
+                continue;
+            }
+            assertTrue(supports(context), value.id() + '/' + request);
+            var plan = new CpuPartitionPreparer().analyze(context).plan();
             var node = context.nodes().getFirst();
             var inputs = CpuGeneratedDirectEvidenceClosureTest.descriptors(context, node.inputs());
             var outputs = CpuGeneratedDirectEvidenceClosureTest.descriptors(context, node.outputs());
@@ -296,8 +307,9 @@ class CpuSpecializedGeneratedMatrixTest {
                     + " materialization-enabled is a candidate request, not proof a copy was selected");
             byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr());
             CpuGeneratedDirectEvidenceClosureTest.assertClosedSpecializedClass(bytes, route.specialization());
-            CpuGeneratedCoverageEvidenceRegistry.generated("specialized:" + value.id() + '/' + request,
+            var evidence = CpuGeneratedCoverageEvidenceRegistry.generated("specialized:" + value.id() + '/' + request,
                     context, plan);
+            assertEquals(value.operationForm(), evidence.operationForm(), value.id() + " canonical semantic form");
             counts.merge(value.id().substring(0, value.id().indexOf('/')) + '/' + request + "->" + plan.executionStrategy()
                     + "/m=" + plan.materializations().size(), 1, Integer::sum);
         }
@@ -433,8 +445,13 @@ class CpuSpecializedGeneratedMatrixTest {
     private static TensorDescriptor descriptor(DataType type, Shape shape) { return new TensorDescriptor(type, shape, Optional.of(LayoutDescriptor.contiguous(shape)), false); }
     private static List<LayoutDescriptor> trainingLayouts(Shape shape, int axis) { var result = new ArrayList<LayoutDescriptor>(); Shape vector = Shape.of(shape.toLongArray()[axis]); result.add(LayoutDescriptor.contiguous(shape));
         for (int i = 1; i < 5; i++) result.add(LayoutDescriptor.contiguous(vector)); result.add(LayoutDescriptor.contiguous(shape)); for (int i = 1; i < 5; i++) result.add(LayoutDescriptor.contiguous(vector)); return result; }
-    private static Case row(String id, PrepareContext<CpuPartitionAnalysisInputs> context) { return new Case(id, context); }
-    private record Case(String id, PrepareContext<CpuPartitionAnalysisInputs> context) { }
+    private static Case row(String id, PrepareContext<CpuPartitionAnalysisInputs> context) {
+        return row(id, context, context.nodes().getFirst().operation().kind().name());
+    }
+    private static Case row(String id, PrepareContext<CpuPartitionAnalysisInputs> context, String operationForm) {
+        return new Case(id, context, operationForm);
+    }
+    private record Case(String id, PrepareContext<CpuPartitionAnalysisInputs> context, String operationForm) { }
     private record Conv2dCase(String id, Conv2dAttrs attrs, Shape input, Shape weight, Shape output) { }
     private record Conv3dCase(String id, Conv3dAttrs attrs, Shape input, Shape weight, Shape output) { }
     private enum Request {

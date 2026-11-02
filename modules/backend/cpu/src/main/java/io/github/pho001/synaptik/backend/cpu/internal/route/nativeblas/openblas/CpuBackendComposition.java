@@ -311,7 +311,8 @@ public final class CpuBackendComposition implements AutoCloseable {
             throw new IllegalArgumentException(
                     "CPU integration requires exactly one non-empty CPU partition");
         }
-        return new PrepareContext<>(context.partitionDag(), context.values(), context.memoryRequirements(), context.constants(), inputs);
+        return new PrepareContext<>(context.partitionDag(), context.values(), context.memoryRequirements(),
+                context.constants(), inputs, context.scanActivityPlans());
     }
 
     /**

@@ -46,8 +46,84 @@ final class TensorTopKExpressions {
      * @throws IllegalStateException if Tensor identifier space is exhausted
      */
     static TopKResult apply(Tensor input, long k, int axis, boolean largest, boolean sorted) {
+        return applyChecked(input, k, axis, largest, sorted, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null exact producer input, never mutated
+     * @param k non-negative selection count within a known selected static extent; a bound against
+     *     a dynamic or expression extent is deferred
+     * @param axis positive or negative input axis
+     * @param largest whether selection requests largest rather than smallest values
+     * @param sorted whether output retains selection order rather than logical-index order
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input} is null
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input Shape
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if {@code k} is negative or exceeds a selected static extent
+     * @throws IllegalStateException if Tensor identifier space is exhausted
+     */
+    static TopKResult applyChecked(Tensor input, long k, int axis, boolean largest, boolean sorted,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return applyDescriptors(
+                input == null ? null : input.descriptor(),
+                k,
+                axis,
+                largest,
+                sorted,
+                descriptorCheck,
+                input);
+    }
+
+    /**
+     * Completes ordinary checked semantics synchronously without creating Tensor identities.
+     * The same descriptor guard core serves real construction; the sink is never retained.
+     * @param operation non-null ordinary operation selecting this family and its attributes
+     * @param inputs non-null ordered operand descriptors, including repeated occurrences
+     * @param outputCount exact canonical sibling count
+     * @param sink non-null consumer called exactly once with checked semantics and all outputs
+     * @throws NullPointerException if a required reference is null
+     * @throws IllegalArgumentException if cardinality or ordinary semantic guards reject the request
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(operation, "operation");
+        Objects.requireNonNull(inputs, "inputs");
+        Objects.requireNonNull(sink, "sink");
+        if (inputs.size() != 1 || outputCount != 2) {
+            throw new IllegalArgumentException("invalid ordinary descriptor cardinality");
+        }
+        for (TensorDescriptor input : inputs) {
+            Objects.requireNonNull(input, "input descriptor");
+        }
+        TopKAttrs attrs = (TopKAttrs) operation.attrs();
+        applyDescriptors(inputs.get(0), attrs.k(), attrs.axis(), attrs.largest(), attrs.sorted(), sink, null);
+    }
+
+    /**
+     * Runs the shared descriptor guards; provenance references are used only for real construction.
+     * @param input descriptor supplying ordinary operand metadata
+     * @param k ordinary checked construction parameter
+     * @param axis ordinary checked construction parameter
+     * @param largest ordinary checked construction parameter
+     * @param sorted ordinary checked construction parameter
+     * @param descriptorCheck synchronous, unretained sink; null selects real construction
+     * @param originalInput exact real operand, or null for descriptor completion
+     * @return the real result, or null after synchronous descriptor completion
+     */
+    private static TopKResult applyDescriptors(
+            TensorDescriptor input,
+            long k,
+            int axis,
+            boolean largest,
+            boolean sorted,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
         Objects.requireNonNull(input, "input");
-        TensorDescriptor inputDescriptor = input.descriptor();
+        TensorDescriptor inputDescriptor = input;
         Shape inputShape = inputDescriptor.shape();
         int normalizedAxis = inputShape.normalizeAxis(axis);
         TopKAttrs attrs = new TopKAttrs(normalizedAxis, k, largest, sorted);
@@ -74,9 +150,13 @@ final class TensorTopKExpressions {
                 Optional.empty(),
                 false);
         Operation operation = new Operation(TopKKind.TOP_K, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(valuesDescriptor, indicesDescriptor));
+            return null;
+        }
         List<Tensor> outputs = TensorFactory.createDerivedOutputs(
                 operation,
-                List.of(input),
+                List.of(originalInput),
                 List.of(valuesDescriptor, indicesDescriptor));
         return new TopKResult(outputs.get(0), outputs.get(1));
     }

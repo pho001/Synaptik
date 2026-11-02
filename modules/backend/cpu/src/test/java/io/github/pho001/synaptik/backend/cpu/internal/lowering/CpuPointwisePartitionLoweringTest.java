@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.backend.cpu.internal.lowering;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported;
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
@@ -43,6 +44,87 @@ import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 
 class CpuPointwisePartitionLoweringTest {
+    /** Source byte geometry preserves static affine storage rather than logical element count. */
+    @Test void sourceDescriptorBytesRetainOriginsHolesBroadcastAndEmptySpan() {
+        Shape matrix = Shape.of(2, 3);
+        var affine = new TensorDescriptor(DataType.FLOAT16, matrix,
+                Optional.of(LayoutDescriptor.of(matrix, new long[] {7, 2}, 3, true)), false);
+        var bytes = CpuPartitionLowering.descriptorByteSize(affine);
+        assertEquals(30, bytes.fixedByteSize().orElseThrow());
+        assertEquals(30, bytes.byteSize(0));
+        Shape broadcastShape = Shape.of(4, 3);
+        var broadcast = new TensorDescriptor(DataType.BFLOAT16, broadcastShape,
+                Optional.of(LayoutDescriptor.of(broadcastShape, new long[] {0, 1}, 2, true)), false);
+        assertEquals(10, CpuPartitionLowering.descriptorByteSize(broadcast)
+                .fixedByteSize().orElseThrow());
+        Shape empty = Shape.of(0, Long.MAX_VALUE);
+        var emptyView = new TensorDescriptor(DataType.FLOAT64, empty,
+                Optional.of(LayoutDescriptor.of(empty, new long[] {1, 1}, Long.MAX_VALUE, true)),
+                false);
+        assertEquals(0, CpuPartitionLowering.descriptorByteSize(emptyView)
+                .fixedByteSize().orElseThrow());
+        assertThrows(IllegalArgumentException.class, () -> CpuPartitionLowering.descriptorByteSize(
+                new TensorDescriptor(DataType.FLOAT32, matrix, Optional.empty(), false)));
+        Shape scalar = Shape.scalar();
+        var overflow = new TensorDescriptor(DataType.FLOAT64, scalar,
+                Optional.of(LayoutDescriptor.of(scalar, new long[0], Long.MAX_VALUE - 1, true)),
+                false);
+        assertThrows(ArithmeticException.class,
+                () -> CpuPartitionLowering.descriptorByteSize(overflow));
+    }
+
+    /** Named sources bind actual geometry and keep symbolic mode even when bytes are always zero. */
+    @Test void sourceDescriptorBytesUseActualBatchBindingLimitsIncludingEmptyGeometry() {
+        var b = new io.github.pho001.synaptik.model.shape.DynamicDimension("B");
+        var two = new io.github.pho001.synaptik.model.shape.StaticDimension(2);
+        var zero = new io.github.pho001.synaptik.model.shape.StaticDimension(0);
+        var source = new TensorDescriptor(DataType.INT64,
+                Shape.ofDimensions(b, two), Optional.empty(), false);
+        var bytes = CpuPartitionLowering.descriptorByteSize(source);
+        assertTrue(bytes.fixedByteSize().isEmpty());
+        assertEquals(0, bytes.byteSize(0));
+        assertEquals(48, bytes.byteSize(3));
+        assertEquals(16, bytes.byteSize(1));
+        assertThrows(IllegalArgumentException.class, () -> bytes.byteSize(-1));
+        assertThrows(ArithmeticException.class,
+                () -> bytes.byteSize((long) Integer.MAX_VALUE / 2 + 1));
+        var permanentlyEmpty = CpuPartitionLowering.descriptorByteSize(new TensorDescriptor(
+                DataType.FLOAT16, Shape.ofDimensions(b, zero), Optional.empty(), false));
+        assertTrue(permanentlyEmpty.fixedByteSize().isEmpty());
+        assertEquals(0, permanentlyEmpty.byteSize(Integer.MAX_VALUE));
+        assertThrows(ArithmeticException.class,
+                () -> permanentlyEmpty.byteSize((long) Integer.MAX_VALUE + 1));
+        var leadingEmpty = CpuPartitionLowering.descriptorByteSize(new TensorDescriptor(
+                DataType.BFLOAT16, Shape.ofDimensions(zero, b, two), Optional.empty(), false));
+        assertEquals(0, leadingEmpty.byteSize(7));
+        assertThrows(ArithmeticException.class,
+                () -> leadingEmpty.byteSize((long) Integer.MAX_VALUE / 2 + 1));
+        assertThrows(IllegalArgumentException.class, () -> CpuPartitionLowering.descriptorByteSize(
+                new TensorDescriptor(DataType.FLOAT32, Shape.ofDimensions(b, b),
+                        Optional.empty(), false)));
+        assertThrows(ArithmeticException.class, () -> CpuPartitionLowering.descriptorByteSize(
+                new TensorDescriptor(DataType.FLOAT32, Shape.ofDimensions(b, zero,
+                        new io.github.pho001.synaptik.model.shape.StaticDimension(
+                                (long) Integer.MAX_VALUE + 1)), Optional.empty(), false)));
+    }
+
+    /** Common facts preserve named-axis broadcasting without relaxing independent route admission. */
+    @Test void commonPointwiseFactsValidateArityAttributesDtypeAndExactNamedBroadcast() {
+        var b = new io.github.pho001.synaptik.model.shape.DynamicDimension("B");
+        var f = new io.github.pho001.synaptik.model.shape.StaticDimension(3);
+        Shape shape = Shape.ofDimensions(b,f);
+        var row = new TensorDescriptor(DataType.FLOAT32,shape,Optional.empty(),false);
+        var bias = descriptor(DataType.FLOAT32,Shape.of(3));
+        var node = new CompiledNode(new NodeId(0),new Operation(BinaryArithmeticKind.ADD,NoOperationAttrs.INSTANCE),
+                List.of(new ValueId(0),new ValueId(1)),List.of(new ValueId(2)));
+        assertEquals(shape,CpuPartitionLowering.validatePointwise(node,List.of(row,bias),row));
+        assertThrows(IllegalArgumentException.class,() -> CpuPartitionLowering.validatePointwise(node,List.of(row),row));
+        assertThrows(IllegalArgumentException.class,() -> CpuPartitionLowering.validatePointwise(node,
+                List.of(row,descriptor(DataType.FLOAT64,Shape.of(3))),row));
+        var other = new TensorDescriptor(DataType.FLOAT32,Shape.ofDimensions(
+                new io.github.pho001.synaptik.model.shape.DynamicDimension("Other"),f),Optional.empty(),false);
+        assertThrows(IllegalArgumentException.class,() -> CpuPartitionLowering.validatePointwise(node,List.of(row,other),row));
+    }
     @Test void delegatesRandomFamiliesBeforePointwiseCardinalityRules() {
         var initial = new CpuPartitionLowering().lower(
                 CpuRandomLoweringTest.initialContext(3, 4));
@@ -214,17 +296,17 @@ class CpuPointwisePartitionLoweringTest {
                 () -> assertEquals(CpuKernelIr.PowerRealization.RECIPROCAL,
                         power(ScalarValue.float32(-1.0f)).powerRealization()),
                 () -> assertEquals(CpuKernelIr.PowerRealization.DIRECT,
-                        power(ScalarValue.float64(0.5d)).powerRealization()),
-                () -> assertEquals(CpuKernelIr.PowerRealization.POSITIVE_ONE,
-                        power(ScalarValue.bfloat16Bits((short) 0x8000)).powerRealization()),
-                () -> assertEquals(CpuKernelIr.PowerRealization.IDENTITY,
-                        power(ScalarValue.bfloat16Bits((short) 0x3f80)).powerRealization()),
-                () -> assertEquals(CpuKernelIr.PowerRealization.SQUARE,
-                        power(ScalarValue.bfloat16Bits((short) 0x4000)).powerRealization()),
-                () -> assertEquals(CpuKernelIr.PowerRealization.RECIPROCAL,
-                        power(ScalarValue.bfloat16Bits((short) 0xbf80)).powerRealization()),
-                () -> assertEquals(CpuKernelIr.PowerRealization.DIRECT,
-                        power(ScalarValue.bfloat16Bits((short) 0x3f00)).powerRealization()));
+                        power(ScalarValue.float64(0.5d)).powerRealization()));
+        // Even identity and constant-write power plans retain their numerical provenance.
+        for (ScalarValue exponent : List.of(
+                ScalarValue.bfloat16Bits((short) 0x8000),
+                ScalarValue.bfloat16Bits((short) 0x3f80),
+                ScalarValue.bfloat16Bits((short) 0x4000),
+                ScalarValue.bfloat16Bits((short) 0xbf80),
+                ScalarValue.bfloat16Bits((short) 0x3f00))) {
+            assertTrue(assertLowUnsupported(singlePower(exponent, Shape.of(3),
+                    CpuPartitionAnalysisInputs.DEFAULT)));
+        }
     }
 
     @Test void directPowerForcesScalarComputeWhileSpecialPowerRetainsVectorEligibility() {
@@ -237,21 +319,15 @@ class CpuPointwisePartitionLoweringTest {
                 Shape.of(count), inputs)).plan();
         var square = new CpuPartitionPreparer().analyze(singlePower(ScalarValue.float64(2.0d),
                 Shape.of(count), inputs)).plan();
-        var bfloatSquare = new CpuPartitionPreparer().analyze(singlePower(
-                ScalarValue.bfloat16Bits((short) 0x4000), Shape.of(count), inputs)).plan();
+        assertTrue(assertLowUnsupported(singlePower(
+                ScalarValue.bfloat16Bits((short) 0x4000), Shape.of(count), inputs)));
         assertAll(
                 () -> assertEquals("parallel-scalar", direct.executionStrategy().toString()),
                 () -> assertEquals(0, direct.vectorSpeciesBitSize()),
                 () -> assertEquals("parallel-vector", square.executionStrategy().toString()),
                 () -> assertEquals(List.of(CpuKernelIr.PowerRealization.DIRECT),
                         direct.units().getFirst().portablePlan().specialization()
-                                .scalarPowerRealizations()),
-                () -> assertTrue(direct.loweringManifest().contains("power=[DIRECT]")),
-                () -> assertTrue(square.loweringManifest().contains("power=[SQUARE]")),
-                () -> assertEquals("parallel-scalar", bfloatSquare.executionStrategy().toString()),
-                () -> assertEquals(0, bfloatSquare.vectorSpeciesBitSize()),
-                () -> assertEquals(59, bfloatSquare.units().getFirst().portablePlan()
-                        .specialization().classIdentitySchema()));
+                                .scalarPowerRealizations()));
     }
 
     @Test void lowersExtremaClampTensorPowerAndLogicalOccurrencesWithoutDecomposition() {

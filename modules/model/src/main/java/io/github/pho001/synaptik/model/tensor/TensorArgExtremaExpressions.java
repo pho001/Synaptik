@@ -66,13 +66,72 @@ final class TensorArgExtremaExpressions {
             int axis,
             boolean keepDimensions,
             ArgExtremaTiePolicy tiePolicy) {
+        return applyChecked(input, kind, axis, keepDimensions, tiePolicy, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null floating or integral tensor retained as the sole producer input
+     * @param kind non-null {@code ARG_MIN} or {@code ARG_MAX} kind
+     * @param axis positive or negative input axis accepted by {@link Shape#normalizeAxis(int)}
+     * @param keepDimensions whether to retain the selected result axis with extent one
+     * @param tiePolicy non-null explicit logical-index tie policy
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input}, {@code kind}, or {@code tiePolicy} is null,
+     *     checked in that order with the parameter name as the message
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if {@code kind} is neither arg-extrema kind, with message
+     *     {@code kind must be ARG_MIN or ARG_MAX, but was <kind>}; if the input type is BOOL, with
+     *     message {@code input must have a numeric data type, but was BOOL}; or if the normalized
+     *     selected axis has static extent zero, with message {@code arg-extrema reduction axis
+     *     must be non-empty, but axis <normalizedAxis> has static extent 0}
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the input Shape, including
+     *     every axis for a scalar input
+     * @throws IllegalStateException if tensor identifier space is exhausted after local metadata
+     *     construction
+     */
+    static Tensor applyChecked(
+            Tensor input,
+            AggregateReductionKind kind,
+            int axis,
+            boolean keepDimensions,
+            ArgExtremaTiePolicy tiePolicy,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(kind, "kind");
+        Objects.requireNonNull(tiePolicy, "tiePolicy");
+        return applyDescriptors(
+                input.descriptor(), kind, axis, keepDimensions, tiePolicy, descriptorCheck, input);
+    }
+
+    /**
+     * Runs the shared descriptor guards and completes metadata before real provenance is used.
+     * @param input immutable operand metadata
+     * @param kind ordinary construction argument, validated in existing order
+     * @param axis ordinary construction argument, validated in existing order
+     * @param keepDimensions ordinary construction argument, validated in existing order
+     * @param tiePolicy ordinary construction argument, validated in existing order
+     * @param descriptorCheck optional synchronous, unretained metadata completion; null constructs a Tensor
+     * @param inputTensor real provenance, unused when metadata completion is supplied
+     * @return null after metadata completion, otherwise the ordinary result
+     */
+    private static Tensor applyDescriptors(
+            TensorDescriptor input,
+            AggregateReductionKind kind,
+            int axis,
+            boolean keepDimensions,
+            ArgExtremaTiePolicy tiePolicy,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor inputTensor) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(tiePolicy, "tiePolicy");
         validateKind(kind);
         validateNumericInput(input);
 
-        Shape inputShape = input.descriptor().shape();
+        Shape inputShape = input.shape();
         int normalizedAxis = inputShape.normalizeAxis(axis);
         if (inputShape.dimensions().get(normalizedAxis).staticSize().orElse(-1L) == 0L) {
             throw new IllegalArgumentException(
@@ -83,7 +142,7 @@ final class TensorArgExtremaExpressions {
         Shape shape = reduceShape(inputShape, normalizedAxis, keepDimensions);
         ArgExtremaAttrs attrs =
                 new ArgExtremaAttrs(normalizedAxis, keepDimensions, tiePolicy);
-        return create(input, kind, shape, attrs);
+        return createChecked(inputTensor, kind, shape, attrs, descriptorCheck);
     }
 
     /**
@@ -104,12 +163,12 @@ final class TensorArgExtremaExpressions {
     /**
      * Requires floating or signed-integral input without promotion or conversion.
      *
-     * @param input non-null tensor whose descriptor supplies the exact input type
+     * @param input non-null descriptor supplying the exact input type
      * @throws IllegalArgumentException if the input type is BOOL, with message
      *     {@code input must have a numeric data type, but was BOOL}
      */
-    private static void validateNumericInput(Tensor input) {
-        DataType type = input.descriptor().dataType();
+    private static void validateNumericInput(TensorDescriptor input) {
+        DataType type = input.dataType();
         if (!type.isFloating() && !type.isIntegral()) {
             throw new IllegalArgumentException(
                     "input must have a numeric data type, but was " + type);
@@ -152,32 +211,53 @@ final class TensorArgExtremaExpressions {
         return Shape.ofDimensions(result);
     }
 
+
     /**
-     * Creates the fixed descriptor, exact operation, and one-output provenance.
-     *
-     * <p>The method creates one unresolved, non-differentiable INT64 descriptor and one Operation
-     * retaining the exact kind and attributes, then makes one central factory call with no label
-     * and exact ordered input {@code [input]}. The factory creates a fresh producer and
-     * index-zero provenance. This method performs no further validation and accesses no value or
-     * storage.</p>
-     *
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
      * @param input validated tensor retained as the sole producer input
      * @param kind validated exact arg-extrema kind
      * @param shape non-null derived result Shape
      * @param attrs non-null exact normalized attributes
-     * @return the non-null fresh unlabeled, storage-free Tensor returned by the central factory,
-     *     with the exact descriptor, operation, ordered input, and output index zero
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
      * @throws IllegalStateException if tensor identifier space is exhausted after descriptor,
      *     operation, producer, and provenance construction
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata
      */
-    private static Tensor create(
+    private static Tensor createChecked(
             Tensor input,
             AggregateReductionKind kind,
             Shape shape,
-            ArgExtremaAttrs attrs) {
+            ArgExtremaAttrs attrs,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         TensorDescriptor descriptor =
                 new TensorDescriptor(DataType.INT64, shape, Optional.empty(), false);
         Operation operation = new Operation(kind, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
+    }
+
+    /**
+     * Completes one admitted ordinary occurrence synchronously using the real construction guards.
+     * No Tensor or identity is created and the callback is not retained. The owning facade checks
+     * occurrence cardinality and compares the returned canonical operation with the supplied one.
+     *
+     * @param operation non-null ordinary operation admitted to this family by the owning selector
+     * @param inputs non-null immutable operand metadata in canonical input order
+     * @param outputCount complete canonical output count, already validated by the owning facade
+     * @param sink non-null synchronous consumer of the canonical operation and all output metadata
+     * @throws IllegalArgumentException if ordinary semantic guards or the consumer reject metadata
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(sink, "sink");
+        ArgExtremaAttrs attrs = (ArgExtremaAttrs) operation.attrs();
+        applyDescriptors(inputs.get(0), (AggregateReductionKind) operation.kind(), attrs.axis(),
+                attrs.keepDimensions(), attrs.tiePolicy(), sink, null);
     }
 }

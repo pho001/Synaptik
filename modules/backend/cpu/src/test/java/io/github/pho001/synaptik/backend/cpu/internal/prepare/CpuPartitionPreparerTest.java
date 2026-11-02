@@ -595,7 +595,7 @@ public class CpuPartitionPreparerTest {
                         .specialization().classIdentitySchema()));
     }
 
-    @Test void convolutionUnprovedTypesLayoutsAndWidthDomainsRemainScalar() {
+    @Test void convolutionUnprovedLayoutsAndWidthsRemainScalarWhileLowNumericalTypesReject() {
         var vector = new PortableExecutionConfig(ComputePreference.VECTOR_IF_ELIGIBLE, 1, 1, 1);
         var floatCarriers = List.of(CarrierAccess.FLOAT_ARRAY, CarrierAccess.FLOAT_ARRAY,
                 CarrierAccess.FLOAT_ARRAY);
@@ -623,22 +623,19 @@ public class CpuPartitionPreparerTest {
 
         var shortPlan = analyzeWith(shortWidth, floatCarriers, vector);
         var stridedPlan = analyzeWith(strided, floatCarriers, vector);
-        var bfloatPlan = analyzeWith(bfloat,
-                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT,
-                        CarrierAccess.MEMORY_SEGMENT), vector);
         assertAll(
                 () -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
                         shortPlan.executionStrategy()),
                 () -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
                         stridedPlan.executionStrategy()),
-                () -> assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
-                        bfloatPlan.executionStrategy()),
-                () -> assertEquals(52, shortPlan.units().getFirst().portablePlan()
-                        .specialization().classIdentitySchema()),
-                () -> assertEquals(52, stridedPlan.units().getFirst().portablePlan()
-                        .specialization().classIdentitySchema()),
-                () -> assertEquals(52, bfloatPlan.units().getFirst().portablePlan()
-                        .specialization().classIdentitySchema()));
+                () -> assertTrue(io.github.pho001.synaptik.backend.cpu
+                        .CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(
+                                new PrepareContext<>(bfloat.partition(), bfloat.nodes(),
+                                        bfloat.values(), bfloat.memoryRequirements(),
+                                        bfloat.constants(), new CpuPartitionAnalysisInputs(false,
+                                                List.of(CarrierAccess.MEMORY_SEGMENT,
+                                                        CarrierAccess.MEMORY_SEGMENT,
+                                                        CarrierAccess.MEMORY_SEGMENT), vector)))));
     }
 
     private static CpuPartitionPreparationPlan analyzeWith(
@@ -973,7 +970,7 @@ public class CpuPartitionPreparerTest {
                 () -> assertTrue(initial.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.workspaceDeclaration().isEmpty()),
                 () -> assertTrue(dropout.randomGeometry().isPresent()),
-                () -> assertEquals(70, io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema.CURRENT_VERSION));
+                () -> assertEquals(71, io.github.pho001.synaptik.backend.cpu.internal.cache.CpuGeneratorSchema.CURRENT_VERSION));
     }
     @Test void foldDeclaresExactlyTwoBuffersOneArtifactAndNoWorkspaceOrMaterialization() {
         var base = CpuFoldLoweringTest.context(new Operation(WindowTransformKind.FOLD_AXIS,

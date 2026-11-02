@@ -26,6 +26,8 @@ import io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.Objects;
 import java.util.Optional;
 import jdk.incubator.vector.DoubleVector;
@@ -79,6 +81,8 @@ import jdk.incubator.vector.ByteVector;
  * workspace or materialization, and may parallelize only across complete independent slices.
  * One-node ordinary aggregates likewise remain scalar compute, declare exactly input and output
  * with no workspace or materialization, and may parallelize only across complete output cells.
+ * Fixed softmax derivative units instead force scalar single-range execution, reuse one
+ * exact-state slice across rows and declare the full-gradient final span, not the SUM span.
  * One-node masked SUM/MEAN plans declare ordered data, mask, and output buffers plus one exact
  * floating-state workspace sliced by the simultaneously used complete-output-cell ranges. They
  * never materialize the mask or declare selected-count, partial, or combine state.
@@ -92,9 +96,14 @@ import jdk.incubator.vector.ByteVector;
  * Portable MATMUL realization and generated compute strategy follow the same cold preference;
  * a scalar preference retains direct or threshold-eligible tiled scalar work even when the
  * descriptor would also qualify for a vector candidate.
+ * Scalar analysis does not resolve optional Vector API species; only an explicit vector
+ * preference requests those target facts.
  * The profile-free analysis retains the qualified CPU routes and binds only non-profile
  * lowering, generated-artifact, OpenBLAS, and tuning identity facts. Route choice remains cold;
- * it does not alter the generated hot-loop algorithm.
+ * it does not alter the generated hot-loop algorithm. Proved row-map/multiple-terminal units
+ * are selected before declarations, use scalar single-range full-body work count one even at
+ * B=0, and retain every exact-SUM/saved/public boundary. Only selected ordinary regions use
+ * projection 72; represented Scan regions remain inside their existing projection-71 unit.
  */
 public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         CpuPartitionAnalysisInputs, CpuPartitionPreparationPlan> {
@@ -126,6 +135,14 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      * Lowers and fuses one complete CPU-owned partition, selects a bounded complete plan when
      * available or a direct long plan, and declares exact post-fusion resources. The direct path
      * has no whole-partition node ceiling and makes no complete-candidate or copy-tuning claim.
+     * Qualified symbolic partitions retain fixed scalar, single-range ordinary units and
+     * independently proved Scan units. Their exact run-size declarations precede slot assignment;
+     * invocation B never selects topology, a route or new shared requirements.
+     * Proved static typed-one counts retain every original source's initialized representation
+     * as a partition declaration while their generated units expose only output boundaries.
+     * Absorbed private expansions and contiguous copies have no declaration or executable.
+     * A nonempty carrier pattern describes all final deduplicated partition declarations,
+     * including retained sources, in declaration order; each unit receives only its own carriers.
      * @param context non-null complete CPU analysis context
      * @return one immutable analysis with non-empty topologically ordered units, one exact
      *     deduplicated declaration per materialized value, and each unit's already-selected
@@ -151,8 +168,211 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     @Override public BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyze(
             PrepareContext<CpuPartitionAnalysisInputs> context) {
         Objects.requireNonNull(context, "context");
+        requirePermittedSource(context);
+        if (context.requiresBatchSize()) return analyzeOrdinaryBatch(context);
+        if (!context.constants().isEmpty()) {
+            var units = decomposer.decompose(context, lowering);
+            if (units.stream().anyMatch(u -> u.lowering().portableKernelIr()
+                    instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConstantWriteIr))
+                return withMetadata(context, analyzeTopology(context, units, null), List.of(), List.of(), null);
+        }
         if (directPartition(context)) return analyzeLongPartition(context);
         return finishOpenBlas(context, selectPlan(context, Optional.empty()).analysis());
+    }
+
+    /**
+     * Composes qualified ordinary and Scan units using the complete partition's actual read
+     * mappings. Scoped bodies remain inside their Scan unit; only unique outer reads and demanded
+     * writes enter shared declarations. Structural zero Scan workspaces retain their membership.
+     *
+     * @param context non-null batch-required CPU projection
+     * @return non-null immutable fixed-topology scalar analysis with exact numeric size recipes
+     * @throws IllegalArgumentException if a unit, carrier or access mapping is unsupported
+     * @throws ArithmeticException if structural extent, stride or byte coefficients overflow
+     */
+    private BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeOrdinaryBatch(
+            PrepareContext<CpuPartitionAnalysisInputs> context) {
+        var rowRegions = ordinaryRowRegions(context);
+        var regionMembers = new java.util.HashSet<io.github.pho001.synaptik.model.graph.CompiledNode>();
+        for (var lowered : rowRegions.values()) {
+            var ir = (io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr)lowered.portableKernelIr();
+            int inputs = (int)ir.arithmetic().values().stream().filter(v -> v.kind() == CpuKernelIr.Value.Kind.INPUT).count();
+            var selected = new java.util.HashSet<>(lowered.virtualValues());
+            selected.addAll(lowered.boundaryValues().subList(inputs,lowered.boundaryValues().size()));
+            context.nodes().stream().filter(n -> n.outputs().stream().anyMatch(selected::contains))
+                    .forEach(regionMembers::add);
+        }
+        var layouts = CpuPartitionLowering.batchLayouts(context);
+        var sizes = CpuPartitionLowering.batchByteSizes(context);
+        var values = new LinkedHashMap<ValueId, io.github.pho001.synaptik.model.graph.GraphValue>();
+        context.values().forEach(value -> values.put(value.id(), value));
+        var ordered = new java.util.LinkedHashSet<ValueId>();
+        for (var node : context.nodes()) {
+            if (rowRegions.containsKey(node)) { ordered.addAll(rowRegions.get(node).boundaryValues()); continue; }
+            if (regionMembers.contains(node)) continue;
+            ordered.addAll(node.inputs());
+            if (node.scanBody().isPresent()) node.scanBody().orElseThrow().demandedOutputIndices()
+                    .forEach(p -> ordered.add(node.outputs().get(p)));
+            else ordered.addAll(node.outputs());
+        }
+        var boundaryValues = List.copyOf(ordered);
+        var requested = context.backendInputs().carrierPattern().isEmpty()
+                ? java.util.Collections.nCopies(boundaryValues.size(), CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
+                : context.backendInputs().carrierPattern();
+        if (requested.size() != boundaryValues.size()) throw new IllegalArgumentException("batch carrier count disagrees");
+        var carriers = new LinkedHashMap<ValueId, CpuKernelSpecialization.CarrierAccess>();
+        for (int i = 0; i < boundaryValues.size(); i++) {
+            var carrier = requested.get(i);
+            if (carrier != CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT
+                    && carrier != CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY) throw new IllegalArgumentException("unsupported batch carrier");
+            carriers.put(boundaryValues.get(i), carrier);
+        }
+        var declarations = boundaryValues.stream().map(id -> new PreparationResourceRequirement.Buffer(
+                id, sizes.get(id), values.get(id).descriptor().dataType().byteWidth())).toList();
+        var requirements = new ArrayList<PreparationResourceRequirement>(declarations);
+        var units = new ArrayList<CpuPartitionPreparationPlan.ExecutionUnitPlan>();
+        var producers = new LinkedHashMap<ValueId, Integer>();
+        for (int position = 0; position < context.nodes().size(); position++) {
+            var node = context.nodes().get(position);
+            if (rowRegions.containsKey(node)) {
+                var lowered = rowRegions.get(node);
+                var ir = (io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr)lowered.portableKernelIr();
+                var pattern = lowered.boundaryValues().stream().map(carriers::get).toList();
+                var rowExec = rowEmission(context,ir,null);
+                int ranges = rowExec.map(CpuKernelSpecialization.RowFusionEmission::maximumPartialCount).orElse(1);
+                boolean vector = rowExec.isPresent() && context.backendInputs().portableExecution().computePreference()
+                        == CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE && vectorRowEligible(ir);
+                var strategy = vector ? ranges > 1 ? CpuPartitionPreparationPlan.ExecutionStrategy.PARALLEL_VECTOR
+                        : CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR : ranges > 1
+                        ? CpuPartitionPreparationPlan.ExecutionStrategy.PARALLEL_SCALAR : CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR;
+                int bits = vector ? speciesBits(ir.arithmetic().values().getFirst().dataType()) : 0;
+                var spec = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()),
+                        strategy,lowered.boundaryDataTypes(),pattern,
+                        bits,-1,List.of(),rowExec.isPresent(),72,Optional.empty(),Optional.empty(),true,false,Optional.of(ir),rowExec);
+                var ordinal = new LinkedHashMap<ValueId,Integer>();
+                int inputs = (int)ir.arithmetic().values().stream().filter(v -> v.kind() == CpuKernelIr.Value.Kind.INPUT).count();
+                int read = 0, write = inputs;
+                for (var v : ir.arithmetic().values()) if (v.kind() == CpuKernelIr.Value.Kind.INPUT)
+                    ordinal.put(lowered.boundaryValues().get(read++),v.ordinal());
+                else if (v.kind() == CpuKernelIr.Value.Kind.OUTPUT) ordinal.put(lowered.boundaryValues().get(write++),v.ordinal());
+                var recipes = lowered.boundaryValues().stream().map(id -> ir.accesses().get(ordinal.get(id))).toList();
+                var route = new CpuPortableRoutePlan(ir,spec,recipes,Optional.empty(),Optional.empty());
+                var outputIds = lowered.boundaryValues().subList(inputs,lowered.boundaryValues().size());
+                var dependencies = lowered.boundaryValues().subList(0,inputs).stream().map(producers::get)
+                        .filter(Objects::nonNull).distinct().toList();
+                var members = java.util.stream.IntStream.range(0,context.nodes().size()).filter(i -> {
+                    var out = context.nodes().get(i).outputs().getFirst();
+                    return lowered.virtualValues().contains(out) || outputIds.contains(out);
+                }).boxed().toList();
+                int unitIndex = units.size();
+                var workspace = rowExec.map(e -> new PreparationResourceRequirement.Workspace(unitIndex,rowWorkspaceBytes(ir,e),8));
+                workspace.ifPresent(requirements::add);
+                var runtime = new CpuPartitionPreparationPlan.UnitRuntimeFacts(new long[0],Optional.empty(),workspace,
+                        rowExec.isPresent() ? CpuPartitionPreparationPlan.WorkspaceUse.GENERAL_SCAN_BANKS : CpuPartitionPreparationPlan.WorkspaceUse.NONE,Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),
+                        Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),
+                        Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty());
+                units.add(new CpuPartitionPreparationPlan.ExecutionUnitPlan(route,lowered.boundaryValues(),List.of(),pattern,pattern,
+                        new long[]{1},1,strategy,ranges,rowExec.isPresent() ? context.backendInputs().portableExecution().minimumElementsPerWorker() : 1,bits,
+                        Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),
+                        outputIds.size(),lowered.fusionReason(),dependencies,members,runtime));
+                outputIds.forEach(id -> producers.put(id,unitIndex));
+                continue;
+            }
+            if (regionMembers.contains(node)) continue;
+            if (node.scanBody().isPresent()) {
+                var local = decomposer.unitContext(context,List.of(node),context.backendInputs());
+                var lowered = new io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLowering().lower(local,layouts);
+                var analysis = analyzeGeneralScan(local,lowered,0);
+                var unit = analysis.plan().units().getFirst();
+                int requirementId = units.size();
+                var workspace = unit.runtimeFacts().workspaceDeclaration().map(w ->
+                        new PreparationResourceRequirement.Workspace(requirementId,w.size(),w.byteAlignment()));
+                workspace.ifPresent(requirements::add);
+                var runtime = new CpuPartitionPreparationPlan.UnitRuntimeFacts(new long[0],Optional.empty(),workspace,
+                        workspace.isPresent() ? CpuPartitionPreparationPlan.WorkspaceUse.GENERAL_SCAN_BANKS : CpuPartitionPreparationPlan.WorkspaceUse.NONE,
+                        Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),
+                        Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),
+                        Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),unit.runtimeFacts().generalScan());
+                var dependencies = node.inputs().stream().map(producers::get).filter(Objects::nonNull).distinct().toList();
+                units.add(new CpuPartitionPreparationPlan.ExecutionUnitPlan(unit.portablePlan(),unit.boundaryValues(),
+                        unit.accessBindings(),unit.carrierPattern(),unit.generatedCarrierPattern(),unit.extents(),unit.elementCount(),
+                        unit.executionStrategy(),unit.selectedRangeCount(),unit.minimumElementsPerWorker(),unit.vectorSpeciesBitSize(),
+                        Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),
+                        unit.outputCount(),unit.fusionReason(),dependencies,List.of(position),runtime));
+                int unitIndex = units.size()-1; node.outputs().forEach(id -> producers.put(id,unitIndex));
+                continue;
+            }
+            var ids = new ArrayList<ValueId>(); for (var id : node.inputs()) if (!ids.contains(id)) ids.add(id);
+            ids.addAll(node.outputs());
+            for (var id : node.outputs()) if (carriers.get(id) != CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
+                throw new IllegalArgumentException("batch created outputs require segment carriers");
+            var pattern = ids.stream().map(carriers::get).toList();
+            var route = CpuPartitionLowering.lowerOrdinaryBatch(node, values, layouts, sizes, pattern);
+            int unitIndex = units.size();
+            Optional<PreparationResourceRequirement.Workspace> workspace = route.batchAggregate()
+                    .map(recipe -> new PreparationResourceRequirement.Workspace(unitIndex, recipe, 8));
+            workspace.ifPresent(requirements::add);
+            var runtime = new CpuPartitionPreparationPlan.UnitRuntimeFacts(new long[0], Optional.empty(), workspace,
+                    workspace.isPresent() ? CpuPartitionPreparationPlan.WorkspaceUse.AGGREGATE_EXACT_STATE : CpuPartitionPreparationPlan.WorkspaceUse.NONE,
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty(), Optional.empty());
+            var dependencies = node.inputs().stream().map(producers::get).filter(Objects::nonNull).distinct().toList();
+            units.add(new CpuPartitionPreparationPlan.ExecutionUnitPlan(route, ids, List.of(), pattern, pattern,
+                    new long[0], 0, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, 1, 1, 0,
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                    1, "ordinary-batch-v1: fixed scalar unit; numeric invocation geometry", dependencies, List.of(position), runtime));
+            node.outputs().forEach(id -> producers.put(id, unitIndex));
+        }
+        var combined = new CpuPartitionPreparationPlan(units, CpuPartitionPreparationPlan.Route.PORTABLE,
+                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, declarations, boundaryValues, List.of(), requested, requested,
+                new long[0], 0, new long[0], 1, 1, 0, "ordinary-batch-v1", Optional.empty(), Optional.empty(),
+                CpuPartitionPreparationPlan.WorkspaceUse.NONE, new CpuSpecializationBudget(4, 1, 0, 0),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), Optional.empty());
+        return new BackendPartitionAnalysis<>(context.partition(), combined, requirements);
+    }
+
+    /**
+     * Selects bounded ordinary symbolic regions against full partition uses before declarations.
+     * F64 symbolic matrices and explicit legacy carrier lists remain on their existing paths.
+     * @param context complete symbolic CPU partition
+     * @return immutable anchor-to-complete-region map, empty when no proof succeeds
+     */
+    private Map<io.github.pho001.synaptik.model.graph.CompiledNode,CpuPartitionLowering.LoweredPartition>
+            ordinaryRowRegions(PrepareContext<CpuPartitionAnalysisInputs> context) {
+        if (!context.backendInputs().carrierPattern().isEmpty()) return Map.of();
+        var result = new LinkedHashMap<io.github.pho001.synaptik.model.graph.CompiledNode,CpuPartitionLowering.LoweredPartition>();
+        for (int start = 0; start < context.nodes().size(); start++) {
+            for (int end = Math.min(context.nodes().size(),start+64); end > start+1; end--) {
+                var nodes = context.nodes().subList(start,end);
+                try {
+                    var lowered = lowering.lower(decomposer.unitContext(context,nodes,context.backendInputs()));
+                    if (!(lowered.portableKernelIr() instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr ir)
+                            || lowered.boundaryDataTypes().stream().anyMatch(t -> t != DataType.FLOAT32)) continue;
+                    var ids = new LinkedHashMap<ValueId,Integer>();
+                    int inputs = (int)ir.arithmetic().values().stream().filter(v -> v.kind() == CpuKernelIr.Value.Kind.INPUT).count();
+                    int read = 0, write = inputs, virtual = 0;
+                    for (var v : ir.arithmetic().values()) ids.put(switch (v.kind()) {
+                        case INPUT -> lowered.boundaryValues().get(read++);
+                        case OUTPUT -> lowered.boundaryValues().get(write++);
+                        case VIRTUAL -> lowered.virtualValues().get(virtual++);
+                    },v.ordinal());
+                    for (var v : context.values()) if (!ids.containsKey(v.id())) ids.put(v.id(),ids.size());
+                    var uses = new ArrayList<List<Integer>>();
+                    for (int v = 0; v < ids.size(); v++) uses.add(new ArrayList<>());
+                    for (var n : context.nodes()) for (var in : n.inputs()) for (var out : n.outputs()) uses.get(ids.get(in)).add(ids.get(out));
+                    for (int v = 0; v < ir.viewOrigins().size(); v++) if (ir.viewOrigins().get(v) != v
+                            && !uses.get(ir.viewOrigins().get(v)).contains(v)) uses.get(ir.viewOrigins().get(v)).add(v);
+                    if (io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRowMapReductionLowering.prove(ir,uses,
+                            java.util.stream.IntStream.range(0,ids.size()).mapToObj(v -> List.<Integer>of()).toList()).isEmpty()) continue;
+                    result.put(nodes.getFirst(),lowered); start = end-1; break;
+                } catch (IllegalArgumentException rejected) { /* Existing per-node path is unchanged. */ }
+            }
+        }
+        return Map.copyOf(result);
     }
 
     /**
@@ -191,6 +411,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     public CompletePlanCandidates completePlanCandidates(
             PrepareContext<CpuPartitionAnalysisInputs> context) {
         Objects.requireNonNull(context, "context");
+        requirePermittedSource(context);
         if (directPartition(context)) {
             analyzeLongPartition(context);
             return new CompletePlanCandidates(List.of(), false);
@@ -233,6 +454,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             SelectedCompletePlan selectedPlan) {
         Objects.requireNonNull(selectedPlan, "selectedPlan");
         Objects.requireNonNull(context, "context");
+        requirePermittedSource(context);
         if (directPartition(context)) throw new IllegalArgumentException(
                 "complete CPU plan selection is unavailable for direct scan or over-eight-node partitions");
         return finishOpenBlas(context, selectPlan(Objects.requireNonNull(context, "context"),
@@ -440,10 +662,25 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         return new BackendPartitionAnalysis<>(analysis.partition(), representedPlan, requirements);
     }
 
+    /**
+     * Chooses existing one-unit analysis or complete DAG resource assembly for selected units.
+     * Output-only count units require DAG assembly even alone because original source declarations
+     * belong to their containing partition, not their computational entry.
+     * @param context non-null immutable complete CPU projection, borrowed
+     * @param units non-null selected disjoint units in stable topological order, borrowed
+     * @param carrierReferenceValues original carrier-order value IDs, or {@code null} to derive
+     *     carrier order from this partition's declarations
+     * @return non-null immutable analysis with declarations selected before shared slot assignment
+     * @throws IllegalArgumentException if unit or requested carrier facts cannot be analyzed
+     * @throws ArithmeticException if checked resource geometry overflows
+     */
     private BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeTopology(
             PrepareContext<CpuPartitionAnalysisInputs> context,
             List<CpuPartitionDagDecomposer.Unit> units, List<ValueId> carrierReferenceValues) {
-        if (units.size() != 1 || units.getFirst().lowering().recurrentScan().isPresent())
+        if (units.size() != 1 || units.getFirst().lowering().recurrentScan().isPresent()
+                || units.getFirst().lowering().generalScan().isPresent()
+                || units.getFirst().lowering().portableKernelIr()
+                    instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConstantWriteIr)
             return analyzeDag(context, units, carrierReferenceValues);
         var unit = units.getFirst();
         PrepareContext<CpuPartitionAnalysisInputs> unitContext = context;
@@ -576,7 +813,26 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             PrepareContext<CpuPartitionAnalysisInputs> context,
             CpuPartitionLowering.LoweredPartition lowered, int workspaceRequirementId,
             boolean allowMaterialization) {
+        return analyzeUnit(context, lowered, workspaceRequirementId, allowMaterialization, false);
+    }
+
+    /**
+     * Analyzes real ordinary resources while preserving the selected affine pack protocol.
+     * @param context exact projected ordinary unit
+     * @param lowered actual physical lowering, including its unchanged address pack
+     * @param workspaceRequirementId declaration ID for any family workspace
+     * @param allowMaterialization whether ordinary external-read materialization may be selected
+     * @param controlled whether a Scan helper uses controlled distinct-write ordinal triples
+     * @return complete ordinary resource analysis with the actual pair or triple pack
+     * @throws IllegalArgumentException if physical or resource facts disagree
+     */
+    private BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeUnit(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            CpuPartitionLowering.LoweredPartition lowered, int workspaceRequirementId,
+            boolean allowMaterialization, boolean controlled) {
         if (lowered.recurrentScan().isPresent()) return analyzeRecurrent(context, lowered, workspaceRequirementId);
+        CpuPartitionLowering.requirePermittedLowPrecisionUse(lowered.portableKernelIr());
+        if (lowered.generalScan().isPresent()) return analyzeGeneralScan(context, lowered, workspaceRequirementId);
         var requestedCarriers = context.backendInputs().carrierPattern().isEmpty()
                 ? java.util.Collections.nCopies(lowered.boundaryValues().size(),
                         CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
@@ -601,6 +857,12 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanIr;
         boolean aggregate = lowered.portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr;
+        boolean aggregateFusion = lowered.portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateFusionIr;
+        boolean softmaxBackward = lowered.portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSoftmaxBackwardIr;
+        boolean constantWrite = lowered.portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConstantWriteIr;
         boolean argExtrema = lowered.portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuArgExtremaIr;
         boolean maskedReduction = lowered.portableKernelIr()
@@ -620,6 +882,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         boolean conv3d = lowered.portableKernelIr()
                 instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConv3dIr;
         boolean matmul = lowered.matmulIr().isPresent();
+        boolean rowRegion = lowered.portableKernelIr() instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr;
         boolean pool2d = lowered.pool2dGeometry().isPresent();
         boolean pool3d = lowered.pool3dGeometry().isPresent();
         boolean attention = lowered.attentionGeometry().isPresent();
@@ -645,7 +908,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                     selected.consumerBinding().plan());
         }
         var config = context.backendInputs().portableExecution();
-        DataType vectorType = vectorLaneType(kernelIr);
+        DataType vectorType = config.computePreference()
+                == CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
+                ? vectorLaneType(kernelIr) : null;
         int lanes = speciesLanes(vectorType);
         int speciesBits = speciesBits(vectorType);
         boolean matmulVector = matmul && config.computePreference()
@@ -669,7 +934,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                     == CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
                 && vectorType != null && lanes > 1 && lowered.elementCount() >= lanes
                 && convVectorEligible(lowered, bindings, lanes);
-        boolean vectorEligible = matmulVector || lossVector || convVector
+        boolean vectorEligible = !softmaxBackward && !aggregateFusion && !constantWrite && !rowRegion && (matmulVector || lossVector || convVector
                 || !loss && !matmul && !pool2d && !pool3d && !attention && !affineCopy && !movement
                 && !indexing && !scatter && !fold && !ordering && !random && !scan && !aggregate
                 && !argExtrema && !maskedReduction && !advancedReduction && !softmax
@@ -679,9 +944,15 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 && vectorType != null && lanes > 1 && lowered.elementCount() >= lanes
                 && vectorTopologyEligible(kernelIr, vectorType)
                 && (!hasDenseFloatingMaskBoundary(kernelIr, vectorType) || lanes <= Long.SIZE)
-                && bindings.stream().allMatch(binding -> vectorEligible(binding, lanes));
+                && bindings.stream().allMatch(binding -> vectorEligible(binding, lanes)));
         int usableParallelism = Math.min(config.configuredMaximumParallelism(),
                 config.availableParallelism());
+        var rowExec = rowRegion ? rowEmission(context,
+                (io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr)lowered.portableKernelIr(),null)
+                : Optional.<CpuKernelSpecialization.RowFusionEmission>empty();
+        if (rowExec.isPresent()) vectorEligible = config.computePreference()
+                == CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
+                && vectorRowEligible((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr)lowered.portableKernelIr());
         long iterationCount = lowered.elementCount();
         long minimumRangeItemsPerWorker = config.minimumElementsPerWorker();
         long[] selectedExtents = lowered.extents();
@@ -689,7 +960,13 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         var selectedBatchGeometry = lowered.batchNormInferenceGeometry();
         var selectedTrainingGeometry = lowered.batchNormTrainingGeometry();
         int selectedRangeCount;
-        if (matmul) {
+        if (aggregateFusion || softmaxBackward) {
+            selectedRangeCount = 1;
+            minimumRangeItemsPerWorker = 1;
+        } else if (rowRegion) {
+            selectedRangeCount = rowExec.map(CpuKernelSpecialization.RowFusionEmission::maximumPartialCount).orElse(1);
+            minimumRangeItemsPerWorker = rowExec.isPresent() ? config.minimumElementsPerWorker() : 1;
+        } else if (matmul) {
             var geometry = lowered.matmulGeometry().orElseThrow();
             var form=lowered.matmulIr().orElseThrow().realization();
             iterationCount = switch (form) {
@@ -797,6 +1074,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         var artifactStrategy = vectorEligible
                 ? CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR
                 : CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR;
+        if (rowExec.isPresent()) artifactStrategy = strategy;
         if (matmul) {
             var ir = lowered.matmulIr().orElseThrow();
             boolean vectorForm = ir.realization()
@@ -812,46 +1090,12 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             strategy = CpuPartitionPreparationPlan.ExecutionStrategy.PARALLEL_SCALAR;
             artifactStrategy = CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR;
         }
-        boolean crossTypeCast = false;
-        for (CpuKernelIr.Instruction instruction : kernelIr.instructions()) {
-            if (instruction.opcode() == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode.CAST
-                    && kernelIr.values().get(instruction.inputs().getFirst()).dataType()
-                    != kernelIr.values().get(instruction.output()).dataType()) {
-                crossTypeCast = true;
-                break;
-            }
-        }
-        var specialization = new CpuKernelSpecialization(
-                CpuLoweringFingerprint.fromHex(kernelIr.structuralKey()),
-                                artifactStrategy, lowered.boundaryDataTypes(), carriers,
+        var specialization = ordinarySpecialization(kernelIr, selectedPortableIr, lowered.matmulIr(),
+                lowered.boundaryDataTypes(), carriers, artifactStrategy,
                 vectorEligible ? speciesBits : 0,
                 materialization.map(CpuMaterializationPlan::sourceBoundaryIndex).orElse(-1),
-                powerRealizations(kernelIr), attention || lowered.scatterGeometry()
-                        .filter(g -> g.scratchSliceBytes() > 0).isPresent()
-                        || lowered.orderingGeometry().isPresent()
-                        || lowered.aggregateGeometry().filter(g -> g.scratchSliceBytes() > 0)
-                            .isPresent()
-                        || lowered.maskedReductionGeometry().isPresent()
-                        || lowered.advancedReductionGeometry().filter(g -> g.scratchSliceBytes() > 0)
-                            .isPresent()
-                        || lowered.trailingNormalizationGeometry()
-                            .filter(g -> g.scratchSliceBytes() > 0).isPresent()
-                        || lowered.batchNormTrainingGeometry()
-                            .filter(g -> g.scratchSliceBytes() > 0).isPresent()
-                        || lowered.attentionGeometry().filter(g -> g.scratchSliceBytes() > 0)
-                            .isPresent(),
-                convVector ? 63 : attention ? 57 : pool3d ? 56 : pool2d ? 55 : matmul ? 54
-                        : selectedPortableIr instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr
-                            ? vectorEligible ? 62 : 58
-                            : kernelIr.familyIdentity().equals("pointwise")
-                                && kernelIr.values().stream().anyMatch(value ->
-                                    value.dataType() == DataType.FLOAT16) ? 68
-                            : kernelIr.familyIdentity().equals("pointwise") && crossTypeCast ? 60
-                            : vectorEligible && hasDenseFloatingMaskBoundary(kernelIr, vectorType) ? 61
-                            : kernelIr.familyIdentity().equals("pointwise")
-                                && kernelIr.values().stream().anyMatch(value -> value.dataType()
-                                    == DataType.BFLOAT16) ? 59 : 52,
-                lowered.matmulIr());
+                rowExec.isPresent() || ordinaryScratchParameter(selectedPortableIr),
+                convVector, vectorType, rowExec);
         selectedPortableIr = matmul||materialization.isPresent()?kernelIr:selectedPortableIr;
         var routePlan = new CpuPortableRoutePlan(selectedPortableIr, specialization);
         String manifest = "unit=0;fusion=" + lowered.fusionReason()
@@ -867,6 +1111,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         Optional<PreparationResourceRequirement.Workspace> workspace = materialization.map(copy ->
                     new PreparationResourceRequirement.Workspace(copy.workspaceRequirementId(),
                             copy.byteCount(), copy.byteAlignment()));
+        if (rowExec.isPresent()) workspace = Optional.of(new PreparationResourceRequirement.Workspace(workspaceRequirementId,
+                rowWorkspaceBytes((io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr)lowered.portableKernelIr(),rowExec.orElseThrow()),8));
         if (lowered.scatterGeometry().filter(g -> g.scratchSliceBytes() > 0).isPresent()) {
             var scatterGeometry = lowered.scatterGeometry().orElseThrow();
             workspace = Optional.of(new PreparationResourceRequirement.Workspace(workspaceRequirementId,
@@ -944,6 +1190,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 ? CpuPartitionPreparationPlan.WorkspaceUse.MATERIALIZATION
                 : workspace.isPresent() ? CpuPartitionPreparationPlan.WorkspaceUse.SCATTER_PRODUCT
                 : CpuPartitionPreparationPlan.WorkspaceUse.NONE;
+        if (rowExec.isPresent()) workspaceUse = CpuPartitionPreparationPlan.WorkspaceUse.GENERAL_SCAN_BANKS;
         if (lowered.orderingGeometry().isPresent() && workspace.isPresent())
             workspaceUse = CpuPartitionPreparationPlan.WorkspaceUse.ORDERING_INDICES;
         if (lowered.aggregateGeometry().filter(g -> g.scratchSliceBytes() > 0
@@ -964,6 +1211,16 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             workspaceUse = CpuPartitionPreparationPlan.WorkspaceUse.ATTENTION_ROW_STATE;
         if (partialRecipe.isPresent())
             workspaceUse = CpuPartitionPreparationPlan.WorkspaceUse.AGGREGATE_EXACT_STATE;
+        boolean affineOrdinals = controlled && lowered.portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr affine
+                && affine.writeDomain()
+                        == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr.WriteDomain.DISTINCT_ADDRESSES;
+        var rowRuntime = affineOrdinals ? CpuPartitionPreparationPlan.UnitRuntimeFacts.controlledAffineCopy()
+                : rowExec.isEmpty() ? CpuPartitionPreparationPlan.UnitRuntimeFacts.EMPTY
+                : new CpuPartitionPreparationPlan.UnitRuntimeFacts(new long[0],Optional.empty(),workspace,workspaceUse,
+                    Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),
+                    Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),
+                    Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty(),Optional.empty());
         var plan = new CpuPartitionPreparationPlan(
                                 List.of(new CpuPartitionPreparationPlan.ExecutionUnitPlan(
                         routePlan, lowered.boundaryValues(), bindings, requestedCarriers, carriers,
@@ -974,7 +1231,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                         (int) kernelIr.values().stream()
                             .filter(value -> value.kind() == CpuKernelIr.Value.Kind.OUTPUT).count(),
                         lowered.fusionReason(), List.of(), List.of(),
-                        CpuPartitionPreparationPlan.UnitRuntimeFacts.EMPTY)),
+                        rowRuntime)),
                 CpuPartitionPreparationPlan.Route.PORTABLE,
                 strategy,
                 declarations, lowered.boundaryValues(), bindings,
@@ -999,14 +1256,127 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     }
 
     /**
+     * Selects the existing ordinary code-shaping namespace from typed IR, not numeric extents.
+     * Static analysis and symbolic controlled helpers share this constructor so family math,
+     * conversion roles and scalar identities cannot diverge.
+     * @param kernel exact ordinary generation envelope
+     * @param ir exact represented portable family
+     * @param matrix separate typed MATMUL facts, empty for every other family
+     * @param types ordered physical boundary types
+     * @param carriers ordered physical carrier forms
+     * @param strategy already selected scalar/vector orchestration
+     * @param speciesBits selected vector width, or zero for scalar
+     * @param materializedSource copied source position, or minus one
+     * @param scratch whether the family entry ABI includes scratch
+     * @param convVector whether the qualified direct-convolution vector projection applies
+     * @param vectorType selected vector lane type, nullable for scalar
+     * @param rowEmission selected row execution facts, empty for inline ordinary helpers
+     * @return unchanged ordinary specialization projection for these structural facts
+     */
+    private static CpuKernelSpecialization ordinarySpecialization(CpuKernelIr kernel,
+            io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPortableKernelIr ir,
+            Optional<io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr> matrix,
+            List<DataType> types, List<CpuKernelSpecialization.CarrierAccess> carriers,
+            CpuPartitionPreparationPlan.ExecutionStrategy strategy, int speciesBits,
+            int materializedSource, boolean scratch, boolean convVector, DataType vectorType,
+            Optional<CpuKernelSpecialization.RowFusionEmission> rowEmission) {
+        boolean vector = speciesBits != 0;
+        boolean crossTypeCast = kernel.instructions().stream().anyMatch(instruction ->
+                instruction.opcode() == io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode.CAST
+                        && kernel.values().get(instruction.inputs().getFirst()).dataType()
+                        != kernel.values().get(instruction.output()).dataType());
+        boolean pointwise = kernel.familyIdentity().equals("pointwise");
+        var row = ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr value
+                ? Optional.of(value) : Optional.<io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr>empty();
+        var fusion = ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateFusionIr value
+                ? Optional.of(value) : Optional.<io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateFusionIr>empty();
+        var backward = ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSoftmaxBackwardIr value
+                ? Optional.of(value) : Optional.<io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSoftmaxBackwardIr>empty();
+        int schema = row.isPresent() ? 72 : convVector ? 63
+                : ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAttentionIr ? 57
+                : ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool3dIr ? 56
+                : ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool2dIr ? 55
+                : matrix.isPresent() ? 54
+                : ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuLossIr ? vector ? 62 : 58
+                : pointwise && kernel.values().stream().anyMatch(value -> value.dataType() == DataType.FLOAT16) ? 68
+                : pointwise && crossTypeCast ? 60
+                : vector && hasDenseFloatingMaskBoundary(kernel, vectorType) ? 61
+                : pointwise && kernel.values().stream().anyMatch(value -> value.dataType() == DataType.BFLOAT16) ? 59 : 52;
+        return new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(kernel.structuralKey()),
+                strategy, types, carriers, speciesBits, materializedSource, powerRealizations(kernel),
+                scratch, schema, matrix, Optional.empty(), false, false, row, rowEmission, fusion, backward);
+    }
+
+    /**
+     * Retains each ordinary family's scratch ABI independently of an empty invocation domain.
+     * @param ir exact portable code-shaping facts
+     * @return whether the standalone family method declares its existing scratch parameter
+     */
+    private static boolean ordinaryScratchParameter(
+            io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPortableKernelIr ir) {
+        return switch (ir) {
+            case io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAttentionIr ignored -> true;
+            case io.github.pho001.synaptik.backend.cpu.internal.ir.CpuOrderingIr ignored -> true;
+            case io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMaskedReductionIr ignored -> true;
+            case io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateFusionIr value ->
+                    value.aggregate().scratchSliceBytes() > 0;
+            case io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSoftmaxBackwardIr value ->
+                    value.aggregate().scratchSliceBytes() > 0;
+            case io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScatterIr value -> value.scratchSignature() > 0;
+            case io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateIr value -> value.scratchSliceBytes() > 0;
+            case io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAdvancedReductionIr value -> value.scratchSliceBytes() > 0;
+            case io.github.pho001.synaptik.backend.cpu.internal.ir.CpuTrailingNormalizationIr value -> value.scratchSliceBytes() > 0;
+            case io.github.pho001.synaptik.backend.cpu.internal.ir.CpuBatchNormTrainingIr value -> value.scratchSliceBytes() > 0;
+            default -> false;
+        };
+    }
+
+    /**
      * Identifies partitions outside complete generated-plan discovery.
      * @param context non-null complete CPU projection, inspected without reading storage
      * @return whether a scan or more than eight nodes requires the direct decomposition path
      */
     private static boolean directPartition(PrepareContext<CpuPartitionAnalysisInputs> context) {
         return context.nodes().size() > 8 || context.nodes().stream().anyMatch(n ->
-                n.operation().kind() instanceof io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind);
+                n.operation().kind() instanceof io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind
+                || n.operation().kind() == io.github.pho001.synaptik.model.operation.scan.ScanKind.SCAN);
     }
+    /** Authenticates source roles, including every nested body, before resource declarations. */
+    private static void requirePermittedSource(PrepareContext<CpuPartitionAnalysisInputs> context) {
+        requirePermittedSource(context.nodes(), context.values(), context.scanActivityPlans());
+    }
+
+    /**
+     * Checks each lexical body independently; local value IDs never resolve against outer values.
+     * @param nodes exact nodes in this lexical graph
+     * @param graphValues exact descriptors in the same graph
+     * @param activity activity annotations belonging only to this graph
+     * @throws IllegalArgumentException if any nested occurrence performs locked low arithmetic
+     */
+    private static void requirePermittedSource(
+            List<io.github.pho001.synaptik.model.graph.CompiledNode> nodes,
+            List<io.github.pho001.synaptik.model.graph.GraphValue> graphValues,
+            Map<io.github.pho001.synaptik.model.graph.NodeId,
+                    io.github.pho001.synaptik.planning.capability.ScanActivityPlan> activity) {
+        boolean lowValue = graphValues.stream().anyMatch(value ->
+                value.descriptor().dataType() == DataType.BFLOAT16
+                        || value.descriptor().dataType() == DataType.FLOAT16);
+        var values = new java.util.HashMap<ValueId, io.github.pho001.synaptik.model.tensor.TensorDescriptor>();
+        if (lowValue) for (var value : graphValues) values.put(value.id(), value.descriptor());
+        for (var node : nodes) {
+            if (lowValue) {
+                var query = new io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery(
+                        node.operation(), node.inputs().stream().map(values::get).toList(),
+                        node.outputs().stream().map(values::get).toList(), node.scanBody(),
+                        Optional.ofNullable(activity.get(node.id())));
+                if (!CpuPartitionLowering.permitsLowPrecisionUse(query))
+                    throw new IllegalArgumentException("CPU low numerical computation is temporarily unsupported");
+            }
+            node.scanBody().ifPresent(body ->
+                    requirePermittedSource(body.graph().nodes(), body.graph().values(), Map.of()));
+        }
+    }
+
 
     /**
      * Declares referenced scan storage spans and two packed working rows before assignment.
@@ -1021,6 +1391,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             PrepareContext<CpuPartitionAnalysisInputs> context,
             CpuPartitionLowering.LoweredPartition lowered, int workspaceId) {
         var scan = lowered.recurrentScan().orElseThrow();
+        if (scan.geometry().dataType() != DataType.FLOAT32 && scan.geometry().dataType() != DataType.FLOAT64)
+            throw new IllegalArgumentException("CPU low recurrent computation is temporarily unsupported");
         var carriers = context.backendInputs().carrierPattern().isEmpty()
                 ? java.util.Collections.nCopies(scan.boundaryValues().size(),
                     CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
@@ -1040,7 +1412,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                         Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                         Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                         Optional.empty(), Optional.empty(),
-                Optional.of(scan));
+                Optional.of(scan), Optional.empty());
         var unit = new CpuPartitionPreparationPlan.ExecutionUnitPlan(null, scan.boundaryValues(),
                 scan.accessBindings(), carriers, carriers, lowered.extents(), lowered.elementCount(),
                 CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, 1, 1, 0,
@@ -1062,6 +1434,679 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         return new BackendPartitionAnalysis<>(context.partition(), plan, requirements);
     }
 
+    /**
+     * Declares demanded outputs, banks, live cuts, controlled ordinary-helper scratch and native
+     * control before assignment. Composite helpers reuse exact local ordinary analysis, or the
+     * family's symbolic numeric recipe, with scalar single-range non-native inputs. Their typed
+     * specializations and owner cursor resets become
+     * immutable generation facts. Their control starts after the physical value/carry inventory,
+     * and each helper's aligned scratch follows the complete control slabs. Retained staged scans
+     * keep their existing resource/strategy policy. No storage or control values are read here.
+     * @param context exact single-unit projection, inspected without storage reads
+     * @param lowered proved generated scan and positional boundaries
+     * @param workspaceId exact unit-local workspace declaration identity
+     * @return immutable generated analysis with checked complete resource declarations
+     * @throws IllegalArgumentException if requested carriers or exact resource facts disagree
+     * @throws ArithmeticException if declared typed byte counts overflow
+     */
+    private BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeGeneralScan(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            CpuPartitionLowering.LoweredPartition lowered, int workspaceId) {
+        var scan = lowered.generalScan().orElseThrow();
+        var compositionResources = scan.ir().composition().isPresent()
+                ? Optional.of(analyzeCompositionResources(context, scan)) : Optional.<CompositionResources>empty();
+        if (compositionResources.isPresent()) scan = compositionResources.orElseThrow().scan();
+        var region = scan.ir().stages().flatMap(s -> s.rowMapReductionIr());
+        var sourceScan = scan.ir();
+        var emission = region.flatMap(r -> rowEmission(context,r,sourceScan));
+        boolean vectorRow = emission.isPresent() && context.backendInputs().portableExecution().computePreference()
+                == CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
+                && vectorRowEligible(region.orElseThrow());
+        if (emission.isPresent()) scan = rowScanResources(scan,emission.orElseThrow());
+        int width = compositionResources.map(CompositionResources::alignment)
+                .orElseGet(() -> lowered.generalScan().orElseThrow().ir().dataType().byteWidth());
+        var carriers = java.util.Collections.nCopies(lowered.boundaryValues().size(),
+                CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT);
+        if (!context.backendInputs().carrierPattern().isEmpty()
+                && !context.backendInputs().carrierPattern().equals(carriers))
+            throw new IllegalArgumentException("general scan requires checked segment carriers");
+        var declarations = new ArrayList<PreparationResourceRequirement.Buffer>();
+        var batchSizes = scan.ir().symbolic() && scan.ir().composition().isEmpty()
+                ? CpuPartitionLowering.batchByteSizes(context) : java.util.Map
+                        .<ValueId,io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan.ByteSize>of();
+        for (int p = 0; p < lowered.boundaryValues().size(); p++) declarations.add(
+                new PreparationResourceRequirement.Buffer(lowered.boundaryValues().get(p),
+                    scan.ir().symbolic() ? scan.ir().composition().isPresent()
+                            ? scan.ir().composition().orElseThrow().boundarySizes().get(p)
+                            : batchSizes.get(lowered.boundaryValues().get(p))
+                        : new io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan.FixedByteSize(
+                            Math.multiplyExact(scan.spans().get(p), (long) scan.ir().boundaryType(p).byteWidth())),
+                    scan.ir().boundaryType(p).byteWidth()));
+        Optional<PreparationResourceRequirement.Workspace> workspace = !scan.ir().symbolic() && scan.geometry().scratchBytes() == 0
+                ? Optional.empty() : Optional.of(new PreparationResourceRequirement.Workspace(
+                    workspaceId, scan.geometry().workspaceSize(), emission.isPresent() ? 8 : width));
+        var use = workspace.isPresent() ? CpuPartitionPreparationPlan.WorkspaceUse.GENERAL_SCAN_BANKS
+                : CpuPartitionPreparationPlan.WorkspaceUse.NONE;
+        int ranges = emission.map(CpuKernelSpecialization.RowFusionEmission::maximumPartialCount).orElse(1);
+        var strategy = vectorRow ? ranges > 1 ? CpuPartitionPreparationPlan.ExecutionStrategy.PARALLEL_VECTOR
+                : CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR : ranges > 1
+                ? CpuPartitionPreparationPlan.ExecutionStrategy.PARALLEL_SCALAR : CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR;
+        int bits = vectorRow ? speciesBits(scan.ir().dataType()) : 0;
+        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(scan.ir().structuralKey()),
+                strategy, lowered.boundaryDataTypes(), carriers,
+                bits, -1, List.of(), workspace.isPresent(), 71, Optional.empty(), Optional.of(scan.ir()),
+                false,false,Optional.empty(),emission,Optional.empty(),Optional.empty(),
+                compositionResources.map(CompositionResources::units).orElseGet(List::of));
+        var route = new CpuPortableRoutePlan(scan.ir(), specialization);
+        var runtime = new CpuPartitionPreparationPlan.UnitRuntimeFacts(new long[0], Optional.empty(), workspace, use,
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.of(scan));
+        var unit = new CpuPartitionPreparationPlan.ExecutionUnitPlan(route, lowered.boundaryValues(),
+                scan.accessBindings(), carriers, carriers, lowered.extents(), lowered.elementCount(),
+                strategy, ranges, emission.isPresent() ? context.backendInputs().portableExecution().minimumElementsPerWorker() : 1, bits,
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), scan.ir().demandedPorts().size(), lowered.fusionReason(), List.of(), List.of(0), runtime);
+        var plan = new CpuPartitionPreparationPlan(List.of(unit), CpuPartitionPreparationPlan.Route.PORTABLE,
+                strategy, declarations, lowered.boundaryValues(),
+                scan.accessBindings(), carriers, carriers, lowered.extents(), lowered.elementCount(),
+                new long[0], ranges, unit.minimumElementsPerWorker(), bits, lowered.fusionReason(), Optional.empty(), workspace, use,
+                new CpuSpecializationBudget(4, 1, 0, 0), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                Optional.empty(), Optional.empty(), Optional.empty(), List.of(), List.of(), List.of(),
+                List.of(), List.of(), List.of(), Optional.empty());
+        var requirements = new ArrayList<PreparationResourceRequirement>(declarations);
+        workspace.ifPresent(requirements::add);
+        return new BackendPartitionAnalysis<>(context.partition(), plan, requirements);
+    }
+
+    /**
+     * Immutable cold inventory; numeric offsets are workspace-relative and never slot identities.
+     * @param scan unchanged physical IR with the complete appended workspace declaration
+     * @param units exact ordinary specializations in physical composition order
+     * @param alignment maximum typed/helper/control byte alignment, at least eight
+     */
+    private record CompositionResources(
+            io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLowering.Facts scan,
+            List<CpuKernelSpecialization.CompositionUnit> units, int alignment) {}
+
+    /**
+     * Reuses ordinary resource analysis in the exact local lexical scope. Symbolic families supply
+     * their checked range-capacity/scratch/reset recipes directly, without resolving a sampled
+     * B. Binding retains the exact range end in the numeric pack when empty-domain rules make it
+     * piecewise. The physical inventory ends at the control origin; appended storage changes Geometry only,
+     * not that origin. Control contains one helper slab and one slab per distinct carried/seed
+     * declaration root. Both affine coefficients are aligned before each disjoint helper scratch.
+     * @param context containing single-Scan projection, with its exact activity association
+     * @param scan independently proved composition and ordinary lowerings
+     * @return complete typed helper inventory and total declaration, without resource realization
+     * @throws IllegalArgumentException if local membership, scalar analysis or resource facts disagree
+     * @throws ArithmeticException if resource coefficients overflow
+     */
+    private CompositionResources analyzeCompositionResources(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLowering.Facts scan) {
+        var composition = scan.ir().composition().orElseThrow();
+        if (composition.units().size() != scan.ordinaryUnits().size())
+            throw new IllegalArgumentException("Scan ordinary helper inventory disagrees");
+        var node = context.nodes().getFirst();
+        var descriptors = new LinkedHashMap<ValueId, io.github.pho001.synaptik.model.tensor.TensorDescriptor>();
+        context.values().forEach(value -> descriptors.put(value.id(), value.descriptor()));
+        var query = new io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery(
+                node.operation(), node.inputs().stream().map(descriptors::get).toList(),
+                node.outputs().stream().map(descriptors::get).toList(), node.scanBody(),
+                Optional.ofNullable(context.scanActivityPlans().get(node.id())));
+        var local = composition.units().isEmpty() ? null
+                : io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanCompositionLowering
+                        .bodyContext(query, CpuPartitionAnalysisInputs.DEFAULT);
+        if (local != null) requirePermittedSource(local);
+        int alignment = Long.BYTES;
+        for (var value : composition.values()) alignment = Math.max(alignment, value.descriptor().dataType().byteWidth());
+        int roots = composition.activity().map(activity ->
+                Math.addExact(activity.carries().size(), activity.seedFormals().size())).orElse(0);
+        long slabs = Math.addExact(1L, roots);
+        var batch = compositionBatchSize(composition);
+        var cursor = addCompositionBytes(composition.workspaceSize(),
+                new io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize(
+                        Math.multiplyExact(slabs, Math.addExact(16L, batch.constantBytes())),
+                        Math.multiplyExact(slabs, batch.bytesPerBatch()), 1));
+        var units = new ArrayList<CpuKernelSpecialization.CompositionUnit>(composition.units().size());
+        for (int ordinal = 0; ordinal < composition.units().size(); ordinal++) {
+            var physical = composition.units().get(ordinal);
+            var ordinary = scan.ordinaryUnits().get(ordinal);
+            CpuPartitionLowering.requirePermittedLowPrecisionUse(physical.ir());
+            CpuPartitionLowering.requirePermittedLowPrecisionUse(ordinary.portableKernelIr());
+            var members = physical.memberNodeOrdinals().stream().map(local.nodes()::get).toList();
+            var unitContext = decomposer.unitContext(local, members, CpuPartitionAnalysisInputs.DEFAULT);
+            CpuKernelSpecialization helper;
+            io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize scratchBytes;
+            io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize iterations;
+            List<CpuKernelSpecialization.PackReset> resets;
+            int scratchAlignment;
+            if (ordinary.batchGeometry().isPresent()) {
+                var numeric = ordinary.batchGeometry().orElseThrow();
+                CpuPartitionLowering.requirePermittedLowPrecisionUse(numeric.ir());
+                scratchBytes = numeric.scratchBytes();
+                iterations = numeric.iterationCount();
+                scratchAlignment = Math.max(Long.BYTES, scratchBytes.elementByteWidth());
+                var carriers = java.util.Collections.nCopies(numeric.boundaryTypes().size(),
+                        CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT);
+                helper = ordinarySpecialization(ordinary.kernelIr(), numeric.ir(), numeric.matrixIr(),
+                        numeric.boundaryTypes(), carriers, CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                        0, -1, ordinaryScratchParameter(numeric.ir())
+                                || scratchBytes.constantBytes() != 0 || scratchBytes.bytesPerBatch() != 0,
+                        false, null, Optional.empty());
+                resets = numeric.resets();
+            } else {
+                var analysis = analyzeUnit(unitContext, ordinary, 0, false, true).plan();
+                var unit = analysis.units().getFirst();
+                if (analysis.units().size() != 1
+                        || unit.executionStrategy() != CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR
+                        || unit.selectedRangeCount() != 1 || analysis.materialization().isPresent())
+                    throw new IllegalArgumentException("Scan helper must retain one scalar ordinary unit");
+                helper = unit.portablePlan().specialization();
+                var scratch = analysis.workspaceDeclaration();
+                scratchAlignment = scratch.map(w -> Math.toIntExact(w.byteAlignment())).orElse(1);
+                var size = scratch.map(PreparationResourceRequirement.Workspace::size);
+                scratchBytes = size.isEmpty()
+                        ? new io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize(0, 0, 1)
+                        : size.orElseThrow() instanceof io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize affine
+                            ? affine : new io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize(
+                                    size.orElseThrow().fixedByteSize().orElseThrow(), 0, 1);
+                iterations = new io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize(
+                        unit.elementCount(), 0, 1);
+                resets = io.github.pho001.synaptik.backend.cpu.internal.executable.CpuPreparedExecutable.temporalResets(ordinary);
+            }
+            CpuPartitionLowering.requirePermittedLowPrecisionUse(helper, ordinary.kernelIr());
+            alignment = Math.max(alignment, scratchAlignment);
+            cursor = alignCompositionBytes(cursor, Math.max(Long.BYTES, scratchAlignment));
+            var scratchOffset = cursor;
+            cursor = addCompositionBytes(cursor, scratchBytes);
+            units.add(new CpuKernelSpecialization.CompositionUnit(helper, resets, scratchOffset, iterations));
+        }
+        cursor = alignCompositionBytes(cursor, alignment);
+        io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan.ByteSize total = scan.ir().symbolic()
+                ? cursor : new io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan.FixedByteSize(cursor.constantBytes());
+        var geometry = new io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLowering.Geometry(
+                scan.geometry().time(), scan.geometry().fixedElements(), total);
+        return new CompositionResources(
+                new io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLowering.Facts(
+                        scan.ir(), geometry, scan.spans(), scan.accessBindings(), scan.batchBindings(), scan.ordinaryUnits()),
+                List.copyOf(units), alignment);
+    }
+
+    /**
+     * Selects the actual numeric control-row recipe without inventing ROW provenance.
+     * @param composition exact typed body facts
+     * @return proved length/ROW extent coefficients, or zero for SHARED-only bodies
+     */
+    private static io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize
+            compositionBatchSize(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuGeneralScanIr.Composition composition) {
+        long constant = 0, factor = 0;
+        if (composition.lengthAware()) {
+            var lengths = composition.boundaryMappings().get(composition.lengthRead());
+            constant = lengths.extentConstants().getFirst();
+            factor = lengths.extentBatchFactors().getFirst();
+        } else for (var value : composition.values()) if (value.rowAxis() >= 0) {
+            constant = value.access().extentConstants().get(value.rowAxis());
+            factor = value.access().extentBatchFactors().get(value.rowAxis());
+            break;
+        }
+        return new io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize(constant, factor, 1);
+    }
+
+    /**
+     * Adds disjoint byte recipes without resolving any run batch.
+     * @param left non-negative preceding byte recipe
+     * @param right non-negative appended byte recipe
+     * @return checked affine sum, expressed in individual bytes
+     */
+    private static io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize
+            addCompositionBytes(
+                    io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize left,
+                    io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize right) {
+        return new io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize(
+                Math.addExact(left.constantBytes(), right.constantBytes()),
+                Math.addExact(left.bytesPerBatch(), right.bytesPerBatch()), 1);
+    }
+
+    /**
+     * Aligns both coefficients so every actual B preserves helper alignment.
+     * @param bytes exact non-negative affine byte origin
+     * @param alignment positive power-of-two required byte alignment
+     * @return aligned origin, retaining all preceding storage
+     * @throws ArithmeticException if either rounded coefficient overflows
+     */
+    private static io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize
+            alignCompositionBytes(
+                    io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize bytes,
+                    int alignment) {
+        return new io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize(
+                Math.multiplyExact(ceilDiv(bytes.constantBytes(), alignment), alignment),
+                Math.multiplyExact(ceilDiv(bytes.bytesPerBatch(), alignment), alignment), alignment);
+    }
+
+    /**
+     * Derives only selected code/resource shape from the already proved region. Worker policy
+     * remains on the execution unit; no invocation B or length participates. Transpose lifetime
+     * is invariant only for an immutable invariant formal, otherwise exactly one active step.
+     * Scalar staging also authenticates the shared query's source scopes and both phase bases
+     * before the inline/no-exec-v1 exit. Each extra demanded row wrapper contributes its own
+     * carrier and two-slot base; staging failure changes neither strategy nor resource layout.
+     * All demanded histories, including forwarded sources, additionally retain their separate
+     * LONG caller bases across invocation staging. Unproved multi-stage lifetimes stay checked.
+     * @param context cold configuration owner
+     * @param region complete CPU0073 proof
+     * @param scan Scan binder, or null for an ordinary region
+     * @return selected immutable execution layout, empty for inline scalar or failed resource proof;
+     *     scalar load/address reuse is independently bounded before cuts and needs no payload
+     */
+    private static Optional<CpuKernelSpecialization.RowFusionEmission> rowEmission(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr region,
+            io.github.pho001.synaptik.backend.cpu.internal.ir.CpuGeneralScanIr scan) {
+        var config = context.backendInputs().portableExecution();
+        int ranges = Math.min(config.configuredMaximumParallelism(),config.availableParallelism());
+        boolean vector = config.computePreference() == CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
+                && vectorRowEligible(region);
+        if (!vector) {
+            var invariantSources = new ArrayList<Integer>(); var temporalSources = new ArrayList<Integer>();
+            if (scan == null) {
+                for (var v : region.arithmetic().values()) if (v.kind() == CpuKernelIr.Value.Kind.INPUT
+                        && region.viewOrigins().get(v.ordinal()) == v.ordinal()) invariantSources.add(v.ordinal());
+            } else for (int f = scan.carryCount(); f < scan.formalOrdinals().size(); f++) {
+                int root = scan.formalOrdinals().get(f);
+                if (scan.scalarReads().get(scan.actualReads().get(f))) continue;
+                if (f >= scan.carryCount()+scan.sequenceCount()) invariantSources.add(root);
+                else if (region.rowAxes().get(root) < 0) temporalSources.add(root);
+            }
+            // Also executes for scalar without exec-v1. No resource/route is conditional on
+            // staging success: the same source scopes and phase ceilings drive cache/emission.
+            long duplicateBindings = 0;
+            if (scan != null) for (int v : region.rowSites()) if (region.retainedStores().contains(v)) {
+                long wrappers = 0;
+                for (int p : scan.demandedPorts()) if (p < scan.carryCount() ? scan.nextOrdinals().get(p) == v
+                        : region.viewOrigins().get(scan.portOrdinals().get(p)) == v) wrappers++;
+                duplicateBindings += Math.max(0,wrappers-1);
+            }
+            if (scan != null) {
+                var finish = scan.stages().orElseThrow().order().stream().filter(s -> s.values().containsAll(region.rowSites())
+                        && s.values().containsAll(region.terminalOutputs())).findFirst().orElseThrow().epilogue();
+                for (int v = scan.formalOrdinals().size(); v < region.viewOrigins().size(); v++) if (region.viewOrigins().get(v) == v
+                        && !region.rowSites().contains(v) && !region.terminalOutputs().contains(v) && !finish.contains(v)) {
+                    invariantSources.clear(); temporalSources.clear(); break;
+                }
+            }
+            io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRowMapReductionLowering
+                    .invariantLoadStaging(region,
+                        invariantSources,temporalSources,
+                        112+3*duplicateBindings+2*(scan == null ? 0 : scan.demandedPorts().stream().filter(p -> p >= scan.carryCount()).count()),
+                        116+3*duplicateBindings);
+        }
+        if (!vector && ranges < 2) return Optional.empty();
+        if (scan != null) {
+            var s = scan.stages().orElseThrow();
+            if (s.scratchBytes()%8 != 0 || s.scratchBytesPerBatch()%8 != 0) return Optional.empty();
+        }
+        var invariant = new ArrayList<Integer>(); var temporal = new ArrayList<Integer>();
+        if (vector) for (var contraction : region.contractions()) if (region.rowSites().contains(contraction.output())) {
+            int v = contraction.right(); var a = region.accesses().get(v);
+            if (a.strideConstants().get(1) == 1) continue;
+            if (invariant.contains(v) || temporal.contains(v)) continue;
+            int origin = region.viewOrigins().get(v);
+            int formal = scan == null ? -1 : scan.formalOrdinals().indexOf(origin);
+            if (scan == null || formal >= scan.carryCount()+scan.sequenceCount())
+                invariant.add(v);
+            else temporal.add(v);
+        }
+        int values = region.arithmetic().values().size();
+        // Two carriers (read/write) per ordinal, scratch and lengths. Frame: original time, R,
+        // private scratch base and actual N, then read/write bases and two effective byte strides
+        // per value, followed by demanded-wrapper bases. No policy enters the frame.
+        int operands = scan == null ? 0 : Math.addExact(Math.addExact(Math.multiplyExact(values,2),2),scan.demandedPorts().size());
+        int frame = scan == null ? 0 : Math.addExact(Math.addExact(4,Math.multiplyExact(values,4)),scan.demandedPorts().size());
+        var result = new CpuKernelSpecialization.RowFusionEmission(Math.max(1,ranges),invariant,temporal,operands,frame);
+        long terminals = 0, rowCells = 0, staging = 0;
+        for (int v : region.terminalOutputs()) terminals += rowCells(region,v,false);
+        for (int v : region.rowSites()) rowCells += rowCells(region,v,true);
+        for (var list : List.of(invariant,temporal)) for (int v : list) staging += rowCells(region,v,false);
+        int width = region.arithmetic().values().getFirst().dataType().byteWidth();
+        // Retain CPU0073's carrier/base/typed-temporary allowance. Scalar range control adds
+        // two INT bounds and the two-slot validity flag; the caller merge is disjoint from
+        // producer liveness and has fewer floating cells. Do not sum caller and helper locals.
+        long bindingSlots = 5+3L*region.arithmetic().values().stream().filter(v -> v.kind()
+                != CpuKernelIr.Value.Kind.VIRTUAL).count()+6L*(width/4);
+        long localBound = bindingSlots+4+(rowCells+terminals)*(width/4);
+        long chunks = 0; int maskCount = 0;
+        if (vector) {
+            int lanes = speciesBits(region.arithmetic().values().getFirst().dataType())/(width*8);
+            var masks = new java.util.HashSet<Integer>();
+            for (int v : java.util.stream.Stream.concat(region.rowSites().stream(),region.terminalOutputs().stream()).toList()) {
+                var a = region.accesses().get(v); long n = a.plan().iterationRank() == 0 ? 1 : a.extentConstants().getLast();
+                if (n > 0) chunks += rowCells(region,v,region.rowAxes().get(v) >= 0)/n*((n+lanes-1)/lanes);
+                for (int column = 0; column < n; column += lanes) masks.add((int)Math.min(lanes,n-column));
+            }
+            // One reference per chunk, at most one typed extraction per producing feature,
+            // exactly the used fixed masks, and eight additional staging/range/control slots. Staging
+            // raw-copy temporaries and the caller-only scalar merge are not live in this loop.
+            localBound = bindingSlots+chunks+rowScalarExtractionCells(region)*(width/4)+masks.size()+8
+                    +rowInputCacheSlots(region,lanes)+rowStagedVectorSlots(region,lanes)+rowInvariantVectorSlots(region,lanes);
+            maskCount = masks.size();
+        }
+        if (scan != null) {
+            long caller = bindingSlots+terminals*(width/4)+12;
+            localBound = ranges > 1 ? Math.max(caller,scanRowHelperSlots(region,scan,vector,rowCells,terminals,chunks,maskCount))
+                    : Math.max(caller,localBound);
+        }
+        // Only scalar row phases use the recycled affine offset and last-use value pool.
+        // Caller merge and range helper are disjoint; never add their live sets together.
+        // The binders cap their one LONG affine offset and typed last-use pool at exactly
+        // this remaining capacity. Unused capacity is not allocated or held live.
+        if (!vector) localBound += Math.max(0,128-localBound);
+        // Existing CPU0073 method bound plus bounded raw-copy and partial publication guards.
+        long bytes = 1024+256L*region.arithmetic().values().stream().filter(v -> v.kind()
+                != CpuKernelIr.Value.Kind.VIRTUAL).count()+1024*rowCells+512*terminals+128*staging+2048;
+        for (var c : region.contractions()) if (region.rowSites().contains(c.output()))
+            bytes += 512*rowCells(region,c.output(),true)*region.accesses().get(c.left()).extentConstants().get(1);
+        return localBound <= 128 && bytes <= 48000 ? Optional.of(result) : Optional.empty();
+    }
+
+    /**
+     * Bounds the range helper's simultaneous liveness separately from its caller's merge.
+     * The fixed 24 slots cover arrays, checked layouts, scratch, original time, R/private base,
+     * bounds/induction, address, partial offset/validity, lengths and vector species/byte order.
+     * Only required source roots, producing destinations, duplicate wrappers and nonconstant
+     * structural stride facts survive the preheader. Dead Shaped-owner allocations and caller
+     * temporaries do not add simultaneously live slots to this helper. External contraction-left
+     * sources retain their carrier/base allowance even when row-invariant: a scalar load is not
+     * replaced merely by proving its address invariant.
+     * @param region complete selected region
+     * @param scan owning temporal binding proof
+     * @param vector whether cells are held in vector chunks
+     * @param rows fixed producer feature cells, excluding R
+     * @param terminals fixed terminal scalar cells
+     * @param chunks fixed producer/terminal vector reference count
+     * @param masks exact number of used fixed masks
+     * @return conservative helper live-slot bound; over-limit rank returns a rejecting bound
+     */
+    private static long scanRowHelperSlots(
+            io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr region,
+            io.github.pho001.synaptik.backend.cpu.internal.ir.CpuGeneralScanIr scan,boolean vector,
+            long rows,long terminals,long chunks,int masks) {
+        var reads = new java.util.LinkedHashSet<Integer>();
+        for (var i : region.arithmetic().instructions()) if (region.rowSites().contains(i.output())) reads.addAll(i.inputs());
+        for (var c : region.contractions()) { reads.add(c.left()); reads.add(c.right()); }
+        for (var sum : region.sums()) reads.add(sum.input());
+        reads.removeIf(v -> region.rowSites().contains(region.viewOrigins().get(v)));
+        if (vector) for (var c : region.contractions()) if (region.rowSites().contains(c.output())) {
+            var a = region.accesses().get(c.right());
+            if (a.strideConstants().getLast() != 1 && a.extentConstants().getLast() > 0
+                    && region.contractions().stream().noneMatch(other -> other.left() == c.right())) reads.remove(c.right());
+        }
+        var roots = new java.util.HashSet<Integer>(); var facts = new java.util.HashSet<List<Long>>();
+        var stages = scan.stages().orElseThrow();
+        for (int v : reads) {
+            int root = region.viewOrigins().get(v), formal = scan.formalOrdinals().indexOf(root); roots.add(root);
+            var a = region.accesses().get(v);
+            if (a.plan().iterationRank() > 2) return 129;
+            for (int axis = 0; axis < a.plan().iterationRank(); axis++) {
+                long c = a.strideConstants().get(axis), f = a.strideBatchFactors().get(axis), ic = c, iff = f;
+                if (scan.symbolic()) {
+                    var initial = stages.views().get(v).initialRead().orElse(stages.views().get(v).batch().orElseThrow());
+                    ic = initial.strideConstants().get(axis); iff = initial.strideBatchFactors().get(axis);
+                }
+                if (formal >= 0 && scan.scalarReads().get(scan.actualReads().get(formal))) { ic = 0; iff = 0; }
+                boolean changes = formal >= 0 && formal < scan.carryCount();
+                if ((changes && (c != ic || f != iff)) || iff != 0) facts.add(List.of((long)root,c,f,ic,iff));
+            }
+        }
+        long writes = 0, duplicates = 0;
+        for (int v : region.rowSites()) {
+            var cut = stages.cuts().stream().filter(c -> c.value() == v).findFirst();
+            if (cut.isEmpty()) continue;
+            writes++;
+            for (int p : scan.demandedPorts()) if (cut.orElseThrow().port() != p
+                    && (p < scan.carryCount() ? scan.lengthAware() && stages.carryPorts().get(p) == p && scan.nextOrdinals().get(p) == v
+                        : (scan.symbolic() || scan.lengthAware()) && scan.portOrdinals().get(p) == v)) duplicates++;
+        }
+        int typedWidth = scan.dataType().byteWidth()/4;
+        int lanes = speciesBits(scan.dataType())/scan.dataType().bitWidth();
+        long invariantSlots = vector ? rowInvariantVectorSlots(region,lanes) : 0;
+        var loopRoots = new java.util.HashSet<Integer>();
+        for (int v : reads) if (!vector || !rowInvariantView(region,v)) loopRoots.add(region.viewOrigins().get(v));
+        if (vector) for (var c : region.contractions()) {
+            int root = region.viewOrigins().get(c.left());
+            if (!region.rowSites().contains(root)) loopRoots.add(root);
+        }
+        long header = 24+3*roots.size()+3*writes+3*duplicates+2*facts.size()+masks+2+3L*typedWidth
+                +(vector ? invariantSlots+rowStagedVectorSlots(region,lanes) : 0);
+        long body = 24+3*loopRoots.size()+3*writes+3*duplicates+2*facts.size()+invariantSlots
+                +(vector ? chunks+rowScalarExtractionCells(region)*typedWidth+masks+2+rowInputCacheSlots(region,
+                    speciesBits(scan.dataType())/scan.dataType().bitWidth())+rowStagedVectorSlots(region,
+                    speciesBits(scan.dataType())/scan.dataType().bitWidth()) : (rows+terminals)*typedWidth+3L*typedWidth);
+        return Math.max(header,body);
+    }
+
+    /**
+     * Proves a complete external view's feature reads independent of R. A changing ROW carry's
+     * scalar initial does not suffice: its nominal row stride must be structurally zero.
+     * @param region complete selected access/origin proof
+     * @param v external source view ordinal
+     * @return whether all its vector feature requests can be retained before the row loop
+     */
+    private static boolean rowInvariantView(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr region,int v) {
+        int root = region.viewOrigins().get(v); if (region.rowSites().contains(root)) return false;
+        var a = region.accesses().get(v); int row = region.rowAxes().get(v);
+        return row < 0 || a.strideConstants().get(row) == 0 && a.strideBatchFactors().get(row) == 0;
+    }
+
+    /**
+     * Bounds dedicated external pointwise/broadcast vector references, excluding transpose
+     * vectors already counted separately. A vector-only binding may die before producer/terminal
+     * liveness; scalar contraction-left uses retain their separate carrier/base allowance.
+     * @param region complete region and fixed-feature recipes
+     * @param lanes positive preferred typed lane count
+     * @return conservative additional simultaneous reference slots
+     */
+    private static long rowInvariantVectorSlots(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr region,int lanes) {
+        var loaded = new java.util.HashSet<Integer>(); var staged = new java.util.HashSet<Integer>();
+        for (var i : region.arithmetic().instructions()) if (region.rowSites().contains(i.output())) loaded.addAll(i.inputs());
+        for (var c : region.contractions()) {
+            loaded.add(c.right());
+            if (region.rowSites().contains(c.output()) && region.accesses().get(c.right()).strideConstants().getLast() != 1) staged.add(c.right());
+        }
+        for (var sum : region.sums()) loaded.add(sum.input());
+        long slots = 0;
+        for (int v : loaded) if (!staged.contains(v) && rowInvariantView(region,v)) {
+            var a = region.accesses().get(v); int rank = a.plan().iterationRank();
+            if (rank == 0) slots++;
+            else {
+                long n = a.extentConstants().getLast();
+                if (n > 0) slots += rowCells(region,v,region.rowAxes().get(v) >= 0)/n*((n+lanes-1)/lanes);
+            }
+        }
+        return slots;
+    }
+
+    /**
+     * Counts dedicated row-invariant transpose vector locals, deduplicating exact source views.
+     * Includes width-one masked chunks. Worker source bindings used only through these staged
+     * views are dead before the row loop and are excluded separately above; scalar uses of the
+     * same root must retain their binding allowance. Coefficient vectors remain live with
+     * producer/terminal vectors.
+     * @param region complete selected region and staging proof
+     * @param lanes positive preferred typed lane count
+     * @return simultaneous coefficient reference slots, excluding raw staging temporaries
+     */
+    private static long rowStagedVectorSlots(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr region,int lanes) {
+        var staged = new java.util.HashSet<Integer>(); long slots = 0;
+        for (var c : region.contractions()) if (region.rowSites().contains(c.output())) {
+            int v = c.right(); var a = region.accesses().get(v);
+            long n = a.extentConstants().getLast();
+            if (n > 0 && a.strideConstants().getLast() != 1 && staged.add(v))
+                slots += rowCells(region,v,false)/n*((n+lanes-1)/lanes);
+        }
+        return slots;
+    }
+
+    /**
+     * Bounds dedicated cached row-input vectors and at most one typed extraction per feature.
+     * Scalar-only contraction-left reads do not create vector caches. Roots are deduplicated
+     * structurally; no operand temporary may stand in for a retained vector.
+     * @param region complete source/view proof
+     * @param lanes positive typed preferred lane count
+     * @return conservative additional simultaneous JVM slots
+     */
+    private static long rowInputCacheSlots(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr region,int lanes) {
+        var loaded = new java.util.HashSet<Integer>();
+        for (var i : region.arithmetic().instructions()) if (region.rowSites().contains(i.output())) loaded.addAll(i.inputs());
+        for (var c : region.contractions()) loaded.add(c.right());
+        for (var sum : region.sums()) loaded.add(sum.input());
+        var cached = new java.util.HashSet<Integer>();
+        for (int v : loaded) {
+            int root = region.viewOrigins().get(v); var a = region.accesses().get(v); var source = region.accesses().get(root);
+            if (!region.rowSites().contains(root) && region.rowAxes().get(v) == 0 && region.rowAxes().get(root) == 0
+                    && a.plan().iterationRank() == 2 && source.plan().iterationRank() == 2
+                    && a.extentConstants().getLast().equals(source.extentConstants().getLast())
+                    && a.extentConstants().getLast() > 1 && a.strideConstants().getLast() == 1 && a.strideBatchFactors().getLast() == 0) cached.add(root);
+        }
+        long slots = 0; int typedWidth = region.arithmetic().values().getFirst().dataType().byteWidth()/4;
+        for (int root : cached) {
+            long features = region.accesses().get(root).extentConstants().getLast();
+            slots += (features+lanes-1)/lanes+features*typedWidth;
+        }
+        return slots;
+    }
+
+    /**
+     * Bounds typed lane extractions only for producer roots actually consumed as scalars.
+     * Ordinary vector-to-vector pointwise edges do not allocate scalar feature locals.
+     * @param region complete origin and opcode/contraction proof
+     * @return conservative fixed producing-feature count, excluding R
+     */
+    private static long rowScalarExtractionCells(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr region) {
+        var scalar = new java.util.HashSet<Integer>(); var vector = new java.util.HashSet<Integer>();
+        for (var c : region.contractions()) { scalar.add(c.left()); vector.add(c.right()); }
+        for (var i : region.arithmetic().instructions()) if (region.rowSites().contains(i.output())) vector.addAll(i.inputs());
+        for (var sum : region.sums()) vector.add(sum.input());
+        for (int v : vector) {
+            var a = region.accesses().get(v);
+            if (a.plan().iterationRank() == 0 || a.extentConstants().getLast() == 1 && a.extentBatchFactors().getLast() == 0
+                    || a.strideConstants().getLast() == 0 && a.strideBatchFactors().getLast() == 0) scalar.add(v);
+        }
+        var roots = new java.util.HashSet<Integer>();
+        for (int v : scalar) if (region.rowSites().contains(region.viewOrigins().get(v))) roots.add(region.viewOrigins().get(v));
+        long cells = 0; for (int root : roots) cells += rowCells(region,root,true);
+        return cells;
+    }
+
+    /**
+     * Proves contiguous feature chunks, scalar broadcasts and bounded right-transpose staging.
+     * Feature K remains ordered and represented SUM may reduce only rows or singleton features.
+     * @param region existing complete row/origin/alias proof
+     * @return whether every selected access and opcode has this vector binding
+     */
+    private static boolean vectorRowEligible(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr region) {
+        for (int v : region.rowSites()) {
+            var a = region.accesses().get(v);
+            if (region.rowAxes().get(v) != 0 || a.plan().iterationRank() != 2
+                    || a.strideConstants().get(1) != 1 || a.strideBatchFactors().get(1) != 0) return false;
+        }
+        for (var i : region.arithmetic().instructions()) if (region.rowSites().contains(i.output())) {
+            if (i.opcode().vectorForm() != io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode.VectorForm.VALUE)
+                return false;
+            for (int v : i.inputs()) {
+                var a = region.accesses().get(v); int rank = a.plan().iterationRank();
+                if (rank > 2 || region.rowAxes().get(v) > 0) return false;
+                if (rank > 0 && (a.strideBatchFactors().get(rank-1) != 0
+                        || a.strideConstants().get(rank-1) != 0 && a.strideConstants().get(rank-1) != 1)) return false;
+            }
+        }
+        for (var c : region.contractions()) if (region.rowSites().contains(c.output())) {
+            var a = region.accesses().get(c.right());
+            if (a.strideBatchFactors().stream().anyMatch(f -> f != 0)) return false;
+            if (a.strideConstants().get(1) != 1 && a.strideConstants().get(0) != 1) return false;
+        }
+        for (var s : region.sums()) {
+            var a = region.accesses().get(s.input());
+            if (region.rowAxes().get(s.input()) != 0 || a.plan().iterationRank() != 2) return false;
+            for (int axis : s.axes()) if (axis != 0 && a.extentConstants().get(axis) != 1) return false;
+        }
+        return true;
+    }
+
+    /**
+     * Counts fixed feature cells without substituting invocation B.
+     * @param region proved access inventory
+     * @param value value ordinal
+     * @param omitRow whether to omit its authenticated row coordinate
+     * @return exact bounded cell count
+     */
+    private static long rowCells(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr region,int value,boolean omitRow) {
+        long cells = 1; var a = region.accesses().get(value);
+        for (int axis = 0; axis < a.plan().iterationRank(); axis++) if (!omitRow || axis != region.rowAxes().get(value))
+            cells = Math.multiplyExact(cells,a.extentConstants().get(axis));
+        return cells;
+    }
+
+    /**
+     * Extends an already declared-body recipe with bounded staging and W private partial slots.
+     * Existing cuts/banks and their inclusive lifetimes are unchanged; all additions precede slots.
+     * @param facts immutable scalar body/access facts
+     * @param emission selected code shape with proved transpose lifetimes
+     * @return fresh typed facts with complete exact workspace declaration
+     */
+    private static io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLowering.Facts rowScanResources(
+            io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLowering.Facts facts,
+            CpuKernelSpecialization.RowFusionEmission emission) {
+        var ir = facts.ir(); var s = ir.stages().orElseThrow(); var r = s.rowMapReductionIr().orElseThrow();
+        int width = ir.dataType().byteWidth(); long extra = rowWorkspaceBytes(r,emission);
+        var stages = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuGeneralScanIr.Stages(s.views(),s.order(),s.cuts(),s.carryOffsets(),
+                s.carryPorts(),Math.addExact(s.scratchBytes(),extra),s.carryOffsetFactors(),s.scratchBytesPerBatch(),s.symbolic(),
+                s.sequenceStrides(),s.rowAxes(),s.terminal(),s.rowCarryCount(),s.lengthRead(),s.batch(),s.rowMapReductionIr());
+        var selected = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuGeneralScanIr(ir.arithmetic(),ir.formalOrdinals(),ir.actualReads(),
+                ir.scalarReads(),ir.nextOrdinals(),ir.portOrdinals(),ir.demandedPorts(),ir.carries(),ir.boundaryAccesses(),ir.carryCount(),
+                ir.sequenceCount(),ir.reverse(),1,Optional.of(stages));
+        var geometry = new io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLowering.Geometry(
+                facts.geometry().time(),facts.geometry().fixedElements(),s.symbolic() ? stages.workspaceSize(width)
+                    : new io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan.FixedByteSize(stages.scratchBytes()));
+        return new io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLowering.Facts(selected,geometry,
+                facts.spans(),facts.accessBindings(),facts.batchBindings());
+    }
+
+    /**
+     * Sizes bounded transpose and partial/validity areas without any B-by-parameter bank.
+     * @param region proved fixed feature inventory
+     * @param emission selected maximum partial count and transpose sources
+     * @return exact eight-byte aligned private workspace bytes
+     * @throws ArithmeticException if resource sizing overflows
+     */
+    private static long rowWorkspaceBytes(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr region,
+            CpuKernelSpecialization.RowFusionEmission emission) {
+        long cells = 0, transposes = 0; int width = region.arithmetic().values().getFirst().dataType().byteWidth();
+        for (int v : region.terminalOutputs()) cells = Math.addExact(cells,rowCells(region,v,false));
+        for (var list : List.of(emission.invariantTransposeValues(),emission.temporalTransposeValues()))
+            for (int v : list) transposes = Math.addExact(transposes,rowCells(region,v,false));
+        long stage = Math.multiplyExact((Math.addExact(Math.multiplyExact(transposes,width),7))/8,8);
+        long slice = Math.addExact(8,Math.multiplyExact(Math.addExact(Math.multiplyExact(cells,width),7)/8,8));
+        return Math.addExact(stage,Math.multiplyExact(emission.maximumPartialCount(),slice));
+    }
+
+    /**
+     * Combines unit-local computations with a deduplicated partition resource inventory.
+     * Original sources retained by a count fold are declared before carrier validation and slot
+     * assignment, but have no generated child argument or output role. Each child carrier list
+     * is projected by ValueId from the selected partition/reference order.
+     * @param context non-null complete immutable CPU projection, borrowed
+     * @param topology non-null stable selected unit topology with original node membership
+     * @param carrierReferenceValues exact baseline carrier-order IDs, or {@code null} to use
+     *     this partition's declaration order including supplemental original sources
+     * @return non-null immutable general plan and exact shared resource declarations
+     * @throws IllegalArgumentException if carrier cardinality, unit or resource facts disagree
+     * @throws ArithmeticException if checked resource geometry overflows
+     */
     private BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeDag(
             PrepareContext<CpuPartitionAnalysisInputs> context,
             List<CpuPartitionDagDecomposer.Unit> topology,
@@ -1076,7 +2121,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             analyses.add(analyzeUnit(decomposer.unitContext(context, unit.nodes(), baseInputs),
                     unit.lowering(), 0, false));
         }
-        var declarations = mergeDeclarations(analyses);
+        var declarations = retainCountSources(context, topology, mergeDeclarations(analyses));
         List<CpuKernelSpecialization.CarrierAccess> requested =
                 context.backendInputs().carrierPattern();
         if (!requested.isEmpty()) {
@@ -1106,7 +2151,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 analyses.add(analyzeUnit(decomposer.unitContext(context, unit.nodes(), inputs),
                         unit.lowering(), 0, false));
             }
-            declarations = mergeDeclarations(analyses);
+            declarations = retainCountSources(context, topology, mergeDeclarations(analyses));
         }
 
         var bindingByValue = new java.util.LinkedHashMap<ValueId, CpuAccessPlan.Binding>();
@@ -1138,7 +2183,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                     selected.advancedReductionGeometry(), selected.softmaxGeometry(),
                     selected.trailingNormalizationGeometry(),
                     selected.batchNormInferenceGeometry(), selected.batchNormTrainingGeometry(),
-                    selected.units().getFirst().runtimeFacts().recurrentScan());
+                    selected.units().getFirst().runtimeFacts().recurrentScan(),
+                    selected.units().getFirst().runtimeFacts().generalScan());
             CpuPartitionDagDecomposer.Unit topologyUnit = topology.get(index);
             units.add(new CpuPartitionPreparationPlan.ExecutionUnitPlan(unit.portablePlan(),
                     unit.boundaryValues(), unit.accessBindings(), unit.carrierPattern(),
@@ -1150,6 +2196,21 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                     unit.outputCount(),
                     unit.fusionReason(), topologyUnit.dependencies(),
                     topologyUnit.memberNodeOrdinals(), runtimeFacts));
+        }
+        // These original explicit sources still require initialized representations. They are
+        // partition declarations, never computational inputs to a constant-write executable.
+        for (int position = 0; position < declarations.size(); position++) {
+            var declaration = declarations.get(position); var id = declaration.valueId();
+            if (bindingByValue.containsKey(id)) continue;
+            var value = context.values().stream().filter(v -> v.id().equals(id)).findFirst().orElseThrow();
+            var descriptor = value.descriptor(); var layout = descriptor.layout().orElseThrow();
+            long[] extents = descriptor.shape().toLongArray(); long count = descriptor.shape().knownElementCount().orElseThrow();
+            var access = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ, CpuAccessPlan.Regime.GENERAL_ODOMETER,
+                    extents.length, java.util.Collections.nCopies(extents.length, CpuAccessPlan.AxisRole.STRIDED), 0);
+            bindingByValue.put(id, CpuAccessPlan.Binding.create(access, extents, layout.storageOffset(),
+                    layout.strides(), count, 0, count, layout.referencedElementSpan()));
+            var carrier = requested.isEmpty() ? CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT : requested.get(position);
+            requestedByValue.put(id, carrier); generatedByValue.put(id, carrier);
         }
         var boundaryValues = declarations.stream()
                 .map(PreparationResourceRequirement.Buffer::valueId).toList();
@@ -1174,6 +2235,33 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 Optional.empty(), Optional.empty(), List.of(), List.of(), List.of(), List.of(),
                 List.of(), List.of(), Optional.empty());
         return new BackendPartitionAnalysis<>(context.partition(), combined, requirements);
+    }
+
+    /**
+     * Retains mandatory original constant-source initialization after private count elimination.
+     * @param context non-null complete immutable original source/constant projection, borrowed
+     * @param topology non-null selected units with original node membership, not mutated
+     * @param declarations non-null computational boundary declarations in first-use order,
+     *     not mutated
+     * @return immutable deduplicated declarations in supplied order followed by any missing
+     *     original folded sources in unit order; never {@code null}
+     * @throws NullPointerException if a required reference is {@code null}
+     * @throws ArithmeticException if an original source byte span overflows
+     */
+    private static List<PreparationResourceRequirement.Buffer> retainCountSources(
+            PrepareContext<CpuPartitionAnalysisInputs> context, List<CpuPartitionDagDecomposer.Unit> topology,
+            List<PreparationResourceRequirement.Buffer> declarations) {
+        var result = new LinkedHashMap<ValueId, PreparationResourceRequirement.Buffer>();
+        declarations.forEach(d -> result.put(d.valueId(), d));
+        for (var unit : topology) if (unit.lowering().portableKernelIr()
+                instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConstantWriteIr) {
+            var id = unit.nodes().getFirst().inputs().getFirst();
+            var descriptor = context.values().stream().filter(v -> v.id().equals(id)).findFirst().orElseThrow().descriptor();
+            result.putIfAbsent(id, new PreparationResourceRequirement.Buffer(id,
+                    Math.multiplyExact(descriptor.layout().orElseThrow().referencedElementSpan(), descriptor.dataType().byteWidth()),
+                    descriptor.dataType().byteWidth()));
+        }
+        return List.copyOf(result.values());
     }
 
     private static List<PreparationResourceRequirement.Buffer> mergeDeclarations(

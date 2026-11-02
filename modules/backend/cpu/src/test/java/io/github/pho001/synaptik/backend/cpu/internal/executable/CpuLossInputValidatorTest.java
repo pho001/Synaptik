@@ -10,6 +10,28 @@ import java.lang.foreign.MemorySegment;
 import org.junit.jupiter.api.Test;
 
 class CpuLossInputValidatorTest {
+    @Test void temporalTargetsPreserveIgnoreBoundsAndInactiveRowsAcrossRetries() {
+        long[] targets = {99, -1, 99, 2, 99};
+        byte[] active = {1, 0, 1, 0};
+        long[] extents = {2, 0, 2};
+        long[] strides = {2, 1};
+        MemorySegment storage = MemorySegment.ofArray(targets);
+        MemorySegment activity = MemorySegment.ofArray(active);
+        Runnable scan = () -> CpuLossInputValidator.validateTemporal(storage, Long.BYTES, 0L,
+                extents, strides, 1, true, -1L, 0L, 4L, 1L,
+                true, activity, 0L, 1L, 4L);
+        assertThrows(IndexOutOfBoundsException.class, scan::run);
+        targets[3] = -1;
+        assertDoesNotThrow(scan::run);
+        active[1] = 1;
+        assertThrows(IndexOutOfBoundsException.class, scan::run);
+        active[1] = 0;
+        assertDoesNotThrow(scan::run);
+        assertDoesNotThrow(() -> CpuLossInputValidator.validateTemporal(null, Long.BYTES, 0L,
+                null, null, 0, false, 0L, 0L, 1L, 0L,
+                false, null, 0L, 0L, 0L));
+    }
+
     @Test void scansStridedInt32TargetsAndSkipsIgnoredValuesBeforeBounds() {
         int ignored = -17;
         int[] target = {99, 1, ignored, 2, 99, 0, 1, 3, 99, 2, 0, 1};

@@ -5,12 +5,14 @@ import java.util.Objects;
 /**
  * Dense outputs and final hidden state from one RNN or GRU scan occurrence.
  *
- * <p>Tensor construction supplies canonical producer slots zero and one. This shallowly immutable
- * carrier retains the exact references and performs no independent descriptor, provenance,
- * compiler, storage, or execution validation.</p>
+ * <p>Component names denote semantic roles, not a universal producer order. Fixed RNN/GRU
+ * construction supplies outputs at port zero and final hidden at port one; a single-carry
+ * general RNN Scan supplies its emission at port one and final carry at port zero. This
+ * shallowly immutable carrier retains exact references and performs no independent descriptor,
+ * provenance, compiler, storage, or execution validation.</p>
  *
- * @param outputs non-null dense original-time-aligned output Tensor at producer slot zero
- * @param finalHidden non-null explicit final hidden-state Tensor at producer slot one
+ * @param outputs non-null dense original-time-aligned output Tensor
+ * @param finalHidden non-null explicit final hidden-state Tensor
  */
 public record RecurrentScanResult(Tensor outputs, Tensor finalHidden) {
     /**

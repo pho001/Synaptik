@@ -60,35 +60,37 @@ final class TensorPadTileExpressions {
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
      */
     static Tensor pad(Tensor input, long[] before, long[] after, ScalarValue constantValue) {
-        Objects.requireNonNull(input, "input");
-        Objects.requireNonNull(before, "before");
-        Objects.requireNonNull(after, "after");
-        Objects.requireNonNull(constantValue, "constantValue");
-        TensorDescriptor inputDescriptor = input.descriptor();
-        Shape inputShape = inputDescriptor.shape();
-        int rank = inputShape.rank();
-        if (before.length != rank) {
-            throw new IllegalArgumentException(
-                    "padding before length " + before.length + " must equal input rank " + rank);
-        }
-        if (after.length != rank) {
-            throw new IllegalArgumentException(
-                    "padding after length " + after.length + " must equal input rank " + rank);
-        }
-        long[] privateBefore = before.clone();
-        long[] privateAfter = after.clone();
-        PadAttrs attrs = new PadAttrs(
-                Arrays.stream(privateBefore).boxed().toList(),
-                Arrays.stream(privateAfter).boxed().toList(),
-                constantValue);
-        if (constantValue.dataType() != inputDescriptor.dataType()) {
-            throw new IllegalArgumentException(
-                    "padding constant data type " + constantValue.dataType()
-                            + " must match input data type " + inputDescriptor.dataType());
-        }
-        Shape resultShape = paddedShape(inputShape, attrs);
-        Operation operation = new Operation(PadKind.PAD, attrs);
-        return create(input, inputDescriptor, resultShape, operation);
+        return padChecked(input, before, after, constantValue, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null Tensor retained as the exact sole provenance input
+     * @param before non-null caller-owned before widths, exactly one per input axis
+     * @param after non-null caller-owned after widths, exactly one per input axis
+     * @param constantValue non-null exact typed padding constant; its data type must equal the
+     *     input data type and it is retained by exact reference
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input}, {@code before}, {@code after}, or
+     *     {@code constantValue} is null, checked in that order with the parameter name as the
+     *     message
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if an array length differs from input rank or a width is
+     *     negative, or the constant and input data types differ
+     * @throws ArithmeticException if checked static extent or symbolic-offset addition overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    static Tensor padChecked(Tensor input, long[] before, long[] after, ScalarValue constantValue,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return padDescriptors(
+                input == null ? null : input.descriptor(),
+                before,
+                after,
+                constantValue,
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -111,20 +113,32 @@ final class TensorPadTileExpressions {
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
      */
     static Tensor tile(Tensor input, long[] repeats) {
-        Objects.requireNonNull(input, "input");
-        Objects.requireNonNull(repeats, "repeats");
-        TensorDescriptor inputDescriptor = input.descriptor();
-        Shape inputShape = inputDescriptor.shape();
-        int rank = inputShape.rank();
-        if (repeats.length != rank) {
-            throw new IllegalArgumentException(
-                    "tile repeats length " + repeats.length + " must equal input rank " + rank);
-        }
-        long[] privateRepeats = repeats.clone();
-        TileAttrs attrs = new TileAttrs(Arrays.stream(privateRepeats).boxed().toList());
-        Shape resultShape = tiledShape(inputShape, attrs);
-        Operation operation = new Operation(TileKind.TILE, attrs);
-        return create(input, inputDescriptor, resultShape, operation);
+        return tileChecked(input, repeats, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null Tensor retained as the exact sole provenance input
+     * @param repeats non-null caller-owned positive repeat counts, exactly one per input axis
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input} or {@code repeats} is null, with that parameter
+     *     name as the message
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if the array length differs from input rank or a repeat is
+     *     non-positive
+     * @throws ArithmeticException if checked static extent, symbolic coefficient, or symbolic
+     *     offset multiplication overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    static Tensor tileChecked(Tensor input, long[] repeats,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return tileDescriptors(
+                input == null ? null : input.descriptor(),
+                repeats,
+                descriptorCheck,
+                input);
     }
 
     /**
@@ -181,31 +195,153 @@ final class TensorPadTileExpressions {
         return Shape.ofDimensions(resultDimensions);
     }
 
+
+
     /**
-     * Creates one unresolved result descriptor, exact operation provenance, and fresh Tensor.
-     *
-     * <p>The descriptor retains exact input data type and gradient eligibility with the supplied
-     * Shape and unresolved layout. Provenance retains the exact operation and ordered input
-     * {@code [input]}. The central derived factory is invoked exactly once with no label or
-     * storage.</p>
-     *
-     * @param input non-null exact sole provenance input
-     * @param inputDescriptor non-null exact descriptor supplying data type and eligibility
-     * @param resultShape non-null locally derived result Shape
-     * @param operation non-null exact PAD or TILE semantic operation
-     * @return a non-null fresh unlabeled, storage-free Tensor with unresolved layout
-     * @throws IllegalStateException if tensor identifier space is exhausted at factory delegation
+     * Completes ordinary checked semantics synchronously without creating Tensor identities.
+     * The same descriptor guard core serves real construction; the sink is never retained.
+     * @param operation non-null ordinary operation selecting this family and its attributes
+     * @param inputs non-null ordered operand descriptors, including repeated occurrences
+     * @param outputCount exact canonical sibling count
+     * @param sink non-null consumer called exactly once with checked semantics and all outputs
+     * @throws NullPointerException if a required reference is null
+     * @throws IllegalArgumentException if cardinality or ordinary semantic guards reject the request
      */
-    private static Tensor create(
-            Tensor input,
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(operation, "operation");
+        Objects.requireNonNull(inputs, "inputs");
+        Objects.requireNonNull(sink, "sink");
+        if (inputs.size() != 1 || outputCount != 1) {
+            throw new IllegalArgumentException("invalid ordinary descriptor cardinality");
+        }
+        for (TensorDescriptor input : inputs) {
+            Objects.requireNonNull(input, "input descriptor");
+        }
+        if (operation.kind() == PadKind.PAD) {
+            PadAttrs attrs = (PadAttrs) operation.attrs();
+            padDescriptors(inputs.get(0),
+                    attrs.before().stream().mapToLong(Long::longValue).toArray(),
+                    attrs.after().stream().mapToLong(Long::longValue).toArray(),
+                    attrs.constantValue(), sink, null);
+        } else {
+            tileDescriptors(inputs.get(0),
+                    ((TileAttrs) operation.attrs()).repeats().stream().mapToLong(Long::longValue).toArray(),
+                    sink, null);
+        }
+    }
+
+    /**
+     * Runs the shared descriptor guards; provenance references are used only for real construction.
+     * @param before ordinary checked construction parameter
+     * @param after ordinary checked construction parameter
+     * @param constantValue ordinary checked construction parameter
+     * @param descriptorCheck synchronous, unretained sink; null selects real construction
+     * @param originalInput exact real operand, or null for descriptor completion
+     * @return the real result, or null after synchronous descriptor completion
+     */
+    private static Tensor padDescriptors(
+            TensorDescriptor input,
+            long[] before,
+            long[] after,
+            ScalarValue constantValue,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(before, "before");
+        Objects.requireNonNull(after, "after");
+        Objects.requireNonNull(constantValue, "constantValue");
+        TensorDescriptor inputDescriptor = input;
+        Shape inputShape = inputDescriptor.shape();
+        int rank = inputShape.rank();
+        if (before.length != rank) {
+            throw new IllegalArgumentException(
+                    "padding before length " + before.length + " must equal input rank " + rank);
+        }
+        if (after.length != rank) {
+            throw new IllegalArgumentException(
+                    "padding after length " + after.length + " must equal input rank " + rank);
+        }
+        long[] privateBefore = before.clone();
+        long[] privateAfter = after.clone();
+        PadAttrs attrs = new PadAttrs(
+                Arrays.stream(privateBefore).boxed().toList(),
+                Arrays.stream(privateAfter).boxed().toList(),
+                constantValue);
+        if (constantValue.dataType() != inputDescriptor.dataType()) {
+            throw new IllegalArgumentException(
+                    "padding constant data type " + constantValue.dataType()
+                            + " must match input data type " + inputDescriptor.dataType());
+        }
+        Shape resultShape = paddedShape(inputShape, attrs);
+        Operation operation = new Operation(PadKind.PAD, attrs);
+        return createDescriptors(
+                inputDescriptor,
+                resultShape,
+                operation,
+                descriptorCheck,
+                originalInput);
+    }
+
+    /**
+     * Runs the shared descriptor guards; provenance references are used only for real construction.
+     * @param input descriptor supplying ordinary operand metadata
+     * @param repeats ordinary checked construction parameter
+     * @param descriptorCheck synchronous, unretained sink; null selects real construction
+     * @param originalInput exact real operand, or null for descriptor completion
+     * @return the real result, or null after synchronous descriptor completion
+     */
+    private static Tensor tileDescriptors(
+            TensorDescriptor input,
+            long[] repeats,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
+        Objects.requireNonNull(input, "input");
+        Objects.requireNonNull(repeats, "repeats");
+        TensorDescriptor inputDescriptor = input;
+        Shape inputShape = inputDescriptor.shape();
+        int rank = inputShape.rank();
+        if (repeats.length != rank) {
+            throw new IllegalArgumentException(
+                    "tile repeats length " + repeats.length + " must equal input rank " + rank);
+        }
+        long[] privateRepeats = repeats.clone();
+        TileAttrs attrs = new TileAttrs(Arrays.stream(privateRepeats).boxed().toList());
+        Shape resultShape = tiledShape(inputShape, attrs);
+        Operation operation = new Operation(TileKind.TILE, attrs);
+        return createDescriptors(
+                inputDescriptor,
+                resultShape,
+                operation,
+                descriptorCheck,
+                originalInput);
+    }
+
+    /**
+     * Runs the shared descriptor guards; provenance references are used only for real construction.
+     * @param input descriptor supplying ordinary operand metadata
+     * @param inputDescriptor ordinary checked construction parameter
+     * @param resultShape ordinary checked construction parameter
+     * @param operation ordinary checked construction parameter
+     * @param descriptorCheck synchronous, unretained sink; null selects real construction
+     * @param originalInput exact real operand, or null for descriptor completion
+     * @return the real result, or null after synchronous descriptor completion
+     */
+    private static Tensor createDescriptors(
             TensorDescriptor inputDescriptor,
             Shape resultShape,
-            Operation operation) {
+            Operation operation,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
         TensorDescriptor descriptor = new TensorDescriptor(
                 inputDescriptor.dataType(),
                 resultShape,
                 Optional.empty(),
                 inputDescriptor.requiresGrad());
-        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(originalInput));
     }
 }

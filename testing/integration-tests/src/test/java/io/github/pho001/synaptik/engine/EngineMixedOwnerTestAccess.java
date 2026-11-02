@@ -193,6 +193,11 @@ public final class EngineMixedOwnerTestAccess {
         return Objects.requireNonNull(graph, "graph").artifacts();
     }
 
+    /** Uses the existing staged-compile seam with the ordinary Engine publication materializer. */
+    public static CompiledGraph ordinaryGraph(Engine engine, AdvancedCompiledGraph graph) {
+        return new CompiledGraph(engine, compileArtifacts(graph));
+    }
+
     /**
      * Returns identity-bearing inward publications and workspaces while the result remains open.
      */

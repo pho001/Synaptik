@@ -45,7 +45,7 @@ final class CpuMatmulGeneratedKernelTest {
         java.util.Optional.of(ir));
         var generator = new CpuClassFileKernelGenerator();
         byte[] bytes=generator.generateClassBytes(specialization, ir.encodedKernelIr());
-        var generated = generator.defineClassBytes(specialization,bytes);
+        var generated = generator.defineClassBytes(specialization, ir.encodedKernelIr(), bytes);
         var evidence=java.nio.file.Path.of("/tmp/synaptik-cpu-0008f-evidence/focused");
         java.nio.file.Files.createDirectories(evidence);
         java.nio.file.Files.write(evidence.resolve("direct-n-vector-f32.class"),bytes);
@@ -92,7 +92,7 @@ final class CpuMatmulGeneratedKernelTest {
                         ==java.lang.classfile.Opcode.F2D)),
                 ()->assertTrue(instructions.stream().noneMatch(value->value.opcode()
                         ==java.lang.classfile.Opcode.D2F)));
-        var generated=generator.defineClassBytes(specialization,bytes);
+        var generated=generator.defineClassBytes(specialization, ir.encodedKernelIr(), bytes);
         long[] geometry={0,0,0,1,1,1,n,1,1,n,1,n,1,0,0,1,n,1};
         generated.entryPoint().invokeWithArguments(new float[]{2},right,bias,output,geometry,0L,1L);
         assertArrayEquals(expected,output);
@@ -136,7 +136,7 @@ final class CpuMatmulGeneratedKernelTest {
         assertNoPerAccessLongConversion(instructions);
         assertTrue(instructions.stream().filter(value->value.opcode()
                 ==java.lang.classfile.Opcode.LALOAD).count()<=32);
-        var generated=generator.defineClassBytes(specialization,bytes);
+        var generated=generator.defineClassBytes(specialization, ir.encodedKernelIr(), bytes);
         long[] geometry={0,0,0,1,m,k,n,k,1,n,1,n,1,0,0,0,(long)m*n,1};
         generated.entryPoint().invokeWithArguments(left,right,output,geometry,0L,4L);
         assertArrayEquals(expected,output);
@@ -182,7 +182,7 @@ final class CpuMatmulGeneratedKernelTest {
                 ()->assertEquals(1,invokes.stream().filter(value->value.name().stringValue()
                         .equals("zero")&&value.owner().asInternalName()
                         .equals("jdk/incubator/vector/FloatVector")).count()));
-        var generated=generator.defineClassBytes(specialization,bytes);
+        var generated=generator.defineClassBytes(specialization, ir.encodedKernelIr(), bytes);
         long[] geometry={0,0,0,1,m,k,n,k,1,n,1,n,1,0,0,0,(long)m*n,1};
         long work=(long)((m+1)/2)*((n+2L*lanes-1)/(2L*lanes));
         generated.entryPoint().invokeWithArguments(left,right,output,geometry,0L,work);
@@ -232,8 +232,7 @@ final class CpuMatmulGeneratedKernelTest {
         var specialization=new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
         types,carriers,0,-1,List.of(),false,
         54,java.util.Optional.of(ir));
-        var generator=new CpuClassFileKernelGenerator();var generated=generator.defineClassBytes(
-                specialization,generator.generateClassBytes(specialization,ir.encodedKernelIr()));
+        var generator=new CpuClassFileKernelGenerator();var generated=generator.defineClassBytes(specialization, ir.encodedKernelIr(), generator.generateClassBytes(specialization, ir.encodedKernelIr()));
         double[] output={0};long[] geometry={0,0,0,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1};
         if(epilogue.hasBias())generated.entryPoint().invokeWithArguments(new double[]{2},
                 new double[]{3},new double[]{0.5},output,geometry,0L,1L);
@@ -254,8 +253,7 @@ final class CpuMatmulGeneratedKernelTest {
                 CarrierAccess.MEMORY_SEGMENT),0,-1,List.of(),false,54,
         java.util.Optional.of(ir));
         var generator=new CpuClassFileKernelGenerator();
-        var generated=generator.defineClassBytes(specialization,
-                generator.generateClassBytes(specialization,ir.encodedKernelIr()));
+        var generated=generator.defineClassBytes(specialization, ir.encodedKernelIr(), generator.generateClassBytes(specialization, ir.encodedKernelIr()));
         java.lang.foreign.MemorySegment left=segment(leftArray),right=segment(rightArray),
                 output=segment(outputArray);
         long[] geometry={0,0,0,1,1,2,1,2,1,1,1,1,1,0,0,0,1,1};
@@ -264,6 +262,7 @@ final class CpuMatmulGeneratedKernelTest {
     }
 
     private static void scalarPair(DataType leftType, DataType rightType) throws Throwable {
+        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(leftType == DataType.BFLOAT16 || leftType == DataType.FLOAT16 ? leftType : rightType, () -> {
         DataType resultType = io.github.pho001.synaptik.model.datatype.DataTypePromotion
                 .promoteNumeric(leftType, rightType);
         var read = plan(CpuAccessPlan.AccessKind.READ);
@@ -277,13 +276,13 @@ final class CpuMatmulGeneratedKernelTest {
         List.of(leftType, rightType, resultType), carriers, 0, -1, List.of(), false,
         54, java.util.Optional.of(ir));
         var generator = new CpuClassFileKernelGenerator();
-        var generated = generator.defineClassBytes(specialization,
-                generator.generateClassBytes(specialization, ir.encodedKernelIr()));
+        var generated = generator.defineClassBytes(specialization, ir.encodedKernelIr(), generator.generateClassBytes(specialization, ir.encodedKernelIr()));
         Object left = values(leftType, 2, 3), right = values(rightType, 4, 5);
         Object output = values(resultType, 0);
         long[] geometry = {0,0,0,1,1,2,1,2,1,1,1,1,1,0,0,0,1,1};
         generated.entryPoint().invokeWithArguments(left,right,output,geometry,0L,1L);
         assertEquals(23.0, value(resultType, output), 0.0, leftType + " x " + rightType);
+        });
     }
 
     private static void run(DataType type, Object left, Object right, Object output,
@@ -299,8 +298,7 @@ final class CpuMatmulGeneratedKernelTest {
         List.of(type,type,type), List.of(carrier,carrier,carrier), 0, -1,
         List.of(), false, 54, java.util.Optional.of(ir));
         var generator = new CpuClassFileKernelGenerator();
-        var generated = generator.defineClassBytes(specialization,
-                generator.generateClassBytes(specialization, ir.encodedKernelIr()));
+        var generated = generator.defineClassBytes(specialization, ir.encodedKernelIr(), generator.generateClassBytes(specialization, ir.encodedKernelIr()));
         long[] geometry = {0,0,0,1,2,3,2,3,1,2,1,2,1,0,0,0,4,1};
         generated.entryPoint().invokeWithArguments(left,right,output,geometry,0L,4L);
         if (type == DataType.FLOAT32) assertArrayEquals((float[]) expected, (float[]) output);

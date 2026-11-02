@@ -1,7 +1,9 @@
 package io.github.pho001.synaptik.compiler;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -523,11 +525,7 @@ final class GradientRulesTest {
         FirstOrderAutograd.Expansion expansion =
                 FirstOrderAutograd.expand(plan, CompileTimeConstantGraph.Ingress.empty());
 
-        Tensor leftReduction = expansion.targetGradients().get(0).gradient();
-        assertTrue(leftReduction.provenance().orElseThrow().operation().attrs()
-                instanceof SumToShapeAttrs);
-        Tensor leftMatmul =
-                leftReduction.provenance().orElseThrow().inputs().getFirst();
+        Tensor leftMatmul = expansion.targetGradients().get(0).gradient();
         assertEquals(
                 MatmulKind.MATMUL,
                 leftMatmul.provenance().orElseThrow().operation().kind());
@@ -544,11 +542,7 @@ final class GradientRulesTest {
                 right,
                 rightTranspose.provenance().orElseThrow().inputs().getFirst());
 
-        Tensor rightReduction = expansion.targetGradients().get(1).gradient();
-        assertTrue(rightReduction.provenance().orElseThrow().operation().attrs()
-                instanceof SumToShapeAttrs);
-        Tensor rightMatmul =
-                rightReduction.provenance().orElseThrow().inputs().getFirst();
+        Tensor rightMatmul = expansion.targetGradients().get(1).gradient();
         assertEquals(
                 MatmulKind.MATMUL,
                 rightMatmul.provenance().orElseThrow().operation().kind());
@@ -562,6 +556,113 @@ final class GradientRulesTest {
                         .operation().attrs()).axes());
         assertSame(left, leftTranspose.provenance().orElseThrow().inputs().getFirst());
         assertSame(seed, rightMatmul.provenance().orElseThrow().inputs().get(1));
+    }
+
+    @Test
+    void matmulEqualShapeContributionsOmitReductionForEveryRankPairAndFloatingType() {
+        DynamicDimension batch = new DynamicDimension("B");
+        List<List<Shape>> cases = List.of(
+                List.of(Shape.of(3), Shape.of(3)),
+                List.of(Shape.of(3), Shape.of(3, 4)),
+                List.of(Shape.of(2, 3), Shape.of(3)),
+                List.of(Shape.of(2, 3), Shape.of(3, 4)),
+                List.of(Shape.of(5, 2, 3), Shape.of(5, 3, 4)),
+                List.of(Shape.of(2, 0), Shape.of(0, 4)),
+                List.of(Shape.of(0, 2, 3), Shape.of(0, 3, 4)),
+                List.of(
+                        Shape.ofDimensions(batch, new StaticDimension(2), new StaticDimension(3)),
+                        Shape.ofDimensions(batch, new StaticDimension(3), new StaticDimension(4))));
+        for (DataType type : List.of(
+                DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
+            for (List<Shape> shapes : cases) {
+                Tensor left = tensor(type, shapes.get(0));
+                Tensor right = tensor(type, shapes.get(1));
+                Tensor output = left.matmul(right);
+                Tensor seed = tensor(type, output.descriptor().shape());
+                for (int role = 0; role < 2; role++) {
+                    Tensor[] gradients = FirstOrderAutograd.applyOrdinary(
+                            FirstOrderGradientCoverage.FamilyOwner.LINEAR_ALGEBRA,
+                            OrdinaryConstruction.source(output.provenance().orElseThrow().producer()),
+                            0, seed, new boolean[] {role == 0, role == 1},
+                            OrdinaryConstruction.real(
+                                    new FirstOrderAutograd.DerivativeConstants(), null),
+                            java.util.function.Function.identity());
+                    Tensor selected = role == 0 ? left : right;
+                    assertEquals(selected.descriptor().shape(), gradients[role].descriptor().shape());
+                    assertEquals(type, gradients[role].descriptor().dataType());
+                    assertFalse(gradients[role].provenance().orElseThrow().operation().attrs()
+                            instanceof SumToShapeAttrs, type + " " + shapes + " role=" + role);
+                    assertNull(gradients[1 - role]);
+                }
+            }
+        }
+    }
+
+    @Test
+    void matmulOnlyReducesTheActuallyBroadcastOperandIncludingEmptyBatches() {
+        List<List<Shape>> cases = List.of(
+                List.of(Shape.of(1, 2, 3), Shape.of(5, 3, 4)),
+                List.of(Shape.of(2, 3), Shape.of(5, 3, 4)),
+                List.of(Shape.of(3), Shape.of(5, 3, 4)),
+                List.of(Shape.of(1, 2, 3), Shape.of(0, 3, 4)),
+                List.of(Shape.of(5, 2, 3), Shape.of(1, 3, 4)),
+                List.of(Shape.of(5, 2, 3), Shape.of(3, 4)),
+                List.of(Shape.of(5, 2, 3), Shape.of(3)),
+                List.of(Shape.of(0, 2, 3), Shape.of(1, 3, 4)));
+        for (DataType type : List.of(
+                DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
+            for (int index = 0; index < cases.size(); index++) {
+                List<Shape> shapes = cases.get(index);
+                Tensor left = tensor(type, shapes.get(0));
+                Tensor right = tensor(type, shapes.get(1));
+                Tensor output = left.matmul(right);
+                Tensor[] gradients = FirstOrderAutograd.applyOrdinary(
+                        FirstOrderGradientCoverage.FamilyOwner.LINEAR_ALGEBRA,
+                        OrdinaryConstruction.source(output.provenance().orElseThrow().producer()),
+                        0, tensor(type, output.descriptor().shape()), new boolean[] {true, true},
+                        OrdinaryConstruction.real(
+                                new FirstOrderAutograd.DerivativeConstants(), null),
+                        java.util.function.Function.identity());
+                for (int role = 0; role < 2; role++) {
+                    Tensor selected = role == 0 ? left : right;
+                    assertEquals(selected.descriptor().shape(), gradients[role].descriptor().shape());
+                    boolean reductionRequired = role == (index < 4 ? 0 : 1);
+                    assertEquals(reductionRequired,
+                            gradients[role].provenance().orElseThrow().operation().attrs()
+                                    instanceof SumToShapeAttrs,
+                            type + " " + shapes + " role=" + role);
+                    if (reductionRequired) {
+                        Tensor contribution = gradients[role].provenance().orElseThrow()
+                                .inputs().getFirst();
+                        assertFalse(contribution.provenance().orElseThrow().operation().attrs()
+                                instanceof SumToShapeAttrs);
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    void promotedMatmulNormalizesTypeOnlyAfterAnyRequiredBatchReduction() {
+        for (boolean broadcast : List.of(false, true)) {
+            Tensor left = tensor(DataType.FLOAT16,
+                    broadcast ? Shape.of(1, 2, 3) : Shape.of(2, 3));
+            Tensor right = tensor(DataType.BFLOAT16,
+                    broadcast ? Shape.of(5, 3, 4) : Shape.of(3, 4));
+            Tensor result = gradient(left.matmul(right).sum(), left);
+            assertEquals(CastKind.CAST, result.provenance().orElseThrow().operation().kind());
+            Tensor normalizedShape = result.provenance().orElseThrow().inputs().getFirst();
+            assertEquals(broadcast,
+                    normalizedShape.provenance().orElseThrow().operation().attrs()
+                            instanceof SumToShapeAttrs);
+            Tensor contribution = broadcast
+                    ? normalizedShape.provenance().orElseThrow().inputs().getFirst()
+                    : normalizedShape;
+            assertEquals(MatmulKind.MATMUL,
+                    contribution.provenance().orElseThrow().operation().kind());
+            assertEquals(DataType.FLOAT32, contribution.descriptor().dataType());
+            assertEquals(DataType.FLOAT16, result.descriptor().dataType());
+        }
     }
 
     @Test

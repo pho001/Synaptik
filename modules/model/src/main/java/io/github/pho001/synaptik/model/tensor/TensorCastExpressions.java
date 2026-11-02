@@ -59,18 +59,87 @@ final class TensorCastExpressions {
      *     immutable model values have been constructed
      */
     static Tensor apply(Tensor input, DataType targetDataType) {
+        return applyChecked(input, targetDataType, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null source tensor retained by exact reference as the sole provenance input;
+     *     it is not mutated or inspected for values or storage
+     * @param targetDataType non-null requested result data type retained by exact enum reference in
+     *     the cast attributes
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input} or {@code targetDataType} is null, checked in
+     *     that order with the parameter name as the message; neither failure consumes an identity
+     * @throws IllegalStateException if tensor identifier space is exhausted after all local
+     *     immutable model values have been constructed
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata
+     */
+    static Tensor applyChecked(Tensor input, DataType targetDataType,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return applyDescriptors(
+                input == null ? null : input.descriptor(),
+                targetDataType,
+                descriptorCheck,
+                input);
+    }
+
+    /**
+     * Completes ordinary checked semantics synchronously without creating Tensor identities.
+     * The same descriptor guard core serves real construction; the sink is never retained.
+     * @param operation non-null ordinary operation selecting this family and its attributes
+     * @param inputs non-null ordered operand descriptors, including repeated occurrences
+     * @param outputCount exact canonical sibling count
+     * @param sink non-null consumer called exactly once with checked semantics and all outputs
+     * @throws NullPointerException if a required reference is null
+     * @throws IllegalArgumentException if cardinality or ordinary semantic guards reject the request
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(operation, "operation");
+        Objects.requireNonNull(inputs, "inputs");
+        Objects.requireNonNull(sink, "sink");
+        if (inputs.size() != 1 || outputCount != 1) {
+            throw new IllegalArgumentException("invalid ordinary descriptor cardinality");
+        }
+        for (TensorDescriptor input : inputs) {
+            Objects.requireNonNull(input, "input descriptor");
+        }
+        applyDescriptors(inputs.get(0), ((CastAttrs) operation.attrs()).targetDataType(), sink, null);
+    }
+
+    /**
+     * Runs the shared descriptor guards; provenance references are used only for real construction.
+     * @param input descriptor supplying ordinary operand metadata
+     * @param targetDataType ordinary checked construction parameter
+     * @param descriptorCheck synchronous, unretained sink; null selects real construction
+     * @param originalInput exact real operand, or null for descriptor completion
+     * @return the real result, or null after synchronous descriptor completion
+     */
+    private static Tensor applyDescriptors(
+            TensorDescriptor input,
+            DataType targetDataType,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
         Objects.requireNonNull(input, "input");
         Objects.requireNonNull(targetDataType, "targetDataType");
 
-        DataType sourceDataType = input.descriptor().dataType();
-        Shape shape = input.descriptor().shape();
-        boolean requiresGrad = input.descriptor().requiresGrad()
+        DataType sourceDataType = input.dataType();
+        Shape shape = input.shape();
+        boolean requiresGrad = input.requiresGrad()
                 && sourceDataType.isFloating()
                 && targetDataType.isFloating();
         TensorDescriptor descriptor =
                 new TensorDescriptor(targetDataType, shape, Optional.empty(), requiresGrad);
         CastAttrs attrs = new CastAttrs(targetDataType);
         Operation operation = new Operation(CastKind.CAST, attrs);
-        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(originalInput));
     }
 }

@@ -20,6 +20,25 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class CpuIndexingGeneratedKernelTest {
+    @Test void controlledGatherElementsGuardsBeforeIndicesAndDataLoads() throws Throwable {
+        var selected = context(new Operation(AxisGatherKind.GATHER_ELEMENTS, new IndexAxisAttrs(1)),
+                List.of(0, 1), List.of(desc(DataType.FLOAT32, Shape.of(2, 3)),
+                        desc(DataType.INT32, Shape.of(2, 2))),
+                desc(DataType.FLOAT32, Shape.of(2, 2)));
+        var plan = new CpuPartitionPreparer().analyze(selected).plan();
+        var dataRow = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(0, 3);
+        var resultRow = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuScanControl.Row(0, 2);
+        var entry = CpuAffineCopyGeneratedKernelTest.controlledEntry(
+                plan.units().getFirst().portablePlan(), List.of(dataRow, resultRow, resultRow));
+        float[] output = {-99, -99, -99, -99};
+        entry.invokeWithArguments(new float[]{10, 11, -0.0f}, new int[]{2, 0}, output,
+                plan.indexingGeometry().orElseThrow().pack(new long[3], 0, 4),
+                0L, 4L, CpuAffineCopyGeneratedKernelTest.control(new byte[]{1, 0}));
+        assertArrayEquals(new float[]{-0.0f, 10, 0, 0}, output);
+        assertEquals(Integer.MIN_VALUE, Float.floatToRawIntBits(output[0]));
+        assertEquals(0, Float.floatToRawIntBits(output[2]));
+        assertEquals(0, Float.floatToRawIntBits(output[3]));
+    }
     @Test void generatedClassesEmbedTypedLoopsForEveryFamilyAndGeneralSegments() {
         var gather = code(context(new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(1)),
                 List.of(0, 1), List.of(desc(DataType.FLOAT32, Shape.of(2, 3)),
@@ -292,7 +311,7 @@ class CpuIndexingGeneratedKernelTest {
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
         byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
-        var artifact = generator.defineClassBytes(route.specialization(), bytes);
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes);
         long[] geometry = plan.indexingGeometry().orElseThrow().pack(bases, start, end);
         var args = new ArrayList<Object>(carriers); args.add(geometry); args.add(start);
         args.add(end); artifact.entryPoint().invokeWithArguments(args);

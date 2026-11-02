@@ -48,8 +48,70 @@ final class TensorContiguousExpressions {
      *     operation, and provenance construction
      */
     static Tensor apply(Tensor input) {
+        return applyChecked(input, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param input non-null Tensor retained by exact reference as the sole provenance input; it is
+     *     not mutated and none of its storage or value state is read
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code input} is null, with message {@code input}; no Tensor
+     *     identity is consumed
+     * @throws ArithmeticException if canonical layout stride or referenced-span arithmetic
+     *     overflows for a fully static Shape; this occurs before Tensor identity allocation
+     * @throws IllegalStateException if tensor identifier space is exhausted after descriptor,
+     *     operation, and provenance construction
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata
+     */
+    static Tensor applyChecked(Tensor input,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return applyDescriptors(
+                input == null ? null : input.descriptor(),
+                descriptorCheck,
+                input);
+    }
+
+    /**
+     * Completes ordinary checked semantics synchronously without creating Tensor identities.
+     * The same descriptor guard core serves real construction; the sink is never retained.
+     * @param operation non-null ordinary operation selecting this family and its attributes
+     * @param inputs non-null ordered operand descriptors, including repeated occurrences
+     * @param outputCount exact canonical sibling count
+     * @param sink non-null consumer called exactly once with checked semantics and all outputs
+     * @throws NullPointerException if a required reference is null
+     * @throws IllegalArgumentException if cardinality or ordinary semantic guards reject the request
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(operation, "operation");
+        Objects.requireNonNull(inputs, "inputs");
+        Objects.requireNonNull(sink, "sink");
+        if (inputs.size() != 1 || outputCount != 1) {
+            throw new IllegalArgumentException("invalid ordinary descriptor cardinality");
+        }
+        for (TensorDescriptor input : inputs) {
+            Objects.requireNonNull(input, "input descriptor");
+        }
+        applyDescriptors(inputs.get(0), sink, null);
+    }
+
+    /**
+     * Runs the shared descriptor guards; provenance references are used only for real construction.
+     * @param input descriptor supplying ordinary operand metadata
+     * @param descriptorCheck synchronous, unretained sink; null selects real construction
+     * @param originalInput exact real operand, or null for descriptor completion
+     * @return the real result, or null after synchronous descriptor completion
+     */
+    private static Tensor applyDescriptors(
+            TensorDescriptor input,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalInput) {
         Objects.requireNonNull(input, "input");
-        TensorDescriptor inputDescriptor = input.descriptor();
+        TensorDescriptor inputDescriptor = input;
         Shape shape = inputDescriptor.shape();
         Optional<LayoutDescriptor> layout = shape.isFullyStatic()
                 ? Optional.of(LayoutDescriptor.contiguous(shape))
@@ -61,6 +123,10 @@ final class TensorContiguousExpressions {
                 inputDescriptor.requiresGrad());
         Operation operation = new Operation(
                 ContiguousKind.CONTIGUOUS, NoOperationAttrs.INSTANCE);
-        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(input));
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
+        return TensorFactory.createDerived(descriptor, Optional.empty(), operation, List.of(originalInput));
     }
 }

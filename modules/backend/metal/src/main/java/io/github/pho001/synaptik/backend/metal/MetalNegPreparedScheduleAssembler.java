@@ -137,7 +137,7 @@ final class MetalNegPreparedScheduleAssembler
             if (affinePublication.isPresent()) {
                 var publication = affinePublication.orElseThrow();
                 preparation = new PreparedRepresentationPlan.CreatedBuffer(
-                        () -> context.createBuffer(bytes, publication));
+                        (requestedBytes, alignment) -> context.createBuffer(requestedBytes, publication));
             } else if (representationIndex == 0 && bindable.contains(assignment.valueId())) {
                 preparation = new PreparedRepresentationPlan.CallerInput();
             } else if (representationIndex == 0
@@ -150,10 +150,10 @@ final class MetalNegPreparedScheduleAssembler
                 MetalPreparedSplatResource resource = requireSplatResource(
                         scheduleContext.partitions(), assignment.valueId());
                 preparation = new PreparedRepresentationPlan.InitializedBuffer(
-                        resource::newRunBinding);
+                        (requestedBytes, alignment) -> resource.newRunBinding());
             } else {
                 preparation = new PreparedRepresentationPlan.CreatedBuffer(
-                        () -> context.createBuffer(bytes));
+                        (requestedBytes, alignment) -> context.createBuffer(requestedBytes));
             }
             buffers.add(new PreparedScheduleContribution.Buffer(
                     assignment, representationIndex, preparation));
@@ -193,7 +193,7 @@ final class MetalNegPreparedScheduleAssembler
                             executablePlan.targetValueIds().size());
             workspaces.add(new PreparedScheduleContribution.Workspace(
                     assignment,
-                    () -> new MetalNegPreparedExecutable.AddressWorkspace(
+                    (requestedBytes, alignment) -> new MetalNegPreparedExecutable.AddressWorkspace(
                             context, pointerCount)));
         }
         return new PreparedScheduleContribution(
@@ -306,7 +306,7 @@ final class MetalNegPreparedScheduleAssembler
                             .orElseThrow(() -> new IllegalArgumentException(
                                     "Metal splat feed has no exact prepared source resource"));
                     preparation = List.of(new PreparedRepresentationPlan.InitializedBuffer(
-                            resource::newRunBinding));
+                            (requestedBytes, alignment) -> resource.newRunBinding()));
                 } else {
                     preparation = List.of(new PreparedRepresentationPlan.CallerInput());
                 }
@@ -316,14 +316,14 @@ final class MetalNegPreparedScheduleAssembler
                 Optional<MetalBufferRepresentation.DenseAffinePublication> publication =
                         executable.denseAffinePublication(assignment.valueId());
                 preparation = List.of(new PreparedRepresentationPlan.CreatedBuffer(
-                        () -> publication.isPresent()
-                                ? context.createBuffer(bytes, publication.orElseThrow())
-                                : context.createBuffer(bytes)));
+                        (requestedBytes, alignment) -> publication.isPresent()
+                                ? context.createBuffer(requestedBytes, publication.orElseThrow())
+                                : context.createBuffer(requestedBytes)));
             } else if (internals.contains(assignment.valueId())) {
                 long bytes = memoryPlan.buffers()
                         .get(assignment.planIndex()).byteSize();
                 preparation = List.of(new PreparedRepresentationPlan.CreatedBuffer(
-                        () -> context.createBuffer(bytes)));
+                        (requestedBytes, alignment) -> context.createBuffer(requestedBytes)));
             } else {
                 throw new IllegalArgumentException(
                         "Metal schedule contains an undeclared buffer");
@@ -347,7 +347,7 @@ final class MetalNegPreparedScheduleAssembler
                             plan.targetValueIds().size())
                     : Math.addExact(
                             plan.feedValueIds().size(), plan.targetValueIds().size());
-            workspaceCreators = List.of(() ->
+            workspaceCreators = List.of((requestedBytes, alignment) ->
                     new MetalNegPreparedExecutable.AddressWorkspace(context, pointerCount));
         } else {
             workspaceCreators = List.of();

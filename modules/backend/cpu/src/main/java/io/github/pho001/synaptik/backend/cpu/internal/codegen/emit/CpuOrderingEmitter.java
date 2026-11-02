@@ -21,6 +21,11 @@ import java.lang.constant.MethodTypeDesc;
  * preserves directional signed-zero order and left-on-equality stability, and writes exact
  * represented values and zero-based logical indices. All merge, address, comparison, and output
  * state is primitive and invocation-local; the emitter retains no generated or run state.</p>
+ *
+ * <p>Controlled ordering reconstructs the full logical input ordinal for each slice from its
+ * existing axis geometry and tests the proved original row before touching scratch or operands.
+ * Inactive slices publish exact carrier zero for values and indices without comparing inputs.
+ * Ordinary uncontrolled generation retains its existing instruction sequence.</p>
  */
 public final class CpuOrderingEmitter {
     private static final ClassDesc SEGMENT = ClassDesc.of("java.lang.foreign.MemorySegment");
@@ -125,11 +130,40 @@ public final class CpuOrderingEmitter {
         }
         code.loadConstant(8L).lmul().lstore(regionBytes);
         prepareDenseMapping(code, layouts[0], axis, inner, ints);
+        boolean controlled = CpuCarrierEmitter.controlFacts()
+                .map(facts -> facts.boundaryRows().getFirst().rowIndexed()).orElse(false);
+        int logicalOrdinal = controlled ? code.allocateLocal(TypeKind.LONG) : -1;
+        int logicalInner = controlled ? code.allocateLocal(TypeKind.LONG) : -1;
+        if (controlled) {
+            code.loadConstant(1L).lstore(logicalInner);
+            for (int current = 0; current < layouts[0].extents.length; current++) {
+                var skip = code.newLabel();
+                code.loadConstant(current).iload(axis).branch(Opcode.IF_ICMPLE, skip);
+                load(code, layouts[0].extents[current], ints);
+                if (ints) code.i2l();
+                code.lload(logicalInner).lmul().lstore(logicalInner);
+                code.labelBinding(skip);
+            }
+        }
+        var inactiveSlice = controlled ? code.newLabel() : null;
 
         var sliceLoop = code.newLabel();
         var complete = code.newLabel();
         code.labelBinding(sliceLoop);
         compare(code, slice, end, ints, Opcode.IF_ICMPGE, Opcode.IFGE, complete);
+        if (controlled) {
+            load(code, slice, ints);
+            if (ints) code.i2l();
+            code.lload(logicalInner).ldiv();
+            load(code, axisExtent, ints);
+            if (ints) code.i2l();
+            code.lmul().lload(logicalInner).lmul();
+            load(code, slice, ints);
+            if (ints) code.i2l();
+            code.lload(logicalInner).lrem().ladd().lstore(logicalOrdinal);
+            CpuLoopEmitter.emitActiveOrdinalGuard(code, 0, logicalOrdinal, TypeKind.LONG,
+                    inactiveSlice);
+        }
         zero(code, i, ints);
         var initialize = code.newLabel();
         var initialized = code.newLabel();
@@ -238,6 +272,39 @@ public final class CpuOrderingEmitter {
         zero(code, position, ints);
         var output = code.newLabel();
         var sliceDone = code.newLabel();
+        if (controlled) {
+            var activeOutput = code.newLabel();
+            code.branch(Opcode.GOTO, activeOutput).labelBinding(inactiveSlice);
+            zero(code, position, ints);
+            code.loadConstant(0L).lstore(selectedIndex);
+            switch (p.type) {
+                case FLOAT64 -> code.loadConstant(0.0d);
+                case FLOAT32 -> code.loadConstant(0.0f);
+                case INT64 -> code.loadConstant(0L);
+                case BFLOAT16, FLOAT16, INT32, BOOL -> code.loadConstant(0);
+            }
+            storeValue(code, p.type, leftValue);
+            var zeroOutput = code.newLabel();
+            code.labelBinding(zeroOutput);
+            compare(code, position, outputCount, ints, Opcode.IF_ICMPGE, Opcode.IFGE, sliceDone);
+            emitAddress(code, layouts[1], axis, slice, position, false, firstOutputAddress,
+                    remainder, coordinate, inner, outer, within, ints);
+            if (p.argsort) {
+                storeIndex(code, s.carrierPattern().get(1), 1, firstOutputAddress, selectedIndex,
+                        ints);
+            } else {
+                storeCarrier(code, p.type, s.carrierPattern().get(1), 1, firstOutputAddress,
+                        leftValue, ints);
+                if (p.topK) {
+                    emitAddress(code, layouts[2], axis, slice, position, false, secondOutputAddress,
+                            remainder, coordinate, inner, outer, within, ints);
+                    storeIndex(code, s.carrierPattern().get(2), 2, secondOutputAddress,
+                            selectedIndex, ints);
+                }
+            }
+            increment(code, position, ints);
+            code.branch(Opcode.GOTO, zeroOutput).labelBinding(activeOutput);
+        }
         code.labelBinding(output);
         compare(code, position, outputCount, ints, Opcode.IF_ICMPGE, Opcode.IFGE, sliceDone);
         scratchGetAt(code, scratchParameter, source, position, ints, selectedIndex);

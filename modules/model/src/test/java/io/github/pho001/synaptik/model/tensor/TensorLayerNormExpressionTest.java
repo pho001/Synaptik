@@ -36,6 +36,7 @@ class TensorLayerNormExpressionTest {
         Method affine = Tensor.class.getDeclaredMethod(
                 "layerNorm", Shape.class, Tensor.class, Tensor.class, ScalarValue.class);
         List<Method> entries = Arrays.stream(TensorLayerNormExpressions.class.getDeclaredMethods())
+                        .filter(method -> !method.getName().endsWith("Checked"))
                 .filter(method -> !Modifier.isPrivate(method.getModifiers()))
                 .toList();
 

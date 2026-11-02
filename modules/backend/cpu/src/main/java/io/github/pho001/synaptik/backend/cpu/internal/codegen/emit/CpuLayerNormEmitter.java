@@ -16,6 +16,9 @@ import java.lang.constant.MethodTypeDesc;
  * and concrete carriers. The emitted entry obtains the exact mean from its assigned per-range
  * state, forms population variance with compensated primitive sums, and performs one final store
  * per logical result position. This emitter owns no run-time semantic dispatch or workspace.</p>
+ * <p>Controlled ordinary helpers guard normalization slices by the normalized input's provenance
+ * before operand loads or exact-sum scratch reset. Affine operands may independently introduce
+ * result ROW provenance; their loads and publication use the full result coordinate.</p>
  */
 public final class CpuLayerNormEmitter {
     private static final ClassDesc DOUBLE = ClassDesc.of(Double.class.getName());
@@ -91,6 +94,11 @@ public final class CpuLayerNormEmitter {
         code.lload(start).lstore(slice);
         var slices = code.newLabel(); var done = code.newLabel();
         code.labelBinding(slices).lload(slice).lload(end).lcmp().branch(Opcode.IFGE, done);
+        var advance = code.newLabel();
+        boolean[] omitted = new boolean[rank[inputBoundary]];
+        java.util.Arrays.fill(omitted, omitted.length - normalizedRank, omitted.length, true);
+        CpuLoopEmitter.emitActiveSliceGuard(code, inputBoundary, slice, TypeKind.LONG,
+                geometry, extent[inputBoundary], omitted, advance);
         emitSliceBases(code, geometry, slice, normalizedRank, rank, extent, stride, bases,
                 remaining, coordinate);
         code.loadConstant(0).istore(nan).loadConstant(0).istore(infinity)
@@ -151,6 +159,8 @@ public final class CpuLayerNormEmitter {
         int biasValue = affine ? code.allocateLocal(TypeKind.DOUBLE) : -1;
         emitLoop(code, geometry, normalizedRank, rank[inputBoundary], normalizedExtents, hotStride[inputBoundary],
                 bases[inputBoundary], ordinal, remaining, coordinate, address, () -> {
+                    var nextResult = code.newLabel();
+                    emitResultGuard(code, inputBoundary, boundaries - 1, slice, ordinal, domain, nextResult);
                     load(code, carriers, specialization, inputBoundary, representedInput, value, address);
                     var ordinary = code.newLabel(); var standardized = code.newLabel();
                     code.iload(nan).iload(infinity).ior().branch(Opcode.IFEQ, ordinary)
@@ -178,9 +188,33 @@ public final class CpuLayerNormEmitter {
                             coordinate, address);
                     CpuNormEmitter.emitStore(code, carriers, specialization, resultType,
                             boundaries - 1, address, result, false, true);
+                    code.labelBinding(nextResult);
                 });
+        code.labelBinding(advance);
         code.lload(slice).loadConstant(1L).ladd().lstore(slice)
                 .branch(Opcode.GOTO, slices).labelBinding(done);
+    }
+
+    /**
+     * Guards affine loads and publication by the full result ordinal, independently of slice
+     * provenance. Uncontrolled and SHARED results emit no arithmetic or activity instructions.
+     * @param code generated method builder
+     * @param inputBoundary normalization-input boundary already guarded for the whole slice
+     * @param boundary output boundary ordinal
+     * @param slice current leading-slice ordinal local
+     * @param ordinal current normalized ordinal local
+     * @param domain complete normalized slice size
+     * @param inactive target advancing the normalized ordinal
+     */
+    static void emitResultGuard(CodeBuilder code, int inputBoundary, int boundary, int slice,
+            int ordinal, long domain, java.lang.classfile.Label inactive) {
+        var control = CpuCarrierEmitter.controlFacts().orElse(null);
+        if (control == null) return;
+        var row = control.boundaryRows().get(boundary);
+        if (!row.rowIndexed() || row.equals(control.boundaryRows().get(inputBoundary))) return;
+        int fullOrdinal = code.allocateLocal(TypeKind.LONG);
+        code.lload(slice).loadConstant(domain).lmul().lload(ordinal).ladd().lstore(fullOrdinal);
+        CpuLoopEmitter.emitActiveOrdinalGuard(code, boundary, fullOrdinal, TypeKind.LONG, inactive);
     }
 
     /**

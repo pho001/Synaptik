@@ -505,8 +505,7 @@ class CpuVectorScalarPowerPerformanceTest {
         CpuKernelIr ir = ir(row);
         var specialization = specialization(row, carriers, ir);
         var generator = new CpuClassFileKernelGenerator();
-        return generator.defineClassBytes(specialization,
-                generator.generateClassBytes(specialization, ir));
+        return generator.defineClassBytes(specialization, ir, generator.generateClassBytes(specialization, ir));
     }
 
     private static byte[] bytes(Row row, List<CpuKernelSpecialization.CarrierAccess> carriers) {

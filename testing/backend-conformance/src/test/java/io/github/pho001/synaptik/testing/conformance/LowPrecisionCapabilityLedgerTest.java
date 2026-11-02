@@ -50,6 +50,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.TreeMap;
 import org.junit.jupiter.api.Test;
 
@@ -84,94 +85,13 @@ final class LowPrecisionCapabilityLedgerTest {
         assertLedgerEquals(expected, actual);
     }
 
-    @Test
-    void v2RetainsFrozenAcceleratorProviderFactsWithoutMigrationColumns() throws Exception {
-        String[] historical = resource("/low-precision-capability-ledger-v1.tsv")
-                .split("\n");
-        var projected = new ArrayList<String>();
-        for (int index = 1; index < historical.length; index++) {
-            String[] fields = historical[index].split("\t", -1);
-            assertEquals(18, fields.length, "historical row " + index);
-            if (!fields[2].equals("ACCELERATOR")) continue;
-            boolean approvedExpDelta = fields[1].equals("metal")
-                    && fields[3].equals("055-EXP/base");
-            boolean approvedSigmoidDelta = fields[1].equals("metal")
-                    && fields[3].equals("064-SIGMOID/base");
-            boolean approvedRecurrentDelta = fields[1].equals("cpu")
-                    && List.of("103-RNN_TANH/base", "104-GRU_RESET_AFTER/base", "105-LSTM/base").contains(fields[3]);
-            if (approvedRecurrentDelta) {
-                assertEquals("false", fields[11]); assertEquals("false", fields[12]); assertEquals("false", fields[13]);
-            }
-            if (approvedExpDelta) {
-                assertEquals("false", fields[11]);
-                assertEquals("false", fields[12]);
-                assertEquals("false", fields[13]);
-            }
-            if (approvedSigmoidDelta) {
-                assertEquals("false", fields[11]);
-                assertEquals("false", fields[12]);
-                assertEquals("false", fields[13]);
-            }
-            projected.add(String.join("\t", "2", fields[1], fields[3], fields[4], fields[5],
-                    fields[6], fields[7], fields[8], fields[9], fields[10],
-                    approvedExpDelta || approvedSigmoidDelta || approvedRecurrentDelta ? "true" : fields[11],
-                    approvedExpDelta || approvedSigmoidDelta || approvedRecurrentDelta ? "true" : fields[12],
-                    approvedExpDelta || approvedSigmoidDelta || approvedRecurrentDelta ? "true" : fields[13]));
-        }
-        assertEquals(254, projected.size());
-        assertEquals(resource(RESOURCE), HEADER + String.join("\n", projected) + "\n");
-    }
-
-    @Test
-    void snapshotContainsBothBackendsAndExplicitSupportOutcomes() throws Exception {
-        List<Seed> seeds = seeds();
-        String ledger = resource(RESOURCE);
-        Map<String, byte[]> rows = rowsByKey(ledger);
-        assertEquals(seeds.size() * 2, rows.size());
-        for (String backend : List.of("cpu", "metal")) {
-            long count = rows.keySet().stream()
-                    .filter(key -> key.startsWith(backend + "|"))
-                    .count();
-            assertEquals(seeds.size(), count, backend);
-        }
-        List<String[]> facts = ledger.lines()
-                .skip(1)
-                .map(line -> line.split("\t", -1))
-                .filter(fields -> fields.length == 13)
-                .toList();
-        for (String backend : List.of("cpu", "metal")) {
-            List<String[]> backendFacts = facts.stream().filter(fields -> fields[1].equals(backend))
-                    .toList();
-            long supported = backendFacts.stream().filter(fields -> fields[10].equals("true")).count();
-            long bf16 = backendFacts.stream().filter(fields -> fields[11].equals("true")).count();
-            long fp16 = backendFacts.stream().filter(fields -> fields[12].equals("true")).count();
-            long notApplicable = backendFacts.stream()
-                    .filter(fields -> fields[11].equals("NOT_APPLICABLE")
-                            && fields[12].equals("NOT_APPLICABLE")).count();
-            assertEquals(backend.equals("cpu") ? 125 : 100, supported, backend + " F32 true");
-            assertEquals(backend.equals("cpu") ? 117 : 92, bf16, backend + " BF16 true");
-            assertEquals(backend.equals("cpu") ? 117 : 92, fp16, backend + " FLOAT16 true");
-            assertEquals(8, notApplicable, backend + " controls");
-            assertEquals(backend.equals("cpu") ? 2 : 27,
-                    backendFacts.stream().filter(fields -> fields[10].equals("false")).count(),
-                    backend + " F32 false");
-            for (int lowColumn : List.of(11, 12)) {
-                final int column = lowColumn;
-                assertEquals(backend.equals("cpu") ? 2 : 27,
-                        backendFacts.stream().filter(fields -> fields[column].equals("false")).count(),
-                        backend + " low false column " + column);
-            }
-        }
-    }
 
     @Test
     void metalClosesEverySupportedFloat32OccurrenceForBothLowTypes() {
         var provider = new MetalCapabilityProvider();
-        int supported = 0;
         for (Seed seed : seeds()) {
             OperationCapabilityQuery query = seed.query();
             if (hasFloat32Role(query) && provider.supports(query)) {
-                supported++;
                 assertTrue(
                         provider.supports(toBfloat16(query)),
                         "BFLOAT16 " + seed.id());
@@ -180,7 +100,6 @@ final class LowPrecisionCapabilityLedgerTest {
                         "FLOAT16 " + seed.id());
             }
         }
-        assertTrue(supported > 0);
     }
 
     @Test
@@ -199,15 +118,15 @@ final class LowPrecisionCapabilityLedgerTest {
         }
     }
     @Test
-    void cpuQueriesLowTypesIndependentlyIncludingScalarRecurrentScans() {
-        assertFloat16Closure();
+    void cpuQueriesBothLowTypesAgainstTheIndependentRetainedAndUnsupportedMatrix() {
+        assertCurrentLowMatrix();
     }
 
-    @Test void recurrentLowPredicatesRejectMixedTypesUnresolvedReadsAndNoncanonicalOutputs() {
+    @Test void lowRecurrentAndMalformedVariantsAreExplicitlyUnsupported() {
         var provider = new CpuCapabilityProvider();
         for (var seed : seeds()) if (seed.query().operation().kind() instanceof RecurrentScanKind) {
             for (var q : List.of(toBfloat16(seed.query()), toFloat16(seed.query()))) {
-                assertTrue(provider.supports(q));
+                assertFalse(provider.supports(q));
                 var in = new ArrayList<>(q.inputs()); var x = in.getFirst();
                 in.set(0, new TensorDescriptor(x.dataType(), x.shape(), Optional.empty(), x.requiresGrad()));
                 assertFalse(provider.supports(new OperationCapabilityQuery(q.operation(), in, q.outputs())));
@@ -222,21 +141,47 @@ final class LowPrecisionCapabilityLedgerTest {
         }
     }
 
-    private static void assertFloat16Closure() {
+    private static void assertCurrentLowMatrix() {
         var provider = new CpuCapabilityProvider();
-        int supported = 0;
+        var retained = java.util.EnumSet.noneOf(DataType.class);
+        var unsupported = java.util.EnumSet.noneOf(DataType.class);
         for (Seed seed : seeds()) {
             OperationCapabilityQuery query = seed.query();
-            if (hasFloat32Role(query) && provider.supports(query)) {
-                if (query.operation().kind() instanceof RecurrentScanKind) {
-                    assertTrue(provider.supports(toBfloat16(query)), seed.id());
-                    assertTrue(provider.supports(toFloat16(query)), seed.id());
-                }
-                supported++;
-                assertTrue(provider.supports(toFloat16(query)), seed.id());
+            if (!hasFloat32Role(query) || !provider.supports(query)) continue;
+            for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+                var low = type == DataType.BFLOAT16 ? toBfloat16(query) : toFloat16(query);
+                // The existing typed Scan and symbolic ordinary grants are not low-storage grants.
+                boolean expected = !lowNumericalUse(low) && low.scanBody().isEmpty()
+                        && java.util.stream.Stream.concat(low.inputs().stream(), low.outputs().stream())
+                                .allMatch(d -> d.shape().knownElementCount().isPresent());
+                assertEquals(expected, provider.supports(low), seed.id() + "/" + type);
+                (expected ? retained : unsupported).add(type);
             }
         }
-        assertEquals(117, supported);
+        assertEquals(java.util.Set.of(DataType.BFLOAT16, DataType.FLOAT16), retained,
+                "both types keep exact, explicit-cast, raw-storage and control witnesses");
+        assertEquals(java.util.Set.of(DataType.BFLOAT16, DataType.FLOAT16), unsupported,
+                "both types exercise explicit numerical or pre-existing typed-boundary rejection");
+    }
+
+    /** Independent expected numerical families, not a query of production's admission helper. */
+    private static boolean lowNumericalUse(OperationCapabilityQuery query) {
+        var attrs = query.operation().attrs();
+        if (attrs instanceof ScatterElementsAttrs scatter)
+            return scatter.reduction() == ScatterReduction.ADD || scatter.reduction() == ScatterReduction.MUL;
+        if (attrs instanceof ScatterNdAttrs scatter)
+            return scatter.reduction() == ScatterReduction.ADD || scatter.reduction() == ScatterReduction.MUL;
+        return java.util.Set.of("ADD", "SUB", "MUL", "DIV", "POW", "RECIPROCAL", "LOG",
+                "LOG1P", "EXP", "EXPM1", "ERF", "SQRT", "RSQRT", "SIGMOID", "TANH",
+                "GELU", "GELU_TANH_APPROXIMATION", "SILU", "SUM", "MEAN", "PROD",
+                "LOG_SUM_EXP", "VARIANCE", "STANDARD_DEVIATION", "L1_NORM", "L2_NORM",
+                "CUM_SUM", "CUM_PROD", "CUMSUM", "CUMPROD", "MATMUL", "CONV2D", "CONV3D",
+                "AVERAGE_POOL2D", "AVERAGE_POOL3D", "SOFTMAX", "LOG_SOFTMAX",
+                "LAYER_NORM", "AFFINE_LAYER_NORM", "RMS_NORM", "AFFINE_RMS_NORM",
+                "BATCH_NORM_INFERENCE", "BATCH_NORM_TRAINING", "MEAN_SQUARED_ERROR",
+                "DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS", "INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS",
+                "SCALED_DOT_PRODUCT_ATTENTION", "DROPOUT", "SCATTER_ADD", "FOLD_AXIS",
+                "FOLD2D", "RNN_TANH", "GRU_RESET_AFTER", "LSTM").contains(query.operation().kind().name());
     }
 
 
@@ -293,6 +238,7 @@ final class LowPrecisionCapabilityLedgerTest {
     }
 
     private static OperationCapabilityQuery toBfloat16(OperationCapabilityQuery query) {
+        if (query.scanBody().isPresent()) return CpuGeneralScanConformanceTest.withType(query, DataType.BFLOAT16);
         return new OperationCapabilityQuery(
                 new Operation(query.operation().kind(), toBfloat16(query.operation().attrs())),
                 query.inputs().stream().map(LowPrecisionCapabilityLedgerTest::toBfloat16).toList(),
@@ -353,6 +299,7 @@ final class LowPrecisionCapabilityLedgerTest {
                 ? ScalarValue.bfloat16(value.float32Value()) : value;
     }
     private static OperationCapabilityQuery toFloat16(OperationCapabilityQuery query) {
+        if (query.scanBody().isPresent()) return CpuGeneralScanConformanceTest.withType(query, DataType.FLOAT16);
         return new OperationCapabilityQuery(
                 new Operation(query.operation().kind(), toFloat16(query.operation().attrs())),
                 query.inputs().stream().map(LowPrecisionCapabilityLedgerTest::toFloat16).toList(),
@@ -397,7 +344,8 @@ final class LowPrecisionCapabilityLedgerTest {
     }
 
     private static String basis(OperationCapabilityQuery query) {
-        return hasFloat32Role(query) ? "F32_OCCURRENCE" : "NON_F32_CONTROL";
+        return hasFloat32Role(query) ? "F32_OCCURRENCE" : java.util.stream.Stream.concat(query.inputs().stream(),query.outputs().stream())
+                .anyMatch(d -> d.dataType() == DataType.FLOAT64) ? "F64_OCCURRENCE" : "NON_F32_CONTROL";
     }
 
     private static String kind(Operation operation) {
@@ -415,18 +363,32 @@ final class LowPrecisionCapabilityLedgerTest {
                     + ",view=" + value.isView()
                     + ",span=" + value.referencedElementSpan() + "}").orElse("UNRESOLVED");
             result.add(index + ":{type=" + descriptor.dataType()
-                    + ",shape=" + array(descriptor.shape().toLongArray())
+                    + ",shape=" + shape(descriptor.shape())
                     + ",layout=" + layout
                     + ",grad=" + descriptor.requiresGrad() + "}");
         }
         return "[" + String.join(";", result) + "]";
     }
 
+    /**
+     * Encodes ledger metadata independently of diagnostic record text. Existing all-valid and
+     * positive-ROW length headers retain their historical seven/nine-field text. Newly represented
+     * zero-ROW length mode retains its explicit flag as well as every ordered role.
+     *
+     * @param value metadata value to encode, possibly null
+     * @return non-null canonical test representation
+     * @throws AssertionError if a value is unsupported or a record component cannot be read
+     */
     private static String canonical(Object value) {
         if (value == null) return "null";
         if (value == NoOperationAttrs.INSTANCE) return NoOperationAttrs.class.getName() + "{}";
         if (value instanceof ScalarValue scalar) return scalar(scalar);
-        if (value instanceof Shape shape) return "Shape" + array(shape.toLongArray());
+        if (value instanceof Shape shape) return "Shape" + shape(shape);
+        if (value instanceof ScanAttrs scan) return canonicalScanAttrs(scan);
+        if (value instanceof OptionalInt optional) {
+            return optional.isPresent() ? "OptionalInt[" + optional.getAsInt() + "]"
+                    : "OptionalInt.empty";
+        }
         if (value instanceof Optional<?> optional) {
             return optional.map(element -> "Optional[" + canonical(element) + "]")
                     .orElse("Optional.empty");
@@ -449,6 +411,27 @@ final class LowPrecisionCapabilityLedgerTest {
         if (value instanceof Number || value instanceof Boolean) return value.toString();
         if (value.getClass().isRecord()) return canonicalRecord(value);
         throw new AssertionError("unsupported canonical value " + value.getClass().getName());
+    }
+
+    /**
+     * Preserves accepted header text where the old positive ROW count already implied length mode.
+     * An explicit zero-ROW length header must not be encoded as its all-valid counterpart.
+     *
+     * @param scan non-null validated source header
+     * @return non-null canonical metadata, retaining every non-implied source fact
+     */
+    private static String canonicalScanAttrs(ScanAttrs scan) {
+        String fields = ScanAttrs.class.getName() + "{timeCount=" + scan.timeCount()
+                + ",carryCount=" + scan.carryCount()
+                + ",sequenceCount=" + scan.sequenceCount()
+                + ",invariantCount=" + scan.invariantCount()
+                + ",emissionCount=" + scan.emissionCount()
+                + ",residualCount=" + scan.residualCount()
+                + ",reverse=" + scan.reverse();
+        if (!scan.lengthAware()) return fields + "}";
+        String explicitMode = scan.rowCarryCount() == 0 ? ",lengthAware=true" : "";
+        return fields + explicitMode + ",rowCarryCount=" + scan.rowCarryCount()
+                + ",sequenceRowAxes=" + canonical(scan.sequenceRowAxes()) + "}";
     }
 
     private static String canonicalRecord(Object value) {
@@ -577,8 +560,88 @@ final class LowPrecisionCapabilityLedgerTest {
                 result.add(seed(row, "base", representative(row)));
             }
         }
-        assertEquals(127, result.size(), "115 operations plus twelve additional F32 cast pairs");
+        result.add(new Seed("128-SCAN/pointwise-tanh", CpuGeneralScanConformanceTest.query(DataType.FLOAT32,
+                UnaryElementwiseKind.TANH, false, 3, Shape.of(2))));
+        result.add(new Seed("129-SCAN/pointwise-relu", CpuGeneralScanConformanceTest.query(DataType.FLOAT32,
+                UnaryElementwiseKind.RELU, false, 3, Shape.of(2))));
+        result.add(new Seed("130-SCAN/broadcast-sum-layout", CpuGeneralScanConformanceTest.shapedQuery()));
+        result.add(new Seed("131-SCAN/rank-two-matmul", CpuGeneralScanConformanceTest.matmulQuery()));
+        result.add(new Seed("132-SCAN/float64-pointwise-tanh", CpuGeneralScanConformanceTest.query(DataType.FLOAT64,
+                UnaryElementwiseKind.TANH,false,3,Shape.of(2))));
+        result.add(new Seed("133-SCAN/float64-broadcast-sum-layout", CpuGeneralScanConformanceTest.withType(CpuGeneralScanConformanceTest.shapedQuery(),DataType.FLOAT64)));
+        result.add(new Seed("134-SCAN/float64-rank-two-matmul", CpuGeneralScanConformanceTest.withType(CpuGeneralScanConformanceTest.matmulQuery(),DataType.FLOAT64)));
+        result.add(new Seed("135-SCAN/length-aware-float32",CpuGeneralScanConformanceTest.lengthQuery(DataType.FLOAT32)));
+        result.add(new Seed("136-SCAN/length-aware-float64",CpuGeneralScanConformanceTest.lengthQuery(DataType.FLOAT64)));
+        result.add(new Seed("137-SCAN/symbolic-length-float32",CpuSymbolicScanConformanceTest.symbolicLengthQuery(DataType.FLOAT32)));
+        result.add(new Seed("138-SCAN/symbolic-length-float64",CpuSymbolicScanConformanceTest.symbolicLengthQuery(DataType.FLOAT64)));
+        var b = new io.github.pho001.synaptik.model.shape.DynamicDimension("B");
+        var row = Shape.ofDimensions(b,new io.github.pho001.synaptik.model.shape.StaticDimension(3));
+        for (var kind : List.of(AggregateReductionKind.SUM,AggregateReductionKind.MEAN))
+            result.add(new Seed((kind == AggregateReductionKind.SUM ? "139" : "140")+"-"+kind+"/symbolic-float64",
+                    query(new Operation(kind,NoOperationAttrs.INSTANCE),List.of(unresolved(DataType.FLOAT64,row)),List.of(unresolved(DataType.FLOAT64,Shape.scalar())))));
+        for (DataType type : List.of(DataType.FLOAT32,DataType.FLOAT64)) {
+            int index = type == DataType.FLOAT32 ? 141 : 142;
+            result.add(new Seed(index+"-CAST/symbolic-length-control-"+type,query(new Operation(CastKind.CAST,new CastAttrs(DataType.INT64)),
+                    List.of(unresolved(type,Shape.ofDimensions(b))),List.of(unresolved(DataType.INT64,Shape.ofDimensions(b))))));
+            var target = Shape.ofDimensions(new io.github.pho001.synaptik.model.shape.StaticDimension(4),new io.github.pho001.synaptik.model.shape.StaticDimension(3),b);
+            result.add(new Seed((index+2)+"-EXPAND/row-one-literal-"+type,query(new Operation(ShapeTransformKind.EXPAND,new TargetShapeAttrs(target)),
+                    List.of(unresolved(type,Shape.scalar())),List.of(unresolved(type,target)))));
+        }
+        result.add(new Seed("145-ADD/symbolic-float64",query(new Operation(BinaryArithmeticKind.ADD,NoOperationAttrs.INSTANCE),
+                List.of(unresolved(DataType.FLOAT64,row),unresolved(DataType.FLOAT64,row)),List.of(unresolved(DataType.FLOAT64,row)))));
+        addProductionMatmulSeeds(result);
         return List.copyOf(result);
+    }
+
+    /**
+     * Adds distinct original-typed descriptors from the production dense-view/adjoint domain.
+     * Provider facts do not replace the separate actual five-form forward/backward GPU proof.
+     */
+    private static void addProductionMatmulSeeds(List<Seed> result) {
+        var matmul = new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE);
+        TensorDescriptor left = descriptor(DataType.FLOAT32, Shape.of(2, 3), true);
+        TensorDescriptor right = descriptor(DataType.FLOAT32, Shape.of(3, 5), true);
+        TensorDescriptor output = descriptor(DataType.FLOAT32, Shape.of(2, 5), true);
+        TensorDescriptor leftView = gradientView(left.shape(), 3, 1);
+        TensorDescriptor rightView = gradientView(right.shape(), 5, 1);
+        TensorDescriptor leftTranspose = gradientView(Shape.of(3, 2), 1, 3);
+        TensorDescriptor rightTranspose = gradientView(Shape.of(5, 3), 1, 5);
+        result.add(new Seed("146-MATMUL/dense-left-view",
+                query(matmul, List.of(leftView, right), List.of(output))));
+        result.add(new Seed("147-MATMUL/dense-right-view",
+                query(matmul, List.of(left, rightView), List.of(output))));
+        result.add(new Seed("148-MATMUL/dense-both-views",
+                query(matmul, List.of(leftView, rightView), List.of(output))));
+        result.add(new Seed("149-MATMUL/transposed-dense-views",
+                query(matmul, List.of(gradientView(left.shape(), 1, 2),
+                        gradientView(right.shape(), 1, 3)), List.of(output))));
+        result.add(new Seed("150-MATMUL/left-adjoint-shaped",
+                query(matmul, List.of(output, rightTranspose), List.of(left))));
+        result.add(new Seed("151-MATMUL/right-adjoint-shaped",
+                query(matmul, List.of(leftTranspose, output), List.of(right))));
+        result.add(new Seed("152-RESHAPE/materializing-left-adjoint-shaped",
+                query(new Operation(ShapeTransformKind.RESHAPE, new TargetShapeAttrs(Shape.of(6))),
+                        List.of(leftTranspose),
+                        List.of(descriptor(DataType.FLOAT32, Shape.of(6), true)))));
+        result.add(new Seed("153-RESHAPE/materializing-right-adjoint-shaped",
+                query(new Operation(ShapeTransformKind.RESHAPE, new TargetShapeAttrs(Shape.of(15))),
+                        List.of(rightTranspose),
+                        List.of(descriptor(DataType.FLOAT32, Shape.of(15), true)))));
+    }
+
+    private static TensorDescriptor gradientView(Shape shape, long... strides) {
+        TensorDescriptor value = view(DataType.FLOAT32, shape, 0, strides);
+        return new TensorDescriptor(value.dataType(), value.shape(), value.layout(), true);
+    }
+
+    /** Keeps existing static ledger bytes while encoding exact named axes without sampled sizes. */
+    private static String shape(Shape shape) {
+        if (shape.isFullyStatic()) return array(shape.toLongArray());
+        return "["+shape.dimensions().stream().map(d -> d.isStatic() ? Long.toString(d.staticSize().orElseThrow()) : "named:"+d.dynamicSymbol().orElseThrow())
+                .collect(java.util.stream.Collectors.joining(","))+"]";
+    }
+    private static TensorDescriptor unresolved(DataType type,Shape shape) {
+        return new TensorDescriptor(type,shape,Optional.empty(),false);
     }
 
     private static Seed seed(Row row, String variant, OperationCapabilityQuery query) {

@@ -15,10 +15,13 @@ import java.lang.constant.MethodTypeDesc;
  * <p>Kind selection occurs while generating the class. Both bodies find the slice maximum and
  * accumulate shifted exponentials; only log-softmax computes the logarithm of that sum, while
  * softmax proceeds directly to exponential-and-division stores. FLOAT64 uses double sites;
- * FLOAT32, BFLOAT16, and FLOAT16 use float sites with one final low narrowing. A FLOAT32 shift
- * may overflow to negative infinity for admitted finite input, giving zero probability or
- * negative-infinity log-probability. CPU validation rejects non-finite inputs and additionally
- * rejects non-finite shifts for FLOAT64 and BFLOAT16 before this body writes.</p>
+ * FLOAT32, BFLOAT16, and FLOAT16 use float sites with one final low narrowing. A FLOAT32 or
+ * FLOAT64 shift may overflow to negative infinity for admitted finite input, giving positive-zero
+ * probability or negative-infinity log-probability. CPU validation rejects non-finite represented
+ * inputs and additionally rejects non-finite shifts for BFLOAT16 before this body writes.</p>
+ * <p>A controlled helper guards the proved original ROW coordinate of each complete softmax
+ * slice before all passes, including frozen ordinary geometries. The normalized axis is
+ * explicitly omitted from slice ordinals; equal extents never establish ROW provenance.</p>
  */
 public final class CpuSoftmaxEmitter {
     private static final ClassDesc MATH = ClassDesc.of(Math.class.getName());
@@ -114,6 +117,10 @@ public final class CpuSoftmaxEmitter {
         code.labelBinding(slices);
         if (intLoop) code.iload(intSlice).iload(intEnd).branch(Opcode.IF_ICMPGE, done);
         else code.lload(slice).lload(end).lcmp().branch(Opcode.IFGE, done);
+        var advanceSlice = code.newLabel();
+        boolean[] omitted = new boolean[rank]; omitted[axis] = true;
+        CpuLoopEmitter.emitActiveSliceGuard(code, 1, intLoop ? intSlice : slice,
+                intLoop ? TypeKind.INT : TypeKind.LONG, geometry, extents, omitted, advanceSlice);
         code.lload(inputOrigin).lstore(inputBase);
         code.lload(outputOrigin).lstore(outputBase);
         if (rank == 2 && axis == 1) {
@@ -179,6 +186,7 @@ public final class CpuSoftmaxEmitter {
         incrementAddress(code, outputAddress, outputAxisStride, outputArray);
         incrementElement(code, element, intLoop);
         code.branch(Opcode.GOTO, storeLoop).labelBinding(storeDone);
+        code.labelBinding(advanceSlice);
         if (intLoop) code.iinc(intSlice, 1);
         else code.lload(slice).loadConstant(1L).ladd().lstore(slice);
         code.branch(Opcode.GOTO, slices).labelBinding(done);
@@ -193,6 +201,9 @@ public final class CpuSoftmaxEmitter {
         code.lload(start).l2i().istore(row).lload(end).l2i().istore(rowEnd);
         var rows = code.newLabel(); var rowsDone = code.newLabel();
         code.labelBinding(rows).iload(row).iload(rowEnd).branch(Opcode.IF_ICMPGE, rowsDone);
+        var advanceRow = code.newLabel();
+        CpuLoopEmitter.emitActiveSliceGuard(code, 1, row, TypeKind.INT, 2, 7,
+                new boolean[] {false, true}, advanceRow);
         frozenAddress(code, row, generalInput ? 2049 : 2048, generalInput ? 1 : 0,
                 inputAddress, inputArray);
         frozenAddress(code, row, 2048, 0, outputAddress, outputArray);
@@ -240,6 +251,7 @@ public final class CpuSoftmaxEmitter {
         incrementConstant(code, inputAddress, inputArray);
         incrementConstant(code, outputAddress, outputArray);
         code.iinc(element, 1).branch(Opcode.GOTO, storeLoop).labelBinding(storeDone);
+        code.labelBinding(advanceRow);
         code.iinc(row, 1).branch(Opcode.GOTO, rows).labelBinding(rowsDone);
     }
 

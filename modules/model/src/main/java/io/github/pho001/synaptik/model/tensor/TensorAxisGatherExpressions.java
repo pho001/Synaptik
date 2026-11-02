@@ -47,18 +47,32 @@ final class TensorAxisGatherExpressions {
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
      */
     static Tensor gather(Tensor data, Tensor indices, int axis) {
-        Objects.requireNonNull(data, "data");
-        Objects.requireNonNull(indices, "indices");
-        TensorDescriptor dataDescriptor = data.descriptor();
-        TensorDescriptor indicesDescriptor = indices.descriptor();
-        validateIndexType("gather", indicesDescriptor);
-        Shape dataShape = dataDescriptor.shape();
-        int normalizedAxis = dataShape.normalizeAxis(axis);
-        Shape resultShape = gatherShape(
-                dataShape, indicesDescriptor.shape(), normalizedAxis);
-        IndexAxisAttrs attrs = new IndexAxisAttrs(normalizedAxis);
-        return create(
-                data, indices, dataDescriptor, resultShape, AxisGatherKind.GATHER, attrs);
+        return gatherChecked(data, indices, axis, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param data non-null value tensor retained as provenance input zero and never mutated
+     * @param indices non-null INT32 or INT64 coordinate tensor retained as provenance input one
+     * @param axis raw positive or negative data axis normalized once against the data Shape
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code data} or {@code indices} is null, checked in order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if the indices data type is not INT32 or INT64
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data Shape
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    static Tensor gatherChecked(Tensor data, Tensor indices, int axis,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return gatherDescriptors(
+                data == null ? null : data.descriptor(),
+                indices == null ? null : indices.descriptor(),
+                axis,
+                descriptorCheck,
+                data,
+                indices);
     }
 
     /**
@@ -93,22 +107,33 @@ final class TensorAxisGatherExpressions {
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
      */
     static Tensor embedding(Tensor weights, Tensor indices) {
-        Objects.requireNonNull(weights, "weights");
-        Objects.requireNonNull(indices, "indices");
-        TensorDescriptor weightsDescriptor = weights.descriptor();
-        int weightsRank = weightsDescriptor.shape().rank();
-        if (weightsRank != 2) {
-            throw new IllegalArgumentException(
-                    "embedding weights rank must be 2: actual=" + weightsRank);
-        }
-        DataType weightsDataType = weightsDescriptor.dataType();
-        if (!weightsDataType.isFloating()) {
-            throw new IllegalArgumentException(
-                    "embedding weights data type must be BFLOAT16, FLOAT16, FLOAT32, or FLOAT64: "
-                            + weightsDataType);
-        }
-        validateIndexType("embedding", indices.descriptor());
-        return gather(weights, indices, 0);
+        return embeddingChecked(weights, indices, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param weights non-null rank-two BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 table retained as
+     *     provenance input zero and never mutated
+     * @param indices non-null INT32 or INT64 coordinates of any rank retained as provenance input
+     *     one and never mutated
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code weights} or {@code indices} is null, checked in order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if weights are not rank two, weights are not floating, or
+     *     indices are not INT32 or INT64, checked in that order before ID allocation
+     * @throws ArithmeticException if checked Gather result-Shape metadata construction overflows
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    static Tensor embeddingChecked(Tensor weights, Tensor indices,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return embeddingDescriptors(
+                weights == null ? null : weights.descriptor(),
+                indices == null ? null : indices.descriptor(),
+                descriptorCheck,
+                weights,
+                indices);
     }
 
     /**
@@ -130,23 +155,33 @@ final class TensorAxisGatherExpressions {
      * @throws IllegalStateException if tensor identifier space is exhausted during final creation
      */
     static Tensor gatherElements(Tensor data, Tensor indices, int axis) {
-        Objects.requireNonNull(data, "data");
-        Objects.requireNonNull(indices, "indices");
-        TensorDescriptor dataDescriptor = data.descriptor();
-        TensorDescriptor indicesDescriptor = indices.descriptor();
-        validateIndexType("gatherElements", indicesDescriptor);
-        Shape dataShape = dataDescriptor.shape();
-        int normalizedAxis = dataShape.normalizeAxis(axis);
-        Shape indicesShape = indicesDescriptor.shape();
-        validateGatherElements(dataShape, indicesShape, normalizedAxis);
-        IndexAxisAttrs attrs = new IndexAxisAttrs(normalizedAxis);
-        return create(
+        return gatherElementsChecked(data, indices, axis, null);
+    }
+
+    /**
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param data non-null value tensor retained as provenance input zero and never mutated
+     * @param indices non-null same-rank INT32 or INT64 tensor retained as provenance input one;
+     *     its non-axis Dimensions must equal data and its exact Shape becomes the result
+     * @param axis raw positive or negative data axis normalized once against the data Shape
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws NullPointerException if {@code data} or {@code indices} is null, checked in order
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if index type, rank, or non-axis alignment is invalid
+     * @throws IndexOutOfBoundsException if {@code axis} is invalid for the data Shape
+     * @throws IllegalStateException if tensor identifier space is exhausted during final creation
+     */
+    static Tensor gatherElementsChecked(Tensor data, Tensor indices, int axis,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return gatherElementsDescriptors(
+                data == null ? null : data.descriptor(),
+                indices == null ? null : indices.descriptor(),
+                axis,
+                descriptorCheck,
                 data,
-                indices,
-                dataDescriptor,
-                indicesShape,
-                AxisGatherKind.GATHER_ELEMENTS,
-                attrs);
+                indices);
     }
 
     /**
@@ -220,33 +255,163 @@ final class TensorAxisGatherExpressions {
         }
     }
 
+
     /**
-     * Creates exact descriptor, semantics, ordered provenance, and one fresh derived Tensor.
-     *
-     * @param data non-null exact provenance input zero
-     * @param indices non-null exact provenance input one
+     * Shares ordinary semantic guards with descriptor-only scan validation. No Tensor is created
+     * when the synchronous, unretained sink is non-null; null preserves ordinary construction.
+     * Only the null-sink path consumes IDs or can encounter allocator exhaustion.
+     * @param data exact real provenance operand, or null for descriptor completion
+     * @param indices exact real provenance operand, or null for descriptor completion
      * @param dataDescriptor non-null exact descriptor supplying retained type and eligibility
      * @param resultShape non-null operation-specific result Shape
      * @param kind non-null exact axis-gather semantic identity
      * @param attrs non-null normalized axis attributes retained by the operation
-     * @return a non-null fresh unlabeled, storage-free Tensor with unresolved layout
-     * @throws IllegalArgumentException if descriptor invariants reject the supplied metadata
+     * @param descriptorCheck optional consumer of validated semantics and ordered descriptors
+     * @return null after descriptor-only completion, otherwise the ordinary canonical result
+     * @throws IllegalArgumentException if the supplied descriptor check rejects metadata, or if descriptor invariants reject the supplied metadata
      * @throws IllegalStateException if tensor identifier space is exhausted at final delegation
      */
-    private static Tensor create(
+    private static Tensor createChecked(
             Tensor data,
             Tensor indices,
             TensorDescriptor dataDescriptor,
             Shape resultShape,
             AxisGatherKind kind,
-            IndexAxisAttrs attrs) {
+            IndexAxisAttrs attrs,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
         TensorDescriptor descriptor = new TensorDescriptor(
                 dataDescriptor.dataType(),
                 resultShape,
                 Optional.empty(),
                 dataDescriptor.requiresGrad());
         Operation operation = new Operation(kind, attrs);
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(descriptor));
+            return null;
+        }
         return TensorFactory.createDerived(
                 descriptor, Optional.empty(), operation, List.of(data, indices));
+    }
+
+    /**
+     * Completes ordinary checked semantics synchronously without creating Tensor identities.
+     * The real construction path calls these same descriptor guards and result helpers.
+     * @param operation non-null canonical operation selecting this family and its attributes
+     * @param inputs non-null ordered operand descriptors, retaining aliases and positions
+     * @param outputCount exact canonical sibling count, one
+     * @param sink non-null unretained consumer called once with checked semantics and all outputs
+     * @throws NullPointerException if a required reference is null
+     * @throws IllegalArgumentException if cardinality or ordinary semantic guards reject input
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        Objects.requireNonNull(operation, "operation");
+        Objects.requireNonNull(inputs, "inputs");
+        Objects.requireNonNull(sink, "sink");
+        if (inputs.size() != 2 || outputCount != 1) {
+            throw new IllegalArgumentException("invalid ordinary descriptor cardinality");
+        }
+        for (TensorDescriptor input : inputs) {
+            Objects.requireNonNull(input, "input descriptor");
+        }
+        int axis = ((IndexAxisAttrs) operation.attrs()).axis();
+        switch ((AxisGatherKind) operation.kind()) {
+            case GATHER -> gatherDescriptors(inputs.get(0), inputs.get(1), axis, sink, null, null);
+            case GATHER_ELEMENTS -> gatherElementsDescriptors(inputs.get(0), inputs.get(1), axis, sink, null, null);
+        }
+    }
+
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param data exact operand descriptor, subject to ordinary null/semantic guards
+     * @param indices exact operand descriptor, subject to ordinary null/semantic guards
+     * @param axis ordinary checked construction parameter
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalData exact provenance operand, or null for descriptor completion
+     * @param originalIndices exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor gatherDescriptors(
+            TensorDescriptor data,
+            TensorDescriptor indices,
+            int axis,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalData,
+            Tensor originalIndices) {
+        Objects.requireNonNull(data, "data");
+        Objects.requireNonNull(indices, "indices");
+        TensorDescriptor dataDescriptor = data;
+        TensorDescriptor indicesDescriptor = indices;
+        validateIndexType("gather", indicesDescriptor);
+        Shape dataShape = dataDescriptor.shape();
+        int normalizedAxis = dataShape.normalizeAxis(axis);
+        Shape resultShape = gatherShape(
+                dataShape, indicesDescriptor.shape(), normalizedAxis);
+        IndexAxisAttrs attrs = new IndexAxisAttrs(normalizedAxis);
+        return createChecked(originalData, originalIndices, dataDescriptor, resultShape, AxisGatherKind.GATHER, attrs, descriptorCheck);
+    }
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param weights exact operand descriptor, subject to ordinary null/semantic guards
+     * @param indices exact operand descriptor, subject to ordinary null/semantic guards
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalWeights exact provenance operand, or null for descriptor completion
+     * @param originalIndices exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor embeddingDescriptors(
+            TensorDescriptor weights,
+            TensorDescriptor indices,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalWeights,
+            Tensor originalIndices) {
+        Objects.requireNonNull(weights, "weights");
+        Objects.requireNonNull(indices, "indices");
+        TensorDescriptor weightsDescriptor = weights;
+        int weightsRank = weightsDescriptor.shape().rank();
+        if (weightsRank != 2) {
+            throw new IllegalArgumentException(
+                    "embedding weights rank must be 2: actual=" + weightsRank);
+        }
+        DataType weightsDataType = weightsDescriptor.dataType();
+        if (!weightsDataType.isFloating()) {
+            throw new IllegalArgumentException(
+                    "embedding weights data type must be BFLOAT16, FLOAT16, FLOAT32, or FLOAT64: "
+                            + weightsDataType);
+        }
+        validateIndexType("embedding", indices);
+        return gatherDescriptors(weights, indices, 0, descriptorCheck, originalWeights, originalIndices);
+    }
+
+    /**
+     * Runs the ordinary descriptor guards shared by real and identity-free construction.
+     * @param data exact operand descriptor, subject to ordinary null/semantic guards
+     * @param indices exact operand descriptor, subject to ordinary null/semantic guards
+     * @param axis ordinary checked construction parameter
+     * @param descriptorCheck ordinary checked construction parameter
+     * @param originalData exact provenance operand, or null for descriptor completion
+     * @param originalIndices exact provenance operand, or null for descriptor completion
+     * @return the real result, or null after synchronous, unretained descriptor completion
+     */
+    private static Tensor gatherElementsDescriptors(
+            TensorDescriptor data,
+            TensorDescriptor indices,
+            int axis,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck,
+            Tensor originalData,
+            Tensor originalIndices) {
+        Objects.requireNonNull(data, "data");
+        Objects.requireNonNull(indices, "indices");
+        TensorDescriptor dataDescriptor = data;
+        TensorDescriptor indicesDescriptor = indices;
+        validateIndexType("gatherElements", indicesDescriptor);
+        Shape dataShape = dataDescriptor.shape();
+        int normalizedAxis = dataShape.normalizeAxis(axis);
+        Shape indicesShape = indicesDescriptor.shape();
+        validateGatherElements(dataShape, indicesShape, normalizedAxis);
+        IndexAxisAttrs attrs = new IndexAxisAttrs(normalizedAxis);
+        return createChecked(originalData, originalIndices, dataDescriptor, indicesShape, AxisGatherKind.GATHER_ELEMENTS, attrs, descriptorCheck);
     }
 }

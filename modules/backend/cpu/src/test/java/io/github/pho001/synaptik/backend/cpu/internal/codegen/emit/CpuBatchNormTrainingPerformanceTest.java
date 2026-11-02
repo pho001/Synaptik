@@ -2,6 +2,8 @@ package io.github.pho001.synaptik.backend.cpu.internal.codegen.emit;
 
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecialization.CarrierAccess;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuBatchNormTrainingLowering;
@@ -24,7 +26,7 @@ import java.util.*;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
-/** Frozen generated/direct five-fork performance driver for CPU 0007F2. */
+/** Generated/direct CPU 0007F2 driver; locked low fixtures report unsupported, never timings. */
 public final class CpuBatchNormTrainingPerformanceTest {
     private static final long MIN_BATCH_NANOS = 25_000_000L;
     private static final Path EVIDENCE = Path.of(
@@ -36,11 +38,20 @@ public final class CpuBatchNormTrainingPerformanceTest {
     private static final ValueLayout.OfDouble DOUBLE = ValueLayout.JAVA_DOUBLE_UNALIGNED
             .withOrder(ByteOrder.nativeOrder());
     private static volatile long sink;
+    private static final List<String> CASE_NAMES = List.of("BNT-BF16-A1", "BNT-F32-A1",
+            "BNT-F64-A1", "BNT-F32-A0", "BNT-F32-A2", "BNT-MIX-F64", "BNT-MIX-F32",
+            "BNT-REPEAT", "CONTROL_F32_BATCH_INFERENCE", "CONTROL_F32_LAYER_NORM",
+            "CONTROL_F32_VARIANCE", "CONTROL_F32_ADD");
 
     @FunctionalInterface interface BenchmarkAction { long run() throws Throwable; }
     @FunctionalInterface interface Verification { void run() throws Throwable; }
+    private sealed interface CaseOutcome permits BenchmarkCase, UnsupportedCase {
+        String name();
+    }
     record BenchmarkCase(String name, BenchmarkAction generated, BenchmarkAction direct,
-            Verification verify) { }
+            Verification verify) implements CaseOutcome { }
+    private record UnsupportedCase(String name, IllegalArgumentException rejection)
+            implements CaseOutcome { }
     private record Prepared(MethodHandle handle, MemorySegment generatedScratch,
             MemorySegment directScratch, long[] packed, CpuBatchNormTrainingLowering.Geometry g,
             int ranges) { }
@@ -50,15 +61,21 @@ public final class CpuBatchNormTrainingPerformanceTest {
         return new BenchmarkCase(name, generated, direct, verify);
     }
 
+    private static UnsupportedCase unsupported(String name,
+            org.junit.jupiter.api.function.Executable fixture) {
+        return new UnsupportedCase(name, assertThrows(IllegalArgumentException.class, fixture, name));
+    }
+
     @Test void frozenInventoryRunsSemanticAndChecksumGates() throws Throwable {
         try (Arena arena = Arena.ofConfined()) {
-            List<BenchmarkCase> cases = cases(arena);
-            assertEquals(List.of("BNT-BF16-A1", "BNT-F32-A1", "BNT-F64-A1", "BNT-F32-A0",
-                    "BNT-F32-A2", "BNT-MIX-F64", "BNT-MIX-F32", "BNT-REPEAT",
-                    "CONTROL_F32_BATCH_INFERENCE", "CONTROL_F32_LAYER_NORM",
-                    "CONTROL_F32_VARIANCE", "CONTROL_F32_ADD"),
-                    cases.stream().map(BenchmarkCase::name).toList());
-            for (BenchmarkCase value : cases) gate(value);
+            List<CaseOutcome> cases = cases(arena);
+            assertEquals(CASE_NAMES, cases.stream().map(CaseOutcome::name).toList());
+            for (CaseOutcome outcome : cases) {
+                switch (outcome) {
+                    case BenchmarkCase value -> gate(value);
+                    case UnsupportedCase value -> assertNotNull(value.rejection());
+                }
+            }
         }
     }
 
@@ -69,7 +86,12 @@ public final class CpuBatchNormTrainingPerformanceTest {
         main(new String[] {fork, System.getProperty("synaptik.cpu.batchnorm.training.attempt", "0")});
     }
 
-    /** Runs one isolated sample, or aggregates accepted fork zero through four. */
+    /**
+     * Runs a fork with explicit unsupported rows, or aggregates accepted forks zero through four.
+     *
+     * @param args optional fork and attempt numbers, or {@code aggregate}
+     * @throws Throwable if a fixture outcome, semantic gate, timing gate, or evidence write fails
+     */
     public static void main(String[] args) throws Throwable {
         if (args.length > 0 && args[0].equals("aggregate")) { aggregate(); return; }
         int fork = args.length == 0 ? 0 : Integer.parseInt(args[0]);
@@ -77,7 +99,17 @@ public final class CpuBatchNormTrainingPerformanceTest {
         StringBuilder report = new StringBuilder();
         try (Arena arena = Arena.ofConfined()) {
             environment(report);
-            List<BenchmarkCase> cases = cases(arena);
+            List<CaseOutcome> outcomes = cases(arena);
+            List<BenchmarkCase> cases = new ArrayList<>();
+            for (CaseOutcome outcome : outcomes) {
+                switch (outcome) {
+                    case BenchmarkCase value -> cases.add(value);
+                    case UnsupportedCase value -> report.append("UNSUPPORTED,")
+                            .append(value.name()).append(',')
+                            .append(value.rejection().getClass().getName()).append(',')
+                            .append(clean(value.rejection().getMessage())).append('\n');
+                }
+            }
             int[] repetitions = new int[cases.size() * 2];
             for (int i = 0; i < cases.size(); i++) {
                 gate(cases.get(i));
@@ -128,14 +160,17 @@ public final class CpuBatchNormTrainingPerformanceTest {
         System.out.print(report);
     }
 
-    private static List<BenchmarkCase> cases(Arena arena) throws Throwable {
-        List<BenchmarkCase> result = new ArrayList<>();
-        result.add(dense(arena, "BNT-BF16-A1", DataType.BFLOAT16, Shape.of(32,64,256),1,4));
+    private static List<CaseOutcome> cases(Arena arena) throws Throwable {
+        List<CaseOutcome> result = new ArrayList<>();
+        result.add(unsupported("BNT-BF16-A1", () -> dense(arena, "BNT-BF16-A1",
+                DataType.BFLOAT16, Shape.of(32,64,256),1,4)));
         result.add(dense(arena, "BNT-F32-A1", DataType.FLOAT32, Shape.of(32,64,256),1,4));
         result.add(dense(arena, "BNT-F64-A1", DataType.FLOAT64, Shape.of(32,64,256),1,1));
         result.add(dense(arena, "BNT-F32-A0", DataType.FLOAT32, Shape.of(128,4096),0,4));
         result.add(dense(arena, "BNT-F32-A2", DataType.FLOAT32, Shape.of(32,256,64),2,4));
-        result.add(mixed(arena, true)); result.add(mixed(arena, false)); result.add(repeated(arena));
+        result.add(unsupported("BNT-MIX-F64", () -> mixed(arena, true)));
+        result.add(unsupported("BNT-MIX-F32", () -> mixed(arena, false)));
+        result.add(repeated(arena));
         result.add(CpuBatchNormInferenceEvidenceTest.float32BatchInferenceControl());
         result.addAll(CpuTrailingNormalizationEvidenceTest.trainingControls(arena));
         return List.copyOf(result);
@@ -229,7 +264,7 @@ public final class CpuBatchNormTrainingPerformanceTest {
         var plan=new CpuPartitionPreparer().analyze(context).plan();assertEquals(ranges,plan.selectedRangeCount());
         var route=plan.units().getFirst().portablePlan();var gen=new CpuClassFileKernelGenerator();
         byte[] bytes=gen.generateClassBytes(route.specialization(),route.kernelIr());var g=plan.batchNormTrainingGeometry().orElseThrow();
-        return new Prepared(gen.defineClassBytes(route.specialization(),bytes).entryPoint(),
+        return new Prepared(gen.defineClassBytes(route.specialization(), route.kernelIr(), bytes).entryPoint(),
                 arena.allocate(g.scratchSliceBytes()*ranges,8),arena.allocate(g.scratchSliceBytes()*ranges,8),
                 g.pack(new long[carriers.size()],0),g,ranges);
     }
@@ -332,6 +367,60 @@ public final class CpuBatchNormTrainingPerformanceTest {
     private static long median(long[]a){long[]c=a.clone();Arrays.sort(c);return c[4];}
     private static void environment(StringBuilder out){long total=Runtime.getRuntime().totalMemory(),max=Runtime.getRuntime().maxMemory();String java=System.getProperty("java.version");out.append("ENV,java=").append(java).append(",vm=").append(System.getProperty("java.vm.name")).append(",processors=").append(Runtime.getRuntime().availableProcessors()).append(",totalMemory=").append(total).append(",maxMemory=").append(max).append(",byteOrder=").append(ByteOrder.nativeOrder()).append('\n');long low=900L<<20,high=1100L<<20;if(!java.startsWith("26")||total<low||max<low||max>high)throw new AssertionError("requires Java 26 -Xms1g -Xmx1g");}
     private static void retain(boolean accepted,int fork,int attempt,String text)throws Exception{Path dir=EVIDENCE.resolve(accepted?"forks":"rejected-samples");Files.createDirectories(dir);String name=accepted?"fork-"+fork+".csv":"fork-"+fork+"-attempt-"+attempt+"-"+Instant.now().toEpochMilli()+".csv";Files.writeString(dir.resolve(name),text);}
-    private static void aggregate()throws Exception{List<String>names=null;double[][]ratios=new double[5][12];for(int f=0;f<5;f++){List<String>ns=new ArrayList<>();int i=0;for(String line:Files.readAllLines(EVIDENCE.resolve("forks/fork-"+f+".csv")))if(line.startsWith("RESULT,")){String[]x=line.split(",",6);ns.add(x[1]);ratios[f][i++]=Double.parseDouble(x[4]);}if(i!=12)throw new AssertionError("fork "+f+" count "+i);if(names==null)names=List.copyOf(ns);else if(!names.equals(ns))throw new AssertionError("inventory");}StringBuilder s=new StringBuilder();int failures=0;for(int i=0;i<12;i++){double[]v=new double[5];for(int f=0;f<5;f++)v[f]=ratios[f][i];Arrays.sort(v);if(v[2]>1.15)failures++;s.append(String.format(Locale.ROOT,"AGGREGATE,%s,%.9f,%s%n",names.get(i),v[2],Arrays.toString(v)));}long rejected=Files.exists(EVIDENCE.resolve("rejected-samples"))?Files.list(EVIDENCE.resolve("rejected-samples")).count():0;s.append("COUNTS,accepted=5,rejected=").append(rejected).append('\n');Files.writeString(EVIDENCE.resolve("summary.csv"),s);System.out.print(s);if(failures!=0)throw new AssertionError("aggregate failures "+failures);}
+    private static void aggregate() throws Exception {
+        List<Map<String, Double>> forks = new ArrayList<>();
+        Map<String, String> unsupported = null;
+        List<String> inventory = null;
+        for (int fork = 0; fork < 5; fork++) {
+            Map<String, Double> ratios = new LinkedHashMap<>();
+            Map<String, String> negatives = new LinkedHashMap<>();
+            List<String> names = new ArrayList<>();
+            for (String line : Files.readAllLines(EVIDENCE.resolve("forks/fork-" + fork + ".csv"))) {
+                if (line.startsWith("RESULT,") || line.startsWith("UNSUPPORTED,")) {
+                    String[] fields = line.split(",", 6);
+                    if (names.contains(fields[1])) throw new AssertionError("duplicate " + fields[1]);
+                    names.add(fields[1]);
+                    if (fields[0].equals("RESULT")) ratios.put(fields[1], Double.parseDouble(fields[4]));
+                    else negatives.put(fields[1], line);
+                }
+            }
+            if (ratios.isEmpty() || negatives.isEmpty()) throw new AssertionError("missing outcomes");
+            if (!new HashSet<>(CASE_NAMES).equals(new HashSet<>(names))) {
+                throw new AssertionError("incomplete fork owner inventory");
+            }
+            if (inventory == null) {
+                inventory = List.copyOf(names);
+                unsupported = Map.copyOf(negatives);
+            } else if (!inventory.equals(names) || !unsupported.keySet().equals(negatives.keySet())
+                    || !forks.getFirst().keySet().equals(ratios.keySet())) {
+                throw new AssertionError("fork outcome inventory");
+            }
+            forks.add(ratios);
+        }
+        StringBuilder summary = new StringBuilder();
+        int failures = 0;
+        for (String name : inventory) {
+            if (unsupported.containsKey(name)) {
+                summary.append(unsupported.get(name)).append('\n');
+                continue;
+            }
+            double[] values = new double[5];
+            for (int fork = 0; fork < 5; fork++) values[fork] = forks.get(fork).get(name);
+            Arrays.sort(values);
+            if (!(values[2] <= 1.15)) failures++;
+            summary.append(String.format(Locale.ROOT, "AGGREGATE,%s,%.9f,%s%n",
+                    name, values[2], Arrays.toString(values)));
+        }
+        long rejected = 0;
+        if (Files.exists(EVIDENCE.resolve("rejected-samples"))) {
+            try (var files = Files.list(EVIDENCE.resolve("rejected-samples"))) {
+                rejected = files.count();
+            }
+        }
+        summary.append("COUNTS,accepted=5,rejected=").append(rejected).append('\n');
+        Files.writeString(EVIDENCE.resolve("summary.csv"), summary);
+        System.out.print(summary);
+        if (failures != 0) throw new AssertionError("aggregate failures " + failures);
+    }
     private static String clean(String s){return s==null?"":s.replace('\n',' ').replace('\r',' ').replace(',',';');}
 }

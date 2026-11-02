@@ -156,15 +156,61 @@ final class TensorScaledDotProductAttentionExpressions {
             List<Tensor> inputs,
             ScaledDotProductAttentionAttrs attrs,
             boolean includeWeights) {
-        DataType queryType = requireFloating(query.descriptor().dataType(), "query");
-        DataType keyType = requireFloating(key.descriptor().dataType(), "key");
-        DataType valueType = requireFloating(value.descriptor().dataType(), "value");
+        return buildChecked(query, key, value, inputs, attrs, includeWeights, null);
+    }
+
+    /**
+     * Delivers checked one- or two-output attention metadata without constructing a Tensor.
+     * @param operation attention operation whose exact attributes are retained
+     * @param inputs ordered query, key, value, and optional BOOL mask descriptors
+     * @param outputCount one for output only, two for output and normalized weights
+     * @param sink synchronous, unretained receiver invoked exactly once
+     */
+    static void describeChecked(Operation operation, List<TensorDescriptor> inputs, int outputCount,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> sink) {
+        describeInputs(inputs.get(0), inputs.get(1), inputs.get(2),
+                inputs.size() == 4 ? inputs.get(3) : null, null,
+                (ScaledDotProductAttentionAttrs) operation.attrs(), outputCount == 2, sink);
+    }
+
+    /**
+     * Shares attention guards and descriptor derivation without constructing validation Tensors.
+     * @param query non-null floating query under ordinary attention shape constraints
+     * @param key non-null floating key with matching embedding dimension
+     * @param value non-null floating value with matching key sequence dimension
+     * @param inputs exact ordered query/key/value and optional BOOL mask inputs
+     * @param attrs non-null exact scale and causal semantics
+     * @param includeWeights whether the canonical weights sibling is described
+     * @param descriptorCheck optional synchronous unretained sink; null constructs ordinary outputs
+     * @return null after descriptor-only completion, otherwise canonical attention outputs
+     * @throws IllegalArgumentException if ordinary attention guards or the supplied check fail
+     */
+    static List<Tensor> buildChecked(Tensor query, Tensor key, Tensor value, List<Tensor> inputs,
+            ScaledDotProductAttentionAttrs attrs, boolean includeWeights,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        return describeInputs(query.descriptor(), key.descriptor(), value.descriptor(),
+                inputs.size() == 4 ? inputs.get(3).descriptor() : null,
+                inputs, attrs, includeWeights, descriptorCheck);
+    }
+
+    private static List<Tensor> describeInputs(
+            TensorDescriptor query,
+            TensorDescriptor key,
+            TensorDescriptor value,
+            TensorDescriptor mask,
+            List<Tensor> inputs,
+            ScaledDotProductAttentionAttrs attrs,
+            boolean includeWeights,
+            java.util.function.BiConsumer<Operation, List<TensorDescriptor>> descriptorCheck) {
+        DataType queryType = requireFloating(query.dataType(), "query");
+        DataType keyType = requireFloating(key.dataType(), "key");
+        DataType valueType = requireFloating(value.dataType(), "value");
         DataType queryKeyType = DataTypePromotion.promoteFloating(queryType, keyType);
         DataType resultType = DataTypePromotion.promoteFloating(queryKeyType, valueType);
 
-        Shape queryShape = query.descriptor().shape();
-        Shape keyShape = key.descriptor().shape();
-        Shape valueShape = value.descriptor().shape();
+        Shape queryShape = query.shape();
+        Shape keyShape = key.shape();
+        Shape valueShape = value.shape();
         int queryRank = queryShape.rank();
         int keyRank = keyShape.rank();
         int valueRank = valueShape.rank();
@@ -218,8 +264,8 @@ final class TensorScaledDotProductAttentionExpressions {
         outputDimensions.add(valueEmbedding);
         Shape outputShape = Shape.ofDimensions(outputDimensions.toArray(new Dimension[0]));
 
-        if (inputs.size() == 4) {
-            validateMask(inputs.get(3), scoreShape);
+        if (mask != null) {
+            validateMask(mask, scoreShape);
         }
         Optional<ScalarValue> scale = attrs.scale();
         if (scale.isPresent() && scale.orElseThrow().dataType() != resultType) {
@@ -232,12 +278,16 @@ final class TensorScaledDotProductAttentionExpressions {
                 resultType,
                 outputShape,
                 Optional.empty(),
-                query.descriptor().requiresGrad()
-                        || key.descriptor().requiresGrad()
-                        || value.descriptor().requiresGrad());
+                query.requiresGrad()
+                        || key.requiresGrad()
+                        || value.requiresGrad());
         Operation operation = new Operation(
                 ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION, attrs);
         if (!includeWeights) {
+            if (descriptorCheck != null) {
+                descriptorCheck.accept(operation, List.of(outputDescriptor));
+                return null;
+            }
             return List.of(TensorFactory.createDerived(
                     outputDescriptor, Optional.empty(), operation, inputs));
         }
@@ -245,7 +295,11 @@ final class TensorScaledDotProductAttentionExpressions {
                 resultType,
                 scoreShape,
                 Optional.empty(),
-                query.descriptor().requiresGrad() || key.descriptor().requiresGrad());
+                query.requiresGrad() || key.requiresGrad());
+        if (descriptorCheck != null) {
+            descriptorCheck.accept(operation, List.of(outputDescriptor, weightsDescriptor));
+            return null;
+        }
         return TensorFactory.createDerivedOutputs(
                 operation, inputs, List.of(outputDescriptor, weightsDescriptor));
     }
@@ -352,13 +406,13 @@ final class TensorScaledDotProductAttentionExpressions {
         return dimension == null ? "StaticDimension[size=1]" : dimension.toString();
     }
 
-    private static void validateMask(Tensor mask, Shape scoreShape) {
-        DataType maskType = mask.descriptor().dataType();
+    private static void validateMask(TensorDescriptor mask, Shape scoreShape) {
+        DataType maskType = mask.dataType();
         if (maskType != DataType.BOOL) {
             throw new IllegalArgumentException(
                     "mask must have BOOL data type, but was " + maskType);
         }
-        Shape maskShape = mask.descriptor().shape();
+        Shape maskShape = mask.shape();
         int maskRank = maskShape.rank();
         int scoreRank = scoreShape.rank();
         if (maskRank > scoreRank) {

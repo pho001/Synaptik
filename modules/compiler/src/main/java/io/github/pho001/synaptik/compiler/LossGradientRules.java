@@ -10,10 +10,9 @@ import io.github.pho001.synaptik.model.operation.loss.MeanSquaredErrorAttrs;
 import io.github.pho001.synaptik.model.shape.Dimension;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
-import io.github.pho001.synaptik.model.tensor.Tensor;
-import io.github.pho001.synaptik.model.tensor.TensorProducer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Builds mean-squared-error and categorical-cross-entropy first-order formulas.
@@ -22,12 +21,23 @@ import java.util.List;
  * than converting a host element count. Dense targets retain their exact mass. Index targets are
  * non-differentiable, are sanitized only to make one-hot construction total for ignored rows, and
  * use an exact integral ignore predicate before exceptional logits can enter arithmetic.</p>
+ *
+ * <p>Descriptor access preserves original source roles without resolving primal values.
+ * Real construction uses Tensor references directly; checked metadata construction retains
+ * the same eager operation sites, including temporaries not used by a returned cotangent.</p>
+ *
+ * @param <V> direct Tensor or checked metadata operand representation
  */
-final class LossGradientRules {
+final class LossGradientRules<V> {
+    private final OrdinaryConstruction<V> ops;
+
     /**
-     * Prevents construction of this stateless formula owner.
+     * Binds this formula owner to one compile-local construction route.
+     * @param ops non-null direct Tensor or checked metadata construction
      */
-    private LossGradientRules() {}
+    LossGradientRules(OrdinaryConstruction<V> ops) {
+        this.ops = java.util.Objects.requireNonNull(ops);
+    }
 
     /**
      * Builds selected loss operand cotangents.
@@ -36,23 +46,19 @@ final class LossGradientRules {
      * @param gradient non-null accumulated cotangent for its sole output
      * @param selectedInputs non-null input-position-aligned selected-route flags; observed but
      *     not mutated
-     * @param constants non-null request-local exact floating logical-splat owner
+     * @param primal total lexical binding of original value operands
      * @return a new input-position-aligned array of cotangents, with {@code null} for unselected
      *     roles
      */
-    static Tensor[] apply(
-            TensorProducer producer,
-            Tensor gradient,
-            boolean[] selectedInputs,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        return switch ((LossKind) producer.operation().kind()) {
-            case MEAN_SQUARED_ERROR ->
-                    meanSquaredError(producer, gradient, selectedInputs, constants);
-            case DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS ->
-                    denseCategorical(producer, gradient, selectedInputs, constants);
-            case INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS ->
-                    indexCategorical(producer, gradient, selectedInputs, constants);
-        };
+    V[] apply(OrdinaryConstruction.Source<V> producer, V gradient, boolean[] selectedInputs, Function<V, V> primal) {
+            return switch ((LossKind) producer.operation().kind()) {
+                case MEAN_SQUARED_ERROR ->
+                        meanSquaredError(producer, gradient, selectedInputs, primal);
+                case DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS ->
+                        denseCategorical(producer, gradient, selectedInputs, primal);
+                case INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS ->
+                        indexCategorical(producer, gradient, selectedInputs, primal);
+            };
     }
 
     /**
@@ -61,31 +67,30 @@ final class LossGradientRules {
      * @param producer non-null exact original mean-squared-error occurrence
      * @param gradient non-null accumulated output cotangent
      * @param selectedInputs non-null input-position-aligned selected-route flags
-     * @param constants non-null request-local exact floating logical-splat owner
+     * @param primal total lexical binding of original value operands
      * @return a new two-position array of selected normalized cotangents
      */
-    private static Tensor[] meanSquaredError(
-            TensorProducer producer,
-            Tensor gradient,
+    private V[] meanSquaredError(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient,
             boolean[] selectedInputs,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        Tensor predictionInput = producer.inputs().get(0);
-        Tensor targetInput = producer.inputs().get(1);
-        DataType resultType = producer.output(0).descriptor().dataType();
-        Tensor difference = cast(predictionInput, resultType)
-                .sub(cast(targetInput, resultType));
+            Function<V, V> primal) {
+        V predictionInput = producer.inputs().get(0);
+        V targetInput = producer.inputs().get(1);
+        DataType resultType = ops.descriptor(producer.output(0)).dataType();
+        V difference = ops.sub(cast(primal.apply(predictionInput), resultType), cast(primal.apply(targetInput), resultType));
         LossReduction reduction =
                 ((MeanSquaredErrorAttrs) producer.operation().attrs()).reduction();
-        Tensor restored = restore(
-                gradient, predictionInput.descriptor().shape(), reduction, constants);
-        Tensor scaled = difference.mul(constants.two(resultType)).mul(restored);
-        Tensor[] result = new Tensor[2];
+        V restored = restore(
+                gradient, ops.descriptor(predictionInput).shape(), reduction);
+        V scaled = ops.mul(ops.mul(difference, ops.two(resultType)), restored);
+        V[] result = ops.array(2);
         if (selectedInputs[0]) {
             result[0] = normalize(scaled, predictionInput);
         }
         if (selectedInputs[1]) {
             result[1] = normalize(
-                    difference.mul(constants.negativeTwo(resultType)).mul(restored),
+                    ops.mul(ops.mul(difference, ops.negativeTwo(resultType)), restored),
                     targetInput);
         }
         return result;
@@ -97,39 +102,37 @@ final class LossGradientRules {
      * @param producer non-null exact original dense categorical-loss occurrence
      * @param gradient non-null accumulated output cotangent
      * @param selectedInputs non-null input-position-aligned selected-route flags
-     * @param constants non-null request-local exact floating logical-splat owner
+     * @param primal total lexical binding of original value operands
      * @return a new two-position array of selected normalized cotangents
      */
-    private static Tensor[] denseCategorical(
-            TensorProducer producer,
-            Tensor gradient,
+    private V[] denseCategorical(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient,
             boolean[] selectedInputs,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        Tensor logitsInput = producer.inputs().get(0);
-        Tensor targetInput = producer.inputs().get(1);
-        DataType resultType = producer.output(0).descriptor().dataType();
-        Tensor logits = cast(logitsInput, resultType);
-        Tensor target = cast(targetInput, resultType);
+            Function<V, V> primal) {
+        V logitsInput = producer.inputs().get(0);
+        V targetInput = producer.inputs().get(1);
+        DataType resultType = ops.descriptor(producer.output(0)).dataType();
+        V logits = cast(primal.apply(logitsInput), resultType);
+        V target = cast(primal.apply(targetInput), resultType);
         DenseCategoricalCrossEntropyWithLogitsAttrs attrs =
                 (DenseCategoricalCrossEntropyWithLogitsAttrs) producer.operation().attrs();
-        Shape sampleShape = removeAxis(logits.descriptor().shape(), attrs.axis());
-        Tensor restored = restore(
-                        gradient, sampleShape, attrs.reduction(), constants)
-                .expandDims(attrs.axis());
-        Tensor[] result = new Tensor[2];
+        Shape sampleShape = removeAxis(ops.descriptor(logits).shape(), attrs.axis());
+        V restored = ops.expandDims(restore(
+                        gradient, sampleShape, attrs.reduction()), attrs.axis());
+        V[] result = ops.array(2);
         if (selectedInputs[0]) {
-            Tensor targetMass = target.sum(attrs.axis(), true);
+            V targetMass = ops.sum(target, attrs.axis(), true);
             result[0] = normalize(
-                    logits.softmax(attrs.axis()).mul(targetMass).sub(target).mul(restored),
+                    ops.mul(ops.sub(ops.mul(ops.softmax(logits, attrs.axis()), targetMass), target), restored),
                     logitsInput);
         }
         if (selectedInputs[1]) {
-            Tensor logProbabilities = logits.logSoftmax(attrs.axis());
-            Tensor raw = logProbabilities.neg().mul(restored);
-            Tensor excluded = target.equalTo(constants.zeroLike(target))
-                    .logicalAnd(logProbabilities.isFinite().logicalNot());
+            V logProbabilities = ops.logSoftmax(logits, attrs.axis());
+            V raw = ops.mul(ops.neg(logProbabilities), restored);
+            V excluded = ops.logicalAnd(ops.equalTo(target, ops.zeroLike(target)), ops.logicalNot(ops.isFinite(logProbabilities)));
             result[1] = normalize(
-                    Tensor.where(excluded, constants.zeroLike(raw), raw),
+                    ops.where(excluded, ops.zeroLike(raw), raw),
                     targetInput);
         }
         return result;
@@ -141,62 +144,55 @@ final class LossGradientRules {
      * @param producer non-null exact original index categorical-loss occurrence
      * @param gradient non-null accumulated output cotangent
      * @param selectedInputs non-null input-position-aligned selected-route flags
-     * @param constants non-null request-local exact floating logical-splat owner
+     * @param primal total lexical binding of original value operands
      * @return a new two-position array containing the selected logits cotangent and a
      *     non-differentiable {@code null} target role
      */
-    private static Tensor[] indexCategorical(
-            TensorProducer producer,
-            Tensor gradient,
+    private V[] indexCategorical(
+            OrdinaryConstruction.Source<V> producer,
+            V gradient,
             boolean[] selectedInputs,
-            FirstOrderAutograd.DerivativeConstants constants) {
-        Tensor logits = producer.inputs().get(0);
-        Tensor target = producer.inputs().get(1);
+            Function<V, V> primal) {
+        V logits = primal.apply(producer.inputs().get(0));
+        V target = primal.apply(producer.inputs().get(1));
         IndexCategoricalCrossEntropyWithLogitsAttrs attrs =
                 (IndexCategoricalCrossEntropyWithLogitsAttrs) producer.operation().attrs();
         long depth = ((StaticDimension)
-                logits.descriptor().shape().dimension(attrs.axis())).size();
-        ScalarValue zeroIndex = integral(target.descriptor().dataType(), 0);
-        long upperValue = target.descriptor().dataType() == DataType.INT32
+                ops.descriptor(logits).shape().dimension(attrs.axis())).size();
+        ScalarValue zeroIndex = integral(ops.descriptor(target).dataType(), 0);
+        long upperValue = ops.descriptor(target).dataType() == DataType.INT32
                 ? Math.min(depth - 1, Integer.MAX_VALUE)
                 : depth - 1;
-        ScalarValue upper = integral(target.descriptor().dataType(), upperValue);
-        Tensor safeTarget = target.maximum(zeroIndex).minimum(upper);
-        Tensor hotBoolean = insertClassAxis(safeTarget.oneHot(depth), attrs.axis());
-        Tensor hot = Tensor.where(
-                hotBoolean, constants.oneLike(logits), constants.zeroLike(logits));
+        ScalarValue upper = integral(ops.descriptor(target).dataType(), upperValue);
+        V safeTarget = ops.minimum(ops.maximum(target, zeroIndex), upper);
+        V hotBoolean = insertClassAxis(ops.oneHot(safeTarget, depth), attrs.axis());
+        V hot = ops.where(hotBoolean, ops.oneLike(logits), ops.zeroLike(logits));
 
-        Shape sampleShape = target.descriptor().shape();
-        Tensor scale;
-        Tensor ignored = null;
+        Shape sampleShape = ops.descriptor(target).shape();
+        V scale;
+        V ignored = null;
         if (attrs.ignoreIndex().isPresent()) {
             ScalarValue ignore = attrs.ignoreIndex().orElseThrow();
-            Tensor delta = target.sub(ignore);
-            ignored = delta.equalTo(delta.sub(delta));
-            Tensor active = Tensor.where(
-                    ignored,
-                    constants.zeroBase(logits.descriptor().dataType()).expand(sampleShape),
-                    constants.oneBase(logits.descriptor().dataType()).expand(sampleShape));
-            scale = gradient.descriptor().shape().equals(sampleShape)
+            V delta = ops.sub(target, ignore);
+            ignored = ops.equalTo(delta, ops.sub(delta, delta));
+            V active = ops.where(ignored, ops.expand(ops.zeroBase(ops.descriptor(logits).dataType()), sampleShape), ops.expand(ops.oneBase(ops.descriptor(logits).dataType()), sampleShape));
+            scale = ops.descriptor(gradient).shape().equals(sampleShape)
                     ? gradient
-                    : gradient.expand(sampleShape);
+                    : ops.expand(gradient, sampleShape);
             if (attrs.reduction() == LossReduction.MEAN) {
-                scale = scale.div(active.sum());
+                scale = ops.div(scale, ops.sum(active));
             }
         } else {
-            scale = restore(gradient, sampleShape, attrs.reduction(), constants);
+            scale = restore(gradient, sampleShape, attrs.reduction());
         }
-        scale = scale.expandDims(attrs.axis());
-        Tensor raw = logits.softmax(attrs.axis()).sub(hot).mul(scale);
-        Tensor contribution = ignored == null
+        scale = ops.expandDims(scale, attrs.axis());
+        V raw = ops.mul(ops.sub(ops.softmax(logits, attrs.axis()), hot), scale);
+        V contribution = ignored == null
                 ? raw
-                : Tensor.where(
-                        ignored.expandDims(attrs.axis()),
-                        constants.zeroLike(logits),
-                        raw);
-        Tensor[] result = new Tensor[2];
+                : ops.where(ops.expandDims(ignored, attrs.axis()), ops.zeroLike(logits), raw);
+        V[] result = ops.array(2);
         if (selectedInputs[0]) {
-            result[0] = normalize(contribution, logits);
+            result[0] = normalize(contribution, producer.inputs().get(0));
         }
         return result;
     }
@@ -207,25 +203,20 @@ final class LossGradientRules {
      * @param gradient non-null accumulated reduced cotangent
      * @param domain non-null exact unreduced logical Shape
      * @param reduction non-null loss reduction policy
-     * @param constants non-null request-local exact floating logical-splat owner
      * @return {@code gradient} for {@code NONE}; otherwise a new expanded expression, divided by
      *     a logical typed element count for {@code MEAN}
      */
-    private static Tensor restore(
-            Tensor gradient,
+    private V restore(
+            V gradient,
             Shape domain,
-            LossReduction reduction,
-            FirstOrderAutograd.DerivativeConstants constants) {
+            LossReduction reduction) {
         if (reduction == LossReduction.NONE) {
             return gradient;
         }
-        Tensor restored = gradient.expand(domain);
+        V restored = ops.expand(gradient, domain);
         if (reduction == LossReduction.MEAN) {
-            Tensor count = constants.oneBase(gradient.descriptor().dataType())
-                    .expand(domain)
-                    .contiguous()
-                    .sum();
-            restored = restored.div(count);
+            V count = ops.sum(ops.contiguous(ops.expand(ops.oneBase(ops.descriptor(gradient).dataType()), domain)));
+            restored = ops.div(restored, count);
         }
         return restored;
     }
@@ -237,8 +228,8 @@ final class LossGradientRules {
      * @param classAxis normalized target class-axis position
      * @return {@code oneHot} when the class axis is already final; otherwise a new permutation
      */
-    private static Tensor insertClassAxis(Tensor oneHot, int classAxis) {
-        int rank = oneHot.descriptor().shape().rank();
+    private V insertClassAxis(V oneHot, int classAxis) {
+        int rank = ops.descriptor(oneHot).shape().rank();
         if (classAxis == rank - 1) {
             return oneHot;
         }
@@ -249,7 +240,7 @@ final class LossGradientRules {
                     ? rank - 1
                     : sourceSampleAxis++;
         }
-        return oneHot.permute(axes);
+        return ops.permute(oneHot, axes);
     }
 
     /**
@@ -289,8 +280,8 @@ final class LossGradientRules {
      * @param dataType non-null floating result type
      * @return {@code input} when its type already matches; otherwise a new cast expression
      */
-    private static Tensor cast(Tensor input, DataType dataType) {
-        return input.descriptor().dataType() == dataType ? input : input.cast(dataType);
+    private V cast(V input, DataType dataType) {
+        return ops.descriptor(input).dataType() == dataType ? input : ops.cast(input, dataType);
     }
 
     /**
@@ -300,12 +291,12 @@ final class LossGradientRules {
      * @param input non-null original input whose descriptor is restored
      * @return a non-null ordinary Tensor expression with the input's exact descriptor
      */
-    private static Tensor normalize(Tensor gradient, Tensor input) {
-        Tensor result = gradient.descriptor().shape().equals(input.descriptor().shape())
+    private V normalize(V gradient, V input) {
+        V result = ops.descriptor(gradient).shape().equals(ops.descriptor(input).shape())
                 ? gradient
-                : gradient.sumToShape(input.descriptor().shape());
-        return result.descriptor().dataType() == input.descriptor().dataType()
+                : ops.sumToShape(gradient, ops.descriptor(input).shape());
+        return ops.descriptor(result).dataType() == ops.descriptor(input).dataType()
                 ? result
-                : result.cast(input.descriptor().dataType());
+                : ops.cast(result, ops.descriptor(input).dataType());
     }
 }

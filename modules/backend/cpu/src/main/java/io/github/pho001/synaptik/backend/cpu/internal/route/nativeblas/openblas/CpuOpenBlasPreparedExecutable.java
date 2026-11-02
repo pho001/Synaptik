@@ -28,6 +28,9 @@ import java.util.Optional;
  * and the optional output copy, with no route decision or late fallback. Coordinated execution
  * admits that complete sequence once under the plan's fixed permit demand; compatibility
  * execution retains the externally excluded count-one contract.
+ * A complete batch-required memory plan does not make this fixed route dynamic. Cold binding
+ * authenticates fixed selected declarations against the retained matrix/copy spans and workspace
+ * facts, while preserving the qualified provider, copy artifacts and native entry protocol.
  */
 public final class CpuOpenBlasPreparedExecutable extends PreparedExecutable {
     private final CpuOpenBlasRoutePlan plan;
@@ -35,6 +38,7 @@ public final class CpuOpenBlasPreparedExecutable extends PreparedExecutable {
     private final CpuOpenBlasCoordinator coordinator;
     private final List<CpuGeneratedKernel> inputCopyArtifacts;
     private final Optional<CpuGeneratedKernel> outputCopyArtifact;
+    private final List<WorkspaceSelection> selectedWorkspaces;
 
     /**
      * Creates one exact reusable finalized native sequence. The recipe snapshots its artifact
@@ -94,6 +98,7 @@ public final class CpuOpenBlasPreparedExecutable extends PreparedExecutable {
         this.inputCopyArtifacts = List.copyOf(inputCopyArtifacts);
         this.outputCopyArtifact = Objects.requireNonNull(outputCopyArtifact,
                 "outputCopyArtifact");
+        this.selectedWorkspaces = List.copyOf(workspaces);
         if (buffers.size() != 3 || workspaces.size() != plan.workspaceRequirements().size()
                 || this.inputCopyArtifacts.size() != plan.inputMaterializations().size()
                 || this.outputCopyArtifact.isPresent() != plan.outputCopy().isPresent()) {
@@ -177,6 +182,64 @@ public final class CpuOpenBlasPreparedExecutable extends PreparedExecutable {
         } catch (IllegalArgumentException | IllegalStateException incompatible) {
             return false;
         }
+    }
+
+    /**
+     * Authenticates fixed matrix/copy declarations in a complete batch-required plan.
+     * @param state exact open run with plan-authenticated resolved geometry
+     * @param index left, right or output boundary position
+     * @param representation selected CPU boundary, or an incompatible representation to reject
+     * @return whether retained fixed spans and the original carrier/access contract agree
+     */
+    @Override protected boolean acceptsBufferRepresentation(RunState state, int index,
+            BufferRepresentation representation) {
+        if (!state.memoryPlan().requiresBatchSize()) return acceptsBufferRepresentation(index, representation);
+        return representation instanceof CpuBufferRepresentation cpu
+                && cpu.acceptsFixedGeometry(state, memoryPlan(), bufferSelection(index).bufferIndex(),
+                        retainedBoundaryBytes(index))
+                && acceptsBufferRepresentation(index, representation);
+    }
+
+    /**
+     * Authenticates the selected fixed copy workspace before any provider or copy call.
+     * @param state exact open run and authenticated geometry
+     * @param index ordered route workspace position
+     * @param representation selected CPU scratch, or an incompatible representation to reject
+     * @return whether declaration, resolved bytes and retained copy requirement agree
+     */
+    @Override protected boolean acceptsWorkspaceRepresentation(RunState state, int index,
+            WorkspaceRepresentation representation) {
+        if (!state.memoryPlan().requiresBatchSize()) return acceptsWorkspaceRepresentation(index, representation);
+        return representation instanceof CpuContiguousWorkspace cpu
+                && CpuBufferRepresentation.acceptsFixedWorkspaceGeometry(state, memoryPlan(),
+                        selectedWorkspaces.get(index).workspaceIndex(),
+                        plan.workspaceRequirements().get(index).byteSize(), cpu)
+                && acceptsWorkspaceRepresentation(index, representation);
+    }
+
+    /**
+     * Returns the original selected affine span, or the direct canonical matrix span.
+     * @param index left, right or output boundary position
+     * @return exact fixed referenced bytes including affine origin and gaps
+     * @throws ArithmeticException if checked span multiplication overflows
+     */
+    private long retainedBoundaryBytes(int index) {
+        if (index == 0) {
+            if (plan.leftMaterialization().isPresent()) return Math.multiplyExact(
+                    plan.leftMaterialization().orElseThrow().sourceBinding().referencedElementSpan(),
+                    (long) plan.dataType().byteWidth());
+            return matrixBytes(plan.m(), plan.k(), plan.dataType());
+        }
+        if (index == 1) {
+            if (plan.rightMaterialization().isPresent()) return Math.multiplyExact(
+                    plan.rightMaterialization().orElseThrow().sourceBinding().referencedElementSpan(),
+                    (long) plan.dataType().byteWidth());
+            return matrixBytes(plan.k(), plan.n(), plan.dataType());
+        }
+        if (plan.outputCopy().isPresent()) return Math.multiplyExact(
+                plan.outputCopy().orElseThrow().destinationBinding().referencedElementSpan(),
+                (long) plan.dataType().byteWidth());
+        return matrixBytes(plan.m(), plan.n(), plan.dataType());
     }
 
     /**

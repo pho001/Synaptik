@@ -11,7 +11,7 @@ class CpuGeneratedKernelShapeTest {
         var route = CpuPartitionPreparerTest.analyze(Shape.scalar()).plan().units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
         byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
-        var artifact = generator.defineClassBytes(route.specialization(), bytes);
+        var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes);
         bytes[0] = 0;
         assertAll(
                 () -> assertSame(artifact.hiddenClass(), artifact.hiddenLookup().lookupClass()),

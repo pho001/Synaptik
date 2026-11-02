@@ -248,6 +248,25 @@ public final class TensorFactory {
             Operation operation,
             List<Tensor> inputs,
             List<TensorDescriptor> outputDescriptors) {
+        return createDerivedOutputs(operation, inputs, outputDescriptors, Optional.empty());
+    }
+
+    /**
+     * Allocates canonical outputs after complete optional scan attachment validation.
+     * Body storage is rechecked at this seam; descriptors allocate no history storage.
+     *
+     * @param operation non-null immutable semantics
+     * @param inputs non-null ordered inputs, retaining repeats
+     * @param outputDescriptors non-null non-empty canonical output descriptions
+     * @param scanBody non-null optional source containment, present exactly for general scans
+     * @return immutable ordered canonical wrappers of one fully constructed producer
+     * @throws NullPointerException if a required reference or element is null
+     * @throws IllegalArgumentException if occurrence or scan attachment validation fails before IDs
+     * @throws ArithmeticException if checked scan arithmetic overflows before IDs
+     * @throws IllegalStateException if IDs are exhausted; prior IDs remain consumed without return
+     */
+    static List<Tensor> createDerivedOutputs(Operation operation, List<Tensor> inputs,
+            List<TensorDescriptor> outputDescriptors, Optional<ScanBody> scanBody) {
         Objects.requireNonNull(operation, "operation");
         Objects.requireNonNull(inputs, "inputs");
         Objects.requireNonNull(outputDescriptors, "outputDescriptors");
@@ -256,7 +275,8 @@ public final class TensorFactory {
                 inputs,
                 outputDescriptors,
                 Optional.empty(),
-                TensorFactory::nextTensorId);
+                TensorFactory::nextTensorId,
+                scanBody);
         List<Tensor> outputs = new ArrayList<>(producer.outputCount());
         for (int outputIndex = 0; outputIndex < producer.outputCount(); outputIndex++) {
             outputs.add(producer.output(outputIndex));

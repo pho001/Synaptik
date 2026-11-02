@@ -89,6 +89,23 @@ import java.util.Arrays;
  * delivered by the CPU backend. Capability remains an exact answer for the supplied operation,
  * descriptors, attributes, and gradient roles; it does not widen route support.
  *
+ * <p>A separate bounded ordinary symbolic-batch matrix admits FLOAT32 rank-at-most-two
+ * descriptors with one common named dimension, fixed other extents and proved canonical/view
+ * mappings. Its operations include MATMUL, tensor/scalar ADD/SUB/MUL/DIV,
+ * NEG/TANH/SIGMOID, SUM/MEAN (including SUM-to-Shape), CONTIGUOUS, same-type CAST,
+ * PERMUTE, singleton-preserving RESHAPE/rank edits and EXPAND. Symbolic expressions and arbitrary-rank
+ * operations do not inherit this exception. The symbolic Scan closure also
+ * qualifies bounded rank-three seed/history pointwise and layout operations, and direct
+ * selected-axis SUM/MEAN projection. A separate bounded typed closure adds homogeneous FLOAT64
+ * ADD, required MUL/DIV, exact SUM/MEAN/SUM-to-Shape and necessary layout/ROW(1) constant mappings;
+ * only non-gradient floating [B] to INT64 [B] CAST adds length-control production. Exact occurrence
+ * predicates are identical inside and outside Scan, without an origin tag. All-valid symbolic
+ * Scan bodies remain FLOAT32; symbolic-length bodies independently qualify homogeneous FLOAT32
+ * or FLOAT64 arithmetic, rank-two MATMUL, SUM and provenance-preserving views, with separate INT64
+ * control and fixed time/features. This admits neither all-valid symbolic FLOAT64 nor ordinary
+ * symbolic FLOAT64 MATMUL/unary or low-type Scan. Complete-partition lowering and numeric run
+ * admission still qualify the actual forward and derivative closure independently.</p>
+ *
  * <p>The provider has a stable CPU ownership identity and advertises the bounded, fully static
  * pointwise matrix implemented by the portable route: selected same-type arithmetic including
  * extrema and floating Tensor power, exact scalar arithmetic and floating range clamp,
@@ -102,7 +119,9 @@ import java.util.Arrays;
  * static and resolved-layout occurrences of {@code CONTIGUOUS}, {@code RESHAPE}, {@code EXPAND},
  * {@code PERMUTE}, {@code EXPAND_DIMS}, {@code SQUEEZE}, scalar {@code SELECT}, and positive-step
  * {@code SLICE}, including target-relative crop attributes. These affine rows preserve one data
- * type and must carry the exact layout implied by their Model semantics. The provider also
+ * type and their exact inferred view. A static noncontiguous-input RESHAPE may instead produce
+ * the canonical non-view logical value selected by final Compiler closure; its source ordinal
+ * addressing remains unchanged. The provider also
  * admits one fully static, resolved-layout {@code PAD}, {@code TILE}, {@code CONCAT}, or
  * {@code STACK} occurrence for all seven represented data types. Movement inputs preserve their
  * exact semantic occurrence order, the output layout must be injective, and composition is
@@ -133,15 +152,15 @@ import java.util.Arrays;
  * responsible for exact scratch, carrier compatibility, and physical non-overlap.</p>
  *
  * <p>A distinct one-node cumulative-scan matrix admits {@code CUM_SUM} and {@code CUM_PROD}
- * across FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT32, and INT64. It requires one non-scalar static Shape,
- * the same input/output type and Shape, a valid normalized axis, resolved non-negative layouts,
+ * across FLOAT64, FLOAT32, INT32, and INT64; retained low implementations are not current admission.
+ * It requires one non-scalar static Shape, the same input/output type and Shape, a valid normalized axis, resolved non-negative layouts,
  * and an injective output. Capability covers inclusive/exclusive and forward/reverse modes;
  * lowering and binding remain responsible for exact sequential per-slice realization, carrier
  * compatibility, and complete physical non-overlap.</p>
  *
- * <p>A distinct one-node ordinary aggregate matrix admits SUM, PROD, MIN, and MAX for FLOAT64,
- * FLOAT32, BFLOAT16, FLOAT16, INT32, and INT64; MEAN for the four floating types; and ALL and ANY
- * for canonical BOOL. Exact parameterless full,
+ * <p>A distinct one-node ordinary aggregate matrix admits SUM and PROD for FLOAT64, FLOAT32,
+ * INT32, and INT64; MEAN for FLOAT64 and FLOAT32; represented-value MIN and MAX additionally
+ * retain BFLOAT16/FLOAT16; and ALL and ANY use canonical BOOL. Exact parameterless full,
  * single-axis, and multi-axis attributes are supported with fully static Model-derived output
  * Shapes, resolved non-negative layouts, and an injective output. Lowering and binding retain
  * responsibility for canonical selected-axis membership, complete-domain traversal, exact
@@ -183,8 +202,9 @@ import java.util.Arrays;
  * use that exact type, and the output retains input Shape with an
  * injective resolved layout. Capability does not recognize an equivalent decomposed graph.</p>
  *
- * <p>A separate MATMUL matrix admits every fully static, resolved-layout non-BOOL numeric pair:
- * all ordered floating pairs and all ordered INT32/INT64 pairs. It validates rank-one vector
+ * <p>A separate MATMUL matrix admits fully static, resolved-layout ordered FLOAT32/FLOAT64 pairs
+ * and ordered INT32/INT64 pairs. Either low numerical operand rejects even with a promoted result.
+ * It validates rank-one vector
  * promotion, exact K agreement, right-aligned batch broadcasting, promoted result
  * type and Shape, non-negative layouts, and an injective output. Lowering remains responsible for
  * exact carrier compatibility, checked normalized geometry, bounded scalar/vector realization,
@@ -197,17 +217,31 @@ import java.util.Arrays;
  * uses a distinct injective layout; its semantic effect is to copy base values and replace only
  * selected positions, without mutating either input.</p>
  *
- * <p>Fixed RNN_TANH, GRU_RESET_AFTER and LSTM scans admit canonical static FLOAT32 floating roles,
- * non-gradient INT64 lengths, both directions and bias/no-bias signatures. Outputs have the exact
- * OR of floating gradient flags, not a backward request. Checked int dimensions/counts and exact
- * packed shapes are mandatory; execution validates runtime values. Neither low type is admitted
- * by this direct Java capability.</p>
+ * <p>Fixed RNN_TANH, GRU_RESET_AFTER and LSTM scans admit one common FLOAT32 or FLOAT64 type
+ * for floating roles and non-gradient INT64 lengths, in both directions and
+ * bias/no-bias signatures. Input layouts may use resolved nonnegative strides and offsets;
+ * outputs use the exact canonical packed shapes and OR of floating gradient flags, not a backward
+ * request. Checked int dimensions/counts are mandatory; execution validates runtime lengths.
+ * This direct Java fixed-family capability is separate from the general body below
+ * and does not grant fixed-scan backpropagation through time.
+ * Low fixed computation remains unavailable for empty time/batch and all-inactive lengths.</p>
+ *
+ * <p>General SCAN independently qualifies homogeneous FLOAT32 and FLOAT64 static bodies and
+ * binders, with bounded nodes, formals, ports, method/local budgets and generated entry slots.
+ * Its algebra covers ADD/SUB/MUL/DIV scalar and tensor forms, NEG/TANH/SIGMOID, rank-two MATMUL
+ * and transpose, with broadcast, SUM/sum-to-shape, compatible reshape/rank edits, CONTIGUOUS,
+ * closed constants and same-type casts for actual reverse closure. Boundaries remain canonical
+ * or proved zero-offset scalar-all-zero reads. FLOAT64 resources use eight-byte spans, strides
+ * and alignment without float narrowing or arithmetic DAZ/FTZ. Whole-body proof runs even for
+ * dead operations and empty domains. Automatic reverse execution requires the actual
+ * Compiler-produced sibling to independently satisfy the complete body/binder predicate;
+ * neither low precision nor other body operations inherit support.</p>
  *
  * <p>Complete-partition lowering remains stricter. Its closed unit inventory comprises one
  * supported movement, indexing, functional-scatter, overlap-fold, ordering, explicit-state
  * random, cumulative-scan, ordinary-reduction, arg-extrema, masked-reduction,
  * advanced-reduction, softmax, Layer/RMS-normalization, BatchNorm-inference,
- * BatchNorm-training, Conv2d, Conv3d, MATMUL, Pool2d, Pool3d,
+ * BatchNorm-training, Conv2d, Conv3d, MATMUL, Pool2d, Pool3d, fixed recurrent scan, qualified general scan,
  * scaled-dot-product-attention, or loss occurrence; one recognized four-node Conv1d or
  * three-node Pool1d composition; or a connected one-through-eight-node affine or pointwise unit
  * admitted by the current lowering and decomposition. Exact layout, alias, fan-out, publication,
@@ -273,11 +307,24 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * Model result type/Shape/gradient relationship, floating operands, and INT32/INT64 index
      * targets only for index categorical loss. Carrier bases, alias checks,
      * actual ignore values, and direct traversal remain later CPU responsibilities.
-     * Dynamic or unresolved geometry, negative-step extraction slices, non-injective
+     * The separate ordinary symbolic-batch exception admits FLOAT32 with one common named
+     * dimension and fixed remaining extents: bounded rank-two arithmetic/MATMUL and the needed
+     * rank-three outer Scan seed/history pointwise, layout and SUM/MEAN closure described above.
+     * The separate typed ordinary closure described above adds only bounded FLOAT64 arithmetic,
+     * exact reductions, required ROW(1) mappings and non-gradient floating-to-INT64 [B] control CAST.
+     * Body-bearing symbolic SCAN uses its independent whole-body proof: FLOAT32 all-valid or
+     * homogeneous FLOAT32/FLOAT64 length-aware, with fixed time/features and scalar single-range
+     * execution. Static FLOAT64 Scan and Model dtype validity grant no wider symbolic or low-type
+     * support. Symbolic expressions and
+     * arbitrary-rank operations reject; actual numeric bounds and complete forward/derivative
+     * closure remain later checks.
+     * Other dynamic or unresolved geometry, negative-step extraction slices, non-injective
      * movement outputs, and all rows outside the implemented matrix return {@code false} without
      * defining conversion or fallback behavior. Negative and non-unit steps are supported for
      * {@code SLICE_UPDATE}; they describe logical placement and do not create a negative storage
      * stride.
+     * CPU's temporary BFLOAT16/FLOAT16 numerical lock is checked before every family proof;
+     * represented-value, storage, cast and control roles retain their existing predicates.
      *
      * @param query non-null immutable operation occurrence to validate structurally
      * @return {@code true} only for the exact implemented occurrence-local matrix; otherwise
@@ -287,7 +334,20 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
     @Override
     public boolean supports(OperationCapabilityQuery query) {
         Objects.requireNonNull(query, "query");
+        if (!io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering
+                .permitsLowPrecisionUse(query)) return false;
         Object requestedKind = query.operation().kind();
+        if (requestedKind != io.github.pho001.synaptik.model.operation.scan.ScanKind.SCAN
+                && java.util.stream.Stream.concat(query.inputs().stream(), query.outputs().stream())
+                .anyMatch(d -> !d.shape().isFullyStatic())) {
+            return io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering.supportsOrdinaryBatch(query);
+        }
+        if (requestedKind == io.github.pho001.synaptik.model.operation.scan.ScanKind.SCAN) {
+            try {
+                io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuGeneralScanLowering.analyze(query);
+                return true;
+            } catch (IllegalArgumentException | ArithmeticException unsupported) { return false; }
+        }
         if (requestedKind instanceof io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind) {
             try {
                 io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuRecurrentScanLowering.geometry(query);
@@ -1469,11 +1529,13 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             if (!(attrs instanceof TargetShapeAttrs target) || !target.targetShape().isFullyStatic()
                     || !target.targetShape().equals(output.shape())) return false;
             if (transform == ShapeTransformKind.RESHAPE) {
-                if (!inputLayout.isContiguous() || input.shape().knownElementCount().orElseThrow()
+                if (input.shape().knownElementCount().orElseThrow()
                         != output.shape().knownElementCount().orElseThrow()) return false;
                 LayoutDescriptor canonical = LayoutDescriptor.contiguous(output.shape());
-                expected = LayoutDescriptor.of(output.shape(), canonical.strides(),
-                        inputLayout.storageOffset(), true);
+                expected = inputLayout.isContiguous()
+                        ? LayoutDescriptor.of(output.shape(), canonical.strides(),
+                                inputLayout.storageOffset(), true)
+                        : canonical;
             } else {
                 if (!expands(input.shape(), output.shape())) return false;
                 long[] strides = new long[output.shape().rank()];

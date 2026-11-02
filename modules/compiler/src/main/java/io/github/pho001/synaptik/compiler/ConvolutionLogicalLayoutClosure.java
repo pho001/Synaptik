@@ -4,29 +4,28 @@ import io.github.pho001.synaptik.model.graph.CompiledGraphModel;
 import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
-import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dKind;
 import io.github.pho001.synaptik.model.operation.convolution.Conv3dKind;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformAttrs;
 import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.shape.StaticDimension;
+import io.github.pho001.synaptik.model.tensor.ScanBody;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 /**
  * Closes the final logical layouts of eligible fully static convolution results.
  *
- * <p>The pass assigns canonical contiguous layout if and only if a final
- * {@link Conv2dKind#CONV2D} or {@link Conv3dKind#CONV3D} occurrence has its validated single
- * output, that output has a fully static shape, and its layout is unresolved. It additionally
- * derives the exact singleton-height view layout for an unresolved direct
+ * <p>The pass delegates the qualified static {@link Conv2dKind#CONV2D} and
+ * {@link Conv3dKind#CONV3D} result decision to {@link ScanBody#closeOrdinaryLayouts}, separately
+ * from Model's generic materialized-result classifier. It additionally delegates the exact view
+ * geometry for an unresolved direct
  * {@link AxisTransformKind#SQUEEZE} at axis two whose input is a Conv2d output newly closed by
  * this invocation, provided that the input is static rank four with extent one at axis two and
  * the validated output is the matching rank-three shape. Dynamic or partially dynamic results,
@@ -45,8 +44,9 @@ final class ConvolutionLogicalLayoutClosure {
      * Conv2d result closed during this invocation. If nothing qualifies, the exact input object
      * is returned. Otherwise only changed {@link GraphValue} objects are replaced; every
      * unchanged value reference, node and operation reference, identity, boundary, phase,
-     * constant fact, bindable Tensor identity, constraint, and derivative-order value is
-     * preserved. Derivative metadata is rebuilt only to own the rebuilt exact graph reference.</p>
+     * constant fact, bindable Tensor identity, constraint, derivative-order value, and exact
+     * containing-Scan activity plan is preserved. Derivative metadata is rebuilt only to own
+     * the rebuilt exact outer graph reference; local body graphs are unchanged.</p>
      *
      * @param validatedGraph non-null final optimized, validated, and published-constant-closed
      *     graph state; it is not mutated
@@ -75,9 +75,12 @@ final class ConvolutionLogicalLayoutClosure {
                 GraphValue output = selectedValues.get(outputId);
                 TensorDescriptor descriptor = output.descriptor();
                 if (descriptor.shape().isFullyStatic() && descriptor.layout().isEmpty()) {
-                    LayoutDescriptor layout;
+                    List<TensorDescriptor> inputs = new ArrayList<>(node.inputs().size());
+                    for (ValueId id : node.inputs()) inputs.add(selectedValues.get(id).descriptor());
+                    TensorDescriptor closed;
                     try {
-                        layout = LayoutDescriptor.contiguous(descriptor.shape());
+                        closed = ScanBody.closeOrdinaryLayouts(
+                                node.operation(), inputs, List.of(descriptor)).getFirst();
                     } catch (ArithmeticException failure) {
                         throw new IllegalArgumentException(
                                 "cannot close " + node.operation().kind().name()
@@ -85,12 +88,13 @@ final class ConvolutionLogicalLayoutClosure {
                                         + " output " + outputId,
                                 failure);
                     }
-                    TensorDescriptor closed = withLayout(descriptor, layout);
-                    selectedValues.put(outputId, new GraphValue(outputId, closed));
-                    if (kind == Conv2dKind.CONV2D) {
-                        newlyClosedConv2dOutputs.add(outputId);
+                    if (closed != descriptor) {
+                        selectedValues.put(outputId, new GraphValue(outputId, closed));
+                        if (kind == Conv2dKind.CONV2D) {
+                            newlyClosedConv2dOutputs.add(outputId);
+                        }
+                        changed = true;
                     }
-                    changed = true;
                 }
                 continue;
             }
@@ -113,23 +117,20 @@ final class ConvolutionLogicalLayoutClosure {
                 continue;
             }
 
-            LayoutDescriptor inputLayout = input.layout().orElseThrow();
-            long[] inputStrides = inputLayout.strides();
-            long[] outputStrides = new long[] {
-                    inputStrides[0], inputStrides[1], inputStrides[3]
-            };
-            LayoutDescriptor outputLayout;
+            TensorDescriptor closed;
             try {
-                outputLayout = LayoutDescriptor.of(
-                        output.shape(), outputStrides, inputLayout.storageOffset(), true);
+                closed = ScanBody.closeOrdinaryLayouts(
+                        node.operation(), List.of(input), List.of(output)).getFirst();
             } catch (ArithmeticException failure) {
                 throw new IllegalArgumentException(
                         "cannot close SQUEEZE logical layout for " + node.id()
                                 + " input " + inputId + " output " + outputId,
                         failure);
             }
-            selectedValues.put(outputId, new GraphValue(outputId, withLayout(output, outputLayout)));
-            changed = true;
+            if (closed != output) {
+                selectedValues.put(outputId, new GraphValue(outputId, closed));
+                changed = true;
+            }
         }
 
         if (!changed) {
@@ -151,7 +152,8 @@ final class ConvolutionLogicalLayoutClosure {
                 validatedGraph.constantGraph().constants(),
                 validatedGraph.constantGraph().bindableTensorIds());
         DerivativeGraphMetadata derivatives = new DerivativeGraphMetadata(
-                rebuilt, validatedGraph.derivatives().derivativeOrderByNode());
+                rebuilt, validatedGraph.derivatives().derivativeOrderByNode(),
+                validatedGraph.derivatives().scanActivityByNode());
         return new ValidatedGraph(constantGraph, validatedGraph.constraints(), derivatives);
     }
 
@@ -169,12 +171,4 @@ final class ConvolutionLogicalLayoutClosure {
         return output.shape().equals(expected);
     }
 
-    private static TensorDescriptor withLayout(
-            TensorDescriptor descriptor, LayoutDescriptor layout) {
-        return new TensorDescriptor(
-                descriptor.dataType(),
-                descriptor.shape(),
-                Optional.of(layout),
-                descriptor.requiresGrad());
-    }
 }

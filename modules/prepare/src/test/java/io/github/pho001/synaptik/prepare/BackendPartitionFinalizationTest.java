@@ -27,6 +27,39 @@ import org.junit.jupiter.api.Test;
 
 class BackendPartitionFinalizationTest {
     @Test
+    void acceptsLargerSharedBuffersButRejectsExtraAssignmentsAndAnyWorkspaceGeometryChange() {
+        Fixture fixture = fixture();
+        var larger = new PreparedMemoryPlan(
+                List.of(new PreparedMemoryPlan.BufferEntry(fixture.bufferSlot, 64, 16)),
+                fixture.memoryPlan.workspaces());
+        var accepted = new BackendPartitionFinalization<>(fixture.analysis, larger, fixture.assignments);
+        assertSame(larger, accepted.memoryPlan());
+        assertSame(fixture.bufferRequirement, ((PreparationResourceAssignment.Buffer) accepted.assignments().getFirst()).requirement());
+        var extra = new ArrayList<>(fixture.assignments);
+        extra.add(new PreparationResourceAssignment.Workspace(new PreparationResourceRequirement.Workspace(99, 0, 1),
+                new WorkspaceSlot(99), 1));
+        assertFailure(IllegalArgumentException.class, "assignments size must equal analysis requirement count 2",
+                () -> new BackendPartitionFinalization<>(fixture.analysis, larger, extra));
+        for (var entry : List.of(new PreparedMemoryPlan.BufferEntry(fixture.bufferSlot, 64, 2),
+                new PreparedMemoryPlan.BufferEntry(fixture.bufferSlot, 3, 16))) {
+            var insufficient = new PreparedMemoryPlan(List.of(entry), fixture.memoryPlan.workspaces());
+            assertFailure(IllegalArgumentException.class, "assignments[0] buffer geometry does not satisfy requirement",
+                    () -> new BackendPartitionFinalization<>(fixture.analysis, insufficient, fixture.assignments));
+        }
+        for (var entry : List.of(new PreparedMemoryPlan.WorkspaceEntry(fixture.workspaceSlot, 16, 8),
+                new PreparedMemoryPlan.WorkspaceEntry(fixture.workspaceSlot, 8, 16),
+                new PreparedMemoryPlan.WorkspaceEntry(fixture.workspaceSlot, 8, 4))) {
+            var mismatch = new PreparedMemoryPlan(larger.buffers(), List.of(entry));
+            assertFailure(IllegalArgumentException.class, "assignments[1] workspace geometry does not match requirement",
+                    () -> new BackendPartitionFinalization<>(fixture.analysis, mismatch, fixture.assignments));
+        }
+        var copiedWorkspace = new PreparationResourceRequirement.Workspace(0, 8, 8);
+        assertFailure(IllegalArgumentException.class, "assignments[1].requirement does not match analysis.requirements[1]",
+                () -> new BackendPartitionFinalization<>(fixture.analysis, larger,
+                        List.of(fixture.assignments.getFirst(), new PreparationResourceAssignment.Workspace(copiedWorkspace, fixture.workspaceSlot, 0))));
+    }
+
+    @Test
     void assignmentValuesValidateInDeclarationOrder() {
         var buffer = new PreparationResourceRequirement.Buffer(new ValueId(0), 4, 4);
         var workspace = new PreparationResourceRequirement.Workspace(0, 8, 8);

@@ -47,11 +47,188 @@ import java.lang.foreign.ValueLayout;
  * and a guarded primitive nested loop for the dense {@code [64,128,256] -> [128,1]} evidence
  * geometry. Floating reductions continue to delegate emitted state transitions and final
  * conversion solely to {@link CpuExactSumEmitter}.</p>
+ * <p>The package-local represented SUM entry composes sequential FLOAT32/FLOAT64 sites under
+ * caller-bound traversal/activity and stores. Controlled ordinary entries use the complete
+ * canonical coordinate traversal for static and symbolic geometry, guarding ROW outputs before
+ * eager reads and proved ROW contributors before operand access. A controlled terminal ROW SUM
+ * reuses represented producing sites; other ordinary folds retain their exact-state algorithm.
+ * Occurrence presence remains independent of the number of visited contributors, including an
+ * empty all-valid reduction. Uncontrolled entry selection and exact-state guards are unchanged.</p>
  */
 public final class CpuAggregateEmitter {
     private static final DataType[] TYPES = DataType.values();
     /** Creates a stateless typed-body emitter. */
     public CpuAggregateEmitter() { }
+
+    /**
+     * Composes the current ordinary exact-state algorithm with caller-bound typed sites.
+     * Unlike represented Scan SUM, each contribution enters exact limbs and finish rounds the
+     * result before the sink can execute an epilogue. All actions run only during generation.
+     * @param code nonnull method builder
+     * @param aggregate existing static SUM/MEAN IR with domain-sized limbs
+     * @param scratch reference slot containing run-private exact state
+     * @param geometry reference slot containing the unchanged aggregate header
+     * @param contribution represented contributor local
+     * @param result represented completed-result local
+     * @param outputCells generation-only complete-output-cell traversal
+     * @param contributors generation-only canonical selected-domain traversal
+     * @param producer generation-only action initializing the typed contribution local
+     * @param sink generation-only consumer of the completed rounded result
+     * @throws NullPointerException if a required argument is null
+     * @throws IllegalArgumentException if the represented dtype or exact-state width is unsupported
+     */
+    static void emitExactSum(CodeBuilder code, CpuAggregateIr aggregate, int scratch, int geometry,
+            int contribution, int result, java.util.function.Consumer<Runnable> outputCells,
+            java.util.function.Consumer<Runnable> contributors, Runnable producer, Runnable sink) {
+        var exact = new CpuExactSumEmitter(code,aggregate.dataType(),aggregate.kind() == CpuAggregateIr.Kind.MEAN,
+                scratch,geometry,aggregate.stateLimbCount());
+        outputCells.accept(() -> {
+            exact.emitReset();
+            contributors.accept(() -> { producer.run(); exact.emitFactor(contribution); });
+            exact.emitFinish(result);
+            sink.run();
+        });
+    }
+
+    /**
+     * Initializes a represented Scan sum, retaining the historical omitted singleton reset.
+     * @param code nonnull generation builder
+     * @param dataType homogeneous FLOAT32 or FLOAT64
+     * @param accumulator allocated typed accumulator slot
+     * @param directSingleton whether geometry proves raw movement and no reset is required
+     * @throws IllegalArgumentException if the represented dtype is unsupported
+     */
+    static void emitRepresentedInit(CodeBuilder code, DataType dataType, int accumulator,
+            boolean directSingleton) {
+        if (dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64)
+            throw new IllegalArgumentException("represented SUM requires FLOAT32 or FLOAT64");
+        if (!directSingleton) {
+            if (dataType == DataType.FLOAT64) code.loadConstant(0d); else code.loadConstant(0f);
+            store(code,dataType,accumulator);
+        }
+    }
+
+    /**
+     * Emits one represented contributor or raw singleton movement under caller-owned activity.
+     * Singleton is a geometry fact, never inferred from how many rows are active.
+     * @param code nonnull generation builder
+     * @param dataType homogeneous FLOAT32 or FLOAT64
+     * @param accumulator initialized typed slot unless raw movement supplies its first value
+     * @param rawSingleton whether this producing site requires raw movement instead of ADD
+     * @param load generation action leaving one represented typed contributor on the stack
+     */
+    static void emitRepresentedContributorStep(CodeBuilder code, DataType dataType, int accumulator,
+            boolean rawSingleton, Runnable load) {
+        if (!rawSingleton) load(code,dataType,accumulator);
+        load.run();
+        if (!rawSingleton) { if (dataType == DataType.FLOAT64) code.dadd(); else code.fadd(); }
+        store(code,dataType,accumulator);
+    }
+
+    /**
+     * Publishes a completed represented sum without another arithmetic site.
+     * @param code nonnull generation builder owning the result
+     * @param dataType homogeneous represented dtype
+     * @param accumulator initialized completed-result slot
+     * @param sink generation-only result consumer receiving the exact accumulator slot
+     */
+    static void emitRepresentedFinish(CodeBuilder code, DataType dataType, int accumulator,
+            java.util.function.IntConsumer sink) {
+        sink.accept(accumulator);
+    }
+
+    /**
+     * Initializes a represented feature-vector SUM, independently of ordinary exact SUM state.
+     * @param code builder owning the accumulator
+     * @param type homogeneous FLOAT32 or FLOAT64
+     * @param accumulator reference local for the matching preferred species
+     * @param directSingleton whether geometry requires raw assignment without reset
+     * @throws IllegalArgumentException if the dtype is unsupported
+     */
+    static void emitRepresentedVectorInit(CodeBuilder code, DataType type, int accumulator,
+            boolean directSingleton) {
+        if (type != DataType.FLOAT32 && type != DataType.FLOAT64)
+            throw new IllegalArgumentException("represented vector SUM requires FLOAT32 or FLOAT64");
+        if (!directSingleton) CpuMatmulEmitter.emitVectorInit(code,type,accumulator);
+    }
+
+    /**
+     * Adds one represented vector or assigns a geometry-singleton raw vector. Unused lanes
+     * never enter another cell's reduction; the caller owns activity and tail masks.
+     * @param code builder owning the accumulator
+     * @param type homogeneous FLOAT32 or FLOAT64
+     * @param accumulator matching reference local, initialized unless assigned raw here
+     * @param rawSingleton geometry-proved raw movement, never inferred from active count
+     * @param load generation-only loader leaving a matching preferred-species vector
+     * @throws IllegalArgumentException if the dtype is unsupported
+     */
+    static void emitRepresentedVectorContributorStep(CodeBuilder code, DataType type,
+            int accumulator, boolean rawSingleton, Runnable load) {
+        if (type != DataType.FLOAT32 && type != DataType.FLOAT64)
+            throw new IllegalArgumentException("represented vector SUM requires FLOAT32 or FLOAT64");
+        if (!rawSingleton) code.aload(accumulator);
+        load.run();
+        if (!rawSingleton) {
+            var vector = java.lang.constant.ClassDesc.of("jdk.incubator.vector."
+                    +(type == DataType.FLOAT64 ? "DoubleVector" : "FloatVector"));
+            code.invokevirtual(vector,"add",java.lang.constant.MethodTypeDesc.of(vector,
+                    java.lang.constant.ClassDesc.of("jdk.incubator.vector.Vector")));
+        }
+        code.astore(accumulator);
+    }
+
+    /**
+     * Passes a completed represented vector to its sink without another arithmetic site.
+     * @param code builder owning the local
+     * @param type homogeneous FLOAT32 or FLOAT64
+     * @param accumulator completed preferred-species reference local
+     * @param sink generation-only consumer of that exact local
+     */
+    static void emitRepresentedVectorFinish(CodeBuilder code, DataType type, int accumulator,
+            java.util.function.IntConsumer sink) {
+        sink.accept(accumulator);
+    }
+
+    /**
+     * Emits represented sequential SUM, separately from the ordinary exact-state entry.
+     * Traversal adapters supply active output/contributor scopes, never SUM arithmetic.
+     * Producer and result sinks retain their represented sites; the tail sees only the
+     * completed result. A raw singleton copies without addition; the direct-singleton proof
+     * additionally omits reset, while legacy raw paths retain their unused reset.
+     * All callbacks execute at generation time and introduce no runtime object or dispatch.
+     * @param code non-null method builder
+     * @param type admitted FLOAT32 or FLOAT64 represented type
+     * @param accumulator reserved typed accumulator local, including legacy unused reservations
+     * @param rawSingleton whether contributors are raw movement rather than typed addition
+     * @param directSingleton whether the existing proof also omits accumulator reset
+     * @param outputCells non-null output traversal invoking its action inside activity guards
+     * @param contributors non-null contributor traversal invoking its action after coordinate/activity binding
+     * @param preload non-null legacy invariant operand emission, or no-op for length paths
+     * @param producer non-null contributor's producing-site emission with fresh availability
+     * @param loadContributor non-null operand load emission leaving one typed value on stack
+     * @param resultSink non-null completed-result emission receiving the accumulator local
+     * @param epilogue non-null same-output-cell tail emission
+     * @throws IllegalArgumentException if the represented type is not FLOAT32 or FLOAT64
+     */
+    static void emitRepresentedSum(CodeBuilder code, DataType type, int accumulator,
+            boolean rawSingleton, boolean directSingleton,
+            java.util.function.Consumer<Runnable> outputCells,
+            java.util.function.Consumer<Runnable> contributors, Runnable preload, Runnable producer,
+            Runnable loadContributor, java.util.function.IntConsumer resultSink, Runnable epilogue) {
+        if (type != DataType.FLOAT32 && type != DataType.FLOAT64)
+            throw new IllegalArgumentException("represented SUM requires FLOAT32 or FLOAT64");
+        TypeKind kind = type == DataType.FLOAT64 ? TypeKind.DOUBLE : TypeKind.FLOAT;
+        outputCells.accept(() -> {
+            emitRepresentedInit(code,type,accumulator,directSingleton);
+            preload.run();
+            contributors.accept(() -> {
+                producer.run();
+                emitRepresentedContributorStep(code,type,accumulator,rawSingleton,loadContributor);
+            });
+            emitRepresentedFinish(code,type,accumulator,resultSink);
+            epilogue.run();
+        });
+    }
 
     /**
      * Emits a typed aggregate body whose hot loops contain no runtime semantic dispatch.
@@ -69,13 +246,11 @@ public final class CpuAggregateEmitter {
             throw new IllegalArgumentException("aggregate requires two boundaries");
         String identity = ir.familyIdentity();
         DataType type = specialization.boundaryDataTypes().getFirst();
-        int kind = identity.startsWith("aggregate:MIN:") ? 0
-                : identity.startsWith("aggregate:MAX:") ? 1
-                : identity.startsWith("aggregate:ALL:") ? 2
-                : identity.startsWith("aggregate:ANY:") ? 3
-                : identity.startsWith("aggregate:SUM:") ? 4
-                : identity.startsWith("aggregate:MEAN:") ? 5 : 6;
-        boolean sumToShapeCopy = identity.contains(":SUM_TO_SHAPE:axes=[]:");
+        int kind = switch (CpuAggregateIr.encodedKind(ir)) {
+            case MIN -> 0; case MAX -> 1; case ALL -> 2; case ANY -> 3;
+            case SUM -> 4; case MEAN -> 5; case PROD -> 6;
+        };
+        boolean sumToShapeCopy = !specialization.ordinaryBatch() && identity.contains(":SUM_TO_SHAPE:axes=[]:");
         boolean exactFloating = !sumToShapeCopy && kind >= 4 && (type == DataType.FLOAT64
                 || type == DataType.FLOAT32 || type == DataType.BFLOAT16
                 || type == DataType.FLOAT16);
@@ -87,6 +262,18 @@ public final class CpuAggregateEmitter {
         int endSlot = exactFloating ? 6 : 5;
         int inRank = ir.values().getFirst().accessPlan().iterationRank();
         int outRank = ir.values().getLast().accessPlan().iterationRank();
+        if (CpuCarrierEmitter.controlFacts().isPresent()) {
+            // The existing general traversal covers every specialized geometry as well as
+            // symbolic packs, without relying on physical addresses to recover logical rows.
+            emitGeneral(code, specialization, type, kind, identity, inRank, outRank,
+                    exactFloating, exactLimbs, geometrySlot, startSlot, endSlot);
+            return;
+        }
+        if (specialization.ordinaryBatch()) {
+            emitOrdinaryBatch(code, specialization, ir, kind, exactLimbs, inRank, outRank,
+                    geometrySlot, startSlot, endSlot);
+            return;
+        }
         boolean fullDenseArrays = identity.contains(":FULL:")
                 && specialization.carrierPattern().stream().noneMatch(
                     access -> access == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
@@ -150,6 +337,199 @@ public final class CpuAggregateEmitter {
                 outRank, exactFloating, exactLimbs, geometrySlot, startSlot, endSlot);
         else emitGeneral(code, specialization, type, kind, identity, inRank, outRank,
                 exactFloating, exactLimbs, geometrySlot, startSlot, endSlot);
+    }
+
+    /**
+     * Emits bounded canonical/scalar typed symbolic folds with entry-only geometry and exact
+     * five-limb F32 or 34-limb F64 state; no float intermediate is used for F64.
+     * Rank-at-most-two loops retain their established form; rank-three Scan outer closure uses
+     * direct selected-axis cursors, not per-contributor mapping or a new aggregate algorithm.
+     *
+     * @param code non-null generation builder
+     * @param specialization non-null prepared FLOAT32/FLOAT64 scalar carrier selection
+     * @param ir non-null prepared axis membership and access categories
+     * @param kind SUM or MEAN wire
+     * @param limbs exact typed accumulator count, five or 34
+     * @param inRank prepared input rank, at most three
+     * @param outRank prepared output rank
+     * @param geometrySlot existing long-array geometry parameter slot
+     * @param startSlot inclusive output-cell range parameter slot
+     * @param endSlot exclusive output-cell range parameter slot
+     * @throws IllegalArgumentException if carrier, reduction kind or limb count is unsupported
+     */
+    private static void emitOrdinaryBatch(CodeBuilder code, CpuKernelSpecialization specialization,
+            CpuKernelIr ir, int kind, int limbs, int inRank, int outRank,
+            int geometrySlot, int startSlot, int endSlot) {
+        if (inRank == 3) {
+            emitRankThreeBatch(code,specialization,ir,kind,limbs,outRank,geometrySlot,startSlot,endSlot);
+            return;
+        }
+        DataType type = specialization.boundaryDataTypes().getFirst();
+        TypeKind numeric = type == DataType.FLOAT64 ? TypeKind.DOUBLE : TypeKind.FLOAT;
+        boolean scalar = ir.values().getFirst().accessPlan().regime() == CpuAccessPlan.Regime.SCALAR_ALL_ZERO;
+        if (!scalar && ir.values().getFirst().accessPlan().regime() != CpuAccessPlan.Regime.DENSE_LINEAR
+                || limbs != (type == DataType.FLOAT64 ? 34 : 5) || kind != 4 && kind != 5) throw new IllegalArgumentException("unsupported batch aggregate loop");
+        boolean sumTo = ir.familyIdentity().contains(":SUM_TO_SHAPE:");
+        boolean[] axes = selectedAxes(ir.familyIdentity(), inRank);
+        boolean columns = inRank == 2 && axes[0] && !axes[1];
+        int inputLayout = 11 + 2 * inRank + outRank, outputLayout = inputLayout + 2 + 2 * inRank;
+        int cell = code.allocateLocal(TypeKind.INT), end = code.allocateLocal(TypeKind.INT);
+        int inputBase = code.allocateLocal(TypeKind.INT), outputBase = code.allocateLocal(TypeKind.INT);
+        int domain = code.allocateLocal(TypeKind.INT), step = code.allocateLocal(TypeKind.INT);
+        geometry(code, geometrySlot, inputLayout + 1).l2i().istore(inputBase);
+        geometry(code, geometrySlot, outputLayout + 1).l2i().istore(outputBase);
+        geometry(code, geometrySlot, 7).l2i().istore(domain);
+        if (scalar) code.loadConstant(0);
+        else if (columns) geometry(code, geometrySlot, inputLayout + 3).l2i();
+        else code.loadConstant(1);
+        code.istore(step).lload(startSlot).l2i().istore(cell).lload(endSlot).l2i().istore(end);
+        var done = code.newLabel();
+        if (sumTo) {
+            var reduce = code.newLabel();
+            code.iload(domain).loadConstant(1).branch(Opcode.IF_ICMPNE, reduce);
+            var copies = code.newLabel(); code.labelBinding(copies);
+            code.iload(cell).iload(end).branch(Opcode.IF_ICMPGE, done);
+            int source = code.allocateLocal(TypeKind.INT), target = code.allocateLocal(TypeKind.INT);
+            int value = code.allocateLocal(numeric);
+            code.iload(inputBase); if (!scalar) code.iload(cell).iadd(); code.istore(source);
+            code.iload(outputBase).iload(cell).iadd().istore(target);
+            var carriers = new CpuCarrierEmitter(code);
+            carriers.load(type, specialization.carrierPattern().getFirst(), 0, source, true);
+            code.storeLocal(numeric,value); carriers.store(type, specialization.carrierPattern().getLast(), 1, target, value, true);
+            code.iinc(cell, 1).branch(Opcode.GOTO, copies).labelBinding(reduce);
+        }
+        int address = code.allocateLocal(TypeKind.INT), target = code.allocateLocal(TypeKind.INT);
+        int term = code.allocateLocal(TypeKind.INT), value = code.allocateLocal(numeric);
+        int accumulator = code.allocateLocal(numeric);
+        CpuExactSumEmitter exact = new CpuExactSumEmitter(code, type, kind == 5, 2, geometrySlot, limbs);
+        var cells = code.newLabel(); code.labelBinding(cells);
+        code.iload(cell).iload(end).branch(Opcode.IF_ICMPGE, done);
+        exact.emitReset();
+        code.iload(inputBase);
+        if (!scalar) { code.iload(cell); if (!columns) code.iload(domain).imul(); code.iadd(); }
+        code.istore(address).loadConstant(0).istore(term);
+        var terms = code.newLabel(); var finish = code.newLabel(); code.labelBinding(terms);
+        code.iload(term).iload(domain).branch(Opcode.IF_ICMPGE, finish);
+        var carriers = new CpuCarrierEmitter(code);
+        carriers.load(type, specialization.carrierPattern().getFirst(), 0, address, true);
+        code.storeLocal(numeric,value); exact.emitFactor(value);
+        code.iload(address).iload(step).iadd().istore(address).iinc(term, 1).branch(Opcode.GOTO, terms).labelBinding(finish);
+        exact.emitFinish(accumulator);
+        code.iload(outputBase).iload(cell).iadd().istore(target);
+        carriers.store(type, specialization.carrierPattern().getLast(), 1, target, accumulator, true);
+        code.iinc(cell, 1).branch(Opcode.GOTO, cells).labelBinding(done);
+    }
+
+    /**
+     * Emits the bounded three-axis outer Scan-AD folds with direct canonical cursors. Prefix
+     * reductions advance by retained width; a middle-axis reduction carries its feature cursor
+     * across rows without per-cell division; selecting time and features uses two contributor
+     * loops. Tail/full reductions retain one contiguous contributor loop. All geometry loads
+     * precede cells, exact state retains five F32 or 34 F64 limbs, and SUM-to-Shape domain one
+     * is raw copy.
+     * Rank-at-most-two emission never enters this method and remains byte-identical.
+     * @param code generation builder
+     * @param specialization prepared scalar FLOAT32/FLOAT64 carrier selection
+     * @param ir prepared axis membership and access category
+     * @param kind SUM or MEAN wire
+     * @param limbs fixed typed state count, five for F32 or 34 for F64
+     * @param outRank prepared result rank
+     * @param geometrySlot existing packed-geometry parameter
+     * @param startSlot inclusive output-cell range parameter
+     * @param endSlot exclusive output-cell range parameter
+     * @throws IllegalArgumentException if the admitted carrier or exact-state contract disagrees
+     */
+    private static void emitRankThreeBatch(CodeBuilder code,CpuKernelSpecialization specialization,
+            CpuKernelIr ir,int kind,int limbs,int outRank,int geometrySlot,int startSlot,int endSlot) {
+        DataType type = specialization.boundaryDataTypes().getFirst();
+        TypeKind numeric = type == DataType.FLOAT64 ? TypeKind.DOUBLE : TypeKind.FLOAT;
+        boolean scalar = ir.values().getFirst().accessPlan().regime() == CpuAccessPlan.Regime.SCALAR_ALL_ZERO;
+        if (!scalar && ir.values().getFirst().accessPlan().regime() != CpuAccessPlan.Regime.DENSE_LINEAR
+                || limbs != (type == DataType.FLOAT64 ? 34 : 5) || kind != 4 && kind != 5) throw new IllegalArgumentException("unsupported rank-three batch aggregate");
+        boolean[] axes = selectedAxes(ir.familyIdentity(),3);
+        boolean middle = !axes[0] && axes[1] && !axes[2];
+        boolean separated = axes[0] && !axes[1] && axes[2];
+        boolean prefix = axes[0] && !axes[2];
+        int inputLayout = 17+outRank, outputLayout = inputLayout+8;
+        int inputBase = code.allocateLocal(TypeKind.INT), outputBase = code.allocateLocal(TypeKind.INT);
+        int domain = code.allocateLocal(TypeKind.INT), rows = code.allocateLocal(TypeKind.INT), features = code.allocateLocal(TypeKind.INT);
+        int time = code.allocateLocal(TypeKind.INT), frame = code.allocateLocal(TypeKind.INT), outputCount = code.allocateLocal(TypeKind.INT);
+        int cell = code.allocateLocal(TypeKind.INT), end = code.allocateLocal(TypeKind.INT);
+        geometry(code,geometrySlot,inputLayout+1).l2i().istore(inputBase);
+        geometry(code,geometrySlot,outputLayout+1).l2i().istore(outputBase);
+        geometry(code,geometrySlot,7).l2i().istore(domain);
+        geometry(code,geometrySlot,inputLayout+2).l2i().istore(time);
+        geometry(code,geometrySlot,inputLayout+3).l2i().istore(rows);
+        geometry(code,geometrySlot,inputLayout+4).l2i().istore(features);
+        geometry(code,geometrySlot,6).l2i().istore(outputCount);
+        code.iload(rows).iload(features).imul().istore(frame);
+        code.lload(startSlot).l2i().istore(cell).lload(endSlot).l2i().istore(end);
+        var done = code.newLabel(); code.iload(cell).iload(end).branch(Opcode.IF_ICMPGE,done);
+        var carriers = new CpuCarrierEmitter(code);
+        if (ir.familyIdentity().contains(":SUM_TO_SHAPE:")) {
+            var reduce = code.newLabel(); var copies = code.newLabel();
+            code.iload(domain).loadConstant(1).branch(Opcode.IF_ICMPNE,reduce).labelBinding(copies);
+            code.iload(cell).iload(end).branch(Opcode.IF_ICMPGE,done);
+            int source = code.allocateLocal(TypeKind.INT), target = code.allocateLocal(TypeKind.INT), value = code.allocateLocal(numeric);
+            code.iload(inputBase); if (!scalar) code.iload(cell).iadd(); code.istore(source);
+            code.iload(outputBase).iload(cell).iadd().istore(target);
+            carriers.load(type,specialization.carrierPattern().getFirst(),0,source,true); code.storeLocal(numeric,value);
+            carriers.store(type,specialization.carrierPattern().getLast(),1,target,value,true);
+            code.iinc(cell,1).branch(Opcode.GOTO,copies).labelBinding(reduce);
+        }
+        int sourceBase = code.allocateLocal(TypeKind.INT), step = code.allocateLocal(TypeKind.INT), column = code.allocateLocal(TypeKind.INT);
+        code.iload(inputBase);
+        if (!scalar) {
+            if (middle) code.iload(cell).iload(features).idiv().iload(frame).imul()
+                    .iload(cell).iload(features).irem().iadd().iadd();
+            else if (separated) code.iload(cell).iload(features).imul().iadd();
+            else if (prefix) code.iload(cell).iadd();
+            else code.iload(cell).iload(domain).imul().iadd();
+        }
+        code.istore(sourceBase);
+        if (middle && !scalar) code.iload(cell).iload(features).irem(); else code.loadConstant(0);
+        code.istore(column);
+        if (scalar) code.loadConstant(0);
+        else if (middle) code.iload(features);
+        else if (prefix) code.iload(outputCount);
+        else code.loadConstant(1);
+        code.istore(step);
+        int address = code.allocateLocal(TypeKind.INT), term = code.allocateLocal(TypeKind.INT);
+        int value = code.allocateLocal(numeric), accumulator = code.allocateLocal(numeric), target = code.allocateLocal(TypeKind.INT);
+        var exact = new CpuExactSumEmitter(code,type,kind == 5,2,geometrySlot,limbs);
+        var cells = code.newLabel(); code.labelBinding(cells);
+        code.iload(cell).iload(end).branch(Opcode.IF_ICMPGE,done); exact.emitReset();
+        code.iload(sourceBase).istore(address).loadConstant(0).istore(term);
+        if (separated) {
+            int outer = code.allocateLocal(TypeKind.INT), rowBase = code.allocateLocal(TypeKind.INT);
+            var outerLoop = code.newLabel(); var outerDone = code.newLabel(); var innerLoop = code.newLabel(); var innerDone = code.newLabel();
+            code.loadConstant(0).istore(outer).iload(sourceBase).istore(rowBase).labelBinding(outerLoop);
+            code.iload(outer).iload(time).branch(Opcode.IF_ICMPGE,outerDone);
+            code.iload(rowBase).istore(address).loadConstant(0).istore(term).labelBinding(innerLoop);
+            code.iload(term).iload(features).branch(Opcode.IF_ICMPGE,innerDone);
+            carriers.load(type,specialization.carrierPattern().getFirst(),0,address,true); code.storeLocal(numeric,value); exact.emitFactor(value);
+            if (!scalar) code.iinc(address,1);
+            code.iinc(term,1).branch(Opcode.GOTO,innerLoop).labelBinding(innerDone);
+            if (!scalar) code.iload(rowBase).iload(frame).iadd().istore(rowBase);
+            code.iinc(outer,1).branch(Opcode.GOTO,outerLoop).labelBinding(outerDone);
+        } else {
+            var terms = code.newLabel(); var finish = code.newLabel(); code.labelBinding(terms);
+            code.iload(term).iload(domain).branch(Opcode.IF_ICMPGE,finish);
+            carriers.load(type,specialization.carrierPattern().getFirst(),0,address,true); code.storeLocal(numeric,value); exact.emitFactor(value);
+            code.iload(address).iload(step).iadd().istore(address).iinc(term,1).branch(Opcode.GOTO,terms).labelBinding(finish);
+        }
+        exact.emitFinish(accumulator); code.iload(outputBase).iload(cell).iadd().istore(target);
+        carriers.store(type,specialization.carrierPattern().getLast(),1,target,accumulator,true);
+        if (!scalar) {
+            if (middle) {
+                code.iinc(sourceBase,1).iinc(column,1); var next = code.newLabel();
+                code.iload(column).iload(features).branch(Opcode.IF_ICMPLT,next);
+                code.iload(sourceBase).iload(frame).iload(features).isub().iadd().istore(sourceBase).loadConstant(0).istore(column).labelBinding(next);
+            } else if (separated) code.iload(sourceBase).iload(features).iadd().istore(sourceBase);
+            else if (prefix) code.iinc(sourceBase,1);
+            else code.iload(sourceBase).iload(domain).iadd().istore(sourceBase);
+        }
+        code.iinc(cell,1).branch(Opcode.GOTO,cells).labelBinding(done);
     }
 
     private static void emitBoundedSumToShape(CodeBuilder code,
@@ -1168,6 +1548,9 @@ public final class CpuAggregateEmitter {
         boolean keep = identity.contains(":keep=true:");
         boolean sumToShape = identity.contains(":SUM_TO_SHAPE:");
         boolean[] selectedAxes = selectedAxes(identity, inRank);
+        boolean controlled = CpuCarrierEmitter.controlFacts().isPresent();
+        boolean represented = kind == 4 && (type == DataType.FLOAT32 || type == DataType.FLOAT64)
+                && controlledTerminalRowSum(selectedAxes);
         int selected = 11, inputCoordinates = selected + inRank;
         int outputCoordinates = inputCoordinates + inRank;
         int inputLayout = outputCoordinates + outRank;
@@ -1179,6 +1562,9 @@ public final class CpuAggregateEmitter {
         if (sumToShape) decode(code, geometrySlot, cell, outputCoordinates, outputLayout, outRank);
         var cells = code.newLabel(); code.labelBinding(cells);
         if (!sumToShape) decode(code, geometrySlot, cell, outputCoordinates, outputLayout, outRank);
+        var nextCell = controlled ? code.newLabel() : null;
+        if (controlled)
+            CpuLoopEmitter.emitActiveOrdinalGuard(code, 1, cell, TypeKind.LONG, nextCell);
         int outAxis = 0;
         int leading = inRank - outRank;
         for (int axis = 0; axis < inRank; axis++) {
@@ -1191,12 +1577,26 @@ public final class CpuAggregateEmitter {
             code.lastore();
         }
         int accumulator = code.allocateLocal(localKind(type));
-        CpuExactSumEmitter exactSum = exactFloating && kind != 6
+        CpuExactSumEmitter exactSum = exactFloating && kind != 6 && !represented
                 ? new CpuExactSumEmitter(code, type, kind == 5, 2, geometrySlot, exactLimbs) : null;
         CpuExactProductEmitter exactProduct = exactFloating && kind == 6
                 ? new CpuExactProductEmitter(code, type, 2, geometrySlot, 10, 9, true) : null;
-        if (exactFloating) { emitFloatingZero(code, type); store(code, type, accumulator); }
-        if (exactSum != null) exactSum.emitReset();
+        if (controlled && sumToShape) {
+            // Domain one is an ordinary geometry fact, not an active-contributor count.
+            var fold = code.newLabel();
+            geometry(code, geometrySlot, 7).loadConstant(1L).lcmp().branch(Opcode.IFNE, fold);
+            emitControlledContributorGuard(code, geometrySlot, inputCoordinates, nextCell);
+            int source = address(code, geometrySlot, inRank, inputCoordinates, inputLayout);
+            int target = address(code, geometrySlot, outRank, outputCoordinates, outputLayout);
+            var copy = new CpuCarrierEmitter(code);
+            copy.load(type, specialization.carrierPattern().getFirst(), 0, source);
+            store(code, type, accumulator);
+            copy.store(type, specialization.carrierPattern().getLast(), 1, target, accumulator);
+            code.branch(Opcode.GOTO, nextCell).labelBinding(fold);
+        }
+        if (exactFloating && !represented) { emitFloatingZero(code, type); store(code, type, accumulator); }
+        if (represented) emitRepresentedInit(code, type, accumulator, false);
+        else if (exactSum != null) exactSum.emitReset();
         else if (exactProduct != null) exactProduct.emitReset();
         else { emitIdentity(code, type, kind); store(code, type, accumulator); }
         int domain = code.allocateLocal(TypeKind.LONG); code.loadConstant(0L).lstore(domain);
@@ -1214,18 +1614,27 @@ public final class CpuAggregateEmitter {
                         .laload().ldiv().lstore(remaining);
             }
         }
+        var nextContributor = controlled ? code.newLabel() : null;
+        if (controlled)
+            emitControlledContributorGuard(code, geometrySlot, inputCoordinates, nextContributor);
         int inputAddress = address(code, geometrySlot, inRank, inputCoordinates, inputLayout);
         int value = code.allocateLocal(localKind(type));
         var carriers = new CpuCarrierEmitter(code);
-        carriers.load(type, specialization.carrierPattern().getFirst(), 0, inputAddress);
-        store(code, type, value);
-        if (exactSum != null) exactSum.emitFactor(value);
-        else if (exactProduct != null) exactProduct.emitFactor(value);
-        else emitApply(code, type, kind, accumulator, value);
+        if (represented) {
+            emitRepresentedContributorStep(code, type, accumulator, false,
+                    () -> carriers.load(type, specialization.carrierPattern().getFirst(), 0, inputAddress));
+        } else {
+            carriers.load(type, specialization.carrierPattern().getFirst(), 0, inputAddress);
+            store(code, type, value);
+            if (exactSum != null) exactSum.emitFactor(value);
+            else if (exactProduct != null) exactProduct.emitFactor(value);
+            else emitApply(code, type, kind, accumulator, value);
+        }
         if (type == DataType.BOOL) {
             load(code, type, accumulator);
             code.branch(kind == 2 ? Opcode.IFEQ : Opcode.IFNE, write);
         }
+        if (controlled) code.labelBinding(nextContributor);
         code.lload(domain).loadConstant(1L).ladd().lstore(domain);
         if (sumToShape) {
             var advance = code.newLabel();
@@ -1247,6 +1656,7 @@ public final class CpuAggregateEmitter {
         }
         int outputAddress = address(code, geometrySlot, outRank, outputCoordinates, outputLayout);
         carriers.store(type, specialization.carrierPattern().getLast(), 1, outputAddress, accumulator);
+        if (controlled) code.labelBinding(nextCell);
         code.lload(cell).loadConstant(1L).ladd().lstore(cell);
         if (sumToShape) {
             code.lload(cell).lload(endSlot).lcmp().branch(Opcode.IFGE, done);
@@ -1257,6 +1667,36 @@ public final class CpuAggregateEmitter {
             code.branch(Opcode.GOTO, cells);
         } else code.lload(cell).lload(endSlot).lcmp().branch(Opcode.IFLT, cells);
         code.labelBinding(done);
+    }
+
+    /**
+     * Recognizes a terminal SUM from exact boundary provenance and selected axes, never extents.
+     * @param selected selected ordinary input axes
+     * @return whether the input's proved ROW contracts into a SHARED output
+     */
+    private static boolean controlledTerminalRowSum(boolean[] selected) {
+        var facts = CpuCarrierEmitter.controlFacts();
+        if (facts.isEmpty()) return false;
+        var input = facts.orElseThrow().boundaryRows().getFirst();
+        return input.rowIndexed() && selected[input.axis()]
+                && !facts.orElseThrow().boundaryRows().getLast().rowIndexed();
+    }
+
+    /**
+     * Guards the current complete ordinary input coordinate before addresses or loads.
+     * SHARED values emit no guard, and empty domains never enter this contributor site.
+     * @param code current controlled generation builder
+     * @param geometry existing aggregate numeric pack
+     * @param coordinates first input-coordinate cell in that pack
+     * @param inactive target preceding canonical contributor advancement
+     */
+    private static void emitControlledContributorGuard(CodeBuilder code, int geometry,
+            int coordinates, java.lang.classfile.Label inactive) {
+        var row = CpuCarrierEmitter.controlFacts().orElseThrow().boundaryRows().getFirst();
+        if (!row.rowIndexed()) return;
+        int originalRow = code.allocateLocal(TypeKind.LONG);
+        geometry(code, geometry, coordinates + row.axis()).lstore(originalRow);
+        CpuCarrierEmitter.emitActiveRowGuard(code, originalRow, TypeKind.LONG, inactive);
     }
 
     private static void incrementCoordinates(CodeBuilder code, int geometrySlot,
