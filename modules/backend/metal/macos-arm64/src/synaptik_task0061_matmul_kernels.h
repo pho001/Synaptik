@@ -40,7 +40,8 @@ static NSString *const SynaptikTask0061MatmulKernelSource =
  * Controlled FLOAT32 terminal contractions reuse the ordinary coordinate proof and
  * DataMeta without changing its layout. Assemble this source after both ordinary
  * matmul source and SynaptikGeneralScanKernelSource. Bindings 0/1/2/3 are left,
- * right, canonical output, DataMeta; 28/29 are scanControl/80-byte ScanStepControl.
+ * right, canonical output, DataMeta; 28/29 are scanControl/ScanStepControl. The
+ * control POD is owned and statically size-checked by the general-Scan component.
  * The binder authenticates each operand's original logical row axis/inner, scope
  * and complete physical spans. No B=1 projection or arithmetic activity masking:
  * both scope checks dominate BOTH operand loads, even when one operand is SHARED.

@@ -4,7 +4,7 @@
 /*
  * Ordinary reductions. Assemble after DataMeta/coordinate/raw-word helpers,
  * SynaptikFloat32MathKernelSource, SynaptikExactTypedKernelSource and
- * SynaptikGeneralScanKernelSource (the frozen 80-byte ScanStepControl ABI).
+ * SynaptikGeneralScanKernelSource (the Scan-owned ScanStepControl ABI).
  * This component adds no host POD or workspace.
  *
  * audit_reduce_f32 bindings: 0=data, 1=BOOL mask (data again when unmasked), 2=output,
