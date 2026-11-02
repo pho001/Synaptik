@@ -33,7 +33,7 @@ static SynaptikMetalProgramStep *synaptik_build_scan_ordinary_step(
          * Sibling outputs, not merely output zero, determine whether construction is needed.
          */
         step = make_custom_step(node, shapes, types, strides, offsets, states,
-                NULL, NULL, device, library, lowLibrary, 0U, YES);
+                NULL, NULL, device, library, lowLibrary, 0U, YES, control);
         if (step == nil || step.pipeline == nil || step.metadata == nil
                 || step.grid.width == 0U || step.grid.height == 0U || step.grid.depth == 0U
                 || step.threadsPerThreadgroup == 0U) return nil;
