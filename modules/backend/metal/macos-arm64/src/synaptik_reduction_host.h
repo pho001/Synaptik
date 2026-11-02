@@ -38,7 +38,10 @@ static BOOL synaptik_reduction_span(MPSShape *shape, const uint64_t *strides,
  * B=1 surrogate. The common positive-domain owner remains authoritative otherwise. */
 static NSArray<NSNumber *> *synaptik_reduction_empty_axes(
         SynaptikMetalDecodedNode node, MPSShape *input, MPSShape *output) {
-    if ((node.operation != 13U && node.operation != 14U)
+    if ((node.operation != 13U && node.operation != 14U
+                    && node.operation != 31U && node.operation != 32U
+                    && node.operation != 106U && node.operation != 111U
+                    && node.operation != 114U && node.operation != 115U)
             || node.attribute_kind != SYNAPTIK_METAL_MPSGRAPH_ATTR_REDUCTION
             || node.second_input != UINT32_MAX || node.attribute_count > 16U
             || node.auxiliary > 1U || !node_values_are_zero_from(node, node.attribute_count)) return nil;
@@ -110,6 +113,7 @@ static BOOL synaptik_reduction_metadata(SynaptikMetalDecodedNode node,
     BOOL keep = NO; uint64_t correction = 0U;
     BOOL empty_input = NO;
     for (NSNumber *extent in input) empty_input |= extent.unsignedLongLongValue == 0U;
+    if (empty_input && types[node.first_input] != SYNAPTIK_METAL_TYPE_FLOAT32) return NO;
     /* The statistical owner rejects a selected zero extent before division, while
      * permitting an unselected zero axis and valid denominator with empty output. */
     NSArray<NSNumber *> *axes = statistical

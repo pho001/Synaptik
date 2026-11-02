@@ -108,6 +108,28 @@ class MetalReductionSupportTest {
         }
     }
 
+    @Test
+    void allOwnedFloatingReducersPreserveEmptyRowsAndAllowedSelectedEmptyDomains() {
+        var input = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, new long[] {0, 3}, true);
+        for (var kind : List.of(MetalMpsGraphProgram.NodeKind.SUM, MetalMpsGraphProgram.NodeKind.MEAN,
+                MetalMpsGraphProgram.NodeKind.PROD, MetalMpsGraphProgram.NodeKind.LOG_SUM_EXP,
+                MetalMpsGraphProgram.NodeKind.L1_NORM, MetalMpsGraphProgram.NodeKind.L2_NORM,
+                MetalMpsGraphProgram.NodeKind.REDUCTION_MIN, MetalMpsGraphProgram.NodeKind.REDUCTION_MAX)) {
+            for (int axis : new int[] {0, 1}) {
+                long[] resultShape = axis == 0 ? new long[] {3} : new long[] {0};
+                var output = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, resultShape, true);
+                var node = MetalMpsGraphProgram.Node.reduction(kind, 0, 1,
+                        MetalMpsGraphProgram.ReductionForm.MULTI_AXIS, List.of(axis), false);
+                var values = List.of(input, output);
+                MetalReductionSupport.validateScan(node, values);
+                assertThrows(IllegalArgumentException.class, () -> MetalReductionSupport.validate(node, values));
+                var badAxis = MetalMpsGraphProgram.Node.reduction(kind, 0, 1,
+                        MetalMpsGraphProgram.ReductionForm.MULTI_AXIS, List.of(2), false);
+                assertThrows(IllegalArgumentException.class, () -> MetalReductionSupport.validateScan(badAxis, values));
+            }
+        }
+    }
+
     private static TensorDescriptor descriptor(DataType type, long... dimensions) {
         Shape shape = Shape.of(dimensions);
         return new TensorDescriptor(type, shape, Optional.of(LayoutDescriptor.contiguous(shape)), false);

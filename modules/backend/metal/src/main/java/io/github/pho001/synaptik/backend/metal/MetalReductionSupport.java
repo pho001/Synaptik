@@ -102,9 +102,10 @@ final class MetalReductionSupport {
     /**
      * Validates an authenticated Scan-local reduction without projecting empty axes to one.
      *
-     * <p>Only canonical empty FLOAT32 SUM/MEAN or statistical local values use the empty-layout
-     * exception. Every axis, shape, mask and correction check remains identical to ordinary
-     * validation; a zero statistical contributor count still violates the required denominator.
+     * <p>Canonical empty FLOAT32 local values use the empty-layout exception. Every axis,
+     * shape, mask and correction check remains identical to ordinary validation. Empty SUM/norms
+     * produce positive zero, PROD one, MEAN NaN, LSE negative infinity and extrema their signed
+     * infinity identities; a zero statistical count still violates the required denominator.
      *
      * @param node Scan-body reduction with range-checked references
      * @param values complete Scan-local descriptor table with real resolved dimensions
@@ -128,11 +129,7 @@ final class MetalReductionSupport {
         if (!handles(node, values) || node.outputs().length != 1) throw invalid();
         var input = values.get(node.firstInputIndex()); var output = values.get(node.outputIndex());
         DataType type = input.dataType(); long[] source = input.dimensions(), target = output.dimensions();
-        boolean allowEmpty = scanLocal && type == DataType.FLOAT32
-                && (node.kind() == MetalMpsGraphProgram.NodeKind.SUM
-                        || node.kind() == MetalMpsGraphProgram.NodeKind.MEAN
-                        || node.kind() == MetalMpsGraphProgram.NodeKind.VARIANCE
-                        || node.kind() == MetalMpsGraphProgram.NodeKind.STANDARD_DEVIATION);
+        boolean allowEmpty = scanLocal && type == DataType.FLOAT32;
         boolean masked = node.attributeKind() == MetalMpsGraphProgram.AttributeKind.MASKED_REDUCTION;
         if (node.inputs().length != (masked ? 2 : 1) || output.dataType() != type
                 || input.requiresGrad() != output.requiresGrad()
