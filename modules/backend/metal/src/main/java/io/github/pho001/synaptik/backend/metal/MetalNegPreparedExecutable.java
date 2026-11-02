@@ -48,6 +48,8 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
     private final long[] requiredBytes;
     private final InvocationByteTotals byteTotals;
     private final int workspaceCount;
+    private final long[] numericalWorkspaceBytes;
+    private final int workspacePointerCount;
 
     /**
      * Creates the immutable recipe from assigned feed and target plan positions.
@@ -115,6 +117,13 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         System.arraycopy(internalRequiredBytes, 0, requiredBytes,
                 feedRequiredBytes.length + targetRequiredBytes.length,
                 internalRequiredBytes.length);
+        this.numericalWorkspaceBytes = preparationPlan.numericalWorkspaceBytes();
+        this.workspacePointerCount = Math.addExact(
+                preparationPlan.route() == MetalPreparedRoute.CUSTOM_PROGRAM
+                        ? Math.addExact(preparationPlan.pointwiseFusionPlan()
+                                .materializedProgramValueIndices().length, targetCount)
+                        : requiredBytes.length,
+                numericalWorkspaceBytes.length);
         if (feedPlanIndices.length != feedRequiredBytes.length
                 || feedPlanIndices.length != feedRepresentationIndices.length
                 || feedPlanIndices.length != this.splatResources.size()
@@ -129,13 +138,8 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                 || !preparationPlan.traceUnit().enabled()) {
             this.byteTotals = null;
         } else {
-            long pointerCount = preparationPlan.route() == MetalPreparedRoute.CUSTOM_PROGRAM
-                    ? Math.addExact(
-                            (long) preparationPlan.pointwiseFusionPlan()
-                                    .materializedProgramValueIndices().length,
-                            targetCount)
-                    : requiredBytes.length;
-            long workspaceBytes = Math.multiplyExact(pointerCount, ADDRESS.byteSize());
+            long workspaceBytes = MetalProgramWorkspace.totalBytes(
+                    workspacePointerCount, numericalWorkspaceBytes);
             this.byteTotals = byteTotals(
                     feedRequiredBytes,
                     targetRequiredBytes,
@@ -183,6 +187,8 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         this.targetCount = 1;
         this.internalCount = 0;
         this.requiredBytes = new long[] {resource.requiredBytes(), resource.requiredBytes()};
+        this.numericalWorkspaceBytes = preparationPlan.numericalWorkspaceBytes();
+        this.workspacePointerCount = 0;
         if (this.splatResources.size() != 1) {
             throw new IllegalArgumentException("Metal custom splat-resource cardinality disagrees");
         }
@@ -254,16 +260,11 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
     @Override
     protected boolean acceptsWorkspaceRepresentation(
             int selectionIndex, WorkspaceRepresentation representation) {
-        int pointerCount = preparationPlan.route() == MetalPreparedRoute.CUSTOM_PROGRAM
-                ? Math.addExact(
-                        preparationPlan.pointwiseFusionPlan()
-                                .materializedProgramValueIndices().length,
-                        targetCount)
-                : requiredBytes.length;
         return programResource != null
                 && representation instanceof AddressWorkspace workspace
                 && workspace.belongsTo(programResource.context())
-                && workspace.pointerCount() == pointerCount;
+                && workspace.pointerCount() == workspacePointerCount
+                && workspace.matchesScratch(numericalWorkspaceBytes);
     }
 
     @Override
@@ -400,21 +401,24 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             }
             workspace.set(slot, buffer.executionHandle());
         }
+        int valueCount = Math.addExact(materializedCount, workspace.scratchCount());
+        for (int scratch = 0; scratch < workspace.scratchCount(); scratch++)
+            workspace.set(materializedCount + scratch, workspace.scratchHandle(scratch));
         for (int target = 0; target < targetCount; target++) {
-            workspace.set(materializedCount + target,
+            workspace.set(valueCount + target,
                     materializedBuffers[programToSlot[targetValues[target]]].executionHandle());
         }
         MemorySegment values = workspace.segment().asSlice(
-                0L, (long) materializedCount * ADDRESS.byteSize());
+                0L, (long) valueCount * ADDRESS.byteSize());
         MemorySegment outputs = workspace.segment().asSlice(
-                (long) materializedCount * ADDRESS.byteSize(),
+                (long) valueCount * ADDRESS.byteSize(),
                 (long) targetCount * ADDRESS.byteSize());
         return new ProgramBoundInvocation(
                 runState,
                 preparationPlan,
                 programResource,
                 replayBuffers,
-                materializedCount,
+                valueCount,
                 values,
                 targetCount,
                 outputs,
@@ -786,19 +790,45 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         }
     }
 
-    /** Per-run native-address workspace populated only during cold binding. */
+    /** Run-owned address table and explicitly declared, unpooled device scratch. */
     static final class AddressWorkspace implements WorkspaceRepresentation {
         private final MetalDeviceContext context;
         private final int pointerCount;
         private final Arena arena = Arena.ofShared();
         private final MemorySegment segment;
+        private final MetalWorkspaceRepresentation[] scratch;
+        private final long[] scratchBytes;
         private boolean closed;
 
         AddressWorkspace(MetalDeviceContext context, int pointerCount) {
+            this(context, pointerCount, new long[0]);
+        }
+
+        AddressWorkspace(MetalDeviceContext context, int pointerCount, long[] scratchBytes) {
             this.context = Objects.requireNonNull(context, "context");
             if (pointerCount <= 0) throw new IllegalArgumentException("pointerCount must be positive");
-            this.pointerCount = pointerCount;
-            this.segment = arena.allocate(ADDRESS, pointerCount);
+            this.scratchBytes = scratchBytes.clone();
+            this.pointerCount = Math.addExact(pointerCount, scratchBytes.length);
+            this.scratch = new MetalWorkspaceRepresentation[scratchBytes.length];
+            try {
+                this.segment = arena.allocate(ADDRESS, this.pointerCount);
+                for (int index = 0; index < scratch.length; index++) {
+                    if (scratchBytes[index] <= 0L)
+                        throw new IllegalArgumentException("numerical scratch extent must be positive");
+                    scratch[index] = context.createWorkspace(scratchBytes[index]);
+                }
+            } catch (RuntimeException | Error failure) {
+                for (var resource : scratch) {
+                    if (resource == null) continue;
+                    try { resource.close(); } catch (RuntimeException | Error closeFailure) {
+                        if (closeFailure != failure) failure.addSuppressed(closeFailure);
+                    }
+                }
+                try { arena.close(); } catch (RuntimeException | Error closeFailure) {
+                    if (closeFailure != failure) failure.addSuppressed(closeFailure);
+                }
+                throw failure;
+            }
         }
 
         synchronized boolean belongsTo(MetalDeviceContext expected) {
@@ -807,6 +837,9 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
 
         int pointerCount() { return pointerCount; }
         MemorySegment segment() { return segment; }
+        int scratchCount() { return scratch.length; }
+        boolean matchesScratch(long[] expected) { return java.util.Arrays.equals(scratchBytes, expected); }
+        MetalNativeApi.Handle scratchHandle(int index) { return scratch[index].executionHandle(); }
 
         synchronized void set(int index, MetalNativeApi.Handle handle) {
             if (closed) throw new IllegalStateException("Metal address workspace is closed");
@@ -817,7 +850,19 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         public synchronized void close() {
             if (closed) return;
             closed = true;
-            arena.close();
+            Throwable failure = null;
+            for (int index = scratch.length; index-- > 0;) {
+                try { scratch[index].close(); } catch (RuntimeException | Error closeFailure) {
+                    if (failure == null) failure = closeFailure;
+                    else if (failure != closeFailure) failure.addSuppressed(closeFailure);
+                }
+            }
+            try { arena.close(); } catch (RuntimeException | Error closeFailure) {
+                if (failure == null) failure = closeFailure;
+                else if (failure != closeFailure) failure.addSuppressed(closeFailure);
+            }
+            if (failure instanceof RuntimeException runtime) throw runtime;
+            if (failure instanceof Error error) throw error;
         }
     }
 

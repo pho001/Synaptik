@@ -57,6 +57,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     private final List<Optional<ScalarValue>> feedSplats;
     private final boolean[] feedSplatSources;
     private final Optional<PreparationResourceRequirement.Workspace> addressWorkspace;
+    private final long[] numericalWorkspaceBytes;
     private final long[] feedRequiredBytes;
     private final long[] targetRequiredBytes;
     private final MetalTraceProducer.PreparedUnit traceUnit;
@@ -258,6 +259,8 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         this.feedSplats = List.copyOf(feedSplats);
         this.feedSplatSources = feedSplatSources.clone();
         this.addressWorkspace = Objects.requireNonNull(addressWorkspace, "addressWorkspace");
+        this.numericalWorkspaceBytes =
+                MetalProgramWorkspace.scratchBytes(this.graphProgram, this.programValueDescriptors);
         this.feedRequiredBytes = feedRequiredBytes.clone();
         this.targetRequiredBytes = targetRequiredBytes.clone();
         this.traceUnit = traceUnit;
@@ -292,13 +295,19 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
         boolean containsCustomOperation = containsAnchorEpilogue
                 || containsLowPrecision
                 || this.graphProgram.nodes().stream()
-                        .anyMatch(node -> node.kind().isCustomProgramOperation()
-                                || usesCustomMatmul(node, this.descriptors));
+                        .anyMatch(node -> MetalPointwiseFusionPlanner.fixedCustom(
+                                node, this.programValueDescriptors));
         boolean containsCustomOnlyOperation = containsAnchorEpilogue
                 || containsLowPrecision
                 || this.graphProgram.nodes().stream()
                         .anyMatch(node ->
                                 node.kind().isTask0066Selected()
+                                        || node.kind().isFloat32Elementary()
+                                        || MetalNormalizationSupport.handles(node)
+                                        || MetalAttentionSupport.handles(node)
+                                        || MetalRecurrentSupport.handles(node)
+                                        || MetalExactSupport.handles(
+                                                node, this.programValueDescriptors)
                                         || (node.kind().wireIdentity() >= 20
                                                 && node.kind().wireIdentity() <= 34)
                                         || usesCustomMatmul(node, this.descriptors));
@@ -380,21 +389,23 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     int[] internalValueIndices() { return internalValueIndices.clone(); }
     long[] internalRequiredBytes() { return internalRequiredBytes.clone(); }
     /**
-     * Derives the native custom-program input extents from ABI value descriptors. The compact
-     * materialized order can differ from the feed-then-target-then-internal declaration order.
+     * Derives native custom-program input extents in compact materialized-value order followed
+     * by the explicitly declared numerical workspace bindings. No logical tensor aliases scratch.
      *
-     * @return a new array of byte extents in compact materialized-value order; never {@code null}
+     * @return a new complete native run-input byte table; never {@code null}
      * @throws IllegalStateException if this plan does not select {@code CUSTOM_PROGRAM}
      */
-    long[] materializedValueRequiredBytes() {
+    long[] materializedRunInputRequiredBytes() {
         if (route != MetalPreparedRoute.CUSTOM_PROGRAM) {
             throw new IllegalStateException("Metal plan is not a custom program");
         }
         int[] materialized = pointwiseFusionPlan.materializedProgramValueIndices();
-        long[] bytes = new long[materialized.length];
+        long[] bytes = new long[Math.addExact(materialized.length, numericalWorkspaceBytes.length)];
         for (int slot = 0; slot < materialized.length; slot++) {
             bytes[slot] = programValueDescriptors.get(materialized[slot]).byteCount();
         }
+        System.arraycopy(numericalWorkspaceBytes, 0, bytes, materialized.length,
+                numericalWorkspaceBytes.length);
         return bytes;
     }
     List<PreparationResourceRequirement.Buffer> declarations() { return declarations; }
@@ -403,6 +414,8 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
     Optional<PreparationResourceRequirement.Workspace> addressWorkspace() {
         return addressWorkspace;
     }
+    /** @return copied exact run-owned numerical scratch extents in stable node order */
+    long[] numericalWorkspaceBytes() { return numericalWorkspaceBytes.clone(); }
     long[] feedRequiredBytes() { return feedRequiredBytes.clone(); }
     long[] targetRequiredBytes() { return targetRequiredBytes.clone(); }
 

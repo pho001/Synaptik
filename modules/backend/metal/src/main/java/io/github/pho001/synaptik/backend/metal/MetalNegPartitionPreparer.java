@@ -105,7 +105,7 @@ import java.util.Optional;
  * It walks in node order through the retained exact unary, affine, canonicalization,
  * movement/indexing,
  * replacement/fold/aggregate, BOOL, ordering/arg-extrema, maximum-pooling, promoted integral
- * MATMUL, and zero-input {@code INITIAL_STATE} domains. The schema-twenty execution cutover
+ * MATMUL, and zero-input {@code INITIAL_STATE} domains. The schema-twenty-one execution cutover
  * carries all seven types through exact affine movement, INT32/INT64 index roles, all 49 cast pairs,
  * floating classification and promotion, and the precise legal first-order saved-role relations.
  * Authenticated local zero-stride descendants retain their logical layouts while preparation
@@ -255,8 +255,13 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 }
                 outputDescriptors.add(outputValue.descriptor());
             }
-            if (!MetalCapabilityProvider.supportsOccurrence(
-                    node.operation(), inputDescriptors, outputDescriptors)) {
+            boolean scan = node.scanBody().isPresent();
+            var query = new io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery(
+                    node.operation(), inputDescriptors, outputDescriptors, node.scanBody(),
+                    Optional.ofNullable(context.scanActivityPlans().get(node.id())));
+            if (!(scan ? MetalScanLowering.supports(query)
+                    : MetalCapabilityProvider.supportsOccurrence(
+                            node.operation(), inputDescriptors, outputDescriptors))) {
                 throw new IllegalArgumentException(
                         "Metal occurrence is outside the capability domain");
             }
@@ -269,30 +274,22 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                         valueIds,
                         descriptors);
             }
-            int[] outputIndices = new int[node.outputs().size()];
+            List<Integer> outputPorts = scan ? MetalScanLowering.plan(query).demanded()
+                    : java.util.stream.IntStream.range(0, node.outputs().size()).boxed().toList();
+            int[] outputIndices = new int[outputPorts.size()];
             for (int outputPosition = 0;
                     outputPosition < outputIndices.length;
                     outputPosition++) {
                 outputIndices[outputPosition] = index(
-                        node.outputs().get(outputPosition),
+                        node.outputs().get(outputPorts.get(outputPosition)),
                         graphValues,
                         valueIndexes,
                         valueIds,
                         descriptors);
             }
-            MetalMpsGraphProgram.Node lowered = lower(
-                    node.operation(),
-                    inputIndices,
-                    outputIndices,
-                    inputDescriptors,
-                    outputDescriptors);
-            if (lowered.kind() == MetalMpsGraphProgram.NodeKind.SCATTER_ADD) {
-                ValueId indexFeed = node.inputs().get(1);
-                if (!feeds.contains(indexFeed) || context.constants().containsKey(indexFeed)) {
-                    throw new IllegalArgumentException(
-                            "Metal SCATTER_ADD indices must be a materialized partition feed");
-                }
-            }
+            MetalMpsGraphProgram.Node lowered = scan
+                    ? MetalScanLowering.lower(query, inputIndices, outputIndices)
+                    : lower(node.operation(), inputIndices, outputIndices, inputDescriptors, outputDescriptors);
             if (lowered.kind() == MetalMpsGraphProgram.NodeKind.MATMUL) {
                 for (int inputIndex = 0; inputIndex < inputStates.size(); inputIndex++) {
                     if (!MetalCapabilityProvider.matmulDenseInput(
@@ -330,10 +327,8 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             for (int inputIndex = 0; inputIndex < inputStates.size(); inputIndex++) {
                 MetalMpsGraphProgram.ValueState state = inputStates.get(inputIndex);
                 TensorDescriptor descriptor = inputDescriptors.get(inputIndex);
-                if (!lowered.kind().accepts(state)
-                        && !(lowered.kind() == MetalMpsGraphProgram.NodeKind.MATMUL
-                                && state == MetalMpsGraphProgram.ValueState.MATERIALIZED_LAYOUT
-                                && MetalCapabilityProvider.matmulDenseInput(descriptor))) {
+                if (!lowered.kind().accepts(
+                        state, MetalMpsGraphProgram.ValueDescriptor.from(descriptor))) {
                     compatibleInputs = false;
                 }
             }
@@ -353,7 +348,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                             inputDescriptors,
                             outputDescriptors.getFirst(),
                             node.operation());
-            for (int outputPosition = 0; outputPosition < node.outputs().size(); outputPosition++) {
+            for (int outputPosition : outputPorts) {
         ValueId outputId = node.outputs().get(outputPosition);
                 localTranspose.put(outputId, exactLocalTranspose);
                 localSingletonHeight.put(outputId, exactLocalSingletonHeight);
@@ -448,7 +443,8 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 .anyMatch(descriptor -> isLowPrecision(descriptor.dataType()));
         boolean containsCustomProgram = containsLowPrecision
                 || graphProgram.nodes().stream()
-                        .anyMatch(node -> usesCustomProgram(node, descriptors));
+                        .anyMatch(node -> MetalPointwiseFusionPlanner.fixedCustom(
+                                node, programValueDescriptors));
         long singletonElements = feedBytes.length == 1 ? feedBytes[0] / Float.BYTES : 0L;
         MetalPreparedRoute route = containsCustomProgram || containsAnchorEpilogue
                 ? MetalPreparedRoute.CUSTOM_PROGRAM
@@ -501,8 +497,10 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         }
         int materializedCount = fusionPlan == null
                 ? valueIds.size() : fusionPlan.materializedProgramValueIndices().length;
+        long[] numericalWorkspaceBytes =
+                MetalProgramWorkspace.scratchBytes(graphProgram, programValueDescriptors);
         Optional<PreparationResourceRequirement.Workspace> heuristicWorkspace = workspace(
-                route, feeds.size(), targets.size(), materializedCount);
+                route, feeds.size(), targets.size(), materializedCount, numericalWorkspaceBytes);
         List<LayoutDescriptor> physicalValueLayouts =
                 valueIds.stream()
                         .map(value -> Objects.requireNonNull(
@@ -579,7 +577,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 ? materializedCount : valueIds.size();
 
         Optional<PreparationResourceRequirement.Workspace> selectedWorkspace = workspace(
-                route, feeds.size(), targets.size(), selectedMaterializedCount);
+                route, feeds.size(), targets.size(), selectedMaterializedCount, numericalWorkspaceBytes);
         MetalTraceProducer traceProducer = context.backendInputs().traceProducer();
         MetalTraceProducer.PreparedUnit traceUnit =
                 traceProducer == null || !traceProducer.enabled()
@@ -658,12 +656,14 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             MetalPreparedRoute route,
             int feedCount,
             int targetCount,
-            int valueCount) {
+            int valueCount,
+            long[] numericalWorkspaceBytes) {
         if (route == MetalPreparedRoute.CUSTOM_SINGLE_NEG) return Optional.empty();
         long pointerCount = route == MetalPreparedRoute.CUSTOM_PROGRAM
                 ? Math.addExact((long) valueCount, targetCount)
                 : Math.addExact((long) feedCount, targetCount);
-        long workspaceBytes = Math.multiplyExact(pointerCount, Long.BYTES);
+        pointerCount = Math.addExact(pointerCount, numericalWorkspaceBytes.length);
+        long workspaceBytes = MetalProgramWorkspace.totalBytes(pointerCount, numericalWorkspaceBytes);
         return Optional.of(new PreparationResourceRequirement.Workspace(
                 0L, workspaceBytes, Long.BYTES));
     }
@@ -729,7 +729,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
     }
 
     private static MetalMpsGraphProgram.ValueState feedState(TensorDescriptor descriptor) {
-        if (!MetalCapabilityProvider.supportedStorageLayout(descriptor, 0)) {
+        if (!MetalMpsGraphProgram.ValueDescriptor.from(descriptor).supportsStorageLayout(0)) {
             return MetalMpsGraphProgram.ValueState.UNAVAILABLE;
         }
         return descriptor.layout().orElseThrow().equals(
@@ -837,38 +837,6 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         return type == DataType.BFLOAT16 || type == DataType.FLOAT16;
     }
 
-    private static boolean usesCustomProgram(
-            MetalMpsGraphProgram.Node node, List<TensorDescriptor> descriptors) {
-        if (node.kind() == MetalMpsGraphProgram.NodeKind.VARIANCE) {
-            long[] words = node.attributeWords();
-            TensorDescriptor input = descriptors.get(node.firstInputIndex());
-            TensorDescriptor output = descriptors.get(node.outputIndex());
-            return words.length == 4
-                    && words[0] == 1L
-                    && words[1] == 0L
-                    && (words[2] == 0L || words[2] == 1L)
-                    && words[3] == 0L
-                    && input.dataType() == DataType.FLOAT32
-                    && output.dataType() == DataType.FLOAT32
-                    && !input.requiresGrad()
-                    && !output.requiresGrad()
-                    && input.shape().rank() == 1
-                    && input.shape().knownElementCount().orElseThrow() == 1L
-                    && output.shape().rank() == (int) words[2]
-                    && output.shape().knownElementCount().orElseThrow() == 1L;
-        }
-        if (node.kind().isCustomProgramOperation()) return true;
-        if (node.kind() != MetalMpsGraphProgram.NodeKind.MATMUL) return false;
-        TensorDescriptor left = descriptors.get(node.firstInputIndex());
-        TensorDescriptor right = descriptors.get(node.secondInputIndex());
-        TensorDescriptor output = descriptors.get(node.outputIndex());
-        return left.dataType() != DataType.FLOAT32
-                || right.dataType() != DataType.FLOAT32
-                || output.dataType() != DataType.FLOAT32
-                || left.shape().rank() != 2
-                || right.shape().rank() != 2
-                || output.shape().rank() != 2;
-    }
     private static boolean isTask0064TwoDimensional(
             MetalMpsGraphProgram.NodeKind kind) {
         return kind == MetalMpsGraphProgram.NodeKind.CONV2D
@@ -948,7 +916,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
     }
 
     /**
-     * Lowers one already-admitted Model operation into its fixed schema-twenty node. In particular,
+     * Lowers one already-admitted Model operation into its fixed schema-twenty-one node. In particular,
      * each bounded EXP occurrence becomes the no-attribute exponent node. The bounded FLOAT32
      * SIGMOID becomes wire 64 for a sign-guarded composed MPSGraph step, including after an
      * explicit low-to-FLOAT32 cast inside a fixed custom partition. Low-valued EXP and SIGMOID
@@ -963,13 +931,39 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
      * @return non-null encoded node for the admitted occurrence
      * @throws IllegalStateException if an operation lacks a lowering despite admission
      */
-    private static MetalMpsGraphProgram.Node lower(
+    static MetalMpsGraphProgram.Node lower(
             Operation operation,
             int[] inputs,
             int[] outputs,
             List<TensorDescriptor> inputDescriptors,
             List<TensorDescriptor> outputDescriptors) {
+        return lower(operation, inputs, outputs, inputDescriptors, outputDescriptors, false);
+    }
+
+    /** Lowers an actual ordinary body occurrence without replacing empty shape attributes. */
+    static MetalMpsGraphProgram.Node lowerScanBody(Operation operation, int[] inputs, int[] outputs,
+            List<TensorDescriptor> inputDescriptors, List<TensorDescriptor> outputDescriptors) {
+        return lower(operation, inputs, outputs, inputDescriptors, outputDescriptors, true);
+    }
+
+    private static MetalMpsGraphProgram.Node lower(Operation operation, int[] inputs, int[] outputs,
+            List<TensorDescriptor> inputDescriptors, List<TensorDescriptor> outputDescriptors, boolean scanBody) {
         OperationKind kind = operation.kind();
+        if (MetalNormalizationSupport.handles(operation))
+            return MetalNormalizationSupport.lower(
+                    operation, inputs, outputs, inputDescriptors, outputDescriptors);
+        if (MetalAttentionSupport.handles(operation))
+            return MetalAttentionSupport.lower(
+                    operation, inputs, outputs, inputDescriptors, outputDescriptors);
+        if (MetalRecurrentSupport.handles(operation))
+            return MetalRecurrentSupport.lower(
+                    operation, inputs, outputs, inputDescriptors, outputDescriptors);
+        if (MetalExactSupport.handles(operation, inputDescriptors, outputDescriptors))
+            return MetalExactSupport.lower(
+                    operation, inputs, outputs, inputDescriptors, outputDescriptors);
+        if (MetalScatterSupport.handles(operation))
+            return MetalScatterSupport.lower(
+                    operation, inputs, outputs, inputDescriptors, outputDescriptors);
         if (kind == GraphRngKind.INITIAL_STATE) {
             GraphRngStateAttrs attrs = (GraphRngStateAttrs) operation.attrs();
             return MetalMpsGraphProgram.Node.generic(
@@ -1196,7 +1190,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     crop
                             ? MetalMpsGraphProgram.AttributeKind.CROP_TO_SHAPE
                             : MetalMpsGraphProgram.AttributeKind.SLICE,
-                    words);
+                    words, scanBody);
         }
         if (kind instanceof TensorCompositionKind composition) {
             CompositionAxisAttrs attrs = (CompositionAxisAttrs) operation.attrs();
@@ -1237,7 +1231,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     inputs,
                     new int[] {output},
                     MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_2D,
-                    foldWindowWords(outputDescriptor, windowWords(attrs.window(), null)));
+                    foldWindowWords(outputDescriptor, windowWords(attrs.window(), null)), scanBody);
         }
         if (kind == WindowTransformKind.FOLD3D) {
             Fold3dAttrs attrs = (Fold3dAttrs) operation.attrs();
@@ -1246,7 +1240,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     inputs,
                     new int[] {output},
                     MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_3D,
-                    foldWindowWords(outputDescriptor, windowWords(attrs.window(), null)));
+                    foldWindowWords(outputDescriptor, windowWords(attrs.window(), null)), scanBody);
         }
         if (kind == WindowTransformKind.UNFOLD2D) {
             Object raw = operation.attrs();
@@ -1296,6 +1290,16 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         }
         if (kind == UnaryElementwiseKind.ABS) {
             return MetalMpsGraphProgram.Node.abs(inputs[0], output);
+        }
+        if (kind instanceof UnaryElementwiseKind unary
+                && switch (unary) {
+                    case LOG, LOG1P, EXPM1, ERF, SQRT, RSQRT, TANH,
+                            GELU, GELU_TANH_APPROXIMATION, SILU -> true;
+                    default -> false;
+                }) {
+            return MetalMpsGraphProgram.Node.generic(
+                    MetalMpsGraphProgram.NodeKind.valueOf(unary.name()),
+                    inputs, outputs, MetalMpsGraphProgram.AttributeKind.NONE, new long[0]);
         }
         if (kind == UnaryElementwiseKind.EXP || kind == UnaryElementwiseKind.SIGMOID) {
             return MetalMpsGraphProgram.Node.generic(
@@ -1373,8 +1377,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 case DIV -> MetalMpsGraphProgram.NodeKind.DIV;
                 case MIN -> MetalMpsGraphProgram.NodeKind.TENSOR_MIN;
                 case MAX -> MetalMpsGraphProgram.NodeKind.TENSOR_MAX;
-                default -> throw new IllegalArgumentException(
-                        "unsupported Metal binary operation: " + binary);
+                case POW -> MetalMpsGraphProgram.NodeKind.TENSOR_POW;
             };
             return MetalMpsGraphProgram.Node.binary(
                     nodeKind, inputs[0], inputs[1], output);
@@ -1398,8 +1401,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 case DIV -> MetalMpsGraphProgram.NodeKind.SCALAR_DIV;
                 case MIN -> MetalMpsGraphProgram.NodeKind.SCALAR_MIN;
                 case MAX -> MetalMpsGraphProgram.NodeKind.SCALAR_MAX;
-                case POW -> throw new IllegalArgumentException(
-                        "unsupported Metal scalar operation: " + scalar);
+                case POW -> MetalMpsGraphProgram.NodeKind.SCALAR_POW;
                 case CLAMP -> throw new IllegalStateException("CLAMP handled above");
             };
             return MetalMpsGraphProgram.Node.scalarValue(
@@ -1442,6 +1444,12 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 default -> throw new IllegalArgumentException(
                         "unsupported Metal reduction: " + reduction);
             };
+            if (operation.attrs() instanceof
+                    io.github.pho001.synaptik.model.operation.reduction.MaskedReductionAttrs attrs) {
+                return MetalMpsGraphProgram.Node.generic(nodeKind, inputs, outputs,
+                        MetalMpsGraphProgram.AttributeKind.MASKED_REDUCTION,
+                        new long[] {attrs.axis()});
+            }
             if (operation.attrs() instanceof StatisticalReductionAttrs attrs) {
                 return MetalMpsGraphProgram.Node.statisticalReduction(
                         nodeKind,
@@ -1471,7 +1479,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             }
             SumToShapeAttrs attrs = (SumToShapeAttrs) operation.attrs();
             return MetalMpsGraphProgram.Node.sumToShape(
-                    inputs[0], output, attrs.targetShape().toLongArray());
+                    inputs[0], output, attrs.targetShape().toLongArray(), scanBody);
         }
         if (kind == ContiguousKind.CONTIGUOUS) {
             return MetalMpsGraphProgram.Node.contiguous(inputs[0], output);
@@ -1483,7 +1491,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                             ? MetalMpsGraphProgram.NodeKind.RESHAPE
                             : MetalMpsGraphProgram.NodeKind.EXPAND;
             return MetalMpsGraphProgram.Node.targetShape(
-                    nodeKind, inputs[0], output, attrs.targetShape().toLongArray());
+                    nodeKind, inputs[0], output, attrs.targetShape().toLongArray(), scanBody);
         }
         if (kind == AxisTransformKind.PERMUTE) {
             PermutationAttrs attrs = (PermutationAttrs) operation.attrs();

@@ -37,6 +37,29 @@ class MetalMpsGraphAffineNativeTest {
     };
 
     @Test
+    void emptyProducerlessSourceExportsHugeStaticShapesWithoutReadingPayload() {
+        Path library = configuredLibrary();
+        try (Arena arena = Arena.ofConfined();
+                MetalBackendIntegration integration = MetalBackendIntegration.open(
+                        new MetalBackendConfiguration(library))) {
+            Shape shape = Shape.of(Long.MAX_VALUE, 2, 0);
+            for (DataType type : DataType.values()) {
+                var canonical = new TensorDescriptor(type, shape,
+                        java.util.Optional.of(LayoutDescriptor.contiguous(shape)), false);
+                var view = new TensorDescriptor(type, shape, java.util.Optional.of(
+                        LayoutDescriptor.of(shape, new long[] {0, 0, 1}, Long.MAX_VALUE, true)), false);
+                var source = new MemorySegmentStorage(type, 0, arena.allocate(0, type.byteWidth()));
+                try (BufferRepresentation borrowed = integration.borrow(source)) {
+                    assertEquals(0, integration.copyToCanonicalHostBytes(borrowed, canonical, 0).length);
+                    assertEquals(0, integration.copyToCanonicalHostBytes(borrowed, view, 0).length);
+                    assertTrue(source.isAlive());
+                }
+                assertTrue(source.isAlive());
+            }
+        }
+    }
+
+    @Test
     void realSelectorsWriteSuppliedDenseTargetsWithExactShapesBitsAndRepeatability() {
         String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
         assumeTrue(configured != null && !configured.isBlank(),

@@ -7,6 +7,8 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.ScanBody;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
@@ -16,8 +18,10 @@ import java.lang.foreign.SymbolLookup;
 import java.lang.invoke.MethodHandle;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -26,7 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * <p>Handles remain opaque carrier segments inside this package. Implementations consume each
  * successful context or buffer handle exactly once through its matching release call. The
- * schema-twenty creator accepts zero feeds and compact materialized slots, while execution
+ * schema-twenty-one creator accepts zero feeds and compact materialized slots, while execution
  * still binds every ordered live slot buffer. Java preflight independently authenticates all seven
  * carriers, the 49 ordered casts, logical-versus-physical layouts, saved gradient roles, exact
  * replacement safety and fixed custom routing before native entry. FLOAT32 image folds may
@@ -138,8 +142,8 @@ abstract class MetalNativeApi implements AutoCloseable {
      * release the returned executable exactly once, including when later preparation fails.
      *
      * @param context non-null live context whose ownership remains with the caller
-     * @param values non-null explicit schema-twenty value descriptors in program-value order
-     * @param graphProgram non-null schema-twenty typed node program in partition order
+     * @param values non-null explicit schema-twenty-one value descriptors in program-value order
+     * @param graphProgram non-null schema-twenty-one typed node program in partition order
      * @param feedValueIndices non-null ordered boundary-feed value indices, not retained
      * @param targetValueIndices non-null ordered boundary-target value indices, not retained
      * @param route non-null selected {@code MPSGRAPH} or {@code CUSTOM_PROGRAM} partition route;
@@ -175,7 +179,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * preparation failure.
      *
      * @param context non-null live context retained by the caller
-     * @param values non-null schema-twenty descriptors in program-value order
+     * @param values non-null schema-twenty-one descriptors in program-value order
      * @param graphProgram non-null typed node program in partition order
      * @param feedValueIndices non-null ordered boundary-feed indices, not retained
      * @param targetValueIndices non-null ordered boundary-target indices, not retained
@@ -227,7 +231,7 @@ abstract class MetalNativeApi implements AutoCloseable {
      * Performs one already validated ABI-v7 program-image create invocation synchronously.
      *
      * @param context non-null live context whose ownership remains with the caller
-     * @param programImage exact readable schema-twenty image, valid only for this call
+     * @param programImage exact readable schema-twenty-one image, valid only for this call
      * @return non-null raw status/output-cell result for checked interpretation
      */
     abstract NativeCreateResult createProgramExecutableNative(
@@ -550,7 +554,7 @@ abstract class MetalNativeApi implements AutoCloseable {
     }
 
     /**
-     * Exact Java preflight for the schema-twenty typed Metal program create contract, including
+     * Exact Java preflight for the schema-twenty-one typed Metal program create contract, including
      * EXP and SIGMOID route-specific FLOAT32 or homogeneous low types,
      * shape, layout, gradient, and byte-span gates. Low EXP and SIGMOID are custom only. FLOAT32 EXP or
      * SIGMOID in a custom partition remains an internal MPSGraph boundary step, and SIGMOID's
@@ -573,7 +577,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         private ProgramExecutableAbi() {}
 
         /**
-         * Rejects a schema-twenty program before native creation if its fixed route, graph
+         * Rejects a schema-twenty-one program before native creation if its fixed route, graph
          * geometry, types, or occurrence metadata disagrees. In particular, wire-64 SIGMOID
          * requires canonical no-gradient FLOAT32 for a composed MPSGraph step or homogeneous
          * BFLOAT16/FLOAT16 for a typed custom step. A standalone FLOAT32 SIGMOID cannot invent
@@ -598,6 +602,35 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
 
         /**
+         * Independently validates one physical ordinary Scan unit with its original dimensions.
+         * Only referenced descriptors are compacted; no batch or contraction extent is replaced.
+         *
+         * @param node decoded ordinary unit, with no containing Scan instruction
+         * @param values complete authenticated physical local-value table
+         * @throws IllegalArgumentException if its grammar, metadata or carrier equations disagree
+         */
+        static void validateScanBody(MetalMpsGraphProgram.Node node,
+                List<MetalMpsGraphProgram.ValueDescriptor> values) {
+            MetalScanDecoding.validateOrdinaryKind(node.kind());
+            var mapping = new java.util.LinkedHashMap<Integer, Integer>();
+            for (int input : node.inputs()) { requireIndex(input, values.size(), "body input"); mapping.putIfAbsent(input, mapping.size()); }
+            for (int output : node.outputs()) { requireIndex(output, values.size(), "body output"); mapping.putIfAbsent(output, mapping.size()); }
+            var local = new java.util.ArrayList<MetalMpsGraphProgram.ValueDescriptor>(mapping.size());
+            for (int source : mapping.keySet()) {
+                var value = values.get(source);
+                local.add(new MetalMpsGraphProgram.ValueDescriptor(
+                        value.dataType(), value.dimensions(), value.requiresGrad()));
+            }
+            int[] inputs = java.util.Arrays.stream(node.inputs()).map(mapping::get).toArray();
+            int[] outputs = java.util.Arrays.stream(node.outputs()).map(mapping::get).toArray();
+            var compact = MetalMpsGraphProgram.Node.genericForScanBody(
+                    node.kind(), inputs, outputs, node.attributeKind(), node.attributeWords());
+            validateCreate(local, new MetalMpsGraphProgram(List.of(compact)),
+                    java.util.Arrays.stream(inputs).distinct().toArray(), outputs,
+                    MetalPreparedRoute.CUSTOM_PROGRAM, null, true);
+        }
+
+        /**
          * Validates the same fixed program contract with an optional authenticated custom
          * execution plan. Low-valued SIGMOID requires a custom whole-partition route and a
          * separately typed kernel; it cannot use the FLOAT32 MPSGraph boundary step.
@@ -618,6 +651,13 @@ abstract class MetalNativeApi implements AutoCloseable {
                 int[] targets,
                 MetalPreparedRoute route,
                 MetalPointwiseFusionPlan fusionPlan) {
+            validateCreate(values, graphProgram, feeds, targets, route, fusionPlan, false);
+        }
+
+        private static void validateCreate(
+                List<MetalMpsGraphProgram.ValueDescriptor> values,
+                MetalMpsGraphProgram graphProgram, int[] feeds, int[] targets,
+                MetalPreparedRoute route, MetalPointwiseFusionPlan fusionPlan, boolean scanBody) {
             Objects.requireNonNull(values, "values");
             Objects.requireNonNull(graphProgram, "graphProgram");
             Objects.requireNonNull(feeds, "feedValueIndices");
@@ -641,6 +681,7 @@ abstract class MetalNativeApi implements AutoCloseable {
             long[] valueDimensions =
                     new long[Math.multiplyExact(valueCount, MAX_RANK)];
             ValueType[] types = new ValueType[valueCount];
+            var modelValues = new ArrayList<TensorDescriptor>(valueCount);
             for (int value = 0; value < valueCount; value++) {
                 MetalMpsGraphProgram.ValueDescriptor descriptor =
                         Objects.requireNonNull(values.get(value), "values[" + value + "]");
@@ -650,6 +691,8 @@ abstract class MetalNativeApi implements AutoCloseable {
                         dimensions.length);
                 types[value] = ValueType.from(descriptor.dataType());
                 descriptor.byteCount();
+                modelValues.add(new TensorDescriptor(descriptor.dataType(), Shape.of(dimensions),
+                        descriptor.layout(), descriptor.requiresGrad()));
             }
 
             MetalMpsGraphProgram.ValueState[] states =
@@ -692,7 +735,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                 }
             }
             boolean containsCustomOperation = graphProgram.nodes().stream()
-                            .anyMatch(node -> node.kind().isCustomProgramOperation()
+                            .anyMatch(node -> MetalPointwiseFusionPlanner.fixedCustom(node, values)
                                     || task0066Selected(node.kind())
                                     || usesCustomMatmul(node, types, valueRanks)
                                     || usesLowPrecisionCustom(node, types))
@@ -708,6 +751,9 @@ abstract class MetalNativeApi implements AutoCloseable {
             }
             if (route == MetalPreparedRoute.MPSGRAPH
                     && graphProgram.nodes().stream()
+                            .anyMatch(node -> node.kind().isFloat32Elementary())
+                    || route == MetalPreparedRoute.MPSGRAPH
+                            && graphProgram.nodes().stream()
                             .anyMatch(node -> task0052CustomOnly(node.kind())
                                     || task0063CustomOnly(node.kind())
                                     || task0064CustomOnly(node.kind())
@@ -725,6 +771,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                     nodePosition++) {
                 MetalMpsGraphProgram.Node node = graphProgram.nodes().get(nodePosition);
                 int[] nodeInputs = node.inputs();
+                int[] nodeOutputs = node.outputs();
                 int left = node.firstInputIndex();
                 int right = node.secondInputIndex();
                 int output = node.outputIndex();
@@ -732,15 +779,16 @@ abstract class MetalNativeApi implements AutoCloseable {
                 if (nodeInputs.length != 0) {
                     requireIndex(left, valueCount, "first node input");
                 }
-                for (int nodeOutput : node.outputs()) {
+                for (int nodeOutput : nodeOutputs) {
                     requireIndex(nodeOutput, valueCount, "node output");
-                    if (states[nodeOutput]
+                    if (produced[nodeOutput] || states[nodeOutput]
                             != MetalMpsGraphProgram.ValueState.UNAVAILABLE) {
                         throw new IllegalArgumentException(
                                 "Metal MPSGraph node outputs must be unique and not feeds");
                     }
+                    produced[nodeOutput] = true;
                 }
-                for (int input : node.inputs()) {
+                for (int input : nodeInputs) {
                     requireIndex(input, valueCount, "node input");
                     if (!node.kind().accepts(states[input], values.get(input))) {
                         throw new IllegalArgumentException(
@@ -749,22 +797,30 @@ abstract class MetalNativeApi implements AutoCloseable {
                     }
                     used[input] = true;
                 }
-                if (node.kind() == MetalMpsGraphProgram.NodeKind.RESHAPE) {
+                if (node.kind() != MetalMpsGraphProgram.NodeKind.GENERAL_SCAN
+                        && node.kind() != MetalMpsGraphProgram.NodeKind.INITIAL_STATE
+                        && node.kind() != MetalMpsGraphProgram.NodeKind.DROPOUT
+                        && !MetalRecurrentSupport.handles(node)) {
+                    validateModelOrdinaryOutputs(node, nodeInputs, nodeOutputs, modelValues);
+                }
+                if (!scanBody && node.kind() == MetalMpsGraphProgram.NodeKind.RESHAPE) {
                     requireShape(states[left] != MetalMpsGraphProgram.ValueState.CANONICAL
                                     || canonicalExpValue(values.get(left)),
                             "RESHAPE canonical source state must retain canonical logical geometry");
                     requireShape(node.kind().outputState(values.get(left), values.get(output))
                                     != MetalMpsGraphProgram.ValueState.UNAVAILABLE,
                             "RESHAPE must declare its exact view or canonical materialization");
-                } else if (node.kind().isAffine()) {
+                } else if (!scanBody && node.kind().isAffine()) {
                     requireShape(affineLayoutMatches(
                                     node, values.get(left), values.get(output)),
                             node.kind() + " must preserve its source logical mapping,"
                                     + " carrier, and gradient metadata");
                 }
+                if (!validateExtendedOperation(node, values, scanBody)) {
                 if (task0066Selected(node.kind())) {
                     validateTask0066Gradients(node, values, types);
                 } else if (exactNoGradientProduction(node.kind())
+                        && (left < 0 || types[left] != ValueType.FLOAT32)
                         && (node.kind() != MetalMpsGraphProgram.NodeKind.VARIANCE
                                 || task0069VarianceMatches(
                                         node, left, output, valueRanks, valueDimensions))) {
@@ -778,6 +834,10 @@ abstract class MetalNativeApi implements AutoCloseable {
                         throw new IllegalArgumentException(
                                 "exact production routes require no-grad outputs");
                     }
+                }
+                if (node.kind().isFloat32Elementary()) {
+                    for (int input : nodeInputs) requireType(types, input, ValueType.FLOAT32);
+                    requireType(types, output, ValueType.FLOAT32);
                 }
                 if ((node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_ADD
                                 || node.kind() == MetalMpsGraphProgram.NodeKind.SCALAR_SUB
@@ -864,12 +924,12 @@ abstract class MetalNativeApi implements AutoCloseable {
                         ValueType valueType = types[left];
                         requireShape(
                                 (valueType == ValueType.FLOAT32 || lowPrecision(valueType))
-                                        && task0065Value(values.get(left), valueType, true)
+                                        && task0065Value(values.get(left), valueType, true, scanBody)
                                         && task0065State(values.get(right))
                                         && task0065Value(
-                                                values.get(output), valueType, true)
+                                                values.get(output), valueType, true, scanBody)
                                         && task0065Value(
-                                                values.get(mask), ValueType.BOOL, true)
+                                                values.get(mask), ValueType.BOOL, true, scanBody)
                                         && task0065State(values.get(nextState))
                                         && sameShape(
                                                 left, output, valueRanks, valueDimensions)
@@ -886,8 +946,8 @@ abstract class MetalNativeApi implements AutoCloseable {
                                     node.kind() + " input/output shapes must match exactly");
                     case SCALAR_ADD, SCALAR_SUB, SCALAR_DIV, RECIPROCAL ->
                             requireShape(
-                                    valueRanks[left] >= 1
-                                            && valueRanks[output] >= 1
+                                    (types[left] == ValueType.FLOAT32
+                                            || valueRanks[left] >= 1 && valueRanks[output] >= 1)
                                             && sameShape(
                                                     left, output, valueRanks, valueDimensions),
                                     node.kind()
@@ -903,21 +963,23 @@ abstract class MetalNativeApi implements AutoCloseable {
                                     && (types[left] == ValueType.FLOAT32
                                             || route == MetalPreparedRoute.CUSTOM_PROGRAM
                                                     && lowPrecision(types[left]))
-                                    && valueRanks[left] >= 1
+                                    && (valueRanks[left] >= 1 || types[left] == ValueType.FLOAT32)
                                     && sameShape(left, output, valueRanks, valueDimensions)
                                     && canonicalExpValue(values.get(left))
                                     && canonicalExpValue(values.get(output))
-                                    && !values.get(left).requiresGrad()
-                                    && !values.get(output).requiresGrad()
+                                    && values.get(left).requiresGrad()
+                                            == values.get(output).requiresGrad()
+                                    && (types[left] == ValueType.FLOAT32
+                                            || !values.get(left).requiresGrad())
                                     && elementCount(left, valueRanks, valueDimensions)
                                             <= 0xffff_ffffL / (lowPrecision(types[left])
                                                     ? Short.BYTES : Float.BYTES),
-                            node.kind() + " requires canonical same-type positive-rank no-gradient values"
-                                    + " within the route-specific byte span");
+                            node.kind() + " requires canonical same-type values with matching"
+                                    + " gradient metadata; low values remain positive-rank no-grad");
                     case FLOOR, CEIL, SIGN ->
                             requireShape(
-                                    valueRanks[left] >= 1
-                                            && valueRanks[output] >= 1
+                                    (types[left] == ValueType.FLOAT32
+                                            || valueRanks[left] >= 1 && valueRanks[output] >= 1)
                                             && sameShape(
                                                     left, output, valueRanks, valueDimensions),
                                     node.kind()
@@ -1059,7 +1121,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                                     "STANDARD_DEVIATION attributes and output shape disagree");
                     case SORT, ARGSORT, TOP_K, ARG_MAX, ARG_MIN ->
                             requireShape(
-                                    task0063ShapeMatches(node, values),
+                                    task0063ShapeMatches(node, values, scanBody),
                                     node.kind()
                                             + " attributes, unsigned geometry, and output shape"
                                             + " disagree");
@@ -1143,7 +1205,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                             SLICE, SLICE_UPDATE, CONCAT, STACK, TILE, FOLD_AXIS, UNFOLD2D, FOLD2D,
                             UNFOLD3D, FOLD3D -> {
                         requireShape(
-                                task0059ShapeMatches(node, values, route),
+                                task0059ShapeMatches(node, values, route, scanBody),
                                 node.kind() + " attributes and output shape disagree");
                         if (route == MetalPreparedRoute.CUSTOM_PROGRAM
                                 && node.kind() == MetalMpsGraphProgram.NodeKind.SCATTER_ND
@@ -1160,7 +1222,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                             throw new IllegalArgumentException(
                                     "custom FOLD overlap requires a FLOAT32 image fold");
                         }
-                        if ((node.kind() == MetalMpsGraphProgram.NodeKind.SELECT
+                        if (!scanBody && (node.kind() == MetalMpsGraphProgram.NodeKind.SELECT
                                         || node.kind() == MetalMpsGraphProgram.NodeKind.SLICE)
                                 && !task0059LayoutMatches(node, values)) {
                             throw new IllegalArgumentException(
@@ -1169,7 +1231,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                     }
                     case CONV2D, CONV3D, MAX_POOL2D, AVERAGE_POOL2D,
                             MAX_POOL3D, AVERAGE_POOL3D -> {
-                        if (!task0064ShapeMatches(node, values)) {
+                        if (!task0064ShapeMatches(node, values, scanBody)) {
                             throw new IllegalArgumentException(
                                     node.kind() + " attributes, unsigned geometry, and output"
                                             + " shape disagree");
@@ -1532,12 +1594,14 @@ abstract class MetalNativeApi implements AutoCloseable {
                         }
                     }
                 }
-                for (int nodeOutput : node.outputs()) {
+                }
+                for (int nodeOutput : nodeOutputs) {
                     MetalMpsGraphProgram.ValueState outputState =
-                            node.kind() == MetalMpsGraphProgram.NodeKind.RESHAPE
+                            scanBody ? MetalMpsGraphProgram.ValueState.CANONICAL
+                                    : node.kind() == MetalMpsGraphProgram.NodeKind.RESHAPE
                                     ? node.kind().outputState(values.get(left), values.get(nodeOutput))
                                     : node.kind().outputState();
-                    if ((node.kind() == MetalMpsGraphProgram.NodeKind.SELECT
+                    if (!scanBody && (node.kind() == MetalMpsGraphProgram.NodeKind.SELECT
                                     || node.kind() == MetalMpsGraphProgram.NodeKind.SLICE)
                             && values.get(nodeOutput).layout()
                                     .filter(LayoutDescriptor::hasZeroStride).isPresent()) {
@@ -1552,8 +1616,8 @@ abstract class MetalNativeApi implements AutoCloseable {
                     // Ordinary affine steps represent their own canonical buffers. Native may
                     // elide a transpose only after independently proving its actual source.
                     LayoutDescriptor physical =
-                            node.kind() == MetalMpsGraphProgram.NodeKind.SELECT
-                                            || node.kind() == MetalMpsGraphProgram.NodeKind.SLICE
+                            !scanBody && (node.kind() == MetalMpsGraphProgram.NodeKind.SELECT
+                                            || node.kind() == MetalMpsGraphProgram.NodeKind.SLICE)
                                     ? extractionLayout(node, physicalLayouts[left],
                                             values.get(nodeOutput).dimensions())
                                     : LayoutDescriptor.contiguous(
@@ -1561,12 +1625,11 @@ abstract class MetalNativeApi implements AutoCloseable {
                     requireShape(physical != null, "Metal physical extraction layout is invalid");
                     physicalLayouts[nodeOutput] = physical;
                     used[nodeOutput] = true;
-                    produced[nodeOutput] = true;
                 }
                 if (nodeInputs.length != 0) used[left] = true;
             }
 
-            if (route == MetalPreparedRoute.CUSTOM_PROGRAM && !containsCustomOperation) {
+            if (!scanBody && route == MetalPreparedRoute.CUSTOM_PROGRAM && !containsCustomOperation) {
                 throw new IllegalArgumentException(
                         "custom Metal program route requires a custom operation");
             }
@@ -1603,9 +1666,63 @@ abstract class MetalNativeApi implements AutoCloseable {
                 }
             }
         }
+
+        /**
+         * Reconstructs the existing Model signature and independently infers every canonical
+         * output's carrier, Shape and gradient flag. This is descriptor-only validation, never
+         * evaluation or provider admission. Completed physical layouts are checked separately:
+         * they must not be compared to Model's deliberately unresolved expression layouts.
+         */
+        private static void validateModelOrdinaryOutputs(MetalMpsGraphProgram.Node node,
+                int[] inputs, int[] outputs, List<TensorDescriptor> values) {
+            var operands = new ArrayList<TensorDescriptor>(inputs.length);
+            for (int input : inputs) operands.add(values.get(input));
+            var operation = MetalScanOrdinaryOperation.decode(node, values);
+            var inferred = ScanBody.describeOrdinary(operation, operands, outputs.length, Optional.empty());
+            requireShape(inferred.size() == outputs.length, "Model canonical output cardinality disagrees");
+            for (int port = 0; port < outputs.length; port++) {
+                TensorDescriptor actual = values.get(outputs[port]), expected = inferred.get(port);
+                requireShape(actual.dataType() == expected.dataType()
+                                && actual.shape().equals(expected.shape())
+                                && actual.requiresGrad() == expected.requiresGrad(),
+                        node.kind() + " canonical output metadata disagrees with Model at port " + port);
+            }
+        }
+
+        /**
+         * Independently checks new wire domains, without consulting provider admission.
+         *
+         * @param node exact decoded node
+         * @param values complete encoded descriptors
+         * @return whether one extended domain owns and validated this occurrence
+         * @throws IllegalArgumentException if an owned encoded occurrence is malformed
+         */
+        private static boolean validateExtendedOperation(
+                MetalMpsGraphProgram.Node node,
+                List<MetalMpsGraphProgram.ValueDescriptor> values, boolean scanBody) {
+            if (node.kind() == MetalMpsGraphProgram.NodeKind.GENERAL_SCAN) {
+                MetalScanLowering.validate(node, values);
+            } else if (MetalNormalizationSupport.handles(node)) {
+                MetalNormalizationSupport.validate(node, values);
+            } else if (MetalAttentionSupport.handles(node)) {
+                MetalAttentionSupport.validate(node, values);
+            } else if (MetalRecurrentSupport.handles(node)) {
+                MetalRecurrentSupport.validate(node, values);
+            } else if (MetalExactSupport.handles(node, values)) {
+                MetalExactSupport.validate(node, values);
+            } else if (MetalScatterSupport.handles(node, values)) {
+                MetalScatterSupport.validate(node, values);
+            } else if (MetalReductionSupport.handles(node, values)) {
+                if (scanBody) MetalReductionSupport.validateScan(node, values);
+                else MetalReductionSupport.validate(node, values);
+            } else {
+                return false;
+            }
+            return true;
+        }
         private static boolean task0064ShapeMatches(
                 MetalMpsGraphProgram.Node node,
-                List<MetalMpsGraphProgram.ValueDescriptor> values) {
+                List<MetalMpsGraphProgram.ValueDescriptor> values, boolean scanBody) {
             try {
                 boolean convolution = node.kind() == MetalMpsGraphProgram.NodeKind.CONV2D
                         || node.kind() == MetalMpsGraphProgram.NodeKind.CONV3D;
@@ -1619,8 +1736,8 @@ abstract class MetalNativeApi implements AutoCloseable {
                 MetalMpsGraphProgram.ValueDescriptor source = values.get(inputs[0]);
                 MetalMpsGraphProgram.ValueDescriptor output =
                         values.get(node.outputIndex());
-                if (!task0064Image(source, rank, spatial == 2)
-                        || !task0064Canonical(output, rank)) {
+                if (!task0064Image(source, rank, spatial == 2, scanBody)
+                        || !task0064Canonical(output, rank, scanBody)) {
                     return false;
                 }
                 long[] sourceShape = source.dimensions();
@@ -1634,7 +1751,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                     }
                     MetalMpsGraphProgram.ValueDescriptor weight =
                             values.get(inputs[1]);
-                    if (!task0064Image(weight, rank, spatial == 2)) return false;
+                    if (!task0064Image(weight, rank, spatial == 2, scanBody)) return false;
                     long[] weightShape = weight.dimensions();
                     long groups = words[spatial * 3];
                     if (!task0064Positive(groups)
@@ -1647,7 +1764,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                     if (inputs.length == 3) {
                         MetalMpsGraphProgram.ValueDescriptor bias =
                                 values.get(inputs[2]);
-                        if (!task0064Canonical(bias, 1)
+                        if (!task0064Canonical(bias, 1, scanBody)
                                 || bias.dimensions()[0] != weightShape[0]) {
                             return false;
                         }
@@ -1709,9 +1826,9 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
 
         private static boolean task0064Canonical(
-                MetalMpsGraphProgram.ValueDescriptor descriptor, int rank) {
+                MetalMpsGraphProgram.ValueDescriptor descriptor, int rank, boolean allowEmpty) {
             return descriptor.rank() == rank
-                    && task0064Bounded(descriptor)
+                    && task0064Bounded(descriptor, allowEmpty)
                     && descriptor.layout().filter(
                             LayoutDescriptor.contiguous(Shape.of(descriptor.dimensions()))::equals)
                             .isPresent();
@@ -1720,8 +1837,8 @@ abstract class MetalNativeApi implements AutoCloseable {
         private static boolean task0064Image(
                 MetalMpsGraphProgram.ValueDescriptor descriptor,
                 int rank,
-                boolean allowSingletonHeight) {
-            if (descriptor.rank() != rank || !task0064Bounded(descriptor)) return false;
+                boolean allowSingletonHeight, boolean allowEmpty) {
+            if (descriptor.rank() != rank || !task0064Bounded(descriptor, allowEmpty)) return false;
             LayoutDescriptor layout = descriptor.layout().orElseThrow();
             if (layout.equals(LayoutDescriptor.contiguous(
                     Shape.of(descriptor.dimensions())))) {
@@ -1747,10 +1864,10 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
 
         private static boolean task0064Bounded(
-                MetalMpsGraphProgram.ValueDescriptor descriptor) {
+                MetalMpsGraphProgram.ValueDescriptor descriptor, boolean allowEmpty) {
             long elements = 1L;
             for (long extent : descriptor.dimensions()) {
-                if (!task0064Positive(extent)) return false;
+                if (extent < (allowEmpty ? 0L : 1L) || extent > UINT32_MAX) return false;
                 elements = Math.multiplyExact(elements, extent);
                 if (elements > UINT32_MAX) return false;
             }
@@ -1793,20 +1910,20 @@ abstract class MetalNativeApi implements AutoCloseable {
 
         private static boolean task0063ShapeMatches(
                 MetalMpsGraphProgram.Node node,
-                List<MetalMpsGraphProgram.ValueDescriptor> values) {
+                List<MetalMpsGraphProgram.ValueDescriptor> values, boolean scanBody) {
             try {
                 int inputIndex = node.firstInputIndex();
                 int[] outputs = node.outputs();
                 long[] input = values.get(inputIndex).dimensions();
                 long[] words = node.attributeWords();
-                if (!task0063Uint32Bounded(input, false)) return false;
+                if (!task0063Uint32Bounded(input, false, scanBody)) return false;
                 return switch (node.kind()) {
                     case SORT, ARGSORT -> outputs.length == 1
                             && words.length == 2
                             && words[0] >= 0L && words[0] < input.length
                             && words[1] >= 0L && words[1] <= 1L
                             && task0063Uint32Bounded(
-                                    values.get(outputs[0]).dimensions(), false)
+                                    values.get(outputs[0]).dimensions(), false, scanBody)
                             && Arrays.equals(
                                     input, values.get(outputs[0]).dimensions());
                     case TOP_K -> {
@@ -1822,9 +1939,9 @@ abstract class MetalNativeApi implements AutoCloseable {
                         long[] expected = input.clone();
                         expected[Math.toIntExact(words[0])] = words[1];
                         yield task0063Uint32Bounded(
-                                        values.get(outputs[0]).dimensions(), false)
+                                        values.get(outputs[0]).dimensions(), false, scanBody)
                                 && task0063Uint32Bounded(
-                                        values.get(outputs[1]).dimensions(), false)
+                                        values.get(outputs[1]).dimensions(), false, scanBody)
                                 && Arrays.equals(
                                         expected, values.get(outputs[0]).dimensions())
                                 && Arrays.equals(
@@ -1835,7 +1952,8 @@ abstract class MetalNativeApi implements AutoCloseable {
                                 || words.length != 3
                                 || words[0] < 0L || words[0] >= input.length
                                 || words[1] < 0L || words[1] > 1L
-                                || words[2] < 1L || words[2] > 2L) {
+                                || words[2] < 1L || words[2] > 2L
+                                || input[Math.toIntExact(words[0])] == 0L) {
                             yield false;
                         }
                         int axis = Math.toIntExact(words[0]);
@@ -1851,7 +1969,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                             }
                         }
                         yield task0063Uint32Bounded(
-                                        values.get(outputs[0]).dimensions(), true)
+                                        values.get(outputs[0]).dimensions(), true, scanBody)
                                 && Arrays.equals(
                                         expected, values.get(outputs[0]).dimensions());
                     }
@@ -1863,15 +1981,15 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
 
         private static boolean task0063Uint32Bounded(
-                long[] dimensions, boolean allowScalar) {
+                long[] dimensions, boolean allowScalar, boolean allowEmpty) {
             if ((!allowScalar && dimensions.length == 0)
                     || dimensions.length > MAX_RANK) {
                 return false;
             }
             long elements = 1L;
             for (long dimension : dimensions) {
-                if (dimension < 1L || dimension > UINT32_MAX
-                        || elements > UINT32_MAX / dimension) {
+                if (dimension < (allowEmpty ? 0L : 1L) || dimension > UINT32_MAX
+                        || dimension != 0L && elements > UINT32_MAX / dimension) {
                     return false;
                 }
                 elements *= dimension;
@@ -2052,7 +2170,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
 
         private static boolean task0065State(MetalMpsGraphProgram.ValueDescriptor descriptor) {
-            return task0065Value(descriptor, ValueType.INT64, false)
+            return task0065Value(descriptor, ValueType.INT64, false, false)
                     && Arrays.equals(descriptor.dimensions(), new long[] {2L})
                     && !descriptor.requiresGrad();
         }
@@ -2060,7 +2178,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         private static boolean task0065Value(
                 MetalMpsGraphProgram.ValueDescriptor descriptor,
                 ValueType type,
-                boolean allowScalar) {
+                boolean allowScalar, boolean allowEmpty) {
             if (ValueType.from(descriptor.dataType()) != type
                     || descriptor.rank() < (allowScalar ? 0 : 1)
                     || descriptor.rank() > MAX_RANK
@@ -2071,7 +2189,7 @@ abstract class MetalNativeApi implements AutoCloseable {
             }
             long elements = 1L;
             for (long extent : descriptor.dimensions()) {
-                if (extent <= 0L || extent > UINT32_MAX) return false;
+                if (extent < (allowEmpty ? 0L : 1L) || extent > UINT32_MAX) return false;
                 elements = Math.multiplyExact(elements, extent);
                 if (elements > UINT32_MAX) return false;
             }
@@ -2081,7 +2199,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         private static boolean task0059ShapeMatches(
                 MetalMpsGraphProgram.Node node,
                 List<MetalMpsGraphProgram.ValueDescriptor> values,
-                MetalPreparedRoute route) {
+                MetalPreparedRoute route, boolean scanBody) {
             try {
                 int[] inputs = node.inputs();
                 long[] input = values.get(inputs[0]).dimensions();
@@ -2191,12 +2309,12 @@ abstract class MetalNativeApi implements AutoCloseable {
                         yield Arrays.equals(expected, output);
                     }
                     case SLICE -> {
-                        long[] region = task0059SliceRegion(node, input);
+                        long[] region = task0059SliceRegion(node, input, scanBody);
                         yield region != null
                                 && Arrays.equals(region, output);
                     }
                     case SLICE_UPDATE -> {
-                        long[] region = task0059SliceRegion(node, input);
+                        long[] region = task0059SliceRegion(node, input, scanBody);
                         yield region != null
                                 && Arrays.equals(input, output)
                                 && Arrays.equals(region, values.get(inputs[1]).dimensions());
@@ -2395,7 +2513,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         }
 
         private static long[] task0059SliceRegion(
-                MetalMpsGraphProgram.Node node, long[] input) {
+                MetalMpsGraphProgram.Node node, long[] input, boolean scanBody) {
             long[] words = node.attributeWords();
             if (node.attributeKind() == MetalMpsGraphProgram.AttributeKind.CROP_TO_SHAPE) {
                 int targetRank = Math.toIntExact(words[0]);
@@ -2422,12 +2540,13 @@ abstract class MetalNativeApi implements AutoCloseable {
                 if (axis < 0
                         || axis >= input.length
                         || start < 0L
-                        || length <= 0L
+                        || length < 0L || length == 0L && !scanBody
                         || (!update && step <= 0L)
                         || (update && step == 0L)
-                        || start >= input[axis]) {
+                        || (length == 0L ? start != 0L : start >= input[axis])) {
                     return null;
                 }
+                if (length == 0L) { expected[axis] = 0L; continue; }
                 long last = Math.addExact(start, Math.multiplyExact(length - 1L, step));
                 if (last < 0L || last >= input[axis]) return null;
                 expected[axis] = length;
@@ -2914,7 +3033,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                 if (leftExtent != rightExtent && leftExtent != 1L && rightExtent != 1L) {
                     return false;
                 }
-                if (dimensions[outputRow + axis] != Math.max(leftExtent, rightExtent)) {
+                if (dimensions[outputRow + axis] != (leftExtent == 1L ? rightExtent : leftExtent)) {
                     return false;
                 }
             }
@@ -3487,7 +3606,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                     return false;
                 }
                 if (dimensions[outputRow + axis]
-                        != Math.max(leftDimension, rightDimension)) {
+                        != (leftDimension == 1L ? rightDimension : leftDimension)) {
                     return false;
                 }
             }

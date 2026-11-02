@@ -76,7 +76,7 @@
  * retain exact Model view geometry. {@code CONTIGUOUS} produces canonical geometry. Metal lowers
  * one complete homogeneous partition as a typed whole-partition program during preparation.
  *
- * <p>A package-private exhaustive catalog describes all 115 schema-twenty operation kinds as
+ * <p>A package-private exhaustive catalog describes all 115 schema-twenty-one operation kinds as
  * MPSGraph {@code DIRECT}, {@code COMPOSED}, or {@code UNAVAILABLE} and custom-kernel {@code
  * AVAILABLE}, {@code PENDING}, or {@code UNAVAILABLE_WITH_PROOF}, with closed source reasons. It is
  * cold descriptive metadata only: capability remains authoritative and the catalog is never
@@ -214,15 +214,15 @@
  * variance occurrences retain the existing descriptive direct-MPSGraph path but remain
  * production-false. The retained Task 0069 proof and source/compiler/AIR audits under
  * {@code evidence/0069} concern these FLOAT32 specialized kernels; they do not certify the
- * low-type kernels or authenticate the current schema-twenty image.
+ * low-type kernels or authenticate the current schema-twenty-one image.
  *
- * <p>The current schema-twenty image retains the typed anchor instructions and generator-schema-two
+ * <p>The current schema-twenty-one image retains the typed anchor instructions and generator-schema-two
  * lineage introduced by Task 0071. Its schema and digest bind anchor family, suffix order, ADD
  * side and role, raw scalar/clamp words, types, Shapes, layouts, and gradient facts. Native
  * independently validates the records before one dispatch. The checked Lean model, authenticated
  * source audit, pinned compiled-MSL/AIR audit, real-device dispatch observer, special-value
  * cases, and public Engine smoke retained under {@code evidence/0071}. That historical evidence
- * does not by itself authenticate the current schema-twenty image or qualify a post-cutover route.
+ * does not by itself authenticate the current schema-twenty-one image or qualify a post-cutover route.
  *
  * <p>ABI version seven has thirteen exports; the former certification-environment query is absent.
  * Node schema version twenty is one bounded self-describing route-bearing image over stable type wires

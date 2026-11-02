@@ -363,7 +363,7 @@ class MetalPointwiseFusionPlannerTest {
     }
 
     @Test
-    void schemaTwentyPacksOddReferencePoolDirectlyBeforeAttributes() {
+    void schemaTwentyOnePacksOddReferencePoolDirectlyBeforeAttributes() {
         var program = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.generic(
                         MetalMpsGraphProgram.NodeKind.ADD,

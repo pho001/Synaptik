@@ -1199,10 +1199,10 @@ class MetalNegRouteCandidateGeneratorTest {
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
             byte[] first = codec.encodeDecision(decision);
-            assertEquals(40, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
-            assertEquals(40, current.batch().compatibility().schemaVersion());
-            assertEquals(40, current.batch().compatibility().candidateSchemaVersion());
-            assertEquals(40, current.batch().compatibility().routePolicyVersion());
+            assertEquals(41, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
+            assertEquals(41, current.batch().compatibility().schemaVersion());
+            assertEquals(41, current.batch().compatibility().candidateSchemaVersion());
+            assertEquals(41, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());

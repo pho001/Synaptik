@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphRawAbiNativeTest {
     @Test
-    void nativeAbiSevenAcceptsSchemaTwentyAndRejectsStaleNineteenBeforeCreation()
+    void nativeAbiSevenAcceptsSchemaTwentyOneAndRejectsStaleNineteenBeforeCreation()
             throws Throwable {
         Path library = configuredLibrary();
         try (RawAbi abi = new RawAbi(library)) {
@@ -68,7 +68,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void schemaTwentyRejectsCorruptFusionRecordsManifestAndDigest() throws Throwable {
+    void schemaTwentyOneRejectsCorruptFusionRecordsManifestAndDigest() throws Throwable {
         Path library = configuredLibrary();
         var program = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.generic(
@@ -155,7 +155,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void schemaTwentyKeepsArithmeticAndRawFloat16CustomOnly() throws Throwable {
+    void schemaTwentyOneKeepsArithmeticAndRawFloat16CustomOnly() throws Throwable {
         Path library = configuredLibrary();
         var program = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.neg(0, 1)));
@@ -287,7 +287,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void schemaTwentyAuthenticatesTypedLowExpCustomStepsAndRejectsForgedImages()
+    void schemaTwentyOneAuthenticatesTypedLowExpCustomStepsAndRejectsForgedImages()
             throws Throwable {
         var exp = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.generic(
@@ -584,7 +584,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void schemaTwentyAuthenticatesCapStopPrecedenceAndFirstRejectedNode() throws Throwable {
+    void schemaTwentyOneAuthenticatesCapStopPrecedenceAndFirstRejectedNode() throws Throwable {
         Path library = configuredLibrary();
         var nodes = new ArrayList<MetalMpsGraphProgram.Node>();
         MetalMpsGraphProgram.NodeKind[] kinds = {
@@ -628,7 +628,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void schemaTwentyRejectsFunctionCapAndCompactVirtualValueForgeries() throws Throwable {
+    void schemaTwentyOneRejectsFunctionCapAndCompactVirtualValueForgeries() throws Throwable {
         Path library = configuredLibrary();
         var program = new MetalMpsGraphProgram(List.of(
                 unaryNode(MetalMpsGraphProgram.NodeKind.FLOOR, 0, 1),
@@ -1571,7 +1571,7 @@ class MetalMpsGraphRawAbiNativeTest {
 
     /**
      * Every altered claim keeps a matching manifest and SHA-256 digest. Layout-only and
-     * node-reference changes are intentionally not manifest fields in schema 20.
+     * node-reference changes are intentionally not manifest fields in schema 21.
      */
     @Test
     void materializingReshapeRawAbiAuthenticatesOccurrenceGeometryAndImmediateSource()

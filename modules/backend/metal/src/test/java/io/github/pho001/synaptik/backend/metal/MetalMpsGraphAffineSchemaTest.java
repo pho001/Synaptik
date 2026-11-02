@@ -15,6 +15,26 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphAffineSchemaTest {
+    @Test
+    void ordinaryAndScanLocalResultsRetainModelGradientMetadata() {
+        var node = MetalMpsGraphProgram.Node.binary(MetalMpsGraphProgram.NodeKind.ADD, 0, 1, 2);
+        var left = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, new long[] {2}, true);
+        var right = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, new long[] {2}, false);
+        var result = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, new long[] {2}, true);
+        var valid = List.of(left, right, result);
+        MetalNativeApi.ProgramExecutableAbi.validateScanBody(node, valid);
+        var program = new MetalMpsGraphProgram(List.of(node));
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(valid, program, new int[] {0, 1},
+                new int[] {2}, MetalPreparedRoute.MPSGRAPH);
+        var forged = List.of(left, right, new MetalMpsGraphProgram.ValueDescriptor(
+                DataType.FLOAT32, new long[] {2}, false));
+        assertThrows(IllegalArgumentException.class,
+                () -> MetalNativeApi.ProgramExecutableAbi.validateScanBody(node, forged));
+        assertThrows(IllegalArgumentException.class,
+                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(forged, program,
+                        new int[] {0, 1}, new int[] {2}, MetalPreparedRoute.MPSGRAPH));
+    }
+
 
     @Test
     void reshapeAcceptsAuthenticatedLocalBroadcastButNeverIntegralAdjoints() {

@@ -66,8 +66,8 @@ class MetalFloat16ProtocolTest {
                 new int[] {1});
         ByteBuffer header = ByteBuffer.wrap(image).order(ByteOrder.LITTLE_ENDIAN);
 
-        assertEquals(0x30324d53, header.getInt(0));
-        assertEquals(20, header.getInt(Integer.BYTES));
+        assertEquals(0x31324d53, header.getInt(0));
+        assertEquals(21, header.getInt(Integer.BYTES));
         assertEquals(7, header.getInt(MetalMpsGraphProgram.HEADER_BYTES));
         assertEquals(7, header.getInt(
                 MetalMpsGraphProgram.HEADER_BYTES
@@ -184,7 +184,7 @@ class MetalFloat16ProtocolTest {
                 (MetalPreparationStructure) events.get(0).payload();
         MetalPreparationStructure bfloat16Structure =
                 (MetalPreparationStructure) events.get(2).payload();
-        assertEquals(20, float16Structure.schemaVersion());
+        assertEquals(21, float16Structure.schemaVersion());
         assertNotEquals(
                 bfloat16Structure.canonicalDigest(),
                 float16Structure.canonicalDigest());

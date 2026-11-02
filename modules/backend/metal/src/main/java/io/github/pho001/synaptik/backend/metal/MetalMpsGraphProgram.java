@@ -17,7 +17,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * Immutable schema-twenty Metal program and its canonical bounded image encoder. Wire 64
+ * Immutable schema-twenty-one Metal program and its canonical bounded image encoder. Wire 64
  * represents the qualified FLOAT32 sign-guarded MPSGraph SIGMOID step or one of the separately
  * qualified low-type custom steps according to declared values and the fixed partition route.
  * The encoding adds no formula selector.
@@ -31,7 +31,7 @@ import java.util.Optional;
  * image schema.</p>
  */
 final class MetalMpsGraphProgram {
-    static final int SCHEMA_VERSION = 20;
+    static final int SCHEMA_VERSION = 21;
     static final int MAX_RANK = 16;
     static final int MAX_SELECTOR_EXPANSION = 16;
     static final int HEADER_BYTES = 124;
@@ -40,7 +40,7 @@ final class MetalMpsGraphProgram {
     static final int STEP_DESCRIPTOR_BYTES = 40;
     static final int BINDING_DESCRIPTOR_BYTES = 24;
     static final int INSTRUCTION_DESCRIPTOR_BYTES = 64;
-    static final int MAGIC = 0x30324d53; // little-endian bytes "SM20"
+    static final int MAGIC = 0x31324d53; // little-endian bytes "SM21"
     private static final int EXECUTION_EXTENSION_PRESENT = 1;
     static final int NO_SECOND_INPUT = -1;
     static final int NO_AXIS = -1;
@@ -62,7 +62,7 @@ final class MetalMpsGraphProgram {
         BATCH_NORM_TRAINING(30), SORT(31), TOP_K(32), DROPOUT(33),
         GRAPH_RNG_STATE(34), RECURRENT_DIRECTION(35), ARG_EXTREMA(36),
         MASKED_REDUCTION(37), STATISTICAL_REDUCTION(38), ATTENTION(39),
-        CONV_2D(40), CONV_3D(41);
+        CONV_2D(40), CONV_3D(41), GENERAL_SCAN(42);
 
         private final int wireIdentity;
         AttributeKind(int wireIdentity) { this.wireIdentity = wireIdentity; }
@@ -100,8 +100,8 @@ final class MetalMpsGraphProgram {
         SQUEEZE(10, 1, 1, 1, 1, AttributeKind.AXIS, ValueState.AFFINE_VIEW, true, true),
         CONTIGUOUS(11, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
         ABS(12, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
-        SUM(13, 1, 1, 1, 1, AttributeKind.REDUCTION, ValueState.CANONICAL, false, true),
-        MEAN(14, 1, 1, 1, 1, AttributeKind.REDUCTION, ValueState.CANONICAL, false, true),
+        SUM(13, 1, 2, 1, 1, AttributeKind.REDUCTION, ValueState.CANONICAL, true, true),
+        MEAN(14, 1, 2, 1, 1, AttributeKind.REDUCTION, ValueState.CANONICAL, true, true),
         MATMUL(15, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
         GATHER(16, 2, 2, 1, 1, AttributeKind.AXIS, ValueState.CANONICAL, true, true),
         ONE_HOT(17, 1, 1, 1, 1, AttributeKind.DEPTH, ValueState.CANONICAL, true, true),
@@ -122,12 +122,12 @@ final class MetalMpsGraphProgram {
         REDUCTION_MAX(32, 1, 1, 1, 1, AttributeKind.REDUCTION, ValueState.CANONICAL, false, true),
         CUM_SUM(33, 1, 1, 1, 1, AttributeKind.SCAN, ValueState.CANONICAL, false, true),
         CUM_PROD(34, 1, 1, 1, 1, AttributeKind.SCAN, ValueState.CANONICAL, false, true),
-        SCALED_DOT_PRODUCT_ATTENTION(35, 3, 4, 1, 2, AttributeKind.ATTENTION),
+        SCALED_DOT_PRODUCT_ATTENTION(35, 3, 4, 1, 2, AttributeKind.ATTENTION, ValueState.CANONICAL, true, true),
         CONV2D(36, 2, 3, 1, 1, AttributeKind.CONV_2D,
                 ValueState.CANONICAL, true, true),
         CONV3D(37, 2, 3, 1, 1, AttributeKind.CONV_3D,
                 ValueState.CANONICAL, false, true),
-        TENSOR_POW(38, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, false, true),
+        TENSOR_POW(38, 2, 2, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
         CAST(39, 1, 1, 1, 1, AttributeKind.CAST_TARGET,
                 ValueState.CANONICAL, true, true),
         IS_FINITE(40, 1, 1, 1, 1, AttributeKind.NONE, ValueState.CANONICAL, true, true),
@@ -194,14 +194,14 @@ final class MetalMpsGraphProgram {
         MEAN_SQUARED_ERROR(
                 85, 2, 2, 1, 1, AttributeKind.MSE,
                 ValueState.CANONICAL, false, true),
-        DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS(86, 2, 2, 1, 1, AttributeKind.DENSE_CROSS_ENTROPY),
-        INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS(87, 2, 2, 1, 1, AttributeKind.INDEX_CROSS_ENTROPY),
-        BATCH_NORM_INFERENCE(88, 5, 5, 1, 1, AttributeKind.BATCH_NORM_INFERENCE),
-        BATCH_NORM_TRAINING(89, 5, 5, 5, 5, AttributeKind.BATCH_NORM_TRAINING),
-        LAYER_NORM(90, 1, 3, 1, 1, AttributeKind.NORMALIZED_SHAPE_EPSILON),
-        RMS_NORM(91, 1, 2, 1, 1, AttributeKind.NORMALIZED_SHAPE_EPSILON),
-        SOFTMAX(92, 1, 1, 1, 1, AttributeKind.AXIS),
-        LOG_SOFTMAX(93, 1, 1, 1, 1, AttributeKind.AXIS),
+        DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS(86, 2, 2, 1, 1, AttributeKind.DENSE_CROSS_ENTROPY, ValueState.CANONICAL, true, true),
+        INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS(87, 2, 2, 1, 1, AttributeKind.INDEX_CROSS_ENTROPY, ValueState.CANONICAL, true, true),
+        BATCH_NORM_INFERENCE(88, 5, 5, 1, 1, AttributeKind.BATCH_NORM_INFERENCE, ValueState.CANONICAL, true, true),
+        BATCH_NORM_TRAINING(89, 5, 5, 5, 5, AttributeKind.BATCH_NORM_TRAINING, ValueState.CANONICAL, true, true),
+        LAYER_NORM(90, 1, 3, 1, 1, AttributeKind.NORMALIZED_SHAPE_EPSILON, ValueState.CANONICAL, true, true),
+        RMS_NORM(91, 1, 2, 1, 1, AttributeKind.NORMALIZED_SHAPE_EPSILON, ValueState.CANONICAL, true, true),
+        SOFTMAX(92, 1, 1, 1, 1, AttributeKind.AXIS, ValueState.CANONICAL, true, true),
+        LOG_SOFTMAX(93, 1, 1, 1, 1, AttributeKind.AXIS, ValueState.CANONICAL, true, true),
         SORT(94, 1, 1, 1, 1, AttributeKind.SORT,
                 ValueState.CANONICAL, false, true),
         ARGSORT(95, 1, 1, 1, 1, AttributeKind.SORT,
@@ -220,11 +220,11 @@ final class MetalMpsGraphProgram {
                 ValueState.CANONICAL, false, true),
         INITIAL_STATE(102, 0, 0, 1, 1, AttributeKind.GRAPH_RNG_STATE,
                 ValueState.CANONICAL, false, true),
-        RNN_TANH(103, 5, 6, 2, 2, AttributeKind.RECURRENT_DIRECTION),
-        GRU_RESET_AFTER(104, 5, 6, 2, 2, AttributeKind.RECURRENT_DIRECTION),
-        LSTM(105, 6, 7, 3, 3, AttributeKind.RECURRENT_DIRECTION),
+        RNN_TANH(103, 5, 6, 2, 2, AttributeKind.RECURRENT_DIRECTION, ValueState.CANONICAL, false, true),
+        GRU_RESET_AFTER(104, 5, 6, 2, 2, AttributeKind.RECURRENT_DIRECTION, ValueState.CANONICAL, false, true),
+        LSTM(105, 6, 7, 3, 3, AttributeKind.RECURRENT_DIRECTION, ValueState.CANONICAL, false, true),
         PROD(106, 1, 1, 1, 1, AttributeKind.REDUCTION,
-                ValueState.CANONICAL, false, true),
+                ValueState.CANONICAL, true, true),
         ALL(107, 1, 1, 1, 1, AttributeKind.REDUCTION,
                 ValueState.CANONICAL, false, true),
         ANY(108, 1, 1, 1, 1, AttributeKind.REDUCTION,
@@ -234,14 +234,16 @@ final class MetalMpsGraphProgram {
         ARG_MIN(110, 1, 1, 1, 1, AttributeKind.ARG_EXTREMA,
                 ValueState.CANONICAL, false, true),
         LOG_SUM_EXP(111, 1, 1, 1, 1, AttributeKind.REDUCTION,
-                ValueState.CANONICAL, false, true),
+                ValueState.CANONICAL, true, true),
         VARIANCE(112, 1, 1, 1, 1, AttributeKind.STATISTICAL_REDUCTION,
-                ValueState.CANONICAL, false, true),
+                ValueState.CANONICAL, true, true),
         STANDARD_DEVIATION(113, 1, 1, 1, 1, AttributeKind.STATISTICAL_REDUCTION,
-                ValueState.CANONICAL, false, true),
+                ValueState.CANONICAL, true, true),
         L1_NORM(114, 1, 1, 1, 1, AttributeKind.REDUCTION,
-                ValueState.CANONICAL, false, true),
+                ValueState.CANONICAL, true, true),
         L2_NORM(115, 1, 1, 1, 1, AttributeKind.REDUCTION,
+                ValueState.CANONICAL, true, true),
+        GENERAL_SCAN(116, 0, 4096, 0, 4096, AttributeKind.GENERAL_SCAN,
                 ValueState.CANONICAL, false, true);
 
         private final int wireIdentity;
@@ -318,13 +320,28 @@ final class MetalMpsGraphProgram {
         boolean isAffine() { return outputState == ValueState.AFFINE_VIEW; }
         boolean executable() { return executable; }
 
+        /** Qualified first-class FLOAT32 elementary math uses the fixed custom component. */
+        boolean isFloat32Elementary() {
+            return wireIdentity == 38 || wireIdentity == 50
+                    || wireIdentity == 53 || wireIdentity == 54
+                    || wireIdentity >= 56 && wireIdentity <= 59
+                    || wireIdentity >= 65 && wireIdentity <= 68;
+        }
+
         boolean isCustomProgramOperation() {
+            if (this == GENERAL_SCAN) return true;
             if (wireIdentity == 36
+                    || wireIdentity == 35 || wireIdentity >= 86 && wireIdentity <= 93
+                    || wireIdentity >= 103 && wireIdentity <= 105
                     || wireIdentity == 37
                     || wireIdentity >= 97 && wireIdentity <= 102) {
                 return true;
             }
             return wireIdentity >= 6 && wireIdentity <= 11
+                    || wireIdentity == 38 || wireIdentity == 50
+                    || wireIdentity == 53 || wireIdentity == 54
+                    || wireIdentity >= 56 && wireIdentity <= 59
+                    || wireIdentity >= 65 && wireIdentity <= 68
                     || wireIdentity >= 16 && wireIdentity <= 19
                     || wireIdentity >= 20 && wireIdentity <= 34
                     || wireIdentity == 39
@@ -351,12 +368,38 @@ final class MetalMpsGraphProgram {
             return inputState == ValueState.CANONICAL
                     || (inputState == ValueState.AFFINE_VIEW && acceptsAffineView)
                     || (inputState == ValueState.MATERIALIZED_LAYOUT
-                            && (isTask0066Selected() || this == SELECT || this == SLICE));
+                            && (isTask0066Selected() || isFloat32Reduction()
+                                    || this == SELECT || this == SLICE));
         }
 
-        /** Descriptor-qualified MATMUL admission does not widen other state consumers. */
+        boolean isFloat32Reduction() {
+            return this == SUM || this == MEAN || this == PROD || this == LOG_SUM_EXP
+                    || this == VARIANCE || this == STANDARD_DEVIATION
+                    || this == L1_NORM || this == L2_NORM;
+        }
+
+        /**
+         * Admits physical reads for original-carrier extensions without widening low proxies.
+         * Complete family geometry, carrier and gradient checks remain independent at preflight.
+         *
+         * @param inputState authenticated earlier producer or feed state
+         * @param descriptor exact original-carrier logical and represented geometry
+         * @return whether this family can consume that physical read state
+         */
         boolean accepts(ValueState inputState, ValueDescriptor descriptor) {
+            boolean physicalRead = inputState == ValueState.AFFINE_VIEW
+                    || inputState == ValueState.MATERIALIZED_LAYOUT;
+            boolean originalCarrier = descriptor.dataType() != DataType.BFLOAT16
+                    && descriptor.dataType() != DataType.FLOAT16;
+            boolean extension = isFloat32Reduction() || isFloat32Elementary()
+                    || wireIdentity == 35 || wireIdentity >= 86 && wireIdentity <= 93
+                    || this == NEG || this == ABS
+                    || wireIdentity >= 26 && wireIdentity <= 32
+                    || wireIdentity >= 60 && wireIdentity <= 63
+                    || this == ADD || this == SUB || this == MUL
+                    || this == SCALAR_ADD || this == SCALAR_SUB || this == SCALAR_MUL;
             return accepts(inputState)
+                    || physicalRead && originalCarrier && extension
                     || this == MATMUL
                             && inputState == ValueState.MATERIALIZED_LAYOUT
                             && descriptor.matmulDense();
@@ -401,9 +444,9 @@ final class MetalMpsGraphProgram {
             long elements = 1L;
             try {
                 for (long dimension : this.dimensions) {
-                    if (dimension <= 0L) {
+                    if (dimension < 0L) {
                         throw new IllegalArgumentException(
-                                "Metal value dimensions must be positive");
+                                "Metal value dimensions must be nonnegative");
                     }
                     elements = Math.multiplyExact(elements, dimension);
                 }
@@ -475,6 +518,9 @@ final class MetalMpsGraphProgram {
         }
         boolean supportsStorageLayout(int minimumRank) {
             if (rank() < minimumRank || layout.isEmpty()) return false;
+            // Only operation-specific composite validators grant empty-domain execution.
+            if (elementCount() == 0L)
+                return layout.orElseThrow().equals(LayoutDescriptor.contiguous(Shape.of(dimensions)));
             LayoutDescriptor resolved = layout.orElseThrow();
             long[] strides = resolved.strides();
             int[] order = new int[rank()];
@@ -482,8 +528,8 @@ final class MetalMpsGraphProgram {
             long covered = 1L;
             try {
                 for (int axis = 0; axis < rank(); axis++) {
-                    if (strides[axis] <= 0L) return false;
-                    if (dimensions[axis] > 1L) {
+                    if (strides[axis] < 0L || strides[axis] == 0L && !resolved.isView()) return false;
+                    if (strides[axis] != 0L && dimensions[axis] > 1L) {
                         int insertion = count;
                         while (insertion > 0
                                 && strides[order[insertion - 1]] > strides[axis]) {
@@ -532,6 +578,11 @@ final class MetalMpsGraphProgram {
 
         private Node(NodeKind kind, int[] inputs, int[] outputs, AttributeKind attributeKind,
                 long[] attributeWords) {
+            this(kind, inputs, outputs, attributeKind, attributeWords, false);
+        }
+
+        private Node(NodeKind kind, int[] inputs, int[] outputs, AttributeKind attributeKind,
+                long[] attributeWords, boolean scanBody) {
             this.kind = Objects.requireNonNull(kind, "kind");
             this.inputs = Objects.requireNonNull(inputs, "inputs").clone();
             this.outputs = Objects.requireNonNull(outputs, "outputs").clone();
@@ -547,12 +598,28 @@ final class MetalMpsGraphProgram {
             if (!acceptsAttribute(kind, attributeKind)) {
                 throw new IllegalArgumentException("attribute kind disagrees with operation kind");
             }
-            validateAttributes();
+            validateAttributes(scanBody);
+            if ((kind == NodeKind.SUM || kind == NodeKind.MEAN)
+                    && (this.inputs.length == 2)
+                            != (attributeKind == AttributeKind.MASKED_REDUCTION)) {
+                throw new IllegalArgumentException("masked reductions require exactly data and mask");
+            }
         }
 
         static Node generic(NodeKind kind, int[] inputs, int[] outputs,
                 AttributeKind attributeKind, long[] attributeWords) {
             return new Node(kind, inputs, outputs, attributeKind, attributeWords);
+        }
+
+        /** Constructs only a body-local node; independent body validation retains actual zeros. */
+        static Node genericForScanBody(NodeKind kind, int[] inputs, int[] outputs,
+                AttributeKind attributeKind, long[] attributeWords) {
+            return new Node(kind, inputs, outputs, attributeKind, attributeWords, true);
+        }
+
+        static Node generic(NodeKind kind, int[] inputs, int[] outputs,
+                AttributeKind attributeKind, long[] attributeWords, boolean scanBody) {
+            return new Node(kind, inputs, outputs, attributeKind, attributeWords, scanBody);
         }
         static Node neg(int input, int output) { return noAttributes(NodeKind.NEG, input, output); }
         static Node abs(int input, int output) { return noAttributes(NodeKind.ABS, input, output); }
@@ -567,11 +634,14 @@ final class MetalMpsGraphProgram {
         static Node matmul(int left, int right, int output) { return binary(NodeKind.MATMUL, left, right, output); }
         static Node contiguous(int input, int output) { return noAttributes(NodeKind.CONTIGUOUS, input, output); }
         static Node targetShape(NodeKind kind, int input, int output, long[] dimensions) {
+            return targetShape(kind, input, output, dimensions, false);
+        }
+        static Node targetShape(NodeKind kind, int input, int output, long[] dimensions, boolean scanBody) {
             Objects.requireNonNull(dimensions, "dimensions");
             long[] words = new long[dimensions.length + 1];
             words[0] = dimensions.length;
             System.arraycopy(dimensions, 0, words, 1, dimensions.length);
-            return new Node(kind, new int[] {input}, new int[] {output}, AttributeKind.TARGET_SHAPE, words);
+            return new Node(kind, new int[] {input}, new int[] {output}, AttributeKind.TARGET_SHAPE, words, scanBody);
         }
         static Node permutation(int input, int output, List<Integer> axes) {
             long[] values = longValues(Objects.requireNonNull(axes, "axes"));
@@ -619,13 +689,16 @@ final class MetalMpsGraphProgram {
                     words);
         }
         static Node sumToShape(int input, int output, long[] targetDimensions) {
+            return sumToShape(input, output, targetDimensions, false);
+        }
+        static Node sumToShape(int input, int output, long[] targetDimensions, boolean scanBody) {
             Objects.requireNonNull(targetDimensions, "targetDimensions");
             long[] words = new long[3 + targetDimensions.length];
             words[0] = ReductionForm.SUM_TO_SHAPE.wireIdentity();
             words[1] = 0L;
             words[2] = targetDimensions.length;
             System.arraycopy(targetDimensions, 0, words, 3, targetDimensions.length);
-            return new Node(NodeKind.SUM, new int[] {input}, new int[] {output}, AttributeKind.REDUCTION, words);
+            return new Node(NodeKind.SUM, new int[] {input}, new int[] {output}, AttributeKind.REDUCTION, words, scanBody);
         }
         static Node gather(int data, int indices, int output, int axis) {
             return new Node(NodeKind.GATHER, new int[] {data, indices}, new int[] {output},
@@ -690,19 +763,22 @@ final class MetalMpsGraphProgram {
                     && attribute == AttributeKind.CROP_TO_SHAPE) return true;
             if (kind == NodeKind.UNFOLD2D && attribute == AttributeKind.PADDED_WINDOW_2D) return true;
             if (kind == NodeKind.UNFOLD3D && attribute == AttributeKind.PADDED_WINDOW_3D) return true;
+            if ((kind == NodeKind.SUM || kind == NodeKind.MEAN)
+                    && attribute == AttributeKind.MASKED_REDUCTION) return true;
             return kind.attributeKind() == attribute;
         }
 
-        private void validateAttributes() {
+        private void validateAttributes(boolean scanBody) {
             switch (attributeKind) {
+                case GENERAL_SCAN -> MetalScanEncoding.validate(attributeWords);
                 case NONE -> requireWords(0);
-                case TARGET_SHAPE -> validateShapeWords(attributeWords);
+                case TARGET_SHAPE -> validateShapeWords(attributeWords, scanBody);
                 case PERMUTATION -> validatePermutation();
                 case AXIS, MASKED_REDUCTION -> {
                     requireWords(1);
                     requireAxis(attributeWords[0]);
                 }
-                case REDUCTION -> validateReduction();
+                case REDUCTION -> validateReduction(scanBody);
                 case DEPTH -> {
                     requireWords(1);
                     if (attributeWords[0] <= 0L) throw malformed();
@@ -748,7 +824,6 @@ final class MetalMpsGraphProgram {
                     requireWords(2);
                     requireAxis(attributeWords[0]);
                     requireEnum(attributeWords[1], 1L, 5L);
-                    if (kind.executable() && attributeWords[1] != 1L) throw malformed();
                 }
                 case SCATTER_ND -> {
                     requireWords(2);
@@ -759,16 +834,16 @@ final class MetalMpsGraphProgram {
                     requireWords(2);
                     requireAxis(attributeWords[0]);
                 }
-                case CROP_TO_SHAPE -> validateCrop();
+                case CROP_TO_SHAPE -> validateCrop(scanBody);
                 case PAD -> validatePad();
-                case SLICE -> validateSlice();
+                case SLICE -> validateSlice(scanBody);
                 case TILE -> validatePositiveList();
-                case WINDOW_2D -> validateWindow(2, false, false);
-                case PADDED_WINDOW_2D -> validateWindow(2, true, false);
-                case FOLD_WINDOW_2D -> validateWindow(2, false, true);
-                case WINDOW_3D -> validateWindow(3, false, false);
-                case PADDED_WINDOW_3D -> validateWindow(3, true, false);
-                case FOLD_WINDOW_3D -> validateWindow(3, false, true);
+                case WINDOW_2D -> validateWindow(2, false, false, scanBody);
+                case PADDED_WINDOW_2D -> validateWindow(2, true, false, scanBody);
+                case FOLD_WINDOW_2D -> validateWindow(2, false, true, scanBody);
+                case WINDOW_3D -> validateWindow(3, false, false, scanBody);
+                case PADDED_WINDOW_3D -> validateWindow(3, true, false, scanBody);
+                case FOLD_WINDOW_3D -> validateWindow(3, false, true, scanBody);
                 case MSE -> {
                     requireWords(1);
                     requireEnum(attributeWords[0], 1L, 3L);
@@ -780,7 +855,8 @@ final class MetalMpsGraphProgram {
                 }
                 case INDEX_CROSS_ENTROPY -> validateIndexCrossEntropy();
                 case NORMALIZED_SHAPE_EPSILON -> {
-                    int offset = validateShape(attributeWords, 0);
+                    if (attributeWords.length == 0 || attributeWords[0] == 0L) throw malformed();
+                    int offset = validateShape(attributeWords, 0, true);
                     if (offset + 2 != attributeWords.length) throw malformed();
                     validateScalar(attributeWords, offset);
                 }
@@ -838,14 +914,14 @@ final class MetalMpsGraphProgram {
             validateAxes(Arrays.copyOfRange(attributeWords, 1, attributeWords.length), count, true);
         }
 
-        private void validateCrop() {
+        private void validateCrop(boolean scanBody) {
             int targetRank = checkedCount(attributeWords, 0);
             if (targetRank > MAX_RANK || attributeWords.length < 1 + targetRank) {
                 throw malformed();
             }
             for (int index = 1; index <= targetRank; index++) {
                 if (attributeWords[index] < 0L
-                        || attributeWords[index] == 0L && kind != NodeKind.SLICE_UPDATE) {
+                        || attributeWords[index] == 0L && !scanBody && kind != NodeKind.SLICE_UPDATE) {
                     throw malformed();
                 }
             }
@@ -871,7 +947,7 @@ final class MetalMpsGraphProgram {
             validateScalar(attributeWords, 1 + rank * 2);
         }
 
-        private void validateSlice() {
+        private void validateSlice(boolean scanBody) {
             int count = checkedCount(attributeWords, 0);
             if (count > MAX_RANK || attributeWords.length != 1 + count * 4) {
                 throw malformed();
@@ -880,7 +956,7 @@ final class MetalMpsGraphProgram {
             for (int index = 0; index < count; index++) {
                 if (attributeWords[1 + count + index] < 0L
                         || attributeWords[1 + count + index] == 0L
-                                && kind != NodeKind.SLICE_UPDATE) {
+                                && !scanBody && kind != NodeKind.SLICE_UPDATE) {
                     throw malformed();
                 }
                 long axis = attributeWords[1 + count * 2 + index];
@@ -898,8 +974,8 @@ final class MetalMpsGraphProgram {
             }
         }
 
-        private void validateWindow(int dimensions, boolean padded, boolean fold) {
-            int offset = fold ? validateShape(attributeWords, 0) : 0;
+        private void validateWindow(int dimensions, boolean padded, boolean fold, boolean scanBody) {
+            int offset = fold ? validateShape(attributeWords, 0, scanBody) : 0;
             int baseWords = dimensions * 4 + 1;
             int words = baseWords + (padded ? 2 : 0);
             if (offset + words != attributeWords.length) throw malformed();
@@ -972,7 +1048,7 @@ final class MetalMpsGraphProgram {
             }
             if (attributeWords[dimensions * 3] <= 0L) throw malformed();
         }
-        private void validateReduction() {
+        private void validateReduction(boolean scanBody) {
             if (attributeWords.length < 3
                     || attributeWords[0] < 1L || attributeWords[0] > 4L) throw malformed();
             ReductionForm form = ReductionForm.fromWireIdentity((int) attributeWords[0]);
@@ -990,21 +1066,21 @@ final class MetalMpsGraphProgram {
                 case MULTI_AXIS -> validateAxes(items, MAX_RANK, false);
                 case SUM_TO_SHAPE -> {
                     if (kind != NodeKind.SUM || attributeWords[1] != 0L) throw malformed();
-                    for (long dimension : items) if (dimension <= 0L) throw malformed();
+                    for (long dimension : items) if (dimension < (scanBody ? 0L : 1L)) throw malformed();
                 }
             }
         }
 
-        private static void validateShapeWords(long[] words) {
-            int end = validateShape(words, 0);
+        private static void validateShapeWords(long[] words, boolean allowEmpty) {
+            int end = validateShape(words, 0, allowEmpty);
             if (end != words.length) throw malformed();
         }
 
-        private static int validateShape(long[] words, int offset) {
+        private static int validateShape(long[] words, int offset, boolean allowEmpty) {
             int rank = checkedCount(words, offset);
             if (rank > MAX_RANK || offset + 1 + rank > words.length) throw malformed();
             for (int index = offset + 1; index < offset + 1 + rank; index++) {
-                if (words[index] <= 0L) throw malformed();
+                if (words[index] < (allowEmpty ? 0L : 1L)) throw malformed();
             }
             return offset + 1 + rank;
         }
@@ -1020,7 +1096,7 @@ final class MetalMpsGraphProgram {
             }
         }
         private static boolean executableScalarType(long type) {
-            return type == 1L || type == 5L || type == 7L;
+            return type >= 1L && type <= 7L && type != 3L;
         }
         private static void validateAxes(long[] axes, int bound, boolean complete) {
             boolean[] seen = new boolean[bound];
@@ -1043,6 +1119,9 @@ final class MetalMpsGraphProgram {
         NodeKind kind() { return kind; }
         int[] inputs() { return inputs.clone(); }
         int[] outputs() { return outputs.clone(); }
+        int inputCount() { return inputs.length; }
+        int outputCount() { return outputs.length; }
+        int attributeWordCount() { return attributeWords.length; }
         private static void requireBoolean(long value) {
             if (value != 0L && value != 1L) throw malformed();
         }
@@ -1061,7 +1140,7 @@ final class MetalMpsGraphProgram {
             return inputs.length == 0 ? NO_SECOND_INPUT : inputs[0];
         }
         int secondInputIndex() { return inputs.length >= 2 ? inputs[1] : NO_SECOND_INPUT; }
-        int outputIndex() { return outputs[0]; }
+        int outputIndex() { return outputs.length == 0 ? NO_SECOND_INPUT : outputs[0]; }
         int auxiliary() {
             if (kind == NodeKind.SCATTER_ELEMENTS
                     || kind == NodeKind.SCATTER_ADD

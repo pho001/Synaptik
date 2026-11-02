@@ -47,6 +47,17 @@ final class MetalWorkspaceRepresentation implements WorkspaceRepresentation {
     }
 
     /**
+     * Borrows the exact scratch handle only during cold invocation binding.
+     *
+     * @return context-owned live native buffer handle, never retained beyond run ownership
+     * @throws IllegalStateException if this workspace is closed
+     */
+    synchronized MetalNativeApi.Handle executionHandle() {
+        if (closed) throw new IllegalStateException("Metal numerical workspace is closed");
+        return handle;
+    }
+
+    /**
      * Marks this workspace closed, consumes its native handle once, and ends its context lease.
      *
      * <p>Repeated and concurrent calls are inert. A native buffer-release failure remains

@@ -104,6 +104,23 @@ final class MetalBufferRepresentation implements BufferRepresentation {
     }
 
     /**
+     * Authenticates a source view against this exact live typed caller-storage borrow.
+     *
+     * @param descriptor static resolved source descriptor authenticated by Prepare
+     * @return whether its complete physical span fits the original raw carrier storage
+     * @throws IllegalStateException if the caller's storage lifetime or thread access has ended
+     */
+    synchronized boolean authenticatesBorrowedSource(TensorDescriptor descriptor) {
+        requireOpen();
+        if (!(retainedBorrow instanceof io.github.pho001.synaptik.model.storage.HostTensorStorage source))
+            return false;
+        return descriptor.shape().isFullyStatic() && descriptor.layout().isPresent()
+                && descriptor.dataType() == source.dataType()
+                && MetalProducerlessPublishedValues.byteSize(descriptor) <= source.byteSize()
+                && logicalByteSize == source.byteSize();
+    }
+
+    /**
      * Returns the opaque handle only to the package-private prepared execution bridge.
      *
      * @return the non-null live native buffer handle
@@ -215,6 +232,10 @@ final class MetalBufferRepresentation implements BufferRepresentation {
     private void requireOpen() {
         if (closed) {
             throw new IllegalStateException("Metal buffer is closed");
+        }
+        if (retainedBorrow instanceof io.github.pho001.synaptik.model.storage.HostTensorStorage source
+                && (!source.isAlive() || !source.segment().isAccessibleBy(Thread.currentThread()))) {
+            throw new IllegalStateException("Metal caller storage is not alive and accessible");
         }
     }
 

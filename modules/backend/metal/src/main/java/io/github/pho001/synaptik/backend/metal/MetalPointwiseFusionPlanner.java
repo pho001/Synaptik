@@ -413,10 +413,13 @@ final class MetalPointwiseFusionPlanner {
                 && Arrays.equals(layout.strides(), expectedStrides)).isPresent();
     }
 
-    private static boolean fixedCustom(
+    static boolean fixedCustom(
             MetalMpsGraphProgram.Node node,
             List<MetalMpsGraphProgram.ValueDescriptor> values) {
+        if (node.kind() == MetalMpsGraphProgram.NodeKind.GENERAL_SCAN) return true;
         if (lowPrecisionCustom(node, values)) return true;
+        if (MetalExactSupport.handles(node, values)
+                || MetalReductionSupport.handles(node, values)) return true;
         if (node.kind() == MetalMpsGraphProgram.NodeKind.VARIANCE) {
             return task0069Variance(node, values);
         }
@@ -700,7 +703,7 @@ final class MetalPointwiseFusionPlanner {
             MetalPointwiseFusionPlan.CapReason reason) {
         StringBuilder text = new StringBuilder(4096);
         text.append("format 2\n")
-                .append("schema 20\n")
+                .append("schema 21\n")
                 .append("generator 2\n")
                 .append("route 3\n")
                 .append("counts ").append(values.size()).append(' ').append(nodes.size()).append(' ')

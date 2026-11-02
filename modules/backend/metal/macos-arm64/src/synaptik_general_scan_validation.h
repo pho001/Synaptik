@@ -57,8 +57,8 @@ static BOOL synaptik_scan_exact_reduction_shape(SynaptikMetalDecodedNode node, M
 
 static BOOL synaptik_scan_validate_ordinary(SynaptikMetalDecodedNode node, NSArray<MPSShape *> *shapes,
         const uint8_t *types, const uint64_t *strides, const uint64_t *offsets, const uint8_t *states) {
-    if (node.operation >= 101U && node.operation <= 105U) return NO; // Not Model ScanBody PURE families.
-    if (node.operation == 0U || node.operation > 115U || node.input_count == 0U || node.output_count == 0U) return NO;
+    if (!synaptik_scan_ordinary_kind_is_valid(node.operation)
+            || node.input_count == 0U || node.output_count == 0U) return NO;
     for (uint32_t i = 0U; i < node.input_count; i++)
         if (node.inputs[i] >= shapes.count || !synaptik_scan_carrier_type(types[node.inputs[i]])) return NO;
     for (uint32_t o = 0U; o < node.output_count; o++)
@@ -76,7 +76,7 @@ static BOOL synaptik_scan_validate_ordinary(SynaptikMetalDecodedNode node, NSArr
             return inputType == 1U && types[node.second_input] == 1U && outputType == 1U && node_has_no_attributes(node)
                     && shape_broadcasts_exactly_to(input, shapes[node.second_input], output);
         case 20U: case 21U: case 22U: case 23U: case 24U: case 25U:
-            return synaptik_scan_numeric_type(inputType) && synaptik_scan_numeric_type(types[node.second_input])
+            return synaptik_scan_numeric_type(inputType) && types[node.second_input] == inputType
                     && outputType == 3U && node_has_no_attributes(node)
                     && shape_broadcasts_exactly_to(input, shapes[node.second_input], output);
         case 26U: case 27U:
@@ -110,9 +110,14 @@ static BOOL synaptik_scan_validate_ordinary(SynaptikMetalDecodedNode node, NSArr
         case 9U: return inputType == outputType && node_expand_dims_matches(node, input, output);
         case 10U: return inputType == outputType && node_squeeze_matches(node, input, output);
         case 11U: return inputType == outputType && sameShape && node_has_no_attributes(node);
-        case 15U:
-            return inputType == 1U && types[node.second_input] == 1U && outputType == 1U && node_has_no_attributes(node)
+        case 15U: {
+            uint8_t right = types[node.second_input];
+            BOOL typed = inputType == 1U && right == 1U && outputType == 1U;
+            if (synaptik_scan_index_type(inputType) && synaptik_scan_index_type(right))
+                typed = outputType == (inputType == 6U || right == 6U ? 6U : 2U);
+            return typed && node_has_no_attributes(node)
                     && matmul_shapes_match(input, shapes[node.second_input], output);
+        }
         case 16U:
             return synaptik_scan_index_type(types[node.second_input]) && inputType == outputType
                     && node_gather_matches(node, input, shapes[node.second_input], output);

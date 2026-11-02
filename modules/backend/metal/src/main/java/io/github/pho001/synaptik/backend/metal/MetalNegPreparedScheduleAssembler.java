@@ -80,6 +80,16 @@ final class MetalNegPreparedScheduleAssembler
         return MetalCapabilityProvider.METAL_BACKEND_ID;
     }
 
+    /** {@inheritDoc} */
+    @Override
+    public io.github.pho001.synaptik.prepare.ProducerlessPublishedValueResource
+            producerlessPublishedValue(
+                    io.github.pho001.synaptik.model.graph.GraphValue value,
+                    io.github.pho001.synaptik.planning.memory.LogicalMemoryRequirement requirement,
+                    Optional<io.github.pho001.synaptik.model.datatype.ScalarValue> scalar) {
+        return MetalProducerlessPublishedValues.geometry(context, value, requirement, scalar);
+    }
+
     /**
      * Contributes every externally assigned Metal buffer representation and workspace creator.
      *
@@ -101,6 +111,12 @@ final class MetalNegPreparedScheduleAssembler
             int representationIndex = assignment.representationOwners().indexOf(
                     MetalCapabilityProvider.METAL_BACKEND_ID);
             if (representationIndex < 0) {
+                continue;
+            }
+            var source = MetalProducerlessPublishedValues.contribution(context, scheduleContext, assignment);
+            if (source.isPresent()) {
+                buffers.add(new PreparedScheduleContribution.Buffer(
+                        assignment, representationIndex, source.orElseThrow()));
                 continue;
             }
             var descriptor = descriptors.get(assignment.valueId());
@@ -128,7 +144,8 @@ final class MetalNegPreparedScheduleAssembler
                     || (!canonical
                             && !authenticatedAffineInternal
                             && affinePublication.isEmpty()
-                            && !MetalCapabilityProvider.supportedStorageLayout(descriptor, 0))) {
+                            && !MetalMpsGraphProgram.ValueDescriptor.from(descriptor)
+                                    .supportsStorageLayout(0))) {
                 throw new IllegalArgumentException(
                         "Metal assigned buffer requires a supported canonical typed descriptor"
                                 + " or authenticated dense logical-layout publication");
@@ -191,10 +208,11 @@ final class MetalNegPreparedScheduleAssembler
                     : Math.addExact(
                             executablePlan.feedValueIds().size(),
                             executablePlan.targetValueIds().size());
+            long[] scratchBytes = executablePlan.numericalWorkspaceBytes();
             workspaces.add(new PreparedScheduleContribution.Workspace(
                     assignment,
                     (requestedBytes, alignment) -> new MetalNegPreparedExecutable.AddressWorkspace(
-                            context, pointerCount)));
+                            context, pointerCount, scratchBytes)));
         }
         return new PreparedScheduleContribution(
                 MetalCapabilityProvider.METAL_BACKEND_ID, buffers, workspaces);
@@ -347,8 +365,10 @@ final class MetalNegPreparedScheduleAssembler
                             plan.targetValueIds().size())
                     : Math.addExact(
                             plan.feedValueIds().size(), plan.targetValueIds().size());
+            long[] scratchBytes = plan.numericalWorkspaceBytes();
             workspaceCreators = List.of((requestedBytes, alignment) ->
-                    new MetalNegPreparedExecutable.AddressWorkspace(context, pointerCount));
+                    new MetalNegPreparedExecutable.AddressWorkspace(
+                            context, pointerCount, scratchBytes));
         } else {
             workspaceCreators = List.of();
         }

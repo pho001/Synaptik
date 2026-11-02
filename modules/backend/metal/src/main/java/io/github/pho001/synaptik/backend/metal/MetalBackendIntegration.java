@@ -267,10 +267,12 @@ public final class MetalBackendIntegration implements AutoCloseable {
     /**
      * Downloads one live readable Metal representation into detached canonical host bytes.
      *
-     * <p>Canonical non-view rank-0..16 publications, including scalars, and every authenticated
-   * rank-0..16 affine or SELECT/SLICE storage-layout publication support all seven model data types
-   * and use big-endian canonical element bytes. BOOL logical elements are validated as zero or one
-   * while layout holes remain uninterpreted.
+     * <p>Canonical static publications and authenticated affine publications support all seven
+     * Model carriers and use big-endian canonical element bytes. A live typed caller-storage
+     * borrow additionally permits its exact resolved source view, including broadcast and empty
+     * geometry, without granting arithmetic or layout-transfer capability. Empty source Shapes
+     * use Model's zero-aware element count and cause no payload download. BOOL logical elements
+     * are validated as zero or one while layout holes remain uninterpreted.</p>
      *
      * @param representation non-null live representation owned by this integration
      * @param descriptor non-null exact canonical or authenticated publication descriptor

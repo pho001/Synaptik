@@ -310,7 +310,6 @@ final class MetalBackendRuntime implements AutoCloseable {
         DataType dataType = descriptor.dataType();
         boolean canonical = rank >= 0
                 && descriptor.shape().isFullyStatic()
-                && rank <= 16
                 && layout != null
                 && layout.equals(LayoutDescriptor.contiguous(descriptor.shape()));
         boolean authenticatedPublication = descriptor.shape().isFullyStatic()
@@ -318,26 +317,21 @@ final class MetalBackendRuntime implements AutoCloseable {
                 && rank <= 16
                 && layout != null
                 && metal.authenticatesPublication(descriptor);
-    LayoutDescriptor storageLayout =
-        authenticatedPublication ? metal.authenticatedPublicationStorageLayout(descriptor) : null;
+        boolean borrowedSource = metal.authenticatesBorrowedSource(descriptor);
+        LayoutDescriptor storageLayout = borrowedSource ? layout
+                : authenticatedPublication ? metal.authenticatedPublicationStorageLayout(descriptor) : null;
         boolean storagePublication = storageLayout != null;
-        if (!canonical && !authenticatedPublication) {
+        if (!canonical && !authenticatedPublication && !borrowedSource) {
             throw new IllegalArgumentException(
-                    "Metal materialization requires a canonical rank-0..16 descriptor"
-                            + " or authenticated layout publication");
+                    "Metal materialization requires a static canonical descriptor"
+                            + " or authenticated publication/source geometry");
         }
-        if (storagePublication && !isStorageTransfer(descriptor, storageLayout)) {
+        if (storagePublication && !borrowedSource && !isStorageTransfer(descriptor, storageLayout)) {
             throw new IllegalArgumentException(
           "authenticated storage publication has unsupported physical geometry");
         }
-        long elements = 1L;
-        for (long dimension : descriptor.shape().toLongArray()) {
-            if (dimension <= 0L) {
-                throw new IllegalArgumentException(
-                        "descriptor dimensions are outside the materialization domain");
-            }
-            elements = Math.multiplyExact(elements, dimension);
-        }
+        long elements = descriptor.shape().knownElementCount().orElseThrow(
+                () -> new IllegalArgumentException("descriptor element count is unresolved or overflows"));
         int width = dataType.byteWidth();
         long byteCount = Math.multiplyExact(elements, width);
         if (byteCount > maximumBytes) {
@@ -352,6 +346,7 @@ final class MetalBackendRuntime implements AutoCloseable {
         byte[] result = new byte[Math.toIntExact(byteCount)];
         long[] dimensions = descriptor.shape().toLongArray();
         long[] strides = storagePublication ? storageLayout.strides() : layout.strides();
+        if (elements == 0L) return result;
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment staging = arena.allocate(physicalByteCount, width);
             metal.download(0L, staging, 0L, physicalByteCount);
