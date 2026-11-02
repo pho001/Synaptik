@@ -62,14 +62,35 @@ final class CompositePreparedScheduleAssembler implements PreparedScheduleAssemb
             GraphValue value,
             LogicalMemoryRequirement logicalRequirement,
             Optional<ScalarValue> scalar) {
+        return producerlessValueAdapter(adapters).scheduleAssembler()
+                .producerlessPublishedValue(value, logicalRequirement, scalar);
+    }
+
+    /**
+     * Selects the same source owner for geometry, caller ingress and publication export.
+     *
+     * <p>The established CPU preference is retained independently of registration position.
+     * Without a supporting CPU registration, the first registered supporting composition owns
+     * the source. Capability is explicit; no assembler exception is used as a probe.</p>
+     *
+     * @param adapters immutable owner-keyed compositions in registration order
+     * @return the exact registered supporting composition
+     * @throws IllegalArgumentException if no registered composition supports source publication
+     */
+    static EngineBackendComposition producerlessValueAdapter(
+            Map<BackendId, EngineBackendComposition> adapters) {
+        EngineBackendComposition cpu = adapters.get(
+                io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider.CPU_BACKEND_ID);
+        if (cpu != null && cpu.supportsProducerlessPublishedValues()) {
+            return cpu;
+        }
         for (EngineBackendComposition adapter : adapters.values()) {
-            if (adapter instanceof CpuEngineBackendComposition) {
-                return adapter.scheduleAssembler().producerlessPublishedValue(
-                        value, logicalRequirement, scalar);
+            if (adapter.supportsProducerlessPublishedValues()) {
+                return adapter;
             }
         }
         throw new IllegalArgumentException(
-                "producerless published values require a registered CPU adapter");
+                "producerless published values require a registered supporting backend");
     }
 
     @Override

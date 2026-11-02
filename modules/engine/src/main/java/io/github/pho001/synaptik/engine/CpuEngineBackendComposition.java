@@ -143,6 +143,12 @@ final class CpuEngineBackendComposition implements EngineBackendComposition {
 
     /** {@inheritDoc} */
     @Override
+    public boolean supportsProducerlessPublishedValues() {
+        return true;
+    }
+
+    /** {@inheritDoc} */
+    @Override
     public boolean supportsTransferTo(
             EngineBackendComposition destination, TensorDescriptor descriptor) {
         Objects.requireNonNull(destination, "destination");

@@ -331,6 +331,10 @@ public final class Engine implements AutoCloseable {
      * data types. Transfers accept canonical or resolved positive-stride non-overlapping layouts
      * with a checked physical span; unsupported ownership, direction, layout, type, or geometry
      * may therefore reject an artifact that compiled successfully before backend analysis.
+     * Published source-only values use the same registered supporting owner for physical geometry,
+     * caller import, per-run constant initialization and export. CPU retains its established
+     * preference when registered; a Metal-only Engine supports resolved static raw source values
+     * without a CPU fallback. This does not add support for graphs with no partition.
      *
      * <p>The returned handle owns the exact inward Runtime preparation and must be closed when
      * reuse ends, preferably with try-with-resources. Closing this Engine closes any retained

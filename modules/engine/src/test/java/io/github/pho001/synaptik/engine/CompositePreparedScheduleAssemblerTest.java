@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.engine;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
 import io.github.pho001.synaptik.backend.contract.BackendId;
@@ -46,6 +47,32 @@ import org.junit.jupiter.api.Test;
 
 /** Behavioral contract for owner-indexed physical contributions and deterministic fan-out order. */
 final class CompositePreparedScheduleAssemblerTest {
+    @Test
+    void sourceOwnerUsesFirstSupportingRegistrationWithoutProbingAssemblers() {
+        var adapters = new LinkedHashMap<BackendId, EngineBackendComposition>();
+        BackendId unsupported = new BackendId("unsupported");
+        BackendId first = new BackendId("metal");
+        BackendId second = new BackendId("second");
+        adapters.put(unsupported, new TestAdapter(unsupported, false, List.of()));
+        assertThrows(IllegalArgumentException.class,
+                () -> CompositePreparedScheduleAssembler.producerlessValueAdapter(adapters));
+        TestAdapter selected = new TestAdapter(first, false, List.of(), true);
+        adapters.put(first, selected);
+        adapters.put(second, new TestAdapter(second, false, List.of(), true));
+        assertSame(selected, CompositePreparedScheduleAssembler.producerlessValueAdapter(adapters));
+    }
+
+    @Test
+    void sourceOwnerRetainsCpuPreferenceEvenWhenMetalWasRegisteredFirst() {
+        var adapters = new LinkedHashMap<BackendId, EngineBackendComposition>();
+        BackendId metal = new BackendId("metal");
+        BackendId cpu = io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider.CPU_BACKEND_ID;
+        adapters.put(metal, new TestAdapter(metal, false, List.of(), true));
+        TestAdapter preferred = new TestAdapter(cpu, false, List.of(), true);
+        adapters.put(cpu, preferred);
+        assertSame(preferred, CompositePreparedScheduleAssembler.producerlessValueAdapter(adapters));
+    }
+
     @Test
     void mapsAndExecutesRepeatedInterleavedOwnersWithOneTransferPerDestination() {
         BackendId first = new BackendId("first");
@@ -149,12 +176,19 @@ final class CompositePreparedScheduleAssemblerTest {
         private final BackendId owner;
         private final boolean initialized;
         private final List<String> events;
+        private final boolean sourceSupported;
 
         private TestAdapter(
                 BackendId owner, boolean initialized, List<String> events) {
+            this(owner, initialized, events, false);
+        }
+
+        private TestAdapter(
+                BackendId owner, boolean initialized, List<String> events, boolean sourceSupported) {
             this.owner = owner;
             this.initialized = initialized;
             this.events = events;
+            this.sourceSupported = sourceSupported;
         }
 
         @Override
@@ -198,6 +232,11 @@ final class CompositePreparedScheduleAssemblerTest {
         @Override
         public PreparedScheduleAssembler scheduleAssembler() {
             throw new AssertionError("producerless assembly is outside this test");
+        }
+
+        @Override
+        public boolean supportsProducerlessPublishedValues() {
+            return sourceSupported;
         }
 
         @Override

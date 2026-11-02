@@ -65,6 +65,42 @@ final class MetalPreparedSplatResource implements PreparedResource {
                     "Metal prepared splat requires a positive carrier-aligned extent");
         }
         long rawBits = rawBits(scalar);
+        MetalBufferRepresentation buffer = createRunBuffer(context, byteSize, scalar);
+        try {
+            return new MetalPreparedSplatResource(
+                    context, byteSize, scalar.dataType(), rawBits, buffer);
+        } catch (RuntimeException | Error failure) {
+            closeAfterFailure(buffer, failure);
+            throw failure;
+        }
+    }
+
+    /**
+     * Initializes one fresh run-owned constant using the same raw-carrier splat path.
+     *
+     * <p>No prepared owner or shared physical buffer is retained. Empty source constants own an
+     * exact zero-byte representation; every failure after allocation closes that representation
+     * while retaining the original failure.</p>
+     *
+     * @param context exact non-null live device context
+     * @param byteSize non-negative whole-carrier extent, including zero
+     * @param scalar exact non-null scalar in any of the seven Model carrier types
+     * @return a fresh initialized Metal representation owned by the run
+     * @throws IllegalArgumentException if the byte extent is negative or carrier-misaligned
+     * @throws IllegalStateException if the context is closed
+     * @throws RuntimeException if allocation, upload or rollback fails
+     * @throws Error if allocation, upload or rollback reports a fatal failure
+     */
+    static MetalBufferRepresentation createRunBuffer(
+            MetalDeviceContext context, long byteSize, ScalarValue scalar) {
+        Objects.requireNonNull(context, "context");
+        Objects.requireNonNull(scalar, "scalar");
+        int width = scalar.dataType().byteWidth();
+        if (byteSize < 0L || byteSize % width != 0L) {
+            throw new IllegalArgumentException(
+                    "Metal run splat requires a non-negative carrier-aligned extent");
+        }
+        long rawBits = rawBits(scalar);
         MetalBufferRepresentation buffer = context.createBuffer(byteSize);
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment source = arena.allocate(byteSize, width);
@@ -79,8 +115,7 @@ final class MetalPreparedSplatResource implements PreparedResource {
                 }
             }
             buffer.upload(0L, source, 0L, byteSize);
-            return new MetalPreparedSplatResource(
-                    context, byteSize, scalar.dataType(), rawBits, buffer);
+            return buffer;
         } catch (RuntimeException | Error failure) {
             closeAfterFailure(buffer, failure);
             throw failure;

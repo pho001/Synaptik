@@ -64,6 +64,18 @@ interface EngineBackendComposition extends AutoCloseable {
     PreparedScheduleAssembler scheduleAssembler();
 
     /**
+     * Reports whether this composition implements the existing producerless source protocol.
+     *
+     * <p>This is a cold structural capability, not a payload or geometry probe. The selected
+     * assembler still validates each authenticated source descriptor before finalization.</p>
+     *
+     * @return whether geometry, caller import, constant initialization and export are supported
+     */
+    default boolean supportsProducerlessPublishedValues() {
+        return false;
+    }
+
+    /**
      * Reports whether this exact source adapter supports transfer to a direct destination adapter
      * for one logical descriptor.
      *

@@ -276,7 +276,7 @@ final class EngineBackendRegistry implements AutoCloseable {
             List<BackendId> owners =
                     CompositePreparedScheduleAssembler.ownerOrder(requirement);
             if (owners.isEmpty()) {
-                result.add(producerlessValueAdapter());
+                result.add(CompositePreparedScheduleAssembler.producerlessValueAdapter(entriesById));
             } else {
                 result.add(requireAdapter(owners.getFirst()));
             }
@@ -284,15 +284,6 @@ final class EngineBackendRegistry implements AutoCloseable {
         return List.copyOf(result);
     }
 
-    private EngineBackendComposition producerlessValueAdapter() {
-        for (EngineBackendComposition entry : entries) {
-            if (entry instanceof CpuEngineBackendComposition) {
-                return entry;
-            }
-        }
-        throw new IllegalArgumentException(
-                "producerless published values require a registered CPU adapter");
-    }
 
     /**
      * Selects the exact adapter for one complete plan without invoking backend preparation.
