@@ -42,7 +42,10 @@ import io.github.pho001.synaptik.model.operation.elementwise.cast.CastValueConve
  * It evaluates already-lowered primitive arithmetic, exact extrema and clamp, direct Tensor
  * power, canonical-BOOL logic, the closed BFLOAT16/FLOAT16/FLOAT32/FLOAT64 unary matrix, and the
  * selected scalar-power plan. BFLOAT16 and FLOAT16 numerical inputs decode from raw bits, every
- * producing logical node encodes once, and {@code WHERE} copies selected raw bits. Direct power uses
+ * producing logical node encodes once. Same-type {@code WHERE} copies selected raw bits; promoted
+ * selection converts the chosen branch through the Model conversion owner. Binary arithmetic and
+ * comparisons promote same-category original carriers without a floating intermediate for
+ * integral values. Direct power uses
  * {@link StrictMath#pow(double, double)} without reclassifying an exponent. Unary evaluation
  * preserves the specified exceptional-value classifications, widens represented FLOAT32 values
  * where required, and narrows once. It also
@@ -1516,6 +1519,15 @@ public final class CpuScalarReferenceKernel {
         Object right = instruction.inputs().size() > 1 ? values[instruction.inputs().get(1)] : null;
         Object scalar = instruction.scalarImmediate() == null ? null
                 : immediate(instruction.scalarImmediate());
+        if (instruction.opcode().family() == CpuPointwiseOpcode.Family.BINARY_ARITHMETIC
+                || instruction.opcode().family() == CpuPointwiseOpcode.Family.COMPARISON) {
+            DataType rightType = ir.values().get(instruction.inputs().get(1)).dataType();
+            DataType promoted = io.github.pho001.synaptik.model.datatype.DataTypePromotion
+                    .promoteNumeric(type, rightType);
+            if (type != promoted) left = cast(type, left, promoted);
+            if (rightType != promoted) right = cast(rightType, right, promoted);
+            type = promoted;
+        }
         if ((type == DataType.BFLOAT16 || type == DataType.FLOAT16)
                 && instruction.opcode() != CpuPointwiseOpcode.WHERE
                 && instruction.opcode() != CpuPointwiseOpcode.CAST) {
@@ -1573,8 +1585,12 @@ public final class CpuScalarReferenceKernel {
             case LOGICAL_AND -> bool((byte) left == 1 && (byte) right == 1);
             case LOGICAL_OR -> bool((byte) left == 1 || (byte) right == 1);
             case LOGICAL_NOT -> bool((byte) left == 0);
-            case WHERE -> ((byte) left) == 1 ? values[instruction.inputs().get(1)]
-                    : values[instruction.inputs().get(2)];
+            case WHERE -> {
+                int chosen = instruction.inputs().get((byte) left == 1 ? 1 : 2);
+                DataType source = ir.values().get(chosen).dataType();
+                DataType target = ir.values().get(instruction.output()).dataType();
+                yield source == target ? values[chosen] : cast(source, values[chosen], target);
+            }
             case CAST -> cast(type, left, ir.values().get(instruction.output()).dataType());
         };
         if (instruction.opcode() == CpuPointwiseOpcode.WHERE

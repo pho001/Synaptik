@@ -89,6 +89,10 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSpatialWindowG
  * Reports the profile-free occurrence predicate and executable semantic coverage currently
  * delivered by the CPU backend. Capability remains an exact answer for the supplied operation,
  * descriptors, attributes, and gradient roles; it does not widen route support.
+ * Static pointwise binary arithmetic and comparisons accept Model-promoted FLOAT32/FLOAT64
+ * or INT32/INT64 operand pairs; WHERE accepts promoted FLOAT32/FLOAT64 branches. Original
+ * descriptors remain the physical carriers. Mixed floating/integral pairs remain invalid,
+ * existing low-type tuples are unchanged, and this adds no symbolic-batch eligibility.
  *
  * <p>A separate bounded ordinary symbolic-batch matrix admits FLOAT32 rank-at-most-two
  * descriptors with one common named dimension, fixed other extents and proved canonical/view
@@ -414,7 +418,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                                 && pointwiseFloating(output.dataType())
                             || arithmetic == BinaryArithmeticKind.DIV
                                 && pointwiseFloating(output.dataType()))
-                        && samePointwiseNumeric(query.inputs(), output)
+                        && promotedPointwiseNumeric(query.inputs(), output)
                         && broadcast(query.inputs().get(0), query.inputs().get(1), output);
             }
             if (kind instanceof ScalarElementwiseKind scalar) {
@@ -461,7 +465,7 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             }
             if (kind instanceof BinaryComparisonKind) {
                 return attrs == NoOperationAttrs.INSTANCE && query.inputs().size() == 2
-                        && samePointwiseNumericInputs(query.inputs()) && output.dataType() == DataType.BOOL
+                        && promotablePointwiseNumericInputs(query.inputs()) && output.dataType() == DataType.BOOL
                         && ShapeBroadcast.broadcast(query.inputs().get(0).shape(),
                                 query.inputs().get(1).shape()).equals(output.shape());
             }
@@ -470,8 +474,11 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
                         || query.inputs().get(0).dataType() != DataType.BOOL) return false;
                 TensorDescriptor whenTrue = query.inputs().get(1);
                 TensorDescriptor whenFalse = query.inputs().get(2);
-                if (!pointwiseFloating(whenTrue.dataType()) || whenTrue.dataType() != whenFalse.dataType()
-                        || output.dataType() != whenTrue.dataType()) return false;
+                if (!pointwiseFloating(whenTrue.dataType()) || !pointwiseFloating(whenFalse.dataType())
+                        || whenTrue.dataType() != whenFalse.dataType()
+                            && (!floating(whenTrue.dataType()) || !floating(whenFalse.dataType()))
+                        || output.dataType() != DataTypePromotion.promoteFloating(
+                                whenTrue.dataType(), whenFalse.dataType())) return false;
                 var branches = ShapeBroadcast.broadcast(whenTrue.shape(), whenFalse.shape());
                 return ShapeBroadcast.broadcast(query.inputs().get(0).shape(), branches)
                         .equals(output.shape());
@@ -1716,15 +1723,28 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
         return pointwiseFloating(type) || type == DataType.INT32 || type == DataType.INT64;
     }
 
-    private static boolean samePointwiseNumeric(java.util.List<TensorDescriptor> inputs,
+    /**
+     * Checks Model numeric promotion without rewriting the ordered operand descriptors.
+     * The earlier low-arithmetic gate observes the original carriers, not this result type.
+     * @param inputs ordered candidate numeric operands
+     * @param output declared promoted result
+     * @return whether both operands share a numeric category and the result is its Model promotion
+     */
+    private static boolean promotedPointwiseNumeric(java.util.List<TensorDescriptor> inputs,
             TensorDescriptor output) {
-        return inputs.size() == 2 && samePointwiseNumericInputs(inputs)
-                && output.dataType() == inputs.getFirst().dataType();
+        return promotablePointwiseNumericInputs(inputs)
+                && output.dataType() == DataTypePromotion.promoteNumeric(
+                        inputs.get(0).dataType(), inputs.get(1).dataType());
     }
 
-    private static boolean samePointwiseNumericInputs(java.util.List<TensorDescriptor> inputs) {
-        return inputs.size() == 2 && supportedPointwiseNumeric(inputs.getFirst().dataType())
-                && inputs.get(1).dataType() == inputs.getFirst().dataType();
+    private static boolean promotablePointwiseNumericInputs(java.util.List<TensorDescriptor> inputs) {
+        return inputs.size() == 2
+                && supportedPointwiseNumeric(inputs.get(0).dataType())
+                && supportedPointwiseNumeric(inputs.get(1).dataType())
+                && inputs.get(0).dataType().category() == inputs.get(1).dataType().category()
+                && (inputs.get(0).dataType() == inputs.get(1).dataType()
+                    || supportedNumeric(inputs.get(0).dataType())
+                        && supportedNumeric(inputs.get(1).dataType()));
     }
 
     private static boolean supportedCast(DataType type) {

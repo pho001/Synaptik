@@ -117,14 +117,10 @@ public class CpuGeneratedCoverageUnsupportedBoundaryTest {
                                 .identities().getFirst(), List.of(1));
     }
 
-    @Test void providerRejectsMixedPointwiseOperands() {
-        var fixture = rejectedFixtures().getFirst();
-        assertFalse(new CpuCapabilityProvider().supports(fixture.query()), fixture.id());
-    }
 
     @Test void providerRejectsBooleanArithmeticAndMismatchedResultShape() {
         CpuCapabilityProvider provider = new CpuCapabilityProvider();
-        for (var fixture : rejectedFixtures().subList(1, 3)) assertFalse(provider.supports(fixture.query()), fixture.id());
+        for (var fixture : rejectedFixtures()) assertFalse(provider.supports(fixture.query()), fixture.id());
         Shape shape = Shape.of(2, 3); TensorDescriptor f32 = descriptor(DataType.FLOAT32, shape);
         io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, new OperationCapabilityQuery(new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE), List.of(f32, f32), List.of(f32)), "control occurrence must remain supported");
     }
@@ -152,12 +148,9 @@ public class CpuGeneratedCoverageUnsupportedBoundaryTest {
         Shape shape = Shape.of(2, 3);
         TensorDescriptor bool = descriptor(DataType.BOOL, shape);
         TensorDescriptor f32 = descriptor(DataType.FLOAT32, shape);
-        TensorDescriptor f64 = descriptor(DataType.FLOAT64, shape);
         TensorDescriptor wrongShape = descriptor(DataType.FLOAT32, Shape.of(3, 2));
         Operation operation = new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE);
-        return List.of(new RejectedFixture("mixed-pointwise-operands", operation, List.of(f32, f64), List.of(f64),
-                        "MIXED_NUMERIC_INPUTS"),
-                new RejectedFixture("boolean-arithmetic", operation, List.of(bool, bool), List.of(bool),
+        return List.of(new RejectedFixture("boolean-arithmetic", operation, List.of(bool, bool), List.of(bool),
                         "INVALID_BOOLEAN_NUMERIC_ROLE"),
                 new RejectedFixture("mismatched-result-shape", operation, List.of(f32, f32), List.of(wrongShape),
                         "SHAPE_INCOMPATIBLE"));

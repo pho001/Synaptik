@@ -27,6 +27,10 @@ import java.lang.constant.MethodTypeDesc;
  * {@link CpuCastEmitter}; generated code writes the target representation to its destination
  * local before a later instruction can consume it. The emitter consumes typed IR only and makes
  * no capability, route, or numerical-policy decision.</p>
+ * <p>Mixed same-category binary operands are loaded from their original typed locals and widened
+ * to the Model-promoted computation carrier. Integral comparisons remain signed integral
+ * comparisons, including INT64 values beyond binary64's exact range. Floating selection converts
+ * only the chosen branch, using the same represented conversion as an explicit CAST.</p>
  */
 final class CpuScalarEmitter {
     // Cephes ndtr.c ERF/ERFC coefficients and piecewise rational approximation.
@@ -86,7 +90,7 @@ final class CpuScalarEmitter {
             return;
         }
         if (opcode == CpuPointwiseOpcode.POW) {
-            emitTensorPower(instruction, locals, inputType);
+            emitTensorPower(ir, instruction, locals, outputType);
             store(outputType, locals[instruction.output()]);
             return;
         }
@@ -108,16 +112,21 @@ final class CpuScalarEmitter {
             } else store(outputType, locals[instruction.output()]);
             return;
         }
-        load(inputType, locals[instruction.inputs().getFirst()]);
+        DataType computationType = opcode.family() == CpuPointwiseOpcode.Family.BINARY_ARITHMETIC
+                ? outputType : opcode.family() == CpuPointwiseOpcode.Family.COMPARISON
+                ? io.github.pho001.synaptik.model.datatype.DataTypePromotion.promoteNumeric(
+                        inputType, ir.values().get(instruction.inputs().get(1)).dataType())
+                : inputType;
+        loadOperand(ir, instruction.inputs().getFirst(), locals, computationType);
         if (instruction.inputs().size() == 2) {
-            load(inputType, locals[instruction.inputs().get(1)]);
+            loadOperand(ir, instruction.inputs().get(1), locals, computationType);
         }
         if (opcode.carriesScalarImmediate()) loadImmediate(instruction.scalarImmediate());
         switch (opcode.family()) {
-            case BINARY_ARITHMETIC, SCALAR_ARITHMETIC -> arithmetic(opcode, inputType);
+            case BINARY_ARITHMETIC, SCALAR_ARITHMETIC -> arithmetic(opcode, computationType);
             case UNARY -> unary(opcode, inputType);
             case CLASSIFICATION -> classification(opcode, inputType);
-            case COMPARISON -> comparison(opcode, inputType);
+            case COMPARISON -> comparison(opcode, computationType);
             case LOGICAL -> logical(opcode);
             case CAST -> { }
             case SELECTION, SCALAR_RANGE -> throw new AssertionError(opcode);
@@ -148,10 +157,11 @@ final class CpuScalarEmitter {
         }
     }
 
-    private void emitTensorPower(CpuKernelIr.Instruction instruction, int[] locals, DataType type) {
-        load(type, locals[instruction.inputs().get(0)]);
+    private void emitTensorPower(CpuKernelIr ir, CpuKernelIr.Instruction instruction,
+            int[] locals, DataType type) {
+        loadOperand(ir, instruction.inputs().get(0), locals, type);
         if (floatLike(type)) code.f2d();
-        load(type, locals[instruction.inputs().get(1)]);
+        loadOperand(ir, instruction.inputs().get(1), locals, type);
         if (floatLike(type)) code.f2d();
         code.invokestatic(STRICT_MATH, "pow", MethodTypeDesc.of(ConstantDescs.CD_double,
                 ConstantDescs.CD_double, ConstantDescs.CD_double));
@@ -520,12 +530,27 @@ final class CpuScalarEmitter {
             code.labelBinding(done);
             return;
         }
-        load(resultType, locals[instruction.inputs().get(1)]);
+        loadOperand(ir, instruction.inputs().get(1), locals, resultType);
         store(resultType, locals[instruction.output()]);
         code.branch(Opcode.GOTO, done).labelBinding(whenFalse);
-        load(resultType, locals[instruction.inputs().get(2)]);
+        loadOperand(ir, instruction.inputs().get(2), locals, resultType);
         store(resultType, locals[instruction.output()]);
         code.labelBinding(done);
+    }
+
+    /**
+     * Loads an operand without changing its represented local; only a differing computation
+     * carrier needs the shared conversion owner. Keeping the same-type path unchanged preserves
+     * existing homogeneous generated artifacts and raw selection behavior.
+     * @param ir typed value inventory
+     * @param ordinal ordered operand ordinal
+     * @param locals original represented local slots
+     * @param target Model-promoted computation or selection carrier
+     */
+    private void loadOperand(CpuKernelIr ir, int ordinal, int[] locals, DataType target) {
+        DataType source = ir.values().get(ordinal).dataType();
+        if (source == target) load(source, locals[ordinal]);
+        else casts.emit(source, target, locals[ordinal]);
     }
 
     private void loadImmediate(CpuKernelIr.ScalarImmediate immediate) {

@@ -317,16 +317,12 @@ class CpuGeneratedDirectEvidenceClosureTest {
                 java.util.stream.Collectors.counting()));
     }
 
-    @Test void pointwiseModelValidButCpuInapplicableTypeRoleUniverseIsExplicitlyRejected() {
-        // These rows are derived from the Model expression contracts: numeric promotion permits
-        // mixed same-category operands, WHERE promotes floating branches, and each family fixes
-        // its BOOL/numeric result role.  They deliberately do not copy CPU provider predicates.
+    @Test void pointwiseInvalidTypeRolesAndShapesRemainRejected() {
+        // Mixed same-category operands now execute; these are still-invalid descriptor roles.
         var candidates = rejectedPointwiseCandidates();
-        assertEquals(236, candidates.size());
         assertEquals(candidates.size(), candidates.stream().map(PointwiseRejectedCandidate::id).distinct().count());
-        assertEquals(Set.of("MIXED_NUMERIC_INPUTS", "MIXED_FLOATING_BRANCHES", "INVALID_RESULT_ROLE",
-                "INVALID_BOOLEAN_NUMERIC_ROLE", "SHAPE_INCOMPATIBLE"), candidates.stream()
-                .map(PointwiseRejectedCandidate::reason).collect(java.util.stream.Collectors.toSet()));
+        assertTrue(candidates.stream().allMatch(candidate -> Set.of("INVALID_RESULT_ROLE",
+                "INVALID_BOOLEAN_NUMERIC_ROLE", "SHAPE_INCOMPATIBLE").contains(candidate.reason())));
         var provider = new CpuCapabilityProvider();
         for (PointwiseRejectedCandidate candidate : candidates) {
             assertFalse(provider.supports(new OperationCapabilityQuery(candidate.operation(), candidate.inputs(), List.of(candidate.output()))), candidate.id() + ": " + candidate.reason());
@@ -892,24 +888,15 @@ class CpuGeneratedDirectEvidenceClosureTest {
         Shape shape = Shape.of(8); Shape incompatible = Shape.of(7);
         var result = new ArrayList<PointwiseRejectedCandidate>();
         for (BinaryArithmeticKind kind : BinaryArithmeticKind.values()) {
-            for (DataType[] pair : mixedNumericPairs(kind == BinaryArithmeticKind.DIV || kind == BinaryArithmeticKind.POW))
-                result.add(rejected(kind + "/mixed-" + pair[0] + '-' + pair[1], new Operation(kind, NoOperationAttrs.INSTANCE),
-                        List.of(descriptor(pair[0], shape), descriptor(pair[1], shape)), descriptor(promote(pair[0], pair[1]), shape), "MIXED_NUMERIC_INPUTS"));
             result.add(rejected(kind + "/bool-role", new Operation(kind, NoOperationAttrs.INSTANCE),
                     List.of(descriptor(DataType.BOOL, shape), descriptor(DataType.BOOL, shape)), descriptor(DataType.BOOL, shape), "INVALID_BOOLEAN_NUMERIC_ROLE"));
             result.add(rejected(kind + "/shape", new Operation(kind, NoOperationAttrs.INSTANCE),
                     List.of(descriptor(DataType.FLOAT32, shape), descriptor(DataType.FLOAT32, incompatible)), descriptor(DataType.FLOAT32, shape), "SHAPE_INCOMPATIBLE"));
         }
         for (BinaryComparisonKind kind : BinaryComparisonKind.values()) {
-            for (DataType[] pair : mixedNumericPairs(false)) result.add(rejected(kind + "/mixed-" + pair[0] + '-' + pair[1],
-                    new Operation(kind, NoOperationAttrs.INSTANCE), List.of(descriptor(pair[0], shape), descriptor(pair[1], shape)),
-                    descriptor(DataType.BOOL, shape), "MIXED_NUMERIC_INPUTS"));
             result.add(rejected(kind + "/result", new Operation(kind, NoOperationAttrs.INSTANCE),
                     List.of(descriptor(DataType.FLOAT32, shape), descriptor(DataType.FLOAT32, shape)), descriptor(DataType.FLOAT32, shape), "INVALID_RESULT_ROLE"));
         }
-        for (DataType[] pair : mixedFloatingPairs()) result.add(rejected("WHERE/mixed-" + pair[0] + '-' + pair[1],
-                new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE), List.of(descriptor(DataType.BOOL, shape),
-                descriptor(pair[0], shape), descriptor(pair[1], shape)), descriptor(promote(pair[0], pair[1]), shape), "MIXED_FLOATING_BRANCHES"));
         result.add(rejected("WHERE/condition-role", new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE),
                 List.of(descriptor(DataType.FLOAT32, shape), descriptor(DataType.FLOAT32, shape), descriptor(DataType.FLOAT32, shape)),
                 descriptor(DataType.FLOAT32, shape), "INVALID_BOOLEAN_NUMERIC_ROLE"));
@@ -922,10 +909,6 @@ class CpuGeneratedDirectEvidenceClosureTest {
         return List.copyOf(result);
     }
 
-    private static List<DataType[]> mixedNumericPairs(boolean floatingOnly) { return pairs(floatingOnly ? floatingTypes() : numericTypes()); }
-    private static List<DataType[]> mixedFloatingPairs() { return pairs(floatingTypes()); }
-    private static List<DataType[]> pairs(List<DataType> types) { var pairs = new ArrayList<DataType[]>(); for (DataType left : types) for (DataType right : types) if (left != right && left.category() == right.category()) pairs.add(new DataType[] {left, right}); return pairs; }
-    private static DataType promote(DataType left, DataType right) { return io.github.pho001.synaptik.model.datatype.DataTypePromotion.promoteNumeric(left, right); }
     private static TensorDescriptor descriptor(DataType type, Shape shape) { return new TensorDescriptor(type, shape, Optional.of(LayoutDescriptor.contiguous(shape)), false); }
     private static PointwiseRejectedCandidate rejected(String id, Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output, String reason) { return new PointwiseRejectedCandidate(id, operation, inputs, output, reason); }
     record PointwiseRejectedCandidate(String id, Operation operation, List<TensorDescriptor> inputs,

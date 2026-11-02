@@ -20,6 +20,12 @@ import java.util.Objects;
  * CAST remains one opcode; its source and target types come from the ordered input and output
  * values, allowing all 49 Model pairs while keeping each conversion boundary explicit in a
  * bounded pointwise DAG.
+ * Binary arithmetic and comparisons retain each operand's original type and use Model's
+ * same-category promotion as their computation carrier. WHERE promotes only the chosen floating
+ * branch through the exact CAST owner. Cross-category numeric comparisons are not Model-valid;
+ * integral operands never pass through floating storage or computation.
+ * Ordered value dtypes already enter the structural key, so newly admitted mixed tuples cannot
+ * reuse a homogeneous artifact. Same-type computation and its existing identity are unchanged.
  * When analysis selects one contiguous input copy, it derives a second canonical consumer form
  * whose copied input has dense access; that structural change belongs to the lowering fingerprint,
  * while the source binding, workspace, costs, and concrete geometry remain outside this IR.
@@ -344,7 +350,8 @@ public record CpuKernelIr(
     private static void validateTypes(Instruction instruction, List<DataType> inputs,
             DataType output) {
         CpuPointwiseOpcode opcode = instruction.opcode();
-        boolean same = inputs.stream().allMatch(inputs.getFirst()::equals);
+        boolean sameCategory = inputs.stream().allMatch(
+                type -> type.category() == inputs.getFirst().category());
         boolean numeric = inputs.stream().allMatch(type -> type == DataType.FLOAT64
                 || type == DataType.FLOAT32 || type == DataType.BFLOAT16
                 || type == DataType.FLOAT16 || type == DataType.INT32
@@ -352,7 +359,9 @@ public record CpuKernelIr(
         boolean floating = output == DataType.FLOAT64 || output == DataType.FLOAT32
                 || output == DataType.BFLOAT16 || output == DataType.FLOAT16;
         boolean valid = switch (opcode.family()) {
-            case BINARY_ARITHMETIC -> same && numeric && output == inputs.getFirst()
+            case BINARY_ARITHMETIC -> numeric && sameCategory
+                    && output == io.github.pho001.synaptik.model.datatype.DataTypePromotion
+                            .promoteNumeric(inputs.get(0), inputs.get(1))
                     && (opcode != CpuPointwiseOpcode.DIV && opcode != CpuPointwiseOpcode.POW
                         || floating);
             case SCALAR_ARITHMETIC -> numeric && output == inputs.getFirst()
@@ -371,13 +380,13 @@ public record CpuKernelIr(
                     || inputs.getFirst() == DataType.FLOAT32
                     || inputs.getFirst() == DataType.BFLOAT16
                     || inputs.getFirst() == DataType.FLOAT16) && output == DataType.BOOL;
-            case COMPARISON -> same && numeric && output == DataType.BOOL;
+            case COMPARISON -> numeric && sameCategory && output == DataType.BOOL;
             case LOGICAL -> inputs.stream().allMatch(type -> type == DataType.BOOL)
                     && output == DataType.BOOL;
             case SELECTION -> inputs.get(0) == DataType.BOOL
-                    && inputs.get(1) == inputs.get(2) && output == inputs.get(1)
-                    && (output == DataType.FLOAT64 || output == DataType.FLOAT32
-                        || output == DataType.BFLOAT16 || output == DataType.FLOAT16);
+                    && inputs.get(1).isFloating() && inputs.get(2).isFloating()
+                    && output == io.github.pho001.synaptik.model.datatype.DataTypePromotion
+                            .promoteFloating(inputs.get(1), inputs.get(2));
             case CAST -> (inputs.getFirst() == DataType.FLOAT64
                     || inputs.getFirst() == DataType.FLOAT32
                     || inputs.getFirst() == DataType.BFLOAT16
