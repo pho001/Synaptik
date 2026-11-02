@@ -134,8 +134,21 @@ static BOOL synaptik_scan_validate_ordinary(SynaptikMetalDecodedNode node, NSArr
         case 73U: case 74U: case 75U: case 76U: case 77U: case 78U: case 79U:
             for (uint32_t i = 0U; i < node.input_count; i++) if (types[node.inputs[i]] != outputType) return NO;
             return task0059_validate_shape(node, shapes);
-        case 80U: case 81U: case 82U: case 83U: case 84U:
+        case 80U:
+            return synaptik_scan_numeric_type(inputType) && outputType == inputType
+                    && node.attribute_values[1] >= node.attribute_values[0]
+                    && task0059_validate_shape(node, shapes);
+        case 81U: case 82U: case 83U: case 84U:
             return inputType == 1U && outputType == 1U && task0059_validate_shape(node, shapes);
+        case 85U: {
+            uint64_t reduction = node.attribute_values[0];
+            return inputType == 1U && types[node.second_input] == 1U && outputType == 1U
+                    && input.count != 0U && [input isEqualToArray:shapes[node.second_input]]
+                    && node.attribute_kind == 25U && node.attribute_count == 1U
+                    && reduction >= 1U && reduction <= 3U && node.axis == UINT32_MAX
+                    && node.auxiliary == 0U && node_values_are_zero_from(node, 1U)
+                    && (reduction == 1U ? sameShape : output.count == 0U);
+        }
         case 36U: case 37U: case 97U: case 98U: case 99U: case 100U:
             for (uint32_t i = 0U; i < node.input_count; i++) if (types[node.inputs[i]] != 1U) return NO;
             return outputType == 1U && task0064_validate_scan_node(node, shapes, states);
