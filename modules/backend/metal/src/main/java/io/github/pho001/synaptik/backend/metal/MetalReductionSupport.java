@@ -96,15 +96,49 @@ final class MetalReductionSupport {
      */
     static void validate(MetalMpsGraphProgram.Node node,
             List<MetalMpsGraphProgram.ValueDescriptor> values) {
+        validate(node, values, false);
+    }
+
+    /**
+     * Validates an authenticated Scan-local reduction without projecting empty axes to one.
+     *
+     * <p>Only canonical empty FLOAT32 SUM/MEAN or statistical local values use the empty-layout
+     * exception. Every axis, shape, mask and correction check remains identical to ordinary
+     * validation; a zero statistical contributor count still violates the required denominator.
+     *
+     * @param node Scan-body reduction with range-checked references
+     * @param values complete Scan-local descriptor table with real resolved dimensions
+     * @throws IllegalArgumentException if any reduction fact or empty-local restriction disagrees
+     */
+    static void validateScan(MetalMpsGraphProgram.Node node,
+            List<MetalMpsGraphProgram.ValueDescriptor> values) {
+        validate(node, values, true);
+    }
+
+    /**
+     * Shares the entire independent reduction proof across ordinary and local-Scan boundaries.
+     *
+     * @param node encoded reduction with checked references
+     * @param values actual descriptor table
+     * @param scanLocal whether canonical empty local FLOAT32 reductions are authorized
+     * @throws IllegalArgumentException if the encoded operation is not valid in the selected domain
+     */
+    private static void validate(MetalMpsGraphProgram.Node node,
+            List<MetalMpsGraphProgram.ValueDescriptor> values, boolean scanLocal) {
         if (!handles(node, values) || node.outputs().length != 1) throw invalid();
         var input = values.get(node.firstInputIndex()); var output = values.get(node.outputIndex());
         DataType type = input.dataType(); long[] source = input.dimensions(), target = output.dimensions();
+        boolean allowEmpty = scanLocal && type == DataType.FLOAT32
+                && (node.kind() == MetalMpsGraphProgram.NodeKind.SUM
+                        || node.kind() == MetalMpsGraphProgram.NodeKind.MEAN
+                        || node.kind() == MetalMpsGraphProgram.NodeKind.VARIANCE
+                        || node.kind() == MetalMpsGraphProgram.NodeKind.STANDARD_DEVIATION);
         boolean masked = node.attributeKind() == MetalMpsGraphProgram.AttributeKind.MASKED_REDUCTION;
         if (node.inputs().length != (masked ? 2 : 1) || output.dataType() != type
                 || input.requiresGrad() != output.requiresGrad()
                 || (type != DataType.FLOAT32 && (input.requiresGrad() || output.requiresGrad()))
-                || !physical(input.layout().orElse(null), source, type)
-                || !physical(output.layout().orElse(null), target, type)
+                || !physical(input.layout().orElse(null), source, type, allowEmpty)
+                || !physical(output.layout().orElse(null), target, type, allowEmpty)
                 || !canonical(output.layout().orElse(null), target)) throw invalid();
         boolean[] axes = new boolean[source.length]; boolean keep = false;
         long correction = 0; long[] words = node.attributeWords();
@@ -115,7 +149,7 @@ final class MetalReductionSupport {
             select(axes, Math.toIntExact(words[0]));
             var mask = values.get(node.secondInputIndex());
             if (mask.dataType() != DataType.BOOL || mask.requiresGrad()
-                    || !physical(mask.layout().orElse(null), mask.dimensions(), DataType.BOOL)
+                    || !physical(mask.layout().orElse(null), mask.dimensions(), DataType.BOOL, allowEmpty)
                     || !broadcastMask(source, mask.dimensions())) throw invalid();
         } else if (node.attributeKind() == MetalMpsGraphProgram.AttributeKind.STATISTICAL_REDUCTION) {
             if ((node.kind() != MetalMpsGraphProgram.NodeKind.VARIANCE
@@ -158,6 +192,29 @@ final class MetalReductionSupport {
                 count = Math.multiplyExact(count, source[axis]);
             if (count <= correction) throw invalid();
         }
+    }
+
+    /**
+     * Extends the ordinary physical proof only for explicitly authorized canonical empty locals.
+     *
+     * @param layout optional concrete local layout
+     * @param shape actual resolved extents, with no negative dimensions
+     * @param type original carrier, FLOAT32 or BOOL for the empty-local case
+     * @param allowEmpty whether the caller has established the Scan-local reduction exception
+     * @return whether the ordinary span is valid or the exact canonical local storage is empty
+     * @throws ArithmeticException if a nonempty physical span overflows
+     */
+    private static boolean physical(LayoutDescriptor layout, long[] shape, DataType type,
+            boolean allowEmpty) {
+        boolean empty = false;
+        for (long extent : shape) {
+            if (extent < 0) return false;
+            empty |= extent == 0;
+        }
+        if (!empty) return physical(layout, shape, type);
+        return allowEmpty && shape.length <= 16
+                && (type == DataType.FLOAT32 || type == DataType.BOOL)
+                && canonical(layout, shape) && layout.referencedElementSpan() == 0;
     }
 
     /**

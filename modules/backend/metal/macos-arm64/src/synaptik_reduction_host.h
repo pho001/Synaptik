@@ -110,10 +110,12 @@ static BOOL synaptik_reduction_metadata(SynaptikMetalDecodedNode node,
     BOOL keep = NO; uint64_t correction = 0U;
     BOOL empty_input = NO;
     for (NSNumber *extent in input) empty_input |= extent.unsignedLongLongValue == 0U;
-    NSArray<NSNumber *> *axes = empty_input
-            ? synaptik_reduction_empty_axes(shape_node, input, output)
-            : statistical
-                    ? node_statistical_axes(shape_node, input, output, &keep, &correction)
+    /* The statistical owner rejects a selected zero extent before division, while
+     * permitting an unselected zero axis and valid denominator with empty output. */
+    NSArray<NSNumber *> *axes = statistical
+            ? node_statistical_axes(shape_node, input, output, &keep, &correction)
+            : empty_input
+                    ? synaptik_reduction_empty_axes(shape_node, input, output)
                     : node_reduction_axes(shape_node, input, output, &keep);
     if (axes == nil || (statistical && node.attribute_kind != 38U)
             || (!statistical && node.attribute_kind == 38U)) return NO;
