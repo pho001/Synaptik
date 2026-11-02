@@ -17,6 +17,7 @@ import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
+import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
 import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
@@ -98,6 +99,35 @@ class CpuPartitionDagDecomposerTest {
                         plan.units().get(1).portablePlan().kernelIr().stores().size()),
                 () -> assertEquals(1,
                         plan.boundaryValues().stream().filter(new ValueId(1)::equals).count()));
+    }
+
+    @Test void rejoiningUnequalBranchesRejectsOnlyNonconvexPairContractions() {
+        var nodes = List.of(
+                scalar(0, new ValueId(0), new ValueId(1), ScalarElementwiseKind.ADD),
+                new CompiledNode(new NodeId(1),
+                        new Operation(UnaryElementwiseKind.EXP, NoOperationAttrs.INSTANCE),
+                        List.of(new ValueId(1)), List.of(new ValueId(2))),
+                scalar(2, new ValueId(0), new ValueId(3), ScalarElementwiseKind.MUL),
+                new CompiledNode(new NodeId(3),
+                        new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE),
+                        List.of(new ValueId(2), new ValueId(3)), List.of(new ValueId(4))));
+        var descriptors = java.util.Collections.nCopies(5, descriptor(DataType.FLOAT32, Shape.of(4)));
+        var context = context(nodes, descriptors, Set.of(new ValueId(4)));
+        var enumeration = new CpuPartitionDagDecomposer().enumerate(
+                context, new CpuPartitionLowering(), List.of());
+        assertTrue(enumeration.complete());
+        assertTrue(enumeration.attempts().stream().anyMatch(attempt -> attempt.rejection()
+                .equals(Optional.of(CpuPartitionDagDecomposer.RejectionReason.DEPENDENCY_CYCLE))));
+        assertTrue(enumeration.candidates().stream().anyMatch(candidate -> candidate.size() == 1));
+        for (var candidate : enumeration.candidates()) {
+            assertEquals(List.of(0, 1, 2, 3), candidate.stream()
+                    .flatMap(unit -> unit.memberNodeOrdinals().stream()).sorted().toList());
+            for (int index = 0; index < candidate.size(); index++) {
+                int unit = index;
+                assertTrue(candidate.get(index).dependencies().stream()
+                        .allMatch(producer -> producer < unit));
+            }
+        }
     }
 
     @Test void sevenWayFanOutIsMaterializedAndTheEighthConsumerStillEntersThePartition() {

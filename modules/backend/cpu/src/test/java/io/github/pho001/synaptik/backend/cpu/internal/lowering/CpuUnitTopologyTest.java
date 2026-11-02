@@ -50,6 +50,29 @@ class CpuUnitTopologyTest {
         compare(dag, List.of(List.of(0, 3), List.of(1, 2)));
     }
 
+    @Test void pairConvexityRejectsIndirectPathsButAllowsDirectInternalEdges() {
+        var dag = graph(new int[][] {{}, {0}, {0, 1}});
+        var topology = compare(dag, List.of(List.of(0), List.of(1), List.of(2)));
+        assertFalse(topology.canContract(0, 2));
+        assertFalse(topology.canContract(2, 0));
+        assertTrue(topology.canContract(0, 1));
+        assertTrue(topology.canContract(1, 2));
+    }
+
+    @Test void pairConvexityIncludesPathsJoinedByEarlierHorizontalMemberships() {
+        var dag = graph(new int[][] {{}, {}, {0}, {1}});
+        // There is no original node path 0 -> 3. The current middle unit joins its two
+        // independent members, so the quotient nevertheless contains [0] -> [1,2] -> [3].
+        var topology = compare(dag, List.of(List.of(3), List.of(1, 2), List.of(0)));
+        assertFalse(topology.canContract(0, 2));
+        assertFalse(topology.canContract(2, 0));
+        assertTrue(topology.canContract(0, 1));
+        assertTrue(topology.canContract(1, 2));
+        assertThrows(IllegalArgumentException.class, () -> topology.canContract(0, 0));
+        assertThrows(IllegalArgumentException.class, () -> topology.canContract(-1, 2));
+        assertThrows(IllegalArgumentException.class, () -> topology.canContract(0, 3));
+    }
+
     @Test void boundedRandomContractionsMatchOldOrderDependenciesAndCycleFailures() {
         var random = new Random(27);
         for (int trial = 0; trial < 256; trial++) {

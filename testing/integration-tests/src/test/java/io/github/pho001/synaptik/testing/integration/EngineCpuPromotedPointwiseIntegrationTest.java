@@ -51,6 +51,32 @@ final class EngineCpuPromotedPointwiseIntegrationTest {
         }
     }
 
+    @Test void unequalPointwiseBranchesRejoinWithoutLosingTheirStoredIntermediateOrder() {
+        try (Engine engine = Engine.standard()) {
+            for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+                double[] values = {-2, -0.5, 1, 3};
+                Tensor input = floating(type, Shape.of(4), false, values);
+                Tensor longBranch = input.neg().exp();
+                Tensor shortBranch = input.abs();
+                // Sibling fusion may join NEG and ABS, but their final ADD must still wait
+                // for EXP outside that sibling unit.
+                Tensor output = longBranch.add(shortBranch);
+                try (var prepared = engine.prepare(engine.compile(List.of(output)));
+                        var result = engine.run(prepared, List.of(input))) {
+                    double[] expected = new double[values.length];
+                    for (int i = 0; i < values.length; i++) {
+                        double exponential = StrictMath.exp(-values[i]);
+                        expected[i] = type == DataType.FLOAT32
+                                ? (float) ((float) exponential + (float) Math.abs(values[i]))
+                                : exponential + Math.abs(values[i]);
+                    }
+                    compare(expected, result.materialize(result.publications().getFirst(), 1024),
+                            type, type == DataType.FLOAT32 ? 2e-6 : 1e-14);
+                }
+            }
+        }
+    }
+
     @Test void mixedBroadcastPullbacksReduceThenRestoreEachOriginalCarrier() {
         try (Engine engine = Engine.standard()) {
             Tensor x = floating(DataType.FLOAT32, Shape.of(2, 1), true, new double[]{1.25, 3.5});

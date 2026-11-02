@@ -49,7 +49,8 @@ import java.util.Set;
  * resources must still be supported. Above eight partition nodes, the direct path examines local
  * adjacent pointwise pairs through the tail without the bounded complete-topology search or a
  * partition-wide attempt cap;
- * each accepted contraction still obeys the per-unit structural and resource ceilings.
+ * each accepted contraction still obeys the per-unit structural and resource ceilings and proves
+ * convexity in the current unit quotient before lowering the proposed membership.
  * Complete-partition order, producer, consumer, edge, and port-occurrence facts come from
  * {@link PrepareContext#partitionDag()}; unit membership, contracted topology, lowering, and
  * candidate dependencies and their unit-index accounting remain CPU-owned. Established affine
@@ -397,7 +398,7 @@ public final class CpuPartitionDagDecomposer {
                 MutableUnit right = working.get(index + 1);
                 if (vertical(context, left, right)
                         || horizontal(dag, working, left, right)) {
-                    MutableUnit fused = contract(context, lowering, left, right, ordinals);
+                    MutableUnit fused = contract(context, lowering, working, left, right, ordinals);
                     if (fused != null) {
                         replace(working, index, index + 1, fused);
                         if (index > 0) index--;
@@ -417,7 +418,7 @@ public final class CpuPartitionDagDecomposer {
                     if (left == right) continue;
                     if (attempts++ >= MAX_ATTEMPTS) break outer;
                     if (vertical(context, working.get(left), working.get(right))) {
-                        MutableUnit fused = contract(context, lowering, working.get(left),
+                        MutableUnit fused = contract(context, lowering, working, working.get(left),
                                 working.get(right), ordinals);
                         if (fused != null) {
                             replace(working, left, right, fused);
@@ -439,7 +440,7 @@ public final class CpuPartitionDagDecomposer {
                     MutableUnit a = ordered.get(left);
                     MutableUnit b = ordered.get(right);
                     if (horizontal(dag, working, a, b)) {
-                        MutableUnit fused = contract(context, lowering, a, b, ordinals);
+                        MutableUnit fused = contract(context, lowering, working, a, b, ordinals);
                         if (fused != null) {
                             replace(working, working.indexOf(a), working.indexOf(b), fused);
                             changed = true;
@@ -796,14 +797,20 @@ public final class CpuPartitionDagDecomposer {
     }
 
     private static MutableUnit contract(PrepareContext<CpuPartitionAnalysisInputs> context,
-            CpuPartitionLowering lowering, MutableUnit left, MutableUnit right,
-            Map<CompiledNode, Integer> ordinals) {
-        return contractResult(context, lowering, left, right, ordinals).unit();
+            CpuPartitionLowering lowering, List<MutableUnit> all, MutableUnit left,
+            MutableUnit right, Map<CompiledNode, Integer> ordinals) {
+        return contractResult(context, lowering, all, left, right, ordinals).unit();
     }
 
     private static Contraction contractResult(
             PrepareContext<CpuPartitionAnalysisInputs> context, CpuPartitionLowering lowering,
-            MutableUnit left, MutableUnit right, Map<CompiledNode, Integer> ordinals) {
+            List<MutableUnit> all, MutableUnit left, MutableUnit right,
+            Map<CompiledNode, Integer> ordinals) {
+        var topology = new CpuUnitTopology(all.stream().map(unit -> unit.nodes).toList(),
+                ordinals, context.partitionDag().edges());
+        if (!topology.canContract(all.indexOf(left), all.indexOf(right))) {
+            return new Contraction(null, RejectionReason.DEPENDENCY_CYCLE);
+        }
         var nodes = new ArrayList<CompiledNode>(left.nodes);
         nodes.addAll(right.nodes);
         nodes.sort(Comparator.comparingInt(ordinals::get));
@@ -1017,7 +1024,7 @@ public final class CpuPartitionDagDecomposer {
                     RejectionReason.ROUTE_INELIGIBLE);
             }
         }
-        return contractResult(context, lowering, left, right, ordinals);
+        return contractResult(context, lowering, all, left, right, ordinals);
     }
 
     private static boolean locked(MutableUnit unit, Map<CompiledNode, Integer> ordinals,

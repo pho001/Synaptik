@@ -96,6 +96,48 @@ final class CpuUnitTopology {
     }
 
     /**
+     * Proves that identifying two current units leaves an acyclic quotient. Direct edges between
+     * the pair become internal; any path between them through another current unit would instead
+     * become a cycle. Walking the current unit dependencies, rather than original node ancestors,
+     * also accounts for paths joined by earlier horizontal contractions.
+     *
+     * @param left original supplied position of the first unit
+     * @param right distinct original supplied position of the second unit
+     * @return {@code true} exactly when no dependency path leaves the pair and reenters it
+     * @throws IllegalArgumentException if positions are equal or outside this topology
+     */
+    boolean canContract(int left, int right) {
+        int first = order.indexOf(left);
+        int second = order.indexOf(right);
+        if (first < 0 || second < 0 || first == second) {
+            throw new IllegalArgumentException("CPU contraction pair is outside its topology");
+        }
+        var visited = new boolean[order.size()];
+        var pending = new int[order.size()];
+        int size = 0;
+        for (int index = 0; index < 2; index++) {
+            int member = index == 0 ? first : second;
+            for (int producer : dependencies.get(member)) {
+                if (producer != first && producer != second && !visited[producer]) {
+                    visited[producer] = true;
+                    pending[size++] = producer;
+                }
+            }
+        }
+        while (size > 0) {
+            int unit = pending[--size];
+            for (int producer : dependencies.get(unit)) {
+                if (producer == first || producer == second) return false;
+                if (!visited[producer]) {
+                    visited[producer] = true;
+                    pending[size++] = producer;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
      * Returns the original unit positions in stable topological order.
      *
      * @return non-null immutable ordered positions, each occurring exactly once
