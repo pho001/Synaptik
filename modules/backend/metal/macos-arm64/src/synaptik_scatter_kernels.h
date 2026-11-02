@@ -23,7 +23,7 @@
  * Unaddressed words are never passed through arithmetic/comparison.
  * The source also requires ScanStepControl and scan_control_operand/output from
  * SynaptikGeneralScanKernelSource. scatter_reduce_scan appends control buffer28
- * and ScanStepControl80 buffer29. It guards output before the base load, then
+ * and the shared ScanStepControl buffer29. It guards output before the base load, then
  * role2's original logical update ordinal before role1's original logical index
  * ordinal and before either operand load. Binder-supplied inputRowAxes/Inner,
  * never coincident extents, define ROW membership. Prevalidation must use the

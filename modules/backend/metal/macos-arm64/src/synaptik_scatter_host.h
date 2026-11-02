@@ -231,4 +231,168 @@ static SynaptikMetalIndexValidation *synaptik_scatter_index_validation(
     return validation;
 }
 
+/* Logical-only projection helpers for controlled preflight. They deliberately do
+ * not use storage strides to infer ROW membership: Scan's authenticated per-role
+ * logical row axis/inner facts are the sole activity authority. */
+static void synaptik_scatter_decode(
+        uint64_t ordinal, const uint64_t *dims, uint32_t rank, uint64_t *coords) {
+    for (uint32_t reverse = 0U; reverse < rank; ++reverse) {
+        uint32_t axis = rank - 1U - reverse;
+        coords[axis] = ordinal % dims[axis];
+        ordinal /= dims[axis];
+    }
+}
+
+static uint64_t synaptik_scatter_linear(
+        const uint64_t *coords, const uint64_t *dims, uint32_t rank) {
+    uint64_t ordinal = 0U;
+    for (uint32_t axis = 0U; axis < rank; ++axis)
+        ordinal = ordinal * dims[axis] + coords[axis];
+    return ordinal;
+}
+
+static int32_t synaptik_scatter_scan_read_index(
+        const SynaptikMetalDataMeta *meta, id<MTLBuffer> indices, NSUInteger offset,
+        const uint64_t *coords, uint64_t bound, uint64_t *selected) {
+    uint64_t storage = meta->roleOffsets[1];
+    for (uint32_t axis = 0U; axis < meta->roleRanks[1]; ++axis) {
+        uint64_t stride = meta->roleStrides[1][axis];
+        if (coords[axis] != 0U && stride > (UINT64_MAX - storage) / coords[axis])
+            return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
+        storage += coords[axis] * stride;
+    }
+    uint64_t width = meta->indexType == 2U ? 4U : 8U;
+    if (indices == nil || indices.contents == NULL)
+        return SYNAPTIK_METAL_STATUS_COPY_FAILED;
+    if ((uint64_t)offset > indices.length || storage > UINT64_MAX / width)
+        return SYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE;
+    uint64_t available = (uint64_t)indices.length - offset;
+    if (available < width || storage > (available - width) / width)
+        return SYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE;
+    const uint8_t *source = (const uint8_t *)indices.contents + offset + storage * width;
+    int64_t value;
+    if (meta->indexType == 2U) {
+        int32_t small;
+        memcpy(&small, source, sizeof(small));
+        value = small;
+    } else {
+        memcpy(&value, source, sizeof(value));
+    }
+    if (value < 0 || (uint64_t)value >= bound)
+        return SYNAPTIK_METAL_STATUS_RANGE_OUT_OF_BOUNDS;
+    *selected = (uint64_t)value;
+    return SYNAPTIK_METAL_STATUS_OK;
+}
+
+/* Projects exactly one original update scalar. Eligibility precedes every index
+ * load, in the same role2-then-role1 order as scatter_reduce_scan. No update value
+ * is inspected, including when poison storage belongs to an inactive ROW. */
+static int32_t synaptik_scatter_scan_target(
+        const SynaptikMetalDataMeta *meta, id<MTLBuffer> indices, NSUInteger offset,
+        const uint64_t *control, const SynaptikMetalScanStepControl *step,
+        uint64_t update_ordinal, BOOL *eligible, uint64_t *target) {
+    *eligible = NO;
+    if (!synaptik_scan_control_operand(control, step, 2U, update_ordinal))
+        return SYNAPTIK_METAL_STATUS_OK;
+    uint64_t update[16] = {0}, idx[16] = {0}, out[16] = {0};
+    synaptik_scatter_decode(update_ordinal, meta->roleDims[2], meta->roleRanks[2], update);
+    uint32_t axis = (uint32_t)meta->attrs[0], q = meta->roleRanks[1];
+    if (meta->operation == 18U) {
+        for (uint32_t a = 0U; a < meta->outputRank; ++a) out[a] = idx[a] = update[a];
+        uint64_t index_ordinal = synaptik_scatter_linear(idx, meta->roleDims[1], q);
+        if (!synaptik_scan_control_operand(control, step, 1U, index_ordinal))
+            return SYNAPTIK_METAL_STATUS_OK;
+        int32_t status = synaptik_scatter_scan_read_index(
+                meta, indices, offset, idx, meta->outputDims[axis], &out[axis]);
+        if (status != SYNAPTIK_METAL_STATUS_OK) return status;
+    } else if (meta->operation == 70U) {
+        for (uint32_t a = 0U; a < axis; ++a) out[a] = update[a];
+        for (uint32_t a = 0U; a < q; ++a) idx[a] = update[axis + a];
+        for (uint32_t a = axis + 1U; a < meta->outputRank; ++a) out[a] = update[a - 1U + q];
+        uint64_t index_ordinal = synaptik_scatter_linear(idx, meta->roleDims[1], q);
+        if (!synaptik_scan_control_operand(control, step, 1U, index_ordinal))
+            return SYNAPTIK_METAL_STATUS_OK;
+        int32_t status = synaptik_scatter_scan_read_index(
+                meta, indices, offset, idx, meta->outputDims[axis], &out[axis]);
+        if (status != SYNAPTIK_METAL_STATUS_OK) return status;
+    } else {
+        uint32_t depth = (uint32_t)meta->roleDims[1][q - 1U];
+        for (uint32_t a = 0U; a < axis; ++a) out[a] = update[a];
+        for (uint32_t a = 0U; a + 1U < q; ++a) idx[a] = update[a];
+        for (uint32_t a = axis + depth; a < meta->outputRank; ++a)
+            out[a] = update[q - 1U + a - axis - depth];
+        for (uint32_t component = 0U; component < depth; ++component) {
+            idx[q - 1U] = component;
+            uint64_t index_ordinal = synaptik_scatter_linear(idx, meta->roleDims[1], q);
+            if (!synaptik_scan_control_operand(control, step, 1U, index_ordinal))
+                return SYNAPTIK_METAL_STATUS_OK;
+            int32_t status = synaptik_scatter_scan_read_index(meta, indices, offset, idx,
+                    meta->outputDims[axis + component], &out[axis + component]);
+            if (status != SYNAPTIK_METAL_STATUS_OK) return status;
+        }
+    }
+    *target = synaptik_scatter_linear(out, meta->outputDims, meta->outputRank);
+    *eligible = synaptik_scan_control_output(control, step, *target);
+    return SYNAPTIK_METAL_STATUS_OK;
+}
+
+/*
+ * Allocation-free pre-write validation for controlled scatter. Arithmetic checks
+ * active membership/bounds only. Replacement first checks the complete active
+ * bounds domain, then checks active target uniqueness, preserving failure ordering
+ * without hot scratch allocation or any writes. The uncommon NONE check is
+ * pairwise; ADD terminals retain one linear preflight over their update domain.
+ */
+static int32_t synaptik_scatter_scan_preflight(
+        const SynaptikMetalDataMeta *meta, NSArray<id<MTLBuffer>> *role_inputs,
+        const NSUInteger *offsets, const uint64_t *control,
+        const SynaptikMetalScanStepControl *step) {
+    if (meta == NULL || role_inputs.count != 3U || offsets == NULL || control == NULL
+            || step == NULL || meta->outputRank == 0U || meta->outputRank > 16U
+            || (meta->operation != 18U && meta->operation != 70U && meta->operation != 72U)
+            || (meta->indexType != 2U && meta->indexType != 6U))
+        return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
+    if (!synaptik_scan_control_any(control, step->scope))
+        return SYNAPTIK_METAL_STATUS_OK;
+    uint64_t update_count = 1U;
+    for (uint32_t role = 0U; role < 3U; ++role) {
+        if (meta->roleRanks[role] > 16U) return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
+        for (uint32_t axis = 0U; axis < meta->roleRanks[role]; ++axis)
+            if (meta->roleDims[role][axis] == 0U) return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
+    }
+    for (uint32_t axis = 0U; axis < meta->roleRanks[2]; ++axis) {
+        uint64_t extent = meta->roleDims[2][axis];
+        if (update_count > UINT64_MAX / extent) return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
+        update_count *= extent;
+    }
+    id<MTLBuffer> indices = role_inputs[1];
+    for (uint64_t ordinal = 0U; ordinal < update_count; ++ordinal) {
+        BOOL eligible;
+        uint64_t target;
+        int32_t status = synaptik_scatter_scan_target(
+                meta, indices, offsets[1], control, step, ordinal, &eligible, &target);
+        if (status != SYNAPTIK_METAL_STATUS_OK) return status;
+    }
+    if (meta->operation == 70U || meta->attrs[1] != 1U)
+        return SYNAPTIK_METAL_STATUS_OK;
+    for (uint64_t ordinal = 0U; ordinal < update_count; ++ordinal) {
+        BOOL eligible;
+        uint64_t target;
+        int32_t status = synaptik_scatter_scan_target(
+                meta, indices, offsets[1], control, step, ordinal, &eligible, &target);
+        if (status != SYNAPTIK_METAL_STATUS_OK) return status;
+        if (!eligible) continue;
+        for (uint64_t previous = 0U; previous < ordinal; ++previous) {
+            BOOL earlier_eligible;
+            uint64_t earlier_target;
+            status = synaptik_scatter_scan_target(
+                    meta, indices, offsets[1], control, step, previous, &earlier_eligible, &earlier_target);
+            if (status != SYNAPTIK_METAL_STATUS_OK) return status;
+            if (earlier_eligible && target == earlier_target)
+                return SYNAPTIK_METAL_STATUS_RANGE_OUT_OF_BOUNDS;
+        }
+    }
+    return SYNAPTIK_METAL_STATUS_OK;
+}
+
 #endif
