@@ -1,0 +1,72 @@
+#ifndef SYNAPTIK_GENERAL_SCAN_H
+#define SYNAPTIK_GENERAL_SCAN_H
+
+#include <stdint.h>
+#include <stddef.h>
+
+/* Common authenticated control ABI. Ordinary entry points are unchanged. Controlled entry
+ * points append scanControl at buffer(28), scanStep at buffer(29), after all ordinary bindings.
+ * No control pointer is optional on a controlled entry. Host independently authenticates every
+ * scope/row mapping and proves buffer bounds before encoding. All offsets below are ulong WORD
+ * offsets, not bytes. The first ten control words are: original time, batch, root count, scope
+ * count, words per root set, membership offset, presence offset, lengths offset, length-aware,
+ * presence row count (1 for all-valid; B for length-aware). Memberships are scope-major bitsets;
+ * presence is original-row-major bitsets. Lengths are prevalidated signed INT64 words.
+ * All mutable storage is invocation-owned. No numeric tensor value is structural presence.
+ */
+typedef struct {
+    uint64_t rowInner;
+    uint32_t scope;
+    uint32_t leftScope;
+    uint32_t rightScope;
+    int32_t rowAxis;
+    uint32_t reserved[2];
+    int32_t inputRowAxes[4];
+    uint64_t inputRowInner[4];
+} SynaptikMetalScanStepControl;
+_Static_assert(sizeof(SynaptikMetalScanStepControl) == 80, "ScanStepControl size");
+_Static_assert(_Alignof(SynaptikMetalScanStepControl) == 8, "ScanStepControl alignment");
+_Static_assert(offsetof(SynaptikMetalScanStepControl, inputRowAxes) == 32, "Scan input axes offset");
+_Static_assert(offsetof(SynaptikMetalScanStepControl, inputRowInner) == 48, "Scan input inner offset");
+
+/* Independent of DataMeta and all floating helpers; assemble before controlled components.
+ * scan_control_output uses a canonical logical output ordinal, never a physical address.
+ * scan_control_operand uses an original logical operand ordinal and exact semantic ROW facts.
+ * Per-row presence and lengths are tested before ANY guarded data/index load. A SHARED scope is
+ * the disjunction over eligible original rows. UINT_MAX is unconditional structural presence;
+ * an empty declared scope is absent. For all-valid bodies rowCount is one even for empty tensors.
+ */
+static NSString *const SynaptikGeneralScanKernelSource =
+@"\nstruct ScanStepControl { ulong rowInner; uint scope; uint leftScope; uint rightScope; int rowAxis; uint reserved[2]; int inputRowAxes[4]; ulong inputRowInner[4]; };\n"
+"inline bool scan_control_row(device const ulong *control, uint scope, ulong row) {\n"
+"  if (row >= control[9]) return false;\n"
+"  if (control[8] != 0ul && (row >= control[1] || control[0] >= control[control[7] + row])) return false;\n"
+"  if (scope == 0xffffffffu) return true;\n"
+"  if (ulong(scope) >= control[3]) return false;\n"
+"  ulong members = control[5] + ulong(scope) * control[4];\n"
+"  ulong presence = control[6] + row * control[4];\n"
+"  for (ulong word = 0ul; word < control[4]; ++word) if ((control[members + word] & control[presence + word]) != 0ul) return true;\n"
+"  return false;\n"
+"}\n"
+"inline bool scan_control_any(device const ulong *control, uint scope) {\n"
+"  for (ulong row = 0ul; row < control[9]; ++row) if (scan_control_row(control, scope, row)) return true;\n"
+"  return false;\n"
+"}\n"
+"inline bool scan_control_output_scope(device const ulong *control, constant ScanStepControl &step, uint scope, ulong linear) {\n"
+"  if (step.rowAxis < 0) return scan_control_any(control, scope);\n"
+"  if (control[1] == 0ul || step.rowInner == 0ul) return false;\n"
+"  return scan_control_row(control, scope, (linear / step.rowInner) % control[1]);\n"
+"}\n"
+"inline bool scan_control_output(device const ulong *control, constant ScanStepControl &step, ulong linear) { return scan_control_output_scope(control, step, step.scope, linear); }\n"
+"inline bool scan_control_contributor(device const ulong *control, constant ScanStepControl &step, ulong row) { return scan_control_row(control, step.scope, row); }\n"
+"inline bool scan_control_operand(device const ulong *control, constant ScanStepControl &step, uint role, ulong linear) {\n"
+"  if (role >= 4u) return false;\n"
+"  if (step.inputRowAxes[role] < 0) return scan_control_any(control, step.scope);\n"
+"  if (control[1] == 0ul || step.inputRowInner[role] == 0ul) return false;\n"
+"  return scan_control_row(control, step.scope, (linear / step.inputRowInner[role]) % control[1]);\n"
+"}\n"
+"inline uint scan_control_merge(device const ulong *control, constant ScanStepControl &step, ulong linear) {\n"
+"  return (scan_control_output_scope(control, step, step.leftScope, linear) ? 1u : 0u) | (scan_control_output_scope(control, step, step.rightScope, linear) ? 2u : 0u);\n"
+"}\n";
+
+#endif
