@@ -29,7 +29,48 @@ _Static_assert(_Alignof(SynaptikMetalScanStepControl) == 8, "ScanStepControl ali
 _Static_assert(offsetof(SynaptikMetalScanStepControl, inputRowAxes) == 32, "Scan input axes offset");
 _Static_assert(offsetof(SynaptikMetalScanStepControl, inputRowInner) == 48, "Scan input inner offset");
 
+/* Host preflights use the same authenticated control words as shaders. Null controls are only
+ * the existing ordinary non-Scan path; controlled callers always supply both pointers. */
+static BOOL synaptik_scan_control_row(const uint64_t *control, uint32_t scope, uint64_t row) {
+    if (control == NULL) return YES;
+    if (row >= control[9]) return NO;
+    if (control[8] != 0U && (row >= control[1] || control[0] >= control[control[7] + row])) return NO;
+    if (scope == UINT32_MAX) return YES;
+    if (scope >= control[3]) return NO;
+    uint64_t members = control[5] + (uint64_t)scope * control[4];
+    uint64_t presence = control[6] + row * control[4];
+    for (uint64_t word = 0U; word < control[4]; word++)
+        if ((control[members + word] & control[presence + word]) != 0U) return YES;
+    return NO;
+}
+static BOOL synaptik_scan_control_any(const uint64_t *control, uint32_t scope) {
+    if (control == NULL) return YES;
+    for (uint64_t row = 0U; row < control[9]; row++)
+        if (synaptik_scan_control_row(control, scope, row)) return YES;
+    return NO;
+}
+static BOOL synaptik_scan_control_output_scope(const uint64_t *control,
+        const SynaptikMetalScanStepControl *step, uint32_t scope, uint64_t linear) {
+    if (control == NULL || step == NULL) return YES;
+    if (step->rowAxis < 0) return synaptik_scan_control_any(control, scope);
+    if (control[1] == 0U || step->rowInner == 0U) return NO;
+    return synaptik_scan_control_row(control, scope, (linear / step->rowInner) % control[1]);
+}
+static BOOL synaptik_scan_control_output(const uint64_t *control,
+        const SynaptikMetalScanStepControl *step, uint64_t linear) {
+    return synaptik_scan_control_output_scope(control, step, step == NULL ? UINT32_MAX : step->scope, linear);
+}
+static BOOL synaptik_scan_control_operand(const uint64_t *control,
+        const SynaptikMetalScanStepControl *step, uint32_t role, uint64_t linear) {
+    if (control == NULL || step == NULL) return YES;
+    if (role >= 4U) return NO;
+    if (step->inputRowAxes[role] < 0) return synaptik_scan_control_any(control, step->scope);
+    if (control[1] == 0U || step->inputRowInner[role] == 0U) return NO;
+    return synaptik_scan_control_row(control, step->scope,
+            (linear / step->inputRowInner[role]) % control[1]);
+}
 /* Independent of DataMeta and all floating helpers; assemble before controlled components.
+
  * scan_control_output uses a canonical logical output ordinal, never a physical address.
  * scan_control_operand uses an original logical operand ordinal and exact semantic ROW facts.
  * Per-row presence and lengths are tested before ANY guarded data/index load. A SHARED scope is
