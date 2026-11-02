@@ -200,7 +200,7 @@ final class MetalScanLowering {
                     node.inputs().stream().map(semantics::get).toList(), outputs, batchDimension)
                     : outputs.stream().map(unused -> new Scan.ValueSemantics(OptionalInt.empty(), false, List.of())).toList();
             for (int port = 0; port < outputs.size(); port++) semantics.put(node.outputs().get(port), facts.get(port));
-            ordinary.add(MetalNegPartitionPreparer.lower(node.operation(), indexes(node.inputs(), ordinals),
+            ordinary.add(MetalNegPartitionPreparer.lowerScanBody(node.operation(), indexes(node.inputs(), ordinals),
                     indexes(node.outputs(), ordinals), operands, outputs));
         }
         validateLengthFeedback(attrs, body.graph().nodes(), body.graph().inputs(), body.nextCarry(), body.emissions(), semantics);

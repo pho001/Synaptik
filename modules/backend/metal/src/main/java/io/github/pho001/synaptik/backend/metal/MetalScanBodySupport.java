@@ -50,7 +50,7 @@ final class MetalScanBodySupport {
                 if (actual.dataType() != expected.dataType() || !actual.shape().equals(expected.shape())
                         || actual.requiresGrad() != expected.requiresGrad()) return false;
             }
-            var node = MetalNegPartitionPreparer.lower(query.operation(), IntStream.range(0, query.inputs().size()).toArray(),
+            var node = MetalNegPartitionPreparer.lowerScanBody(query.operation(), IntStream.range(0, query.inputs().size()).toArray(),
                     IntStream.range(query.inputs().size(), descriptors.size()).toArray(), query.inputs(), query.outputs());
             MetalNativeApi.ProgramExecutableAbi.validateScanBody(node, physical);
             return true;

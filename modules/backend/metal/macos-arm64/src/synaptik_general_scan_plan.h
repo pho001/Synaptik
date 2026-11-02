@@ -70,7 +70,7 @@ static int32_t synaptik_validate_scan_step(SynaptikMetalProgramStep *step,
         SynaptikMetalDecodedNode node, id<MTLBuffer> __unsafe_unretained const *buffers,
         uint32_t bufferCount, const NSUInteger *offsets,
         const uint64_t *control, const SynaptikMetalScanStepControl *stepControl);
-static BOOL synaptik_decode_ordinary_attributes(SynaptikMetalDecodedNode *node,
+static BOOL synaptik_decode_scan_ordinary_attributes(SynaptikMetalDecodedNode *node,
         const uint8_t *rawWords, uint32_t rawWordCount, const uint8_t *types);
 static BOOL synaptik_scan_validate_gradient_flags(SynaptikMetalDecodedNode node,
         const uint8_t *allTypes, const uint8_t *allValueGradFlags);
@@ -247,7 +247,7 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
         if (unit.control.rowAxis != values[unit.node.output].rowAxis) return nil;
         unit.control.rowInner = values[unit.node.output].rowInner;
         const uint8_t *attributeBytes = bytes + (cursor + 14U + r[3] + r[4]) * 8U;
-        if (!synaptik_decode_ordinary_attributes(&unit.node, attributeBytes, (uint32_t)r[5], types)) return nil;
+        if (!synaptik_decode_scan_ordinary_attributes(&unit.node, attributeBytes, (uint32_t)r[5], types)) return nil;
         if (!synaptik_scan_validate_gradient_flags(unit.node, types, gradients)) return nil;
         if (unit.control.leftScope != UINT32_MAX && (unit.node.operation != 2U || unit.node.input_count != 2U || unit.node.output_count != 1U)) return nil;
         uint64_t expectedScratch = 0U;

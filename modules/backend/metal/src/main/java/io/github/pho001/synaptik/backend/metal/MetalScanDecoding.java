@@ -110,7 +110,7 @@ final class MetalScanDecoding {
             int[] outputIds = indices(w, cursor + 14L + inputs, outputs, values.size()).stream().mapToInt(Integer::intValue).toArray();
             for (int operand : operandIds) if (!available.contains(operand)) throw malformed();
             for (int output : outputIds) if (!available.add(output) || values.get(output).byteOffset() < 0) throw malformed();
-            var node = MetalMpsGraphProgram.Node.generic(kind, operandIds, outputIds, attributeKind,
+            var node = MetalMpsGraphProgram.Node.genericForScanBody(kind, operandIds, outputIds, attributeKind,
                     Arrays.copyOfRange(w, cursor + 14 + inputs + outputs, cursor + record));
             int scope = scope(w[cursor + 6], w[18]), left = scope(w[cursor + 7], w[18]), right = scope(w[cursor + 8], w[18]);
             int row = Math.toIntExact(w[cursor + 9]), accumulator = Math.toIntExact(w[cursor + 11]);
@@ -292,6 +292,9 @@ final class MetalScanDecoding {
     private static DataType carrier(long wire) { if (wire < 0 || wire > 6) throw malformed(); return switch ((int) wire) { case 1 -> DataType.FLOAT32; case 2 -> DataType.INT32; case 3 -> DataType.BOOL; case 6 -> DataType.INT64; default -> throw malformed(); }; }
     private static MetalMpsGraphProgram.NodeKind kind(long wire) { if (wire >= 101 && wire <= 105) throw malformed(); for (var kind : MetalMpsGraphProgram.NodeKind.values()) if (kind.wireIdentity() == wire && wire >= 1 && wire <= 115) return kind; throw malformed(); }
     private static MetalMpsGraphProgram.AttributeKind attributeKind(long wire) { for (var kind : MetalMpsGraphProgram.AttributeKind.values()) if (kind.wireIdentity() == wire && wire != 42) return kind; throw malformed(); }
+
+    /** Applies the same Model-pure ordinary kind boundary to direct physical-unit validation. */
+    static void validateOrdinaryKind(MetalMpsGraphProgram.NodeKind candidate) { kind(candidate.wireIdentity()); }
     private static long align(long bytes) { return Math.addExact(bytes, 7) & ~7L; }
     private static IllegalArgumentException malformed() { return new IllegalArgumentException("Malformed Metal Scan body/binder image"); }
 
