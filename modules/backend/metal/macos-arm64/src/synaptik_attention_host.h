@@ -139,12 +139,13 @@ static BOOL synaptik_attention_metadata(
     uint64_t batchCount = 1U;
     for (uint32_t axis = 0U; axis < m.batchRank; ++axis)
         if (!synaptik_attention_product(batchCount, m.batchDims[axis], &batchCount)) return NO;
-    uint64_t workspace, outputCount;
+    uint64_t workspace = 0U, outputCount;
     if (!synaptik_attention_product(batchCount, m.queryLength, &m.rowCount)
-            || !synaptik_attention_product(m.rowCount, m.keyLength, &workspace)
-            || !synaptik_attention_product(workspace, 4U, &workspace)
             || !synaptik_attention_product(m.rowCount, m.valueEmbedding, &outputCount)
             || !synaptik_attention_product(outputCount, 4U, &outputCount)) return NO;
+    BOOL noNumericalOutput = node.output_count == 1U && outputCount == 0U;
+    if (!noNumericalOutput && (!synaptik_attention_product(m.rowCount, m.keyLength, &workspace)
+            || !synaptik_attention_product(workspace, 4U, &workspace))) return NO;
     for (uint32_t port = 0U; port < node.output_count; ++port) {
         uint32_t index = node.outputs[port];
         MPSShape *shape = shapes[index];
@@ -193,7 +194,7 @@ static BOOL synaptik_attention_metadata(
     m.keyEmbeddingStride = physical[1][k.count - 1U];
     m.valueStride = physical[2][v.count - 2U];
     m.valueEmbeddingStride = physical[2][v.count - 1U];
-    if (m.rowCount == 0U) {
+    if (m.rowCount == 0U || noNumericalOutput) {
         *grid = MTLSizeMake(0U, 0U, 0U);
     } else if (!custom_grid(m.rowCount, grid, &m.gridWidth, &m.gridHeight)) return NO;
     *workspaceBytes = (NSUInteger)workspace;

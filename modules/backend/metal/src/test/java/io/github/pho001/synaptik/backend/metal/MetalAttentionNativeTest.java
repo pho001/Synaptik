@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.backend.metal;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -45,6 +46,24 @@ class MetalAttentionNativeTest {
                 List.of(floats(0, 0), floats(0, 0), floats()));
         assertEquals(0, result.getFirst().length);
         assertArrayEquals(floats(0.5f, 0.5f, 0.5f, 0.5f), result.get(1));
+    }
+
+    @Test
+    void emptyPrimaryWithoutSiblingUsesNoScoreWorkspaceButRetainsBoolPreflight() {
+        var program = attention(true, false, false, false);
+        var values = descriptors(false, true,
+                new long[] {2, 1}, new long[] {2, 1}, new long[] {2, 0},
+                new long[] {2, 0}, new long[] {2, 2}, new long[] {2});
+        assertEquals(0, MetalProgramWorkspace.scratchBytes(program, values).length);
+        List<byte[]> result = execute(program, values, new int[] {0, 1, 2, 3}, new int[] {4},
+                List.of(floats(Float.NaN, Float.NaN), floats(Float.NaN, Float.NaN),
+                        floats(), new byte[] {1, 1}));
+        assertEquals(0, result.getFirst().length);
+        var failure = assertThrows(MetalNativeApi.NativeFailure.class,
+                () -> execute(program, values, new int[] {0, 1, 2, 3}, new int[] {4},
+                        List.of(floats(Float.NaN, Float.NaN), floats(Float.NaN, Float.NaN),
+                                floats(), new byte[] {1, 2})));
+        assertEquals(MetalNativeApi.Status.INVALID_ARGUMENT, failure.status());
     }
 
     @Test

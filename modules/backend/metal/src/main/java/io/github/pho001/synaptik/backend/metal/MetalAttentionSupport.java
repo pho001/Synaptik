@@ -18,6 +18,10 @@ import java.util.List;
  * weights sibling are checked, not inferred from a projected FLOAT32 operation. No low or
  * FLOAT64 arithmetic domain follows from this owner. Mask contents are validated by native
  * invocation preflight before scores, outputs or declared workspace are written.</p>
+ *
+ * <p>An empty primary without a requested weights sibling declares no score workspace or
+ * numerical dispatch. Descriptor, attribute and Boolean-content validation still apply;
+ * an independently nonempty canonical weights sibling retains its numerical work.</p>
  */
 final class MetalAttentionSupport {
     private MetalAttentionSupport() {}
@@ -198,6 +202,8 @@ final class MetalAttentionSupport {
             for (int axis = 0; axis < mask.length; axis++)
                 if (mask[axis] != 1 && mask[axis] != expected[padding + axis]) return false;
         }
+        // No score workspace exists for an empty primary with no requested sibling.
+        if (outputs.size() == 1 && Arrays.stream(outputs.getFirst()).anyMatch(extent -> extent == 0)) return true;
         long weights = 1;
         for (long extent : expected) weights = Math.multiplyExact(weights, extent);
         Math.multiplyExact(weights, Float.BYTES);

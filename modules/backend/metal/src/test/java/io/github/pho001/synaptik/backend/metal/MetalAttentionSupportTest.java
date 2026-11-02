@@ -20,6 +20,20 @@ import org.junit.jupiter.api.Test;
 
 class MetalAttentionSupportTest {
     @Test
+    void emptyPrimaryDoesNotRequireRepresentableUnusedScoreWorkspace() {
+        long rows = 10_000_000_000L;
+        var inputs = List.of(descriptor(DataType.FLOAT32, false, rows, 1),
+                descriptor(DataType.FLOAT32, false, rows, 1),
+                descriptor(DataType.FLOAT32, false, rows, 0));
+        var outputs = List.of(descriptor(DataType.FLOAT32, false, rows, 0));
+        assertTrue(MetalAttentionSupport.supports(operation(Optional.empty()), inputs, outputs));
+        var values = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>();
+        inputs.forEach(d -> values.add(MetalMpsGraphProgram.ValueDescriptor.from(d)));
+        outputs.forEach(d -> values.add(MetalMpsGraphProgram.ValueDescriptor.from(d)));
+        assertDoesNotThrow(() -> MetalAttentionSupport.validate(node(false), values));
+    }
+
+    @Test
     void positiveOverlappingInputCannotPassSourceAdmissionOrIndependentRawValidation() {
         Shape shape = Shape.of(2, 2);
         var overlap = new TensorDescriptor(DataType.FLOAT32, shape,
