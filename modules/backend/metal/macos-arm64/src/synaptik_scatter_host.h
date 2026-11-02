@@ -343,11 +343,12 @@ static int32_t synaptik_scatter_scan_target(
  * without hot scratch allocation or any writes. The uncommon NONE check is
  * pairwise; ADD terminals retain one linear preflight over their update domain.
  */
-static int32_t synaptik_scatter_scan_preflight(
-        const SynaptikMetalDataMeta *meta, NSArray<id<MTLBuffer>> *role_inputs,
+static int32_t synaptik_scatter_scan_preflight_raw(
+        const SynaptikMetalDataMeta *meta,
+        __unsafe_unretained id<MTLBuffer> const *role_inputs, NSUInteger role_count,
         const NSUInteger *offsets, const uint64_t *control,
         const SynaptikMetalScanStepControl *step) {
-    if (meta == NULL || role_inputs.count != 3U || offsets == NULL || control == NULL
+    if (meta == NULL || role_inputs == NULL || role_count != 3U || offsets == NULL || control == NULL
             || step == NULL || meta->outputRank == 0U || meta->outputRank > 16U
             || (meta->operation != 18U && meta->operation != 70U && meta->operation != 72U)
             || (meta->indexType != 2U && meta->indexType != 6U))
@@ -365,7 +366,7 @@ static int32_t synaptik_scatter_scan_preflight(
         if (update_count > UINT64_MAX / extent) return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
         update_count *= extent;
     }
-    id<MTLBuffer> indices = role_inputs[1];
+    __unsafe_unretained id<MTLBuffer> indices = role_inputs[1];
     for (uint64_t ordinal = 0U; ordinal < update_count; ++ordinal) {
         BOOL eligible;
         uint64_t target;
@@ -393,6 +394,19 @@ static int32_t synaptik_scatter_scan_preflight(
         }
     }
     return SYNAPTIK_METAL_STATUS_OK;
+}
+
+/* Ordinary callers may already own an NSArray table. The Scan time loop calls
+ * the borrowed raw core directly, without constructing a Foundation collection. */
+static int32_t synaptik_scatter_scan_preflight(
+        const SynaptikMetalDataMeta *meta, NSArray<id<MTLBuffer>> *role_inputs,
+        const NSUInteger *offsets, const uint64_t *control,
+        const SynaptikMetalScanStepControl *step) {
+    if (role_inputs.count != 3U) return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
+    __unsafe_unretained id<MTLBuffer> roles[3] = {
+        role_inputs[0], role_inputs[1], role_inputs[2]
+    };
+    return synaptik_scatter_scan_preflight_raw(meta, roles, 3U, offsets, control, step);
 }
 
 #endif
