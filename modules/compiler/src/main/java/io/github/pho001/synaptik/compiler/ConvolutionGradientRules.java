@@ -1,8 +1,11 @@
 package io.github.pho001.synaptik.compiler;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
+import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Window2dAttrs;
+import io.github.pho001.synaptik.model.operation.layout.Window3dAttrs;
 import io.github.pho001.synaptik.model.shape.Dimension;
 import io.github.pho001.synaptik.model.shape.DimensionExpressions;
 import io.github.pho001.synaptik.model.shape.Shape;
@@ -11,7 +14,7 @@ import io.github.pho001.synaptik.model.shape.StaticDimension;
 import java.util.function.Function;
 
 /**
- * Builds grouped NCHW convolution cotangents through public window and matrix operations.
+ * Builds grouped NCHW and NCDHW convolution cotangents through public window and matrix operations.
  *
  * <p>Every reshape retains the occurrence's exact symbolic batch, channel, and spatial
  * dimensions. The leading group axis prevents cross-group contraction. Folding accumulates
@@ -56,8 +59,9 @@ final class ConvolutionGradientRules<V> {
         DataType resultType = ops.descriptor(producer.output(0)).dataType();
         V input = cast(primal.apply(originalInput), resultType);
         V weight = cast(primal.apply(originalWeight), resultType);
-        Conv2dAttrs attrs = (Conv2dAttrs) producer.operation().attrs();
-        Window2dAttrs window = window(attrs, originalWeight);
+        OperationAttrs attrs = producer.operation().attrs();
+        long groupCount = attrs instanceof Conv2dAttrs two ? two.groups()
+                : ((Conv3dAttrs) attrs).groups();
         
         Shape inputShape = ops.descriptor(originalInput).shape();
         Shape weightShape = ops.descriptor(originalWeight).shape();
@@ -65,17 +69,14 @@ final class ConvolutionGradientRules<V> {
         Dimension batch = inputShape.dimension(0);
         Dimension outputChannels = weightShape.dimension(0);
         Dimension outputPerGroup =
-                DimensionExpressions.floorDivide(outputChannels, attrs.groups());
-        long kernelElements = Math.multiplyExact(
-                ((StaticDimension) weightShape.dimension(2)).size(),
-                ((StaticDimension) weightShape.dimension(3)).size());
-        Dimension kernelPerGroup =
-                DimensionExpressions.multiply(weightShape.dimension(1), kernelElements);
-        Dimension outputPositions = DimensionExpressions.multiply(
-                outputShape.dimension(2), outputShape.dimension(3));
+                DimensionExpressions.floorDivide(outputChannels, groupCount);
+        Dimension kernelPerGroup = DimensionExpressions.multiply(
+                weightShape.dimension(1), spatialProduct(weightShape));
+        Dimension outputPositions = spatialProduct(outputShape);
         Dimension groupedChannels =
-                DimensionExpressions.multiply(kernelPerGroup, attrs.groups());
-        StaticDimension groups = new StaticDimension(attrs.groups());
+                DimensionExpressions.multiply(kernelPerGroup, groupCount);
+        StaticDimension groups = new StaticDimension(groupCount);
+        OperationAttrs window = window(attrs, weightShape);
         
         V[] result = ops.array(producer.inputs().size());
         V groupedGradient = ops.contiguous(ops.permute(ops.reshape(gradient, Shape.ofDimensions(
@@ -86,12 +87,16 @@ final class ConvolutionGradientRules<V> {
             V groupedColumns = ops.matmul(ops.contiguous(ops.expandDims(swapLastTwo(groupedWeight), 1)), groupedGradient);
             V columns = ops.contiguous(ops.reshape(ops.contiguous(ops.permute(groupedColumns, 1, 0, 2, 3)), Shape.ofDimensions(batch, groupedChannels, outputPositions)));
             result[0] = normalize(
-                    ops.fold2d(columns, ops.descriptor(originalInput).shape(), window),
+                    window instanceof Window2dAttrs two
+                            ? ops.fold2d(columns, inputShape, two)
+                            : ops.fold3d(columns, inputShape, (Window3dAttrs) window),
                     originalInput);
         }
         
         if (selectedInputs[1]) {
-            V inputColumns = ops.contiguous(ops.permute(ops.reshape(ops.unfold2d(input, window), Shape.ofDimensions(
+            V unfolded = window instanceof Window2dAttrs two
+                    ? ops.unfold2d(input, two) : ops.unfold3d(input, (Window3dAttrs) window);
+            V inputColumns = ops.contiguous(ops.permute(ops.reshape(unfolded, Shape.ofDimensions(
                             batch, groups, kernelPerGroup, outputPositions)), 1, 0, 2, 3));
             V groupedWeightGradient = ops.sum(ops.matmul(groupedGradient, swapLastTwo(inputColumns)), 1, false);
             result[1] = normalize(
@@ -100,8 +105,12 @@ final class ConvolutionGradientRules<V> {
         }
         
         if (producer.inputs().size() == 3 && selectedInputs[2]) {
+            int[] reductionAxes = new int[outputShape.rank() - 1];
+            for (int axis = 1; axis < reductionAxes.length; axis++) {
+                reductionAxes[axis] = axis + 1;
+            }
             result[2] = normalize(
-                    ops.sum(gradient, new int[] {0, 2, 3}, false),
+                    ops.sum(gradient, reductionAxes, false),
                     producer.inputs().get(2));
         }
         return result;
@@ -111,21 +120,38 @@ final class ConvolutionGradientRules<V> {
      * Reconstructs the exact public window attributes represented by one convolution occurrence.
      *
      * @param attrs non-null intrinsic convolution geometry
-     * @param weight non-null weight Tensor whose static final axes define the kernel
-     * @return a new immutable window attribute value for unfold and fold expressions
+     * @param shape non-null weight Shape whose static final axes define the kernel
+     * @return immutable matching 2D or 3D window attributes for unfold and fold expressions
      */
-    private Window2dAttrs window(Conv2dAttrs attrs, V weight) {
-        Shape shape = ops.descriptor(weight).shape();
-        return new Window2dAttrs(
-                ((StaticDimension) shape.dimension(2)).size(),
-                ((StaticDimension) shape.dimension(3)).size(),
-                attrs.strideHeight(),
-                attrs.strideWidth(),
-                attrs.paddingHeight(),
-                attrs.paddingWidth(),
-                attrs.dilationHeight(),
-                attrs.dilationWidth(),
-                false);
+    static OperationAttrs window(OperationAttrs attrs, Shape shape) {
+        long height = ((StaticDimension) shape.dimension(shape.rank() - 2)).size();
+        long width = ((StaticDimension) shape.dimension(shape.rank() - 1)).size();
+        if (attrs instanceof Conv2dAttrs two) {
+            return new Window2dAttrs(
+                    height, width, two.strideHeight(), two.strideWidth(),
+                    two.paddingHeight(), two.paddingWidth(),
+                    two.dilationHeight(), two.dilationWidth(), false);
+        }
+        Conv3dAttrs three = (Conv3dAttrs) attrs;
+        return new Window3dAttrs(
+                ((StaticDimension) shape.dimension(2)).size(), height, width,
+                three.strideDepth(), three.strideHeight(), three.strideWidth(),
+                three.paddingDepth(), three.paddingHeight(), three.paddingWidth(),
+                three.dilationDepth(), three.dilationHeight(), three.dilationWidth(), false);
+    }
+
+    /**
+     * Multiplies only spatial axes without resolving any symbolic dimension.
+     *
+     * @param shape non-null NCHW or NCDHW Shape
+     * @return exact symbolic product of axes two through the final axis
+     */
+    private static Dimension spatialProduct(Shape shape) {
+        Dimension product = shape.dimension(2);
+        for (int axis = 3; axis < shape.rank(); axis++) {
+            product = DimensionExpressions.multiply(product, shape.dimension(axis));
+        }
+        return product;
     }
 
     /**

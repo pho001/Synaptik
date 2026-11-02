@@ -6,6 +6,8 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
+import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
+import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
 import io.github.pho001.synaptik.model.shape.DynamicDimension;
@@ -73,6 +75,66 @@ final class OrdinaryConstructionTest {
         assertFalse(resolved.containsKey(outputs.get(0)));
         assertTrue(metadataSites.stream().anyMatch(site -> site.operation().kind() == CastKind.CAST
                 && site.inputs().getFirst().equals(value.descriptor())));
+    }
+
+    @Test
+    void convolutionMetadataAndTensorConstructionAgreeForGroupedSelectedRoles() {
+        for (boolean volumetric : List.of(false, true)) {
+            for (boolean biased : List.of(false, true)) {
+                Tensor input = tensor(DataType.FLOAT32,
+                        volumetric ? Shape.of(2, 4, 5, 6, 7) : Shape.of(2, 4, 6, 7), true);
+                Tensor weight = tensor(DataType.FLOAT64,
+                        volumetric ? Shape.of(6, 2, 2, 3, 2) : Shape.of(6, 2, 3, 2), true);
+                Tensor bias = tensor(DataType.FLOAT32, Shape.of(6), true);
+                Conv2dAttrs two = new Conv2dAttrs(1, 2, 2, 0, 2, 1, 2);
+                Conv3dAttrs three = new Conv3dAttrs(2, 1, 2, 1, 2, 0, 2, 2, 1, 2);
+                Tensor output = volumetric
+                        ? biased ? input.conv3d(weight, bias, three) : input.conv3d(weight, three)
+                        : biased ? input.conv2d(weight, bias, two) : input.conv2d(weight, two);
+                TensorProducer producer = output.provenance().orElseThrow().producer();
+                Tensor seed = tensor(DataType.FLOAT64, output.descriptor().shape(), false);
+                for (int selection = 1; selection < 1 << producer.inputs().size(); selection++) {
+                    boolean[] selected = new boolean[producer.inputs().size()];
+                    for (int role = 0; role < selected.length; role++) {
+                        selected[role] = (selection & 1 << role) != 0;
+                    }
+                    List<Observed> realSites = new ArrayList<>();
+                    var real = OrdinaryConstruction.real(new FirstOrderAutograd.DerivativeConstants(),
+                            (operation, inputs, outputs, deferred) -> realSites.add(new Observed(
+                                    operation, inputs.stream().map(Tensor::descriptor).toList(),
+                                    outputs.stream().map(Tensor::descriptor).toList())));
+                    Tensor[] actual = FirstOrderAutograd.applyOrdinary(
+                            FirstOrderGradientCoverage.FamilyOwner.CONVOLUTION,
+                            OrdinaryConstruction.source(producer), 0, seed,
+                            selected, real, Function.identity());
+                    List<Observed> metadataSites = new ArrayList<>();
+                    var metadata = OrdinaryConstruction.metadata(null, null, null,
+                            (operation, inputs, outputs, deferred) -> metadataSites.add(new Observed(
+                                    operation, inputs.stream().map(OrdinaryConstruction.Value::descriptor).toList(),
+                                    outputs.stream().map(OrdinaryConstruction.Value::descriptor).toList())));
+                    var source = OrdinaryConstruction.source(producer.operation(),
+                            producer.inputs().stream().map(t -> new OrdinaryConstruction.Value(t.descriptor())).toList(),
+                            List.of(new OrdinaryConstruction.Value(output.descriptor())));
+                    OrdinaryConstruction.Value[] checked = FirstOrderAutograd.applyOrdinary(
+                            FirstOrderGradientCoverage.FamilyOwner.CONVOLUTION,
+                            source, 0, new OrdinaryConstruction.Value(seed.descriptor()),
+                            selected, metadata, Function.identity());
+                    assertEquals(realSites, metadataSites);
+                    for (int role = 0; role < selected.length; role++) {
+                        if (selected[role]) {
+                            assertEquals(actual[role].descriptor(), checked[role].descriptor());
+                            assertEquals(producer.inputs().get(role).descriptor().shape(),
+                                    actual[role].descriptor().shape());
+                            assertEquals(producer.inputs().get(role).descriptor().dataType(),
+                                    actual[role].descriptor().dataType());
+                        } else {
+                            assertNull(actual[role]);
+                            assertNull(checked[role]);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     @Test

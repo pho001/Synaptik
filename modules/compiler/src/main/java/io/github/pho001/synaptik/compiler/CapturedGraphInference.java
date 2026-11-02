@@ -42,7 +42,7 @@ import java.util.Objects;
  * <p>The pass independently derives every operation occurrence's complete output descriptors,
  * compares them with the stored graph descriptors, and retains only Shape obligations that the
  * current immutable model facts cannot prove or disprove. It neither rewrites the graph nor
- * reconstructs public Tensor expressions. Forward-only Conv3d, Pool3d, and three-dimensional window
+ * reconstructs public Tensor expressions. Conv3d, Pool3d, and three-dimensional window
  * occurrences use this same boundary before canonicalization and after every changed optimization
  * candidate, so their NCDHW result descriptors and ordered spatial-fit obligations are proved again
  * from the final graph rather than trusted from Model construction.

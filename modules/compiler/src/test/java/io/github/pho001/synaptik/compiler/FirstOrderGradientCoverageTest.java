@@ -17,7 +17,6 @@ import io.github.pho001.synaptik.model.operation.OperationSignature;
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
 import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
-import io.github.pho001.synaptik.model.operation.convolution.Conv3dKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
 import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
 import io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind;
@@ -344,6 +343,15 @@ final class FirstOrderGradientCoverageTest {
                 "grouped-convolution",
                 image.conv2d(weight, bias, new Conv2dAttrs(1, 1, 1, 1, 1, 1, 2)).sum(),
                 image));
+        Tensor volume = tensor(Shape.of(1, 4, 3, 4, 3));
+        Tensor volumeWeight = tensor(Shape.of(6, 2, 2, 2, 2));
+        Tensor volumeBias = tensor(Shape.of(6));
+        Tensor volumeOutput = volume.conv3d(volumeWeight, volumeBias,
+                new Conv3dAttrs(1, 1, 1, 1, 0, 1, 1, 1, 1, 2));
+        Tensor volumeObjective = volumeOutput.mul(volumeOutput).sum();
+        cases.add(new ClosureCase("grouped-conv3d-input", volumeObjective, volume));
+        cases.add(new ClosureCase("grouped-conv3d-weight", volumeObjective, volumeWeight));
+        cases.add(new ClosureCase("grouped-conv3d-bias", volumeObjective, volumeBias));
         cases.add(new ClosureCase(
                 "maximum-pooling",
                 image.maxPool2d(new MaxPool2dAttrs(3, 3, 1, 1, 1, 1, 1, 1, false))
@@ -611,14 +619,7 @@ final class FirstOrderGradientCoverageTest {
         return Set.of(
                 recurrentSignature(RecurrentScanKind.RNN_TANH, 5, 6, 2),
                 recurrentSignature(RecurrentScanKind.GRU_RESET_AFTER, 5, 6, 2),
-                recurrentSignature(RecurrentScanKind.LSTM, 6, 7, 3),
-                new FirstOrderGradientCoverage.SignatureFingerprint(
-                        Conv3dKind.CONV3D,
-                        Conv3dAttrs.class,
-                        2,
-                        3,
-                        1,
-                        1));
+                recurrentSignature(RecurrentScanKind.LSTM, 6, 7, 3));
     }
 
     private static FirstOrderGradientCoverage.SignatureFingerprint fixedSignature(

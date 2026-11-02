@@ -12,7 +12,6 @@ import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dKind;
 import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
-import io.github.pho001.synaptik.model.operation.convolution.Conv3dKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
 import io.github.pho001.synaptik.model.operation.elementwise.classification.FloatingClassificationKind;
@@ -578,7 +577,7 @@ final class AutogradPreflightTest {
     }
 
     @Test
-    void rejectsConv3dFromCompleteForwardInventoryBeforeDerivativeAllocation()
+    void unrelatedConv3dDoesNotRejectOrEnterSelectedDerivativeRoutes()
             throws Exception {
         for (CompileMode mode : List.of(
                 CompileMode.FORWARD_AND_BACKWARD, CompileMode.TRAINING_STEP)) {
@@ -594,24 +593,31 @@ final class AutogradPreflightTest {
                     FunctionalGradientTestSupport.stage(objective, List.of(target));
             long before = nextTensorId();
 
-            IllegalArgumentException failure = assertThrows(
-                    IllegalArgumentException.class,
-                    () -> AutogradPreflight.preflight(
-                            mode,
-                            List.of(conv3d, objective),
-                            request,
-                            CompileTimeConstantGraph.Ingress.empty()));
-
-            assertTrue(failure.getMessage().startsWith("producerPostorder[0] "),
-                    failure.getMessage());
-            assertTrue(failure.getMessage().contains(
-                    Conv3dKind.class.getName() + ".CONV3D attrs="
-                            + Conv3dAttrs.class.getName()), failure.getMessage());
-            assertTrue(failure.getMessage().endsWith(
-                    "Conv3d is forward-only until Compiler task 0006C closes its gradients"),
-                    failure.getMessage());
+            var plan = AutogradPreflight.preflight(
+                    mode, List.of(conv3d, objective), request,
+                    CompileTimeConstantGraph.Ingress.empty());
+            assertTrue(plan.connectedTarget(0));
+            assertTrue(plan.selectedOccurrences().stream().noneMatch(occurrence ->
+                    occurrence.producer() == conv3d.provenance().orElseThrow().producer()));
             assertEquals(before, nextTensorId());
         }
+    }
+
+    @Test
+    void rejectsConv3dKernelVolumeOverflowBeforeDerivativeAllocation() throws Exception {
+        long extent = 1L << 32;
+        Tensor input = tensor(Shape.of(1, 1, extent, extent, 1), true);
+        Tensor weight = tensor(Shape.of(1, 1, extent, extent, 1), true);
+        Tensor objective = input.conv3d(weight, Conv3dAttrs.defaults()).sum();
+        var request = FunctionalGradientTestSupport.stage(objective, List.of(input));
+        long before = nextTensorId();
+        var failure = assertThrows(IllegalArgumentException.class,
+                () -> AutogradPreflight.preflight(
+                        CompileMode.FORWARD_AND_BACKWARD, List.of(objective), request,
+                        CompileTimeConstantGraph.Ingress.empty()));
+        assertTrue(failure.getMessage().contains(
+                "CONV3D grouped window geometry is not constructible"), failure.getMessage());
+        assertEquals(before, nextTensorId());
     }
 
     @Test

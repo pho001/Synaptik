@@ -8,6 +8,7 @@ import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
+import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.Fold3dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Unfold3dAttrs;
@@ -73,6 +74,114 @@ final class ConvolutionAndPoolingGradientRulesTest {
         assertCompiles(objective, input);
         assertCompiles(objective, weight);
         assertCompiles(objective, bias);
+    }
+
+    @Test
+    void groupedConv3dRestoresEverySelectedRoleAndExactWindowGeometry() {
+        Tensor input = tensor(DataType.FLOAT32, Shape.of(2, 4, 5, 7, 8));
+        Tensor weight = tensor(DataType.FLOAT64, Shape.of(6, 2, 2, 3, 2));
+        Tensor bias = tensor(DataType.FLOAT32, Shape.of(6));
+        Conv3dAttrs attrs = new Conv3dAttrs(2, 1, 2, 1, 2, 0, 2, 2, 1, 2);
+        Tensor output = input.conv3d(weight, bias, attrs);
+        Tensor objective = output.mul(output).sum();
+        Tensor inputGradient = gradient(objective, input);
+        Tensor weightGradient = gradient(objective, weight);
+        Tensor biasGradient = gradient(objective, bias);
+
+        for (var pair : List.of(List.of(input, inputGradient),
+                List.of(weight, weightGradient), List.of(bias, biasGradient))) {
+            assertEquals(pair.getFirst().descriptor().shape(), pair.getLast().descriptor().shape());
+            assertEquals(pair.getFirst().descriptor().dataType(), pair.getLast().descriptor().dataType());
+            assertCompiles(objective, pair.getFirst());
+        }
+        Fold3dAttrs fold = collect(inputGradient).stream()
+                .flatMap(tensor -> tensor.provenance().stream())
+                .filter(provenance -> provenance.operation().kind() == WindowTransformKind.FOLD3D)
+                .map(provenance -> (Fold3dAttrs) provenance.operation().attrs())
+                .findFirst().orElseThrow();
+        assertEquals(input.descriptor().shape(), fold.outputShape());
+        assertEquals(new io.github.pho001.synaptik.model.operation.layout.Window3dAttrs(
+                2, 3, 2, 2, 1, 2, 1, 2, 0, 2, 2, 1, false), fold.window());
+        assertTrue(containsKind(weightGradient, WindowTransformKind.UNFOLD3D));
+
+        GraphCompilation compilation = GraphCompiler.compile(
+                CompileMode.TRAINING_STEP, List.of(objective),
+                Optional.of(FunctionalGradientTestSupport.request(objective, List.of(input, weight, bias))),
+                CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.standard());
+        assertEquals(List.of(input.id(), weight.id(), bias.id()),
+                compilation.gradientResults().stream().map(GradientPublicationBinding::target).toList());
+    }
+
+    @Test
+    void unbiasedConv3dPreservesSymbolicBatchAndEverySpatialDimension() {
+        for (DataType type : List.of(
+                DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16)) {
+            Shape shape = Shape.ofDimensions(new DynamicDimension("N"),
+                    new io.github.pho001.synaptik.model.shape.StaticDimension(4),
+                    new DynamicDimension("D"), new DynamicDimension("H"), new DynamicDimension("W"));
+            Tensor input = tensor(type, shape);
+            Tensor weight = tensor(type, Shape.of(6, 2, 2, 3, 2));
+            Tensor output = input.conv3d(
+                    weight, new Conv3dAttrs(2, 1, 2, 1, 2, 0, 2, 2, 1, 2));
+            for (Tensor target : List.of(input, weight)) {
+                Tensor result = gradient(output.sum(), target);
+                assertEquals(target.descriptor().shape(), result.descriptor().shape());
+                assertEquals(type, result.descriptor().dataType());
+                assertCompiles(output.sum(), target);
+            }
+        }
+    }
+
+    @Test
+    void conv3dTwoStageRequestsComposeThroughOrdinaryWindowAdjoints() {
+        Tensor input = tensor(Shape.of(1, 4, 3, 4, 3));
+        Tensor weight = tensor(Shape.of(6, 2, 2, 2, 2));
+        Tensor output = input.conv3d(
+                weight, new Conv3dAttrs(1, 1, 1, 1, 0, 1, 1, 1, 1, 2));
+        Tensor objective = output.mul(output).sum();
+        for (Tensor target : List.of(input, weight)) {
+            var first = new FunctionalGradientRequest.Stage(
+                    List.of(new FunctionalGradientRequest.ForwardTensorReference(objective)),
+                    List.of(Optional.empty()), List.of(target), true,
+                    FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+            Tensor seed = TensorFactory.create(new TensorDescriptor(
+                    target.descriptor().dataType(), target.descriptor().shape(), Optional.empty(), false));
+            var second = new FunctionalGradientRequest.Stage(
+                    List.of(new FunctionalGradientRequest.FirstStageGradientReference(0)),
+                    List.of(Optional.of(seed)), List.of(target), false,
+                    FunctionalGradientRequest.DisconnectedPolicy.ERROR);
+            for (var optimization : List.of(
+                    GraphOptimizationConfig.disabled(), GraphOptimizationConfig.standard())) {
+                GraphCompilation compiled = GraphCompiler.compile(
+                        CompileMode.FORWARD_AND_BACKWARD, List.of(objective),
+                        Optional.of(new FunctionalGradientRequest(List.of(first, second))),
+                        CompileTimeConstantGraph.Ingress.empty(), optimization);
+                assertEquals(List.of(1, 2), compiled.gradientResults().stream()
+                        .map(GradientPublicationBinding::derivativeOrder).toList());
+                assertEquals(List.of(target.id(), target.id()), compiled.gradientResults().stream()
+                        .map(GradientPublicationBinding::target).toList());
+                assertTrue(compiled.derivatives().derivativeOrderByNode().containsValue(2));
+            }
+        }
+    }
+
+    @Test
+    void conv3dInsideScanUsesTheSameOrdinaryGradientClosure() {
+        Tensor carry = tensor(Shape.of(1, 4, 3, 3, 3));
+        Tensor step = tensor(Shape.of(1, 4, 3, 3, 3));
+        Tensor kernel = tensor(Shape.of(4, 2, 3, 3, 3));
+        Tensor next = carry.add(step.conv3d(
+                kernel, new Conv3dAttrs(1, 1, 1, 1, 1, 1, 1, 1, 1, 2)));
+        var body = new io.github.pho001.synaptik.model.tensor.ScanBody(
+                List.of(carry), List.of(step), List.of(kernel), List.of(next), List.of());
+        Tensor initial = tensor(carry.descriptor().shape());
+        Tensor sequence = tensor(Shape.of(2, 1, 4, 3, 3, 3));
+        Tensor weight = tensor(kernel.descriptor().shape());
+        var scan = io.github.pho001.synaptik.model.tensor.Scan.apply(
+                List.of(initial), List.of(sequence), List.of(weight), body, false);
+        Tensor objective = scan.finalCarry().getFirst().sum();
+        assertCompiles(objective, sequence);
+        assertCompiles(objective, weight);
     }
 
     @Test

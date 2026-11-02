@@ -68,7 +68,8 @@ public final class GraphCompilationPort {
      * additionally admitted with independently scoped bodies in the bounded constructor closure
      * described below; body-only families do not widen this flat inventory.
      * Index/length values are never read; time/batch may be zero for scans. This grants no scan
-     * execution, BPTT or Conv3d gradients. Public constructors retain ordinary family guards.
+     * execution or BPTT. Conv3d differentiation is independently checked by autograd preflight;
+     * this source inventory does not widen its constructor geometry. Public constructors retain ordinary family guards.
      * Existing family inference verifies every raw descriptor without rewriting it. This is not
      * the optimized, layout-closed graph returned by {@link CompileArtifacts#graph()}.</p>
      *

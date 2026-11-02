@@ -8,6 +8,8 @@ import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAtten
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dKind;
+import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
+import io.github.pho001.synaptik.model.operation.convolution.Conv3dKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
@@ -56,8 +58,8 @@ import java.util.Objects;
  * {@link AutogradPreflight}'s occurrence-local shape, type, cardinality, auxiliary, and policy
  * proof before a formula may be constructed.</p>
  *
- * <p>The immutable signature inventory is deliberately exact: 38 current operation-kind enum
- * families, 111 constants, and 133 complete kind/attributes/cardinality fingerprints. It names
+ * <p>The immutable signature inventory is deliberately exact: 39 current operation-kind enum
+ * families, 112 constants, and 134 complete kind/attributes/cardinality fingerprints. It names
  * every accepted ordinary variant instead of deriving the inventory from Model declarations, so
  * a newly added or changed production signature fails closed until its first-order disposition
  * is reviewed. This type constructs no Tensor or graph state, scans no class path, uses no
@@ -180,7 +182,7 @@ final class FirstOrderGradientCoverage {
     /**
      * Returns the exact immutable Compiler checkpoint inventory.
      *
-     * @return the non-null immutable 133-row signature fingerprint list
+     * @return the non-null immutable 134-row signature fingerprint list
      */
     static List<SignatureFingerprint> signatures() {
         return SIGNATURES;
@@ -335,7 +337,7 @@ final class FirstOrderGradientCoverage {
         if (kind == ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION) {
             return FamilyOwner.ATTENTION;
         }
-        if (kind == Conv2dKind.CONV2D) {
+        if (kind == Conv2dKind.CONV2D || kind == Conv3dKind.CONV3D) {
             return FamilyOwner.CONVOLUTION;
         }
         if (kind instanceof Pool2dKind || kind instanceof Pool3dKind) {
@@ -393,11 +395,12 @@ final class FirstOrderGradientCoverage {
     }
 
     private static List<SignatureFingerprint> buildSignatures() {
-        List<SignatureFingerprint> rows = new ArrayList<>(133);
+        List<SignatureFingerprint> rows = new ArrayList<>(134);
         rows.add(range(
                 ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION,
                 ScaledDotProductAttentionAttrs.class, 3, 4, 1, 2));
         rows.add(range(Conv2dKind.CONV2D, Conv2dAttrs.class, 2, 3, 1, 1));
+        rows.add(range(Conv3dKind.CONV3D, Conv3dAttrs.class, 2, 3, 1, 1));
         addFixed(rows, List.of(
                 BinaryArithmeticKind.ADD, BinaryArithmeticKind.SUB, BinaryArithmeticKind.MUL,
                 BinaryArithmeticKind.DIV, BinaryArithmeticKind.MIN, BinaryArithmeticKind.MAX,
@@ -630,7 +633,7 @@ final class FirstOrderGradientCoverage {
         /** Scaled-dot-product-attention formulas. */
         ATTENTION,
 
-        /** Two-dimensional convolution formulas. */
+        /** Grouped two- and three-dimensional convolution formulas. */
         CONVOLUTION,
 
         /** Two- and three-dimensional pooling formulas. */

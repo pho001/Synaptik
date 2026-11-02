@@ -9,6 +9,7 @@ import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAtten
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dKind;
+import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
 import io.github.pho001.synaptik.model.operation.convolution.Conv3dKind;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
@@ -162,7 +163,7 @@ import java.util.Set;
  * results, dropout masks, and graph random-number-generator state remain non-differentiable.
  *
  * <p>Compiler 0005D adds the remaining representable structured-neural rows: both public outputs of
- * exact two-output scaled-dot-product attention, grouped NCHW convolution, fixed-count average
+ * exact two-output scaled-dot-product attention, grouped NCHW/NCDHW convolution, fixed-count average
  * pooling, exact first-winner maximum pooling, mean-squared error, and dense-target categorical
  * cross-entropy. Index-target categorical cross-entropy selects only logits and requires a positive
  * static class depth. Attention requires the canonical same-occurrence weights output; the
@@ -185,11 +186,11 @@ import java.util.Set;
  * <p>This owner selects rules and rejects unsupported operation, input/output signature, attribute,
  * role, data-type, Shape, and policy combinations. A known rejection occurs before the seed, a
  * derivative constant, a matching {@code ARGSORT}, or another formula Tensor is constructed, so it
- * consumes no derivative {@code TensorId}. Fixed recurrent-scan and Conv3d occurrences are rejected
+ * consumes no derivative {@code TensorId}. Fixed recurrent-scan occurrences are rejected
  * from the complete original forward inventory in deterministic producer postorder before stage,
- * seed, route, occurrence-policy, or formula validation. Recurrent BPTT and Conv3d adjoints remain
- * separately deferred. Pool3d and three-dimensional window transforms instead prove their public
- * unfold/fold formula geometry and structural kernel volume before allocation. The same rejection
+ * seed, route, occurrence-policy, or formula validation; recurrent BPTT remains deferred.
+ * Convolution, pooling, and image-window transforms prove their matching public unfold/fold
+ * geometry and structural kernel volume before allocation. Fixed recurrent rejection also
  * applies when a requested gradient belongs to an unrelated supported branch. The guarantee ends
  * after a successful plan is returned: later public Tensor construction, capture, inference,
  * validation, or optimization may consume IDs before failing. This owner neither reads Tensor
@@ -1694,28 +1695,30 @@ final class AutogradPreflight {
             validateStructuredOccurrence(producerIndex, producer, outputIndex);
             return;
         }
-        if (operation.kind() == Conv2dKind.CONV2D) {
-            if (!(operation.attrs() instanceof Conv2dAttrs attrs)
+        if (operation.kind() == Conv2dKind.CONV2D
+                || operation.kind() == Conv3dKind.CONV3D) {
+            boolean attrsMatch = operation.kind() == Conv2dKind.CONV2D
+                    ? operation.attrs() instanceof Conv2dAttrs
+                    : operation.attrs() instanceof Conv3dAttrs;
+            if (!attrsMatch
                     || (producer.inputs().size() != 2 && producer.inputs().size() != 3)) {
                 throw unsupported(
                         producerIndex, producer, outputIndex, -1,
-                        "unsupported CONV2D signature or attributes");
+                        "unsupported convolution signature or attributes");
             }
             validateStructuredOccurrence(producerIndex, producer, outputIndex);
             try {
                 Shape weight = producer.inputs().get(1).descriptor().shape();
-                long kernelHeight = ((StaticDimension) weight.dimension(2)).size();
-                long kernelWidth = ((StaticDimension) weight.dimension(3)).size();
-                Math.multiplyExact(kernelHeight, kernelWidth);
-                new Window2dAttrs(
-                        kernelHeight, kernelWidth,
-                        attrs.strideHeight(), attrs.strideWidth(),
-                        attrs.paddingHeight(), attrs.paddingWidth(),
-                        attrs.dilationHeight(), attrs.dilationWidth(), false);
+                long kernelElements = 1;
+                for (int axis = 2; axis < weight.rank(); axis++) {
+                    kernelElements = Math.multiplyExact(
+                            kernelElements, ((StaticDimension) weight.dimension(axis)).size());
+                }
+                ConvolutionGradientRules.window(operation.attrs(), weight);
             } catch (RuntimeException exception) {
                 throw unsupported(
                         producerIndex, producer, outputIndex, -1,
-                        "CONV2D grouped window geometry is not constructible");
+                        operation.kind().name() + " grouped window geometry is not constructible");
             }
             return;
         }
@@ -2868,7 +2871,7 @@ final class AutogradPreflight {
      *
      * @param original non-null allocation-free inventory in deterministic producer postorder
      * @return request-local exact-occurrence Scan source facts, including unrelated branches
-     * @throws IllegalArgumentException if the inventory contains fixed recurrence or Conv3d;
+     * @throws IllegalArgumentException if the inventory contains fixed recurrence;
      *     rejection occurs before seed normalization or derivative Tensor construction
      */
     private static IdentityHashMap<TensorProducer, ScanGradientRules.SourcePlan>
@@ -2887,15 +2890,6 @@ final class AutogradPreflight {
                                 + producer.operation().attrs().getClass().getName()
                                 + ": fixed recurrent scan is forward-only until "
                                 + "backpropagation through time is implemented");
-            }
-            if (producer.operation().kind() == Conv3dKind.CONV3D) {
-                throw new IllegalArgumentException(
-                        "producerPostorder[" + producerIndex + "] "
-                                + producer.operation().kind().getClass().getName() + "."
-                                + producer.operation().kind().name() + " attrs="
-                                + producer.operation().attrs().getClass().getName()
-                                + ": Conv3d is forward-only until Compiler task 0006C "
-                                + "closes its gradients");
             }
         }
         return sources;
