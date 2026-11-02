@@ -202,6 +202,9 @@ class MetalAttentionNativeTest {
             executable = api.createProgramExecutable(context, values, program, feeds, targets,
                     MetalPreparedRoute.CUSTOM_PROGRAM);
             for (var value : values) buffers.add(api.createBuffer(context, value.byteCount()));
+            for (long bytes : MetalProgramWorkspace.scratchBytes(program, values)) {
+                buffers.add(api.createBuffer(context, bytes));
+            }
             try (Arena arena = Arena.ofConfined()) {
                 for (int i = 0; i < feeds.length; i++) {
                     byte[] bytes = inputs.get(i);
