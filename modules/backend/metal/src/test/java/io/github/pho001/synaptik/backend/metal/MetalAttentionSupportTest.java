@@ -20,6 +20,21 @@ import org.junit.jupiter.api.Test;
 
 class MetalAttentionSupportTest {
     @Test
+    void positiveOverlappingInputCannotPassSourceAdmissionOrIndependentRawValidation() {
+        Shape shape = Shape.of(2, 2);
+        var overlap = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.of(shape, new long[] {1, 1}, 0, true)), false);
+        var inputs = List.of(overlap, descriptor(DataType.FLOAT32, false, 3, 2),
+                descriptor(DataType.FLOAT32, false, 3, 4));
+        var outputs = List.of(descriptor(DataType.FLOAT32, false, 2, 4));
+        assertFalse(MetalAttentionSupport.supports(operation(Optional.empty()), inputs, outputs));
+        var values = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>();
+        inputs.forEach(d -> values.add(MetalMpsGraphProgram.ValueDescriptor.from(d)));
+        outputs.forEach(d -> values.add(MetalMpsGraphProgram.ValueDescriptor.from(d)));
+        assertThrows(IllegalArgumentException.class, () -> MetalAttentionSupport.validate(node(false), values));
+    }
+
+    @Test
     void outputAndCanonicalSiblingKeepDifferentOriginalRoleGradientMetadata() {
         Operation operation = operation(Optional.empty());
         var inputs = List.of(descriptor(DataType.FLOAT32, false, 1, 2),

@@ -49,7 +49,8 @@ final class MetalAttentionSupport {
                 if (descriptor.dataType() != (i == 3 ? DataType.BOOL : DataType.FLOAT32)
                         || i == 3 && descriptor.requiresGrad()
                         || !physical(descriptor.shape(), descriptor.layout().orElse(null), false,
-                                descriptor.dataType().byteWidth())) return false;
+                                descriptor.dataType().byteWidth())
+                        || !MetalMpsGraphProgram.ValueDescriptor.from(descriptor).supportsStorageLayout(0)) return false;
             }
             boolean gradient = inputs.get(0).requiresGrad() || inputs.get(1).requiresGrad();
             for (int i = 0; i < outputs.size(); i++) {
@@ -129,6 +130,7 @@ final class MetalAttentionSupport {
                 if (d.dataType() != (role == 3 ? DataType.BOOL : DataType.FLOAT32)
                         || role == 3 && d.requiresGrad()
                         || !physical(Shape.of(d.dimensions()), d.layout().orElse(null), false, d.dataType().byteWidth())
+                        || !d.supportsStorageLayout(0)
                         || d.densePhysical() && !canonical(d)) throw malformed();
             }
             boolean gradient = values.get(inputs[0]).requiresGrad() || values.get(inputs[1]).requiresGrad();

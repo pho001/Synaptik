@@ -62,7 +62,13 @@ static BOOL synaptik_attention_layout(
         span += delta;
     }
     if (span == (uint64_t)INT64_MAX || !synaptik_attention_product(span + 1U, width, &bytes)) return NO;
-    return YES;
+    uint32_t rank = (uint32_t)shape.count;
+    uint64_t dimensions[16] = {0};
+    for (uint32_t axis = 0U; axis < rank; ++axis) dimensions[axis] = shape[axis].unsignedLongLongValue;
+    uint64_t referencedSpan = span + 1U;
+    uint8_t present = 1U;
+    return synaptik_storage_layout_supported(0U, &rank, dimensions, physical,
+            offset, &referencedSpan, &present, 0U);
 }
 
 static BOOL synaptik_attention_metadata(

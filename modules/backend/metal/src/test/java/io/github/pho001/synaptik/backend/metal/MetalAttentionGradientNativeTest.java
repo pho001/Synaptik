@@ -174,16 +174,21 @@ class MetalAttentionGradientNativeTest {
                 }
                 for (int j = 0; j < 3; j++) weights[j] /= sum;
                 float[] upstream = new float[3];
+                boolean hasValueTerm = false;
                 for (int j = 0; j < 3; j++) {
                     if (weightsRoot) {
                         output[row * 3 + j] = weights[j];
                         upstream[j] = seed[row * 3 + j];
                     } else {
                         for (int d = 0; d < 2; d++) {
-                            output[row * 2 + d] += weights[j] * VALUE[j * 2 + d];
+                            if (!masked || j <= i && MASK[i * 3 + j] != 0) {
+                                float term = weights[j] * VALUE[j * 2 + d];
+                                output[row * 2 + d] = hasValueTerm ? output[row * 2 + d] + term : term;
+                            }
                             upstream[j] += seed[row * 2 + d] * VALUE[j * 2 + d];
                             dv[j * 2 + d] += weights[j] * seed[row * 2 + d];
                         }
+                        if (!masked || j <= i && MASK[i * 3 + j] != 0) hasValueTerm = true;
                     }
                 }
                 float center = 0;

@@ -22,6 +22,32 @@ import org.junit.jupiter.api.Test;
 /** Actual native SDPA checks, including behavior that cannot be delegated to ordinary softmax. */
 class MetalAttentionNativeTest {
     @Test
+    void nonemptyValueContractionDoesNotIntroduceAnExtraPositiveZeroContributor() {
+        for (boolean sibling : List.of(false, true)) {
+            List<byte[]> result = execute(attention(false, sibling, false, false),
+                    descriptors(sibling, false,
+                            new long[] {1, 1}, new long[] {1, 1}, new long[] {1, 1},
+                            new long[] {1, 1}, new long[] {1, 1}, null),
+                    new int[] {0, 1, 2}, sibling ? new int[] {3, 4} : new int[] {3},
+                    List.of(floats(0), floats(0), floats(-0.0f)));
+            assertArrayEquals(floats(-0.0f), result.getFirst());
+            if (sibling) assertArrayEquals(floats(1), result.get(1));
+        }
+    }
+
+    @Test
+    void emptyValueEmbeddingStillPublishesNonemptyCanonicalWeights() {
+        List<byte[]> result = execute(attention(false, true, false, false),
+                descriptors(true, false,
+                        new long[] {2, 1}, new long[] {2, 1}, new long[] {2, 0},
+                        new long[] {2, 0}, new long[] {2, 2}, null),
+                new int[] {0, 1, 2}, new int[] {3, 4},
+                List.of(floats(0, 0), floats(0, 0), floats()));
+        assertEquals(0, result.getFirst().length);
+        assertArrayEquals(floats(0.5f, 0.5f, 0.5f, 0.5f), result.get(1));
+    }
+
+    @Test
     void canonicalSiblingAndDeclaredScratchHaveTheSameDefaultAndExplicitScaleResults() {
         for (boolean explicit : List.of(false, true)) {
             float scale = explicit ? 0.5f : (float) (1.0 / Math.sqrt(2));
