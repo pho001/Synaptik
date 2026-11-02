@@ -1479,6 +1479,412 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
+    void denseViewMatmulRawAbiAuthenticatesGeometryStatesAndImmediateTransposeRoots()
+            throws Throwable {
+        try (RawAbi abi = new RawAbi(configuredLibrary())) {
+            for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                MetalPreparedRoute route = type == DataType.FLOAT32
+                        ? MetalPreparedRoute.MPSGRAPH : MetalPreparedRoute.CUSTOM_PROGRAM;
+                var direct = new MetalMpsGraphProgram(List.of(matmulNode(0, 1, 2)));
+                for (int views = 1; views <= 3; views++) {
+                    var left = (views & 1) != 0 ? denseMatmulView(type, false, 2, 3)
+                            : descriptor(type, 2, 3);
+                    var right = (views & 2) != 0 ? denseMatmulView(type, false, 3, 4)
+                            : descriptor(type, 3, 4);
+                    byte[] valid = direct.encodedProgramImage(
+                            List.of(left, right, new MetalMpsGraphProgram.ValueDescriptor(
+                                    type, new long[] {2, 4}, true)),
+                            new int[] {0, 1}, new int[] {2}, route);
+                    assertEquals(0, abi.create(valid, valid.length), type + " dense sides=" + views);
+                    int input = MetalMpsGraphProgram.HEADER_BYTES;
+                    int dimensions = nodeOffset(3) + MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES;
+                    int strides = dimensions + readInt(valid, 44) * Long.BYTES;
+                    var malformed = new ArrayList<byte[]>();
+                    malformed.add(rewriteLong(valid, input + 32, 5L));
+                    malformed.add(rewriteInt(valid, input + 16, 14)); // a feed cannot be local affine
+                    malformed.add(rewriteInt(valid, input + 2 * MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES
+                            + 16, 7)); // MATMUL output must remain canonical
+                    byte[] offset = rewriteInt(valid, input + 20, 2);
+                    offset = rewriteLong(offset, input + 24, 1L);
+                    malformed.add(rewriteLong(offset, input + 32, 7L));
+                    byte[] holes = rewriteInt(valid, input + 20, 3);
+                    holes = rewriteLong(holes, strides, 4L);
+                    malformed.add(rewriteLong(holes, input + 32, 7L));
+                    byte[] overlap = rewriteInt(valid, input + 20, 3);
+                    overlap = rewriteLong(overlap, strides, 1L);
+                    malformed.add(rewriteLong(overlap, input + 32, 4L));
+                    byte[] broadcast = rewriteInt(valid, input + 16, 6);
+                    broadcast = rewriteInt(broadcast, input + 20, 4);
+                    broadcast = rewriteLong(broadcast, strides, 0L);
+                    malformed.add(rewriteLong(broadcast, input + 32, 3L));
+                    byte[] unrelatedTranspose = rewriteInt(valid, input + 20, 3);
+                    unrelatedTranspose = rewriteLong(unrelatedTranspose, strides, 1L);
+                    malformed.add(rewriteLong(unrelatedTranspose, strides + Long.BYTES, 2L));
+                    for (byte[] image : malformed) abi.assertRejectedBeforeTargetWrites(image);
+                }
+
+                var composition = new MetalMpsGraphProgram(List.of(
+                        MetalMpsGraphProgram.Node.targetShape(
+                                MetalMpsGraphProgram.NodeKind.RESHAPE, 0, 1, new long[] {3, 2}),
+                        MetalMpsGraphProgram.Node.permutation(1, 2, List.of(1, 0)),
+                        matmulNode(2, 3, 4)));
+                Shape transposeShape = Shape.of(2, 3);
+                var transpose = new MetalMpsGraphProgram.ValueDescriptor(
+                        type, transposeShape.toLongArray(),
+                        java.util.Optional.of(LayoutDescriptor.of(
+                                transposeShape, new long[] {1, 2}, 0L, true)), true, true);
+                var values = List.of(
+                        new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {1, 3, 2}, true),
+                        denseMatmulView(type, true, 3, 2),
+                        transpose,
+                        new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {3, 4}, true),
+                        new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 4}, true));
+                byte[] valid = composition.encodedProgramImage(
+                        values, new int[] {0, 3}, new int[] {4}, MetalPreparedRoute.CUSTOM_PROGRAM);
+                assertEquals(0, abi.create(valid, valid.length), type + " transpose of local dense view");
+                int transposeDescriptor = MetalMpsGraphProgram.HEADER_BYTES
+                        + 2 * MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES;
+                abi.assertRejectedBeforeTargetWrites(
+                        rewriteInt(valid, transposeDescriptor + 16, 14)); // drops gradient provenance
+                abi.assertRejectedBeforeTargetWrites(
+                        rewriteInt(valid, transposeDescriptor + 16, 7)); // materialized state forgery
+                int dimensions = nodeOffset(values.size())
+                        + composition.nodes().size() * MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES;
+                int strides = dimensions + readInt(valid, 44) * Long.BYTES;
+                int transposeStrides = strides + readInt(valid, transposeDescriptor + 12) * Long.BYTES;
+                byte[] forgedDense = rewriteInt(valid, transposeDescriptor + 20, 1);
+                forgedDense = rewriteLong(forgedDense, transposeStrides, 3L);
+                forgedDense = rewriteLong(forgedDense, transposeStrides + Long.BYTES, 1L);
+                abi.assertRejectedBeforeTargetWrites(forgedDense);
+                int references = strides + readInt(valid, 48) * Long.BYTES;
+                // The actual PERMUTE cannot silently authenticate an arbitrary ancestor.
+                int permuteInputs = readInt(valid,
+                        nodeOffset(values.size()) + MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES + 8);
+                abi.assertRejectedBeforeTargetWrites(
+                        rewriteInt(valid, references + permuteInputs * Integer.BYTES, 0));
+                abi.assertRejectedBeforeTargetWrites(
+                        rewriteInt(valid, transposeDescriptor,
+                                MetalMpsGraphProgram.dataTypeWire(DataType.INT32)));
+            }
+        }
+    }
+
+    /**
+     * Every altered claim keeps a matching manifest and SHA-256 digest. Layout-only and
+     * node-reference changes are intentionally not manifest fields in schema 20.
+     */
+    @Test
+    void materializingReshapeRawAbiAuthenticatesOccurrenceGeometryAndImmediateSource()
+            throws Throwable {
+        try (RawAbi abi = new RawAbi(configuredLibrary())) {
+            for (DataType type : DataType.values()) {
+                boolean gradient = type == DataType.FLOAT32 || type == DataType.FLOAT64
+                        || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
+                for (boolean local : new boolean[] {false, true}) {
+                    var values = materializingReshapeValues(type, local, gradient);
+                    var program = materializingReshapeProgram(local);
+                    int outputValue = local ? 2 : 1;
+                    byte[] valid = program.encodedProgramImage(values, new int[] {0},
+                            new int[] {outputValue}, MetalPreparedRoute.CUSTOM_PROGRAM);
+                    assertEquals(0, abi.create(valid, valid.length), type + " local=" + local);
+                    int output = MetalMpsGraphProgram.HEADER_BYTES
+                            + outputValue * MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES;
+                    int dimensions = nodeOffset(values.size())
+                            + program.nodes().size() * MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES;
+                    int strides = dimensions + readInt(valid, 44) * Long.BYTES;
+                    int references = strides + readInt(valid, 48) * Long.BYTES;
+                    int attributes = references + readInt(valid, 52) * Integer.BYTES;
+                    int reshapeNode = nodeOffset(values.size())
+                            + (local ? MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES : 0);
+                    String valueRow = "value " + outputValue + " "
+                            + MetalMpsGraphProgram.dataTypeWire(type) + " 1 "
+                            + (gradient ? 1 : 0) + " 0 6\n";
+                    var malformed = new ArrayList<byte[]>();
+                    // Claim an alias for a noncontiguous immediate source.
+                    malformed.add(rewriteManifest(
+                            rewriteInt(valid, output + 16, (gradient ? 1 : 0) | 14),
+                            valueRow, valueRow.replace(" 0 6\n", " 1 6\n")));
+                    // Valid offset-view geometry is not a canonical materialization destination.
+                    byte[] offset = rewriteInt(valid, output + 16, (gradient ? 1 : 0) | 6);
+                    offset = rewriteInt(offset, output + 20, 2);
+                    offset = rewriteLong(offset, output + 24, 1L);
+                    malformed.add(rewriteLong(offset, output + 32, 7L));
+                    byte[] outStride = rewriteInt(valid, output + 16, (gradient ? 1 : 0) | 6);
+                    outStride = rewriteInt(outStride, output + 20, 3);
+                    outStride = rewriteLong(outStride,
+                            strides + readInt(valid, output + 12) * Long.BYTES, 2L);
+                    malformed.add(rewriteLong(outStride, output + 32, 11L));
+                    malformed.add(rewriteLong(valid, output + 32, 5L));
+                    int targetAttribute = attributes + readInt(valid, reshapeNode + 24) * Long.BYTES;
+                    malformed.add(rewriteLong(valid, targetAttribute, 7L));
+                    byte[] count = rewriteLong(valid,
+                            dimensions + readInt(valid, output + 8) * Long.BYTES, 5L);
+                    count = rewriteLong(count, output + 32, 5L);
+                    malformed.add(rewriteManifest(count, valueRow,
+                            valueRow.replace(" 0 6\n", " 0 5\n")));
+                    DataType other = type == DataType.INT32 ? DataType.FLOAT32 : DataType.INT32;
+                    malformed.add(rewriteManifest(
+                            rewriteInt(valid, output, MetalMpsGraphProgram.dataTypeWire(other)),
+                            valueRow, "value " + outputValue + " "
+                                    + MetalMpsGraphProgram.dataTypeWire(other) + " 1 "
+                                    + (gradient ? 1 : 0) + " 0 6\n"));
+                    malformed.add(rewriteManifest(
+                            rewriteInt(valid, output + 16, gradient ? 2 : 3),
+                            valueRow, "value " + outputValue + " "
+                                    + MetalMpsGraphProgram.dataTypeWire(type) + " 1 "
+                                    + (gradient ? 0 : 1) + " 0 6\n"));
+                    int memberOffset = extensionCoreBytes(valid)
+                            + readInt(valid, 60) * MetalMpsGraphProgram.STEP_DESCRIPTOR_BYTES;
+                    int member = local ? 1 : 0;
+                    malformed.add(rewriteManifest(
+                            rewriteInt(valid, memberOffset + member * Integer.BYTES,
+                                    program.nodes().size()),
+                            "member " + member + " " + member + "\n",
+                            "member " + member + " " + program.nodes().size() + "\n"));
+                    malformed.add(rewriteManifest(
+                            rewriteInt(valid, references + Integer.BYTES, 0),
+                            "target 0 " + outputValue + " " + outputValue + "\n",
+                            "target 0 0 0\n"));
+                    int inputReference = references + readInt(valid, reshapeNode + 8) * Integer.BYTES;
+                    malformed.add(rewriteInt(valid, inputReference, local ? 0 : outputValue));
+                    if (local) {
+                        // A fabricated logical source cannot replace the actual PERMUTE relation.
+                        int source = MetalMpsGraphProgram.HEADER_BYTES
+                                + MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES;
+                        byte[] sourceStride = rewriteLong(valid,
+                                strides + readInt(valid, source + 12) * Long.BYTES, 2L);
+                        malformed.add(rewriteLong(sourceStride, source + 32, 8L));
+                    } else {
+                        int source = MetalMpsGraphProgram.HEADER_BYTES;
+                        // Positive, bounded but overlapping storage is not an external source.
+                        byte[] overlap = rewriteLong(valid, strides + Long.BYTES, 1L);
+                        malformed.add(rewriteLong(overlap, source + 32, 6L));
+                        // Make the source genuinely contiguous while keeping a canonical non-view
+                        // output: this must take the old exact-view branch and reject its state.
+                        byte[] contiguous = rewriteInt(valid, source + 20, 2);
+                        contiguous = rewriteLong(contiguous, strides, 2L);
+                        contiguous = rewriteLong(contiguous, strides + Long.BYTES, 1L);
+                        malformed.add(rewriteLong(contiguous, source + 32, 8L));
+                    }
+                    for (byte[] image : malformed) {
+                        assertManifestDigest(image);
+                        abi.assertRejectedBeforeTargetWrites(image);
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    void reshapeRetainsExactOffsetViewStateInsteadOfGloballyMaterializingOpcodeSix()
+            throws Throwable {
+        Shape sourceShape = Shape.of(2, 3);
+        Shape resultShape = Shape.of(6);
+        try (RawAbi abi = new RawAbi(configuredLibrary())) {
+            for (DataType type : DataType.values()) {
+                var source = new MetalMpsGraphProgram.ValueDescriptor(
+                        type, sourceShape.toLongArray(),
+                        java.util.Optional.of(LayoutDescriptor.of(
+                                sourceShape, new long[] {3, 1}, 2L, true)), false, false);
+                var result = new MetalMpsGraphProgram.ValueDescriptor(
+                        type, resultShape.toLongArray(),
+                        java.util.Optional.of(LayoutDescriptor.of(
+                                resultShape, new long[] {1}, 2L, true)), false, true);
+                byte[] valid = materializingReshapeProgram(false).encodedProgramImage(
+                        List.of(source, result), new int[] {0}, new int[] {1},
+                        MetalPreparedRoute.CUSTOM_PROGRAM);
+                assertEquals(0, abi.create(valid, valid.length));
+                int output = MetalMpsGraphProgram.HEADER_BYTES
+                        + MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES;
+                byte[] state = rewriteManifest(rewriteInt(valid, output + 16, 6),
+                        "value 1 " + MetalMpsGraphProgram.dataTypeWire(type) + " 1 0 1 6\n",
+                        "value 1 " + MetalMpsGraphProgram.dataTypeWire(type) + " 1 0 0 6\n");
+                assertManifestDigest(state);
+                abi.assertRejectedBeforeTargetWrites(state);
+                byte[] offset = rewriteLong(valid, output + 24, 3L);
+                offset = rewriteLong(offset, output + 32, 9L);
+                assertManifestDigest(offset);
+                abi.assertRejectedBeforeTargetWrites(offset);
+            }
+        }
+    }
+
+    @Test
+    void materializingReshapeRuntimeRejectsAliasingShortAndForeignBuffersBeforeAnyWrites()
+            throws Throwable {
+        try (RawAbi abi = new RawAbi(configuredLibrary())) {
+            var values = materializingReshapeValues(DataType.FLOAT32, false, false);
+            var program = materializingReshapeProgram(false);
+            MetalNativeApi.Handle executable = null;
+            MetalNativeApi.Handle foreignContext = null;
+            var buffers = new ArrayList<MetalNativeApi.Handle>();
+            long[] sizes = {40L, 40L, 36L, 20L, 40L};
+            try {
+                executable = abi.api.createProgramExecutable(abi.context, values, program,
+                        new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM);
+                foreignContext = abi.api.createContext();
+                for (int index = 0; index < sizes.length; index++)
+                    buffers.add(abi.api.createBuffer(
+                            index == 4 ? foreignContext : abi.context, sizes[index]));
+                try (Arena arena = Arena.ofConfined()) {
+                    MemorySegment inputs = arena.allocate(ADDRESS, 2);
+                    MemorySegment outputs = arena.allocate(ADDRESS, 1);
+                    MemorySegment sentinel = arena.allocate(40L, 4);
+                    MemorySegment actual = arena.allocate(40L, 4);
+                    var snapshots = new ArrayList<byte[]>(sizes.length);
+                    for (int index = 0; index < sizes.length; index++) {
+                        for (long offset = 0; offset < sizes[index]; offset++)
+                            sentinel.set(java.lang.foreign.ValueLayout.JAVA_BYTE, offset,
+                                    (byte) (0x11 + 19 * index + 3 * offset));
+                        snapshots.add(sentinel.asSlice(0L, sizes[index])
+                                .toArray(java.lang.foreign.ValueLayout.JAVA_BYTE));
+                        abi.api.upload(buffers.get(index), 0L, sentinel, sizes[index]);
+                    }
+                    // {source slot, destination slot, published target}: all fail in native run.
+                    for (int[] binding : new int[][] {
+                            {0, 0, 0}, {0, 0, 1}, {2, 1, 1}, {0, 3, 3},
+                            {4, 1, 1}, {0, 4, 4}, {0, 1, 4}
+                    }) {
+                        inputs.setAtIndex(ADDRESS, 0, buffers.get(binding[0]).carrier());
+                        inputs.setAtIndex(ADDRESS, 1, buffers.get(binding[1]).carrier());
+                        outputs.setAtIndex(ADDRESS, 0, buffers.get(binding[2]).carrier());
+                        assertEquals(10, abi.api.runExecutableNative(
+                                executable, 2, inputs, 1, outputs));
+                        for (int index = 0; index < sizes.length; index++) {
+                            abi.api.download(buffers.get(index), 0L, actual, sizes[index]);
+                            assertArrayEquals(snapshots.get(index),
+                                    actual.asSlice(0L, sizes[index])
+                                            .toArray(java.lang.foreign.ValueLayout.JAVA_BYTE));
+                        }
+                    }
+                }
+            } finally {
+                for (int index = buffers.size(); index-- > 0;)
+                    abi.api.releaseBuffer(buffers.get(index));
+                if (executable != null) abi.api.releaseExecutable(executable);
+                if (foreignContext != null) abi.api.releaseContext(foreignContext);
+            }
+        }
+    }
+
+    private static MetalMpsGraphProgram materializingReshapeProgram(boolean local) {
+        var reshape = MetalMpsGraphProgram.Node.targetShape(
+                MetalMpsGraphProgram.NodeKind.RESHAPE, local ? 1 : 0, local ? 2 : 1,
+                new long[] {6});
+        return new MetalMpsGraphProgram(local
+                ? List.of(MetalMpsGraphProgram.Node.permutation(0, 1, List.of(1, 0)), reshape)
+                : List.of(reshape));
+    }
+
+    private static List<MetalMpsGraphProgram.ValueDescriptor> materializingReshapeValues(
+            DataType type, boolean local, boolean gradient) {
+        Shape shape = Shape.of(3, 2);
+        var source = new MetalMpsGraphProgram.ValueDescriptor(
+                type, shape.toLongArray(), java.util.Optional.of(LayoutDescriptor.of(
+                        shape, local ? new long[] {1, 3} : new long[] {1, 5},
+                        local ? 0L : 2L, true)), gradient, local);
+        var result = new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {6}, gradient);
+        return local ? List.of(new MetalMpsGraphProgram.ValueDescriptor(
+                type, new long[] {2, 3}, gradient), source, result) : List.of(source, result);
+    }
+
+    private static void assertManifestDigest(byte[] image) throws NoSuchAlgorithmException {
+        int manifest = extensionManifestOffset(image);
+        int digest = manifest + readInt(image, 80);
+        assertArrayEquals(MessageDigest.getInstance("SHA-256").digest(
+                        Arrays.copyOfRange(image, manifest, digest)),
+                Arrays.copyOfRange(image, digest, image.length));
+    }
+
+    private static MetalMpsGraphProgram.ValueDescriptor denseMatmulView(
+            DataType type, boolean affine, long rows, long columns) {
+        Shape shape = Shape.of(rows, columns);
+        return new MetalMpsGraphProgram.ValueDescriptor(
+                type, shape.toLongArray(),
+                java.util.Optional.of(LayoutDescriptor.of(
+                        shape, new long[] {columns, 1L}, 0L, true)), true, affine);
+    }
+
+    @Test
+    void denseAffineMatmulAuthenticatesProducerOffsetsStridesAndExpansion()
+            throws Throwable {
+        try (RawAbi abi = new RawAbi(configuredLibrary())) {
+            for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                for (var kind : List.of(
+                        MetalMpsGraphProgram.NodeKind.RESHAPE,
+                        MetalMpsGraphProgram.NodeKind.EXPAND,
+                        MetalMpsGraphProgram.NodeKind.EXPAND_DIMS,
+                        MetalMpsGraphProgram.NodeKind.SQUEEZE)) {
+                    long[] input = kind == MetalMpsGraphProgram.NodeKind.RESHAPE
+                            ? new long[] {6} : kind == MetalMpsGraphProgram.NodeKind.SQUEEZE
+                                    ? new long[] {1, 2, 3} : new long[] {2, 3};
+                    Shape output = kind == MetalMpsGraphProgram.NodeKind.EXPAND_DIMS
+                            ? Shape.of(1, 2, 3) : Shape.of(2, 3);
+                    var affine = kind == MetalMpsGraphProgram.NodeKind.EXPAND_DIMS
+                                    || kind == MetalMpsGraphProgram.NodeKind.SQUEEZE
+                            ? MetalMpsGraphProgram.Node.axis(kind, 0, 1, 0)
+                            : MetalMpsGraphProgram.Node.targetShape(kind, 0, 1, output.toLongArray());
+                    var program = new MetalMpsGraphProgram(List.of(affine, matmulNode(1, 2, 3)));
+                    var values = List.of(
+                            new MetalMpsGraphProgram.ValueDescriptor(type, input, true),
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    type, output.toLongArray(),
+                                    java.util.Optional.of(LayoutDescriptor.of(
+                                            output, LayoutDescriptor.contiguous(output).strides(),
+                                            0L, true)), true, true),
+                            new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {3, 2}, true),
+                            new MetalMpsGraphProgram.ValueDescriptor(
+                                    type, output.rank() == 3
+                                            ? new long[] {1, 2, 2} : new long[] {2, 2}, true));
+                    byte[] valid = program.encodedProgramImage(
+                            values, new int[] {0, 2}, new int[] {3}, MetalPreparedRoute.CUSTOM_PROGRAM);
+                    assertEquals(0, abi.create(valid, valid.length), type + " " + kind);
+                    int source = MetalMpsGraphProgram.HEADER_BYTES;
+                    byte[] offset = rewriteInt(valid, source + 20, 2);
+                    offset = rewriteLong(offset, source + 24, 1L);
+                    offset = rewriteLong(offset, source + 32, 7L);
+                    abi.assertRejectedBeforeTargetWrites(offset);
+                    int dimensions = nodeOffset(values.size())
+                            + program.nodes().size() * MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES;
+                    int strides = dimensions + readInt(valid, 44) * Long.BYTES;
+                    int row = input.length == 1 ? 0 : input.length - 2;
+                    byte[] holes = rewriteInt(valid, source + 20, 3);
+                    holes = rewriteLong(holes, strides + row * Long.BYTES, input.length == 1 ? 2 : 4);
+                    holes = rewriteLong(holes, source + 32, input.length == 1 ? 11L : 7L);
+                    abi.assertRejectedBeforeTargetWrites(holes);
+                    if (kind == MetalMpsGraphProgram.NodeKind.EXPAND) {
+                        // A real [1,3] -> [2,3] expansion must declare [0,1], never [3,1].
+                        byte[] broadcast = rewriteLong(valid, dimensions, 1L);
+                        broadcast = rewriteLong(broadcast, source + 32, 3L);
+                        abi.assertRejectedBeforeTargetWrites(broadcast);
+                    }
+                }
+                Shape permuted = Shape.of(3, 2, 4);
+                var directSelect = new MetalMpsGraphProgram(List.of(
+                        MetalMpsGraphProgram.Node.permutation(0, 1, List.of(1, 0, 2)),
+                        MetalMpsGraphProgram.Node.generic(
+                                MetalMpsGraphProgram.NodeKind.SELECT,
+                                new int[] {1}, new int[] {2},
+                                MetalMpsGraphProgram.AttributeKind.SELECT, new long[] {1, 0}),
+                        matmulNode(2, 3, 4)));
+                var selectedValues = List.of(
+                        new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 3, 4}, true),
+                        new MetalMpsGraphProgram.ValueDescriptor(
+                                type, permuted.toLongArray(),
+                                java.util.Optional.of(LayoutDescriptor.of(
+                                        permuted, new long[] {4, 12, 1}, 0L, true)), true, true),
+                        denseMatmulView(type, false, 3, 4),
+                        new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {4, 2}, true),
+                        new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {3, 2}, true));
+                byte[] holes = directSelect.encodedProgramImage(
+                        selectedValues, new int[] {0, 3}, new int[] {4}, MetalPreparedRoute.CUSTOM_PROGRAM);
+                // Logical SELECT [4,1] does not authorize represented operand holes [8,1].
+                abi.assertRejectedBeforeTargetWrites(holes);
+            }
+        }
+    }
+
+    @Test
     void task0062JavaAndNativeMsePreflightsStayInParity() throws Throwable {
         Path library = configuredLibrary();
         var node = MetalMpsGraphProgram.Node.generic(
@@ -3122,6 +3528,21 @@ class MetalMpsGraphRawAbiNativeTest {
                 api.releaseExecutable(new MetalNativeApi.Handle(carrier));
             }
             return status;
+        }
+
+        private void assertRejectedBeforeTargetWrites(byte[] image) throws Throwable {
+            byte[] sentinel = {(byte) 0xa5, (byte) 0x5a, 0x12, 0x34};
+            MetalNativeApi.Handle target = api.createBuffer(context, sentinel.length);
+            try (Arena transfer = Arena.ofConfined()) {
+                MemorySegment bytes = transfer.allocate(sentinel.length, 1);
+                bytes.copyFrom(MemorySegment.ofArray(sentinel));
+                api.upload(target, 0L, bytes, sentinel.length);
+                assertEquals(1, create(image, image.length));
+                api.download(target, 0L, bytes, sentinel.length);
+                assertArrayEquals(sentinel, bytes.toArray(java.lang.foreign.ValueLayout.JAVA_BYTE));
+            } finally {
+                api.releaseBuffer(target);
+            }
         }
 
         @Override

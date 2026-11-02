@@ -259,6 +259,76 @@ final class DtypeLayoutGradientMetalIntegrationTest {
   }
 
   @Test
+  void denseViewMatmulRunsOriginalTypedForwardAndBothGeneratedGradientsWithFreshInputs() {
+    Path library = configuredMetalLibrary();
+    try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
+      builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
+      try (Engine engine = builder.build()) {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+          // Left, right, both dense views, transpose-of-dense, and transposed-back views.
+          for (int form = 0; form < 5; form++) {
+            boolean leftView = form != 1;
+            boolean rightView = form != 0;
+            Shape leftShape = leftView ? Shape.of(6) : Shape.of(2, 3);
+            Shape rightShape = rightView ? Shape.of(15) : Shape.of(3, 5);
+            Tensor left = tensor(arena, type, true, leftShape, new long[6]);
+            Tensor right = tensor(arena, type, true, rightShape, new long[15]);
+            Tensor seed = tensor(arena, type, false, Shape.of(2, 5), new long[10]);
+            Tensor leftOperand = leftView ? left.reshape(2, 3) : left;
+            Tensor rightOperand = rightView ? right.reshape(3, 5) : right;
+            if (form == 3) {
+              leftOperand = left.reshape(3, 2).permute(1, 0);
+              rightOperand = right.reshape(5, 3).permute(1, 0);
+            } else if (form == 4) {
+              leftOperand = leftOperand.permute(1, 0).permute(1, 0);
+              rightOperand = rightOperand.permute(1, 0).permute(1, 0);
+            }
+            Tensor product = leftOperand.matmul(rightOperand);
+            var compiled = engine.compile(List.of(product), List.of(seed), List.of(left, right));
+            assertTrue(EngineMixedOwnerTestAccess.partitionOwners(compiled).stream()
+                .allMatch("metal"::equals), type + " form=" + form);
+            try (var session = engine.prepare(compiled)) {
+              for (int run = 1; run <= 2; run++) {
+                long[] a = new long[6], b = new long[15], g = new long[10];
+                // Every forward/adjoint value stays a positive integer below 256, exactly
+                // representable in all three carriers; nonuniform seeds expose addressing.
+                for (int i = 0; i < a.length; i++) a[i] = run * (i % 5 + 1);
+                for (int i = 0; i < b.length; i++) b[i] = i % 4 + run;
+                for (int i = 0; i < g.length; i++) g[i] = run * (i % 3 + 1);
+                long[] forward = new long[10], da = new long[6], db = new long[15];
+                for (int row = 0; row < 2; row++) {
+                  for (int column = 0; column < 5; column++) {
+                    int output = row * 5 + column;
+                    for (int inner = 0; inner < 3; inner++) {
+                      int ai = form == 3 ? inner * 2 + row : row * 3 + inner;
+                      int bi = form == 3 ? column * 3 + inner : inner * 5 + column;
+                      forward[output] += a[ai] * b[bi];
+                      da[ai] += g[output] * b[bi];
+                      db[bi] += g[output] * a[ai];
+                    }
+                  }
+                }
+                Tensor freshLeft = tensor(arena, type, true, leftShape, a);
+                Tensor freshRight = tensor(arena, type, true, rightShape, b);
+                Tensor freshSeed = tensor(arena, type, false, Shape.of(2, 5), g);
+                List<Tensor> inputs = new ArrayList<>();
+                for (var input : compiled.inputs()) {
+                  if (input.tensorId().equals(left.id())) inputs.add(freshLeft);
+                  else if (input.tensorId().equals(right.id())) inputs.add(freshRight);
+                  else if (input.tensorId().equals(seed.id())) inputs.add(freshSeed);
+                  else throw new AssertionError("unexpected MATMUL input " + input.tensorId());
+                }
+                assertResults(engine.runValues(session, inputs), List.of(
+                    canonical(type, forward), canonical(type, da), canonical(type, db)));
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  @Test
   void homogeneousLowMseMeanBackwardUsesNormalizedGeneratedFormula() {
     Path library = configuredMetalLibrary();
     try (Arena arena = Arena.ofShared();

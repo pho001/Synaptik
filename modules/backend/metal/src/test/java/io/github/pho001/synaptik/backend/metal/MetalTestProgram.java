@@ -1,10 +1,13 @@
 package io.github.pho001.synaptik.backend.metal;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
-/** Test-only conversion of legacy shape fixtures into explicit schema-sixteen descriptors. */
+/** Test-only conversion of shape fixtures into truthful schema-twenty logical descriptors. */
 final class MetalTestProgram {
     private MetalTestProgram() {}
 
@@ -14,62 +17,106 @@ final class MetalTestProgram {
             throw new IllegalArgumentException("dimension fixture length");
         }
         DataType[] types = inferTypes(ranks.length, program);
-        MetalMpsGraphProgram.ValueState[] states =
-                new MetalMpsGraphProgram.ValueState[ranks.length];
-        java.util.Arrays.fill(states, MetalMpsGraphProgram.ValueState.CANONICAL);
-        for (MetalMpsGraphProgram.Node node : program.nodes()) {
-            for (int output : node.outputs()) {
-                states[output] = node.kind().outputState();
-            }
-        }
         try {
             var result = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>(ranks.length);
             for (int value = 0; value < ranks.length; value++) {
                 long[] shape = new long[ranks[value]];
                 System.arraycopy(dimensions, value * MetalMpsGraphProgram.MAX_RANK,
                         shape, 0, shape.length);
-                var resolvedShape = io.github.pho001.synaptik.model.shape.Shape.of(shape);
-                var contiguous =
-                        io.github.pho001.synaptik.model.layout.LayoutDescriptor.contiguous(
-                                resolvedShape);
-                long[] affineStrides = contiguous.strides();
-                for (MetalMpsGraphProgram.Node node : program.nodes()) {
-                    if (node.outputIndex() == value
-                            && node.kind() == MetalMpsGraphProgram.NodeKind.PERMUTE) {
-                        int source = node.firstInputIndex();
-                        long[] sourceShape = new long[ranks[source]];
-                        System.arraycopy(
-                                dimensions,
-                                source * MetalMpsGraphProgram.MAX_RANK,
-                                sourceShape,
-                                0,
-                                sourceShape.length);
-                        long[] sourceStrides =
-                                io.github.pho001.synaptik.model.layout.LayoutDescriptor.contiguous(
-                                        io.github.pho001.synaptik.model.shape.Shape.of(sourceShape))
-                                        .strides();
-                        long[] axes = node.attributeValues();
-                        affineStrides = new long[axes.length];
-                        for (int axis = 0; axis < axes.length; axis++) {
-                            affineStrides[axis] = sourceStrides[Math.toIntExact(axes[axis])];
-                        }
-                    }
-                }
-                var layout = states[value] == MetalMpsGraphProgram.ValueState.AFFINE_VIEW
-                        ? io.github.pho001.synaptik.model.layout.LayoutDescriptor.of(
-                                resolvedShape, affineStrides, 0L, true)
-                        : contiguous;
-                result.add(new MetalMpsGraphProgram.ValueDescriptor(
-                        types[value],
-                        shape,
-                        java.util.Optional.of(layout),
-                        false,
-                        states[value] == MetalMpsGraphProgram.ValueState.AFFINE_VIEW));
+                result.add(new MetalMpsGraphProgram.ValueDescriptor(types[value], shape, false));
+            }
+            for (MetalMpsGraphProgram.Node node : program.nodes()) {
+                boolean extraction = node.kind() == MetalMpsGraphProgram.NodeKind.SELECT
+                        || node.kind() == MetalMpsGraphProgram.NodeKind.SLICE;
+                if (!node.kind().isAffine() && !extraction) continue;
+                var input = result.get(node.firstInputIndex());
+                var output = result.get(node.outputIndex());
+                LayoutDescriptor layout = viewLayout(node, input, output.dimensions());
+                result.set(node.outputIndex(), new MetalMpsGraphProgram.ValueDescriptor(
+                        output.dataType(), output.dimensions(), Optional.of(layout), false,
+                        node.kind().isAffine() && layout.isView() || layout.hasZeroStride()));
             }
             return List.copyOf(result);
         } catch (ArithmeticException overflow) {
             throw new IllegalArgumentException("descriptor fixture geometry overflows", overflow);
         }
+    }
+
+    private static LayoutDescriptor viewLayout(
+            MetalMpsGraphProgram.Node node,
+            MetalMpsGraphProgram.ValueDescriptor input,
+            long[] outputShape) {
+        LayoutDescriptor source = input.layout().orElseThrow();
+        long[] sourceShape = input.dimensions();
+        long[] strides = source.strides();
+        long offset = source.storageOffset();
+        long[] words = node.attributeWords();
+        switch (node.kind()) {
+            case RESHAPE -> {
+                if (!source.isContiguous()) {
+                    return LayoutDescriptor.contiguous(Shape.of(outputShape));
+                }
+                strides = LayoutDescriptor.contiguous(Shape.of(outputShape)).strides();
+            }
+            case EXPAND -> {
+                long[] expanded = new long[outputShape.length];
+                int padding = outputShape.length - sourceShape.length;
+                for (int axis = 0; axis < sourceShape.length; axis++) {
+                    expanded[axis + padding] =
+                            sourceShape[axis] == 1L && outputShape[axis + padding] != 1L
+                                    ? 0L : strides[axis];
+                }
+                strides = expanded;
+            }
+            case PERMUTE -> {
+                long[] axes = node.attributeValues();
+                long[] permuted = new long[axes.length];
+                for (int axis = 0; axis < axes.length; axis++) {
+                    permuted[axis] = strides[Math.toIntExact(axes[axis])];
+                }
+                strides = permuted;
+            }
+            case EXPAND_DIMS -> {
+                int axis = node.axis();
+                long[] expanded = new long[strides.length + 1];
+                System.arraycopy(strides, 0, expanded, 0, axis);
+                expanded[axis] = axis == strides.length ? 1L
+                        : Math.multiplyExact(strides[axis], sourceShape[axis]);
+                System.arraycopy(strides, axis, expanded, axis + 1, strides.length - axis);
+                strides = expanded;
+            }
+            case SQUEEZE, SELECT -> {
+                int axis = node.kind() == MetalMpsGraphProgram.NodeKind.SELECT
+                        ? Math.toIntExact(words[0]) : node.axis();
+                if (node.kind() == MetalMpsGraphProgram.NodeKind.SELECT) {
+                    offset = Math.addExact(offset, Math.multiplyExact(words[1], strides[axis]));
+                }
+                long[] selected = new long[strides.length - 1];
+                System.arraycopy(strides, 0, selected, 0, axis);
+                System.arraycopy(strides, axis + 1, selected, axis, strides.length - axis - 1);
+                strides = selected;
+            }
+            case SLICE -> {
+                if (node.attributeKind() == MetalMpsGraphProgram.AttributeKind.CROP_TO_SHAPE) {
+                    int rank = Math.toIntExact(words[0]);
+                    for (int axis = 0; axis < rank; axis++) {
+                        offset = Math.addExact(offset,
+                                Math.multiplyExact(words[2 + rank + axis], strides[axis]));
+                    }
+                } else {
+                    int count = Math.toIntExact(words[0]);
+                    for (int item = 0; item < count; item++) {
+                        int axis = Math.toIntExact(words[1 + count * 2 + item]);
+                        offset = Math.addExact(offset,
+                                Math.multiplyExact(words[1 + item], strides[axis]));
+                        strides[axis] = Math.multiplyExact(
+                                strides[axis], words[1 + count * 3 + item]);
+                    }
+                }
+            }
+            default -> throw new IllegalArgumentException("not a logical view fixture");
+        }
+        return LayoutDescriptor.of(Shape.of(outputShape), strides, offset, true);
     }
 
     private static DataType[] inferTypes(int valueCount, MetalMpsGraphProgram program) {

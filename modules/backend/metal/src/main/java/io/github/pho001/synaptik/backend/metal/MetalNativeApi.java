@@ -556,6 +556,12 @@ abstract class MetalNativeApi implements AutoCloseable {
      * Already-admitted RELU, scalar MUL, and CLAMP accept matching rank-zero values independently
      * of anchor membership. This does not make other positive-rank-only operations scalar-capable
      * or relax native authentication of actual fused execution records.
+     * MATMUL checks original typed roles, exact logical provenance, and independently projected
+     * represented storage. Logical density after SELECT/SLICE does not imply physical density.
+     * Affine producers retain their exact source offsets/strides. RESHAPE independently selects
+     * an exact view or an ordinary canonical materialization; a canonical claim never replaces
+     * authentication of the source producer. Only native's separate physical source proof may
+     * elide an already-qualified transpose.
      */
     static final class ProgramExecutableAbi {
         private static final int MAX_RANK = 16;
@@ -652,6 +658,7 @@ abstract class MetalNativeApi implements AutoCloseable {
             boolean[] produced = new boolean[valueCount];
             boolean[] localTranspose = new boolean[valueCount];
             boolean[] localSingletonHeight = new boolean[valueCount];
+            LayoutDescriptor[] physicalLayouts = new LayoutDescriptor[valueCount];
             for (int feed : feeds) {
                 requireIndex(feed, valueCount, "feed");
                 if (states[feed] != MetalMpsGraphProgram.ValueState.UNAVAILABLE) {
@@ -662,7 +669,17 @@ abstract class MetalNativeApi implements AutoCloseable {
                     throw new IllegalArgumentException(
                             "Metal MPSGraph affine views must be produced inside the partition");
                 }
-                states[feed] = MetalMpsGraphProgram.ValueState.CANONICAL;
+                MetalMpsGraphProgram.ValueDescriptor descriptor = values.get(feed);
+                if (!descriptor.supportsStorageLayout(0)) {
+                    throw new IllegalArgumentException(
+                            "Metal graph feed storage must be positive and non-overlapping");
+                }
+                states[feed] = descriptor.layout().filter(layout -> layout.equals(
+                                LayoutDescriptor.contiguous(Shape.of(descriptor.dimensions()))))
+                        .isPresent()
+                        ? MetalMpsGraphProgram.ValueState.CANONICAL
+                        : MetalMpsGraphProgram.ValueState.MATERIALIZED_LAYOUT;
+                physicalLayouts[feed] = descriptor.layout().orElseThrow();
                 used[feed] = true;
                 fed[feed] = true;
             }
@@ -712,10 +729,6 @@ abstract class MetalNativeApi implements AutoCloseable {
                 int auxiliary = node.auxiliary();
                 if (nodeInputs.length != 0) {
                     requireIndex(left, valueCount, "first node input");
-                    if (!node.kind().accepts(states[left])) {
-            throw new IllegalArgumentException(
-                "Metal MPSGraph node input value state is unavailable or incompatible");
-                    }
                 }
                 for (int nodeOutput : node.outputs()) {
                     requireIndex(nodeOutput, valueCount, "node output");
@@ -727,12 +740,25 @@ abstract class MetalNativeApi implements AutoCloseable {
                 }
                 for (int input : node.inputs()) {
                     requireIndex(input, valueCount, "node input");
-                    if (!node.kind().accepts(states[input])) {
+                    if (!node.kind().accepts(states[input], values.get(input))) {
                         throw new IllegalArgumentException(
                                 "Metal MPSGraph node input value state is unavailable or"
                                     + " incompatible");
                     }
                     used[input] = true;
+                }
+                if (node.kind() == MetalMpsGraphProgram.NodeKind.RESHAPE) {
+                    requireShape(states[left] != MetalMpsGraphProgram.ValueState.CANONICAL
+                                    || canonicalExpValue(values.get(left)),
+                            "RESHAPE canonical source state must retain canonical logical geometry");
+                    requireShape(node.kind().outputState(values.get(left), values.get(output))
+                                    != MetalMpsGraphProgram.ValueState.UNAVAILABLE,
+                            "RESHAPE must declare its exact view or canonical materialization");
+                } else if (node.kind().isAffine()) {
+                    requireShape(affineLayoutMatches(
+                                    node, values.get(left), values.get(output)),
+                            node.kind() + " must preserve its source logical mapping,"
+                                    + " carrier, and gradient metadata");
                 }
                 if (task0066Selected(node.kind())) {
                     validateTask0066Gradients(node, values, types);
@@ -1037,22 +1063,23 @@ abstract class MetalNativeApi implements AutoCloseable {
                                             + " disagree");
                     case MATMUL -> {
                         requireIndex(right, valueCount, "second node input");
-                        if (valueRanks[left] == 0
-                                || valueRanks[right] == 0
-                                || !node.kind().accepts(states[right])) {
+                        if (valueRanks[left] == 0 || valueRanks[right] == 0
+                                || !node.kind().accepts(states[right], values.get(right))
+                                || !values.get(left).matmulDense(physicalLayouts[left])
+                                || !values.get(right).matmulDense(physicalLayouts[right])
+                                || !values.get(left).matmulDense() && !localTranspose[left]
+                                || !values.get(right).matmulDense() && !localTranspose[right]) {
                             throw new IllegalArgumentException(
-                                    "Metal MATMUL inputs must be positive-rank canonical"
-                                            + " or affine views");
+                                    "Metal MATMUL inputs require exact dense storage or"
+                                            + " authenticated local last-two-axis transposes");
                         }
-                        if ((states[left] == MetalMpsGraphProgram.ValueState.AFFINE_VIEW
-                                        && !localTranspose[left])
-                                || (states[right]
-                                                == MetalMpsGraphProgram.ValueState.AFFINE_VIEW
-                                        && !localTranspose[right])) {
-                            throw new IllegalArgumentException(
-                                    "Metal MATMUL affine inputs must be authenticated local"
-                                            + " last-two-axis transposes");
-                        }
+                        requireShape(
+                                !values.get(output).densePhysical()
+                                        && values.get(output).layout().filter(layout ->
+                                                layout.equals(LayoutDescriptor.contiguous(
+                                                        Shape.of(values.get(output).dimensions()))))
+                                                .isPresent(),
+                                "MATMUL output must be canonical");
                         requireShape(
                                 matmulMatches(left, right, output, valueRanks, valueDimensions),
                                 "MATMUL shapes must be exact positive static contraction");
@@ -1503,7 +1530,33 @@ abstract class MetalNativeApi implements AutoCloseable {
                     }
                 }
                 for (int nodeOutput : node.outputs()) {
-                    states[nodeOutput] = node.kind().outputState();
+                    MetalMpsGraphProgram.ValueState outputState =
+                            node.kind() == MetalMpsGraphProgram.NodeKind.RESHAPE
+                                    ? node.kind().outputState(values.get(left), values.get(nodeOutput))
+                                    : node.kind().outputState();
+                    if ((node.kind() == MetalMpsGraphProgram.NodeKind.SELECT
+                                    || node.kind() == MetalMpsGraphProgram.NodeKind.SLICE)
+                            && values.get(nodeOutput).layout()
+                                    .filter(LayoutDescriptor::hasZeroStride).isPresent()) {
+                        outputState = MetalMpsGraphProgram.ValueState.AFFINE_VIEW;
+                    }
+                    if (values.get(nodeOutput).densePhysical()
+                            != (outputState == MetalMpsGraphProgram.ValueState.AFFINE_VIEW)) {
+                        throw new IllegalArgumentException(
+                                "Metal value affine declaration disagrees with its producer");
+                    }
+                    states[nodeOutput] = outputState;
+                    // Ordinary affine steps represent their own canonical buffers. Native may
+                    // elide a transpose only after independently proving its actual source.
+                    LayoutDescriptor physical =
+                            node.kind() == MetalMpsGraphProgram.NodeKind.SELECT
+                                            || node.kind() == MetalMpsGraphProgram.NodeKind.SLICE
+                                    ? extractionLayout(node, physicalLayouts[left],
+                                            values.get(nodeOutput).dimensions())
+                                    : LayoutDescriptor.contiguous(
+                                            Shape.of(values.get(nodeOutput).dimensions()));
+                    requireShape(physical != null, "Metal physical extraction layout is invalid");
+                    physicalLayouts[nodeOutput] = physical;
                     used[nodeOutput] = true;
                     produced[nodeOutput] = true;
                 }
@@ -2277,79 +2330,57 @@ abstract class MetalNativeApi implements AutoCloseable {
         private static boolean task0059LayoutMatches(
                 MetalMpsGraphProgram.Node node,
                 List<MetalMpsGraphProgram.ValueDescriptor> values) {
+            MetalMpsGraphProgram.ValueDescriptor input = values.get(node.firstInputIndex());
+            MetalMpsGraphProgram.ValueDescriptor output = values.get(node.outputIndex());
+            if (input.layout().isEmpty() || output.layout().isEmpty()) return false;
+            if (node.kind() != MetalMpsGraphProgram.NodeKind.SELECT
+                    && node.kind() != MetalMpsGraphProgram.NodeKind.SLICE) return true;
+            LayoutDescriptor expected = extractionLayout(
+                    node, input.layout().orElseThrow(), output.dimensions());
+            return expected != null && output.layout().filter(expected::equals).isPresent();
+        }
+
+        /** The same extraction map applies separately to logical and represented source layouts. */
+        private static LayoutDescriptor extractionLayout(
+                MetalMpsGraphProgram.Node node, LayoutDescriptor source, long[] outputShape) {
             try {
-                MetalMpsGraphProgram.ValueDescriptor input =
-                        values.get(node.firstInputIndex());
-                MetalMpsGraphProgram.ValueDescriptor output =
-                        values.get(node.outputIndex());
-                int minimumInputRank =
-                        node.kind() == MetalMpsGraphProgram.NodeKind.SELECT ? 1 : 0;
-                if (input.rank() < minimumInputRank
-                        || input.layout().isEmpty()
-                        || output.layout().isEmpty()) {
-                    return false;
-                }
-                if (node.kind() == MetalMpsGraphProgram.NodeKind.SELECT) {
-                    long[] words = node.attributeWords();
-                    int axis = Math.toIntExact(words[0]);
-                    LayoutDescriptor inputLayout = input.layout().orElseThrow();
-                    long[] inputStrides = inputLayout.strides();
-                    if (axis < 0 || axis >= inputStrides.length) return false;
-                    long[] strides = new long[inputStrides.length - 1];
-                    System.arraycopy(inputStrides, 0, strides, 0, axis);
-                    System.arraycopy(inputStrides, axis + 1, strides, axis,
-                            inputStrides.length - axis - 1);
-                    long offset = Math.addExact(
-                            inputLayout.storageOffset(),
-                            Math.multiplyExact(words[1], inputStrides[axis]));
-                    LayoutDescriptor expected = LayoutDescriptor.of(
-                            Shape.of(output.dimensions()), strides, offset, true);
-                    return output.layout().filter(expected::equals).isPresent();
-                }
-                if (node.kind() != MetalMpsGraphProgram.NodeKind.SLICE) return true;
                 long[] words = node.attributeWords();
-                long[] starts;
-                int[] axes;
-                long[] steps;
-                if (node.attributeKind()
-                        == MetalMpsGraphProgram.AttributeKind.CROP_TO_SHAPE) {
-                    int rank = Math.toIntExact(words[0]);
-                    int prefixOffset = 1 + rank;
-                    starts = Arrays.copyOfRange(
-                            words, prefixOffset + 1, prefixOffset + 1 + rank);
-                    axes = new int[rank];
-                    steps = new long[rank];
-                    Arrays.fill(steps, 1L);
-                    for (int axis = 0; axis < rank; axis++) axes[axis] = axis;
-                } else {
-                    int count = Math.toIntExact(words[0]);
-                    starts = Arrays.copyOfRange(words, 1, 1 + count);
-                    axes = new int[count];
-                    for (int index = 0; index < count; index++) {
-                        axes[index] = Math.toIntExact(words[1 + count * 2 + index]);
+                long[] strides = source.strides();
+                long offset = source.storageOffset();
+                if (node.kind() == MetalMpsGraphProgram.NodeKind.SELECT) {
+                    int axis = Math.toIntExact(words[0]);
+                    if (axis < 0 || axis >= strides.length) return null;
+                    offset = Math.addExact(offset, Math.multiplyExact(words[1], strides[axis]));
+                    long[] selected = new long[strides.length - 1];
+                    System.arraycopy(strides, 0, selected, 0, axis);
+                    System.arraycopy(strides, axis + 1, selected, axis, strides.length - axis - 1);
+                    strides = selected;
+                } else if (node.kind() == MetalMpsGraphProgram.NodeKind.SLICE) {
+                    if (node.attributeKind() == MetalMpsGraphProgram.AttributeKind.CROP_TO_SHAPE) {
+                        int rank = Math.toIntExact(words[0]);
+                        if (rank != strides.length) return null;
+                        int prefixOffset = 2 + rank;
+                        for (int axis = 0; axis < rank; axis++) {
+                            offset = Math.addExact(offset,
+                                    Math.multiplyExact(words[prefixOffset + axis], strides[axis]));
+                        }
+                    } else {
+                        int count = Math.toIntExact(words[0]);
+                        for (int item = 0; item < count; item++) {
+                            int axis = Math.toIntExact(words[1 + count * 2 + item]);
+                            long step = words[1 + count * 3 + item];
+                            if (axis < 0 || axis >= strides.length || step <= 0L) return null;
+                            offset = Math.addExact(offset,
+                                    Math.multiplyExact(words[1 + item], strides[axis]));
+                            strides[axis] = Math.multiplyExact(strides[axis], step);
+                        }
                     }
-                    steps = Arrays.copyOfRange(
-                            words, 1 + count * 3, 1 + count * 4);
+                } else {
+                    return null;
                 }
-                for (long step : steps) {
-                    if (step <= 0L) return false;
-                }
-                LayoutDescriptor inputLayout = input.layout().orElseThrow();
-                long[] strides = inputLayout.strides();
-                long offset = inputLayout.storageOffset();
-                for (int index = 0; index < axes.length; index++) {
-                    int axis = axes[index];
-                    if (axis < 0 || axis >= strides.length) return false;
-                    long inputStride = strides[axis];
-                    offset = Math.addExact(
-                            offset, Math.multiplyExact(starts[index], inputStride));
-                    strides[axis] = Math.multiplyExact(inputStride, steps[index]);
-                }
-                LayoutDescriptor expected = LayoutDescriptor.of(
-                        Shape.of(output.dimensions()), strides, offset, true);
-                return output.layout().filter(expected::equals).isPresent();
-            } catch (ArithmeticException | IndexOutOfBoundsException exception) {
-                return false;
+                return LayoutDescriptor.of(Shape.of(outputShape), strides, offset, true);
+            } catch (ArithmeticException | IndexOutOfBoundsException incompatible) {
+                return null;
             }
         }
 
@@ -2599,6 +2630,77 @@ abstract class MetalNativeApi implements AutoCloseable {
 
 
 
+
+        private static boolean affineLayoutMatches(
+                MetalMpsGraphProgram.Node node,
+                MetalMpsGraphProgram.ValueDescriptor input,
+                MetalMpsGraphProgram.ValueDescriptor output) {
+            if (input.dataType() != output.dataType()
+                    || input.requiresGrad() != output.requiresGrad()
+                    || input.layout().isEmpty() || output.layout().isEmpty()) return false;
+            LayoutDescriptor source = input.layout().orElseThrow();
+            LayoutDescriptor result = output.layout().orElseThrow();
+            if (!result.isView() || source.storageOffset() != result.storageOffset()
+                    || source.referencedElementSpan() != result.referencedElementSpan()) return false;
+            long[] sourceStrides = source.strides();
+            long[] resultStrides = result.strides();
+            long[] sourceShape = input.dimensions();
+            long[] resultShape = output.dimensions();
+            try {
+                switch (node.kind()) {
+                    case EXPAND -> {
+                        int padding = resultShape.length - sourceShape.length;
+                        if (padding < 0) return false;
+                        for (int axis = 0; axis < resultShape.length; axis++) {
+                            int sourceAxis = axis - padding;
+                            long stride = sourceAxis < 0 ? 0L
+                                    : sourceShape[sourceAxis] == 1L && resultShape[axis] != 1L
+                                            ? 0L : sourceStrides[sourceAxis];
+                            if (resultStrides[axis] != stride) return false;
+                        }
+                    }
+                    case PERMUTE -> {
+                        long[] axes = node.attributeValues();
+                        if (axes.length != sourceStrides.length
+                                || axes.length != resultStrides.length) return false;
+                        for (int axis = 0; axis < axes.length; axis++) {
+                            if (axes[axis] < 0 || axes[axis] >= axes.length
+                                    || resultStrides[axis] != sourceStrides[(int) axes[axis]]) {
+                                return false;
+                            }
+                        }
+                    }
+                    case EXPAND_DIMS -> {
+                        int inserted = node.axis();
+                        if (inserted < 0 || inserted > sourceShape.length
+                                || resultShape.length != sourceShape.length + 1) return false;
+                        for (int axis = 0; axis < resultShape.length; axis++) {
+                            long stride = axis == inserted
+                                    ? inserted == sourceShape.length ? 1L
+                                            : Math.multiplyExact(
+                                                    sourceStrides[inserted], sourceShape[inserted])
+                                    : sourceStrides[axis < inserted ? axis : axis - 1];
+                            if (resultStrides[axis] != stride) return false;
+                        }
+                    }
+                    case SQUEEZE -> {
+                        int removed = node.axis();
+                        if (removed < 0 || removed >= sourceShape.length
+                                || sourceShape[removed] != 1L
+                                || resultShape.length != sourceShape.length - 1) return false;
+                        for (int axis = 0; axis < resultShape.length; axis++) {
+                            if (resultStrides[axis]
+                                    != sourceStrides[axis < removed ? axis : axis + 1]) return false;
+                        }
+                    }
+                    default -> { return false; }
+                }
+                return true;
+            } catch (ArithmeticException overflow) {
+                return false;
+            }
+        }
+
         private static boolean exactLocalTranspose(
                 MetalMpsGraphProgram.Node node,
                 int input,
@@ -2607,7 +2709,10 @@ abstract class MetalNativeApi implements AutoCloseable {
                 int[] ranks,
                 List<MetalMpsGraphProgram.ValueDescriptor> values) {
             int rank = ranks[input];
-            if (states[input] != MetalMpsGraphProgram.ValueState.CANONICAL
+            if (states[input] == MetalMpsGraphProgram.ValueState.UNAVAILABLE
+                    || !values.get(input).matmulDense()
+                    || values.get(input).dataType() != values.get(output).dataType()
+                    || values.get(input).requiresGrad() != values.get(output).requiresGrad()
                     || rank < 2
                     || ranks[output] != rank
                     || node.attributeCount() != rank) {

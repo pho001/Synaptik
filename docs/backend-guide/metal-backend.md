@@ -4,14 +4,23 @@
 
 The Metal backend executes one whole maximal Metal-owned partition. Its active protocol is
 native ABI 7, program schema 20 with a 124-byte header, data-type wires `1..7`, operation wires
-`1..115`, attribute wires `0..41`, route wires `1..3`, and coordinated backend-local identity 36.
+`1..115`, attribute wires `0..41`, route wires `1..3`, and coordinated backend-local identity 38.
 Schema 19 and identity 29 are historical pre-cutover allocations; identity 30 is the historical
 profile-free cutover value, identity 31 is the superseded FLOAT32 `EXP` value, and identity 32 is
 the superseded low-`EXP` value. Identity 33 is the superseded FLOAT32 `SIGMOID` value and identity
 34 is the superseded low-`SIGMOID` value. Identity 35 bound rank-16 false-branch WHERE geometry,
 raw unaddressed low ScatterAdd words, first-contributor low scan seeds, and exact native
-creating-context checks. Identity 36 additionally binds corrected standalone scalar RELU/MUL
-admission; prior tuning identities are stale. The program wire schema remains 20.
+creating-context checks. Identity 36 bound corrected standalone scalar RELU/MUL admission;
+37 added dense-view MATMUL and 38 adds selected materializing RESHAPE. Prior tuning identities
+are stale. The program wire schema remains 20.
+
+Zero-offset canonical-row-major MATMUL operands may be truthful dense logical views. Exact local
+last-two-axis transposes must remain authenticated against their dense source and actual physical
+representation. Ordinary selected materializing RESHAPE instead has canonical non-view output,
+its own destination and the existing exact_move_unary_0066 copy; a genuine contiguous view stays
+unchanged. The full original-typed five-form F32/BF16/F16 forward/both-gradient GPU corpus passed
+without consumer copies or CPU fallback, alongside full F32 MLP/CNN SGD/save/load/new training.
+See [Metal0081 evidence](../planning/backends/metal/tasks/0081-materializing-reshape-composition.md#result).
 
 The profile-free exact domain contains represented-bit unary operations, affine
 movement and canonicalization, indexing, replacement scatter, non-overlapping folds, classification,
@@ -300,7 +309,7 @@ distinct non-physical identities. The first is an abstract availability slot, th
 trace correlation token, and the third a session-compatibility identity that makes no stable-device
 claim. No mapping among them is implied. ABI 7 and the thirteen native exports are fixed. The
 route-bearing image is schema 20 with a 124-byte header, and every workload/exact-policy/candidate/compatibility/
-route/codec identity is version 36; prior identities 30 through 35 and every other stale identity fail closed.
+route/codec identity is version 38; prior identities 30 through 37 and every other stale identity fail closed.
 Tuning remains session-scoped and non-persistent.
 
 Future asynchronous execution requires a separate cross-module contract for completion/failure,
@@ -391,16 +400,16 @@ SELECT/SLICE/Crop can produce scalar or positive-rank logical views. Capability 
 positive strides, storage offset, and referenced span and rejects unresolved, empty, unsafe, or
 out-of-span geometry.
 
-Admitted arithmetic, reduction, MSE, MATMUL, convolution, pooling, and dropout rows accept every
-qualified homogeneous FLOAT32, BFLOAT16, or FLOAT16 occurrence. The provider derives each low
-answer by checking original low descriptors and projecting to the frozen-baseline FLOAT32
-predicate. Post-cutover `EXP` instead has separate exact FLOAT32, BFLOAT16, and FLOAT16 predicates;
-its low support is not inherited through the proxy. Binary output
-differentiability is the operand OR; scalar/reduction/scan output differentiability preserves the
-source relationship.
-The provider also admits no-gradient INT32/INT64 MATMUL with exact promotion and modular arithmetic.
-MATMUL operands are canonical or exact authenticated local identity-prefix, last-two-axis
-transposes; output is canonical.
+Admitted baseline arithmetic, reduction, MSE, convolution, pooling and dropout rows retain their
+qualified homogeneous FLOAT32/BFLOAT16/FLOAT16 domains and frozen-baseline projection. Extended
+MATMUL independently checks original typed descriptors; post-cutover EXP and SIGMOID likewise
+have separate dtype-qualified predicates rather than inheriting new low support from a proxy.
+Binary output differentiability is the operand OR; scalar/reduction/scan output differentiability
+preserves the source relationship. No-gradient INT32/INT64 MATMUL retains exact promotion and
+modular arithmetic. MATMUL operands have exact zero-offset dense geometry (logical view or not),
+or are authenticated local identity-prefix last-two-axis transposes rooted in such a value;
+output is canonical. FLOAT64, mixed BFLOAT16/FLOAT16, FLOAT16/FLOAT32 widening and integral/
+widening gradients are not added.
 
 Convolution requires rank-four NCHW/OIHW or rank-five NCDHW/OIDHW, exact grouped channel/bias
 relationships, symmetric nonnegative padding, positive stride/dilation/groups/dimensions, exact
@@ -463,8 +472,10 @@ gradients, layout changes, unsupported nodes, fixed custom nodes, MPSGraph bound
 caps stop fusion.
 
 Unselected rows retain their established state rules. Their FLOAT32 MPSGraph binary, reduction,
-and MSE variants consume canonical values. MATMUL produces canonical state and may consume affine state only
-when analysis authenticates the exact local identity-prefix last-two-axis transpose. Convolution
+and MSE variants consume canonical values. MATMUL produces canonical state and independently
+authenticates zero-offset dense materialized-layout feeds and dense local AFFINE_VIEW operands,
+or exact local identity-prefix last-two-axis transposes rooted in those dense values. Logical
+view metadata and actual physical-source mapping remain separate. Convolution
 and pooling normally consume canonical state and always produce canonical state, with only the
 exact authenticated singleton-height Conv1d/Pool1d input rewrite. Feeds and published boundary
 targets receive Runtime slots; authenticated custom-program boundaries receive compact run-owned
@@ -480,7 +491,7 @@ consuming a caller position. Existing shared `GraphPreparation` tests independen
 chain `CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
 Once stable values, states, feeds, targets, checked byte geometry, typed node records, and the
-canonical execution plan are known, analysis creates a version-thirty-six candidate batch and
+canonical execution plan are known, analysis creates a version-thirty-eight candidate batch and
 workload fingerprint. Every partition containing BFLOAT16/FLOAT16 values or a selected
 Task-0066/Task-0069 occurrence forces the fixed `CUSTOM_PROGRAM` production candidate; the batch
 rejects a selected-node MPSGraph route before native allocation. Other FLOAT32 partitions retain
@@ -489,14 +500,14 @@ rank-two FLOAT32 MATMUL where no selected custom-only node requires the whole-pr
 Package-private structural forcing remains available only for a route already present in the fresh
 authenticated batch.
 
-The version-thirty-six canonical workload fingerprint covers the schema-twenty route-bearing program
+The version-thirty-eight canonical workload fingerprint covers the schema-twenty route-bearing program
 image and authenticated execution extension, ordered
 input and output references, all typed attributes, logical and physical value states,
 authenticated local provenance, complete tensor descriptors and storage layouts, compact
 materialized and target sets, exact scalar/splat bits, logical-boundary roles,
 policy/candidate/route schemas, and ABI version. It encodes structural positions rather than graph
 object identity. Target compatibility also contains a fresh private nonce from the exact
-`MetalDeviceContext`; only identity 36 is accepted, while prior identities 30 through 35 and every other stale
+`MetalDeviceContext`; only identity 38 is accepted, while prior identities 30 through 37 and every other stale
 decision fail closed.
 Metal can construct an absent- or present-decision `BackendPartitionTuningHandoff`. Fresh analysis
 always regenerates the current batch. Every supplied handoff is accepted only when the exact
@@ -522,15 +533,15 @@ exposes this test seam.
 
 ### Session decision codec and limitations
 
-The package-private version-thirty-six Metal codec produces bounded canonical compatibility,
+The package-private version-thirty-eight Metal codec produces bounded canonical compatibility,
 candidate, and checksummed decision bytes. Decode rejects wrong magic, schema, session scope,
 malformed or truncated content, trailing or corrupt bytes, changed workload or
 context, and unknown or pruned candidates. The bytes contain no native handle or executable. Only
-identity 36 is accepted; prior identities 30 through 35 and every other stale decision fail closed even when its
+identity 38 is accepted; prior identities 30 through 37 and every other stale decision fail closed even when its
 trailing checksum is otherwise valid.
 
 The public `MetalLocalWorkloadTuning` retained by `MetalBackendIntegration` wraps this codec and
-candidate generator without changing their version-thirty-six bytes. It returns a handoff only
+candidate generator without changing their version-thirty-eight bytes. It returns a handoff only
 for an exact singleton NEG whose complete ordered candidate list is `[CUSTOM_SINGLE_NEG, MPSGRAPH]`.
 `MetalCompletePlanTuning` authenticates the exact Phase-1 association and exposes one complete-plan
 candidate fixed to that selected route. Both collaborations use opaque exact-owner/batch values,
@@ -545,7 +556,7 @@ device/library fingerprint.
 
 Schema-twenty workload bytes and workload compatibility include the fixed route,
 canonical execution extension, and manifest digest. Candidate and decision bytes retain route
-wires `1..3`, route-policy version thirty-six, and the target session.
+wires `1..3`, route-policy version thirty-eight, and the target session.
 Prepared plans and native resources are route-specific. A future executable-cache key would
 therefore require the tuple `(workload compatibility, route wire, route-policy version, target
 session)` rather than a workload digest alone. The repository has no persistent Metal executable
@@ -782,7 +793,9 @@ broadcast right-aligned. Metal executes every no-gradient INT32/INT64 ordered pa
 INT64-dominant output promotion and exact two's-complement modular accumulation. It also
 executes homogeneous FLOAT32/BFLOAT16/FLOAT16 with gradient eligibility equal to the operand OR and
 the admitted one-low-plus-FLOAT32 widening rows with FLOAT32 output. Each logical operand may be
-canonical or the exact local identity-prefix, last-two-axis transpose of a canonical source.
+zero-offset dense row-major storage, whether logically a view or not, or an exact local
+identity-prefix last-two-axis transpose rooted in such a dense source. Referenced span equals
+logical element count for dense operands; no general offset/strided/overlapping storage is admitted.
 
 All-FLOAT32 rank-two matrix products retain the pre-existing MPSGraph MATMUL route, including exact
 authenticated local transposes. Every geometry containing BFLOAT16 or FLOAT16 and every other
@@ -1216,7 +1229,7 @@ persistent Metal splat binding is accepted only as a Metal read source; it canno
 destination. Runtime executes only the resulting direct prepared references.
 
 For one exact singleton NEG Metal plan, public `prepareTuned(...)` measures the complete two-route
-local batch, authenticates the selected version-thirty-six decision, then correctness-checks and
+local batch, authenticates the selected version-thirty-eight decision, then correctness-checks and
 times one complete-plan candidate fixed to that route. The returned production recipe is freshly
 prepared after representative cleanup. Metal policy, producer, and decision-codec identities are
 adapter-owned and distinct from CPU identities; existing CPU bytes and behavior remain unchanged.
@@ -1360,7 +1373,7 @@ enforces the boundary before native entry. ABI version `7` exposes exactly thirt
 and accepts one bounded schema-20 route-bearing image with a 124-byte header; operation wires `1..115`, attribute wires
 `0..41`, route wires `1..3`, and type wires `1..7` cover the current structural registry without
 widening operation-kind capability. Route, candidate, compatibility, workload, exact-policy, and
-codec identities are version `36`; prior identities `30` through `35` and every other stale identity fail closed.
+codec identities are version `38`; prior identities `30` through `37` and every other stale identity fail closed.
 Current capability/structural counts are `88/27` and `103/12`; the frozen cutover counts were
 `86/29` and `101/14`.
 The complete-plan wrapper remains version `1`.

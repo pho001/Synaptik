@@ -543,6 +543,257 @@ class MetalMpsGraphAffineNativeTest {
         }
     }
 
+    @Test
+    void materializingReshapeCopiesLogicalOrdinalsFromExternalAndExecutedPermuteBuffers() {
+        MetalNativeApi api = MetalNativeApi.open(configuredLibrary());
+        MetalNativeApi.Handle context = null;
+        try {
+            context = api.createContext();
+            for (DataType type : DataType.values()) {
+                for (boolean local : new boolean[] {false, true}) {
+                    runMaterializingReshape(api, context, type, local, false);
+                    if (type == DataType.FLOAT32 || type == DataType.FLOAT64
+                            || type == DataType.BFLOAT16 || type == DataType.FLOAT16) {
+                        runMaterializingReshape(api, context, type, local, true);
+                    }
+                }
+            }
+        } finally {
+            if (context != null) api.releaseContext(context);
+            api.close();
+        }
+    }
+
+    private static void runMaterializingReshape(
+            MetalNativeApi api, MetalNativeApi.Handle context, DataType type,
+            boolean local, boolean gradient) {
+        Shape logical = Shape.of(4, 6);
+        Shape result = Shape.of(2, 12);
+        LayoutDescriptor sourceLayout = LayoutDescriptor.of(
+                logical, local ? new long[] {1, 4} : new long[] {2, 11},
+                local ? 0L : 3L, true);
+        var source = new MetalMpsGraphProgram.ValueDescriptor(
+                type, logical.toLongArray(), java.util.Optional.of(sourceLayout),
+                gradient, local);
+        // Declare the selected non-view result, without turning all opcode-6 results canonical.
+        var output = new MetalMpsGraphProgram.ValueDescriptor(
+                type, result.toLongArray(),
+                java.util.Optional.of(LayoutDescriptor.contiguous(result)), gradient, false);
+        var values = local
+                ? List.of(new MetalMpsGraphProgram.ValueDescriptor(
+                        type, new long[] {6, 4}, gradient), source, output)
+                : List.of(source, output);
+        int target = local ? 2 : 1;
+        var reshape = MetalMpsGraphProgram.Node.targetShape(
+                MetalMpsGraphProgram.NodeKind.RESHAPE, target - 1, target,
+                result.toLongArray());
+        var program = new MetalMpsGraphProgram(local
+                ? List.of(MetalMpsGraphProgram.Node.permutation(0, 1, List.of(1, 0)), reshape)
+                : List.of(reshape));
+        int width = type.byteWidth();
+        long inputBytes = (local ? 24L : sourceLayout.referencedElementSpan()) * width;
+        long targetBytes = 24L * width;
+        var buffers = new ArrayList<MetalNativeApi.Handle>();
+        MetalNativeApi.Handle executable = null;
+        try {
+            executable = api.createProgramExecutable(context, values, program,
+                    new int[] {0}, local ? new int[] {1, 2} : new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            buffers.add(api.createBuffer(context, inputBytes));
+            if (local) buffers.add(api.createBuffer(context, targetBytes + 16L));
+            buffers.add(api.createBuffer(context, targetBytes + 16L));
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment input = arena.allocate(inputBytes, width);
+                MemorySegment actualInput = arena.allocate(inputBytes, width);
+                MemorySegment sentinel = arena.allocate(targetBytes + 16L, width);
+                MemorySegment actual = arena.allocate(targetBytes + 16L, width);
+                MemorySegment inputs = arena.allocate(ADDRESS, buffers.size());
+                MemorySegment outputs = arena.allocate(ADDRESS, buffers.size() - 1);
+                for (int slot = 0; slot < buffers.size(); slot++) {
+                    inputs.setAtIndex(ADDRESS, slot, buffers.get(slot).carrier());
+                    if (slot > 0)
+                        outputs.setAtIndex(ADDRESS, slot - 1, buffers.get(slot).carrier());
+                }
+                for (int iteration = 0; iteration < 2; iteration++) {
+                    input.fill((byte) 0x5a);
+                    for (int ordinal = 0; ordinal < 24; ordinal++) {
+                        int row = ordinal / 6;
+                        int column = ordinal % 6;
+                        long physical = local ? column * 4L + row
+                                : 3L + row * 2L + column * 11L;
+                        long bits = reshapeCarrierBits(type, (ordinal + iteration * 7) % 24);
+                        for (int b = 0; b < width; b++)
+                            input.set(JAVA_BYTE, physical * width + b, (byte) (bits >>> (b * 8)));
+                    }
+                    api.upload(buffers.getFirst(), 0L, input, inputBytes);
+                    sentinel.fill((byte) 0x6b);
+                    for (int slot = 1; slot < buffers.size(); slot++)
+                        api.upload(buffers.get(slot), 0L, sentinel, sentinel.byteSize());
+                    api.runExecutable(executable, buffers.size(), inputs,
+                            buffers.size() - 1, outputs);
+                    api.download(buffers.getFirst(), 0L, actualInput, inputBytes);
+                    assertRawBytesEqual(input, actualInput, inputBytes);
+                    for (int slot = 1; slot < buffers.size(); slot++) {
+                        api.download(buffers.get(slot), 0L, actual, actual.byteSize());
+                        for (int ordinal = 0; ordinal < 24; ordinal++) {
+                            long physical = local ? (ordinal % 6) * 4L + ordinal / 6
+                                    : 3L + (ordinal / 6) * 2L + (ordinal % 6) * 11L;
+                            for (int b = 0; b < width; b++)
+                                assertEquals(input.get(JAVA_BYTE, physical * width + b),
+                                        actual.get(JAVA_BYTE, (long) ordinal * width + b),
+                                        type + " local=" + local + " slot=" + slot
+                                                + " iteration=" + iteration + " ordinal=" + ordinal);
+                        }
+                        assertRawBytesEqual(sentinel.asSlice(targetBytes),
+                                actual.asSlice(targetBytes), 16L);
+                    }
+                }
+            }
+        } finally {
+            for (int slot = buffers.size(); slot-- > 0;) api.releaseBuffer(buffers.get(slot));
+            if (executable != null) api.releaseExecutable(executable);
+        }
+    }
+
+    private static long reshapeCarrierBits(DataType type, int ordinal) {
+        return switch (type) {
+            case FLOAT32, INT32 -> Integer.toUnsignedLong(ADVERSARIAL_BITS[ordinal]);
+            case FLOAT64, INT64 -> new long[] {
+                    0L, Long.MIN_VALUE, 1L, Long.MIN_VALUE | 1L,
+                    0x000fffffffffffffL, 0x800fffffffffffffL,
+                    0x0010000000000000L, 0x8010000000000000L,
+                    0x7fefffffffffffffL, 0xffefffffffffffffL,
+                    0x7ff0000000000000L, 0xfff0000000000000L,
+                    0x7ff8000000000001L, 0x7ff8123456789abcL,
+                    0xfff854321fedcba9L, 0x7ff0000000000001L
+            }[ordinal % 16];
+            case BFLOAT16 -> new int[] {
+                    0, 0x8000, 1, 0x8001, 0x007f, 0x807f, 0x0080, 0x8080,
+                    0x7f7f, 0xff7f, 0x7f80, 0xff80, 0x7fc1, 0xffd5, 0x7f81, 0x3f81
+            }[ordinal % 16];
+            case FLOAT16 -> new int[] {
+                    0, 0x8000, 1, 0x8001, 0x03ff, 0x83ff, 0x0400, 0x8400,
+                    0x7bff, 0xfbff, 0x7c00, 0xfc00, 0x7e01, 0xfe55, 0x7c01, 0x3c01
+            }[ordinal % 16];
+            case BOOL -> ordinal & 1;
+        };
+    }
+
+    @Test
+    void permuteFanoutToMatmulAndMaterializingReshapeUsesPhysicalBufferOnceInBothOrders() {
+        MetalNativeApi api = MetalNativeApi.open(configuredLibrary());
+        MetalNativeApi.Handle context = null;
+        try {
+            context = api.createContext();
+            for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                for (boolean matmulFirst : new boolean[] {false, true}) {
+                    for (boolean publish : new boolean[] {false, true})
+                        runReshapeMatmulFanout(api, context, type, matmulFirst, publish);
+                }
+            }
+        } finally {
+            if (context != null) api.releaseContext(context);
+            api.close();
+        }
+    }
+
+    private static void runReshapeMatmulFanout(
+            MetalNativeApi api, MetalNativeApi.Handle context, DataType type,
+            boolean matmulFirst, boolean publish) {
+        Shape transposeShape = Shape.of(3, 2);
+        var transpose = new MetalMpsGraphProgram.ValueDescriptor(
+                type, transposeShape.toLongArray(), java.util.Optional.of(LayoutDescriptor.of(
+                        transposeShape, new long[] {1, 3}, 0L, true)), true, true);
+        var values = List.of(
+                new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 3}, true),
+                transpose,
+                new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 2}, true),
+                new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {3, 2}, true),
+                new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {6}, true));
+        var matmul = MetalMpsGraphProgram.Node.matmul(1, 2, 3);
+        var reshape = MetalMpsGraphProgram.Node.targetShape(
+                MetalMpsGraphProgram.NodeKind.RESHAPE, 1, 4, new long[] {6});
+        var permute = MetalMpsGraphProgram.Node.permutation(0, 1, List.of(1, 0));
+        var program = new MetalMpsGraphProgram(matmulFirst
+                ? List.of(permute, matmul, reshape) : List.of(permute, reshape, matmul));
+        int[] targets = publish ? new int[] {1, 3, 4} : new int[] {3, 4};
+        int width = type.byteWidth();
+        var buffers = new ArrayList<MetalNativeApi.Handle>();
+        MetalNativeApi.Handle executable = null;
+        try {
+            executable = api.createProgramExecutable(context, values, program,
+                    new int[] {0, 2}, targets, MetalPreparedRoute.CUSTOM_PROGRAM);
+            buffers.add(api.createBuffer(context, 6L * width));
+            buffers.add(api.createBuffer(context, 6L * width + 16L));
+            buffers.add(api.createBuffer(context, 4L * width));
+            buffers.add(api.createBuffer(context, 6L * width + 16L));
+            buffers.add(api.createBuffer(context, 6L * width + 16L));
+            try (Arena arena = Arena.ofConfined()) {
+                MemorySegment source = arena.allocate(6L * width, width);
+                MemorySegment right = arena.allocate(4L * width, width);
+                MemorySegment actualSource = arena.allocate(source.byteSize(), width);
+                MemorySegment actualRight = arena.allocate(right.byteSize(), width);
+                MemorySegment sentinel = arena.allocate(6L * width + 16L, width);
+                MemorySegment actual = arena.allocate(sentinel.byteSize(), width);
+                MemorySegment inputs = arena.allocate(ADDRESS, buffers.size());
+                MemorySegment outputs = arena.allocate(ADDRESS, targets.length);
+                for (int slot = 0; slot < buffers.size(); slot++) {
+                    inputs.setAtIndex(ADDRESS, slot, buffers.get(slot).carrier());
+                }
+                for (int target = 0; target < targets.length; target++) {
+                    outputs.setAtIndex(ADDRESS, target, buffers.get(targets[target]).carrier());
+                }
+                for (int iteration = 0; iteration < 2; iteration++) {
+                    for (int index = 0; index < 6; index++)
+                        putReshapeNumber(source, type, index, index + 1 + iteration * 2);
+                    for (int index = 0; index < 4; index++)
+                        putReshapeNumber(right, type, index, index + 1 + iteration);
+                    api.upload(buffers.get(0), 0L, source, source.byteSize());
+                    api.upload(buffers.get(2), 0L, right, right.byteSize());
+                    sentinel.fill((byte) 0x6b);
+                    for (int slot : new int[] {1, 3, 4})
+                        api.upload(buffers.get(slot), 0L, sentinel, sentinel.byteSize());
+                    api.runExecutable(executable, buffers.size(), inputs, targets.length, outputs);
+                    api.download(buffers.get(0), 0L, actualSource, source.byteSize());
+                    api.download(buffers.get(2), 0L, actualRight, right.byteSize());
+                    assertRawBytesEqual(source, actualSource, source.byteSize());
+                    assertRawBytesEqual(right, actualRight, right.byteSize());
+                    for (int target = 0; target < targets.length; target++) {
+                        api.download(buffers.get(targets[target]), 0L, actual, actual.byteSize());
+                        MemorySegment expected = arena.allocate(6L * width, width);
+                        for (int index = 0; index < 6; index++) {
+                            int row = index / 2;
+                            int column = index % 2;
+                            float value = targets[target] == 3
+                                    ? (row + 1 + iteration * 2) * (column + 1 + iteration)
+                                            + (row + 4 + iteration * 2) * (column + 3 + iteration)
+                                    : row + 1 + column * 3 + iteration * 2;
+                            putReshapeNumber(expected, type, index, value);
+                        }
+                        assertRawBytesEqual(expected, actual, expected.byteSize());
+                        assertRawBytesEqual(sentinel.asSlice(expected.byteSize()),
+                                actual.asSlice(expected.byteSize()), 16L);
+                    }
+                }
+            }
+        } finally {
+            for (int slot = buffers.size(); slot-- > 0;) api.releaseBuffer(buffers.get(slot));
+            if (executable != null) api.releaseExecutable(executable);
+        }
+    }
+
+    private static void putReshapeNumber(
+            MemorySegment storage, DataType type, int index, float value) {
+        int bits = switch (type) {
+            case FLOAT32 -> Float.floatToRawIntBits(value);
+            case BFLOAT16 -> Float.floatToRawIntBits(value) >>> 16;
+            case FLOAT16 -> Short.toUnsignedInt(Float.floatToFloat16(value));
+            default -> throw new IllegalArgumentException("not a MATMUL fixture carrier");
+        };
+        for (int b = 0; b < type.byteWidth(); b++)
+            storage.set(JAVA_BYTE, (long) index * type.byteWidth() + b, (byte) (bits >>> (b * 8)));
+    }
+
     private static void assertRawBytesEqual(
             MemorySegment expected, MemorySegment actual, long byteCount) {
         for (long offset = 0L; offset < byteCount; offset++) {

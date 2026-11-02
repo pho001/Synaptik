@@ -1947,6 +1947,92 @@ static BOOL synaptik_storage_layout_supported(
             && spans[value] == offsets[value] + covered;
 }
 
+static BOOL synaptik_row_major_layout(
+        uint32_t value,
+        const uint32_t *ranks,
+        const uint64_t *dimensions,
+        const uint64_t *strides,
+        const uint64_t *offsets,
+        const uint64_t *spans) {
+    if (ranks == NULL || dimensions == NULL || strides == NULL || offsets == NULL
+            || spans == NULL || ranks[value] > SYNAPTIK_MAX_RANK)
+        return NO;
+    uint64_t count = 1U;
+    for (uint32_t reverse = ranks[value]; reverse > 0U; reverse--) {
+        uint32_t axis = reverse - 1U;
+        uint64_t extent = dimensions[(size_t)value * SYNAPTIK_MAX_RANK + axis];
+        if (extent == 0U
+                || strides[(size_t)value * SYNAPTIK_MAX_RANK + axis] != count
+                || extent > (uint64_t)INT64_MAX / count)
+            return NO;
+        count *= extent;
+    }
+    return offsets[value] <= (uint64_t)INT64_MAX - count
+            && spans[value] == offsets[value] + count;
+}
+
+/* MATMUL admits dense logical views, not general storage-layout compatibility. */
+static BOOL synaptik_matmul_dense_layout(
+        uint32_t value,
+        const uint32_t *ranks,
+        const uint64_t *dimensions,
+        const uint64_t *strides,
+        const uint64_t *offsets,
+        const uint64_t *spans) {
+    return ranks != NULL && offsets != NULL && ranks[value] >= 1U
+            && offsets[value] == 0U
+            && synaptik_row_major_layout(value, ranks, dimensions, strides, offsets, spans);
+}
+
+/* Logical alias geometry is derived from the actual immediate producer input. */
+static BOOL synaptik_affine_layout_matches(
+        SynaptikMetalDecodedNode node,
+        const uint32_t *ranks,
+        const uint64_t *dimensions,
+        const uint64_t *strides,
+        const uint64_t *offsets,
+        const uint64_t *spans) {
+    uint32_t input = node.first_input;
+    uint32_t output = node.output;
+    if (offsets[input] != offsets[output] || spans[input] != spans[output]) return NO;
+    if (node.operation == SYNAPTIK_METAL_CUSTOM_RESHAPE)
+        return synaptik_row_major_layout(input, ranks, dimensions, strides, offsets, spans)
+                && synaptik_row_major_layout(output, ranks, dimensions, strides, offsets, spans);
+    uint32_t input_rank = ranks[input];
+    uint32_t output_rank = ranks[output];
+    for (uint32_t axis = 0U; axis < output_rank; axis++) {
+        uint64_t expected;
+        if (node.operation == SYNAPTIK_METAL_CUSTOM_EXPAND) {
+            uint32_t padding = output_rank - input_rank;
+            if (axis < padding) {
+                expected = 0U;
+            } else {
+                uint32_t source = axis - padding;
+                uint64_t extent = dimensions[(size_t)input * SYNAPTIK_MAX_RANK + source];
+                expected = extent == 1U
+                                && dimensions[(size_t)output * SYNAPTIK_MAX_RANK + axis] != 1U
+                        ? 0U : strides[(size_t)input * SYNAPTIK_MAX_RANK + source];
+            }
+        } else if (node.operation == SYNAPTIK_METAL_CUSTOM_EXPAND_DIMS
+                && axis == node.axis) {
+            expected = 1U;
+            if (axis < input_rank) {
+                uint64_t stride = strides[(size_t)input * SYNAPTIK_MAX_RANK + axis];
+                uint64_t extent = dimensions[(size_t)input * SYNAPTIK_MAX_RANK + axis];
+                if (stride > (uint64_t)INT64_MAX / extent) return NO;
+                expected = stride * extent;
+            }
+        } else {
+            uint32_t source = node.operation == SYNAPTIK_METAL_CUSTOM_SQUEEZE
+                    ? (axis < node.axis ? axis : axis + 1U)
+                    : (axis < node.axis ? axis : axis - 1U);
+            expected = strides[(size_t)input * SYNAPTIK_MAX_RANK + source];
+        }
+        if (strides[(size_t)output * SYNAPTIK_MAX_RANK + axis] != expected) return NO;
+    }
+    return YES;
+}
+
 static BOOL task0059_layout_add_product(
         uint64_t *value, uint64_t left, uint64_t right) {
     if (value == NULL || (left != 0U && right > (uint64_t)INT64_MAX / left))
@@ -3267,31 +3353,38 @@ static BOOL matmul_shapes_match(
 
 static BOOL node_is_last_two_transpose(
         SynaptikMetalDecodedNode node,
-        MPSShape *input,
-        MPSShape *output,
+        const uint32_t *ranks,
+        const uint64_t *dimensions,
         uint8_t input_state,
         const uint64_t *value_strides,
         const uint64_t *layout_offsets,
         const uint64_t *layout_spans,
         const uint8_t *declared_states) {
-    if (input_state != SYNAPTIK_METAL_VALUE_CANONICAL
-            || input == nil || output == nil
-            || input.count < 2U || output.count != input.count
-            || node.attribute_count != input.count
+    if (input_state == SYNAPTIK_METAL_VALUE_UNAVAILABLE
+            || node.operation != SYNAPTIK_METAL_CUSTOM_PERMUTE
+            || node.attribute_kind != SYNAPTIK_METAL_MPSGRAPH_ATTR_PERMUTATION
+            || ranks[node.first_input] < 2U
+            || ranks[node.output] != ranks[node.first_input]
+            || node.attribute_count != ranks[node.first_input]
             || value_strides == NULL || layout_offsets == NULL
             || layout_spans == NULL || declared_states == NULL
-            || declared_states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
+            || !synaptik_matmul_dense_layout(
+                    node.first_input, ranks, dimensions, value_strides,
+                    layout_offsets, layout_spans)
             || declared_states[node.output] != SYNAPTIK_METAL_VALUE_AFFINE_VIEW
             || layout_offsets[node.output] != layout_offsets[node.first_input]
             || layout_spans[node.output] != layout_spans[node.first_input])
         return NO;
-    for (NSUInteger axis = 0U; axis < input.count; axis++) {
-        NSUInteger source = node.attribute_values[axis];
-        BOOL expected_axis = axis < input.count - 2U
+    uint32_t rank = ranks[node.first_input];
+    for (uint32_t axis = 0U; axis < rank; axis++) {
+        uint64_t source = node.attribute_values[axis];
+        BOOL expected_axis = axis < rank - 2U
                 ? source == axis
-                : source == (axis == input.count - 2U ? input.count - 1U
-                                                      : input.count - 2U);
+                : source == (axis == rank - 2U ? rank - 1U : rank - 2U);
         if (!expected_axis
+                || dimensions[(size_t)node.output * SYNAPTIK_MAX_RANK + axis]
+                        != dimensions[
+                                (size_t)node.first_input * SYNAPTIK_MAX_RANK + source]
                 || value_strides[(size_t)node.output * SYNAPTIK_MAX_RANK + axis]
                         != value_strides[
                                 (size_t)node.first_input * SYNAPTIK_MAX_RANK + source])
@@ -3921,6 +4014,10 @@ static SynaptikMetalProgramStep *make_custom_step(
             meta.inputDims[axis] = input[axis].unsignedLongLongValue;
         for (NSUInteger axis = 0U; axis < output.count; axis++)
             meta.outputDims[axis] = output[axis].unsignedLongLongValue;
+        /*
+         * Movement keeps its immediate input binding. These are the physical-walk tables:
+         * op6 must read external offsets/holes, but not reapply a materialized PERMUTE.
+         */
         if (!custom_physical_layout(
                     input, node.first_input, value_strides, layout_offsets,
                     value_states, meta.inputStrides, &meta.inputOffset)
@@ -5217,12 +5314,32 @@ static int32_t synaptik_metal_create_decoded(
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     break;
                 case SYNAPTIK_METAL_CUSTOM_RESHAPE:
-                    affine_view = YES;
+                    /* State is occurrence-qualified, not a property of opcode 6. */
+                    affine_view = !has_layouts || synaptik_row_major_layout(
+                            node.first_input, value_ranks, value_dimensions, value_strides,
+                            layout_offsets, layout_spans);
                     if (node.second_input != UINT32_MAX
                             || !node_target_matches(node, shapes[node.output])
                             || shape_element_count(shapes[node.first_input])
                                     != shape_element_count(shapes[node.output]))
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    if (has_layouts) {
+                        if (affine_view) {
+                            if (!synaptik_affine_layout_matches(
+                                        node, value_ranks, value_dimensions, value_strides,
+                                        layout_offsets, layout_spans))
+                                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                        } else if (declared_states[node.output]
+                                        != SYNAPTIK_METAL_VALUE_CANONICAL
+                                || layout_offsets[node.output] != 0U
+                                || layout_spans[node.output]
+                                        != shape_element_count(shapes[node.output])
+                                || !synaptik_row_major_layout(
+                                        node.output, value_ranks, value_dimensions,
+                                        value_strides, layout_offsets, layout_spans)) {
+                            return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                        }
+                    }
                     break;
                 case SYNAPTIK_METAL_CUSTOM_EXPAND:
                     affine_view = YES;
@@ -5231,6 +5348,10 @@ static int32_t synaptik_metal_create_decoded(
                             || !shape_expands_exactly_to(
                                     shapes[node.first_input], shapes[node.output]))
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    if (has_layouts && !synaptik_affine_layout_matches(
+                                node, value_ranks, value_dimensions, value_strides,
+                                layout_offsets, layout_spans))
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     break;
                 case SYNAPTIK_METAL_CUSTOM_PERMUTE:
                     affine_view = YES;
@@ -5238,8 +5359,20 @@ static int32_t synaptik_metal_create_decoded(
                             || !node_permutation_matches(
                                     node, shapes[node.first_input], shapes[node.output]))
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    if (has_layouts) {
+                        if (layout_offsets[node.output] != layout_offsets[node.first_input]
+                                || layout_spans[node.output] != layout_spans[node.first_input])
+                            return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                        for (uint32_t axis = 0U; axis < value_ranks[node.output]; axis++) {
+                            uint64_t source_axis = node.attribute_values[axis];
+                            if (value_strides[(size_t)node.output * SYNAPTIK_MAX_RANK + axis]
+                                    != value_strides[(size_t)node.first_input
+                                            * SYNAPTIK_MAX_RANK + source_axis])
+                                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                        }
+                    }
                     if (node_is_last_two_transpose(
-                                node, shapes[node.first_input], shapes[node.output],
+                                node, value_ranks, value_dimensions,
                                 states[node.first_input], value_strides, layout_offsets,
                                 layout_spans, declared_states)) {
                         local_transpose[node.output] = 1U;
@@ -5251,6 +5384,10 @@ static int32_t synaptik_metal_create_decoded(
                     if (node.second_input != UINT32_MAX
                             || !node_expand_dims_matches(
                                     node, shapes[node.first_input], shapes[node.output]))
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    if (has_layouts && !synaptik_affine_layout_matches(
+                                node, value_ranks, value_dimensions, value_strides,
+                                layout_offsets, layout_spans))
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     if (node_is_task0064_singleton_height(
                                 node, shapes[node.first_input], shapes[node.output],
@@ -5265,6 +5402,10 @@ static int32_t synaptik_metal_create_decoded(
                     if (node.second_input != UINT32_MAX
                             || !node_squeeze_matches(
                                     node, shapes[node.first_input], shapes[node.output]))
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    if (has_layouts && !synaptik_affine_layout_matches(
+                                node, value_ranks, value_dimensions, value_strides,
+                                layout_offsets, layout_spans))
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     break;
                 case SYNAPTIK_METAL_MPSGRAPH_SUM:
@@ -5505,14 +5646,18 @@ static int32_t synaptik_metal_create_decoded(
                     if (node.second_input >= value_count
                             || !node_has_no_attributes(node))
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-                    BOOL left_valid =
-                            states[node.first_input] == SYNAPTIK_METAL_VALUE_CANONICAL
-                            || (states[node.first_input] == SYNAPTIK_METAL_VALUE_AFFINE_VIEW
-                                    && local_transpose[node.first_input] != 0U);
-                    BOOL right_valid =
-                            states[node.second_input] == SYNAPTIK_METAL_VALUE_CANONICAL
-                            || (states[node.second_input] == SYNAPTIK_METAL_VALUE_AFFINE_VIEW
-                                    && local_transpose[node.second_input] != 0U);
+                    BOOL left_valid = !has_layouts
+                            ? states[node.first_input] == SYNAPTIK_METAL_VALUE_CANONICAL
+                            : synaptik_matmul_dense_layout(
+                                    node.first_input, value_ranks, value_dimensions,
+                                    value_strides, layout_offsets, layout_spans)
+                                    || local_transpose[node.first_input] != 0U;
+                    BOOL right_valid = !has_layouts
+                            ? states[node.second_input] == SYNAPTIK_METAL_VALUE_CANONICAL
+                            : synaptik_matmul_dense_layout(
+                                    node.second_input, value_ranks, value_dimensions,
+                                    value_strides, layout_offsets, layout_spans)
+                                    || local_transpose[node.second_input] != 0U;
                     if (!left_valid || !right_valid
                             || !matmul_shapes_match(
                                     shapes[node.first_input],
@@ -6410,6 +6555,9 @@ static int32_t synaptik_metal_create_decoded(
                 target_relative[node.output] = 1U;
         }
         for (uint32_t value = 0U; value < value_count; value++) {
+            /* Only an actually elided transpose may substitute its source buffer. */
+            if (local_transpose[value] != 2U)
+                local_transpose_sources[value] = UINT32_MAX;
             if (physical_states[value] == SYNAPTIK_METAL_VALUE_AFFINE_VIEW
                     && target_relative[value] != 0U) {
                 physical_states[value] = SYNAPTIK_METAL_VALUE_MATERIALIZED_LAYOUT;
@@ -6417,8 +6565,8 @@ static int32_t synaptik_metal_create_decoded(
                     && local_transpose[value] != 2U
                     && local_singleton_height[value] != 2U) {
                 /*
-                 * Ordinary affine nodes run as nested MPSGraph steps into their own dense
-                 * buffers. Only the authenticated MATMUL/Conv view fusions skip that step and
+                 * Executed affine nodes write their own dense buffers. Only the authenticated
+                 * MATMUL/Conv view fusions skip that step and
                  * bind the original source buffer. Custom consumers must index the representation
                  * actually bound at runtime rather than reapplying the declared logical view.
                  */
@@ -6439,11 +6587,47 @@ static int32_t synaptik_metal_create_decoded(
                     : layout_spans[value];
         }
         for (uint32_t node_index = 0U; node_index < node_count; node_index++) {
+            SynaptikMetalDecodedNode node = nodes[node_index];
+            uint32_t output = node.output;
+            if (local_transpose[output] == 2U
+                    && !synaptik_matmul_dense_layout(
+                            node.first_input, value_ranks, value_dimensions,
+                            physical_value_strides, physical_layout_offsets,
+                            physical_layout_spans)) {
+                /*
+                 * A logically dense SELECT/SLICE may have a strided represented buffer.
+                 * Retain its ordinary transpose execution instead of binding that buffer
+                 * with logical (rather than effective physical) transpose strides.
+                 */
+                local_transpose[output] = 3U;
+                local_transpose_sources[output] = UINT32_MAX;
+                physical_states[output] = SYNAPTIK_METAL_VALUE_CANONICAL;
+                uint64_t offset = 0U;
+                if (!custom_physical_layout(
+                            shapes[output], output, value_strides, layout_offsets,
+                            physical_states,
+                            &physical_value_strides[(size_t)output * SYNAPTIK_MAX_RANK],
+                            &offset))
+                    return SYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE;
+                physical_layout_offsets[output] = offset;
+                physical_layout_spans[output] = element_counts[output].unsignedLongLongValue;
+            }
             if (!task0066_derive_physical_view(
                         nodes[node_index], value_ranks, value_dimensions,
                         physical_value_strides, physical_layout_offsets,
                         physical_layout_spans))
                 return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            if (node.operation == SYNAPTIK_METAL_MPSGRAPH_MATMUL) {
+                for (uint32_t operand = 0U; operand < 2U; operand++) {
+                    uint32_t value = node.inputs[operand];
+                    if (local_transpose[value] != 2U
+                            && !synaptik_matmul_dense_layout(
+                                    value, value_ranks, value_dimensions,
+                                    physical_value_strides, physical_layout_offsets,
+                                    physical_layout_spans))
+                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                }
+            }
         }
         for (SynaptikMetalIndexValidation *validation in index_validations) {
             if (!configure_index_validation_layout(
@@ -8876,6 +9060,19 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                     if ((flags & 1U) != 0U)
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                 }
+            }
+            if (operation == SYNAPTIK_METAL_CUSTOM_PERMUTE) {
+                uint32_t input_value = synaptik_read_le32(
+                        program + references_offset + (uint64_t)input_offset * 4U);
+                uint32_t output_value = synaptik_read_le32(
+                        program + references_offset + (uint64_t)output_offset * 4U);
+                uint32_t input_flags = synaptik_read_le32(
+                        program + values_offset + (uint64_t)input_value * 40U + 16U);
+                uint32_t output_flags = synaptik_read_le32(
+                        program + values_offset + (uint64_t)output_value * 40U + 16U);
+                if (declared_types[input_value] != declared_types[output_value]
+                        || (input_flags & 1U) != (output_flags & 1U))
+                    return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
             }
             if (operation == SYNAPTIK_METAL_MPSGRAPH_MATMUL) {
                 uint32_t left_value = synaptik_read_le32(

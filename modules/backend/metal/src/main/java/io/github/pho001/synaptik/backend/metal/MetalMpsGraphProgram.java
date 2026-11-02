@@ -282,6 +282,35 @@ final class MetalMpsGraphProgram {
         int maximumOutputs() { return maximumOutputs; }
         AttributeKind attributeKind() { return attributeKind; }
         ValueState outputState() { return outputState; }
+
+        /**
+         * Resolves a RESHAPE occurrence without changing other affine producers' state.
+         * The source is authenticated independently by its feed or earlier producer.
+         *
+         * @param input actual source descriptor, including its logical offset and strides
+         * @param output declared result descriptor
+         * @return exact view or canonical materialization state, or UNAVAILABLE for a false claim
+         */
+        ValueState outputState(ValueDescriptor input, ValueDescriptor output) {
+            if (this != RESHAPE) return outputState;
+            if (input.dataType() != output.dataType()
+                    || input.requiresGrad() != output.requiresGrad()
+                    || input.elementCount() != output.elementCount()
+                    || input.layout().isEmpty() || output.layout().isEmpty()) {
+                return ValueState.UNAVAILABLE;
+            }
+            LayoutDescriptor source = input.layout().orElseThrow();
+            LayoutDescriptor result = output.layout().orElseThrow();
+            LayoutDescriptor canonical = LayoutDescriptor.contiguous(Shape.of(output.dimensions()));
+            if (!source.isContiguous()) {
+                return result.equals(canonical) ? ValueState.CANONICAL : ValueState.UNAVAILABLE;
+            }
+            LayoutDescriptor view = LayoutDescriptor.of(Shape.of(output.dimensions()),
+                    canonical.strides(), source.storageOffset(), true);
+            return result.equals(view)
+                            && result.referencedElementSpan() == source.referencedElementSpan()
+                    ? ValueState.AFFINE_VIEW : ValueState.UNAVAILABLE;
+        }
         boolean publishesAuthenticatedLayout() {
             return outputState == ValueState.AFFINE_VIEW
                     || outputState == ValueState.MATERIALIZED_LAYOUT;
@@ -323,6 +352,14 @@ final class MetalMpsGraphProgram {
                     || (inputState == ValueState.AFFINE_VIEW && acceptsAffineView)
                     || (inputState == ValueState.MATERIALIZED_LAYOUT
                             && (isTask0066Selected() || this == SELECT || this == SLICE));
+        }
+
+        /** Descriptor-qualified MATMUL admission does not widen other state consumers. */
+        boolean accepts(ValueState inputState, ValueDescriptor descriptor) {
+            return accepts(inputState)
+                    || this == MATMUL
+                            && inputState == ValueState.MATERIALIZED_LAYOUT
+                            && descriptor.matmulDense();
         }
 
         boolean acceptsCardinality(int inputs, int outputs) {
@@ -417,6 +454,25 @@ final class MetalMpsGraphProgram {
         Optional<LayoutDescriptor> layout() { return layout; }
         boolean requiresGrad() { return requiresGrad; }
         boolean densePhysical() { return densePhysical; }
+
+        /** MATMUL's exact dense logical operand proof, independent of the view flag. */
+        boolean matmulDense() {
+            return layout.isPresent() && matmulDense(layout.orElseThrow());
+        }
+
+        /** Checks represented storage separately from the truthful logical layout. */
+        boolean matmulDense(LayoutDescriptor resolved) {
+            if (rank() < 1 || resolved.rank() != rank() || resolved.storageOffset() != 0L) {
+                return false;
+            }
+            long[] strides = resolved.strides();
+            long expected = 1L;
+            for (int axis = dimensions.length; axis-- > 0;) {
+                if (strides[axis] != expected) return false;
+                expected = Math.multiplyExact(expected, dimensions[axis]);
+            }
+            return resolved.referencedElementSpan() == expected;
+        }
         boolean supportsStorageLayout(int minimumRank) {
             if (rank() < minimumRank || layout.isEmpty()) return false;
             LayoutDescriptor resolved = layout.orElseThrow();

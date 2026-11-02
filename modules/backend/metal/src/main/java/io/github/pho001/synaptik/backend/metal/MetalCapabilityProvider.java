@@ -132,16 +132,19 @@ import java.util.Objects;
  * Floating classification covers all four floating carriers. BOOL logic and the fourteen
  * non-mixed-low promoted floating {@code WHERE} signatures use exact right-aligned broadcasting;
  * WHERE differentiability is the branch-role OR. Arithmetic, scalar, reciprocal,
- * reduction, scan, MATMUL, MSE, convolution, pooling, dropout, L1, ScatterAdd, and singleton
+ * reduction, scan, MSE, convolution, pooling, dropout, L1, ScatterAdd, and singleton
  * variance occurrences retain the exact FLOAT32 predicate after homogeneous low projection.
  * Binary arithmetic output differentiability is the operand OR; scalar, reciprocal, reductions,
  * scans, and pooling preserve their declared input/output relation; comparisons publish
  * no-gradient BOOL while permitting differentiable floating inputs.</p>
  *
- * <p>MATMUL accepts canonical operands or authenticated local identity-prefix last-two-axis
- * transposes. The provider admits no-gradient INT32/INT64 pairs and every qualified
- * homogeneous floating geometry plus the existing one-low-plus-FLOAT32 widening rows. Direct
- * BFLOAT16/FLOAT16 mixing, FLOAT64 results, and disallowed gradient metadata remain false.
+ * <p>MATMUL independently qualifies original FLOAT32, BFLOAT16, and FLOAT16 descriptors. It accepts
+ * exact row-major, zero-offset, full-span operands with either truthful view flag, or authenticated
+ * local identity-prefix last-two-axis transposes. Outputs remain canonical. No-gradient
+ * INT32/INT64 promotion and BFLOAT16/FLOAT32 widening retain their existing orders; FLOAT64,
+ * FLOAT16/FLOAT32 widening, mixed low types, and integral or widening gradients remain false.
+ * Materializing RESHAPE likewise checks original typed descriptors outside the frozen low proxy;
+ * exact contiguous-source views retain their original admission and offsets.
  * Reductions support the exact full, normalized-axis, keep-dimension, and binding-resolved
  * sum-to-Shape forms below. Index roles accept INT32 or INT64; complete bounds and replacement
  * destination uniqueness are proved before any write.</p>
@@ -203,16 +206,15 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     }
 
     /**
-     * Validates one projected occurrence against the same domain used by Planning.
+     * Validates one original-typed occurrence against the same domain used by Planning.
      *
      * @param operation non-null typed operation
      * @param inputs non-null ordered input descriptors
      * @param outputs non-null ordered output descriptors
      * @return {@code true} only if the original occurrence passes the exact current predicate or
-     *     an independently qualified {@code EXP} or {@code SIGMOID} typed predicate, or a
-     *     homogeneous low-type occurrence
-     *     passes the frozen-baseline FLOAT32 proxy predicate; other FLOAT32-only additions do not
-     *     gain low support through that proxy
+     *     an independently qualified typed EXP, SIGMOID, MATMUL, or materializing RESHAPE
+     *     predicate, or a homogeneous low-type occurrence passes the frozen-baseline FLOAT32
+     *     proxy predicate; other FLOAT32-only additions do not gain low support through that proxy
      * @throws NullPointerException if {@code operation}, {@code inputs}, or {@code outputs} is
      *     {@code null}
      */
@@ -225,6 +227,33 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         Objects.requireNonNull(outputs, "outputs");
         if (mixedLowPrecision(inputs, outputs) && operation.kind() != CastKind.CAST) {
             return false;
+        }
+        if (operation.kind() == MatmulKind.MATMUL) {
+            try {
+                return outputs.size() == 1
+                        && supportsMatmul(operation, inputs, outputs.getFirst());
+            } catch (IllegalArgumentException | ArithmeticException incompatible) {
+                return false;
+            }
+        }
+        if (operation.kind() == ShapeTransformKind.RESHAPE
+                && inputs.size() == 1 && outputs.size() == 1) {
+            try {
+                TensorDescriptor input = inputs.getFirst();
+                TensorDescriptor output = outputs.getFirst();
+                if (operation.attrs() instanceof TargetShapeAttrs attrs
+                        && attrs.targetShape().equals(output.shape())
+                        && selectedAffineRead(input, true)
+                        && canonicalAny(output, true)
+                        && MetalMpsGraphProgram.NodeKind.RESHAPE.outputState(
+                                MetalMpsGraphProgram.ValueDescriptor.from(input),
+                                MetalMpsGraphProgram.ValueDescriptor.from(output))
+                                == MetalMpsGraphProgram.ValueState.CANONICAL) {
+                    return true;
+                }
+            } catch (IllegalArgumentException | ArithmeticException incompatible) {
+                return false;
+            }
         }
         if (supportsFrozenBaselineOccurrence(operation, inputs, outputs)) {
             return true;
@@ -401,9 +430,6 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                             || reduction == AggregateReductionKind.ALL
                             || reduction == AggregateReductionKind.ANY)) {
                 return supportsExactReduction(operation, inputs, output, reduction);
-            }
-            if (operation.kind() == MatmulKind.MATMUL) {
-                return supportsMatmul(operation, inputs, output);
             }
             if (operation.kind() instanceof BinaryComparisonKind comparison) {
                 return supportsComparison(operation, inputs, output, comparison);
@@ -2011,6 +2037,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                     && !right.requiresGrad()
                     && !output.requiresGrad();
         }
+        if ((leftType == DataType.BFLOAT16 || leftType == DataType.FLOAT16)
+                && rightType == leftType && outputType == leftType) {
+            return true;
+        }
         if (outputType != DataType.FLOAT32) {
             return false;
         }
@@ -2065,9 +2095,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         int rank = descriptor.shape().rank();
         if (!geometry(descriptor, descriptor.dataType(), false)) return false;
         LayoutDescriptor layout = descriptor.layout().orElseThrow();
-        if (layout.equals(LayoutDescriptor.contiguous(descriptor.shape()))) return true;
-        if (rank < 2 || layout.storageOffset() != 0L || !layout.isView()) return false;
         long[] logical = descriptor.shape().toLongArray();
+        if (matmulDenseLayout(layout, logical)) return true;
+        if (rank < 2 || layout.storageOffset() != 0L || !layout.isView()) return false;
         long[] source = logical.clone();
         long swap = source[rank - 2];
         source[rank - 2] = source[rank - 1];
@@ -2078,6 +2108,30 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         expected[rank - 1] = sourceStrides[rank - 2];
         return layout.equals(LayoutDescriptor.of(
                 descriptor.shape(), expected, 0L, true));
+    }
+
+    /** Exact represented row-major storage; a dense Model view remains a view. MATMUL only. */
+    static boolean matmulDenseInput(TensorDescriptor descriptor) {
+        if (!geometry(descriptor, descriptor.dataType(), false)) return false;
+        return matmulDenseLayout(
+                descriptor.layout().orElseThrow(), descriptor.shape().toLongArray());
+    }
+
+    static boolean matmulDenseInput(TensorDescriptor descriptor, LayoutDescriptor physicalLayout) {
+        return geometry(descriptor, descriptor.dataType(), false)
+                && physicalLayout.rank() == descriptor.shape().rank()
+                && matmulDenseLayout(physicalLayout, descriptor.shape().toLongArray());
+    }
+
+    private static boolean matmulDenseLayout(LayoutDescriptor layout, long[] dimensions) {
+        if (layout.storageOffset() != 0L) return false;
+        long[] strides = layout.strides();
+        long expected = 1L;
+        for (int axis = dimensions.length; axis-- > 0;) {
+            if (strides[axis] != expected) return false;
+            expected = Math.multiplyExact(expected, dimensions[axis]);
+        }
+        return layout.referencedElementSpan() == expected;
     }
     private static boolean supportsExactReduction(
             Operation operation,

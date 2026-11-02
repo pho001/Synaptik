@@ -95,7 +95,7 @@ add, and final-store sites plus NaN, signed-zero, infinity, subnormal DAZ/FTZ, a
 
 The remaining 27 production rows fail closed before native creation. A structurally valid
 registered operation without a native recipe returns the dedicated unsupported-operation status
-rather than masquerading as malformed input. Candidate and route identity are version 36. Java
+rather than masquerading as malformed input. Candidate and route identity are version 38. Java
 owns exactly three prepared-route identities: custom singleton NEG wire 1, MPSGraph wire 2, and
 shared custom-program wire 3. Schema 20 embeds wire 2 or 3 in each graph image; every other
 schema or route value fails closed. The exhaustive Java
@@ -120,9 +120,9 @@ admits BFLOAT16 and FLOAT16 `SIGMOID` through typed custom kernels with an exact
 sign guard, one FLOAT32 exponent, and one final low narrowing. An explicit low-to-FLOAT32 cast
 may precede the internal FLOAT32 MPSGraph step in the same custom partition. Schema 20, route
 wires 2/3, native ABI 7, and the existing operation and attribute wires retain their allocations;
-Task 0077 used coordinated compatibility identity 34; Task 0078 advanced it to 35. Task 0079
-advances it to 36 for corrected standalone scalar admission without changing capability, ABI 7,
-or schema 20. Older session tuning decisions are incompatible.
+Task 0077 used coordinated compatibility identity 34; Task 0078 advanced it to 35 and Task 0079
+to 36 for corrected standalone scalar admission. Tasks 0080/0081 advance the current identity
+through 37 to 38 without changing ABI 7 or schema 20. Older session tuning decisions are incompatible.
 
 Task 0079 removes the obsolete anchor-membership prerequisite for rank-zero RELU and scalar MUL
 in Java and the native decoder. Matching canonical scalar input/output Shapes still contain one
@@ -131,6 +131,13 @@ FLOAT32 scalar MUL keeps the raw `[1]` literal and existing MPSGraph multiplicat
 only a `[1]` result to the declared scalar Shape. This leaves the shared literal helper and
 positive-rank operations unchanged. RELU/CLAMP and low scalar MUL use their existing custom
 kernels. No shader source, math algorithm, provider domain, or fusion route changes.
+
+Tasks 0080/0081 admit qualified zero-offset dense logical MATMUL views and authenticate local
+last-two-axis transposes rooted in them. Original FLOAT32/BFLOAT16/FLOAT16 descriptors qualify
+independently; low partitions remain CUSTOM_PROGRAM-only. Ordinary selected materializing
+RESHAPE reads a qualified noncontiguous source and writes canonical non-view output through
+existing exact_move_unary_0066 operation6. Genuine contiguous views remain exact, and effective
+physical addressing is applied once. No new shader, consumer CONTIGUOUS, alias or general storage widening.
 
 Task 0078 repairs rank-16 WHERE false-branch metadata in both exact and low kernels using the
 existing full role rank/dimensions/strides/offset. Low ScatterAdd copies an unaddressed base word
@@ -160,12 +167,12 @@ grant blanket sign freedom. Exact paths preserve zero bits; MIN chooses negative
 SIGN preserves a zero's sign, RELU maps negative zero to positive zero, and average pooling
 preserves negative zero only when every contributor is negative zero and none is padding.
 
-For admitted nodes, the version-36 workload signature binds operation wire, source/target carrier
+For admitted nodes, the version-38 workload signature binds operation wire, source/target carrier
 types and widths, every Shape, normalized axis/batch/tuple fact, complete raw attributes, exact
 scalar bits, variadic input/output order and count, complete encoded logical storage-layout
 geometry, independently safe physical materialization, and the canonical schema-20 execution
 extension. Native decoding requires schema 20; the Java session tuning codec separately requires
-identity 36. Neither has a compatibility reader or migration alias for stale inputs.
+identity 38. Neither has a compatibility reader or migration alias for stale inputs.
 
 ```text
 Java analysis -> choose fixed whole-partition route -> declare every exact resource
@@ -179,7 +186,9 @@ addresses or serialization values.
 
 ## Build prerequisites and local package
 
-Build on an Apple-silicon macOS host with Xcode Command Line Tools:
+Build on an Apple-silicon macOS host with full Xcode installed at `/Applications/Xcode.app`.
+The build explicitly selects its `Contents/Developer` directory; standalone Command Line Tools
+are not sufficient for this supported build path.
 
 ```bash
 ./modules/backend/metal/macos-arm64/build.sh

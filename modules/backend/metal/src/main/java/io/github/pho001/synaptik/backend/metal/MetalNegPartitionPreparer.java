@@ -120,8 +120,13 @@ import java.util.Optional;
  * between its generated zero-base {@code EXPAND} and Scatter. Its INT32/INT64 indices must remain a
  * materialized partition feed. Random lowering preserves initializer key/counter words, dropout's
  * raw binary64 probability, and all ordered value, mask, and state edges; recurrent nodes remain
- * rejected. An affine MATMUL operand is authenticated to the exact earlier local identity-prefix,
- * last-two-axis {@code PERMUTE} on that consuming edge. Schema-twenty lowering emits one bounded
+ * rejected. MATMUL alone admits exact dense logical views without changing their view flags. A
+ * non-dense affine operand requires the exact earlier local last-two-axis {@code PERMUTE} rooted
+ * in an authenticated dense value; materialized affine buffers retain represented addressing.
+ * RESHAPE resolves its state from the actual source/result descriptors: exact inferred views
+ * retain AFFINE_VIEW, while noncontiguous-source canonical results use CANONICAL and a distinct
+ * ordinary destination. The source's logical provenance and represented storage remain separate.
+ * Schema-twenty lowering emits one bounded
  * self-describing image over stable type wires 1..7, complete operation registry 1..115, attribute
  * registry 0..41, the explicit prepared route, and its authenticated execution plan. Production
  * capability remains bounded by the provider's occurrence predicate, including its frozen-baseline
@@ -290,8 +295,14 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             }
             if (lowered.kind() == MetalMpsGraphProgram.NodeKind.MATMUL) {
                 for (int inputIndex = 0; inputIndex < inputStates.size(); inputIndex++) {
-                    if (inputStates.get(inputIndex)
-                                    == MetalMpsGraphProgram.ValueState.AFFINE_VIEW
+                    if (!MetalCapabilityProvider.matmulDenseInput(
+                            inputDescriptors.get(inputIndex),
+                            physicalLayouts.get(node.inputs().get(inputIndex)))) {
+                        throw new IllegalArgumentException(
+                                "Metal MATMUL represented input storage must be exact dense");
+                    }
+                    if (!MetalCapabilityProvider.matmulDenseInput(
+                                    inputDescriptors.get(inputIndex))
                             && !Boolean.TRUE.equals(
                                     localTranspose.get(node.inputs().get(inputIndex)))) {
                         throw new IllegalArgumentException(
@@ -311,22 +322,30 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                     }
                 }
             }
+            boolean exactLocalTranspose = outputIndices.length == 1
+                    && isExactLocalTranspose(
+                            lowered, inputStates, inputDescriptors,
+                            outputDescriptors.getFirst(), node.operation());
+            boolean compatibleInputs = true;
+            for (int inputIndex = 0; inputIndex < inputStates.size(); inputIndex++) {
+                MetalMpsGraphProgram.ValueState state = inputStates.get(inputIndex);
+                TensorDescriptor descriptor = inputDescriptors.get(inputIndex);
+                if (!lowered.kind().accepts(state)
+                        && !(lowered.kind() == MetalMpsGraphProgram.NodeKind.MATMUL
+                                && state == MetalMpsGraphProgram.ValueState.MATERIALIZED_LAYOUT
+                                && MetalCapabilityProvider.matmulDenseInput(descriptor))) {
+                    compatibleInputs = false;
+                }
+            }
             if (!lowered.kind().acceptsCardinality(
                             inputStates.size(), outputIndices.length)
-                    || inputStates.stream().anyMatch(state -> !lowered.kind().accepts(state))) {
+                    || !compatibleInputs) {
                 throw new IllegalArgumentException(
                         "Metal node " + lowered.kind()
                                 + " input value state is unavailable or incompatible: "
                                 + inputStates);
             }
             programNodes.add(lowered);
-            boolean exactLocalTranspose = outputIndices.length == 1
-                    && isExactLocalTranspose(
-                            lowered,
-                            inputStates,
-                            inputDescriptors,
-                            outputDescriptors.getFirst(),
-                            node.operation());
             boolean exactLocalSingletonHeight = outputIndices.length == 1
                     && isExactLocalSingletonHeight(
                             lowered,
@@ -350,7 +369,11 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 states.put(outputId,
             denseLogicalView
                 ? MetalMpsGraphProgram.ValueState.AFFINE_VIEW
-                : lowered.kind().outputState());
+                : lowered.kind() == MetalMpsGraphProgram.NodeKind.RESHAPE
+                        ? lowered.kind().outputState(
+                                MetalMpsGraphProgram.ValueDescriptor.from(inputDescriptors.getFirst()),
+                                MetalMpsGraphProgram.ValueDescriptor.from(outputDescriptor))
+                        : lowered.kind().outputState());
             }
         }
         var graphProgram = new MetalMpsGraphProgram(programNodes);
@@ -888,7 +911,10 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             TensorDescriptor output,
             Operation operation) {
         if (lowered.kind() != MetalMpsGraphProgram.NodeKind.PERMUTE
-                || inputStates.getFirst() != MetalMpsGraphProgram.ValueState.CANONICAL
+                || inputStates.getFirst() == MetalMpsGraphProgram.ValueState.UNAVAILABLE
+                || !MetalCapabilityProvider.matmulDenseInput(inputs.getFirst())
+                || inputs.getFirst().dataType() != output.dataType()
+                || inputs.getFirst().requiresGrad() != output.requiresGrad()
                 || !(operation.attrs() instanceof PermutationAttrs permutation)) {
             return false;
         }

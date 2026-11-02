@@ -104,7 +104,9 @@ final class MetalPointwiseFusionPlanner {
         }
 
         var stepBuilders = new ArrayList<StepBuilder>();
-        boolean[] localTranspose = new boolean[descriptors.size()];
+        // Provenance survives publication and other consumers. Only native's physical-source
+        // proof decides whether the existing transpose step can be elided.
+        boolean[] authenticatedTranspose = new boolean[descriptors.size()];
         int nodePosition = 0;
         while (nodePosition < nodes.size()) {
             MetalAnchorEpilogue anchor = anchorAt[nodePosition];
@@ -117,20 +119,17 @@ final class MetalPointwiseFusionPlanner {
                 nodePosition = generated.end();
             } else {
                 MetalMpsGraphProgram.Node node = nodes.get(nodePosition);
-                if (node.kind() != MetalMpsGraphProgram.NodeKind.MATMUL) {
-                    for (int input : node.inputs()) localTranspose[input] = false;
-                }
                 boolean custom = fixedCustom(node, descriptors)
                         || (node.kind() == MetalMpsGraphProgram.NodeKind.MATMUL
-                                && (localTranspose[node.firstInputIndex()]
-                                        || localTranspose[node.secondInputIndex()]));
+                                && (authenticatedTranspose[node.firstInputIndex()]
+                                        || authenticatedTranspose[node.secondInputIndex()]));
                 stepBuilders.add(StepBuilder.single(
                         custom
                                 ? MetalPointwiseFusionPlan.StepKind.FIXED_CUSTOM
                                 : MetalPointwiseFusionPlan.StepKind.MPSGRAPH_BOUNDARY,
                         nodePosition));
                 if (exactLocalTranspose(node, descriptors))
-                    localTranspose[node.outputIndex()] = true;
+                    authenticatedTranspose[node.outputIndex()] = true;
                 nodePosition++;
             }
         }
@@ -382,7 +381,9 @@ final class MetalPointwiseFusionPlanner {
         int rank = input.rank();
         long[] words = node.attributeWords();
         if (rank < 2 || output.rank() != rank || words.length != rank + 1
-                || words[0] != rank || !canonicalStorage(input)) {
+                || words[0] != rank || !input.matmulDense()
+                || input.dataType() != output.dataType()
+                || input.requiresGrad() != output.requiresGrad()) {
             return false;
         }
         for (int axis = 0; axis < rank - 2; axis++) {

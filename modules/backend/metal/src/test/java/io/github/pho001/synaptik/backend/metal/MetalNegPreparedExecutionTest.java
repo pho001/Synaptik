@@ -1860,6 +1860,88 @@ class MetalNegPreparedExecutionTest {
         assertEquals(1, api.contextReleases.get());
     }
     @Test
+    void denseMatmulFeedsPreserveTypedStorageStatesAndLocalTransposePublication() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        try (MetalDeviceContext context = MetalDeviceContext.open(api)) {
+            for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                for (Fixture baseline : List.of(matmulFixture(), batchedMatmulFixture())) {
+                    for (int sides = 1; sides <= 3; sides++) {
+                        var values = new ArrayList<GraphValue>();
+                        var descriptors = new java.util.LinkedHashMap<ValueId, TensorDescriptor>();
+                        for (GraphValue value : baseline.values()) {
+                            TensorDescriptor original = value.descriptor();
+                            LayoutDescriptor layout = original.layout().orElseThrow();
+                            if (value.id().equals(baseline.v0()) && (sides & 1) != 0
+                                    || value.id().equals(baseline.v1()) && (sides & 2) != 0) {
+                                layout = LayoutDescriptor.of(original.shape(),
+                                        layout.strides(), 0L, true);
+                            }
+                            TensorDescriptor descriptor = new TensorDescriptor(
+                                    type, original.shape(), Optional.of(layout), true);
+                            values.add(new GraphValue(value.id(), descriptor));
+                            descriptors.put(value.id(), descriptor);
+                        }
+                        var requirements = baseline.requirements().stream().map(requirement ->
+                                requirement(requirement.valueId(),
+                                        descriptors.get(requirement.valueId()),
+                                        requirement.producerPartition(),
+                                        requirement.consumerPartitions(), requirement.graphOutput()))
+                                .toList();
+                        Fixture fixture = new Fixture(baseline.partition(), baseline.nodes(), values,
+                                requirements, baseline.v0(), baseline.v1(), baseline.v2(),
+                                baseline.v3(), baseline.v4(), baseline.v5());
+                        if (baseline.nodes().size() > 1) {
+                            fixture = withRequirement(fixture, requirement(fixture.v2(),
+                                    descriptors.get(fixture.v2()), Optional.of(fixture.partition()),
+                                    List.of(fixture.partition()), true));
+                        }
+                        MetalNegPreparationPlan plan = analyze(fixture, context).plan();
+                        assertEquals(MetalPreparedRoute.CUSTOM_PROGRAM, plan.route());
+                        for (int feed : plan.feedValueIndices()) {
+                            var descriptor = plan.programValueDescriptors().get(feed);
+                            assertEquals(type, descriptor.dataType());
+                            assertFalse(descriptor.densePhysical());
+                            assertEquals(descriptor.layout().orElseThrow().isView()
+                                            ? MetalMpsGraphProgram.ValueState.MATERIALIZED_LAYOUT
+                                            : MetalMpsGraphProgram.ValueState.CANONICAL,
+                                    plan.valueStates().get(feed));
+                        }
+                        if (baseline.nodes().size() > 1) {
+                            assertTrue(plan.targetValueIds().contains(fixture.v2()));
+                        }
+                        MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                                plan.programValueDescriptors(), plan.graphProgram(),
+                                plan.feedValueIndices(), plan.targetValueIndices(),
+                                plan.route(), plan.pointwiseFusionPlan());
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    void matmulPreparationSeparatesDenseLogicalExtractionFromItsRepresentedPhysicalSource() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        try (MetalDeviceContext context = MetalDeviceContext.open(api)) {
+            Fixture fixture = extractedMatmulFixture(true);
+            MetalNegPreparationPlan plan = analyze(fixture, context).plan();
+            int selected = plan.valueIds().indexOf(fixture.v2());
+            int transposed = plan.valueIds().indexOf(fixture.v3());
+            assertArrayEquals(new long[] {4, 1},
+                    plan.descriptors().get(selected).layout().orElseThrow().strides());
+            assertArrayEquals(new long[] {8, 1}, plan.physicalLayouts().get(selected).strides());
+            assertEquals(20L, plan.physicalLayouts().get(selected).referencedElementSpan());
+            assertArrayEquals(new long[] {3, 1}, plan.physicalLayouts().get(transposed).strides());
+            assertTrue(plan.targetValueIds().containsAll(List.of(fixture.v2(), fixture.v3())));
+            MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                    plan.programValueDescriptors(), plan.graphProgram(), plan.feedValueIndices(),
+                    plan.targetValueIndices(), plan.route(), plan.pointwiseFusionPlan());
+            assertThrows(IllegalArgumentException.class,
+                    () -> analyze(extractedMatmulFixture(false), context));
+        }
+    }
+
+    @Test
     void generalGeometryMatmulSelectsCustomProgramBeforeResourceDeclaration() {
         Fixture fixture = batchedMatmulFixture();
         RecordingNativeApi api = new RecordingNativeApi();
@@ -3050,6 +3132,57 @@ class MetalNegPreparedExecutionTest {
     }
 
     @Test
+    void materializingReshapePreparationKeepsSourceSpanAndOrdinaryDistinctDestination() {
+        RecordingNativeApi api = new RecordingNativeApi();
+        MetalDeviceContext context = MetalDeviceContext.open(api);
+        try {
+            for (DataType type : DataType.values()) {
+                boolean gradient = type == DataType.FLOAT32 || type == DataType.FLOAT64
+                        || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
+                ValueId sourceId = new ValueId(29_000);
+                ValueId outputId = new ValueId(29_001);
+                TensorDescriptor source = new TensorDescriptor(type, Shape.of(2, 3),
+                        Optional.of(LayoutDescriptor.of(Shape.of(2, 3),
+                                new long[] {9, 2}, 3L, true)), gradient);
+                TensorDescriptor output = new TensorDescriptor(type, Shape.of(6),
+                        Optional.of(LayoutDescriptor.contiguous(Shape.of(6))), gradient);
+                var node = new CompiledNode(new NodeId(29_000), new Operation(
+                        ShapeTransformKind.RESHAPE, new TargetShapeAttrs(Shape.of(6))),
+                        List.of(sourceId), List.of(outputId));
+                PlannedPartition partition = new PlannedPartition(
+                        MetalCapabilityProvider.METAL_BACKEND_ID, List.of(node.id()));
+                var fixture = new AffineFixture(partition, List.of(node),
+                        List.of(new GraphValue(sourceId, source), new GraphValue(outputId, output)),
+                        List.of(requirement(sourceId, source, Optional.empty(), List.of(partition), false),
+                                requirement(outputId, output, Optional.of(partition), List.of(), true)),
+                        List.of(sourceId), List.of(outputId));
+                var plan = analyze(fixture, context).plan();
+                assertEquals(MetalPreparedRoute.CUSTOM_PROGRAM, plan.route());
+                assertEquals(List.of(MetalMpsGraphProgram.ValueState.MATERIALIZED_LAYOUT,
+                        MetalMpsGraphProgram.ValueState.CANONICAL), plan.valueStates());
+                assertEquals(source.layout().orElseThrow(), plan.physicalLayouts().get(0));
+                assertEquals(output.layout().orElseThrow(), plan.physicalLayouts().get(1));
+                assertArrayEquals(new long[] {17L * type.byteWidth()}, plan.feedRequiredBytes());
+                assertArrayEquals(new long[] {6L * type.byteWidth()}, plan.targetRequiredBytes());
+                assertFalse(plan.programValueDescriptors().get(1).densePhysical());
+                assertEquals(List.of(sourceId, outputId), plan.declarations().stream()
+                        .map(PreparationResourceRequirement.Buffer::valueId).toList());
+                assertTrue(plan.publicationProducerKind(0, outputId, output,
+                        6L * type.byteWidth()).isEmpty());
+                assertArrayEquals(new int[] {0, 1},
+                        plan.pointwiseFusionPlan().materializedProgramValueIndices());
+                MetalNativeApi.ProgramExecutableAbi.validateCreate(plan.programValueDescriptors(),
+                        plan.graphProgram(), plan.feedValueIndices(), plan.targetValueIndices(),
+                        plan.route(), plan.pointwiseFusionPlan());
+            }
+            assertEquals(0, api.executableCreates.get());
+            assertEquals(0, api.bufferCreates.get());
+        } finally {
+            context.close();
+        }
+    }
+
+    @Test
     void affineCompositionAuthenticatesLocalViewsAndKeepsContiguousTargetsCanonical() {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
@@ -4072,6 +4205,46 @@ class MetalNegPreparedExecutionTest {
                 requirement(v5, matrix, Optional.of(partition), List.of(), true));
         return new Fixture(
                 partition, nodes, values, requirements, v0, v1, v2, v3, v4, v5);
+    }
+
+    private static Fixture extractedMatmulFixture(boolean transpose) {
+        ValueId v0 = new ValueId(32_200), v1 = new ValueId(32_201), v2 = new ValueId(32_202);
+        ValueId v3 = new ValueId(32_203), v4 = new ValueId(32_204), v5 = new ValueId(32_205);
+        var nodes = new ArrayList<CompiledNode>();
+        nodes.add(new CompiledNode(new NodeId(32_200),
+                new Operation(AxisTransformKind.PERMUTE, new PermutationAttrs(List.of(1, 0, 2))),
+                List.of(v0), List.of(v1)));
+        nodes.add(new CompiledNode(new NodeId(32_201),
+                new Operation(SelectKind.SELECT, new SelectAttrs(1, 0)), List.of(v1), List.of(v2)));
+        if (transpose) {
+            nodes.add(new CompiledNode(new NodeId(32_202),
+                    new Operation(AxisTransformKind.PERMUTE, new PermutationAttrs(List.of(1, 0))),
+                    List.of(v2), List.of(v3)));
+        }
+        nodes.add(new CompiledNode(new NodeId(32_203),
+                new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE),
+                List.of(transpose ? v3 : v2, v4), List.of(v5)));
+        PlannedPartition partition = new PlannedPartition(MetalCapabilityProvider.METAL_BACKEND_ID,
+                nodes.stream().map(CompiledNode::id).toList());
+        var values = new ArrayList<GraphValue>();
+        values.add(new GraphValue(v0, descriptor(Shape.of(2, 3, 4))));
+        values.add(new GraphValue(v1, viewDescriptor(Shape.of(3, 2, 4), 4, 12, 1)));
+        values.add(new GraphValue(v2, viewDescriptor(Shape.of(3, 4), 4, 1)));
+        if (transpose) {
+            values.add(new GraphValue(v3, viewDescriptor(Shape.of(4, 3), 1, 4)));
+        }
+        values.add(new GraphValue(v4, descriptor(Shape.of(transpose ? 3 : 4, 5))));
+        values.add(new GraphValue(v5, descriptor(Shape.of(transpose ? 4 : 3, 5))));
+        var requirements = new ArrayList<LogicalMemoryRequirement>();
+        for (GraphValue value : values) {
+            boolean produced = nodes.stream().anyMatch(node -> node.outputs().contains(value.id()));
+            boolean consumed = nodes.stream().anyMatch(node -> node.inputs().contains(value.id()));
+            boolean published = value.id().equals(v2) || value.id().equals(v3) || value.id().equals(v5);
+            requirements.add(requirement(value.id(), value.descriptor(),
+                    produced ? Optional.of(partition) : Optional.empty(),
+                    consumed ? List.of(partition) : List.of(), published));
+        }
+        return new Fixture(partition, nodes, values, requirements, v0, v1, v2, v3, v4, v5);
     }
 
     private static Fixture matmulFixture() {

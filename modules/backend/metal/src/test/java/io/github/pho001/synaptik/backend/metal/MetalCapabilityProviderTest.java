@@ -595,6 +595,56 @@ class MetalCapabilityProviderTest {
     }
 
     @Test
+    void materializingReshapeQualifiesOriginalCarriersWithoutExtendingFrozenLowProxy() {
+        Shape sourceShape = Shape.of(2, 3);
+        Shape targetShape = Shape.of(6);
+        Operation reshape = new Operation(ShapeTransformKind.RESHAPE,
+                new TargetShapeAttrs(targetShape));
+        for (DataType type : DataType.values()) {
+            boolean floating = type == DataType.FLOAT32 || type == DataType.FLOAT64
+                    || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
+            for (boolean gradient : floating ? List.of(false, true) : List.of(false)) {
+                TensorDescriptor source = new TensorDescriptor(type, sourceShape,
+                        Optional.of(LayoutDescriptor.of(sourceShape,
+                                new long[] {9, 2}, 3L, true)), gradient);
+                TensorDescriptor output = new TensorDescriptor(type, targetShape,
+                        Optional.of(LayoutDescriptor.contiguous(targetShape)), gradient);
+                assertTrue(MetalCapabilityProvider.supportsOccurrence(
+                        reshape, List.of(source), List.of(output)), type + "/" + gradient);
+                for (TensorDescriptor invalid : List.of(
+                        new TensorDescriptor(type, targetShape, Optional.of(LayoutDescriptor.of(
+                                targetShape, new long[] {1}, 0L, true)), gradient),
+                        new TensorDescriptor(type, targetShape, Optional.of(LayoutDescriptor.of(
+                                targetShape, new long[] {1}, 3L, false)), gradient),
+                        new TensorDescriptor(type, targetShape, Optional.of(LayoutDescriptor.of(
+                                targetShape, new long[] {2}, 0L, false)), gradient),
+                        new TensorDescriptor(type, Shape.of(5),
+                                Optional.of(LayoutDescriptor.contiguous(Shape.of(5))), gradient))) {
+                    assertFalse(MetalCapabilityProvider.supportsOccurrence(
+                            reshape, List.of(source), List.of(invalid)));
+                }
+                assertFalse(MetalCapabilityProvider.supportsOccurrence(new Operation(
+                                ShapeTransformKind.RESHAPE, new TargetShapeAttrs(Shape.of(3, 2))),
+                        List.of(source), List.of(output)));
+                TensorDescriptor contiguous = new TensorDescriptor(type, sourceShape,
+                        Optional.of(LayoutDescriptor.contiguous(sourceShape)), gradient);
+                assertFalse(MetalCapabilityProvider.supportsOccurrence(
+                        reshape, List.of(contiguous), List.of(output)),
+                        "a genuine view cannot claim materialization");
+                if (floating) {
+                    assertFalse(MetalCapabilityProvider.supportsOccurrence(reshape,
+                            List.of(source), List.of(new TensorDescriptor(type, targetShape,
+                                    output.layout(), !gradient))));
+                }
+            }
+        }
+        TensorDescriptor source = new TensorDescriptor(DataType.BFLOAT16, sourceShape,
+                Optional.of(LayoutDescriptor.of(sourceShape, new long[] {1, 2}, 0L, true)), false);
+        assertFalse(MetalCapabilityProvider.supportsOccurrence(reshape, List.of(source),
+                List.of(typed(DataType.FLOAT32, targetShape, false))));
+    }
+
+    @Test
     void exactRepresentativeOccurrencesRemainSupported() {
         TensorDescriptor matrix = descriptor(Shape.of(2, 3), false);
         TensorDescriptor flat = descriptor(Shape.of(6), false);
@@ -1522,6 +1572,48 @@ class MetalCapabilityProviderTest {
                 unauthenticated,
                 right,
                 output));
+    }
+
+    @Test
+    void matmulIndependentlyQualifiesOriginalDenseViewCarriersAndGradientRoles() {
+        Operation matmul = new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE);
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            for (int views = 1; views <= 3; views++) {
+                for (int gradients = 0; gradients < 4; gradients++) {
+                    Shape leftShape = Shape.of(2, 3);
+                    Shape rightShape = Shape.of(3, 5);
+                    TensorDescriptor left = new TensorDescriptor(type, leftShape,
+                            Optional.of(LayoutDescriptor.of(leftShape, new long[] {3, 1},
+                                    0L, (views & 1) != 0)), (gradients & 1) != 0);
+                    TensorDescriptor right = new TensorDescriptor(type, rightShape,
+                            Optional.of(LayoutDescriptor.of(rightShape, new long[] {5, 1},
+                                    0L, (views & 2) != 0)), (gradients & 2) != 0);
+                    assertTrue(supportsMatmul(matmul, left, right,
+                            typed(type, Shape.of(2, 5), gradients != 0)),
+                            type + " dense sides=" + views + " gradients=" + gradients);
+                    assertFalse(supportsMatmul(matmul, left, right,
+                            typed(type, Shape.of(2, 5), gradients == 0)));
+                    assertEquals((views & 1) != 0, left.layout().orElseThrow().isView());
+                    assertEquals((views & 2) != 0, right.layout().orElseThrow().isView());
+                }
+            }
+            Shape shape = Shape.of(2, 3);
+            for (LayoutDescriptor invalid : List.of(
+                    LayoutDescriptor.of(shape, new long[] {3, 1}, 1L, true),
+                    LayoutDescriptor.of(shape, new long[] {4, 1}, 0L, true),
+                    LayoutDescriptor.of(shape, new long[] {2, 1}, 0L, true),
+                    LayoutDescriptor.of(shape, new long[] {0, 1}, 0L, true))) {
+                assertFalse(supportsMatmul(matmul,
+                        new TensorDescriptor(type, shape, Optional.of(invalid), false),
+                        typed(type, Shape.of(3, 5), false),
+                        typed(type, Shape.of(2, 5), false)));
+            }
+            TensorDescriptor denseViewOutput = new TensorDescriptor(type, Shape.of(2, 5),
+                    Optional.of(LayoutDescriptor.of(Shape.of(2, 5),
+                            new long[] {5, 1}, 0L, true)), false);
+            assertFalse(supportsMatmul(matmul, typed(type, shape, false),
+                    typed(type, Shape.of(3, 5), false), denseViewOutput));
+        }
     }
 
     @Test

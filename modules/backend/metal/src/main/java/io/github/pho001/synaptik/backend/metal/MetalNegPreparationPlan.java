@@ -21,9 +21,10 @@ import java.util.Optional;
  * MATMUL, arithmetic/reduction rows, positive-static FLOAT32 MATMUL, and no-gradient mixed
  * BFLOAT16/FLOAT32 MATMUL. Task-0066 selected occurrences retain all-carrier logical layout,
  * physical materialization, type, index, and exact gradient-role facts. Every partition containing
- * BFLOAT16 or FLOAT16 values retains the fixed custom whole-program route. An affine MATMUL input
- * must be the exact local identity-prefix, last-two-axis transpose authenticated on that consuming
- * edge; the same affine value may otherwise be consumed or published normally. Value indices,
+ * BFLOAT16 or FLOAT16 values retains the fixed custom whole-program route. MATMUL operands may be
+ * exact dense row-major logical views. A non-dense affine operand requires the exact earlier local
+ * last-two-axis transpose rooted in authenticated dense storage; publication and non-MATMUL
+ * fanout retain their ordinary materialized buffers. Value indices,
  * explicit canonical/affine-view states, typed nodes, feeds, and targets are already in their
  * stable ABI order. Shared buffer declarations cover feeds, targets, then internal materialized
  * values in that order. The route is fixed before declarations escape analysis. The plan

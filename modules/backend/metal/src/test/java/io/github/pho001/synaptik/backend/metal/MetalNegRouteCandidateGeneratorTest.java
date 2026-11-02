@@ -109,6 +109,39 @@ class MetalNegRouteCandidateGeneratorTest {
     }
 
     @Test
+    void materializingReshapeKeepsTypedCustomRouteAndDescriptorQualifiedIdentity() {
+        TestNativeApi api = new TestNativeApi();
+        try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
+            Operation reshape = new Operation(ShapeTransformKind.RESHAPE,
+                    new TargetShapeAttrs(Shape.of(6)));
+            for (DataType type : DataType.values()) {
+                TensorDescriptor source = new TensorDescriptor(type, Shape.of(2, 3),
+                        Optional.of(LayoutDescriptor.of(Shape.of(2, 3),
+                                new long[] {9, 2}, 3L, true)), false);
+                TensorDescriptor output = canonical(type, Shape.of(6));
+                var materializing = generated(operationWorkload(
+                        device, 88_000, reshape, source, output), 2);
+                assertEquals(List.of(MetalNegTuningBatch.Candidate.CUSTOM_PROGRAM),
+                        materializing.batch().candidates());
+                assertEquals(type, materializing.analysis().plan().descriptors().getFirst().dataType());
+                TensorDescriptor denseSource = canonical(type, Shape.of(2, 3));
+                TensorDescriptor view = new TensorDescriptor(type, Shape.of(6),
+                        Optional.of(LayoutDescriptor.of(Shape.of(6), new long[] {1}, 0L, true)), false);
+                var viewing = generated(operationWorkload(
+                        device, 88_000, reshape, denseSource, view), 2);
+                assertNotEquals(materializing.batch().compatibility().workload(),
+                        viewing.batch().compatibility().workload());
+                TensorDescriptor otherOffset = new TensorDescriptor(type, source.shape(),
+                        Optional.of(LayoutDescriptor.of(source.shape(), new long[] {9, 2}, 4L, true)), false);
+                assertNotEquals(materializing.batch().compatibility().workload(),
+                        workloadSignature(operationWorkload(
+                                device, 88_000, reshape, otherOffset, output)));
+            }
+            assertEquals(0, api.nativeAllocations.get());
+        }
+    }
+
+    @Test
     void candidateDomainsAndBudgetPrefixesPreserveTheCurrentSafeChoice() {
         TestNativeApi api = new TestNativeApi();
         try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
@@ -1142,8 +1175,8 @@ class MetalNegRouteCandidateGeneratorTest {
                     route.wireIdentity()).orElseThrow());
             assertArrayEquals(new byte[] {
                     0x4d, 0x4e, 0x43, 0x41,
-                    0x00, 0x00, 0x00, 0x24,
-                    0x00, 0x00, 0x00, 0x24,
+                    0x00, 0x00, 0x00, 0x26,
+                    0x00, 0x00, 0x00, 0x26,
                     0x00, 0x00, 0x00, (byte) route.wireIdentity()
             }, codec.encodeCandidate(candidate));
         }
@@ -1165,14 +1198,14 @@ class MetalNegRouteCandidateGeneratorTest {
                     MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
-            assertEquals(36, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
-            assertEquals(36, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
-            assertEquals(36, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
+            assertEquals(38, MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION);
+            assertEquals(38, MetalNegTuningBatch.COMPATIBILITY_SCHEMA_VERSION);
+            assertEquals(38, MetalNegTuningBatch.ROUTE_POLICY_VERSION);
             byte[] first = codec.encodeDecision(decision);
-            assertEquals(36, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
-            assertEquals(36, current.batch().compatibility().schemaVersion());
-            assertEquals(36, current.batch().compatibility().candidateSchemaVersion());
-            assertEquals(36, current.batch().compatibility().routePolicyVersion());
+            assertEquals(38, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
+            assertEquals(38, current.batch().compatibility().schemaVersion());
+            assertEquals(38, current.batch().compatibility().candidateSchemaVersion());
+            assertEquals(38, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());
@@ -1277,6 +1310,7 @@ class MetalNegRouteCandidateGeneratorTest {
                     java.nio.ByteBuffer.wrap(first).getInt(3 * Integer.BYTES);
             int candidateOffset = 5 * Integer.BYTES + compatibilityLength;
             for (int staleOffset : new int[] {
+                    Integer.BYTES,
                     compatibilityOffset + Integer.BYTES,
                     compatibilityOffset + 3 * Integer.BYTES,
                     compatibilityOffset + 4 * Integer.BYTES,
@@ -1286,6 +1320,12 @@ class MetalNegRouteCandidateGeneratorTest {
                 assertTrue(codec.decodeDecision(
                         rewriteInt(first, staleOffset, 31), current.batch()).isEmpty(),
                         "identity 31 must be rejected at byte " + staleOffset);
+                assertTrue(codec.decodeDecision(
+                        rewriteInt(first, staleOffset, 36), current.batch()).isEmpty(),
+                        "identity 36 must be rejected with a valid checksum at byte " + staleOffset);
+                assertTrue(codec.decodeDecision(
+                        rewriteInt(first, staleOffset, 37), current.batch()).isEmpty(),
+                        "identity 37 must be rejected with a valid checksum at byte " + staleOffset);
             }
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, candidateOffset + Integer.BYTES, 30),

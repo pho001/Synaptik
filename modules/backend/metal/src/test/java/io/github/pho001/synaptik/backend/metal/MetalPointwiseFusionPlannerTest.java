@@ -7,11 +7,14 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class MetalPointwiseFusionPlannerTest {
@@ -128,6 +131,76 @@ class MetalPointwiseFusionPlannerTest {
             assertThrows(IllegalArgumentException.class, () -> program.encodedProgramImage(
                     values, feeds, targets,
                     MetalPreparedRoute.CUSTOM_PROGRAM, f32));
+        }
+    }
+
+    @Test
+    void transposeOfDenseViewRetainsItsOwnMaterializationAcrossConsumerOrderAndPublication() {
+        var sourceShape = Shape.of(3, 2);
+        var transposedShape = Shape.of(2, 3);
+        var source = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32,
+                new long[] {3, 2}, Optional.of(LayoutDescriptor.of(
+                        sourceShape, new long[] {2, 1}, 0L, true)), true, false);
+        var transposed = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32,
+                new long[] {2, 3}, Optional.of(LayoutDescriptor.of(
+                        transposedShape, new long[] {1, 2}, 0L, true)), true, true);
+        var values = List.of(source, transposed,
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.FLOAT32, new long[] {3, 5}, true),
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.FLOAT32, new long[] {2, 5}, true),
+                new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.FLOAT32, new long[] {2, 3}, true));
+        for (boolean otherConsumerFirst : List.of(false, true)) {
+            var matmul = MetalMpsGraphProgram.Node.matmul(1, 2, 3);
+            var other = MetalMpsGraphProgram.Node.contiguous(1, 4);
+            var program = new MetalMpsGraphProgram(List.of(
+                    MetalMpsGraphProgram.Node.permutation(0, 1, List.of(1, 0)),
+                    otherConsumerFirst ? other : matmul,
+                    otherConsumerFirst ? matmul : other));
+            var plan = program.resolvePlan(values, new int[] {0, 2}, new int[] {1, 3, 4},
+                    MetalPreparedRoute.CUSTOM_PROGRAM, null);
+            assertEquals(MetalPointwiseFusionPlan.StepKind.FIXED_CUSTOM,
+                    plan.steps().get(otherConsumerFirst ? 2 : 1).kind());
+            assertArrayEquals(new int[] {0, 1, 2, 3, 4},
+                    plan.materializedProgramValueIndices());
+            assertTrue(plan.steps().stream().noneMatch(step ->
+                    step.kind() == MetalPointwiseFusionPlan.StepKind.GENERATED_POINTWISE
+                            || step.kind() == MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE));
+            MetalNativeApi.ProgramExecutableAbi.validateCreate(values, program,
+                    new int[] {0, 2}, new int[] {1, 3, 4},
+                    MetalPreparedRoute.CUSTOM_PROGRAM, plan);
+        }
+    }
+
+    @Test
+    void materializingReshapeIsFixedWithDistinctStorageAcrossPublishedTransposeFanout() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            var values = List.of(
+                    new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {3, 2}, true),
+                    new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 3},
+                            Optional.of(LayoutDescriptor.of(Shape.of(2, 3),
+                                    new long[] {1, 2}, 0L, true)), true, true),
+                    new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {3, 5}, true),
+                    new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 5}, true),
+                    new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {6}, true));
+            for (boolean reshapeFirst : List.of(false, true)) {
+                var matmul = MetalMpsGraphProgram.Node.matmul(1, 2, 3);
+                var reshape = MetalMpsGraphProgram.Node.targetShape(
+                        MetalMpsGraphProgram.NodeKind.RESHAPE, 1, 4, new long[] {6});
+                var program = new MetalMpsGraphProgram(List.of(
+                        MetalMpsGraphProgram.Node.permutation(0, 1, List.of(1, 0)),
+                        reshapeFirst ? reshape : matmul, reshapeFirst ? matmul : reshape));
+                var plan = program.resolvePlan(values, new int[] {0, 2}, new int[] {1, 3, 4},
+                        MetalPreparedRoute.CUSTOM_PROGRAM, null);
+                assertTrue(plan.steps().stream().allMatch(step ->
+                        step.kind() == MetalPointwiseFusionPlan.StepKind.FIXED_CUSTOM));
+                assertArrayEquals(new int[] {0, 1, 2, 3, 4},
+                        plan.materializedProgramValueIndices());
+                assertFalse(values.get(4).densePhysical());
+                MetalNativeApi.ProgramExecutableAbi.validateCreate(values, program,
+                        new int[] {0, 2}, new int[] {1, 3, 4}, MetalPreparedRoute.CUSTOM_PROGRAM, plan);
+            }
         }
     }
 
