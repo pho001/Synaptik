@@ -630,6 +630,13 @@ not the context or command queue; therefore a surviving buffer cannot match a re
 address, and native context release lifetime is unchanged. Executables keep their existing strong
 context reference. Upload/download and matching releases remain valid for surviving buffer handles.
 
+Host upload/download own local Objective-C autorelease pools; callers do not supply a pool.
+Each existing exception handler is inside its pool so mapped failures also drain temporary
+Foundation objects before returning. Explicit buffer/context handle ownership is unchanged.
+The source-matched [Task0082 qualification](../../../../docs/planning/backends/metal/tasks/0082-host-copy-autorelease-boundaries.md#result)
+records unchanged public training/raw workflows and finite category-specific before/after memory
+observations. It is not a universal native-allocation or public-prebuilt trust claim.
+
 A successful create transfers one retained handle to Java, and its matching release consumes that
 handle once. Malformed create results fail closed: success with a null output is rejected, while a
 failure that publishes a non-null handle releases that handle once and preserves cleanup failure

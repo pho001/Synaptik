@@ -1684,10 +1684,11 @@ static int32_t validate_copy(SynaptikMetalBufferBox *box, uint64_t offset,
     return SYNAPTIK_METAL_STATUS_OK;
 }
 
+/* FFM threads supply no pool. Catch inside each pool so every mapped exit drains it. */
 SYNAPTIK_EXPORT int32_t synaptik_metal_buffer_upload(
         void *buffer, uint64_t offset, const void *source, uint64_t count) {
     if (buffer == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-    @try {
+    @autoreleasepool { @try {
         SynaptikMetalBufferBox *box = (__bridge SynaptikMetalBufferBox *)buffer;
         int32_t status = validate_copy(box, offset, source, count);
         if (status != 0 || count == 0U) return status;
@@ -1695,13 +1696,13 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_buffer_upload(
         if (contents == NULL) return SYNAPTIK_METAL_STATUS_COPY_FAILED;
         memcpy((uint8_t *)contents + (size_t)offset, source, (size_t)count);
         return SYNAPTIK_METAL_STATUS_OK;
-    } @catch (__unused NSException *exception) { return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR; }
+    } @catch (__unused NSException *exception) { return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR; } }
 }
 
 SYNAPTIK_EXPORT int32_t synaptik_metal_buffer_download(
         void *buffer, uint64_t offset, void *destination, uint64_t count) {
     if (buffer == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-    @try {
+    @autoreleasepool { @try {
         SynaptikMetalBufferBox *box = (__bridge SynaptikMetalBufferBox *)buffer;
         int32_t status = validate_copy(box, offset, destination, count);
         if (status != 0 || count == 0U) return status;
@@ -1709,7 +1710,7 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_buffer_download(
         if (contents == NULL) return SYNAPTIK_METAL_STATUS_COPY_FAILED;
         memcpy(destination, (uint8_t *)contents + (size_t)offset, (size_t)count);
         return SYNAPTIK_METAL_STATUS_OK;
-    } @catch (__unused NSException *exception) { return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR; }
+    } @catch (__unused NSException *exception) { return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR; } }
 }
 
 static NSArray<NSNumber *> *permutation(
