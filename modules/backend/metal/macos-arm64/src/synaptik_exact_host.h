@@ -60,7 +60,7 @@ static BOOL synaptik_exact_physical(
         zero |= stride == 0U;
         if (dim - 1U != 0U && stride > (INT64_MAX - span) / (dim - 1U)) return NO;
         span += (dim - 1U) * stride;
-        if (dim > 1U) {
+        if (dim > 1U && stride != 0U) {
             NSUInteger insertion = order_count;
             while (insertion > 0U && physical[order[insertion - 1U]] > stride) {
                 order[insertion] = order[insertion - 1U]; insertion--;
@@ -71,7 +71,7 @@ static BOOL synaptik_exact_physical(
     if (span >= INT64_MAX || value_type_width(type) == 0U
             || span + 1U > INT64_MAX / value_type_width(type)) return NO;
     if (output) return *offset == 0U;
-    if (zero) return states != NULL && states[value] == SYNAPTIK_METAL_VALUE_AFFINE_VIEW;
+    if (zero && (states == NULL || states[value] != SYNAPTIK_METAL_VALUE_AFFINE_VIEW)) return NO;
     uint64_t covered = 1U;
     for (NSUInteger i = 0U; i < order_count; i++) {
         NSUInteger axis = order[i];

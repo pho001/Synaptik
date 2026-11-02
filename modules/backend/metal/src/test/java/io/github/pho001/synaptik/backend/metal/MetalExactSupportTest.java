@@ -37,6 +37,44 @@ class MetalExactSupportTest {
     }
 
     @Test
+    void broadcastViewsStillProveNonbroadcastInjectivityInActualAndEncodedAdmission() {
+        Shape shape = Shape.of(2, 2, 2);
+        for (DataType type : List.of(DataType.FLOAT64, DataType.INT32, DataType.INT64)) {
+            Operation operation = type == DataType.FLOAT64
+                    ? new Operation(UnaryElementwiseKind.FLOOR, NoOperationAttrs.INSTANCE)
+                    : new Operation(BinaryArithmeticKind.MIN, NoOperationAttrs.INSTANCE);
+            var output = descriptor(type, false, 2, 2, 2);
+            var scalar = descriptor(type, false);
+            for (boolean valid : List.of(false, true)) {
+                var input = new TensorDescriptor(type, shape, Optional.of(LayoutDescriptor.of(
+                        shape, new long[] {0, valid ? 2 : 1, 1}, 0, true)), false);
+                List<TensorDescriptor> inputs = type == DataType.FLOAT64
+                        ? List.of(input) : List.of(input, scalar);
+                List<TensorDescriptor> outputs = List.of(output);
+                if (valid) {
+                    assertTrue(MetalExactSupport.supports(operation, inputs, outputs));
+                    assertTrue(MetalCapabilityProvider.supportsOccurrence(operation, inputs, outputs));
+                } else {
+                    assertFalse(MetalExactSupport.supports(operation, inputs, outputs));
+                    assertFalse(MetalCapabilityProvider.supportsOccurrence(operation, inputs, outputs));
+                }
+                var node = type == DataType.FLOAT64
+                        ? MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.FLOOR,
+                                new int[] {0}, new int[] {1}, MetalMpsGraphProgram.AttributeKind.NONE, new long[0])
+                        : MetalMpsGraphProgram.Node.binary(MetalMpsGraphProgram.NodeKind.TENSOR_MIN, 0, 1, 2);
+                List<MetalMpsGraphProgram.ValueDescriptor> values = type == DataType.FLOAT64
+                        ? List.of(MetalMpsGraphProgram.ValueDescriptor.from(input),
+                                MetalMpsGraphProgram.ValueDescriptor.from(output))
+                        : List.of(MetalMpsGraphProgram.ValueDescriptor.from(input),
+                                MetalMpsGraphProgram.ValueDescriptor.from(scalar),
+                                MetalMpsGraphProgram.ValueDescriptor.from(output));
+                if (valid) assertDoesNotThrow(() -> MetalExactSupport.validate(node, values));
+                else assertThrows(IllegalArgumentException.class, () -> MetalExactSupport.validate(node, values));
+            }
+        }
+    }
+
+    @Test
     void exactOwnerDoesNotInterceptBaselineLowOrEnableFloat64Arithmetic() {
         var floor = new Operation(UnaryElementwiseKind.FLOOR, NoOperationAttrs.INSTANCE);
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT16, DataType.BFLOAT16)) {

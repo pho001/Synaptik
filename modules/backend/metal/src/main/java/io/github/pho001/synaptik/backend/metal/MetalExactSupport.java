@@ -193,8 +193,8 @@ final class MetalExactSupport {
         Math.multiplyExact(layout.referencedElementSpan(), type.byteWidth());
         if (output) return layout.equals(LayoutDescriptor.contiguous(Shape.of(dims)));
         for (long stride : layout.strides()) if (stride < 0) return false;
-        if (layout.hasZeroStride()) return layout.isView();
-        // Reuse the established positive-affine, injective storage proof, not a proxy admission.
+        if (layout.hasZeroStride() && !layout.isView()) return false;
+        // Broadcast axes do not excuse overlap among the remaining physical axes.
         return new MetalMpsGraphProgram.ValueDescriptor(type, dims, java.util.Optional.of(layout), false, false)
                 .supportsStorageLayout(0);
     }
