@@ -670,8 +670,11 @@ and Shape match the captured output are accepted. For example, selecting axis 0 
 newly closed `[3,2,2]` product gives a `[2,2]` view with strides `[2,1]` and element offset `8`.
 A gate slice selecting columns 2 and 3 of a `[2,6]` projection keeps strides `[6,1]` and offset `2`,
 not canonical `[2,1]` geometry. Later views in the same pass consume those exact descriptors.
-Negative-step and empty extraction, unknown input geometry, and other unproved layouts remain
-unresolved; this does not add signed-stride or empty-view support or choose a physical copy.
+Negative-step and empty extraction remain unresolved during raw inference. Final ordinary layout
+completion selects canonical non-view storage for qualified fully static signed/empty
+`SliceAttrs` results with known resolved nonnegative input geometry. This is materialization,
+not a signed-stride or empty alias. Unknown input geometry and other unproved layouts remain
+unresolved; backend admission and the actual physical copy remain independent obligations.
 
 After exact view inference, a validated fully static RESHAPE with a present noncontiguous source
 layout and no inferred supported view may select canonical non-view output geometry. For example,

@@ -4,6 +4,12 @@
 
 ### Added
 
+- Model-valid CPU promoted F32/F64 and I32/I64 pointwise operands, exact comparisons and selected
+  WHERE conversion, retaining each gradient target's original carrier.
+- Checked signed/empty slice materialization and its existing extraction/update pullbacks,
+  bounded one-pass variadic CONCAT/STACK beyond sixteen inputs, and shared sound CPU output
+  injectivity proofs for large interleaved layouts.
+
 - Maximum and average Pool3d training on qualified static CPU FLOAT32/FLOAT64 and Metal FLOAT32,
   including overlapping windows through existing gradient/unfold/fold owners. Metal low/FLOAT64
   non-overlap and CPU BFLOAT16/FLOAT16 arithmetic restrictions remain unchanged.
@@ -85,6 +91,18 @@
   existing movement/fold owners, preserving legacy carrier/identity boundaries and the low lock.
 
 ### Fixed
+
+- CPU unit contraction now proves convexity on the current quotient graph, preventing cyclic
+  prepared schedules after earlier contractions. Oversized variadic candidate inventories use
+  existing direct decomposition without relaxing fusion or generated-method resource limits.
+- Empty affine generated ranges guard before address/carrier reads; selective projection 73
+  invalidates affected old dense-array classes without advancing generator envelope 71.
+- Target-relative crop inference retains raw Model descriptors until physical layout completion,
+  so actual extraction adjoints accept their original output contract.
+- CPU attention follows literal eligible-score EXP normalization rather than shifted softmax.
+  Its nonempty weighted-value contractions and fixed-recurrent projections seed their first
+  product, preserving negative zero; empty/exclusion guards remain. Attention projection 74 rejects
+  obsolete shifted classes and binds the new working-site marker in both identity streams.
 
 - General Scan preserves rank-17 temporal containers around rank-16 ordinary step values.
   The ordinary rank limit applies to every local value; exact outer role binding retains the

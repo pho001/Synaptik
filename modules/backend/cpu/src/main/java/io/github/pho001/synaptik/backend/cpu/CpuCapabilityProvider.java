@@ -112,10 +112,11 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuSpatialWindowG
  * admission still qualify the actual forward and derivative closure independently.</p>
  *
  * <p>The provider has a stable CPU ownership identity and advertises the bounded, fully static
- * pointwise matrix implemented by the portable route: selected same-type arithmetic including
- * extrema and floating Tensor power, exact scalar arithmetic and floating range clamp,
- * canonical-BOOL logic, all nineteen same-typed floating unary semantics, floating classification,
- * comparisons, floating {@code WHERE}, and all 49 ordered {@code CAST} pairs among FLOAT64,
+ * pointwise matrix implemented by the portable route: Model-valid promoted numeric binary tuples,
+ * including extrema and floating Tensor power; exact-typed scalar arithmetic and floating clamp;
+ * canonical-BOOL logic; all nineteen same-typed floating unary semantics under the temporary
+ * low-computation lock; floating classification, exact stored-value comparisons and Model-promoted
+ * {@code WHERE}; and all 49 ordered {@code CAST} pairs among FLOAT64,
  * FLOAT32, BFLOAT16, FLOAT16, INT64, INT32, and BOOL. CAST capability validates the source,
  * target attribute, output type, equal static Shape, and resolved non-negative layouts;
  * it cannot inspect carrier bytes, so canonical BOOL storage remains an execution precondition. Every

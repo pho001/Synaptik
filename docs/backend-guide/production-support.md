@@ -28,7 +28,7 @@ dimension or mixed-floating backward parity; ordinary family and selected-VJP pr
 
 | Family | Common static F32/F64 domain | First-order closure and current release evidence |
 |---|---|---|
-| Pointwise and selection | Floating tensor/scalar arithmetic, 19 unary kinds, clamp, comparisons, BOOL logic and WHERE under exact dtype/broadcast rules | Ordinary formula owners; discrete conditions receive no cotangent. Actual two-layer ReLU MLP forward/SGD/save/load/new-train passed in both types. Broader closure remains a release gate. |
+| Pointwise and selection | Floating tensor/scalar arithmetic, 19 unary kinds, clamp, comparisons, BOOL logic and WHERE under exact dtype/broadcast rules; Model-valid promoted F32/F64 and I32/I64 tuples | Original cotangent carrier conversion and exact stored-value comparisons passed public mixed-operand and WHERE witnesses. Discrete conditions receive no cotangent; implicit low arithmetic remains locked. Actual two-layer ReLU MLP forward/SGD/save/load/new-train passed in both types. |
 | MATMUL/linear | Vector/matrix rank cases and broadcast batches; direct/tiled scalar, eligible N-vector and range parallelism | Ordinary rank edits, transpose and SUM-to-Shape derivatives. Homogeneous MLP/RNN paths passed; optional qualified OpenBLAS is not proof of portable Java coverage. |
 | Conv1d/Conv2d | NCW/NCHW; bias/no bias, groups/depthwise, stride/padding/dilation, family-qualified noncanonical reads | Actual dX/dW/db passed 16 public cases across both types, grouped/dilated/strided, depthwise multiplier and asymmetric geometry. Both ranks passed complete owned Model journeys. |
 | Max/AveragePool1d/2d | Exact floor/literal-ceil grids, padding/dilation, fixed average divisor, overlap | Actual backward passed 24 public cases: finite overlap, dilated ceil tails, NaN, signed zero, real -infinity and all-padding windows. Uses existing winner/fold rules, not a new derivative. |
@@ -41,18 +41,37 @@ dimension or mixed-floating backward parity; ordinary family and selected-VJP pr
 | LayerNorm/RMSNorm | Static trailing normalized shape, typed epsilon and optional affine roles | Actual both-type affine LayerNorm three-role and RMSNorm two-role gradients passed independent scalar oracles. Wider normalized shapes/layouts retain family predicates. |
 | BatchNorm inference/training | Exact channel geometry; training contributor minimum and five output roles | Both types passed all five input-role gradients for inference and the joint three public training roots (normalized output/next mean/next variance). Saved auxiliaries remain invalid independent derivative roots. |
 | MSE and dense/index cross entropy | NONE/SUM/MEAN, exact target signatures, ignore/exclusion guards | Both types passed actual MSE/dense CE data+target gradients, including nonunit dense target sums, and index CE with ignore control. Integral targets are nondifferentiable; other reductions/domains retain their own qualification. |
-| Affine/movement/windows | Declared reshape/rank edits/permute, SELECT/positive SLICE, PAD/TILE/CONCAT/STACK/replacement, UNFOLD_AXIS/2D/3D and FOLD_AXIS/2D/3D | Existing inverse views, crop/update, SUM and matching fold rules. CPU UNFOLD3D preserves raw F32/F64/BF16/F16 words; FOLD3D arithmetic is qualified for F32/F64. CPU0079 additionally passed all-seven-carrier public noncontiguous ordinary RESHAPE raw-bit/order proof through the existing copy. Low arithmetic remains locked. |
+| Affine/movement/windows | Declared reshape/rank edits/permute, SELECT/checked signed-step SLICE, PAD/TILE, bounded one-pass CONCAT/STACK/replacement, UNFOLD_AXIS/2D/3D and FOLD_AXIS/2D/3D | Signed/empty materialization and negative-step extraction/update adjoints passed. Seventeen-input CONCAT/STACK passed every-input and repeated-identity cotangents; composed 65-input consumers also passed within checked generation limits. Raw movement covers all seven carriers. UNFOLD3D preserves raw F32/F64/BF16/F16 words; arithmetic FOLD3D remains F32/F64. CPU0079 noncontiguous RESHAPE and the low-arithmetic lock remain. |
 | Gather/scatter/one-hot | Exact index shape and INT32/INT64 bounds; declared NONE/ADD/MUL/MIN/MAX modes | Both types passed gather/gatherElements/gatherNd and all five scatterElements/scatterNd modes, data/update roles, duplicates and zero products. Bounds/uniqueness pre-write tests remain independent; no index cotangent. |
 | Ordering and extrema | Stable SORT/ARGSORT/TOP_K and exact tie/index behavior | Both types passed actual SORT/TOP_K value gradients against scalar oracles; indices have no cotangent. Tie/special/other geometry qualification is not inferred from separated-value cases. |
-| Attention | Rank>=2 Q/K/V, exact contraction and broadcast batches, optional BOOL/causal mask and normalized weights | Both types passed joint output/weights gradients for all Q/K/V roles, masked and unmasked. Ordinary AD requires canonical two-output form; one-output constructor is forward-only for AD. Masks have no cotangent, weights no V route; guarded semantics remain separate. |
+| Attention | Rank>=2 Q/K/V, exact contraction and broadcast batches, optional BOOL/causal mask and normalized weights | Both types passed joint output/weights gradients for all Q/K/V roles, masked and unmasked. Literal EXP overflow/underflow and nonempty negative-zero value contractions passed separately, including controlled single-output Scan with inactive NaNs. Ordinary AD requires canonical two-output form; one-output construction is forward-only for AD. Masks have no cotangent, weights no V route. |
 | Explicit RNG/dropout | Existing state/mask/next-state signatures and typed value semantics | No derivative for state/mask. Scan purity must follow the actual effect contract, not assume every random operation is pure. |
-| Fixed recurrent scans | Existing explicit RNN/GRU/LSTM forward constructors and kernels | Remain forward-only. Old fixed files and any fixed-containing Model reject training before setup. |
+| Fixed recurrent scans | Existing explicit RNN/GRU/LSTM forward constructors and kernels | Remain forward-only. Shared nonempty projections retain first-product signs; both-type RNN negative-zero sequence/final-state publication passed in both directions. Old fixed files and fixed-containing Models still reject training before setup. |
 | General Scan / practical RNN | Ordinary CPU-supported PURE bodies, static/qualified one-B F32/F64, per-value typed intermediates; all-valid whole-Tensor or length-mode proved ROW(axis)/SHARED semantics | Compiler0017/CPU0081 are integrated and source/consumer-qualified: ordinary lowering/emission, actual selected VJPs, structural activity, guards, empty/T0 caller publication, reuse and genuine old-recipe replay. The bounded public RNN train/save/load/new-train workflow remains separately qualified. No wider cold/wire or Metal Scan support follows. |
 
 All entries retain [Model numerical semantics](../architecture/contracts/foundational-modules.md#profile-free-numerical-semantics).
 Finite tolerances do not replace exact discrete, special-value, saved-value or pre-write validation.
 Current exact predicates remain in CpuCapabilityProvider and the CPU lowerers; a family row is not
 a declaration that arbitrary partitions or every possible backward target are eligible.
+
+## CPU operation-audit closure
+
+Local qualification covers all 137 ordinary signatures across 115 kinds, with general Scan
+recorded separately. The current catalog completed 804 forward and 736 selected first-order AD
+runs without an execution-stage failure. Its 622 selection rejections are confined to low-storage
+projections. Rejected forward kinds were classified under the intentional arithmetic lock;
+selected low VJPs may also require locked arithmetic. Illegal Model projections and
+nondifferentiable/deferred roles are classified separately. These are bounded fixtures, not
+every possible Model geometry; execution hashes are not numerical correctness proof.
+
+Independent forward/derivative oracles passed 178 cases: 81 ordinary cases per floating type
+and sixteen Pool3d Scan cases. Additional public witnesses cover promoted operands/original
+cotangent types, signed slicing/update, variadic/repeated identities and composite special values.
+A separate generated TILE witness checked `[200001,2,3]`, strides `[8,3,2]`, offset `5`, split
+ranges, heap/segment outputs and untouched holes. Current-quotient checks prevent cyclic CPU units.
+Changed affine empty-range and literal-attention classes use selective projections 73/74;
+the generator envelope stays 71. Source review approved the affected owners. Metal completion
+and joined exact-source/artifact/installation acceptance remain separate below.
 
 ## Conv3d training and independent Pool3d boundary
 

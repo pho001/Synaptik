@@ -94,10 +94,10 @@ forward/reverse: independent forward and actual backward input-role finite diffe
 save/close/load/fresh execution passed. This uses qualified existing `lowerBatch` closure, not
 wider ordinary named-B admission or Metal Scan support. CPU BF16/F16 arithmetic remains locked.
 These are local implementation/runtime results, not a joined release gate or newly published
-candidate acceptance. The subsequently requested comprehensive CPU/Metal operation audit and
-gap filling remain separate, incomplete work; no broader coverage or performance claim follows.
+candidate acceptance. The requested comprehensive audit has locally qualified the CPU closure
+below; Metal integration and the joined release qualification remain separate work.
 
-### Audit-driven CPU coverage completion — Ready
+### Audit-driven CPU coverage completion — locally qualified
 
 The user's subsequent comprehensive CPU/Metal audit authorizes completing the confirmed
 Model-valid CPU gaps: promoted pointwise operand tuples, signed-step materializing SLICE and
@@ -114,6 +114,23 @@ The CPU0078 low-computation lock and Compiler's three deferred fixed-recurrent B
 remain unchanged. Actual before/after public execution, every affected derivative role, all
 seven applicable raw movement carriers, inactive Scan rows and independent Class C review
 are acceptance gates; provider answers alone are not completion.
+
+Existing-contract conformance repairs also cover literal attention EXP normalization, first-product
+seeds for its nonempty weighted-value contractions, and fixed-recurrent projections. They do not
+change Model formulas or authorize fixed-recurrent BPTT. Generated attention classes require a
+selective compatibility identity; controlled single-output F64 emission, inactive NaNs and
+negative-zero publications require actual execution alongside the ordinary finite fixtures.
+
+Implementation and independent source review passed. The final CPU catalog covers all 137
+ordinary signatures across 115 kinds: 804 forward and 736 actual selected-AD runs completed,
+with no execution-stage failures. Remaining selection rejections are confined to low-storage
+projections: rejected forward kinds were classified under CPU0078; selected low VJPs may also
+require locked arithmetic. Execution hashes are not numerical oracles. Separately, 178 independent
+forward/backward cases passed, including the sixteen Pool3d Scan cases. Nine public
+promoted/signed/variadic witnesses and both-type
+composite signed-zero witnesses passed; controlled single-output attention also passed both
+types/directions with inactive NaNs. Selective affine projection 73 and attention projection 74
+leave generator envelope 71 unchanged. This is local qualification, not release acceptance.
 
 
 ## Stable invariants
