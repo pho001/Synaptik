@@ -28,25 +28,72 @@ static NSString *const SynaptikTask0061MatmulKernelSource =
 "}\n"
 "inline float matmul_fma_0061(float left, float right, float accumulator) { return fma(left, right, accumulator); }\n"
 "inline float matmul_f32_0061(device const uchar *left, device const uchar *right, ulong linear, constant DataMeta &m, bool leftBfloat, bool rightBfloat) { float accumulator = 0.0f; ulong contractions = m.inputExtents[0]; for (ulong contraction = 0ul; contraction < contractions; ++contraction) { ulong leftOffset, rightOffset; matmul_offsets_0061(linear, contraction, m, leftOffset, rightOffset); uint leftWord = uint(load_word(left, leftOffset, leftBfloat ? 2u : 4u)); uint rightWord = uint(load_word(right, rightOffset, rightBfloat ? 2u : 4u)); float leftValue = as_type<float>(leftBfloat ? leftWord << 16u : leftWord); float rightValue = as_type<float>(rightBfloat ? rightWord << 16u : rightWord); accumulator = matmul_fma_0061(leftValue, rightValue, accumulator); } return accumulator; }\n"
-"kernel void matmul_i32_i32_i32_0061(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) { ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return; uint accumulator = 0u; for (ulong contraction = 0ul; contraction < m.inputExtents[0]; ++contraction) { ulong leftOffset, rightOffset; matmul_offsets_0061(linear, contraction, m, leftOffset, rightOffset); accumulator += uint(load_word(left, leftOffset, 4u)) * uint(load_word(right, rightOffset, 4u)); } store_word(output, linear, 4u, ulong(accumulator)); }\n"
-"kernel void matmul_i32_i64_i64_0061(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) { ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return; ulong accumulator = 0ul; for (ulong contraction = 0ul; contraction < m.inputExtents[0]; ++contraction) { ulong leftOffset, rightOffset; matmul_offsets_0061(linear, contraction, m, leftOffset, rightOffset); ulong leftValue = ulong(long(int(uint(load_word(left, leftOffset, 4u))))); accumulator += leftValue * load_word(right, rightOffset, 8u); } store_word(output, linear, 8u, accumulator); }\n"
-"kernel void matmul_i64_i32_i64_0061(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) { ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return; ulong accumulator = 0ul; for (ulong contraction = 0ul; contraction < m.inputExtents[0]; ++contraction) { ulong leftOffset, rightOffset; matmul_offsets_0061(linear, contraction, m, leftOffset, rightOffset); ulong rightValue = ulong(long(int(uint(load_word(right, rightOffset, 4u))))); accumulator += load_word(left, leftOffset, 8u) * rightValue; } store_word(output, linear, 8u, accumulator); }\n"
-"kernel void matmul_i64_i64_i64_0061(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) { ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return; ulong accumulator = 0ul; for (ulong contraction = 0ul; contraction < m.inputExtents[0]; ++contraction) { ulong leftOffset, rightOffset; matmul_offsets_0061(linear, contraction, m, leftOffset, rightOffset); accumulator += load_word(left, leftOffset, 8u) * load_word(right, rightOffset, 8u); } store_word(output, linear, 8u, accumulator); }\n"
+"template<typename Accumulator, uint LeftWidth, uint RightWidth>\n"
+"inline Accumulator matmul_integral_0061(device const uchar *left, device const uchar *right,\n"
+"        ulong linear, constant DataMeta &m, device const ulong *control,\n"
+"        constant ScanStepControl *step) {\n"
+"    Accumulator accumulator = Accumulator(0);\n"
+"    for (ulong contraction = 0ul; contraction < m.inputExtents[0]; ++contraction) {\n"
+"        ulong lc[16], rc[16]; matmul_coordinates_0061(linear, contraction, m, lc, rc);\n"
+"        if (control != nullptr) {\n"
+"            ulong ll = coords_linear(lc, m.inDims, m.inputRank);\n"
+"            ulong rl = coords_linear(rc, m.auxDims, m.auxRank);\n"
+"            if (!scan_control_operand(control, *step, 0u, ll)\n"
+"                    || !scan_control_operand(control, *step, 1u, rl)) continue;\n"
+"        }\n"
+"        ulong lo = coords_storage(lc, m.inputStrides, m.inputRank, m.inputOffset);\n"
+"        ulong ro = coords_storage(rc, m.auxiliaryStrides, m.auxRank, m.auxiliaryOffset);\n"
+"        ulong lw = load_word(left, lo, LeftWidth), rw = load_word(right, ro, RightWidth);\n"
+"        Accumulator lv = LeftWidth == 4u ? Accumulator(long(int(uint(lw)))) : Accumulator(lw);\n"
+"        Accumulator rv = RightWidth == 4u ? Accumulator(long(int(uint(rw)))) : Accumulator(rw);\n"
+"        accumulator += lv * rv;\n"
+"    }\n"
+"    return accumulator;\n"
+"}\n"
+"kernel void matmul_i32_i32_i32_0061(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]],\n"
+"        device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]],\n"
+"        uint3 gid [[thread_position_in_grid]]) {\n"
+"    ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return;\n"
+"    uint result = matmul_integral_0061<uint, 4u, 4u>(left, right, linear, m, nullptr, nullptr);\n"
+"    store_word(output, linear, 4u, ulong(result));\n"
+"}\n"
+"kernel void matmul_i32_i64_i64_0061(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]],\n"
+"        device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]],\n"
+"        uint3 gid [[thread_position_in_grid]]) {\n"
+"    ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return;\n"
+"    ulong result = matmul_integral_0061<ulong, 4u, 8u>(left, right, linear, m, nullptr, nullptr);\n"
+"    store_word(output, linear, 8u, ulong(result));\n"
+"}\n"
+"kernel void matmul_i64_i32_i64_0061(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]],\n"
+"        device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]],\n"
+"        uint3 gid [[thread_position_in_grid]]) {\n"
+"    ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return;\n"
+"    ulong result = matmul_integral_0061<ulong, 8u, 4u>(left, right, linear, m, nullptr, nullptr);\n"
+"    store_word(output, linear, 8u, ulong(result));\n"
+"}\n"
+"kernel void matmul_i64_i64_i64_0061(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]],\n"
+"        device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]],\n"
+"        uint3 gid [[thread_position_in_grid]]) {\n"
+"    ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return;\n"
+"    ulong result = matmul_integral_0061<ulong, 8u, 8u>(left, right, linear, m, nullptr, nullptr);\n"
+"    store_word(output, linear, 8u, ulong(result));\n"
+"}\n"
 "kernel void matmul_f32_f32_f32_0061(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) { ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return; store_word(output, linear, 4u, ulong(as_type<uint>(matmul_f32_0061(left, right, linear, m, false, false)))); }\n"
 "kernel void matmul_bf16_f32_f32_0061(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) { ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return; store_word(output, linear, 4u, ulong(as_type<uint>(matmul_f32_0061(left, right, linear, m, true, false)))); }\n"
 "kernel void matmul_f32_bf16_f32_0061(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) { ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return; store_word(output, linear, 4u, ulong(as_type<uint>(matmul_f32_0061(left, right, linear, m, false, true)))); }\n";
 
 /*
- * Controlled FLOAT32 terminal contractions reuse the ordinary coordinate proof and
- * DataMeta without changing its layout. Assemble this source after both ordinary
- * matmul source and SynaptikGeneralScanKernelSource. Bindings 0/1/2/3 are left,
+ * Controlled typed contractions reuse the ordinary coordinate proof and integer
+ * arithmetic body, without changing DataMeta. Assemble both sources after
+ * SynaptikGeneralScanKernelSource. Bindings 0/1/2/3 are left,
  * right, canonical output, DataMeta; 28/29 are scanControl/ScanStepControl. The
  * control POD is owned and statically size-checked by the general-Scan component.
  * The binder authenticates each operand's original logical row axis/inner, scope
  * and complete physical spans. No B=1 projection or arithmetic activity masking:
  * both scope checks dominate BOTH operand loads, even when one operand is SHARED.
  * Separate multiply/add sites follow the represented contraction; no implicit FMA.
- * One output writer, no workspace, ordinary custom_grid geometry, FLOAT32 only.
+ * One output writer, no workspace. Integral accumulators retain their exact promoted
+ * unsigned modular width; FLOAT32 has separate represented multiply/add sites.
  */
 static NSString *const SynaptikControlledMatmulKernelSource =
 @"\n"
@@ -76,6 +123,43 @@ static NSString *const SynaptikControlledMatmulKernelSource =
 "    if (!scan_control_output(scanControl, scanStep, linear)) return;\n"
 "    float result = matmul_f32_controlled_0061(left, right, linear, m, scanControl, scanStep);\n"
 "    store_word(output, linear, 4u, ulong(as_type<uint>(result)));\n"
-"}\n";
+"}\n"
+"kernel void matmul_i32_i32_i32_controlled_0061(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]],\n"
+"        device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]],\n"
+"        uint3 gid [[thread_position_in_grid]], device const ulong *control [[buffer(28)]],\n"
+"        constant ScanStepControl &step [[buffer(29)]]) {\n"
+"    ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return;\n"
+"    if (!scan_control_output(control, step, linear)) return;\n"
+"    uint result = matmul_integral_0061<uint, 4u, 4u>(left, right, linear, m, control, &step);\n"
+"    store_word(output, linear, 4u, ulong(result));\n"
+"}\n"
+"kernel void matmul_i32_i64_i64_controlled_0061(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]],\n"
+"        device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]],\n"
+"        uint3 gid [[thread_position_in_grid]], device const ulong *control [[buffer(28)]],\n"
+"        constant ScanStepControl &step [[buffer(29)]]) {\n"
+"    ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return;\n"
+"    if (!scan_control_output(control, step, linear)) return;\n"
+"    ulong result = matmul_integral_0061<ulong, 4u, 8u>(left, right, linear, m, control, &step);\n"
+"    store_word(output, linear, 8u, ulong(result));\n"
+"}\n"
+"kernel void matmul_i64_i32_i64_controlled_0061(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]],\n"
+"        device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]],\n"
+"        uint3 gid [[thread_position_in_grid]], device const ulong *control [[buffer(28)]],\n"
+"        constant ScanStepControl &step [[buffer(29)]]) {\n"
+"    ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return;\n"
+"    if (!scan_control_output(control, step, linear)) return;\n"
+"    ulong result = matmul_integral_0061<ulong, 8u, 4u>(left, right, linear, m, control, &step);\n"
+"    store_word(output, linear, 8u, ulong(result));\n"
+"}\n"
+"kernel void matmul_i64_i64_i64_controlled_0061(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]],\n"
+"        device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]],\n"
+"        uint3 gid [[thread_position_in_grid]], device const ulong *control [[buffer(28)]],\n"
+"        constant ScanStepControl &step [[buffer(29)]]) {\n"
+"    ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return;\n"
+"    if (!scan_control_output(control, step, linear)) return;\n"
+"    ulong result = matmul_integral_0061<ulong, 8u, 8u>(left, right, linear, m, control, &step);\n"
+"    store_word(output, linear, 8u, ulong(result));\n"
+"}\n"
+;
 
 #endif
