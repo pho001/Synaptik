@@ -63,7 +63,24 @@ class CpuSignedVariadicMovementTest {
                     CpuNonAffineMovementLoweringTest.descriptor(DataType.INT64, Shape.of(length)));
             long[] in = {Long.MIN_VALUE}, out = new long[(int) length];
             invoke(context, List.of(MemorySegment.ofArray(in), MemorySegment.ofArray(out)), 0, length);
+            invoke(context, List.of(MemorySegment.ofArray(in), MemorySegment.ofArray(out)), length, length);
             if (length != 0) assertEquals(Long.MIN_VALUE, out[0]);
+        }
+    }
+
+    @Test void denseAffineEmptyRangesDoNotReadPacksOrCarriersOrTouchOutputCanaries() throws Throwable {
+        for (var type : DataType.values()) try (var arena = Arena.ofConfined()) {
+            var context = CpuNonAffineMovementLoweringTest.context(new Operation(SliceKind.SLICE,
+                    new SliceAttrs(List.of(0L), List.of(1L), List.of(0), List.of(-1L))),
+                    List.of(0), List.of(CpuNonAffineMovementLoweringTest.descriptor(type, Shape.of(1))),
+                    CpuNonAffineMovementLoweringTest.descriptor(type, Shape.of(1)));
+            var output = arena.allocate(3L * type.byteWidth(), type.byteWidth());
+            for (int i = 0; i < 3; i++) put(type, output, i, pattern(type, i));
+            byte[] before = output.toArray(ValueLayout.JAVA_BYTE);
+            var absent = MemorySegment.ofArray(new byte[0]);
+            invoke(context, List.of(absent, output), 0, 0);
+            invoke(context, List.of(absent, output), 1, 1);
+            assertArrayEquals(before, output.toArray(ValueLayout.JAVA_BYTE));
         }
     }
 
@@ -106,7 +123,7 @@ class CpuSignedVariadicMovementTest {
 
     @Test void variadicEmptySourcesAndLargerCheckedEntryExecuteWithoutRecursiveCopies() throws Throwable {
         for (var kind : TensorCompositionKind.values()) {
-            int count = 80;
+            int count = kind == TensorCompositionKind.CONCAT ? 101 : 84;
             var inputs = Collections.nCopies(count,
                     CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(1)));
             var context = CpuNonAffineMovementLoweringTest.context(new Operation(kind, new CompositionAxisAttrs(0)),
@@ -118,6 +135,11 @@ class CpuSignedVariadicMovementTest {
             int[] output = new int[count]; carriers.add(MemorySegment.ofArray(output));
             invoke(context, carriers, 0, count);
             assertArrayEquals(IntStream.range(0, count).map(i -> i*7).toArray(), output);
+            var overBudget = CpuNonAffineMovementLoweringTest.context(new Operation(kind,
+                    new CompositionAxisAttrs(0)), Collections.nCopies(count + 1, 0), List.of(inputs.getFirst()),
+                    CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32,
+                            kind == TensorCompositionKind.STACK ? Shape.of(count + 1, 1) : Shape.of(count + 1)));
+            assertThrows(IllegalArgumentException.class, () -> new CpuPartitionPreparer().analyze(overBudget));
         }
         var empty = CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(2, 0));
         var context = CpuNonAffineMovementLoweringTest.context(new Operation(TensorCompositionKind.CONCAT,
@@ -138,6 +160,61 @@ class CpuSignedVariadicMovementTest {
         assertThrows(IllegalArgumentException.class, () -> new CpuPartitionPreparer().analyze(tooMany));
         assertFalse(CpuDataMovementIr.withinCompositionBudget(17, 100));
     }
+    @Test void variadicMovementFeedsOrdinaryConsumersBeyondCandidateResourceCeilings() {
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+            for (var kind : TensorCompositionKind.values()) for (int count : new int[]{17, 80}) {
+                Tensor[] inputs = IntStream.range(0, count).mapToObj(i -> tensor(type, false, 2, 1))
+                        .toArray(Tensor[]::new);
+                Tensor composed = kind == TensorCompositionKind.CONCAT
+                        ? Tensor.concat(1, inputs) : Tensor.stack(1, inputs);
+                Tensor output = composed.neg();
+                var artifact = CpuGeneralScanCapabilityTest.compile(List.of(output), Optional.empty(),
+                        false, new CpuCapabilityProvider());
+                try (var consumer = new Consumer(artifact, OptionalLong.empty())) {
+                    for (int i = 0; i < count; i++) consumer.numbers(inputs[i], new double[]{i + 1, i + 101});
+                    consumer.bind(); consumer.execute();
+                    double[] expected = new double[count * 2];
+                    for (int i = 0; i < count; i++) {
+                        expected[i] = -i - 1; expected[count + i] = -i - 101;
+                    }
+                    assertArrayEquals(expected, consumer.forward(0), 0);
+                }
+            }
+    }
+
+    @Test void boundedUnitsWithMoreThanSixtyFourCombinedBoundaryPositionsExecuteDirectly() {
+        Tensor[] inputs = IntStream.range(0, 60).mapToObj(i -> tensor(DataType.FLOAT32, false, 1))
+                .toArray(Tensor[]::new);
+        Tensor[] groups = IntStream.range(0, 5).mapToObj(i ->
+                Tensor.concat(0, Arrays.copyOfRange(inputs, i * 12, (i + 1) * 12))).toArray(Tensor[]::new);
+        Tensor output = Tensor.concat(0, groups).neg();
+        var artifact = CpuGeneralScanCapabilityTest.compile(List.of(output), Optional.empty(),
+                false, new CpuCapabilityProvider());
+        try (var consumer = new Consumer(artifact, OptionalLong.empty())) {
+            for (int i = 0; i < inputs.length; i++) consumer.numbers(inputs[i], new double[]{i + 1});
+            consumer.bind(); consumer.execute();
+            assertArrayEquals(IntStream.range(0, 60).mapToDouble(i -> -i - 1).toArray(),
+                    consumer.forward(0), 0);
+        }
+    }
+    @Test void publicSignedAndEmptySlicesExecuteWithoutDiscardedStrideOverflow() {
+        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64)) for (boolean empty : List.of(false, true)) {
+            Tensor input = tensor(type, false, 1, 2);
+            Tensor output = empty
+                    ? input.sliceByLength(new long[]{0}, new long[]{0}, new int[]{0},
+                            new long[]{Long.MAX_VALUE})
+                    : input.sliceByLength(new long[]{0, 1}, new long[]{1, 2}, new int[]{0, 1},
+                            new long[]{Long.MAX_VALUE, -1});
+            var artifact = CpuGeneralScanCapabilityTest.compile(List.of(output), Optional.empty(),
+                    false, new CpuCapabilityProvider());
+            try (var consumer = new Consumer(artifact, OptionalLong.empty())) {
+                consumer.numbers(input, new double[]{3, 7});
+                consumer.bind(); consumer.execute();
+                assertArrayEquals(empty ? new double[0] : new double[]{7, 3}, consumer.forward(0), 0);
+            }
+        }
+    }
+
 
     @Test void actualSliceAndSliceUpdateAdjointsScatterAndExtractNormalizedCoordinates() {
         for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64)) for (boolean update : List.of(false, true)) {

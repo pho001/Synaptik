@@ -30,6 +30,39 @@ import java.lang.reflect.AccessFlag;
 import org.junit.jupiter.api.Test;
 
 class CpuAffineCopyGeneratedKernelTest {
+    @Test void denseArrayAffineCutoverRejectsOldProjectionAndRetainsSegmentIdentity() throws Throwable {
+        var preparer = new CpuPartitionPreparer();
+        var arrays = preparer.analyze(CpuAffineLayoutLoweringTest.contiguous(DataType.FLOAT64,
+                List.of(CarrierAccess.DOUBLE_ARRAY, CarrierAccess.DOUBLE_ARRAY), 3)).plan()
+                .units().getFirst().portablePlan();
+        var current = arrays.specialization();
+        var old = new CpuKernelSpecialization(current.loweringFingerprint(), current.executionStrategy(),
+                current.boundaryDataTypes(), current.carrierPattern(), current.vectorSpeciesBitSize(),
+                current.materializedSourcePosition(), current.scalarPowerRealizations(), current.scratchParameter());
+        assertNotEquals(old.structuralKey(), current.structuralKey());
+        assertFalse(Arrays.equals(old.compatibilityBytes(), current.compatibilityBytes()));
+        assertFalse(Arrays.equals(old.classIdentityBytes(), current.classIdentityBytes()));
+        var generator = new CpuClassFileKernelGenerator();
+        assertThrows(IllegalArgumentException.class, () -> generator.generateClassBytes(old, arrays.kernelIr()));
+        byte[] bytes = generator.generateClassBytes(current, arrays.kernelIr());
+        var artifact = generator.defineClassBytes(current, arrays.kernelIr(), bytes);
+        assertThrows(IllegalArgumentException.class, () -> generator.defineClassBytes(old, arrays.kernelIr(), bytes));
+        double[] source = {3, 5, 7}, output = {-1, -1, -1};
+        artifact.entryPoint().invokeWithArguments(source, output, new long[]{0, 0, 1, 1, 2, 2}, 0L, 3L);
+        assertArrayEquals(source, output);
+        var segments = preparer.analyze(CpuAffineLayoutLoweringTest.contiguous(DataType.FLOAT64,
+                List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT), 3)).plan()
+                .units().getFirst().portablePlan();
+        var retained = segments.specialization();
+        var previous = new CpuKernelSpecialization(retained.loweringFingerprint(), retained.executionStrategy(),
+                retained.boundaryDataTypes(), retained.carrierPattern(), retained.vectorSpeciesBitSize(),
+                retained.materializedSourcePosition(), retained.scalarPowerRealizations(), retained.scratchParameter());
+        assertArrayEquals(previous.compatibilityBytes(), retained.compatibilityBytes());
+        assertArrayEquals(previous.classIdentityBytes(), retained.classIdentityBytes());
+        generator.defineClassBytes(retained, segments.kernelIr(),
+                generator.generateClassBytes(retained, segments.kernelIr()));
+    }
+
     @Test void controlledAffineNeverLoadsInactiveSourcesAndWritesPositiveZero() throws Throwable {
         var plan = new CpuPartitionPreparer().analyze(CpuAffineLayoutLoweringTest.contiguous(
                 DataType.FLOAT64, List.of(CarrierAccess.DOUBLE_ARRAY,

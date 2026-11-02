@@ -165,7 +165,8 @@ public sealed interface CpuRepresentationDecision permits CpuRepresentationDecis
      * @param representationCost checked direct-or-copied representation cost
      * @param comparisonScore checked sum of topology and representation costs
      * @param copiedBytes combined copied workspace bytes
-     * @param resourceCount exact candidate resource count
+     * @param resourceCount exact candidate resource count, bounded by the validated topology's
+     *     materialized boundary positions and intrinsic workspaces plus selected copies
      * @param stableTopologyRank stable CPU 0008D topology rank
      * @param canonicalSplit whether the topology is canonical split
      * @param compatibilityBaseline whether the topology is the CPU 0008B baseline
@@ -188,9 +189,14 @@ public sealed interface CpuRepresentationDecision permits CpuRepresentationDecis
             netBenefit = Objects.requireNonNull(netBenefit, "netBenefit");
             benefitBasisPoints = Objects.requireNonNull(benefitBasisPoints, "benefitBasisPoints");
             boolean direct = identity.materializations().isEmpty();
+            int resourceCeiling = identity.materializations().size();
+            for (var unit : identity.topology().units()) {
+                resourceCeiling = Math.addExact(resourceCeiling, unit.boundaries().size());
+                if (unit.workspace().isPresent()) resourceCeiling = Math.addExact(resourceCeiling, 1);
+            }
             if (representationCost < 0 || comparisonScore != Math.addExact(topologyScore,
                     representationCost) || copiedBytes < 0 || resourceCount < 0
-                    || resourceCount > 74 || stableTopologyRank < 0
+                    || resourceCount > resourceCeiling || stableTopologyRank < 0
                     || direct != selectedDirectCost.isEmpty()
                     || selectedDirectCost.isPresent() != selectedCopiedCost.isPresent()
                     || selectedDirectCost.isPresent() != netBenefit.isPresent()

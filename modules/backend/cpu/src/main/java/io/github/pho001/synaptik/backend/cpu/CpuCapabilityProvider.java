@@ -326,11 +326,10 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
      * support. Symbolic expressions and
      * arbitrary-rank operations reject; actual numeric bounds and complete forward/derivative
      * closure remain later checks.
-     * Other dynamic or unresolved geometry, negative-step extraction slices, non-injective
-     * movement outputs, and all rows outside the implemented matrix return {@code false} without
-     * defining conversion or fallback behavior. Negative and non-unit steps are supported for
-     * {@code SLICE_UPDATE}; they describe logical placement and do not create a negative storage
-     * stride.
+     * Other dynamic or unresolved geometry, non-injective movement outputs, and all rows outside
+     * the implemented matrix return {@code false} without defining conversion or fallback behavior.
+     * Signed extraction and update steps describe logical coordinates, not physical storage
+     * strides. Negative-step and empty extractions require canonical non-view storage.
      * CPU's temporary BFLOAT16/FLOAT16 numerical lock is checked before every family proof;
      * represented-value, storage, cast and control roles retain their existing predicates.
      *
@@ -1621,8 +1620,9 @@ public final class CpuCapabilityProvider implements BackendCapabilityProvider {
             long[] shape = input.shape().toLongArray();
             long[] strides = inputLayout.strides();
             long offset = inputLayout.storageOffset();
-            boolean materialized = attrs instanceof SliceAttrs signed
-                    && signed.steps().stream().anyMatch(step -> step < 0);
+            boolean materialized = output.shape().knownElementCount().orElseThrow() == 0
+                    || attrs instanceof SliceAttrs signed
+                        && signed.steps().stream().anyMatch(step -> step < 0);
             if (attrs instanceof SliceAttrs slice) {
                 for (int i = 0; i < slice.axes().size(); i++) {
                     int axis = slice.axes().get(i); long step = slice.steps().get(i);

@@ -2228,6 +2228,13 @@ public final class CpuClassFileKernelGenerator {
         boolean pointwise = kernelIr.familyIdentity().equals("pointwise")
                 || specialization.ordinaryBatch() && (kernelIr.familyIdentity().equals("pointwise:ordinary-batch-v1")
                     || typedBatch && kernelIr.familyIdentity().startsWith("pointwise:mapping="));
+        boolean denseArrayAffine = kernelIr.familyIdentity().startsWith("affine:")
+                && specialization.loopAddressing(kernelIr)
+                    == CpuKernelSpecialization.LoopAddressing.DENSE_HEAP_ARRAY_INT;
+        if (denseArrayAffine != (specialization.classIdentitySchema()
+                == CpuKernelSpecialization.DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA)) {
+            throw new IllegalArgumentException("affine empty-range compatibility projection disagrees");
+        }
         boolean bfloatPointwise = pointwise && kernelIr.values().stream().anyMatch(value ->
                 value.dataType() == io.github.pho001.synaptik.model.datatype.DataType.BFLOAT16);
         boolean float16Pointwise = pointwise && kernelIr.values().stream().anyMatch(value ->

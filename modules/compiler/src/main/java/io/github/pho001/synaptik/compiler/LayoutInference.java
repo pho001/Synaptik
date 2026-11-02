@@ -25,7 +25,10 @@ import java.util.Optional;
  *
  * <p>Finite {@code SliceAttrs} regions derive exact static selected lengths. Each non-empty signed
  * coordinate sequence is proved within its source extent or retained as an occurrence-local
- * upper-bound constraint; an empty sequence needs no bound. {@code CropToShapeAttrs} extraction
+ * upper-bound constraint; an empty sequence needs no bound. Only nonempty all-positive extraction
+ * composes physical view strides, after every coordinate guard. Signed/empty extraction remains
+ * layout-unresolved without computing discarded view geometry; placement never composes a view.
+ * {@code CropToShapeAttrs} extraction
  * returns the exact target Shape, while placement validates the update against that target and
  * returns the exact base Shape. Both retain one {@code prefix + target <= base} obligation per axis
  * when it cannot yet be proved. After this owner independently infers crop type/Shape and records
@@ -151,8 +154,6 @@ final class LayoutInference {
         SliceAttrs attrs = (SliceAttrs) raw;
         List<Dimension> dimensions = new ArrayList<>(base.shape().dimensions());
         List<CapturedGraphInference.ConstraintRequest> constraints = new ArrayList<>();
-        long offset = base.layout().map(LayoutDescriptor::storageOffset).orElse(0L);
-        long[] strides = base.layout().map(LayoutDescriptor::strides).orElse(null);
         for (int index = 0; index < attrs.axes().size(); index++) {
             int selectedAxis = attrs.axes().get(index);
             axis(base.shape(), selectedAxis);
@@ -172,13 +173,6 @@ final class LayoutInference {
                                 0, new StaticDimension(upperBound),
                                 base.shape().dimension(selectedAxis))));
             }
-            if (strides != null && step > 0) {
-                offset = Math.addExact(
-                        offset, Math.multiplyExact(attrs.starts().get(index), strides[selectedAxis]));
-                strides[selectedAxis] = Math.multiplyExact(strides[selectedAxis], step);
-            } else if (step < 0) {
-                strides = null;
-            }
         }
         Shape result = Shape.ofDimensions(dimensions.toArray(Dimension[]::new));
         if (kind == SliceKind.SLICE_UPDATE) {
@@ -193,10 +187,19 @@ final class LayoutInference {
                             base.requiresGrad() || update.requiresGrad())),
                     constraints);
         }
-        Optional<LayoutDescriptor> layout = strides == null
-                        || result.knownElementCount().orElseThrow() == 0
-                ? Optional.empty()
-                : Optional.of(LayoutDescriptor.of(result, strides, offset, true));
+        Optional<LayoutDescriptor> layout = Optional.empty();
+        if (base.layout().isPresent() && attrs.steps().stream().allMatch(step -> step > 0)
+                && result.knownElementCount().orElseThrow() != 0) {
+            LayoutDescriptor source = base.layout().orElseThrow();
+            long offset = source.storageOffset();
+            long[] strides = source.strides();
+            for (int index = 0; index < attrs.axes().size(); index++) {
+                int axis = attrs.axes().get(index);
+                offset = Math.addExact(offset, Math.multiplyExact(attrs.starts().get(index), strides[axis]));
+                strides[axis] = Math.multiplyExact(strides[axis], attrs.steps().get(index));
+            }
+            layout = Optional.of(LayoutDescriptor.of(result, strides, offset, true));
+        }
         return new CapturedGraphInference.InferenceResult(
                 List.of(new TensorDescriptor(
                         base.dataType(), result, layout, base.requiresGrad())),

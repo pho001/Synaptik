@@ -15,9 +15,9 @@ import java.lang.constant.MethodTypeDesc;
  * <p>The general generated loop reads cold-composed source addresses for the requested half-open
  * range. A proved dense result loads its initial address once and advances a unit-stride result
  * cursor; other results retain per-element cold-composed result-address lookup. When
- * specialization proves two dense heap arrays with unit-stride affine
- * progressions, the generated entry narrows its bounds and first address pair once and advances
- * direct integer array indexes. Both forms transfer primitive payloads without conversion and do
+ * specialization proves two dense heap arrays with unit-stride affine progressions, the generated
+ * entry checks for an empty half-open range before loading its first address pair, then narrows its
+ * bounds and advances direct integer array indexes. Both forms transfer primitive payloads without conversion and do
  * not inspect a Shape, layout, operation, route, or carrier kind at runtime. One additional
  * completely guarded raw-BFLOAT16 segment-to-short-array body covers the frozen
  * {@code [256,32,32]} PERMUTE/SLICE mapping. It accepts every legal half-open logical range,
@@ -442,11 +442,12 @@ final class CpuAffineCopyEmitter {
         int resultAddress = code.allocateLocal(TypeKind.INT);
         code.lload(3).l2i().istore(index);
         code.lload(5).l2i().istore(end);
+        var done = code.newLabel();
+        code.iload(index).iload(end).branch(Opcode.IF_ICMPGE, done);
         code.aload(2).iload(index).loadConstant(2).imul().laload().l2i().istore(sourceAddress);
         code.aload(2).iload(index).loadConstant(2).imul().loadConstant(1).iadd()
                 .laload().l2i().istore(resultAddress);
         var carriers = new CpuCarrierEmitter(code);
-        var done = code.newLabel();
         var loop = code.newLabel();
         code.labelBinding(loop);
         code.iload(index).iload(end).branch(Opcode.IF_ICMPGE, done);

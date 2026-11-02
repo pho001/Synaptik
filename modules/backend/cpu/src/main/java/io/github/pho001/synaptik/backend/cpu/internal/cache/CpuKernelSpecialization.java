@@ -42,7 +42,8 @@ import jdk.incubator.vector.LongVector;
  * @param scalarPowerRealizations non-null ordered realization facts for every scalar-power
  *     instruction in canonical instruction order; copied defensively
  * @param scratchParameter whether the generated entry accepts one exact CPU scratch segment
- * @param classIdentitySchema schema projection used only for the generated class identity;
+ * @param classIdentitySchema generated family projection; projection 73 additionally appends
+ *     the selective dense-array affine empty-range marker to both identity streams;
  *     {@code 52} for unchanged families, {@code 54} for MATMUL, {@code 55} for Pool2d,
  *     {@code 56} for Pool3d, {@code 57} for attention, {@code 58} for direct loss bodies,
  *     {@code 59} for scalar BFLOAT16 pointwise bodies without cross-type CAST, and {@code 60}
@@ -52,7 +53,8 @@ import jdk.incubator.vector.LongVector;
  *     for the proved direct dense FLOAT32/FLOAT64 Conv2d/Conv3d output-width vector realization;
  *     width stride and dilation are one, while non-width stride and dilation remain eligible;
  *     {@code 71} is the typed segment-only general-scan family; {@code 72} is exclusively an
- *     ordinary F32/F64 row-map/multiple-terminal full-body region, scalar v1 or selected exec-v1
+ *     ordinary F32/F64 row-map/multiple-terminal full-body region, scalar v1 or selected exec-v1;
+ *     {@code 73} is exclusively a dense heap-array affine copy with an empty-range entry guard
  * @param matmulIr exact typed MATMUL code-shaping facts, or empty for every unchanged family
  * @param generalScanIr exact homogeneous FLOAT32/FLOAT64 body facts with optional separate
  *     INT64 length control, present only for family
@@ -82,6 +84,9 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         Optional<io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateFusionIr> aggregateFusionIr,
         Optional<io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSoftmaxBackwardIr> softmaxBackwardIr,
         List<CompositionUnit> compositionUnits) {
+    /** Affected-only affine identity projection; the generator envelope remains unchanged. */
+    public static final int DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA = 73;
+
     /**
      * Retains the standalone specialization constructor and its unchanged identity stream.
      *
@@ -661,9 +666,9 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
                 && classIdentitySchema != 58 && classIdentitySchema != 59
                 && classIdentitySchema != 60 && classIdentitySchema != 61
                 && classIdentitySchema != 62 && classIdentitySchema != 63
-                && classIdentitySchema != 68 && classIdentitySchema != 71 && classIdentitySchema != 72) {
-            throw new IllegalArgumentException(
-                    "class identity schema must be 52, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, or 68");
+                && classIdentitySchema != 68 && classIdentitySchema != 71 && classIdentitySchema != 72
+                && classIdentitySchema != DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA) {
+            throw new IllegalArgumentException("unsupported CPU generated class identity projection");
         }
         if ((classIdentitySchema == 71) != generalScanIr.isPresent())
             throw new IllegalArgumentException("scan family projection requires typed scan facts");
@@ -835,7 +840,9 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
                 + aggregateFusionIr.map(f -> "|ordinary-aggregate-fusion-v1="+f.bakedSpecializationIdentity()).orElse("")
                 + softmaxBackwardIr.map(f -> "|ordinary-softmax-backward-v1="+f.bakedSpecializationIdentity()).orElse("")
                 + compositionIdentity()
-                + rowExecutionIdentity() + scalarRowReuseIdentity() + invariantRowStagingIdentity())
+                + rowExecutionIdentity() + scalarRowReuseIdentity() + invariantRowStagingIdentity()
+                + (classIdentitySchema == DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA
+                    ? "|affine-dense-array-empty-range-v1" : ""))
                 .getBytes(StandardCharsets.US_ASCII);
     }
     /**
@@ -885,7 +892,9 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
                 + aggregateFusionIr.map(f -> "|ordinary-aggregate-fusion-v1="+f.bakedSpecializationIdentity()).orElse("")
                 + softmaxBackwardIr.map(f -> "|ordinary-softmax-backward-v1="+f.bakedSpecializationIdentity()).orElse("")
                 + compositionIdentity()
-                + rowExecutionIdentity() + scalarRowReuseIdentity() + invariantRowStagingIdentity())
+                + rowExecutionIdentity() + scalarRowReuseIdentity() + invariantRowStagingIdentity()
+                + (classIdentitySchema == DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA
+                    ? "|affine-dense-array-empty-range-v1" : ""))
                 .getBytes(StandardCharsets.US_ASCII);
     }
 

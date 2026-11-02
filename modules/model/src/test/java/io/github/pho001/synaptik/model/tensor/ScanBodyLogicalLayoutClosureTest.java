@@ -220,12 +220,30 @@ class ScanBodyLogicalLayoutClosureTest {
     }
 
     @Test
-    void negativeEmptyAndUnprovedExtractionsStayUnresolved() {
+    void signedAndEmptySlicesMaterializeOnlyAtTheExplicitLayoutBoundary() {
+        for (var type : DataType.values()) {
+            TensorDescriptor input = resolved(type, Shape.of(4, 6), false, 5, 20, 2);
+            for (var attrs : List.of(
+                    new SliceAttrs(List.of(3L), List.of(4L), List.of(0), List.of(-1L)),
+                    new SliceAttrs(List.of(0L), List.of(0L), List.of(0), List.of(1L)),
+                    new SliceAttrs(List.of(0L), List.of(0L), List.of(0), List.of(Long.MIN_VALUE)),
+                    new SliceAttrs(List.of(0L), List.of(1L), List.of(0), List.of(Long.MIN_VALUE)))) {
+                var operation = new Operation(SliceKind.SLICE, attrs);
+                var ordinary = ScanBody.describeOrdinary(operation, List.of(input), 1);
+                assertTrue(ordinary.getFirst().layout().isEmpty());
+                var closed = ScanBody.closeOrdinaryLayouts(operation, List.of(input), ordinary).getFirst();
+                assertCanonical(closed);
+                assertMetadataUnchanged(ordinary.getFirst(), closed);
+                assertTrue(ordinary.getFirst().layout().isEmpty());
+                assertSame(closed, ScanBody.closeOrdinaryLayouts(operation, List.of(input),
+                        List.of(closed)).getFirst());
+            }
+        }
+    }
+
+    @Test
+    void unprovedExtractionsStayUnresolved() {
         TensorDescriptor input = resolved(DataType.FLOAT32, Shape.of(4, 6), true, 5, 20, 2);
-        assertUnresolved(new Operation(SliceKind.SLICE,
-                new SliceAttrs(List.of(3L), List.of(4L), List.of(0), List.of(-1L))), input);
-        assertUnresolved(new Operation(SliceKind.SLICE,
-                new SliceAttrs(List.of(0L), List.of(0L), List.of(0), List.of(1L))), input);
         assertUnresolved(new Operation(SliceKind.SLICE,
                 new CropToShapeAttrs(Shape.of(0, 2), Shape.of(1, 1))), input);
         assertUnresolved(new Operation(SliceKind.SLICE, new CropToShapeAttrs(Shape.of(2, 2),

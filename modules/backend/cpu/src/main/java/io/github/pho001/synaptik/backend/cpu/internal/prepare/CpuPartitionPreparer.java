@@ -133,8 +133,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
 
     /**
      * Lowers and fuses one complete CPU-owned partition, selects a bounded complete plan when
-     * available or a direct long plan, and declares exact post-fusion resources. The direct path
-     * has no whole-partition node ceiling and makes no complete-candidate or copy-tuning claim.
+     * available or a direct decomposed plan, and declares exact post-fusion resources. The direct
+     * path has no whole-partition node/boundary ceiling and makes no complete-candidate or copy-tuning claim.
      * Qualified symbolic partitions retain fixed scalar, single-range ordinary units and
      * independently proved Scan units. Their exact run-size declarations precede slot assignment;
      * invocation B never selects topology, a route or new shared requirements.
@@ -170,14 +170,14 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         Objects.requireNonNull(context, "context");
         requirePermittedSource(context);
         if (context.requiresBatchSize()) return analyzeOrdinaryBatch(context);
+        var units = decomposer.decompose(context, lowering);
         if (!context.constants().isEmpty()) {
-            var units = decomposer.decompose(context, lowering);
             if (units.stream().anyMatch(u -> u.lowering().portableKernelIr()
                     instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConstantWriteIr))
                 return withMetadata(context, analyzeTopology(context, units, null), List.of(), List.of(), null);
         }
-        if (directPartition(context)) return analyzeLongPartition(context);
-        return finishOpenBlas(context, selectPlan(context, Optional.empty()).analysis());
+        if (directPartition(context, units)) return analyzeDirectPartition(context, units);
+        return finishOpenBlas(context, selectPlan(context, Optional.empty(), units).analysis());
     }
 
     /**
@@ -376,20 +376,21 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     }
 
     /**
-     * Analyzes a long or scan-containing partition directly without bounded complete-plan enumeration or
-     * representation copies. The selected portable units preserve the full partition topology;
-     * all distinct buffer and unit-indexed intrinsic-workspace declarations are assembled before
+     * Analyzes a partition outside bounded complete-plan enumeration or representation copies,
+     * including variadic ordinary units exceeding its per-unit or aggregate boundary ceilings.
+     * All distinct buffer and unit-indexed intrinsic-workspace declarations are assembled before
      * shared slot assignment.
      *
-     * @param context non-null CPU partition context containing a scan or more than eight nodes
+     * @param context non-null complete CPU partition context outside bounded candidate discovery
+     * @param units exact already-lowered complete direct decomposition
      * @return immutable portable analysis with exact distinct buffers and unit-indexed workspaces;
      *     never {@code null}
      * @throws IllegalArgumentException if any node, projection, or declaration is unsupported
      * @throws ArithmeticException if exact resource geometry overflows
      */
-    private BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeLongPartition(
-            PrepareContext<CpuPartitionAnalysisInputs> context) {
-        List<CpuPartitionDagDecomposer.Unit> units = decomposer.decompose(context, lowering);
+    private BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeDirectPartition(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            List<CpuPartitionDagDecomposer.Unit> units) {
         var analysis = analyzeTopology(context, units, null);
         return withMetadata(context, analysis, List.of(), List.of(), null);
     }
@@ -402,8 +403,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      *
      * @param context non-null complete CPU analysis context; inspected but not mutated
      * @return a new immutable candidate-identity snapshot and its exact completeness outcome;
-     *     for scan-containing or over-eight-node partitions, the valid direct plan is analyzed but the identity list is
-     *     empty and completeness is false
+     *     for partitions outside the bounded topology/resource protocol, the valid direct plan
+     *     is analyzed but the identity list is empty and completeness is false
      * @throws NullPointerException if {@code context} is {@code null}
      * @throws IllegalArgumentException if analysis facts are unsupported or inconsistent
      * @throws ArithmeticException if exact candidate or resource arithmetic overflows
@@ -412,12 +413,12 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             PrepareContext<CpuPartitionAnalysisInputs> context) {
         Objects.requireNonNull(context, "context");
         requirePermittedSource(context);
-        if (directPartition(context)) {
-            analyzeLongPartition(context);
+        var units = decomposer.decompose(context, lowering);
+        if (directPartition(context, units)) {
+            analyzeDirectPartition(context, units);
             return new CompletePlanCandidates(List.of(), false);
         }
-        SelectionAnalysis selected = selectPlan(Objects.requireNonNull(context, "context"),
-                Optional.empty());
+        SelectionAnalysis selected = selectPlan(context, Optional.empty(), units);
         List<CpuRepresentationDecision.Variant>
                 variants = selected.representation().decisions().stream()
                 .filter(CpuRepresentationDecision.Variant.class::isInstance)
@@ -446,7 +447,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      *     plan
      * @throws NullPointerException if an argument is {@code null}
      * @throws IllegalArgumentException if the selected identity is no longer retained or the
-     *     complete partition contains a direct scan or exceeds the eight-node selection domain
+     *     complete partition is outside bounded topology/resource discovery
      * @throws ArithmeticException if exact plan or resource arithmetic overflows
      */
     public BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeSelected(
@@ -455,10 +456,10 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         Objects.requireNonNull(selectedPlan, "selectedPlan");
         Objects.requireNonNull(context, "context");
         requirePermittedSource(context);
-        if (directPartition(context)) throw new IllegalArgumentException(
-                "complete CPU plan selection is unavailable for direct scan or over-eight-node partitions");
-        return finishOpenBlas(context, selectPlan(Objects.requireNonNull(context, "context"),
-                Optional.of(selectedPlan)).analysis());
+        var units = decomposer.decompose(context, lowering);
+        if (directPartition(context, units)) throw new IllegalArgumentException(
+                "complete CPU plan selection is unavailable outside bounded topology/resource discovery");
+        return finishOpenBlas(context, selectPlan(context, Optional.of(selectedPlan), units).analysis());
     }
 
     private BackendPartitionAnalysis<CpuPartitionPreparationPlan> finishOpenBlas(
@@ -469,9 +470,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     }
 
     private SelectionAnalysis selectPlan(PrepareContext<CpuPartitionAnalysisInputs> context,
-            Optional<SelectedCompletePlan> explicitSelection) {
+            Optional<SelectedCompletePlan> explicitSelection,
+            List<CpuPartitionDagDecomposer.Unit> baseline) {
         Objects.requireNonNull(context, "context");
-        List<CpuPartitionDagDecomposer.Unit> baseline = decomposer.decompose(context, lowering);
         BackendPartitionAnalysis<CpuPartitionPreparationPlan> baselineAnalysis =
                 analyzeTopology(context, baseline, null);
         List<CpuSpecializedSubgraph> recognition = recognizer.recognize(context,
@@ -505,11 +506,11 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
 
     /**
      * Bounded retained complete-plan candidates. An incomplete result cannot form a public
-     * tuning batch; a long direct partition reports an empty identity list and {@code false}.
+     * tuning batch; a direct partition reports an empty identity list and {@code false}.
      * @param identities non-null ordered retained topology/representation identities;
      *     defensively snapshotted
-     * @param complete whether every bounded alternative was proved complete; false for a long
-     *     partition outside the complete-candidate domain
+     * @param complete whether every bounded alternative was proved complete; false for a
+     *     partition outside the complete-candidate topology/resource domain
      */
     public record CompletePlanCandidates(
             List<CpuRepresentationDecision.VariantIdentity> identities,
@@ -1271,7 +1272,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      * @param convVector whether the qualified direct-convolution vector projection applies
      * @param vectorType selected vector lane type, nullable for scalar
      * @param rowEmission selected row execution facts, empty for inline ordinary helpers
-     * @return unchanged ordinary specialization projection for these structural facts
+     * @return exact ordinary specialization; dense heap affine copies alone use projection 73
+     *     and its selective empty-range compatibility marker
      */
     private static CpuKernelSpecialization ordinarySpecialization(CpuKernelIr kernel,
             io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPortableKernelIr ir,
@@ -1292,7 +1294,13 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 ? Optional.of(value) : Optional.<io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAggregateFusionIr>empty();
         var backward = ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSoftmaxBackwardIr value
                 ? Optional.of(value) : Optional.<io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSoftmaxBackwardIr>empty();
+        boolean denseArrayAffine = ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAffineCopyIr
+                && !carriers.contains(CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
+                && kernel.values().stream().allMatch(value ->
+                        value.accessPlan().regime() == CpuAccessPlan.Regime.DENSE_LINEAR
+                        || value.accessPlan().regime() == CpuAccessPlan.Regime.SCALAR_ALL_ZERO);
         int schema = row.isPresent() ? 72 : convVector ? 63
+                : denseArrayAffine ? CpuKernelSpecialization.DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA
                 : ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAttentionIr ? 57
                 : ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool3dIr ? 56
                 : ir instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool2dIr ? 55
@@ -1332,14 +1340,28 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     }
 
     /**
-     * Identifies partitions outside complete generated-plan discovery.
+     * Identifies direct decompositions outside complete generated-plan discovery. This is a
+     * candidate-protocol limit, not a limit on supported ordinary graphs or variadic movement.
+     * One indivisible single occurrence retains its independently checked wider entry budget;
+     * all other bounded candidates keep sixteen boundaries per unit and sixty-four in total.
      * @param context non-null complete CPU projection, inspected without reading storage
-     * @return whether a scan or more than eight nodes requires the direct decomposition path
+     * @param units exact already-lowered complete direct decomposition
+     * @return whether the complete decomposition requires direct analysis without candidate facts
      */
-    private static boolean directPartition(PrepareContext<CpuPartitionAnalysisInputs> context) {
-        return context.nodes().size() > 8 || context.nodes().stream().anyMatch(n ->
+    private static boolean directPartition(PrepareContext<CpuPartitionAnalysisInputs> context,
+            List<CpuPartitionDagDecomposer.Unit> units) {
+        if (context.nodes().size() > 8 || context.nodes().stream().anyMatch(n ->
                 n.operation().kind() instanceof io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind
-                || n.operation().kind() == io.github.pho001.synaptik.model.operation.scan.ScanKind.SCAN);
+                || n.operation().kind() == io.github.pho001.synaptik.model.operation.scan.ScanKind.SCAN)) return true;
+        if (units.size() == 1 && units.getFirst().nodes().size() == 1
+                && !units.getFirst().pointwise()) return false;
+        int boundaryPositions = 0;
+        for (var unit : units) {
+            int count = unit.lowering().boundaryValues().size();
+            if (count > 16) return true;
+            boundaryPositions = Math.addExact(boundaryPositions, count);
+        }
+        return boundaryPositions > 64;
     }
     /** Authenticates source roles, including every nested body, before resource declarations. */
     private static void requirePermittedSource(PrepareContext<CpuPartitionAnalysisInputs> context) {

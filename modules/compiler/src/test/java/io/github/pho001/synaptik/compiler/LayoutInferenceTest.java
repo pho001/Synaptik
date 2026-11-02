@@ -16,6 +16,34 @@ import org.junit.jupiter.api.Test;
 
 final class LayoutInferenceTest {
     @Test
+    void signedAndEmptySlicesDoNotComputeDiscardedPositiveViewStrides() {
+        Shape shape = Shape.of(1, 2);
+        TensorDescriptor source = new TensorDescriptor(DataType.FLOAT32, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false);
+        for (var attrs : List.of(
+                new SliceAttrs(List.of(0L, 1L), List.of(1L, 2L), List.of(0, 1),
+                        List.of(Long.MAX_VALUE, -1L)),
+                new SliceAttrs(List.of(0L), List.of(0L), List.of(0), List.of(Long.MAX_VALUE)))) {
+            var operation = new Operation(SliceKind.SLICE, attrs);
+            var inferred = LayoutInference.infer(operation, List.of(source)).outputs().getFirst();
+            assertTrue(inferred.layout().isEmpty());
+            var input = TensorFactory.create(source);
+            long[] starts = attrs.starts().stream().mapToLong(Long::longValue).toArray();
+            long[] lengths = attrs.lengths().stream().mapToLong(Long::longValue).toArray();
+            int[] axes = attrs.axes().stream().mapToInt(Integer::intValue).toArray();
+            long[] steps = attrs.steps().stream().mapToLong(Long::longValue).toArray();
+            var extracted = input.sliceByLength(starts, lengths, axes, steps);
+            var replacement = TensorFactory.create(new TensorDescriptor(source.dataType(), inferred.shape(),
+                    Optional.of(LayoutDescriptor.contiguous(inferred.shape())), false));
+            var updated = input.sliceUpdate(replacement, starts, axes, steps);
+            assertDoesNotThrow(() -> CapturedGraphInference.inferAndValidate(
+                    GraphCapture.capture(List.of(extracted, updated))));
+            var closed = ScanBody.closeOrdinaryLayouts(operation, List.of(source), List.of(inferred)).getFirst();
+            assertEquals(LayoutDescriptor.contiguous(inferred.shape()), closed.layout().orElseThrow());
+        }
+    }
+
+    @Test
     void emitsOrderedBindingAwareExpandPredicatesAndLeavesLayoutUnresolved() {
         DynamicDimension n = new DynamicDimension("N");
         DynamicDimension m = new DynamicDimension("M");

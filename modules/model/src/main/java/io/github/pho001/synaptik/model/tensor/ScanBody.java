@@ -681,8 +681,10 @@ public final class ScanBody {
      * separately qualified static Conv2d/Conv3d results receive canonical non-view geometry.
      * Existing family helpers provide exact affine views; the existing noncontiguous-static
      * RESHAPE materialization decision applies only when no such view is proved. Positive static
-     * crop uses its family-owned layout recipe. Named, negative-step, empty and otherwise
-     * unproved extraction layouts remain unresolved. Every resolved layout is preserved.</p>
+     * crop uses its family-owned layout recipe. Validated fully static signed-step and empty
+     * slices receive canonical non-view geometry instead of negative strides or an empty view.
+     * Named and otherwise unproved extraction layouts remain unresolved. Every resolved layout
+     * is preserved.</p>
      *
      * <p>Inputs are the current topologically resolved operands, not replacements for caller or
      * formal descriptors. Types, Shapes, gradient flags and canonical result ordering are
@@ -734,6 +736,13 @@ public final class ScanBody {
             layout = inferred.layout();
             if (layout.isEmpty() && kind == ShapeTransformKind.RESHAPE
                     && input.shape().isFullyStatic() && !input.layout().orElseThrow().isContiguous()) {
+                layout = Optional.of(LayoutDescriptor.contiguous(output.shape()));
+            }
+            if (layout.isEmpty() && kind == SliceKind.SLICE
+                    && operation.attrs() instanceof SliceAttrs slice
+                    && input.shape().isFullyStatic()
+                    && (slice.steps().stream().anyMatch(step -> step < 0)
+                        || output.shape().knownElementCount().orElseThrow() == 0)) {
                 layout = Optional.of(LayoutDescriptor.contiguous(output.shape()));
             }
         }

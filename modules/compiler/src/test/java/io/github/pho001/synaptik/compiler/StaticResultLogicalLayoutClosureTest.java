@@ -374,7 +374,7 @@ final class StaticResultLogicalLayoutClosureTest {
     }
 
     @Test
-    void leavesNegativeEmptyUnknownDynamicAndAlreadyResolvedExtractionsUntouched() {
+    void materializesStaticSignedAndEmptySlicesButPreservesUnprovedAndResolvedExtractions() {
         Shape matrix = Shape.of(2, 3);
         Shape dynamic = Shape.ofDimensions(new DynamicDimension("N"), new StaticDimension(3));
         LayoutDescriptor canonical = LayoutDescriptor.contiguous(matrix);
@@ -401,7 +401,16 @@ final class StaticResultLogicalLayoutClosureTest {
                 id(0), new TensorId(700), id(1), new TensorId(701),
                 id(2), new TensorId(702), id(8), new TensorId(708)));
 
-        assertSame(source, StaticResultLogicalLayoutClosure.close(source));
+        var result = StaticResultLogicalLayoutClosure.close(source);
+        assertEquals(LayoutDescriptor.contiguous(matrix),
+                result.graph().values().get(3).descriptor().layout().orElseThrow());
+        assertEquals(LayoutDescriptor.contiguous(Shape.of(2, 0)),
+                result.graph().values().get(4).descriptor().layout().orElseThrow());
+        for (int index : List.of(0, 1, 2, 5, 6, 7, 8, 9))
+            assertSame(source.graph().values().get(index), result.graph().values().get(index));
+        assertTrue(source.graph().values().get(3).descriptor().layout().isEmpty());
+        assertTrue(source.graph().values().get(4).descriptor().layout().isEmpty());
+        assertSame(source.graph().nodes().getFirst(), result.graph().nodes().getFirst());
     }
 
     @Test
