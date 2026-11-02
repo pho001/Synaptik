@@ -31,9 +31,9 @@ final class MetalFloat32MathNativeTest {
 
     @Test
     void unaryClassesSignsAndOrdinaryValuesFollowNamedFloat32Sites() {
-        float[] input = {-Float.MAX_VALUE, -32f, -8f, -4f, -2f, -1f,
+        float[] input = {-Float.MAX_VALUE, -100f, -88f, -32f, -8f, -4f, -2f, -1f,
                 Math.nextUp(-1f), -0.5f, -0.125f, -0.0f, 0.0f, 0.125f, 0.5f,
-                1f, 2f, 4f, 8f, 32f, Float.MAX_VALUE,
+                1f, 2f, 4f, 8f, 32f, 88f, 100f, Float.MAX_VALUE,
                 Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY, Float.NaN};
         for (var kind : UNARY) {
             float[] actual = execute(unary(kind),
@@ -47,12 +47,12 @@ final class MetalFloat32MathNativeTest {
     }
 
     @Test
-    void log1pAndExpm1DoNotLoseNearZeroResultsToRoundedUnitArithmetic() {
+    void cancellationSensitiveElementarySitesRetainNearZeroResults() {
         float[] input = {-0x1p-80f, -0x1p-40f, -0x1p-25f, -0x1p-24f,
                 -0x1p-20f, -0.0001f, -0.0f, 0.0f,
                 0x1p-80f, 0x1p-40f, 0x1p-25f, 0x1p-24f, 0x1p-20f, 0.0001f};
         for (var kind : List.of(MetalMpsGraphProgram.NodeKind.LOG1P,
-                MetalMpsGraphProgram.NodeKind.EXPM1)) {
+                MetalMpsGraphProgram.NodeKind.EXPM1, MetalMpsGraphProgram.NodeKind.TANH)) {
             float[] actual = execute(unary(kind),
                     List.of(value(input.length), value(input.length)),
                     new int[] {0}, 1, List.of(input));

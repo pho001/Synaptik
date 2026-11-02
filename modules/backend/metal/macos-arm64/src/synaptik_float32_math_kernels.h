@@ -122,10 +122,16 @@ static NSString *const SynaptikFloat32MathKernelSource =
 "    float e = synaptik_f32_exp(x);\n"
 "    return e / (1.0f + e);\n"
 "}\n"
+/* Evaluate tanh through a nonpositive exponential argument. EXPM1 retains the
+ * small magnitude without cancellation; exp never overflows for finite inputs.
+ * Doubling a very large magnitude can reach -infinity, whose EXPM1 is exactly
+ * -1, giving the correctly rounded saturated unit without an inf/inf quotient. */
 "inline float synaptik_f32_tanh(float x) {\n"
 "    if (isnan(x) || x == 0.0f) return x;\n"
 "    if (isinf(x)) return copysign(1.0f, x);\n"
-"    return metal::tanh(x);\n"
+"    float delta = synaptik_f32_expm1(-2.0f * fabs(x));\n"
+"    float magnitude = -delta / (2.0f + delta);\n"
+"    return copysign(magnitude, x);\n"
 "}\n"
 "inline float synaptik_f32_gelu(float x) {\n"
 "    if (isnan(x) || x == 0.0f) return x;\n"
