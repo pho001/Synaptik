@@ -245,7 +245,8 @@ class CpuPointwiseGeneratedKernelTest {
         }
     }
 
-    @Test void coveredActivationsPreserveRawBitsAcrossExceptionalAndFiniteInputs() throws Throwable {
+    /** Arithmetic NaNs retain their class; all other represented results stay raw-exact. */
+    @Test void coveredActivationsPreserveClassesAndNonNanRawBitsAcrossExceptionalAndFiniteInputs() throws Throwable {
         long[] doubleBits = {0L, Long.MIN_VALUE, 1L, Long.MIN_VALUE | 1L,
                 0x7ff0000000000000L, 0xfff0000000000000L, 0x7ff0000000000042L,
                 0xfff8000000000042L, 0x7fefffffffffffffL, 0xffefffffffffffffL,
@@ -257,20 +258,23 @@ class CpuPointwiseGeneratedKernelTest {
             double[] doubles = Arrays.stream(doubleBits).mapToDouble(Double::longBitsToDouble).toArray();
             double[] expectedDoubles = referenceUnary(opcode, doubles);
             double[] actualDoubles = (double[]) invokeUnary(opcode, DataType.FLOAT64, doubles);
-            assertArrayEquals(Arrays.stream(expectedDoubles).mapToLong(Double::doubleToRawLongBits)
-                    .toArray(), Arrays.stream(actualDoubles).mapToLong(Double::doubleToRawLongBits)
-                    .toArray(), opcode + " FLOAT64 raw bits");
+            for (int index = 0; index < doubles.length; index++) {
+                String message = opcode + " FLOAT64 index=" + index;
+                if (Double.isNaN(expectedDoubles[index])) assertTrue(Double.isNaN(actualDoubles[index]), message);
+                else assertEquals(Double.doubleToRawLongBits(expectedDoubles[index]),
+                        Double.doubleToRawLongBits(actualDoubles[index]), message);
+            }
             float[] floats = new float[floatBits.length];
             for (int index = 0; index < floats.length; index++)
                 floats[index] = Float.intBitsToFloat(floatBits[index]);
             float[] expectedFloats = referenceUnary(opcode, floats);
             float[] actualFloats = (float[]) invokeUnary(opcode, DataType.FLOAT32, floats);
-            int[] expectedBits = new int[floats.length], actualBits = new int[floats.length];
             for (int index = 0; index < floats.length; index++) {
-                expectedBits[index] = Float.floatToRawIntBits(expectedFloats[index]);
-                actualBits[index] = Float.floatToRawIntBits(actualFloats[index]);
+                String message = opcode + " FLOAT32 index=" + index;
+                if (Float.isNaN(expectedFloats[index])) assertTrue(Float.isNaN(actualFloats[index]), message);
+                else assertEquals(Float.floatToRawIntBits(expectedFloats[index]),
+                        Float.floatToRawIntBits(actualFloats[index]), message);
             }
-            assertArrayEquals(expectedBits, actualBits, opcode + " FLOAT32 raw bits");
         }
     }
 

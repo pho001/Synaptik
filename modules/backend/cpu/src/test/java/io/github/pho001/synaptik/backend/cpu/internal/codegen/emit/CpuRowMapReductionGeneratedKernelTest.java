@@ -296,7 +296,11 @@ public final class CpuRowMapReductionGeneratedKernelTest {
         }
     }
 
-    /** Activity, raw inactive identity and typed cancellation against independent saved primals. */
+    /**
+     * Activity, raw inactive identity and typed cancellation against independent saved primals.
+     * The forward oracle uses the selected StrictMath TANH producing site; saved words and every
+     * subsequent ordered feature, terminal and separate per-time carry ADD remain raw-exact.
+     */
     @Test void scanOracleCoversDirectionsSeedsMasksAndEmptyTime() {
         for (var type : List.of(DataType.FLOAT32,DataType.FLOAT64)) for (boolean reverse : List.of(false,true))
                 for (int time : List.of(0,4)) {

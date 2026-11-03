@@ -115,6 +115,7 @@ final class CpuSymbolicLengthScanFixture implements AutoCloseable {
     void generated() { consumer.execute(); }
     Runnable preboundExecution() { return consumer::execute; }
 
+    /** Uses the selected scalar StrictMath TANH producer while preserving all typed operation boundaries. */
     void oracleForward() {
         if (family.time==4 && family.features==3) {
             if (family.type==DataType.FLOAT64) CpuSymbolicLengthScanCleanJavaOracle.forwardFloat64(initial,x,w,u,bias,lengths,expected.get(0),expected.get(1),oraclePrevious,oracleSaved,oracleForwardScratch,b,family.reverse);
@@ -134,7 +135,7 @@ final class CpuSymbolicLengthScanFixture implements AutoCloseable {
             for (int row=0; row<b; row++) if (active(time,row)) for (int col=0; col<2; col++) {
                 double sum=0;
                 for (int k=0; k<2; k++) sum=round(sum+round(get(result,row*2L+k)*get(u,k*2L+col)));
-                double next=round(Math.tanh(round(round(get(oracleForwardScratch,row*2L+col)+sum)+get(bias,col))));
+                double next=round(StrictMath.tanh(round(round(get(oracleForwardScratch,row*2L+col)+sum)+get(bias,col))));
                 put(oracleForwardScratch,2L*b+row*2L+col,next);
                 put(emissions,(time*b+row)*2L+col,next); put(oracleSaved,(time*b+row)*2L+col,next);
             }

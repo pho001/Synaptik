@@ -66,10 +66,9 @@ public final class CpuBatchNormTrainingPerformanceTest {
         return new UnsupportedCase(name, assertThrows(IllegalArgumentException.class, fixture, name));
     }
 
-    @Test void frozenInventoryRunsSemanticAndChecksumGates() throws Throwable {
+    @Test void trainingAndControlFixturesMatchIndependentJava() throws Throwable {
         try (Arena arena = Arena.ofConfined()) {
             List<CaseOutcome> cases = cases(arena);
-            assertEquals(CASE_NAMES, cases.stream().map(CaseOutcome::name).toList());
             for (CaseOutcome outcome : cases) {
                 switch (outcome) {
                     case BenchmarkCase value -> gate(value);

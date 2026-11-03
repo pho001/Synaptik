@@ -249,38 +249,6 @@ public final class CpuMatmulLoweringTest {
                 ()->assertTrue(plan.materializations().isEmpty()));
     }
 
-    @Test void retainsExactNamedRightMaterializationCompanionPlans() throws Exception {
-        var policy=new CpuPartitionAnalysisInputs.MaterializationPolicy(true,0,1,20,1,3,
-                1_000_000_000L,1,1);
-        var inputs=new CpuPartitionAnalysisInputs(false,
-                CpuPartitionAnalysisInputs.DEFAULT.carrierPattern(),
-                CpuPartitionAnalysisInputs.PortableExecutionConfig.DEFAULT,policy);
-        var f32=new CpuPartitionPreparer().analyze(materializedRight(DataType.FLOAT32,false,inputs)).plan();
-        var f64=new CpuPartitionPreparer().analyze(materializedRight(DataType.FLOAT64,true,inputs)).plan();
-        StringBuilder evidence=new StringBuilder();
-        retainRightVariant("MATERIALIZE-RIGHT-F32",f32,evidence);
-        retainRightVariant("MATERIALIZE-RIGHT-F64-BATCH",f64,evidence);
-        var root=java.nio.file.Path.of(
-                "/private/tmp/synaptik-cpu-0008f-retained-evidence-20260828/materialization");
-        java.nio.file.Files.createDirectories(root);
-        java.nio.file.Files.writeString(root.resolve("retained-candidates.txt"),evidence);
-    }
-
-    private static void retainRightVariant(String name,
-            io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan plan,
-            StringBuilder evidence) {
-        var right=plan.representationDecisions().stream().filter(
-                io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRepresentationDecision.Variant.class::isInstance)
-                .map(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRepresentationDecision.Variant.class::cast)
-                .filter(value->value.identity().materializations().stream().map(copy->copy.sourceBoundaryPosition())
-                        .toList().equals(List.of(1))).findFirst().orElseThrow();
-        var copy=right.identity().materializations().getFirst();
-        assertAll(()->assertTrue(copy.byteCount()>0),()->assertTrue(right.copiedBytes()>0),
-                ()->assertTrue(right.representationCost()>0),
-                ()->assertTrue(plan.materializations().isEmpty()));
-        evidence.append(name).append('\n').append("variant=").append(right).append('\n')
-                .append("selection=").append(plan.representationDecisions().getLast()).append('\n');
-    }
 
     public static PrepareContext<CpuPartitionAnalysisInputs> context(DataType type, Shape left,
             Shape right, Shape result) {
@@ -337,23 +305,6 @@ public final class CpuMatmulLoweringTest {
         return new PrepareContext<>(partition, List.of(node), values, memory, Map.of(), inputs);
     }
 
-    private static PrepareContext<CpuPartitionAnalysisInputs> materializedRight(DataType type,
-            boolean batched,CpuPartitionAnalysisInputs inputs) {
-        var node=new CompiledNode(new NodeId(0),new Operation(MatmulKind.MATMUL,NoOperationAttrs.INSTANCE),
-                List.of(new ValueId(0),new ValueId(1)),List.of(new ValueId(2)));
-        Shape leftShape=batched?Shape.of(3,16,127):Shape.of(32,127);
-        Shape rightShape=Shape.of(127,256);
-        Shape resultShape=batched?Shape.of(3,16,256):Shape.of(32,256);
-        var descriptors=List.of(descriptor(type,leftShape),new TensorDescriptor(type,rightShape,
-                Optional.of(LayoutDescriptor.of(rightShape,new long[]{1,127},0,true)),false),
-                descriptor(type,resultShape));
-        var partition=new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID,List.of(node.id()));
-        var values=new ArrayList<GraphValue>();var memory=new ArrayList<LogicalMemoryRequirement>();
-        for(int index=0;index<3;index++){ValueId id=new ValueId(index);var descriptor=descriptors.get(index);
-            values.add(new GraphValue(id,descriptor));memory.add(new LogicalMemoryRequirement(id,descriptor,
-                    index==2?Optional.of(partition):Optional.empty(),index<2?List.of(partition):List.of(),index==2));}
-        return new PrepareContext<>(partition, List.of(node), values, memory, Map.of(), inputs);
-    }
 
     private static TensorDescriptor descriptor(DataType type, Shape shape) {
         return new TensorDescriptor(type, shape, Optional.of(LayoutDescriptor.contiguous(shape)), false);

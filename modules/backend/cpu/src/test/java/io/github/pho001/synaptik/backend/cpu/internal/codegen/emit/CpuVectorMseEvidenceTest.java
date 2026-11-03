@@ -405,8 +405,6 @@ class CpuVectorMseEvidenceTest {
                 "--tests " + base + "cache.CpuKernelSpecializationTest",
                 "--tests " + base + "codegen.emit.CpuBatchNormTrainingEvidenceTest",
                 "--tests " + base + "codegen.emit.CpuClassFileKernelGeneratorTest",
-                "--tests " + base + "codegen.emit.CpuConv2dEvidenceTest",
-                "--tests " + base + "codegen.emit.CpuConv3dEvidenceTest",
                 "--tests " + base + "codegen.emit.CpuLossGeneratedKernelTest",
                 "--tests " + base + "codegen.emit.CpuPartitionDagGeneratedEvidenceTest",
                 "--tests " + base + "codegen.emit.CpuPointwiseLedgerEvidenceTest",

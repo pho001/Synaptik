@@ -147,6 +147,10 @@
 
 ### Fixed
 
+- CPU qualification no longer requires macOS temporary paths, a particular vector width,
+  generated-code hashes or latency thresholds. Numerical controls retain exact non-NaN
+  comparisons, typed overflow, subrange/canary checks and the selected StrictMath TANH
+  producing site; arithmetic NaNs are checked by class rather than unspecified payload bits.
 - CPU one-term MATMUL preserves its exact FLOAT32/FLOAT64 product in scalar, vector, tiled,
   ordinary-batch and controlled/regional Scan execution. Empty/inactive sums retain positive
   zero and multi-term typed sites remain unchanged. Selective artifact identity rejects stale

@@ -29,9 +29,6 @@ import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.security.MessageDigest;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
@@ -681,83 +678,5 @@ final class CpuScalarImmediateClampMatrixOracle {
         catch (Exception failure) { throw new AssertionError(failure); }
     }
 
-    /** Regenerates all checked matrix resources from actual current preparation and Class-Files. */
-    static void writeResources(Path directory) throws Exception {
-        Files.createDirectories(directory);
-        var fixtureLines = new java.util.ArrayList<String>();
-        fixtureLines.add("id\toperation\ttype\tcategory\tmodel-capability\tlowering-admitted\tpreparation-eligible\tcarrier-input\tcarrier-output\tpreference\tparallelism\tentry-descriptor\tstrategy\tgenerator-schema\tclass-identity-schema\tstructural-key\tclass-file-sha256");
-        for (var fixture : fixtures()) {
-            var artifact = artifact(fixture);
-            fixtureLines.add(String.join("\t", fixture.id(), fixture.operation().name(), fixture.type().name(),
-                    fixture.category().name(), Boolean.toString(capability(fixture)), "true", "true",
-                    fixture.carriers().getFirst().name(), fixture.carriers().getLast().name(),
-                    fixture.preference().name(), Integer.toString(fixture.parallelism()), artifact.descriptor(),
-                    artifact.strategy(), artifact.generatorSchema(), artifact.classIdentitySchema(),
-                    artifact.structuralKey(), artifact.hash()));
-        }
-        writeSealed(directory.resolve("scalar-immediate-clamp-matrix-fixtures.tsv"), fixtureLines);
-
-        var formLines = new java.util.ArrayList<String>();
-        formLines.add("id\toperation\ttype\tcategory\tmodel-capability\tlowering-admitted\tpreparation-eligible\tcarrier-input\tcarrier-output\tshape\tlayout\taccess-regime\tpreference\tparallelism\tselected-strategy\tartifact-strategy\tentry-descriptor\tmatrix-version\tgenerator-schema\tclass-identity-schema\tstructural-key\tclass-file-sha256\tmaterialization-candidates\tmaterialization-selected\tdisposition");
-        var formArtifacts = new java.util.LinkedHashMap<String, Artifact>();
-        for (var form : forms()) {
-            var result = formArtifact(form);
-            var artifact = result.artifact();
-            var plan = new CpuPartitionPreparer().analyze(contextFor(form.fixture(), form.inputShape(),
-                    form.inputLayout(), form.outputShape(), form.outputLayout(), form.materializationPolicy())).plan();
-            String selected = plan.units().getFirst().executionStrategy().toString().toUpperCase(java.util.Locale.ROOT)
-                    .replace("COMPUTE=", "").replace("ORCHESTRATION=", "");
-            selected = plan.units().getFirst().executionStrategy().equals(
-                    io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR)
-                    ? "SCALAR" : plan.units().getFirst().executionStrategy().equals(
-                    io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.PARALLEL_SCALAR)
-                    ? "PARALLEL_SCALAR" : plan.units().getFirst().executionStrategy().equals(
-                    io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR)
-                    ? "VECTOR" : "PARALLEL_VECTOR";
-            String disposition = result.materializationCandidates() == 0 ? "DIRECT_ONLY"
-                    : "CANDIDATE_AVAILABLE_DIRECT_SELECTED";
-            formLines.add(String.join("\t", form.id(), form.fixture().operation().name(),
-                    form.fixture().type().name(), form.fixture().category().name(),
-                    Boolean.toString(capability(form.fixture())), "true", "true",
-                    form.fixture().carriers().getFirst().name(), form.fixture().carriers().getLast().name(),
-                    form.shape(), form.layout(), form.accessRegime().name(), form.fixture().preference().name(),
-                    Integer.toString(form.fixture().parallelism()), selected, artifact.strategy(), artifact.descriptor(),
-                    "matrix-v3", artifact.generatorSchema(), artifact.classIdentitySchema(),
-                    artifact.structuralKey(), artifact.hash(),
-                    Integer.toString(result.materializationCandidates()),
-                    Integer.toString(result.materializationSelected()), disposition));
-            formArtifacts.put(form.id(), artifact);
-        }
-        writeSealed(directory.resolve("scalar-immediate-clamp-matrix-forms.tsv"), formLines);
-
-        var projectionLines = new java.util.ArrayList<String>();
-        projectionLines.add("unit\tnormalizer-version\tdisposition\tsource-category\tspecialization-facts\tmembers\tmember-sha256\tconstant-locations");
-        addIdentityProjection(projectionLines, formArtifacts, "array-scalar-orchestration",
-                "ADD/FLOAT32/FLOAT_ARRAY-FLOAT_ARRAY/DENSE_LINEAR/SCALAR",
-                "ORCHESTRATION-SCALAR", "ORCHESTRATION-PARALLEL_SCALAR");
-        addIdentityProjection(projectionLines, formArtifacts, "array-vector-orchestration",
-                "ADD/FLOAT32/FLOAT_ARRAY-FLOAT_ARRAY/DENSE_LINEAR/VECTOR",
-                "ORCHESTRATION-VECTOR", "ORCHESTRATION-PARALLEL_VECTOR");
-        writeSealed(directory.resolve("scalar-immediate-clamp-matrix-projections.tsv"), projectionLines);
-    }
-
-    private static void addIdentityProjection(List<String> lines, java.util.Map<String, Artifact> artifacts,
-            String unit, String facts, String first, String second) {
-        Artifact left = artifacts.get(first); Artifact right = artifacts.get(second);
-        if (left == null || right == null || !java.util.Arrays.equals(left.bytes(), right.bytes())) {
-            throw new AssertionError(unit + " is not byte-identical");
-        }
-        lines.add(String.join("\t", unit,
-                CpuScalarImmediateClampMatrixStructuralTest.NORMALIZER_VERSION, "IDENTITY",
-                "CALLER_ORCHESTRATION", facts,
-                first + ',' + second, left.hash() + ',' + right.hash(), "NONE"));
-    }
-
-    private static void writeSealed(Path path, List<String> lines) throws Exception {
-        String body = String.join("\n", lines) + "\n";
-        String metadata = "# matrix-resource-sha256=" + sha256(body.getBytes(StandardCharsets.UTF_8))
-                + "; canonical UTF-8 bytes of every header/data row plus LF, excluding this metadata line\n";
-        Files.writeString(path, metadata + body, StandardCharsets.UTF_8);
-    }
     private CpuScalarImmediateClampMatrixOracle() { }
 }

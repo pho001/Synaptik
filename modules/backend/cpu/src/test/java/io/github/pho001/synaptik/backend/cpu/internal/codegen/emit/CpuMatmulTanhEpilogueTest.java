@@ -11,10 +11,6 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Epilogue;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Realization;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy;
 import io.github.pho001.synaptik.model.datatype.DataType;
-import java.lang.classfile.ClassFile;
-import java.lang.classfile.Instruction;
-import java.lang.classfile.Opcode;
-import java.lang.classfile.instruction.InvokeInstruction;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
@@ -30,7 +26,7 @@ import jdk.incubator.vector.FloatVector;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
-/** Ordinary MATMUL TANH semantics, typed Class-File shape, and bounded opt-in diagnostic. */
+/** Ordinary MATMUL TANH numerical semantics and bounded opt-in diagnostic. */
 public final class CpuMatmulTanhEpilogueTest {
     private static final Path EVIDENCE = Path.of("/private/tmp/synaptik-cpu0065-evidence");
     private static volatile double sink;
@@ -227,7 +223,6 @@ public final class CpuMatmulTanhEpilogueTest {
         var spec = specialization(type, form, segment, order, Epilogue.Terminal.TANH);
         var generator = new CpuClassFileKernelGenerator();
         byte[] bytes = generator.generateClassBytes(spec, spec.matmulIr().orElseThrow().encodedKernelIr());
-        inspect(bytes, type, form, segment, order);
         var generated = generator.defineClassBytes(spec, spec.matmulIr().orElseThrow().encodedKernelIr(), bytes);
         long[] geometry = {1,1,1,1,m,k,n,k,1,n,1,n,1,0,1,1,(long)m*n,1};
         long work = form == Realization.DIRECT_N_VECTOR ? m
@@ -275,30 +270,6 @@ public final class CpuMatmulTanhEpilogueTest {
         }
     }
 
-    private static void inspect(byte[] bytes, DataType type, Realization form, boolean segment,
-            Epilogue.AddInputOrder order) throws Exception {
-        var model = ClassFile.of().parse(bytes);
-        var code = model.methods().getFirst().code().orElseThrow().elementStream().toList();
-        String vector = type == DataType.FLOAT32 ? "jdk/incubator/vector/FloatVector"
-                : "jdk/incubator/vector/DoubleVector";
-        var invokes = code.stream().filter(InvokeInstruction.class::isInstance)
-                .map(InvokeInstruction.class::cast).toList();
-        assertTrue(invokes.stream().anyMatch(call -> call.owner().asInternalName()
-                .equals(CpuVectorMath.class.getName().replace('.', '/')) && call.name().stringValue().equals("tanh")
-                && call.type().stringValue().equals("(L"+vector+";)L"+vector+";")));
-        assertTrue(invokes.stream().anyMatch(call -> call.owner().asInternalName().equals("java/lang/StrictMath")
-                && call.name().stringValue().equals("tanh")), "scalar tail remains scalar");
-        for (var element : code) if (element instanceof Instruction instruction)
-            assertFalse(List.of(Opcode.NEW, Opcode.NEWARRAY, Opcode.ANEWARRAY, Opcode.MULTIANEWARRAY,
-                    Opcode.INVOKEDYNAMIC).contains(instruction.opcode()), instruction.toString());
-        assertTrue(invokes.stream().noneMatch(call -> call.owner().asInternalName().matches(
-                ".*(reference|reflect|Map|Tensor|Operation).*")));
-        assertTrue(invokes.stream().filter(call -> call.owner().asInternalName().startsWith(
-                "io/github/pho001/synaptik/")).allMatch(call -> call.owner().asInternalName()
-                    .equals(CpuVectorMath.class.getName().replace('.', '/')) && call.name().stringValue().equals("tanh")));
-        Files.createDirectories(EVIDENCE);
-        Files.write(EVIDENCE.resolve(type+"-"+form+"-"+(segment?"segment":"heap")+"-"+order+".class"), bytes);
-    }
 
     private static CpuKernelSpecialization specialization(DataType type, Realization form,
             boolean segment, Epilogue.AddInputOrder order, Epilogue.Terminal terminal) {

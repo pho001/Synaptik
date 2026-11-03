@@ -123,12 +123,6 @@ class CpuOrdinaryDynamicBatchTest {
             var route = aggregateTyped(DataType.FLOAT64,new Operation(mean ? AggregateReductionKind.MEAN : AggregateReductionKind.SUM,
                     axis == -1 ? NoOperationAttrs.INSTANCE : new AxisReductionAttrs(axis,false)),input,output);
             byte[] bytes = bytes(route);
-            // An opt-in destination keeps diagnostic reruns from replacing historical artifacts.
-            var evidence = java.nio.file.Path.of(System.getProperty("synaptik.cpu.generalScan.evidenceRoot",
-                    "/private/tmp/synaptik-prepare0015.gVDqlx")).resolve("classfiles"); java.nio.file.Files.createDirectories(evidence);
-            java.nio.file.Files.write(evidence.resolve("ordinary-F64-"+mean+"-axis"+axis+".class"),bytes);
-            java.nio.file.Files.write(evidence.resolve("ordinary-F64-"+mean+"-axis"+axis+".identity.bytes"),route.specialization().classIdentityBytes());
-            java.nio.file.Files.write(evidence.resolve("ordinary-F64-"+mean+"-axis"+axis+".compatibility.bytes"),route.specialization().compatibilityBytes());
             assertTrue(route.kernelIr().familyIdentity().endsWith(":ordinary-batch-typed-v1"));
             for (byte[] identity : List.of(route.specialization().compatibilityBytes(),route.specialization().classIdentityBytes()))
                 assertTrue(new String(identity,java.nio.charset.StandardCharsets.US_ASCII).contains("ordinary-batch-typed-v1"));

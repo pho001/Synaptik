@@ -35,8 +35,8 @@ import org.junit.jupiter.api.Test;
  * stable max/sum/log-sum-exp passes, and FLOAT32 narrowing points.  {@code vectorMap} is candidate
  * two only: it performs real preferred-species loads and an identity map, then folds lanes in
  * increasing logical order.  It is deliberately not a lane reduction, packing path, helper, or
- * production fallback.  Therefore raw-bit equality is required for every finite and IEEE special
- * control covered here.  Candidate three/four remain stopped by the permission table in
+ * production fallback. Therefore raw-bit equality is required for finite and non-NaN special
+ * controls; arithmetic NaN controls require class, not payload or sign. Candidate three/four remain stopped by the permission table in
  * {@link CpuStableReductionVectorNumericalSpikeTest}; 0022A/0022B permit reassociation only
  * subject to later conformance tolerances.  Because no such tolerance is current, they do not
  * permit this exact-current raw-bit gate to advance candidates three or four.</p>
@@ -133,14 +133,15 @@ final class CpuStableReductionLossStageATest {
             assertRaw(floating, new double[] {0}, direct(floating,
                     new double[] {Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY},
                     new double[] {0, -0.0}, 2, 2, 1, LossReduction.SUM, null, 0, 1).output(), "zero target");
-            // Ignore is decided before logits access; all ignored MEAN retains current NaN (0/0).
-            assertRaw(floating, new double[] {Double.NaN}, direct(floating, new double[0], null,
-                    2, 0, 2, LossReduction.MEAN, new long[] {-1, -1}, 0, 1).output(), "all ignored");
+            // Ignore precedes logits access; the final arithmetic 0/0 requires NaN class only.
+            assertTrue(Double.isNaN(direct(floating, new double[0], null,
+                    2, 0, 2, LossReduction.MEAN, new long[] {-1, -1}, 0, 1).output()[0]),
+                    "all ignored " + floating);
             assertThrows(IllegalArgumentException.class, () -> direct(floating, new double[] {0}, null,
                     2, 1, 1, LossReduction.NONE, new long[] {1}, 0, 1));
-            assertRaw(floating, new double[] {Double.NaN}, direct(floating,
+            assertTrue(Double.isNaN(direct(floating,
                     new double[] {Double.NaN, 0}, null, 2, 2, 1, LossReduction.NONE,
-                    new long[] {1}, 0, 1).output(), "NaN");
+                    new long[] {1}, 0, 1).output()[0]), "NaN " + floating);
             assertRaw(floating, new double[] {Double.POSITIVE_INFINITY}, direct(floating,
                     new double[] {0, Double.NEGATIVE_INFINITY}, null, 2, 2, 1, LossReduction.NONE,
                     new long[] {1}, 0, 1).output(), "infinity");

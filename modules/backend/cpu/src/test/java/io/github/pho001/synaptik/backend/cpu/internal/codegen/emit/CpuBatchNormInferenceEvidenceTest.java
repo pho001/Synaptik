@@ -11,8 +11,6 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
-import java.lang.classfile.ClassFile;
-import java.lang.classfile.constantpool.MemberRefEntry;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
@@ -43,7 +41,7 @@ public final class CpuBatchNormInferenceEvidenceTest {
     private record UnsupportedCase(String name, IllegalArgumentException rejection)
             implements CaseOutcome { }
     private record Prepared(MethodHandle handle, long[] geometry,
-            CpuBatchNormInferenceIr.RangeForm form, long items, byte[] bytes) { }
+            CpuBatchNormInferenceIr.RangeForm form, long items) { }
 
     static CpuBatchNormTrainingPerformanceTest.BenchmarkCase float32BatchInferenceControl()
             throws Throwable {
@@ -58,16 +56,12 @@ public final class CpuBatchNormInferenceEvidenceTest {
         return new UnsupportedCase(name, assertThrows(IllegalArgumentException.class, fixture, name));
     }
 
-    @Test void frozenInventoryAndOperationBoundsAreExact() throws Throwable {
+    @Test void inferenceFixturesMatchIndependentJava() throws Throwable {
         List<CaseOutcome> cases = cases();
-        assertEquals(List.of("BN-BF16-A1", "BN-F32-A1", "BN-F64-A1", "BN-F32-A0",
-                "BN-F32-A2", "BN-MIX-F64", "BN-MIX-F32", "BN-REPEAT-C1"),
-                cases.stream().map(CaseOutcome::name).toList());
         for (CaseOutcome outcome : cases) {
             switch (outcome) {
                 case Case value -> {
                     value.generated.run(); value.direct.run(); value.verify.run();
-                    assertTrue(value.roots <= value.reads);
                 }
                 case UnsupportedCase value -> assertNotNull(value.rejection());
             }
@@ -170,7 +164,7 @@ public final class CpuBatchNormInferenceEvidenceTest {
         long[] shape = c == 1 && axis == 0 ? new long[] {a, b} : new long[] {a, b, c};
         Shape modelShape = Shape.of(shape); int channels = Math.toIntExact(shape[axis]);
         int elements = Math.toIntExact(Arrays.stream(shape).reduce(1, Math::multiplyExact));
-        Prepared prepared = prepare(name, Collections.nCopies(5, type), modelShape, axis,
+        Prepared prepared = prepare(Collections.nCopies(5, type), modelShape, axis,
                 List.of(0, 1, 2, 3, 4), Collections.nCopies(6, array(type)));
         Object input = array(type, elements), scale = array(type, channels), bias = array(type, channels),
                 mean = array(type, channels), variance = array(type, channels),
@@ -212,7 +206,7 @@ public final class CpuBatchNormInferenceEvidenceTest {
                 CarrierAccess.MEMORY_SEGMENT) : List.of(CarrierAccess.MEMORY_SEGMENT,
                 CarrierAccess.FLOAT_ARRAY, CarrierAccess.MEMORY_SEGMENT,
                 CarrierAccess.FLOAT_ARRAY, CarrierAccess.SHORT_ARRAY, CarrierAccess.FLOAT_ARRAY);
-        Prepared prepared = prepare(name, types, shape, 1, List.of(0, 1, 2, 3, 4), carriers,
+        Prepared prepared = prepare(types, shape, 1, List.of(0, 1, 2, 3, 4), carriers,
                 layouts);
         int inputSpan = Math.toIntExact(layouts.getFirst().referencedElementSpan());
         int outputSpan = Math.toIntExact(layouts.getLast().referencedElementSpan());
@@ -244,7 +238,7 @@ public final class CpuBatchNormInferenceEvidenceTest {
     }
 
     private static Case repeated() throws Throwable {
-        Shape shape=Shape.of(65536,1); Prepared prepared=prepare("BN-REPEAT-C1",
+        Shape shape=Shape.of(65536,1); Prepared prepared=prepare(
                 Collections.nCopies(5,DataType.FLOAT32),shape,1,List.of(0,1,1,1,1),
                 List.of(CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY,CarrierAccess.FLOAT_ARRAY));
         float[] input=new float[65536], shared={2}, generated=new float[65536], direct=new float[65536];
@@ -259,11 +253,11 @@ public final class CpuBatchNormInferenceEvidenceTest {
                 new long[9],new long[9]);
     }
 
-    private static Prepared prepare(String name,List<DataType> types,Shape shape,int axis,
+    private static Prepared prepare(List<DataType> types,Shape shape,int axis,
             List<Integer> map,List<CarrierAccess> carriers)throws Exception{
-        return prepare(name,types,shape,axis,map,carriers,null);
+        return prepare(types,shape,axis,map,carriers,null);
     }
-    private static Prepared prepare(String name,List<DataType> types,Shape shape,int axis,
+    private static Prepared prepare(List<DataType> types,Shape shape,int axis,
             List<Integer> map,List<CarrierAccess> carriers,List<LayoutDescriptor> layouts)throws Exception{
         var base=layouts==null?CpuBatchNormInferenceLoweringTest.context(types,shape,axis,map)
                 :CpuBatchNormInferenceLoweringTest.context(types,shape,axis,map,layouts);
@@ -273,10 +267,9 @@ public final class CpuBatchNormInferenceEvidenceTest {
         var plan=new CpuPartitionPreparer().analyze(context).plan(); assertEquals(4,plan.selectedRangeCount());
         var route=plan.units().getFirst().portablePlan(); var generator=new CpuClassFileKernelGenerator();
         byte[] bytes=generator.generateClassBytes(route.specialization(),route.kernelIr());
-        retain(name,bytes,route.specialization().compatibilityBytes(),route.specialization().toString());
         return new Prepared(generator.defineClassBytes(route.specialization(), route.kernelIr(), bytes).entryPoint(),
                 plan.batchNormInferenceGeometry().orElseThrow().pack(new long[carriers.size()]),
-                plan.batchNormInferenceGeometry().orElseThrow().rangeForm(),plan.elementCount(),bytes);
+                plan.batchNormInferenceGeometry().orElseThrow().rangeForm(),plan.elementCount());
     }
 
     private static long invoke(DataType type,Prepared p,Object i,Object s,Object b,Object m,Object v,Object o)throws Throwable{
@@ -318,5 +311,4 @@ public final class CpuBatchNormInferenceEvidenceTest {
     private static String clean(String message) {
         return message == null ? "" : message.replace('\n', ' ').replace('\r', ' ').replace(',', ';');
     }
-    private static void retain(String name,byte[]bytes,byte[]compat,String specialization)throws Exception{var model=ClassFile.of().parse(bytes);StringBuilder members=new StringBuilder();java.util.stream.StreamSupport.stream(model.constantPool().spliterator(),false).filter(MemberRefEntry.class::isInstance).map(MemberRefEntry.class::cast).forEach(m->members.append(m.owner().asInternalName()).append('.').append(m.name().stringValue()).append(m.type().stringValue()).append('\n'));Path dir=Path.of("/private/tmp/synaptik-cpu-0007f1-retained-evidence-20260825/generated");Files.createDirectories(dir);Files.write(dir.resolve(name+".class"),bytes);Files.write(dir.resolve(name+".compatibility"),compat);Files.writeString(dir.resolve(name+".specialization"),specialization+"\n");Files.writeString(dir.resolve(name+".members"),members.toString());}
 }

@@ -9,6 +9,8 @@ import static java.lang.foreign.ValueLayout.*;
  * A complete row product precedes the recurrent product/epilogue; the old carry is independent
  * of padded histories. Reverse uses exact saved outputs/previous carries, increasing-b sums,
  * one distinct parameter ADD per active time, and O(parameter) contribution state.
+ * Forward TANH uses StrictMath, the selected scalar CPU producing site, so raw saved-value and
+ * downstream ordered-arithmetic checks do not compare against a platform-specific Math intrinsic.
  * There is no per-step allocation, callback, graph interpretation, boxing or dtype dispatch.
  */
 final class CpuSymbolicLengthScanCleanJavaOracle {
@@ -51,7 +53,7 @@ final class CpuSymbolicLengthScanCleanJavaOracle {
             for (int row = 0; row < b; row++) if (t < lengths.getAtIndex(JAVA_LONG,row)) for (int col = 0; col < 2; col++) {
                 float sum = 0f;
                 for (int k = 0; k < 2; k++) sum += result.getAtIndex(JAVA_FLOAT,row*2+k)*u.getAtIndex(JAVA_FLOAT,k*2+col);
-                float next = (float)Math.tanh((work.getAtIndex(JAVA_FLOAT,row*2+col)+sum)+bias.getAtIndex(JAVA_FLOAT,col));
+                float next = (float)StrictMath.tanh((work.getAtIndex(JAVA_FLOAT,row*2+col)+sum)+bias.getAtIndex(JAVA_FLOAT,col));
                 work.setAtIndex(JAVA_FLOAT,2*b+row*2+col,next);
                 emissions.setAtIndex(JAVA_FLOAT,(t*b+row)*2+col,next); saved.setAtIndex(JAVA_FLOAT,(t*b+row)*2+col,next);
             }
@@ -166,7 +168,7 @@ final class CpuSymbolicLengthScanCleanJavaOracle {
             for (int row = 0; row < b; row++) if (t < lengths.getAtIndex(JAVA_LONG,row)) for (int col = 0; col < 2; col++) {
                 double sum = 0d;
                 for (int k = 0; k < 2; k++) sum += result.getAtIndex(JAVA_DOUBLE,row*2+k)*u.getAtIndex(JAVA_DOUBLE,k*2+col);
-                double next = (double)Math.tanh((work.getAtIndex(JAVA_DOUBLE,row*2+col)+sum)+bias.getAtIndex(JAVA_DOUBLE,col));
+                double next = StrictMath.tanh((work.getAtIndex(JAVA_DOUBLE,row*2+col)+sum)+bias.getAtIndex(JAVA_DOUBLE,col));
                 work.setAtIndex(JAVA_DOUBLE,2*b+row*2+col,next);
                 emissions.setAtIndex(JAVA_DOUBLE,(t*b+row)*2+col,next); saved.setAtIndex(JAVA_DOUBLE,(t*b+row)*2+col,next);
             }
