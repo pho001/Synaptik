@@ -566,6 +566,19 @@ class MetalMpsGraphAffineSchemaTest {
     }
 
     @Test
+    void foldAxisTransportRejectsAnAxisOutsideTheDeclaredTargetRank() {
+        var values = List.of(
+                new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, new long[] {1, 1}, false),
+                new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, new long[] {1}, false));
+        var fold = MetalMpsGraphProgram.Node.generic(
+                MetalMpsGraphProgram.NodeKind.FOLD_AXIS, new int[] {0}, new int[] {1},
+                MetalMpsGraphProgram.AttributeKind.WINDOW_AXIS, new long[] {1, 1, 1});
+        var program = new MetalMpsGraphProgram(List.of(fold));
+        assertThrows(IllegalArgumentException.class, () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                values, program, new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM));
+    }
+
+    @Test
     void JavaPreflightRejectsLegacyCustomOnlyKindsOnDirectMpsGraph() {
         var comparison = MetalMpsGraphProgram.Node.generic(
                 MetalMpsGraphProgram.NodeKind.GT,

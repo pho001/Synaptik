@@ -53,7 +53,9 @@ static BOOL synaptik_scatter_read_layout(
         }
     }
     if (*offset > limit - span) return NO;
-    if (broadcast && (states == NULL || states[value] != SYNAPTIK_METAL_VALUE_AFFINE_VIEW))
+    if (broadcast && (states == NULL
+            || (states[value] != SYNAPTIK_METAL_VALUE_AFFINE_VIEW
+                    && states[value] != SYNAPTIK_METAL_VALUE_MATERIALIZED_LAYOUT)))
         return NO;
     uint64_t covered = 1U;
     for (uint32_t item = 0U; item < axes; ++item) {

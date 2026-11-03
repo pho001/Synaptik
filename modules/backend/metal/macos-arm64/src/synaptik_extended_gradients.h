@@ -51,8 +51,9 @@ static BOOL synaptik_extended_gradients_valid(
         for (uint32_t role = 0U; role < input_count; role++) gradient |= inputs[role];
         return outputs[0] == gradient;
     }
+    /* Index-valued arg extrema do not inherit the data role's gradient bit. */
     BOOL reduction = operation == 13U || operation == 14U || operation == 31U
-            || operation == 32U || (operation >= 106U && operation <= 115U);
+            || operation == 32U || operation == 106U || (operation >= 111U && operation <= 115U);
     if (reduction && types[0] == 1U) {
         return (input_count == 1U || (input_count == 2U && !inputs[1]))
                 && output_count == 1U && outputs[0] == inputs[0];

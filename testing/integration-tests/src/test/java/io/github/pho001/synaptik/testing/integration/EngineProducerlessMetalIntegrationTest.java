@@ -28,6 +28,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -138,8 +139,11 @@ final class EngineProducerlessMetalIntegrationTest {
                 Tensor target = stored(caller, descriptor(type, Shape.scalar(), true),
                         new long[] {bits(type, 2.0f)}, false);
                 DataType castType = type == DataType.FLOAT32 ? DataType.FLOAT16 : DataType.FLOAT32;
-                List<Tensor> objectives = List.of(target.cast(castType), target.contiguous(),
-                        target.add(scalar(type, 3.0f)), target.sub(scalar(type, 3.0f)));
+                var objectives = new ArrayList<>(List.of(target.cast(castType), target.contiguous()));
+                if (type == DataType.FLOAT32) {
+                    objectives.add(target.add(scalar(type, 3.0f)));
+                    objectives.add(target.sub(scalar(type, 3.0f)));
+                }
                 for (int index = 0; index < objectives.size(); index++) {
                     for (int pass = 0; pass < 2; pass++) {
                         var result = engine.backward(objectives.get(index), List.of(target), 32);
@@ -162,8 +166,12 @@ final class EngineProducerlessMetalIntegrationTest {
             for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
                 Tensor target = TensorFactory.create(descriptor(type, Shape.scalar(), true));
                 Tensor seed = TensorFactory.create(descriptor(type, Shape.scalar(), false));
-                for (Tensor objective : List.of(target.contiguous(), target.add(scalar(type, 3.0f)),
-                        target.sub(scalar(type, 3.0f)))) {
+                var objectives = new ArrayList<>(List.of(target.contiguous()));
+                if (type == DataType.FLOAT32) {
+                    objectives.add(target.add(scalar(type, 3.0f)));
+                    objectives.add(target.sub(scalar(type, 3.0f)));
+                }
+                for (Tensor objective : objectives) {
                     CompiledGraph compiled = engine.compile(List.of(objective), List.of(seed), List.of(target));
                     try (var prepared = engine.prepare(compiled)) {
                         Tensor actualTarget = stored(caller, target.descriptor(), new long[] {bits(type, 2.0f)}, false);

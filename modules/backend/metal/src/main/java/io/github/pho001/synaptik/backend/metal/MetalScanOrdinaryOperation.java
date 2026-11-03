@@ -213,9 +213,12 @@ final class MetalScanOrdinaryOperation {
                     new Conv3dAttrs(word(w, 0), word(w, 1), word(w, 2), word(w, 3), word(w, 4), word(w, 5), word(w, 6), word(w, 7), word(w, 8), word(w, 9)));
             case UNFOLD_AXIS -> new Operation(WindowTransformKind.UNFOLD_AXIS,
                     new UnfoldAxisAttrs(integer(word(w, 0)), word(w, 1), word(w, 2)));
-            case FOLD_AXIS -> new Operation(WindowTransformKind.FOLD_AXIS,
-                    new FoldAxisAttrs(integer(word(w, 0)), localValues.get(outputs[0]).shape()
-                            .toLongArray()[integer(word(w, 0))], word(w, 2)));
+            case FOLD_AXIS -> {
+                Shape outputShape = localValues.get(outputs[0]).shape();
+                int foldAxis = axis(word(w, 0), outputShape.rank());
+                yield new Operation(WindowTransformKind.FOLD_AXIS,
+                        new FoldAxisAttrs(foldAxis, outputShape.toLongArray()[foldAxis], word(w, 2)));
+            }
             case UNFOLD2D -> new Operation(WindowTransformKind.UNFOLD2D,
                     node.attributeKind() == MetalMpsGraphProgram.AttributeKind.PADDED_WINDOW_2D
                             ? new Unfold2dAttrs(window2d(w, 0), scalar(w, 9)) : window2d(w, 0));
