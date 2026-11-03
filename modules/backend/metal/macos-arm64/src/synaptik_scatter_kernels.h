@@ -2,8 +2,8 @@
 #define SYNAPTIK_SCATTER_KERNELS_H
 
 /*
- * Assemble after DataMeta/data coordinate helpers and the exact/ordering raw
- * comparators (exact_extreme, ordering_nan/key). No low source is required.
+ * Assemble after DataMeta/data coordinate helpers, the shared numerical codec,
+ * and the exact/ordering raw comparators (exact_extreme, ordering_nan/key).
  *
  * scatter_reduce: data(0), indices(1), updates(2), output(3), DataMeta(4).
  * Dispatch one data_linear_id per output scalar, elementCount = output count.
@@ -18,8 +18,8 @@
  * dispatch, including for produced indices. NONE additionally requires global
  * target uniqueness; ADD/MUL/MIN/MAX deliberately permit duplicates. Output and
  * all inputs must be distinct. There is no copy pass, scratch buffer or atomic.
- * F32 and INT32/INT64 ADD/MUL are eligible; F64 raw extrema are independently
- * eligible. This component does not authorize low reductions or F64 arithmetic.
+ * F32/BF16/F16 use F32 ADD/MUL working sites and narrow once at the output.
+ * INT32/INT64 are modular; F64 retains raw extrema only.
  * Unaddressed words are never passed through arithmetic/comparison.
  * The source also requires ScanStepControl and scan_control_operand/output from
  * SynaptikGeneralScanKernelSource. scatter_reduce_scan appends control buffer28
@@ -31,11 +31,12 @@
  */
 static NSString *const SynaptikScatterKernelSource =
 @"\n"
-"inline ulong scatter_combine(ulong base, ulong update, uint reduction, uint type) {\n"
+"inline ulong scatter_combine(ulong base, ulong update, uint reduction, uint type, thread bool &working) {\n"
 "    if (reduction == 1u) return update;\n"
 "    if (reduction >= 4u) {\n"
 "        bool maximum = reduction == 4u;\n"
 "        if (type == 1u) return ulong(exact_extreme(uint(base), uint(update), maximum));\n"
+"        if (type == 5u || type == 7u) return lp_extreme(base, update, type, maximum);\n"
 "        if (type == 4u) {\n"
 "            if (ordering_nan(base, type)) return base;\n"
 "            if (ordering_nan(update, type)) return update;\n"
@@ -46,6 +47,12 @@ static NSString *const SynaptikScatterKernelSource =
 "        }\n"
 "        bool less = type == 2u ? int(uint(base)) < int(uint(update)) : long(base) < long(update);\n"
 "        return maximum ? (less ? update : base) : (less ? base : update);\n"
+"    }\n"
+"    if (type == 5u || type == 7u) {\n"
+"        float left = working ? as_type<float>(uint(base)) : lp_widen(base, type);\n"
+"        float right = lp_widen(update, type);\n"
+"        working = true;\n"
+"        return ulong(as_type<uint>(reduction == 2u ? left + right : left * right));\n"
 "    }\n"
 "    if (type == 1u) {\n"
 "        float left = as_type<float>(uint(base));\n"
@@ -66,7 +73,7 @@ static NSString *const SynaptikScatterKernelSource =
 "}\n"
 /* Only contributors on this output's selected-axis line can address it. */
 "inline ulong scatter_elements_value(device const uchar *indices, device const uchar *updates,\n"
-"        thread const ulong *out, ulong accumulator, constant DataMeta &m,\n"
+"        thread const ulong *out, ulong accumulator, thread bool &working, constant DataMeta &m,\n"
 "        device const ulong *control, constant ScanStepControl *step) {\n"
 "    uint axis = uint(m.attrs[0]);\n"
 "    ulong coords[16];\n"
@@ -78,13 +85,13 @@ static NSString *const SynaptikScatterKernelSource =
 "        long selected = read_index(indices, scatter_role_offset(coords, 1u, m), m.indexType);\n"
 "        if (ulong(selected) != out[axis]) continue;\n"
 "        ulong word = load_word(updates, scatter_role_offset(coords, 2u, m), m.width);\n"
-"        accumulator = scatter_combine(accumulator, word, uint(m.attrs[1]), m.sourceType);\n"
+"        accumulator = scatter_combine(accumulator, word, uint(m.attrs[1]), m.sourceType, working);\n"
 "    }\n"
 "    return accumulator;\n"
 "}\n"
 /* Gather's entire index Shape replaces one data axis, including a scalar Shape. */
 "inline ulong scatter_add_value(device const uchar *indices, device const uchar *updates,\n"
-"        thread const ulong *out, ulong accumulator, constant DataMeta &m,\n"
+"        thread const ulong *out, ulong accumulator, thread bool &working, constant DataMeta &m,\n"
 "        device const ulong *control, constant ScanStepControl *step) {\n"
 "    uint axis = uint(m.attrs[0]), indexRank = m.roleRanks[1];\n"
 "    ulong count = 1ul, idx[16], update[16];\n"
@@ -99,13 +106,13 @@ static NSString *const SynaptikScatterKernelSource =
 "        long selected = read_index(indices, scatter_role_offset(idx, 1u, m), m.indexType);\n"
 "        if (ulong(selected) != out[axis]) continue;\n"
 "        ulong word = load_word(updates, scatter_role_offset(update, 2u, m), m.width);\n"
-"        accumulator = scatter_combine(accumulator, word, 2u, m.sourceType);\n"
+"        accumulator = scatter_combine(accumulator, word, 2u, m.sourceType, working);\n"
 "    }\n"
 "    return accumulator;\n"
 "}\n"
 /* Batch and unindexed suffix are fixed by the output; scan only tuple prefixes. */
 "inline ulong scatter_nd_value(device const uchar *indices, device const uchar *updates,\n"
-"        thread const ulong *out, ulong accumulator, constant DataMeta &m,\n"
+"        thread const ulong *out, ulong accumulator, thread bool &working, constant DataMeta &m,\n"
 "        device const ulong *control, constant ScanStepControl *step) {\n"
 "    uint batch = uint(m.attrs[0]), q = m.roleRanks[1];\n"
 "    uint depth = uint(m.roleDims[1][q - 1u]);\n"
@@ -129,7 +136,7 @@ static NSString *const SynaptikScatterKernelSource =
 "        }\n"
 "        if (!matches) continue;\n"
 "        ulong word = load_word(updates, scatter_role_offset(update, 2u, m), m.width);\n"
-"        accumulator = scatter_combine(accumulator, word, uint(m.attrs[1]), m.sourceType);\n"
+"        accumulator = scatter_combine(accumulator, word, uint(m.attrs[1]), m.sourceType, working);\n"
 "    }\n"
 "    return accumulator;\n"
 "}\n"
@@ -137,10 +144,13 @@ static NSString *const SynaptikScatterKernelSource =
 "        device const uchar *updates, device uchar *output, constant DataMeta &m,\n"
 "        ulong linear, device const ulong *control, constant ScanStepControl *step) {\n"
 "    ulong out[16]; decode_coords(linear, m.outDims, m.outputRank, out);\n"
+"    if (control != nullptr && !scan_control_operand(control, *step, 0u, linear)) return;\n"
 "    ulong accumulator = load_word(data, scatter_role_offset(out, 0u, m), m.width);\n"
-"    if (m.operation == 18u) accumulator = scatter_elements_value(indices, updates, out, accumulator, m, control, step);\n"
-"    else if (m.operation == 70u) accumulator = scatter_add_value(indices, updates, out, accumulator, m, control, step);\n"
-"    else accumulator = scatter_nd_value(indices, updates, out, accumulator, m, control, step);\n"
+"    bool working = false;\n"
+"    if (m.operation == 18u) accumulator = scatter_elements_value(indices, updates, out, accumulator, working, m, control, step);\n"
+"    else if (m.operation == 70u) accumulator = scatter_add_value(indices, updates, out, accumulator, working, m, control, step);\n"
+"    else accumulator = scatter_nd_value(indices, updates, out, accumulator, working, m, control, step);\n"
+"    if (working) accumulator = lp_narrow(as_type<float>(uint(accumulator)), m.targetType);\n"
 "    store_word(output, linear, m.width, accumulator);\n"
 "}\n"
 "kernel void scatter_reduce(device const uchar *data [[buffer(0)]],\n"

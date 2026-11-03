@@ -25,17 +25,56 @@ import org.junit.jupiter.api.Test;
 /** Device regressions for output-owned scatter membership, duplicates and pre-write validation. */
 class MetalGeneralScatterNativeTest {
     @Test
-    void gatherCotangentAcceptsMiddleAxisAndMultidimensionalIndices() {
-        for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
-            try (Execution e = new Execution(List.of(
-                    value(DataType.FLOAT32, 2, 3, 2), value(indexType, 2, 2),
-                    value(DataType.FLOAT32, 2, 2, 2, 2), value(DataType.FLOAT32, 2, 3, 2)),
-                    List.of(MetalMpsGraphProgram.Node.scatterAdd(0, 1, 2, 3, 1)))) {
-                e.upload(0, floats(10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10));
-                e.upload(1, indices(indexType, 2, 0, 2, 1));
-                e.upload(2, floats(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16));
+    void lowScatterReductionsAndReplacementPreserveTheirObservableCarrier() {
+        float[][] expected = {{5, 2, 9, 10, 20, 2}, {4, 2, 24, 16, 420, 2},
+                {2, 2, 4, 8, 7, 2}, {1, 2, 2, 2, 2, 2}};
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            for (int reduction = 2; reduction <= 5; reduction++) {
+                try (Execution e = new Execution(List.of(value(type, 2, 3),
+                        value(DataType.INT64, 2, 4), value(type, 2, 4), value(type, 2, 3)),
+                        List.of(elements(1, reduction, 1)))) {
+                    e.upload(0, numeric(type, 2, 2, 2, 2, 2, 2));
+                    e.upload(1, indices(DataType.INT64, 0, 0, 2, 2, 1, 1, 1, 0));
+                    e.upload(2, numeric(type, 1, 2, 3, 4, 5, 6, 7, 8));
+                    e.run();
+                    assertArrayEquals(numeric(type, expected[reduction - 2]), e.output());
+                }
+            }
+            try (Execution e = new Execution(List.of(value(type, 3), value(DataType.INT32, 2),
+                    value(type, 2), value(type, 3)), List.of(elements(0, 1, 1)))) {
+                e.upload(0, numeric(type, 10, 20, 30));
+                e.upload(1, indices(DataType.INT32, 2, 0));
+                e.upload(2, numeric(type, 2, 3));
                 e.run();
-                assertArrayEquals(floats(13, 14, 17, 18, 16, 18, 21, 22, 25, 26, 32, 34), e.output());
+                assertArrayEquals(numeric(type, 3, 20, 2), e.output());
+            }
+            float large = type == DataType.BFLOAT16 ? 256 : 2048;
+            try (Execution e = new Execution(List.of(value(type, 1), value(DataType.INT32, 2),
+                    value(type, 2), value(type, 1)),
+                    List.of(MetalMpsGraphProgram.Node.scatterAdd(0, 1, 2, 3, 0)))) {
+                e.upload(0, numeric(type, large));
+                e.upload(1, indices(DataType.INT32, 0, 0));
+                e.upload(2, numeric(type, 1, -large));
+                e.run();
+                assertArrayEquals(numeric(type, 1), e.output(), "narrow only after all contributors");
+            }
+        }
+    }
+
+    @Test
+    void gatherCotangentAcceptsMiddleAxisAndMultidimensionalIndices() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
+                try (Execution e = new Execution(List.of(
+                        value(type, 2, 3, 2), value(indexType, 2, 2),
+                        value(type, 2, 2, 2, 2), value(type, 2, 3, 2)),
+                        List.of(MetalMpsGraphProgram.Node.scatterAdd(0, 1, 2, 3, 1)))) {
+                    e.upload(0, numeric(type, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10));
+                    e.upload(1, indices(indexType, 2, 0, 2, 1));
+                    e.upload(2, numeric(type, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16));
+                    e.run();
+                    assertArrayEquals(numeric(type, 13, 14, 17, 18, 16, 18, 21, 22, 25, 26, 32, 34), e.output());
+                }
             }
         }
     }
@@ -294,6 +333,15 @@ class MetalGeneralScatterNativeTest {
     private static MetalMpsGraphProgram.ValueDescriptor view(DataType type, long[] shape, long[] strides, long offset) {
         return new MetalMpsGraphProgram.ValueDescriptor(type, shape,
                 Optional.of(LayoutDescriptor.of(Shape.of(shape), strides, offset, true)), false, false);
+    }
+
+    private static byte[] numeric(DataType type, float... values) {
+        if (type == DataType.FLOAT32) return floats(values);
+        ByteBuffer bytes = ByteBuffer.allocate(values.length * Short.BYTES).order(ByteOrder.nativeOrder());
+        for (float value : values) bytes.putShort(type == DataType.BFLOAT16
+                ? io.github.pho001.synaptik.model.datatype.BFloat16Bits.fromFloat(value)
+                : io.github.pho001.synaptik.model.datatype.Float16Bits.fromFloat(value));
+        return bytes.array();
     }
 
     private static byte[] floats(float... values) {

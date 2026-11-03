@@ -41,6 +41,21 @@ class MetalScatterSupportTest {
     }
 
     @Test
+    void lowGatherCotangentsRetainMultidimensionalIndicesAndGradientFlags() {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            var op = new Operation(AxisScatterKind.SCATTER_ADD, new IndexAxisAttrs(1));
+            var inputs = List.of(tensor(type, false, 2, 3, 4), tensor(DataType.INT64, false, 2, 2),
+                    tensor(type, true, 2, 2, 2, 4));
+            var outputs = List.of(tensor(type, true, 2, 3, 4));
+            var node = MetalScatterSupport.lower(op, new int[] {0, 1, 2}, new int[] {3}, inputs, outputs);
+            assertDoesNotThrow(() -> MetalScatterSupport.validate(node, values(inputs, outputs)));
+            assertThrows(IllegalArgumentException.class, () -> MetalScatterSupport.lower(op,
+                    new int[] {0, 1, 2}, new int[] {3}, inputs,
+                    List.of(tensor(type, false, 2, 3, 4))));
+        }
+    }
+
+    @Test
     void independentEncodedValidatorRejectsWrongIndexTypeAxisShapeAndPhysicalOutput() {
         var node = MetalMpsGraphProgram.Node.scatterAdd(0, 1, 2, 3, 1);
         var raw = new ArrayList<>(List.of(value(DataType.FLOAT32, false, 2, 3),
@@ -78,14 +93,14 @@ class MetalScatterSupportTest {
     }
 
     @Test
-    void originalCarrierDispatchNeverUnlocksLowArithmeticOrFloat64Arithmetic() {
+    void numericalScatterAndRetainedExactCarriersKeepDistinctArithmeticGrants() {
         for (DataType type : List.of(DataType.FLOAT32, DataType.INT32, DataType.INT64,
                 DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16)) {
             for (ScatterReduction reduction : ScatterReduction.values()) {
                 var op = new Operation(AxisScatterKind.SCATTER_ELEMENTS, new ScatterElementsAttrs(0, reduction));
                 var inputs = List.of(tensor(type, false, 3), tensor(DataType.INT32, false, 2), tensor(type, false, 2));
                 var outputs = List.of(tensor(type, false, 3));
-                boolean selected = type == DataType.FLOAT32
+                boolean selected = type == DataType.FLOAT32 || type == DataType.BFLOAT16 || type == DataType.FLOAT16
                         || (type == DataType.INT32 || type == DataType.INT64) && reduction != ScatterReduction.NONE
                         || type == DataType.FLOAT64 && (reduction == ScatterReduction.MIN || reduction == ScatterReduction.MAX);
                 var node = MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.SCATTER_ELEMENTS,
@@ -100,9 +115,6 @@ class MetalScatterSupportTest {
                     assertFalse(MetalScatterSupport.supports(op, inputs, outputs), type + "/" + reduction);
                     assertFalse(MetalScatterSupport.handles(node, raw));
                     assertThrows(IllegalArgumentException.class, () -> MetalScatterSupport.validate(node, raw));
-                }
-                if ((type == DataType.BFLOAT16 || type == DataType.FLOAT16) && reduction == ScatterReduction.NONE) {
-                    assertDoesNotThrow(() -> MetalScatterSupport.lower(op, new int[] {0, 1, 2}, new int[] {3}, inputs, outputs));
                 }
             }
         }

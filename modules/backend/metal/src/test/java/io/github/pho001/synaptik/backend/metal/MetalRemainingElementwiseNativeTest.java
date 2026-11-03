@@ -1410,6 +1410,82 @@ class MetalRemainingElementwiseNativeTest {
     }
 
     @Test
+    void signedSliceMaterializesEveryRawCarrierWithoutNegativePhysicalStrides() {
+        Path library = configuredLibrary();
+        var slice = MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.SLICE,
+                new int[] {0}, new int[] {1}, MetalMpsGraphProgram.AttributeKind.SLICE,
+                new long[] {1, 2, 2, 1, -2});
+        for (DataType type : DataType.values()) {
+            byte[] source = task0059CarrierWords(type);
+            var output = executeCustomBytes(library, new MetalMpsGraphProgram(List.of(slice)),
+                    List.of(typed(type, 2, 3), typed(type, 2, 2)),
+                    new int[] {0}, new int[] {1}, List.of(source)).getFirst();
+            assertArrayEquals(selectElements(source, type.byteWidth(), 2, 0, 5, 3), output, type.toString());
+            var extreme = MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.SLICE,
+                    new int[] {0}, new int[] {1}, MetalMpsGraphProgram.AttributeKind.SLICE,
+                    new long[] {1, 0, 1, 0, Long.MIN_VALUE + 1});
+            assertArrayEquals(selectElements(source, type.byteWidth(), 0),
+                    executeCustomBytes(library, new MetalMpsGraphProgram(List.of(extreme)),
+                            List.of(typed(type, 6), typed(type, 1)), new int[] {0}, new int[] {1},
+                            List.of(source)).getFirst(), type + " singleton signed extreme step");
+        }
+    }
+
+    @Test
+    void overlappingAxisAndImageFoldsUseFloatWorkingSitesAndOneFinalNarrow() {
+        Path library = configuredLibrary();
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            float large = type == DataType.BFLOAT16 ? 256 : 2048;
+            var axis = MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.FOLD_AXIS,
+                    new int[] {0}, new int[] {1}, MetalMpsGraphProgram.AttributeKind.WINDOW_AXIS,
+                    new long[] {0, 3, 1});
+            var input = new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {3, 3}, true);
+            var output = new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {5}, true);
+            assertArrayEquals(numericWords(type, 0, 0, 1, 0, 0),
+                    executeCustomBytes(library, new MetalMpsGraphProgram(List.of(axis)),
+                            List.of(input, output), new int[] {0}, new int[] {1},
+                            List.of(numericWords(type, 0, 0, large, 0, 1, 0, -large, 0, 0))).getFirst());
+            for (int spatial : List.of(2, 3)) {
+                int volume = 1 << spatial;
+                float[] columns = new float[volume * volume];
+                columns[volume - 1] = -large;
+                columns[volume + volume - 2] = 1;
+                columns[2 * volume + volume - 3] = 1;
+                columns[3 * volume + volume - 4] = large;
+                long[] image = new long[spatial + 2];
+                Arrays.fill(image, 3);
+                image[0] = image[1] = 1;
+                long[] attrs = spatial == 2
+                        ? new long[] {4, 1, 1, 3, 3, 2, 2, 1, 1, 0, 0, 1, 1, 0}
+                        : new long[] {5, 1, 1, 3, 3, 3, 2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0};
+                var fold = MetalMpsGraphProgram.Node.generic(
+                        spatial == 2 ? MetalMpsGraphProgram.NodeKind.FOLD2D : MetalMpsGraphProgram.NodeKind.FOLD3D,
+                        new int[] {0}, new int[] {1},
+                        spatial == 2 ? MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_2D : MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_3D,
+                        attrs);
+                float[] expected = new float[spatial == 2 ? 9 : 27];
+                expected[expected.length / 2] = 2;
+                assertArrayEquals(numericWords(type, expected),
+                        executeCustomBytes(library, new MetalMpsGraphProgram(List.of(fold)),
+                                List.of(new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {1, volume, volume}, true),
+                                        new MetalMpsGraphProgram.ValueDescriptor(type, image, true)),
+                                new int[] {0}, new int[] {1}, List.of(numericWords(type, columns))).getFirst());
+            }
+        }
+    }
+
+    private static byte[] numericWords(DataType type, float... values) {
+        ByteBuffer bytes = ByteBuffer.allocate(values.length * type.byteWidth()).order(ByteOrder.nativeOrder());
+        for (float value : values) {
+            if (type == DataType.FLOAT32) bytes.putFloat(value);
+            else bytes.putShort(type == DataType.BFLOAT16
+                    ? io.github.pho001.synaptik.model.datatype.BFloat16Bits.fromFloat(value)
+                    : io.github.pho001.synaptik.model.datatype.Float16Bits.fromFloat(value));
+        }
+        return bytes.array();
+    }
+
+    @Test
     void task0059RankSixteenAndPositiveExtremeSliceRemainExecutable() {
         Path library = configuredLibrary();
 

@@ -13,7 +13,7 @@ static BOOL synaptik_scatter_handles(SynaptikMetalDecodedNode node, const uint8_
     uint32_t type = types[node.inputs[0]];
     uint64_t reduction = node.operation == 70U ? 2U
             : node.attribute_count == 2U ? node.attribute_values[1] : 0U;
-    return type == 1U || ((type == 2U || type == 6U) && reduction >= 2U)
+    return type == 1U || type == 5U || type == 7U || ((type == 2U || type == 6U) && reduction >= 2U)
             || (type == 4U && reduction >= 4U);
 }
 
@@ -132,7 +132,7 @@ static BOOL synaptik_scatter_metadata(
     result.sourceType = type;
     result.targetType = type;
     result.indexType = index_type;
-    result.width = type == 1U || type == 2U ? 4U : 8U;
+    result.width = type == 5U || type == 7U ? 2U : type == 1U || type == 2U ? 4U : 8U;
     result.inputCount = 3U;
     result.attributeKind = attribute;
     result.attributeCount = words;

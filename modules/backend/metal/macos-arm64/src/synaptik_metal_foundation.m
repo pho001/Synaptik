@@ -4453,7 +4453,7 @@ static SynaptikMetalProgramStep *make_custom_step(
                     output, node.output, value_strides, layout_offsets,
                     value_states, meta.outputStrides, &meta.outputOffset))
             return nil;
-        if (task0066) {
+        if (task0066 || task0064) {
             for (uint32_t role = 0U; role < node.input_count; role++) {
                 uint32_t value = node.inputs[role];
                 MPSShape *role_shape = shapes[value];
@@ -4481,6 +4481,8 @@ static SynaptikMetalProgramStep *make_custom_step(
             meta.attrs[2] = node.axis;
         if (node.operation == SYNAPTIK_METAL_MPSGRAPH_FOLD_AXIS) {
             if (value_types[node.first_input] != SYNAPTIK_METAL_TYPE_FLOAT32
+                    && value_types[node.first_input] != SYNAPTIK_METAL_TYPE_BFLOAT16
+                    && value_types[node.first_input] != SYNAPTIK_METAL_TYPE_FLOAT16
                     && node.attribute_values[1] < node.attribute_values[0]) return nil;
             meta.reserved = node.axis;
         }

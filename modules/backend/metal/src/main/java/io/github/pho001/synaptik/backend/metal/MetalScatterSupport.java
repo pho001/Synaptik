@@ -18,9 +18,9 @@ import java.util.List;
 /**
  * Owns the original-carrier output-owned scatter domain and its independent encoded preflight.
  *
- * <p>Arithmetic accepts FLOAT32 and exact modular INT32/INT64; FLOAT64 additionally admits
- * raw MIN/MAX. Low carriers remain with their existing independently bounded owner. Every
- * input uses its real positive/zero-stride affine read layout and the result is canonical.
+ * <p>Arithmetic accepts FLOAT32/BFLOAT16/FLOAT16 and exact modular INT32/INT64;
+ * FLOAT64 additionally admits raw MIN/MAX. Low arithmetic works in FLOAT32 and
+ * narrows once at the output. Every input uses its real affine read layout.
  * Broadcast axes do not waive the shared storage-layout proof for nonbroadcast axes.
  * Index values and replacement uniqueness are deliberately run-time, pre-write checks.</p>
  */
@@ -30,7 +30,7 @@ final class MetalScatterSupport {
     private MetalScatterSupport() {}
 
     /**
-     * Selects only scatter operations belonging to this component; low dispatch remains separate.
+     * Selects the scatter operations belonging to this component.
      *
      * @param operation non-null semantic operation
      * @return whether its kind is one of the three scatter kinds
@@ -100,18 +100,18 @@ final class MetalScatterSupport {
     }
 
     /**
-     * Selects the new original-carrier route without intercepting frozen low/replacement routes.
+     * Selects homogeneous numerical scatter and the retained raw FLOAT64 extrema.
      *
      * @param node encoded scatter node
      * @param values actual stable descriptor table
-     * @return true for FLOAT32 scatter, integral arithmetic or FLOAT64 raw extrema
+     * @return true for FLOAT32/BFLOAT16/FLOAT16 scatter, integral arithmetic or FLOAT64 raw extrema
      */
     static boolean handles(MetalMpsGraphProgram.Node node, List<MetalMpsGraphProgram.ValueDescriptor> values) {
         if (!handles(node)) return false;
         int[] inputs = node.inputs();
         if (inputs.length != 3 || inputs[0] < 0 || inputs[0] >= values.size()) return false;
         DataType type = values.get(inputs[0]).dataType();
-        if (type == DataType.FLOAT32) return true;
+        if (numeric(type)) return true;
         long[] words = node.attributeWords();
         long reduction = node.kind() == MetalMpsGraphProgram.NodeKind.SCATTER_ADD ? 2
                 : words.length == 2 ? words[1] : 0;
@@ -152,9 +152,9 @@ final class MetalScatterSupport {
             if (reduction < 1 || reduction > 5) throw invalid();
             DataType type = base.dataType();
             boolean integer = type == DataType.INT32 || type == DataType.INT64;
-            boolean floating = type == DataType.FLOAT32 || type == DataType.FLOAT64;
-            if (type != DataType.FLOAT32 && !integer && type != DataType.FLOAT64) throw invalid();
-            if (type != DataType.FLOAT32 && !handles(node, values)) throw invalid();
+            boolean floating = numeric(type) || type == DataType.FLOAT64;
+            if (!floating && !integer) throw invalid();
+            if (!handles(node, values)) throw invalid();
             if (type == DataType.FLOAT64 && (reduction == 2 || reduction == 3)) throw invalid();
             if (update.dataType() != type || output.dataType() != type) throw invalid();
             if (index.dataType() != DataType.INT32 && index.dataType() != DataType.INT64) throw invalid();
@@ -190,6 +190,10 @@ final class MetalScatterSupport {
         } catch (ArithmeticException | IndexOutOfBoundsException failure) {
             throw invalid();
         }
+    }
+
+    private static boolean numeric(DataType type) {
+        return type == DataType.FLOAT32 || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
     }
 
     private static MetalMpsGraphProgram.ValueDescriptor descriptor(TensorDescriptor descriptor) {

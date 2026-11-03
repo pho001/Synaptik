@@ -27,7 +27,22 @@ static NSString *const SynaptikTask0061MatmulKernelSource =
 "    rightOffset = coords_storage(right, m.auxiliaryStrides, m.auxRank, m.auxiliaryOffset);\n"
 "}\n"
 "inline float matmul_fma_0061(float left, float right, float accumulator) { return fma(left, right, accumulator); }\n"
-"inline float matmul_f32_0061(device const uchar *left, device const uchar *right, ulong linear, constant DataMeta &m, bool leftBfloat, bool rightBfloat) { float accumulator = 0.0f; ulong contractions = m.inputExtents[0]; for (ulong contraction = 0ul; contraction < contractions; ++contraction) { ulong leftOffset, rightOffset; matmul_offsets_0061(linear, contraction, m, leftOffset, rightOffset); uint leftWord = uint(load_word(left, leftOffset, leftBfloat ? 2u : 4u)); uint rightWord = uint(load_word(right, rightOffset, rightBfloat ? 2u : 4u)); float leftValue = as_type<float>(leftBfloat ? leftWord << 16u : leftWord); float rightValue = as_type<float>(rightBfloat ? rightWord << 16u : rightWord); accumulator = matmul_fma_0061(leftValue, rightValue, accumulator); } return accumulator; }\n"
+"inline float matmul_numeric_value_0061(device const uchar *left, device const uchar *right,\n"
+"        ulong linear, constant DataMeta &m, device const ulong *control,\n"
+"        constant ScanStepControl *step) {\n"
+"    float accumulator = 0.0f;\n"
+"    for (ulong contraction = 0ul; contraction < m.inputExtents[0]; ++contraction) {\n"
+"        ulong lc[16], rc[16]; matmul_coordinates_0061(linear, contraction, m, lc, rc);\n"
+"        if (control != nullptr && (!scan_control_operand(control, *step, 0u, coords_linear(lc, m.inDims, m.inputRank))\n"
+"                || !scan_control_operand(control, *step, 1u, coords_linear(rc, m.auxDims, m.auxRank)))) continue;\n"
+"        ulong lo = coords_storage(lc, m.inputStrides, m.inputRank, m.inputOffset);\n"
+"        ulong ro = coords_storage(rc, m.auxiliaryStrides, m.auxRank, m.auxiliaryOffset);\n"
+"        float lv = synaptik_load_numeric(left, lo, m.sourceType);\n"
+"        float rv = synaptik_load_numeric(right, ro, m.roleTypes[1]);\n"
+"        accumulator = fma(lv, rv, accumulator);\n"
+"    }\n"
+"    return accumulator;\n"
+"}\n"
 "template<typename Accumulator, uint LeftWidth, uint RightWidth>\n"
 "inline Accumulator matmul_integral_0061(device const uchar *left, device const uchar *right,\n"
 "        ulong linear, constant DataMeta &m, device const ulong *control,\n"
@@ -78,51 +93,23 @@ static NSString *const SynaptikTask0061MatmulKernelSource =
 "    ulong result = matmul_integral_0061<ulong, 8u, 8u>(left, right, linear, m, nullptr, nullptr);\n"
 "    store_word(output, linear, 8u, ulong(result));\n"
 "}\n"
-"kernel void matmul_f32_f32_f32_0061(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) { ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return; store_word(output, linear, 4u, ulong(as_type<uint>(matmul_f32_0061(left, right, linear, m, false, false)))); }\n"
-"kernel void matmul_bf16_f32_f32_0061(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) { ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return; store_word(output, linear, 4u, ulong(as_type<uint>(matmul_f32_0061(left, right, linear, m, true, false)))); }\n"
-"kernel void matmul_f32_bf16_f32_0061(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) { ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return; store_word(output, linear, 4u, ulong(as_type<uint>(matmul_f32_0061(left, right, linear, m, false, true)))); }\n";
+"kernel void matmul_numeric_0061(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]],\n"
+"        device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) {\n"
+"    ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return;\n"
+"    synaptik_store_numeric(output, linear, m.targetType, matmul_numeric_value_0061(left, right, linear, m, nullptr, nullptr));\n"
+"}\n";
 
-/*
- * Controlled typed contractions reuse the ordinary coordinate proof and integer
- * arithmetic body, without changing DataMeta. Assemble both sources after
- * SynaptikGeneralScanKernelSource. Bindings 0/1/2/3 are left,
- * right, canonical output, DataMeta; 28/29 are scanControl/ScanStepControl. The
- * control POD is owned and statically size-checked by the general-Scan component.
- * The binder authenticates each operand's original logical row axis/inner, scope
- * and complete physical spans. No B=1 projection or arithmetic activity masking:
- * both scope checks dominate BOTH operand loads, even when one operand is SHARED.
- * Separate multiply/add sites follow the represented contraction; no implicit FMA.
- * One output writer, no workspace. Integral accumulators retain their exact promoted
- * unsigned modular width; FLOAT32 has separate represented multiply/add sites.
- */
+/* Controlled and ordinary contractions share arithmetic and original-carrier loads.
+ * Both operand activity checks dominate both loads. One canonical output writer. */
 static NSString *const SynaptikControlledMatmulKernelSource =
 @"\n"
-"inline float matmul_f32_controlled_0061(device const uchar *left, device const uchar *right,\n"
-"        ulong linear, constant DataMeta &m, device const ulong *scanControl,\n"
-"        constant ScanStepControl &scanStep) {\n"
-"    float accumulator = 0.0f;\n"
-"    for (ulong contraction = 0ul; contraction < m.inputExtents[0]; ++contraction) {\n"
-"        ulong lc[16], rc[16]; matmul_coordinates_0061(linear, contraction, m, lc, rc);\n"
-"        ulong leftLogical = coords_linear(lc, m.inDims, m.inputRank);\n"
-"        ulong rightLogical = coords_linear(rc, m.auxDims, m.auxRank);\n"
-"        if (!scan_control_operand(scanControl, scanStep, 0u, leftLogical)\n"
-"                || !scan_control_operand(scanControl, scanStep, 1u, rightLogical)) continue;\n"
-"        ulong lo = coords_storage(lc, m.inputStrides, m.inputRank, m.inputOffset);\n"
-"        ulong ro = coords_storage(rc, m.auxiliaryStrides, m.auxRank, m.auxiliaryOffset);\n"
-"        float lv = as_type<float>(uint(load_word(left, lo, 4u)));\n"
-"        float rv = as_type<float>(uint(load_word(right, ro, 4u)));\n"
-"        float product = lv * rv; accumulator = accumulator + product;\n"
-"    }\n"
-"    return accumulator;\n"
-"}\n"
-"kernel void matmul_f32_f32_f32_controlled_0061(device const uchar *left [[buffer(0)]],\n"
+"kernel void matmul_numeric_0061_scan(device const uchar *left [[buffer(0)]],\n"
 "        device const uchar *right [[buffer(1)]], device uchar *output [[buffer(2)]],\n"
-"        constant DataMeta &m [[buffer(3)]], device const ulong *scanControl [[buffer(28)]],\n"
-"        constant ScanStepControl &scanStep [[buffer(29)]], uint3 gid [[thread_position_in_grid]]) {\n"
+"        constant DataMeta &m [[buffer(3)]], device const ulong *control [[buffer(28)]],\n"
+"        constant ScanStepControl &step [[buffer(29)]], uint3 gid [[thread_position_in_grid]]) {\n"
 "    ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return;\n"
-"    if (!scan_control_output(scanControl, scanStep, linear)) return;\n"
-"    float result = matmul_f32_controlled_0061(left, right, linear, m, scanControl, scanStep);\n"
-"    store_word(output, linear, 4u, ulong(as_type<uint>(result)));\n"
+"    if (!scan_control_output(control, step, linear)) return;\n"
+"    synaptik_store_numeric(output, linear, m.targetType, matmul_numeric_value_0061(left, right, linear, m, control, &step));\n"
 "}\n"
 "kernel void matmul_i32_i32_i32_controlled_0061(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]],\n"
 "        device uchar *output [[buffer(2)]], constant DataMeta &m [[buffer(3)]],\n"

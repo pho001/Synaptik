@@ -247,10 +247,10 @@ class MetalConvolutionPoolingNativeTest {
             List<byte[]> convolutionResult = execute(
                     new MetalMpsGraphProgram(List.of(convolution)),
                     List.of(
-                            typed(type, 1, 1, 2, 2),
-                            typed(type, 1, 1, 2, 2),
-                            typed(type, 1),
-                            typed(type, 1, 1, 1, 1)),
+                            gradient(type, 1, 1, 2, 2),
+                            gradient(type, 1, 1, 2, 2),
+                            gradient(type, 1),
+                            gradient(type, 1, 1, 1, 1)),
                     new int[] {0, 1, 2},
                     new int[] {3},
                     List.of(
@@ -262,9 +262,9 @@ class MetalConvolutionPoolingNativeTest {
             List<byte[]> convolution3dResult = execute(
                     new MetalMpsGraphProgram(List.of(convolution3d)),
                     List.of(
-                            typed(type, 1, 1, 2, 2, 2),
-                            typed(type, 1, 1, 2, 2, 2),
-                            typed(type, 1, 1, 1, 1, 1)),
+                            gradient(type, 1, 1, 2, 2, 2),
+                            gradient(type, 1, 1, 2, 2, 2),
+                            gradient(type, 1, 1, 1, 1, 1)),
                     new int[] {0, 1},
                     new int[] {2},
                     List.of(
@@ -275,7 +275,7 @@ class MetalConvolutionPoolingNativeTest {
 
             List<byte[]> averageResult = execute(
                     new MetalMpsGraphProgram(List.of(average)),
-                    List.of(typed(type, 1, 1, 2, 2), typed(type, 1, 1, 1, 1)),
+                    List.of(gradient(type, 1, 1, 2, 2), gradient(type, 1, 1, 1, 1)),
                     new int[] {0},
                     new int[] {1},
                     List.of(lowWords(type, 1, 2, 3, 4)));
@@ -283,7 +283,7 @@ class MetalConvolutionPoolingNativeTest {
 
             List<byte[]> average3dResult = execute(
                     new MetalMpsGraphProgram(List.of(average3d)),
-                    List.of(typed(type, 1, 1, 2, 1, 1), typed(type, 1, 1, 1, 1, 1)),
+                    List.of(gradient(type, 1, 1, 2, 1, 1), gradient(type, 1, 1, 1, 1, 1)),
                     new int[] {0},
                     new int[] {1},
                     List.of(lowWords(type, 2, 4)));
@@ -317,6 +317,10 @@ class MetalConvolutionPoolingNativeTest {
                         typed(DataType.FLOAT32, 1, 1, 1, 3)),
                 new int[] {0}, new int[] {2}, List.of(floatWords(1, 2, 3, 4)));
         assertArrayEquals(floatWords(2, 3, 4), result.getFirst());
+    }
+
+    private static MetalMpsGraphProgram.ValueDescriptor gradient(DataType type, long... shape) {
+        return new MetalMpsGraphProgram.ValueDescriptor(type, shape, true);
     }
 
     private static long negativeZero(DataType type) {

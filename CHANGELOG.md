@@ -38,9 +38,12 @@
   bounded one-pass variadic CONCAT/STACK beyond sixteen inputs, and shared sound CPU output
   injectivity proofs for large interleaved layouts.
 
-- Maximum and average Pool3d training on qualified static CPU FLOAT32/FLOAT64 and Metal FLOAT32,
-  including overlapping windows through existing gradient/unfold/fold owners. Metal low/FLOAT64
-  non-overlap and CPU BFLOAT16/FLOAT16 arithmetic restrictions remain unchanged.
+- Shared Metal FLOAT32/BFLOAT16/FLOAT16 matmul, convolution, pooling and overlapping
+  axis/image fold execution owners, with FLOAT32 working sites and one final low-format
+  conversion. General scatter reductions and Gather cotangents retain original value carriers,
+  multidimensional indices and gradient flags. Raw signed slices materialize all seven carriers;
+  mixed floating comparisons use exact represented-value ordering. Metal FLOAT64 folding remains
+  non-overlapping and CPU BFLOAT16/FLOAT16 arithmetic restrictions remain unchanged.
 - Fluent `ModelBuilder.maxPool3d(kd,kh,kw)` and `averagePool3d(kd,kh,kw)`, with kernel stride,
   zero padding, unit dilation and floor geometry; ordinary Conv3d/pooling/linear Model training
   and save/load continue through existing owners with freshly configured training.

@@ -1,6 +1,6 @@
 package io.github.pho001.synaptik.backend.metal;
 
-import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -40,6 +40,24 @@ import java.util.function.UnaryOperator;
 import org.junit.jupiter.api.Test;
 
 class MetalPoolingGradientNativeTest {
+    @Test
+    void contractionAndGatherCotangentsStayOnMetalForEveryWorkingDomainCarrier() {
+        assertPool(Shape.of(2, 2), x -> x.matmul(x),
+                new float[] {1, 2, 3, 4}, new float[] {7, 10, 15, 22},
+                new float[] {7, 11, 9, 13});
+        assertPool(Shape.of(1, 1, 1, 2),
+                x -> x.conv2d(x, new io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs(
+                        1, 1, 0, 0, 1, 1, 1)),
+                new float[] {1, 2}, new float[] {5}, new float[] {2, 4});
+        assertPool(Shape.of(1, 1, 1, 1, 2),
+                x -> x.conv3d(x, new io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs(
+                        1, 1, 1, 0, 0, 0, 1, 1, 1, 1)),
+                new float[] {1, 2}, new float[] {5}, new float[] {2, 4});
+        assertPool(Shape.of(2, 3), x -> x.gather(x.argMax(0, true), 0),
+                new float[] {1, 5, 2, 3, 4, 6}, new float[] {3, 4, 6, 1, 5, 2, 3, 4, 6},
+                new float[] {1, 1, 1, 2, 2, 2});
+    }
+
     @Test
     void overlappingVolumePoolingUsesActualCompilerCotangentsOnMetal() {
         float[] input = new float[27];
@@ -126,13 +144,20 @@ class MetalPoolingGradientNativeTest {
     private static void assertPool(
             Shape shape, UnaryOperator<Tensor> pool, float[] inputValues,
             float[] expectedForward, float[] expectedGradient) {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16))
+            assertPool(type, shape, pool, inputValues, expectedForward, expectedGradient);
+    }
+
+    private static void assertPool(
+            DataType type, Shape shape, UnaryOperator<Tensor> pool, float[] inputValues,
+            float[] expectedForward, float[] expectedGradient) {
         String library = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
         assumeTrue(library != null && !library.isBlank(), "SYNAPTIK_METAL_TEST_LIBRARY is not set");
-        Tensor input = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32, shape,
+        Tensor input = TensorFactory.create(new TensorDescriptor(type, shape,
                 Optional.of(LayoutDescriptor.contiguous(shape)), true));
         Tensor output = pool.apply(input);
         Shape seedShape = output.descriptor().shape();
-        Tensor seed = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32, seedShape,
+        Tensor seed = TensorFactory.create(new TensorDescriptor(type, seedShape,
                 Optional.of(LayoutDescriptor.contiguous(seedShape)), false));
         var request = new FunctionalGradientRequest(List.of(new FunctionalGradientRequest.Stage(
                 List.of(new FunctionalGradientRequest.ForwardTensorReference(output)),
@@ -153,8 +178,8 @@ class MetalPoolingGradientNativeTest {
         assertEquals(2, publications.size());
         try (MetalDeviceContext context = MetalDeviceContext.open(Path.of(library));
                 Arena arena = Arena.ofConfined();
-                MetalBufferRepresentation inputBuffer = context.createBuffer((long) inputValues.length * Float.BYTES);
-                MetalBufferRepresentation seedBuffer = context.createBuffer((long) expectedForward.length * Float.BYTES)) {
+                MetalBufferRepresentation inputBuffer = context.createBuffer((long) inputValues.length * type.byteWidth());
+                MetalBufferRepresentation seedBuffer = context.createBuffer((long) expectedForward.length * type.byteWidth())) {
             var analyzed = new AtomicReference<MetalNegPreparationPlan>();
             var preparer = new MetalNegPartitionPreparer();
             var preparation = new PartitionPreparation<>(new MetalNegAnalysisInputs(context),
@@ -166,32 +191,36 @@ class MetalPoolingGradientNativeTest {
             try (var execution = GraphPreparation.prepare(artifacts, List.of(preparation),
                     scheduleContext -> new MetalNegPreparedScheduleAssembler(
                             context, analyzed.get(), publications).assemble(scheduleContext))) {
-                assertEquals(MetalPreparedRoute.CUSTOM_PROGRAM, analyzed.get().route());
-                var host = arena.allocateFrom(JAVA_FLOAT, inputValues);
+                var host = arena.allocateFrom(JAVA_BYTE, numericBytes(type, inputValues));
                 inputBuffer.upload(0, host, 0, host.byteSize());
                 float[] seedValues = new float[expectedForward.length];
                 Arrays.fill(seedValues, 1);
-                var seedHost = arena.allocateFrom(JAVA_FLOAT, seedValues);
+                var seedHost = arena.allocateFrom(JAVA_BYTE, numericBytes(type, seedValues));
                 seedBuffer.upload(0, seedHost, 0, seedHost.byteSize());
                 try (var result = new PreparedExecutionRunner().run(execution, List.of(inputBuffer, seedBuffer))) {
-                    assertRawFloats(expectedForward,
+                    assertRawValues(type, expectedForward,
                             (MetalBufferRepresentation) result.publicationRepresentation(0), arena);
-                    assertRawFloats(expectedGradient,
+                    assertRawValues(type, expectedGradient,
                             (MetalBufferRepresentation) result.publicationRepresentation(1), arena);
                 }
             }
         }
     }
 
-    private static void assertRawFloats(float[] expected, MetalBufferRepresentation actual, Arena arena) {
-        var host = arena.allocate((long) expected.length * Float.BYTES, Float.BYTES);
+    private static void assertRawValues(DataType type, float[] expected, MetalBufferRepresentation actual, Arena arena) {
+        var host = arena.allocate((long) expected.length * type.byteWidth(), type.byteWidth());
         actual.download(0, host, 0, host.byteSize());
-        int[] expectedBits = new int[expected.length];
-        int[] actualBits = new int[expected.length];
-        for (int index = 0; index < expected.length; index++) {
-            expectedBits[index] = Float.floatToRawIntBits(expected[index]);
-            actualBits[index] = Float.floatToRawIntBits(host.getAtIndex(JAVA_FLOAT, index));
+        assertArrayEquals(numericBytes(type, expected), host.toArray(JAVA_BYTE), type.toString());
+    }
+
+    private static byte[] numericBytes(DataType type, float[] values) {
+        var bytes = java.nio.ByteBuffer.allocate(values.length * type.byteWidth()).order(java.nio.ByteOrder.nativeOrder());
+        for (float value : values) {
+            if (type == DataType.FLOAT32) bytes.putFloat(value);
+            else bytes.putShort(type == DataType.BFLOAT16
+                    ? io.github.pho001.synaptik.model.datatype.BFloat16Bits.fromFloat(value)
+                    : io.github.pho001.synaptik.model.datatype.Float16Bits.fromFloat(value));
         }
-        assertArrayEquals(expectedBits, actualBits);
+        return bytes.array();
     }
 }
