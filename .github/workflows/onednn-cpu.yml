@@ -1,0 +1,210 @@
+name: oneDNN CPU qualification
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/onednn-cpu.yml'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'gradlew'
+      - 'gradle/**'
+      - 'build-logic/**'
+      - 'modules/backend/*.kts'
+      - 'modules/backend/cpu/**'
+      - 'modules/backend/openblas-provider/**'
+      - 'modules/backend-contract/**'
+      - 'modules/compiler/**'
+      - 'modules/config/**'
+      - 'modules/engine/**'
+      - 'modules/model/**'
+      - 'modules/planning/**'
+      - 'modules/prepare/**'
+      - 'modules/runtime/**'
+      - 'modules/trace/**'
+      - 'modules/training/**'
+      - 'modules/checkpoint/**'
+      - 'extensions/nn/**'
+      - 'extensions/text/**'
+      - 'testing/**'
+      - 'tools/benchmarks/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/onednn-cpu.yml'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'gradlew'
+      - 'gradle/**'
+      - 'build-logic/**'
+      - 'modules/backend/*.kts'
+      - 'modules/backend/cpu/**'
+      - 'modules/backend/openblas-provider/**'
+      - 'modules/backend-contract/**'
+      - 'modules/compiler/**'
+      - 'modules/config/**'
+      - 'modules/engine/**'
+      - 'modules/model/**'
+      - 'modules/planning/**'
+      - 'modules/prepare/**'
+      - 'modules/runtime/**'
+      - 'modules/trace/**'
+      - 'modules/training/**'
+      - 'modules/checkpoint/**'
+      - 'extensions/nn/**'
+      - 'extensions/text/**'
+      - 'testing/**'
+      - 'tools/benchmarks/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: onednn-cpu-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-x86:
+    name: Linux x86-64 / oneDNN 3.14.0 SEQ / Java 26
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      ONEDNN_PREFIX: ${{ runner.temp }}/onednn-3.14.0
+      ONEDNN_SOURCE: ${{ runner.temp }}/onednn-source
+      ONEDNN_BUILD: ${{ runner.temp }}/onednn-build
+      EVIDENCE_DIR: ${{ runner.temp }}/onednn-evidence
+      SYNAPTIK_ONEDNN_LIBRARY: ${{ runner.temp }}/onednn-3.14.0/lib/libdnnl.so.3.14
+      JAVA_TOOL_OPTIONS: --enable-native-access=ALL-UNNAMED
+      ONEDNN_VERBOSE: '1'
+    steps:
+      - name: Record runner and toolchain facts
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          {
+            uname -a
+            test "$(uname -m)" = x86_64
+            lscpu
+            cat /etc/os-release
+            cmake --version
+            gcc --version
+            g++ --version
+            printf 'Repository: %s\nCommit: %s\nEvent: %s\n' \
+              "$GITHUB_REPOSITORY" "$GITHUB_SHA" "$GITHUB_EVENT_NAME"
+            printf 'Native library: %s\nJAVA_TOOL_OPTIONS=%s\nONEDNN_VERBOSE=%s\n' \
+              "$SYNAPTIK_ONEDNN_LIBRARY" "$JAVA_TOOL_OPTIONS" "$ONEDNN_VERBOSE"
+          } 2>&1 | tee "$EVIDENCE_DIR/target-facts.log"
+
+      - name: Check out sources
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install Java 26
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '26'
+
+      - name: Record Java version
+        run: |
+          set -euo pipefail
+          {
+            java -version
+            javac -version
+          } 2>&1 | tee "$EVIDENCE_DIR/java-version.log"
+
+      - name: Download and authenticate upstream oneDNN
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/onednn-v3.14.tar.gz"
+          curl --fail --location \
+            https://github.com/uxlfoundation/oneDNN/archive/refs/tags/v3.14.tar.gz \
+            --output "$archive" 2>&1 | tee "$EVIDENCE_DIR/download.log"
+          printf '%s  %s\n' \
+            063eca4137678ba79b2da7030cbe2b41b1cc7b15a76ac13728a531a710e7392d \
+            "$archive" | sha256sum --check 2>&1 | tee "$EVIDENCE_DIR/source-checksum.log"
+          mkdir -p "$ONEDNN_SOURCE"
+          tar -xzf "$archive" --strip-components=1 -C "$ONEDNN_SOURCE"
+
+      - name: Configure oneDNN 3.14.0 with Graph and sequential CPU runtime
+        run: |
+          set -euo pipefail
+          cmake -S "$ONEDNN_SOURCE" -B "$ONEDNN_BUILD" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$ONEDNN_PREFIX" \
+            -DCMAKE_INSTALL_LIBDIR=lib \
+            -DONEDNN_CPU_RUNTIME=SEQ \
+            -DONEDNN_GPU_RUNTIME=NONE \
+            -DONEDNN_BUILD_GRAPH=ON \
+            -DONEDNN_BUILD_TESTS=OFF \
+            -DONEDNN_BUILD_EXAMPLES=OFF \
+            -DONEDNN_LIBRARY_TYPE=SHARED \
+            -DONEDNN_VERBOSE=ON \
+            2>&1 | tee "$EVIDENCE_DIR/native-configure.log"
+
+      - name: Build and install unmodified upstream oneDNN
+        run: |
+          set -euo pipefail
+          cmake --build "$ONEDNN_BUILD" --parallel 2 \
+            2>&1 | tee "$EVIDENCE_DIR/native-build.log"
+          cmake --install "$ONEDNN_BUILD" \
+            2>&1 | tee "$EVIDENCE_DIR/native-install.log"
+
+      - name: Record installed native identity and configuration
+        run: |
+          set -euo pipefail
+          {
+            test -f "$SYNAPTIK_ONEDNN_LIBRARY"
+            readlink -f "$SYNAPTIK_ONEDNN_LIBRARY"
+            file "$SYNAPTIK_ONEDNN_LIBRARY"
+            sha256sum "$SYNAPTIK_ONEDNN_LIBRARY"
+            ldd "$SYNAPTIK_ONEDNN_LIBRARY"
+            cat "$ONEDNN_PREFIX/include/oneapi/dnnl/dnnl_version.h"
+            cat "$ONEDNN_PREFIX/include/oneapi/dnnl/dnnl_config.h"
+          } 2>&1 | tee "$EVIDENCE_DIR/native-identity.log"
+
+      # --info streams forked-test native stdout, including ONEDNN_VERBOSE execution records.
+      # These are correctness/compatibility tests, not performance measurements.
+      - name: Run complete CPU suite and public Engine oneDNN qualification
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon --console=plain --max-workers=2 --info --continue \
+            :backends:cpu:test \
+            :testing:integration-tests:test --tests '*EngineOneDnnIntegrationTest' \
+            2>&1 | tee "$EVIDENCE_DIR/qualification-tests.log"
+      - name: Measure report-only whole-plan training baseline without native tracing
+        env:
+          ONEDNN_VERBOSE: '0'
+          DNNL_VERBOSE: '0'
+        run: |
+          set -euo pipefail
+          ./gradlew --no-daemon --console=plain --max-workers=2 \
+            :tools:benchmarks:oneDnnBenchmark -Pprofile=baseline \
+            -PoneDnnLibrary="$SYNAPTIK_ONEDNN_LIBRARY" \
+            2>&1 | tee "$EVIDENCE_DIR/whole-plan-baseline.log"
+
+      - name: Upload qualification evidence even after failure
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: onednn-cpu-linux-x86-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            ${{ runner.temp }}/onednn-evidence/
+            ${{ runner.temp }}/onednn-build/CMakeCache.txt
+            ${{ runner.temp }}/onednn-build/CMakeFiles/CMakeConfigureLog.yaml
+            ${{ runner.temp }}/onednn-build/include/oneapi/dnnl/dnnl_config.h
+            ${{ runner.temp }}/onednn-build/include/oneapi/dnnl/dnnl_version.h
+            ${{ runner.temp }}/onednn-build/install_manifest.txt
+            modules/backend/cpu/build/test-results/test/
+            modules/backend/cpu/build/reports/tests/test/
+            testing/integration-tests/build/test-results/test/
+            testing/integration-tests/build/reports/tests/test/

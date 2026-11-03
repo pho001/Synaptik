@@ -1247,9 +1247,12 @@ Each carries its own cost triple; if any triple or shared cost input is incomple
 configuration fails closed. Otherwise lower complete cost, then lower count, then configured order
 selects among passing candidates without assuming thread scaling. Every uncertain, overflowing,
 tied-with-portable, insufficient-benefit, or ineligible case remains portable during analysis; a
-selected native plan does not fall back later. Accelerate BLAS/vDSP/vForce on Apple CPU, distinct oneMKL BLAS/VML and
-oneDNN routes on Intel, and distinct AOCL-BLAS/AOCL-LibM and optional ZenDNN routes on AMD remain
-planned. ARM itself does not name one native library.
+selected native plan does not fall back later. Explicit oneDNN 3.14.0 primitive/Graph routes now
+also realize qualified bare homogeneous static FLOAT32 MATMUL with K > 1, including normalized
+broadcast batches, inside the same CPU owner. API preference is not forced provider selection;
+see the [oneDNN configuration and qualification boundary](backend-guide/cpu-backend.md#explicit-onednn-composition).
+Accelerate BLAS/vDSP/vForce, distinct oneMKL BLAS/VML and distinct AOCL-BLAS/AOCL-LibM and
+optional ZenDNN routes remain planned. ARM itself does not name one native library.
 
 Planning still selects one CPU backend owner. Common partition lowering, fusion legality and
 profitability, canonical CPU IR, access plans, materialization accounting, numerical/determinism

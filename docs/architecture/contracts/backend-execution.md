@@ -266,8 +266,8 @@ The implemented [CPU0074 exception](#cpu0074-selected-row-region-execution-excep
 qualifies only the selected exec-v1 cases of the scalar-only/no-per-step-dispatch restrictions
 below. All other restrictions and implemented-capability statements remain unchanged.
 
-CPU scalar, CPU Vector API, generated JVM-bytecode CPU computation kernels, and OpenBLAS are
-routes inside the CPU backend.
+CPU scalar, CPU Vector API, generated JVM-bytecode CPU computation kernels, OpenBLAS and
+explicitly configured oneDNN primitive/Graph execution are routes inside the CPU backend.
 
 They are not separate backends.
 
@@ -295,6 +295,7 @@ scalar route
 Vector API route
 generated JVM-bytecode CPU computation-kernel route
 OpenBLAS route
+oneDNN primitive or Graph route
 specialized kernel
 fused kernel
 ```
@@ -308,6 +309,75 @@ cpu-blas
 ```
 
 unless this document is updated first.
+
+### Singleton MATMUL correctness cutover
+
+The existing Model contract requires K=0 positive zero and K=1 exactly one typed product,
+without an additional identity ADD or FMA. Portable ordinary, ordinary-batch, retained and
+ordinary-unit Scan, and selected scalar/vector row regions preserve that singleton result.
+K>1 keeps the established ordered producing sites; this correction does not peel a first term
+from multi-term regional contractions or change separate bias, carry, partial-merge or SUM ADDs.
+Activity gates still dominate both operand loads; inactive singleton contractions retain +0.
+
+The shared scalar/vector contributor seam takes the generation-only `directProduct` fact.
+Fixed feature contractions derive it from their complete logical K. Runtime row/cursor owners
+select singleton versus ordinary traversal once, outside contributor loops, using the full
+logical extent rather than active-row count or worker-range length. Each alternative rebuilds
+its generation-local load-cache/last-use state; no callback is reused with stale local definitions.
+
+Both generated compatibility streams append `|matmul-single-product-v1` only for MATMUL-bearing
+standalone, retained-Scan or regional bodies. Nested ordinary-unit Scan helpers propagate their
+changed specialization keys. This narrowly supersedes earlier literal-retention promises for
+those bodies; unaffected pointwise/SUM controls, global envelope 71, family projections, canonical
+IR and numeric/helper ABIs remain unchanged. Historical payloads are retired, not repinned.
+
+Production OpenBLAS MATMUL qualification is K>1 for both FLOAT32 and FLOAT64. K=0/K=1 are
+ineligible before native candidate/cost/decision selection and retain portable execution.
+This is cold shape-based admission, not value inspection, a retry or runtime fallback; raw
+provider GEMM bindings and qualified K>1 behavior remain unchanged.
+
+
+### Qualified oneDNN CPU realization
+
+The current oneDNN route requires explicit loading of an exact external 3.14.0 little-endian LP64
+library with sequential CPU runtime (SEQ, code 1). Required loading failures throw; no optional
+provider discovery or Runtime fallback may mask them. CPU backend identity, availability and
+Model semantics are unchanged. Production qualification is only bare homogeneous FLOAT32
+MATMUL with K > 1 over static positive dense/permuted-dense and normalized broadcast-batch
+layouts of rank at most 12. Empty/K=0/K=1, gapped or symbolic layouts, Scan bodies, row regions,
+convolution, bias, activation and post-operation native forms are not qualified. Wider diagnostic
+C bindings do not imply production eligibility. Existing ordinary CPU units preserve convolution
+signed zeros, activation special values and bias ordering/rounding.
+
+Both native APIs consume common CPU IR and canonical external buffers; saved/public stores
+remain ordinary memory obligations. Graph is not AD or a provider-owned replacement graph
+pipeline. API preference does not force native selection, and node count does not force Graph.
+CPU analysis compares complete portable/OpenBLAS and explicit ordinary-contraction alternatives,
+including longer partitions and constant writes, with conservative dimensionless heuristics
+charging arithmetic/remainder, dispatch/control, preparation, memory, ingress and scratch.
+These are not measured time or a speedup guarantee. Exact OpenBLAS Phase-1 decisions remain
+frozen, selected Phase-2 topology is not replaced, and Phase-2 schema 4 binds oneDNN policy and
+load-session identity while rejecting stale decisions.
+
+Analysis retains descriptor facts, not native handles. Primitive metadata queries create no
+primitive; Graph's scratch query requires temporary compilation and closure. Finalization
+recompiles the exact recipe, verifies retained metadata and returns ordered persistent kernels
+as `PreparedResource` objects with transactional rollback. Native caches remain library-owned.
+Data spans, padding/alignment, ingress copies and user scratch are declared before shared
+assignment. Each run workspace factory creates streams, memory/tensor handles and ABI tables
+before binding; the issued workspace retains the kernel and library until close, independently
+of prepared-owner closure. Runtime's prepared-resource lease contract remains unchanged.
+
+One RunState owns each shared ingress workspace. Copies share only matching logical value,
+origin and referenced span; the first native consumer refreshes that span every run and later
+consumers reuse it within the run. No offset prefix or across-run weight snapshot is copied.
+Graph inputs are VARIABLE. Cold binding applies direct origins once, copied origins zero, and
+rejects output/input/scratch aliasing. Fixed copy/execute/wait runs synchronously under the
+shared CPU budget with demand one; there is no hot allocation, selection, retry or fallback.
+Existing CNN AD may realize eligible rank-four MATMULs natively while convolution, fold/unfold
+and reductions keep ordinary implementations. Metal and CPU low-arithmetic admission are unchanged.
+
+### General Scan CPU realization
 
 The accepted general-scan CPU path is not the existing fixed recurrent Java route. Analysis
 prepares one body and declares exact checked staging, carry, temporary, output and demanded-history
@@ -687,8 +757,11 @@ Existing math owners expose only these additional package-private static void ge
 // CpuMatmulEmitter; ordered typed loaders, typed accumulator local.
 static void emitInit(CodeBuilder code, DataType dataType, int accumulator);
 static void emitContributorStep(CodeBuilder code, DataType dataType, int accumulator,
-    Runnable left, Runnable right);
+    boolean directProduct, Runnable left, Runnable right);
 static void emitFinish(CodeBuilder code, DataType dataType, int accumulator, IntConsumer sink);
+// Geometry-only dispatch, before any contributor traversal; callbacks rebuild branch-local caches.
+static void emitSingletonChoice(CodeBuilder code, TypeKind kind, Runnable bound,
+    Consumer<Boolean> body);
 // CpuAggregateEmitter; represented Scan SUM only, retaining raw singleton movement.
 static void emitRepresentedInit(CodeBuilder code, DataType dataType, int accumulator,
     boolean directSingleton);
@@ -698,8 +771,9 @@ static void emitRepresentedFinish(CodeBuilder code, DataType dataType, int accum
     IntConsumer sink);
 ```
 
-Reuse these seams in old complete loops and new orchestration without changing old byte/local
-order. Reuse `CpuClassFileKernelGenerator.emitBoundPointwise`, `CpuScalarEmitter` and carrier
+Reuse these seams in old complete loops and new orchestration, except for the explicit
+singleton correctness cutover above. Reuse `CpuClassFileKernelGenerator.emitBoundPointwise`,
+`CpuScalarEmitter` and carrier
 access; do not clone opcode/math switches or recreate retired Scan math subemitters.
 Extend existing portable permits/route, partition lowering/decomposition/recognition/preparation,
 Scan lowering/Stages/emitter, specialization, generator and ordinary binder owners only.
@@ -828,7 +902,7 @@ static void emitRangeBound(CodeBuilder code, CpuRowMapReductionIr ir,
 // Existing CpuMatmulEmitter; matching FloatVector/DoubleVector reference locals/loaders.
 static void emitVectorInit(CodeBuilder code, DataType type, int accumulator);
 static void emitVectorContributorStep(CodeBuilder code, DataType type, int accumulator,
-    Runnable left, Runnable right);
+    boolean directProduct, Runnable left, Runnable right);
 static void emitVectorFinish(CodeBuilder code, DataType type, int accumulator, IntConsumer sink);
 // Existing CpuAggregateEmitter; represented Scan SUM, never exact ordinary SUM/MEAN.
 static void emitRepresentedVectorInit(CodeBuilder code, DataType type, int accumulator,
@@ -915,7 +989,8 @@ Vector init uses the selected target's preferred F32/F64 species, whose bits mus
 specialization, never arbitrary species. Specialization validation must require that dtype's
 target preferred species and matching accumulator, load and mask species; arbitrary species
 cannot qualify by equal lane count alone. It initializes typed +0 except omitted direct-singleton
-reset. Loaders push matching vectors; MATMUL emits separate per-lane MUL then ADD, not FMA.
+reset. Loaders push matching vectors; MATMUL emits a singleton MUL assignment or separate
+per-lane MUL then ADD for K>1, never FMA.
 Represented SUM emits typed ADD or raw singleton assignment. Finish passes the completed local
 to the generation-only sink without arithmetic. Reuse existing pointwise/vector math, loop and
 carrier owners, not copied opcode switches or another RNN emitter. All further common signatures,
@@ -1639,7 +1714,8 @@ negative physical strides, unsafe overlap and overflow fail closed.
 MAIN implements the bounded [Metal0080](../../planning/backends/metal/tasks/0080-dense-view-matmul-composition.md)
 extension for first-production consumers. Its identity38 source-matched GPU/package/unchanged
 consumer proof predates identity39's FLOAT32 image-fold addition, identity40's pooling-overlap
-admission, identity41's audit extension and the current identity42 typed cutover; release acceptance remains separate.
+admission, identity41's audit extension, identity42's typed cutover and identity43's singleton
+MATMUL product repair; release acceptance remains separate.
 
 MATMUL input geometry may be exact canonical row-major strides, zero offset and referenced span
 equal to logical element count with logical isView true or false. Retain positive fully static
@@ -1739,11 +1815,12 @@ not a Runtime certificate, tolerance policy, retry, or fallback layer.
 
 Current generated CPU artifact envelopes use schema 71. Current Metal images use schema 22
 (`SM22`) with a 124-byte header, and coordinated workload, exact-policy, candidate, compatibility,
-route and codec identities use version 42. Native ABI7 retains thirteen exports. CPU schema68
+route and codec identities use version 43. Native ABI7 retains thirteen exports. CPU schema68
 and Metal schema19/identity29 are historical pre-cutover baselines. Metal identities30–38 record
 prior profile-free, elementary, boundary and view repairs;39 added FLOAT32 image folds,40 shared
-pooling overlap,41 the joined ordinary/native-Scan audit extension, and42 shared original-typed
-FLOAT32/BFLOAT16/FLOAT16 execution and dynamic composition references. Stale identities reject.
+pooling overlap,41 the joined ordinary/native-Scan audit extension,42 shared original-typed
+FLOAT32/BFLOAT16/FLOAT16 execution and dynamic composition references, and43 the singleton
+MATMUL product repair without changing K>1 arithmetic. Stale identities reject.
 CPU schema 70
 corrected activation extremes and named low FLOAT32 working sites; those repairs changed neither
 Model semantics nor provider admission. CPU schema 71 retains those repairs and adds the bounded
@@ -1946,7 +2023,7 @@ for FLOAT32 `SIGMOID`, version 34 for low `SIGMOID`, and version 35 for the nati
 exact low-value repairs. Version36 corrected standalone scalar admission and37 added dense-view
 MATMUL;38 added selected materializing RESHAPE;39 added overlapping FLOAT32 image folds;
 40 added shared FLOAT32 pooling overlap;41/schema21 added the ordinary/native-Scan audit;
-the current typed cutover is42/schema22.
+42/schema22 added shared typed execution;43/schema22 preserves singleton MATMUL product semantics.
 Stale versions fail closed. The complete-plan wrapper retains its unrelated version-one format.
 
 ## Accepted ordinary materializing RESHAPE extension
@@ -2016,7 +2093,7 @@ recipe domain. Public checkpoint wire versions and strict descriptor rebind rema
 this does not admit arbitrary PURE bodies or optimizer/history/compiled-plan continuation.
 
 Ordinary operation/attribute identities are reused where their grammar suffices. Scan added wire
-116/attribute42 at schema21/identity41; current schema22/`SM22`/header124/identity42 carries the
+116/attribute42 at schema21/identity41; current schema22/`SM22`/header124/identity43 retains the
 shared typed execution and dynamic composition-reference grammar. Every caller uses that grammar,
 shader/component/source authentication is renewed and stale inputs reject. ABI7/thirteen exports
 remain. Metal general FLOAT64 numerical arithmetic, unsupported mixed-low domains, CPU low

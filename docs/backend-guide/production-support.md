@@ -2,8 +2,8 @@
 
 ## Status and interpretation
 
-Reviewed scope freeze, 2026-11-01; current acceptance updated 2026-11-03 for the shared
-Metal F32/BF16/F16 cutover. The bounded private/internal 0.1.0 matrix has operation-catalog,
+Reviewed scope freeze, 2026-11-01; current capability updated 2026-11-03 for the optional
+oneDNN peer and exact CPU/Metal singleton contractions. The bounded private/internal 0.1.0 matrix has operation-catalog,
 root and isolated source/artifact/installed-consumer qualification recorded below. This is not
 a claim about every Model geometry, public registry publication or a trusted native prebuilt.
 Earlier sealed candidate receipts below apply only to their frozen source and artifacts.
@@ -55,6 +55,13 @@ All entries retain [Model numerical semantics](../architecture/contracts/foundat
 Finite tolerances do not replace exact discrete, special-value, saved-value or pre-write validation.
 Current exact predicates remain in CpuCapabilityProvider and the CPU lowerers; a family row is not
 a declaration that arbitrary partitions or every possible backward target are eligible.
+
+The optional [oneDNN CPU peer](cpu-backend.md#explicit-onednn-composition) qualifies only bare
+homogeneous static FLOAT32 MATMUL with K > 1, normalized dense/permuted-dense layouts and
+broadcast batches up to native rank 12. It does not broaden CPU operation/type admission:
+convolutions, external bias/activations and other ineligible work keep preplanned ordinary CPU
+units. API preferences are not provider priority; complete-plan costs and Model numerics remain
+authoritative. Target-specific correctness and report-only timings are recorded in that guide.
 
 ## CPU operation-audit closure
 
@@ -307,7 +314,31 @@ The owner chose private/internal distribution: no public licence or registry pub
 selected. Cephes/Gradle notices remain packaged; they do not grant public rights to the project's
 own code. Final candidate acceptance is recorded separately against its actual frozen artifacts.
 
-## Shared typed Metal root qualification
+## oneDNN and exact singleton root qualification
+
+The integrated macOS arm64/M3 Max source passed unfiltered `test build --continue` plus CPU
+and Metal Javadocs on JDK 26.0.1. The final command reported 159 actionable tasks: two executed
+and 157 up-to-date. The complete retained inventory contains 796 JUnit suite reports:
+5,936 tests, 64 skips, zero failures and zero errors. This accepts retained successful reports;
+it does not claim every test was freshly executed in the last command.
+
+Ten real oneDNN native-contract cases and twelve public Engine cases passed, including
+same-address current weights, dense/transposed/broadcast and guarded-gap layouts, exact point
+identities, separate epilogues and concurrent run isolation. Public PRIMITIVES/GRAPH/AUTO
+MLP/CNN forward/AD/SGD/save/load/fresh-training consumers passed independent numerical oracles
+with actual native execution records. The [CPU guide](cpu-backend.md#evidence-and-report-only-benchmarking)
+records exact target identity, numerical exclusions and report-only complete-plan timings.
+
+The rebuilt, locally signed and verified Metal package passed actual F32/BF16/F16 singleton
+publication, ordinary/vector/batched/transposed and controlled Scan numerical checks. Its
+library SHA-256 is `f9f18b2378403b65629de1900b21235b3a44e4e06b709bac81263e9904bf6334`;
+semantic identity is 43, with ABI7/schema22 unchanged.
+
+## Prior shared typed Metal root qualification
+
+This prior receipt and its source/artifacts are preserved unchanged under
+`build/release/0.1.0-before-onednn-20261103T143942Z/`. Its counts and native hash below do not
+describe the later oneDNN/singleton cutover.
 
 The source checkpoint through `583b6495` passed unfiltered `test build --continue` on the
 actual M3 Max with the authenticated current native package. The final gate reported 159

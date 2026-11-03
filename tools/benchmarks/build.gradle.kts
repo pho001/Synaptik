@@ -1,6 +1,7 @@
 import java.util.Locale
 import org.gradle.api.tasks.javadoc.Javadoc
 import org.gradle.external.javadoc.StandardJavadocDocletOptions
+import org.gradle.process.CommandLineArgumentProvider
 
 dependencies {
     implementation(project(":modules:engine"))
@@ -56,6 +57,30 @@ tasks.register<JavaExec>("benchmark") {
     classpath = files(sourceSets["main"].output, configurations.runtimeClasspath)
     mainClass.set("io.github.pho001.synaptik.tools.benchmarks.CpuLifecycleBenchmark")
     args(profile)
+    dependsOn(tasks.named("classes"))
+}
+
+tasks.register<JavaExec>("oneDnnBenchmark") {
+    group = "verification"
+    description = "Compares report-only whole-plan CPU default and explicit oneDNN training configurations."
+    val profile = benchmarkProfile.get()
+    val library = providers.gradleProperty("oneDnnLibrary")
+        .orElse(providers.environmentVariable("SYNAPTIK_ONEDNN_LIBRARY"))
+    jvmArgs("--enable-native-access=ALL-UNNAMED", "--add-modules=jdk.incubator.vector")
+    if (profile == "baseline") {
+        jvmArgs("-Xms1g", "-Xmx1g", "-XX:-TieredCompilation", "-Xbatch")
+    }
+    classpath = files(sourceSets["main"].output, configurations.runtimeClasspath)
+    mainClass.set("io.github.pho001.synaptik.tools.benchmarks.CpuOneDnnBenchmark")
+    argumentProviders.add(CommandLineArgumentProvider {
+        if (profile !in setOf("smoke", "baseline")) {
+            throw GradleException("oneDnnBenchmark profile must be smoke or baseline")
+        }
+        val path = library.orNull ?: throw GradleException(
+            "oneDnnBenchmark requires -PoneDnnLibrary=<absolute-path> or SYNAPTIK_ONEDNN_LIBRARY"
+        )
+        listOf(profile, path)
+    })
     dependsOn(tasks.named("classes"))
 }
 

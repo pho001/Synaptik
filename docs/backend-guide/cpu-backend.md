@@ -262,7 +262,8 @@ promotion or conversion mode. Current tuning is limited to the bounded two-phase
 for eligible FLOAT32/FLOAT64 bare MATMUL described below. Ordinary preparation already composes
 CPU-owned work into the bounded mixed CPU/Metal schedule defined by ADR 0016. Generic
 plugin/backend alternatives, broader transfer domains, and broader Metal operation coverage remain
-planned. The one current native CPU route is the exact OpenBLAS MATMUL route described below.
+planned. Current native CPU routes are the exact OpenBLAS MATMUL route and the explicitly
+configured [oneDNN MATMUL route](#explicit-onednn-composition).
 CPU-private specialized-subgraph recognition is current only
 as the cold, recognition-only boundary described below. Functional scatter,
 overlap fold, stable ordering, explicit-state random, cumulative-scan, and ordinary-aggregate
@@ -356,9 +357,10 @@ follows. See the
 ## Prerequisites and terms
 
 Contributors need JDK 26 and the ownership rules in the [architecture
-contract](../architecture/contracts/backend-execution.md#cpu-backend-routes). Real loading also requires a compatible
-OpenBLAS binary already installed or otherwise available to the operating-system loader, plus
-deployment JVM permission for restricted native access.
+contract](../architecture/contracts/backend-execution.md#cpu-backend-routes). Native loading uses
+an externally installed compatible OpenBLAS or explicitly configured oneDNN binary and deployment
+JVM permission for restricted native access: `--enable-native-access=ALL-UNNAMED` for the
+classpath deployment shown here.
 
 - A **route** is one backend-local implementation choice. The glossary entry for
   [backend route](../glossary.md#backend-route) explains why OpenBLAS is not a separate backend.
@@ -381,16 +383,211 @@ deployment JVM permission for restricted native access.
 
 The CPU backend owns capability reporting, physical CPU representations, whole-partition lowering,
 specialization, fusion, route selection, executable units, and typed tracing.
-The Class-File/Vector portable baseline, narrow OpenBLAS route, and exact-capability vendor peers
-remain routes within one CPU owner. Fusion and specialization describe common lowering or a route
+The Class-File/Vector portable baseline, narrow OpenBLAS route, and qualified oneDNN primitive
+and Graph routes remain routes within one CPU owner. Fusion and specialization describe common lowering or a route
 configuration; they are not additional backend identities or provider-owned graph pipelines. The
 architecture does not require a particular bytecode-generation API.
 
 ```text
 planning: owner = CPU
-CPU prepare: common lowering -> eligible portable / OpenBLAS / vendor peer plans -> whole-plan choice
+CPU prepare: common lowering -> eligible portable / OpenBLAS / oneDNN plans -> whole-plan choice
 runtime: invoke prepared CPU executable
 ```
+
+## Explicit oneDNN composition
+
+**oneDNN** is an external native deep-learning kernel library. CPU uses its primitive API and
+Graph API through the JDK Foreign Function and Memory (FFM) API; neither API is a new backend.
+Graph here means oneDNN's compiled numeric block, not Synaptik's automatic differentiation (AD).
+Both APIs consume the same common CPU intermediate representation (IR) and bind canonical
+external CPU buffers; native-internal layouts do not replace public or saved stores.
+
+### External binary and loading requirements
+
+`CpuBackendIntegration.openOneDnn(Path)` requires the exact absolute library path and defaults
+to `OneDnnApi.AUTO`. Its overload accepts `AUTO`, `PRIMITIVES`, or `GRAPH`. These are API
+preferences for eligible native units, not commands to select a provider. Whole-plan comparison
+can retain portable or OpenBLAS execution. There is no native-provider priority or fallback chain.
+The default `open()` and `Engine.standard()` compositions are unchanged.
+
+The required binary is **oneDNN 3.14.0**, little-endian LP64 (64-bit pointers and C `long`), with
+CPU runtime **SEQ** (sequential, runtime code `1`), Graph enabled and no GPU runtime. Synaptik
+bundles no oneDNN binary. Loading, ABI/version/runtime or required-symbol failure throws from
+explicit opening; optional OpenBLAS discovery never catches or substitutes for that failure.
+Use the deployment JVM flag `--enable-native-access=ALL-UNNAMED` on the classpath.
+
+The [Linux x86-64 qualification workflow](../../.github/workflows/onednn-cpu.yml) pins upstream
+[`v3.14`](https://github.com/uxlfoundation/oneDNN/releases/tag/v3.14), whose library version is
+3.14.0, and authenticates the source tarball with SHA-256
+`063eca4137678ba79b2da7030cbe2b41b1cc7b15a76ac13728a531a710e7392d`.
+Its build uses `CMAKE_BUILD_TYPE=Release`, `ONEDNN_CPU_RUNTIME=SEQ`,
+`ONEDNN_GPU_RUNTIME=NONE`, `ONEDNN_BUILD_GRAPH=ON`, `ONEDNN_LIBRARY_TYPE=SHARED`,
+`ONEDNN_VERBOSE=ON`, and disables upstream tests/examples. This is a reproducible build and
+qualification procedure, not a claim that the Linux job has already passed.
+
+### Complete public configuration example
+
+**Goal and inputs:** explicitly load the caller's exact library and compute a FLOAT32
+`[16,64] × [64,32]` matrix product of ones. With the public Engine, Model and CPU artifacts on
+the classpath, supply one absolute shared-library filename as the program argument. This
+complete class follows the same public lifecycle exercised by `EngineOneDnnIntegrationTest`.
+
+```java
+import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
+import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration.OneDnnApi;
+import io.github.pho001.synaptik.engine.Engine;
+import io.github.pho001.synaptik.engine.RunResult;
+import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import java.lang.foreign.MemorySegment;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+
+public final class OneDnnExample {
+    public static void main(String[] args) {
+        Tensor left = ones(16, 64);
+        Tensor right = ones(64, 32);
+        try (Engine engine = configured(Path.of(args[0]));
+                var prepared = engine.prepare(engine.compile(List.of(left.matmul(right))));
+                RunResult result = engine.run(prepared, List.of(left, right))) {
+            var value = result.materialize(result.publications().get(0), 16L * 32 * Float.BYTES);
+            System.out.println(value.bytes().getFloat()); // 64.0
+        }
+    }
+
+    private static Engine configured(Path library) {
+        try (Engine.Builder builder = Engine.builder()) {
+            return builder.takeOwnership(
+                    CpuBackendIntegration.openOneDnn(library, OneDnnApi.AUTO)).build();
+        }
+    }
+
+    private static Tensor ones(int rows, int columns) {
+        float[] data = new float[rows * columns];
+        Arrays.fill(data, 1.0f);
+        Shape shape = Shape.of(rows, columns);
+        return TensorFactory.create(
+                new TensorDescriptor(DataType.FLOAT32, shape,
+                        Optional.of(LayoutDescriptor.contiguous(shape)), false),
+                Optional.empty(),
+                Optional.of(new MemorySegmentStorage(
+                        DataType.FLOAT32, data.length, MemorySegment.ofArray(data))));
+    }
+}
+```
+
+Opening authenticates the binary; `takeOwnership` gives Engine the integration's close duty.
+Compilation describes the matrix product, preparation fixes resources and route, and the run
+publishes `[16,32]` values, each `64.0`. Materialization detaches bytes while the result lease is
+open. That value proves public arithmetic and lifecycle, **not** native selection: the selected
+plan remains private and public timings alone cannot prove which provider executed.
+Changing `AUTO` to `PRIMITIVES` or `GRAPH` restricts the native API comparison without forcing
+native selection. A relative or incompatible library path fails at explicit opening.
+
+### Numerical qualification and training
+
+Production eligibility is only **bare homogeneous FLOAT32 MATMUL with K > 1**, static positive
+geometry, dense or permuted-dense layouts and normalized broadcast batches, up to rank 12.
+K=0/K=1, empty or gapped layouts, symbolic B, Scan bodies, and selected row regions are not
+relabeled native. Conv2d/Conv3d, intrinsic or external bias, activations and other post-operations
+remain existing CPU units chosen before the run. Internal C bindings can construct wider
+primitives for diagnostics; that does not grant production capability.
+
+This boundary preserves Model numerics. Actual 3.14.0 counterexamples expose convolution
+signed-zero differences, activation NaN/zero behavior and external-bias rounding/ordering
+differences; availability of an apparently equivalent fused primitive is insufficient.
+There is no Model, AD or backend-owner rule change. Full convolutional-network AD can accelerate
+its existing eligible rank-four matrix products while convolution, fold/unfold, reductions and
+other operations retain their qualified CPU implementations. Saved preactivations and public
+stores remain present, and every run observes current inputs and weights.
+
+### Preparation, leases and concurrency
+
+Common preparation compares the portable/OpenBLAS peer with an explicit ordinary-contraction
+plan, including partitions above eight nodes and constant writes. `AUTO` compares primitive
+and Graph costs per eligible unit; node count does not force Graph. These are conservative,
+dimensionless **whole-plan heuristics**, not measured nanoseconds or a speedup guarantee. They
+charge arithmetic and the portable remainder, dispatch/control binding, preparation, declared
+memory, ingress copies and exact user scratch. Exact OpenBLAS Phase-1 decisions remain frozen;
+a selected Phase-2 topology is never replaced.
+
+Analysis retains no native handles. Primitive description queries a primitive descriptor without
+creating a primitive. Graph exposes scratch size only after compilation, so analysis compiles,
+queries and closes a temporary block. After shared assignment, finalization freshly recompiles
+the exact recipe and verifies its descriptor facts. oneDNN owns its native cache; Synaptik adds
+no custom native cache. Selected kernels are acquired in order as persistent `PreparedResource`
+objects, with transactional rollback if later acquisition fails.
+
+Persistent kernel/library leases are distinct from run resources. Each run workspace factory
+creates its stream, memory/tensor handles, ABI argument tables and user scratch before binding.
+Data span, padding/alignment, ingress and scratch requirements are declared before shared slot
+assignment. Cold binding rejects output/input and scratch aliases and applies original origins
+once; copied origins are zero. Issued workspaces retain the kernels and library until workspace
+close, including after prepared/owner close prevents new admission. Runtime owns prepared-resource
+leases; one RunState owns each shared workspace.
+
+Raw ingress copies are deduplicated across units and operand roles by logical value identity,
+origin and referenced span. Only the referenced span is copied, never an offset prefix. Its first
+native consumer refreshes it on **every run**, later consumers reuse it within that run, and
+weights are never snapshotted across runs. Graph inputs are all VARIABLE, including weights.
+Hot work is fixed copy, execute and synchronous wait under the shared CPU budget with demand
+one. SEQ avoids a second native worker pool; no allocation, route selection or late fallback is
+performed in that hot path.
+
+Phase-2 tuning decisions use schema 4 with the oneDNN policy and exact load-session identity;
+stale versions are rejected. This adds neither compatibility shims nor persistent cache support.
+oneDNN adds no Metal execution path; the Java CPU BFLOAT16/FLOAT16 arithmetic lock is unchanged.
+
+### Evidence and report-only benchmarking
+
+Recorded macOS arm64/M3 Max qualification used JDK 26.0.1 and oneDNN 3.14.0 SEQ: ten native
+contract cases and twelve public Engine cases passed, including distinct concurrent bindings and
+retained publications, exact F32/F64 singleton signs, empty contractions and separate epilogues.
+Public PRIMITIVES, GRAPH and AUTO CLI training also exercised actual `ONEDNN_VERBOSE` execution
+records, changed inputs/weights, saved MLP preactivations, rank-four broadcast AD, grouped
+anisotropic Conv2d/Conv3d finite differences, signed-zero preservation and owned MLP/CNN
+SGD/save/load/fresh-training workflows. These correctness/lifetime observations do not establish
+Linux x86 qualification.
+
+Run the public whole-plan benchmark separately, with native verbose output disabled:
+
+```shell
+ONEDNN_VERBOSE=0 DNNL_VERBOSE=0 ./gradlew :tools:benchmarks:oneDnnBenchmark \
+  -PoneDnnLibrary=/absolute/path/to/libdnnl \
+  -Pprofile=smoke
+```
+
+`baseline` is the longer profile. The report compares requested `CPU_DEFAULT`,
+`ONEDNN_PRIMITIVES`, `ONEDNN_GRAPH` and `ONEDNN_AUTO` configurations over linear-MSE and
+grouped Conv3d actual-AD workloads. It is report-only: configuration names do not prove selected
+providers, and no OpenBLAS training row or winner guarantee is implied.
+
+The observed report-only baseline below used Apple M3 Max, macOS 26.7.1, JDK `26.0.1+8-34`
+and the exact oneDNN library SHA-256
+`44054170bb17aa931d5b1db29a0cfdac2a7f16c8ca20ec4ab4d71ab972abd2aa`.
+Each row retained seven warmed batches of at least 25 ms, in a fixed configuration order in one
+JVM with native tracing disabled. Values are median whole-plan milliseconds per run, including
+forward and actual dX/dW, not a native-kernel microbenchmark.
+
+| Requested configuration | Linear-MSE training | Grouped Conv3d training |
+|---|---:|---:|
+| CPU_DEFAULT | 4.403 | 7.387 |
+| ONEDNN_PRIMITIVES | 3.971 | 12.529 |
+| ONEDNN_GRAPH | 3.541 | 7.444 |
+| ONEDNN_AUTO | 3.117 | 7.534 |
+
+This single-host, single-fork observation is not a statistical winner claim or a calibration of
+the selector's dimensionless heuristic. Native configuration can be slower for a complete graph;
+the default CPU composition therefore remains unchanged. `CPU_DEFAULT` is not a forced-portable
+or forced-OpenBLAS row. Full training partitions are ineligible for the existing whole-partition
+OpenBLAS route, so an isolated BLAS timing is not substituted for that missing comparison.
 
 ## Supported lifecycle integration
 
@@ -542,8 +739,9 @@ route candidates. Thus Phase 2 never repeats Phase-1 search.
 
 The returned batch contains every retained legal topology/representation combination in stable
 order, or no batch when completeness cannot be proved or fewer than two alternatives exist. For
-a partition above eight compiled nodes, ordinary CPU preparation still executes a direct plan,
-but complete-plan candidates are unavailable: the internal candidate result has no identities
+a partition above eight compiled nodes, ordinary CPU preparation still executes a retained common
+plan (including eligible oneDNN comparison), but complete-plan candidates are unavailable: the
+internal candidate result has no identities
 and reports incomplete, and an explicit selected-plan identity is rejected. Phase 2 therefore
 does not tune or select such a partition.
 
@@ -554,6 +752,10 @@ the established direct representation. `trialPreparation(...)` and
 CPU partition preparation. Engine then invokes shared assignment, finalization, schedule assembly,
 validation, and `PreparedExecution` construction. A trial preparation neither binds representative
 inputs nor runs or timestamps a trial.
+
+These copied-representation candidates are distinct from the oneDNN route's required raw ingress
+workspaces. A selected Phase-2 topology is retained exactly; oneDNN does not replace it with the
+ordinary-contraction alternative used by untuned analysis.
 
 Batch, candidate, and live decision values are immutable exact-association values. They own no
 closeable resource and borrow the exact integration, projected context, and partition association.
@@ -1189,15 +1391,15 @@ The portable route is bytecode-first Java 26 Class-File generation plus the Vect
 the always-available semantic fallback for every occurrence it supports. CPU 0005C completes all
 four execution strategies for the proving slice. OpenBLAS is a narrow cross-platform native route
 for eligible BLAS-compatible linear algebra, not the universal or preferred CPU route.
-Vendor/platform peers
-include Accelerate BLAS/vDSP/vForce on Apple CPU, distinct oneMKL BLAS/VML and oneDNN families on
-Intel, and distinct AOCL-BLAS/AOCL-LibM and optional ZenDNN families on AMD.
+The explicitly configured oneDNN primitive/Graph peer is current only within the
+[bare-F32 qualification](#numerical-qualification-and-training). Accelerate BLAS/vDSP/vForce,
+distinct oneMKL BLAS/VML, AOCL-BLAS/AOCL-LibM and optional ZenDNN peers remain planned.
 
 There is no fixed vendor priority and no route-specific `BackendId`. Planning selects the single
 CPU owner; CPU Prepare filters exact capability, platform, semantics, numerical/determinism,
-layout, representation, and resources, then compares whole-plan cost. Apple Silicon may admit
-Accelerate. Other ARM targets use portable code generation unless a later task adds an explicitly
-verified provider; ARM does not imply one hard-coded native library.
+layout, representation, and resources, then compares whole-plan cost. Current oneDNN qualification
+has recorded macOS Apple Silicon evidence, not a Linux x86 pass. A processor vendor or ARM target
+does not imply any hard-coded native library or unqualified provider capability.
 
 Portable generated loops use universal primitive `start`/`end` loops. Compatible
 concrete extents and element count bind on the cold path and do not normally change class/cache
@@ -4239,9 +4441,9 @@ contracts are technically public below `.internal`. The supported root-package s
 contains `CpuCapabilityProvider` plus the Engine-facing `CpuBackendIntegration` SPI; every
 preparer, finalizer, representation, route, and composition implementation remains unsupported
 under `.internal`. CPU 0005A created no native placeholder package. CPU 0010 now owns the
-exact `route.nativeblas.openblas` leaf described above; later concrete tasks own distinct
-Accelerate/oneMKL/AOCL `route.nativeblas` leaves and vDSP/vForce/VML/oneDNN/AOCL-LibM/ZenDNN
-`route.nativeops` leaves.
+exact `route.nativeblas.openblas` leaf described above; the explicit oneDNN route now lives in
+`route.nativeops.onednn`. Distinct Accelerate/oneMKL/AOCL `route.nativeblas` leaves and
+vDSP/vForce/VML/AOCL-LibM/ZenDNN `route.nativeops` leaves remain later work.
 
 ### Generated class-byte persistence and evidence
 

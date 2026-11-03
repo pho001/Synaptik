@@ -4,6 +4,18 @@
 
 ### Added
 
+- Explicit oneDNN 3.14.0 LP64 sequential CPU composition with `openOneDnn(Path)` and immutable
+  `AUTO`/`PRIMITIVES`/`GRAPH` API preferences inside the existing CPU owner. Required explicit
+  load failures throw; default CPU/OpenBLAS discovery is unchanged and no binary is bundled.
+  Production-native qualification is limited to bare homogeneous static dense/permuted-dense
+  FLOAT32 MATMUL, including normalized broadcast batches up to rank 12, with K > 1.
+  Conv2d/Conv3d, bias, activations, symbolic/Scan/row-region and other unqualified work keep their
+  existing CPU units to preserve Model numerics. Common-IR whole-plan heuristic comparison,
+  declared ingress/scratch, per-run current-weight refresh and leased native resources preserve
+  saved/public stores and existing AD; Phase-2 schema 4 rejects stale policy/session decisions.
+  macOS arm64 native/public correctness and training evidence does not establish x86 support or
+  speedup. See the [configuration, exact binary pin and report-only benchmark](docs/backend-guide/cpu-backend.md#explicit-onednn-composition).
+
 - Qualified shared Metal FLOAT32/BFLOAT16/FLOAT16 elementary, scalar/tensor power,
   masked/statistical reduction and cumulative execution, including rank-zero values, affine
   scalar/clamp/reduction reads and generated expanded-one counts. Numerical bodies use FLOAT32
@@ -135,6 +147,15 @@
 
 ### Fixed
 
+- CPU one-term MATMUL preserves its exact FLOAT32/FLOAT64 product in scalar, vector, tiled,
+  ordinary-batch and controlled/regional Scan execution. Empty/inactive sums retain positive
+  zero and multi-term typed sites remain unchanged. Selective artifact identity rejects stale
+  contraction bodies; unqualified OpenBLAS singleton contractions remain on the planned CPU path.
+  Numerical regressions replace obsolete literal ClassFile/opcode snapshots.
+- Metal one-term MATMUL preserves the typed product's signed zero without an added zero or
+  FMA, across FLOAT32/BFLOAT16/FLOAT16. The shared custom owner guards both operands before
+  loads; the existing rank-two graph owner uses exact singleton broadcast multiplication.
+  Semantic identity advances to43; ABI7, program schema22 and multi-term arithmetic stay unchanged.
 - Metal signed SLICE materializes all seven stored carriers without negative physical strides;
   numerical extraction/update pullbacks use existing owners. Overlapping floating FoldAxis works
   in controlled Scan rows and guards inactive NaN contributors.

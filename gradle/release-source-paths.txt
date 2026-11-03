@@ -1,5 +1,6 @@
 # Reviewed release source inputs; exact relative paths, one per line, sorted.
 # Update this selection only when accepted source adds/removes files; contents are read live.
+.github/workflows/onednn-cpu.yml
 .gitignore
 AGENTS.md
 ARCHITECTURE.md
@@ -2543,6 +2544,7 @@ testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integr
 testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineExplicitCompositionMetalIntegrationTest.java
 testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineModelAutotuningIntegrationTest.java
 testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineNumericalSemanticsIntegrationTest.java
+testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineOneDnnIntegrationTest.java
 testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineOrderingMetalIntegrationTest.java
 testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EnginePool3dTrainingIntegrationTest.java
 testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/EngineProducerlessMetalIntegrationTest.java
@@ -2569,6 +2571,7 @@ testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integr
 tools/benchmarks/build.gradle.kts
 tools/benchmarks/src/main/java/io/github/pho001/synaptik/tools/benchmarks/BenchmarksToolModule.java
 tools/benchmarks/src/main/java/io/github/pho001/synaptik/tools/benchmarks/CpuLifecycleBenchmark.java
+tools/benchmarks/src/main/java/io/github/pho001/synaptik/tools/benchmarks/CpuOneDnnBenchmark.java
 tools/benchmarks/src/main/java/io/github/pho001/synaptik/tools/benchmarks/MetalRouteBenchmark.java
 tools/benchmarks/src/test/java/io/github/pho001/synaptik/tools/benchmarks/.gitkeep
 tools/cli/build.gradle.kts

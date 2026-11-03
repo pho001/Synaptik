@@ -72,6 +72,17 @@ Standard-Metal convenience, generic plugin discovery, CUDA and broader optimizer
 Source-domain-bounded v1-v6 graph/Model persistence is available; it stores no optimizer/session continuation.
 Focused documentation identifies the exact current boundary for each area.
 
+CPU also supports explicit **oneDNN** (external native kernel library) 3.14.0 composition through
+`CpuBackendIntegration.openOneDnn(absolutePath[, OneDnnApi])`. Its primitive and Graph APIs are
+routes inside the same CPU owner, not new backends or automatic-differentiation systems.
+Only qualified bare static homogeneous FLOAT32 MATMUL with K > 1 is production-native;
+convolution, bias, activations and unqualified geometry remain existing CPU work. Model/AD,
+Metal, default CPU composition and the Java CPU low-arithmetic lock are unchanged. API preference
+does not force native selection, and heuristic whole-plan costs do not promise a speedup.
+No binary is bundled. See the [complete public configuration and external-binary requirements](docs/backend-guide/cpu-backend.md#explicit-onednn-composition),
+including JDK native-access permission, ownership and report-only benchmarking. Recorded
+macOS arm64 correctness evidence is not a claim of Linux x86 qualification or performance.
+
 ## Prerequisites
 
 - JDK 26

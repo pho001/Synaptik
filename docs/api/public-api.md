@@ -665,8 +665,8 @@ reports the immutable `cpu/host` availability fact, exposes occurrence-specific 
 one artifact-free positional `PartitionPreparation` and
 one retained schedule assembler for exactly one non-empty maximal CPU-owned partition, and provides
 artifact-free local and complete-plan tuning collaborations. CPU retains qualified portable,
-generated, and OpenBLAS routes with non-profile plan, generated-artifact, tuning, and cache
-identity. Engine owns the `CompileArtifacts`, obtains the exact
+generated, OpenBLAS and explicitly configured oneDNN routes with non-profile plan,
+generated-artifact, tuning and cache identity. Engine owns the `CompileArtifacts`, obtains the exact
 partition projection from `GraphPreparation`, and passes every ordinary, tuned, selected, or
 fallback preparation back through `GraphPreparation`. During complete preparation, shared Prepare
 identifies eligible fully static source-only published splat constants and asks the CPU assembler
@@ -680,6 +680,38 @@ open. The adapter also attempts bounded automatic OpenBLAS discovery and qualifi
 attempt may add an eligible native candidate; the portable route remains available when discovery
 or qualification fails, and OpenBLAS is neither guaranteed to be present nor guaranteed to be
 selected.
+
+`CpuBackendIntegration.openOneDnn(absolutePath)` instead adds a required exact external
+**oneDNN** native kernel library, defaulting to the nested `OneDnnApi.AUTO` preference. The
+overload accepts `AUTO`, `PRIMITIVES` or `GRAPH`. The primitive and Graph APIs both consume
+common CPU lowering; Graph does not mean automatic differentiation and node count does not
+force it. A preference limits eligible native APIs, not provider selection: the cost comparison
+may retain portable or OpenBLAS units. No provider priority or Runtime fallback chain is added.
+The CPU backend identity and `cpu/host` availability remain the same.
+
+Explicit opening requires an absolute path to oneDNN 3.14.0, little-endian LP64, sequential CPU
+runtime (SEQ, code 1), with Graph support; the JDK Foreign Function and Memory (FFM) API needs
+native-access permission. Loading/version/runtime/symbol failure throws rather than becoming
+optional discovery. No oneDNN binary is bundled, and default `open()`/`Engine.standard()` behavior
+is unchanged. The [CPU guide's complete configuration example](../backend-guide/cpu-backend.md#complete-public-configuration-example)
+shows `Engine.builder().takeOwnership(configuredCpu).build()`, the JVM flag, exact external build
+pin and resource closure.
+
+Production eligibility is bare homogeneous FLOAT32 MATMUL, K > 1, static positive dense or
+permuted-dense/normalized broadcast-batch layouts up to rank 12. K=0/K=1, gapped/symbolic
+geometry, Scan bodies and row regions retain existing CPU execution. Conv2d/Conv3d, bias,
+activations and post-operations are likewise not production-native. This preserves Model's
+signed-zero, NaN and bias-ordering/rounding contracts; diagnostic native bindings are not
+production capability. Compiler-generated AD is unchanged: eligible existing rank-four
+contractions in CNN gradients may use native code while convolution, fold/unfold and reductions
+stay on their ordinary CPU units. Saved/public stores and current-weight visibility remain.
+
+The oneDNN comparison uses conservative dimensionless whole-plan heuristics, not measured
+latencies or promised speedups. Decisions account for arithmetic/remainder, control/dispatch,
+preparation, memory, ingress and scratch. OpenBLAS Phase-1 decisions and selected Phase-2
+topologies remain frozen; Phase-2 schema 4 includes the oneDNN policy/load-session identity and
+rejects stale decisions. Selected plans are private; public timings alone cannot prove provider
+selection. See the [guide's qualification, lease and benchmark details](../backend-guide/cpu-backend.md#explicit-onednn-composition).
 
 The copy requires a fully static Shape, a present resolved layout, a non-negative byte limit, and
 one of the two exact current CPU representation implementations. It traverses logical coordinates
@@ -708,8 +740,14 @@ of that physical work: `PreparedExecution` retains immutable recipes only, and c
 fresh `RunState` invokes each initialized-buffer recipe exactly once. Sequential or concurrent
 runs therefore own distinct initialized representations.
 
-The adapter owns any qualified OpenBLAS coordinator until `close()`. Callers must keep it open
-while preparing or running recipes obtained from it and must coordinate closure with active runs.
+The adapter owns any qualified OpenBLAS coordinator and explicitly loaded oneDNN library.
+Callers must keep it open for preparation and new run admission. oneDNN prepared-resource leases
+retain persistent kernels; each issued run workspace retains the needed kernels and library
+until its own close. Stream, memory/tensor handles, ABI tables and user scratch are created by the
+run workspace factory before binding, not in hot execution. Data/padding/scratch requirements are
+declared before assignment; ingress copies refresh current inputs/weights once per shared source
+span on every run. SEQ execution reserves one shared CPU-budget permit and waits synchronously.
+Closure rejects new admission without invalidating already-issued native workspaces.
 Borrowing transfers no storage ownership, and closing a borrowed wrapper does not close caller
 storage. The borrow operation validates only intrinsic storage consistency and current access; it
 cannot validate an expected logical input type, required span, or write role because those target
@@ -721,8 +759,9 @@ mutation has no atomic-snapshot guarantee. Typed logical input binding, a simple
 surface, and ordinary typed or host-materialized results remain Engine work.
 
 The adapter does not expose CPU internals, discover backends for Runtime, run tuning policy, or
-turn OpenBLAS into another backend identity. CPU has no production Compiler or Engine dependency;
-its compiler-backed fixtures are tests only.
+turn OpenBLAS or oneDNN into another backend identity. CPU has no production Compiler or Engine
+dependency; its compiler-backed fixtures are tests only. Metal and the Java CPU low-arithmetic
+lock are unchanged.
 
 The public `modules:runtime` surface now contains five focused packages:
 
