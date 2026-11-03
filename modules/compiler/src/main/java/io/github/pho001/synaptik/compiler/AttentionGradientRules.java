@@ -162,7 +162,15 @@ final class AttentionGradientRules<V> {
             V query,
             java.util.Optional<ScalarValue> configuredScale) {
         if (configuredScale.isPresent()) {
-            return ops.mul(value, configuredScale.orElseThrow());
+            ScalarValue scale = configuredScale.orElseThrow();
+            DataType valueType = ops.descriptor(value).dataType();
+            // Low attention may carry an F32 metadata scale. Keep that scalar exact at
+            // its working site and leave narrowing to the declared input publication.
+            V working = scale.dataType() == DataType.FLOAT32
+                            && (valueType == DataType.FLOAT16 || valueType == DataType.BFLOAT16)
+                    ? cast(value, DataType.FLOAT32)
+                    : value;
+            return ops.mul(working, scale);
         }
         Dimension embedding =
                 ops.descriptor(query).shape().dimension(ops.descriptor(query).shape().rank() - 1);

@@ -68,7 +68,9 @@ class MetalAttentionGradientNativeTest {
     void originalLowOutputAndWeightsRootsExecuteActualCompilerAdjoints() {
         for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16))
             for (boolean weightsRoot : List.of(false, true))
-                for (boolean masked : List.of(false, true)) assertAttention(weightsRoot, masked, true, type);
+                for (boolean masked : List.of(false, true))
+                    for (boolean explicit : List.of(false, true))
+                        assertAttention(weightsRoot, masked, explicit, type);
     }
 
     private static void assertAttention(boolean weightsRoot, boolean masked, boolean explicit) {

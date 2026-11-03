@@ -11,6 +11,8 @@ import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionAttrs;
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind;
+import io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarValueAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.ScaledDotProductAttentionResult;
 import io.github.pho001.synaptik.model.tensor.Tensor;
@@ -102,20 +104,49 @@ final class AttentionGradientRulesTest {
     @Test
     void originalLowScaleMetadataSupportsJointOutputCotangents() {
         for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
-            Tensor query = tensor(type, Shape.of(2, 2), true);
-            Tensor key = tensor(type, Shape.of(3, 2), true);
-            Tensor value = tensor(type, Shape.of(3, 4), true);
-            ScalarValue scale = type == DataType.BFLOAT16 ? ScalarValue.bfloat16(0.5f) : ScalarValue.float32(0.5f);
-            var attention = query.scaledDotProductAttentionWithWeights(key, value,
-                    new ScaledDotProductAttentionAttrs(Optional.of(scale), false));
-            Tensor objective = attention.output().sum().add(attention.weights().sum());
-            for (Tensor target : List.of(query, key, value)) {
-                Tensor actual = gradient(objective, target);
-                assertEquals(target.descriptor().shape(), actual.descriptor().shape());
-                assertEquals(type, actual.descriptor().dataType());
-                assertCompiles(objective, target);
+            for (boolean masked : List.of(false, true)) {
+                Tensor query = tensor(type, Shape.of(2, 2), true);
+                Tensor key = tensor(type, Shape.of(3, 2), true);
+                Tensor value = tensor(type, Shape.of(3, 4), true);
+                ScalarValue scale = type == DataType.BFLOAT16
+                        ? ScalarValue.bfloat16(0.5003f) : ScalarValue.float32(0.5003f);
+                var attrs = new ScaledDotProductAttentionAttrs(Optional.of(scale), masked);
+                var attention = masked
+                        ? query.scaledDotProductAttentionWithWeights(key, value,
+                                tensor(DataType.BOOL, Shape.of(2, 3), false), attrs)
+                        : query.scaledDotProductAttentionWithWeights(key, value, attrs);
+                Tensor objective = attention.output().sum().add(attention.weights().sum());
+                for (Tensor target : List.of(query, key, value)) {
+                    Tensor actual = gradient(objective, target);
+                    assertEquals(target.descriptor().shape(), actual.descriptor().shape());
+                    assertEquals(type, actual.descriptor().dataType());
+                    if (type == DataType.FLOAT16 && target != value) {
+                        assertTrue(hasExactWorkingScale(actual, scale));
+                    }
+                    assertCompiles(objective, target);
+                }
             }
         }
+    }
+
+    private static boolean hasExactWorkingScale(Tensor root, ScalarValue scale) {
+        IdentityHashMap<Tensor, Boolean> seen = new IdentityHashMap<>();
+        ArrayDeque<Tensor> pending = new ArrayDeque<>();
+        pending.add(root);
+        while (!pending.isEmpty()) {
+            Tensor tensor = pending.removeLast();
+            if (seen.put(tensor, Boolean.TRUE) != null || tensor.provenance().isEmpty()) continue;
+            var provenance = tensor.provenance().orElseThrow();
+            if (provenance.operation().kind() == ScalarElementwiseKind.MUL
+                    && provenance.operation().attrs() instanceof ScalarValueAttrs attrs
+                    && attrs.value() == scale) {
+                assertEquals(DataType.FLOAT32, tensor.descriptor().dataType());
+                assertEquals(DataType.FLOAT32, provenance.inputs().getFirst().descriptor().dataType());
+                return true;
+            }
+            provenance.inputs().forEach(pending::addLast);
+        }
+        return false;
     }
 
     private static Tensor gradient(Tensor objective, Tensor target) {
