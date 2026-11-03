@@ -6,7 +6,8 @@
 /*
  * Numeric F32/BF16/F16 primitive entries shared by ordinary and native Scan.
  * Assemble after exact, GeneralScan, data and the common numeric codec sources.
- * Binary: left0/right1/output2/meta3. Unary/scalar: input0/output1/meta2.
+ * Binary: left0/right1/output2/meta3. Unary: input0/output1/PointMeta2.
+ * Scalar/clamp: input0/output1/DataMeta2; logical_storage owns physical reads.
  * Controlled suffix entries add control28/step29, with unchanged original geometry.
  * Every guard precedes represented operand loads. An activity ADD with exactly one
  * present operand copies that operand's raw word; absent contributors are not zeros.
@@ -63,25 +64,25 @@ static NSString *const SynaptikFloat32OrdinaryKernelSource =
 "ORDINARY_UNARY(numeric_sign, 22u)\n"
 "ORDINARY_UNARY(numeric_relu, 23u)\n"
 "ORDINARY_UNARY(numeric_reciprocal, 52u)\n"
-"ORDINARY_UNARY(numeric_scalar_add, 46u)\n"
-"ORDINARY_UNARY(numeric_scalar_sub, 47u)\n"
-"ORDINARY_UNARY(numeric_scalar_mul, 48u)\n"
-"ORDINARY_UNARY(numeric_scalar_div, 49u)\n"
-"ORDINARY_UNARY(numeric_scalar_min, 0u)\n"
-"ORDINARY_UNARY(numeric_scalar_max, 100u)\n"
 "#undef ORDINARY_UNARY\n"
-"inline void numeric_clamp_body(device const uchar *input, device uchar *output, constant ClampMeta &m, ulong linear) {\n"
-"    ulong word = load_word(input, linear, lp_width(m.valueType));\n"
-"    ulong lower = lp_extreme(word, ulong(m.lower), m.valueType, true);\n"
-"    store_word(output, linear, lp_width(m.valueType), lp_extreme(lower, ulong(m.upper), m.valueType, false));\n"
+"inline void numeric_scalar_body(device const uchar *input, device uchar *output, constant DataMeta &m, ulong linear) {\n"
+"    ulong offset = logical_storage(linear, m.inDims, m.inputStrides, m.inputRank, m.inputOffset);\n"
+"    uint type = m.sourceType;\n"
+"    ulong word = load_word(input, offset, lp_width(type)), result;\n"
+"    if (m.operation == 30u) result = lp_extreme(lp_extreme(word, m.attrs[0], type, true), m.attrs[1], type, false);\n"
+"    else if (m.operation == 50u) result = lp_narrow(synaptik_f32_pow(lp_widen(word, type), lp_widen(m.attrs[0], type)), type);\n"
+"    else result = ordinary_unary_word(word, uint(m.attrs[0]), type, m.operation == 28u ? 0u : m.operation == 29u ? 100u : m.operation);\n"
+"    store_word(output, linear, lp_width(m.targetType), result);\n"
 "}\n"
-"#define ORDINARY_CLAMP(NAME, CONTROL, GUARD) \\\n"
-"kernel void NAME(device const uchar *input [[buffer(0)]], device uchar *output [[buffer(1)]], constant ClampMeta &m [[buffer(2)]], uint3 gid [[thread_position_in_grid]] CONTROL) { ulong linear = linear_id(gid, m.gridWidth, m.gridHeight); if (linear >= m.elementCount) return; GUARD numeric_clamp_body(input, output, m, linear); }\n"
-"ORDINARY_CLAMP(numeric_clamp, , )\n"
-"#define ORDINARY_CONTROL , device const ulong *scanControl [[buffer(28)]], constant ScanStepControl &scanStep [[buffer(29)]]\n"
-"ORDINARY_CLAMP(numeric_clamp_scan, ORDINARY_CONTROL, if (!scan_control_output(scanControl, scanStep, linear)) return;)\n"
-"#undef ORDINARY_CONTROL\n"
-"#undef ORDINARY_CLAMP\n"
+"kernel void numeric_scalar(device const uchar *input [[buffer(0)]], device uchar *output [[buffer(1)]], constant DataMeta &m [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) {\n"
+"    ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return;\n"
+"    numeric_scalar_body(input, output, m, linear);\n"
+"}\n"
+"kernel void numeric_scalar_scan(device const uchar *input [[buffer(0)]], device uchar *output [[buffer(1)]], constant DataMeta &m [[buffer(2)]], device const ulong *scanControl [[buffer(28)]], constant ScanStepControl &scanStep [[buffer(29)]], uint3 gid [[thread_position_in_grid]]) {\n"
+"    ulong linear = data_linear_id(gid, m);\n"
+"    if (linear >= m.elementCount || !scan_control_output(scanControl, scanStep, linear)) return;\n"
+"    numeric_scalar_body(input, output, m, linear);\n"
+"}\n"
 "inline float ordinary_mse_value(device const uchar *left, device const uchar *right, ulong ordinal, constant DataMeta &m) {\n"
 "    ulong lo = logical_storage(ordinal, m.inDims, m.inputStrides, m.inputRank, m.inputOffset);\n"
 "    ulong ro = logical_storage(ordinal, m.auxDims, m.auxiliaryStrides, m.auxRank, m.auxiliaryOffset);\n"

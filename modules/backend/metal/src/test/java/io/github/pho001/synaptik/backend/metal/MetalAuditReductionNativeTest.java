@@ -360,6 +360,14 @@ class MetalAuditReductionNativeTest {
                 assertNumeric(type, expected[operation], numericFloats(type, execute(
                         List.of(value(type), value(type)), List.of(scalar), new int[] {0},
                         new byte[][] {numeric(type, 3)}, 1))[0], type + " scalar " + scalarKinds.get(operation));
+                var affine = new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2}, Optional.of(
+                        LayoutDescriptor.of(Shape.of(2), new long[] {2}, 1, true)), true, false);
+                var affineOutput = new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2}, true);
+                float[] affineResults = numericFloats(type, execute(List.of(affine, affineOutput),
+                        List.of(scalar), new int[] {0},
+                        new byte[][] {numeric(type, Float.NaN, 3, Float.NaN, 3)}, 1));
+                for (float result : affineResults)
+                    assertNumeric(type, expected[operation], result, type + " affine " + scalarKinds.get(operation));
                 var right = new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2}, Optional.of(
                         LayoutDescriptor.of(Shape.of(2), new long[] {2}, 1, true)), false, false);
                 var tensor = MetalMpsGraphProgram.Node.binary(tensorKinds.get(operation), 0, 1, 2);
@@ -368,6 +376,13 @@ class MetalAuditReductionNativeTest {
                                 numeric(type, Float.NaN, 2, Float.NaN, 2)}, 2));
                 for (float result : actual) assertNumeric(type, expected[operation], result, type + " tensor");
             }
+            var affine = new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2}, Optional.of(
+                    LayoutDescriptor.of(Shape.of(2), new long[] {2}, 1, true)), true, false);
+            var clamp = MetalMpsGraphProgram.Node.clamp(0, 1, type, numericWord(type, -1), numericWord(type, 1));
+            assertArrayEquals(numeric(type, -1, 1), execute(List.of(affine,
+                            new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2}, true)),
+                    List.of(clamp), new int[] {0},
+                    new byte[][] {numeric(type, Float.NaN, -2, Float.NaN, 2)}, 1));
         }
     }
 

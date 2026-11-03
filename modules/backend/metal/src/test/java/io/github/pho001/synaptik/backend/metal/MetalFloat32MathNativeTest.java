@@ -5,7 +5,6 @@ import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -126,7 +125,7 @@ final class MetalFloat32MathNativeTest {
     }
 
     @Test
-    void linearPointKernelsRejectStridedFeedsThatHaveNoDenseProducerRepresentation() {
+    void scalarKernelReadsStridedFeedsWithoutCopyingOrDenseProducerAssumptions() {
         Shape shape = Shape.of(3);
         var input = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32,
                 new long[] {3}, Optional.of(LayoutDescriptor.of(
@@ -134,10 +133,8 @@ final class MetalFloat32MathNativeTest {
         var node = MetalMpsGraphProgram.Node.scalarValue(
                 MetalMpsGraphProgram.NodeKind.SCALAR_MUL, 0, 1, DataType.FLOAT32, 0x40000000L);
         var values = List.of(input, value(3));
-        var route = MetalPointwiseFusionPlanner.fixedCustom(node, values)
-                ? MetalPreparedRoute.CUSTOM_PROGRAM : MetalPreparedRoute.MPSGRAPH;
-        assertThrows(IllegalArgumentException.class, () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                values, new MetalMpsGraphProgram(List.of(node)), new int[] {0}, new int[] {1}, route));
+        assertArrayEquals(new float[] {2, 4, 6}, execute(node, values,
+                new int[] {0}, 1, List.of(new float[] {1, Float.NaN, 2, Float.NaN, 3})));
     }
 
     @Test

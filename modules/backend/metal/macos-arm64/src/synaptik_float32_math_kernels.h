@@ -10,9 +10,9 @@
  *
  * Numeric F32/BF16/F16 storage shares these FLOAT32 working-precision functions.
  * Assemble the shared numeric codec before this source. PointMeta carries valueType;
- * BinaryMeta carries original left/right and promoted output types. Scalar bits remain
- * in their original carrier. Offsets are element-based and outputs narrow exactly once.
- * Unary/scalar bindings: input=0, output=1, PointMeta=2.
+ * BinaryMeta carries original left/right and promoted output types.
+ * Offsets are element-based and outputs narrow exactly once.
+ * Unary bindings: input=0, output=1, PointMeta=2.
  * Tensor POW bindings: left=0, right=1, output=2, BinaryMeta=3.
  * Controlled variants append _scan and bind control28/step29; their eligibility guard
  * precedes every input load and leaves structurally inactive output cells untouched.
@@ -205,18 +205,6 @@ static NSString *const SynaptikFloat32MathKernelSource =
 "SYNAPTIK_NUMERIC_UNARY(numeric_gelu_tanh, synaptik_f32_gelu_tanh)\n"
 "SYNAPTIK_NUMERIC_UNARY(numeric_silu, synaptik_f32_silu)\n"
 "#undef SYNAPTIK_NUMERIC_UNARY\n"
-"inline void numeric_scalar_pow_body(device const uchar *input, device uchar *output, constant PointMeta &m, ulong linear) {\n"
-"    synaptik_store_numeric(output, linear, m.valueType, synaptik_f32_pow(synaptik_load_numeric(input, linear, m.valueType), lp_widen(ulong(m.scalar), m.valueType)));\n"
-"}\n"
-"kernel void numeric_scalar_pow(device const uchar *input [[buffer(0)]], device uchar *output [[buffer(1)]], constant PointMeta &m [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) {\n"
-"    ulong linear = linear_id(gid, m.gridWidth, m.gridHeight);\n"
-"    if (linear < m.elementCount) numeric_scalar_pow_body(input, output, m, linear);\n"
-"}\n"
-"kernel void numeric_scalar_pow_scan(device const uchar *input [[buffer(0)]], device uchar *output [[buffer(1)]], constant PointMeta &m [[buffer(2)]], device const ulong *scanControl [[buffer(28)]], constant ScanStepControl &scanStep [[buffer(29)]], uint3 gid [[thread_position_in_grid]]) {\n"
-"    ulong linear = linear_id(gid, m.gridWidth, m.gridHeight);\n"
-"    if (linear >= m.elementCount || !scan_control_output(scanControl, scanStep, linear)) return;\n"
-"    numeric_scalar_pow_body(input, output, m, linear);\n"
-"}\n"
 "inline void numeric_tensor_pow_body(device const uchar *left, device const uchar *right, device uchar *output, constant BinaryMeta &m, ulong linear) {\n"
 "    ulong leftOffset, rightOffset;\n"
 "    binary_offsets(linear, m, leftOffset, rightOffset);\n"

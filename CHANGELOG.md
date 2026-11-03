@@ -6,7 +6,7 @@
 
 - Source support for shared Metal FLOAT32/BFLOAT16/FLOAT16 elementary, scalar/tensor power,
   masked/statistical reductions and cumulative kernels, including rank-zero values, affine
-  reduction reads and generated expanded-one counts. Numerical bodies use FLOAT32 working
+  scalar/clamp/reduction reads and generated expanded-one counts. Numerical bodies use FLOAT32 working
   sites and original-carrier publication; cumulative INT32/INT64 arithmetic is modular.
   Native runtime qualification remains a separate integration step.
 - Metal normalization, categorical losses and attention now share original-carrier FLOAT32,
