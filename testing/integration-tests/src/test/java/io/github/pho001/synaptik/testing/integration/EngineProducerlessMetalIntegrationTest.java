@@ -14,6 +14,8 @@ import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
+import io.github.pho001.synaptik.model.tensor.Scan;
+import io.github.pho001.synaptik.model.tensor.ScanBody;
 import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
@@ -25,6 +27,7 @@ import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +38,99 @@ import org.junit.jupiter.api.Test;
 
 /** Real Metal-only public source publications, without a registered CPU composition. */
 final class EngineProducerlessMetalIntegrationTest {
+    @Test
+    void reverseScanPublishesCallerAndConstantGradientsForEmptyAndInactiveRows() {
+        try (Engine engine = metalOnly(); Arena caller = Arena.ofConfined()) {
+            for (boolean matrix : List.of(false, true)) for (boolean reverse : List.of(false, true))
+                    for (boolean lengthMode : List.of(false, true))
+                        for (int[] geometry : new int[][] {{3, 2}, {0, 2}, {3, 0}}) {
+                int time = geometry[0], batch = geometry[1];
+                Tensor h = tensor(true, batch, 1), x = tensor(true, batch, 1);
+                Tensor w = tensor(true, matrix ? new long[] {1, 1} : new long[] {1});
+                Tensor initial = tensor(true, batch, 1), sequence = tensor(true, time, batch, 1);
+                Tensor weight = tensor(true, matrix ? new long[] {1, 1} : new long[] {1});
+                Tensor lengths = TensorFactory.create(descriptor(DataType.INT64, Shape.of(batch), false));
+                Tensor next = h.add(matrix ? x.matmul(w) : x.mul(w));
+                var body = new ScanBody(List.of(h), List.of(x), List.of(w), List.of(next), List.of());
+                Tensor root = (lengthMode
+                        ? Scan.apply(List.of(initial), List.of(sequence), List.of(weight), lengths, 1,
+                                List.of(OptionalInt.of(0)), body, reverse)
+                        : Scan.apply(List.of(initial), List.of(sequence), List.of(weight), body, reverse))
+                        .finalCarry().getFirst();
+                Tensor seed = tensor(false, batch, 1);
+                CompiledGraph compiled = EngineCpuGeneralScanIntegrationTest.compileScanGradients(
+                        engine, List.of(root), List.of(seed), List.of(initial, sequence, weight),
+                        time == 0 || batch == 0);
+                float poison = Float.intBitsToFloat(0x7fc12345);
+                float[] initialValues = batch == 0 ? new float[0] : new float[] {1, -0.0f};
+                float[] seedValues = batch == 0 ? new float[0] : new float[] {1, lengthMode ? poison : 1};
+                float[] sequenceValues = new float[time * batch]; Arrays.fill(sequenceValues, poison);
+                for (int t = 0; t < time && batch > 0; t++) {
+                    sequenceValues[t * batch] = t + 1;
+                    if (!lengthMode) sequenceValues[t * batch + 1] = (t + 1) * 10;
+                }
+                long[] active = batch == 0 ? new long[0] : new long[] {time, 0};
+                var data = new HashMap<TensorId, Tensor>();
+                data.put(initial.id(), stored(caller, initial.descriptor(), floatWords(initialValues), false));
+                data.put(sequence.id(), stored(caller, sequence.descriptor(), floatWords(sequenceValues), false));
+                data.put(weight.id(), stored(caller, weight.descriptor(), floatWords(2), false));
+                data.put(lengths.id(), stored(caller, lengths.descriptor(), active, false));
+                data.put(seed.id(), stored(caller, seed.descriptor(), floatWords(seedValues), false));
+                float[] forward = initialValues.clone();
+                if (batch > 0) {
+                    forward[0] += time * (time + 1);
+                    if (!lengthMode && time > 0) forward[1] = time * (time + 1) * 10;
+                }
+                float[] dSequence = new float[time * batch];
+                for (int t = 0; t < time && batch > 0; t++) {
+                    dSequence[t * batch] = 2;
+                    if (!lengthMode) dSequence[t * batch + 1] = 2;
+                }
+                float dWeight = batch == 0 ? 0 : time * (time + 1) / 2f * (lengthMode ? 1 : 11);
+                List<float[]> expected = List.of(forward, seedValues, dSequence, new float[] {dWeight});
+                var changed = new HashMap<>(data);
+                List<float[]> changedExpected;
+                if (lengthMode) {
+                    changed.put(weight.id(), stored(caller, weight.descriptor(), floatWords(poison), false));
+                    changed.put(lengths.id(), stored(caller, lengths.descriptor(), new long[batch], false));
+                    changedExpected = List.of(initialValues, seedValues, new float[time * batch], new float[] {0});
+                } else {
+                    changed.put(weight.id(), stored(caller, weight.descriptor(), floatWords(3), false));
+                    float[] changedForward = initialValues.clone(), changedSequence = new float[time * batch];
+                    if (batch > 0) {
+                        changedForward[0] += time * (time + 1) * 1.5f;
+                        if (time > 0) changedForward[1] = time * (time + 1) * 15;
+                    }
+                    Arrays.fill(changedSequence, 3);
+                    changedExpected = List.of(changedForward, seedValues, changedSequence, new float[] {dWeight});
+                }
+                try (var prepared = engine.prepare(compiled)) {
+                    var runs = List.of(data, changed);
+                    var outputs = List.of(expected, changedExpected);
+                    for (int invocation = 0; invocation < runs.size(); invocation++) {
+                        try (var result = engine.runValues(prepared, ordered(compiled, runs.get(invocation)))) {
+                            for (int output = 0; output < outputs.get(invocation).size(); output++) {
+                                float[] values = outputs.get(invocation).get(output);
+                                assertArrayEquals(floatWords(values), raw(result.materialize(
+                                        result.publications().get(output), (long) values.length * Float.BYTES)));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static Tensor tensor(boolean grad, long... shape) {
+        return TensorFactory.create(descriptor(DataType.FLOAT32, Shape.of(shape), grad));
+    }
+
+    private static long[] floatWords(float... values) {
+        long[] words = new long[values.length];
+        for (int index = 0; index < values.length; index++) words[index] = bits(DataType.FLOAT32, values[index]);
+        return words;
+    }
+
     @Test
     void scalarObjectiveCastContiguousAndScalarAddSubtractPublishConstantGradients() {
         try (Engine engine = metalOnly(); Arena caller = Arena.ofConfined()) {
