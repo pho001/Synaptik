@@ -2,10 +2,10 @@
 
 ## Status and interpretation
 
-Reviewed scope freeze, 2026-11-01; component acceptance updated 2026-11-02. This is the declared
-release target and evidence ledger; final candidate acceptance requires its separately retained
-exact-source/artifact/installation/root receipts. General Scan and the required CPU/Metal neural
-journeys are component-qualified. The
+Reviewed scope freeze, 2026-11-01; component acceptance updated 2026-11-03 after the CPU/Metal
+operation audit. This is the declared release target and evidence ledger; final candidate
+acceptance requires separately retained exact-source/artifact/installation/root receipts.
+General Scan and the required CPU/Metal neural journeys are component-qualified. The
 [product goal](../planning/production-release-goal.md) and
 [owning contracts](../../ARCHITECTURE.md#scope-indexed-normative-contracts) control semantics.
 A source predicate, a generated-entry test and an actual Compiler backward run are different evidence.
@@ -47,7 +47,7 @@ dimension or mixed-floating backward parity; ordinary family and selected-VJP pr
 | Attention | Rank>=2 Q/K/V, exact contraction and broadcast batches, optional BOOL/causal mask and normalized weights | Both types passed joint output/weights gradients for all Q/K/V roles, masked and unmasked. Literal EXP overflow/underflow and nonempty negative-zero value contractions passed separately, including controlled single-output Scan with inactive NaNs. Ordinary AD requires canonical two-output form; one-output construction is forward-only for AD. Masks have no cotangent, weights no V route. |
 | Explicit RNG/dropout | Existing state/mask/next-state signatures and typed value semantics | No derivative for state/mask. Scan purity must follow the actual effect contract, not assume every random operation is pure. |
 | Fixed recurrent scans | Existing explicit RNN/GRU/LSTM forward constructors and kernels | Remain forward-only. Shared nonempty projections retain first-product signs; both-type RNN negative-zero sequence/final-state publication passed in both directions. Old fixed files and fixed-containing Models still reject training before setup. |
-| General Scan / practical RNN | Ordinary CPU-supported PURE bodies, static/qualified one-B F32/F64, per-value typed intermediates; all-valid whole-Tensor or length-mode proved ROW(axis)/SHARED semantics | Compiler0017/CPU0081 are integrated and source/consumer-qualified: ordinary lowering/emission, actual selected VJPs, structural activity, guards, empty/T0 caller publication, reuse and genuine old-recipe replay. The bounded public RNN train/save/load/new-train workflow remains separately qualified. No wider cold/wire or Metal Scan support follows. |
+| General Scan / practical RNN | Ordinary CPU-supported PURE bodies, static/qualified one-B F32/F64, per-value typed intermediates; all-valid whole-Tensor or length-mode proved ROW(axis)/SHARED semantics | Compiler0017/CPU0081 are integrated and source/consumer-qualified: ordinary lowering/emission, actual selected VJPs, structural activity, guards, empty/T0 caller publication, reuse and genuine old-recipe replay. The bounded public RNN train/save/load/new-train workflow remains separately qualified. Metal Scan has independent qualification below; broader cold/wire support is not inferred. |
 
 All entries retain [Model numerical semantics](../architecture/contracts/foundational-modules.md#profile-free-numerical-semantics).
 Finite tolerances do not replace exact discrete, special-value, saved-value or pre-write validation.
@@ -70,8 +70,8 @@ cotangent types, signed slicing/update, variadic/repeated identities and composi
 A separate generated TILE witness checked `[200001,2,3]`, strides `[8,3,2]`, offset `5`, split
 ranges, heap/segment outputs and untouched holes. Current-quotient checks prevent cyclic CPU units.
 Changed affine empty-range and literal-attention classes use selective projections 73/74;
-the generator envelope stays 71. Source review approved the affected owners. Metal completion
-and joined exact-source/artifact/installation acceptance remain separate below.
+the generator envelope stays 71. Source review approved the affected owners. Metal evidence
+and joined exact-source/artifact/installation acceptance are recorded separately below.
 
 ## Conv3d training and independent Pool3d boundary
 
@@ -99,11 +99,11 @@ and save/close/load with bit-exact state and fresh configured SGD. CPU Scan pass
 max/average, all-valid/runtime-length and both traversal directions, including actual backward
 input-role finite differences and save/close/load/fresh execution.
 
-These are locally runtime-qualified capabilities, not joined-release or new published-candidate
-acceptance. Ordinary public named-B admission, arbitrary layouts, CPU low-arithmetic lock,
-Metal Scan and performance boundaries remain unchanged. CPU low maximum-pool forward remains
-qualified only in its existing exact domain; low pooling gradients and low average arithmetic
-are not unlocked. Metal FLOAT64/low pooling retains its qualified non-overlap restrictions.
+These are locally runtime-qualified capabilities, not joined-release or published-candidate
+acceptance. Ordinary public CPU named-B admission, arbitrary layouts, the CPU low-arithmetic
+lock and performance boundaries remain unchanged. Metal Scan has separate qualification below.
+CPU low maximum-pool forward remains within its exact domain; low pooling gradients and average
+arithmetic are not unlocked. Metal FLOAT64/low pooling retains its qualified non-overlap limits.
 
 ## Temporary Java low-computation lock
 
@@ -133,8 +133,8 @@ remain; retained generated rows are literal, historical v1 and Metal unchanged b
 
 MLP, default persistable CNN1d/2d/3d and runtime-length tanh RNN support compute, one configured
 training session, repeated fresh batches, save, close, load and newly configured training in
-their qualified CPU domains. Metal F32 MLP/CNN1d/2d/3d also passed actual-GPU
-forward/parameter updates/save/load/fresh training without CPU fallback.
+their qualified CPU domains. Metal F32 MLP/CNN1d/2d/3d and runtime-length general-Scan RNN also
+passed actual-GPU parameter updates/save/load/fresh training without CPU fallback.
 
 Tensor-level numerical support is broader than cold acquisition/serialization. An outer or
 contained Pool3d occurrence selects v6; other admitted flat/all-valid/length sources retain their
@@ -144,11 +144,35 @@ migrated. No optimizer/history/compiled-plan continuation is promised.
 
 ## Metal production target
 
-Metal is required and is **not experimental**. Its independent matrix includes qualified F32
-neural MLP/CNN domains and independently qualified BF16/FP16 rows; it does not inherit CPU F64
-or operation parity. F64 neural MATMUL, general Scan/runtime RNN, attention and unsupported
-occurrences remain explicit exclusions, not CPU fallback paths. Exact domains stay with the
-[Metal owner](../architecture/contracts/backend-execution.md#metal-backend).
+Metal is required and is **not experimental**. Its independent target includes qualified static
+F32 ordinary numerical families, Conv3d/Pool3d training, attention and native general Scan with
+runtime-length recurrent training. Independently qualified BF16/FP16 and exact/raw F64/integral
+rows remain separate. General F64 neural arithmetic and the three fixed-recurrent BPTT signatures
+remain exclusions, not CPU fallback paths. The [Metal guide](metal-backend.md) and
+[owning contract](../architecture/contracts/backend-execution.md#metal-backend) define exact limits.
+
+The complete operation catalog covers 5,018 rows, all 115 ordinary kinds and all 137 legal
+signature fixtures. It completed 744 forward and 494 actual selected first-order AD runs with
+zero execution-stage gaps. The 924 selection rejections are classified separately from Model-
+illegal projections and nondifferentiable/deferred roles; they are not execution successes.
+The remaining F32 selection fixtures are seventeen-input CONCAT/STACK, beyond the retained
+sixteen-input/five-output bound per ordinary instruction. Dtype-specific exclusions remain independent.
+
+Independent Metal-only numerical proof passed 93 F32 forward/actual all-role derivative cases:
+81 ordinary cases, eight Pool3d Scan cases and four signed-update/overlapping-axis-fold,
+scalar-reciprocal and repeated-STACK accumulation edges. Offset-view binary arithmetic uses
+the existing physical-stride kernels; packed canonical operands retain MPSGraph.
+Another 136 exact-domain cases passed, including all 49 casts, four floating WHERE cases,
+stored F64 decisions and integral modular/promotion paths. Numerical correctness is not inferred
+from catalog hashes. Public runtime-length RNN separately passed all-parameter finite
+differences, repeated SGD with changing lengths, all-inactive rows, invalid-length nonmutation/
+retry, save/close/load raw-exact state and fresh configured SGD on a Metal-only Engine.
+
+General Scan uses a true native time loop and once-prepared existing ordinary kernels, not
+Java child invocation, time unrolling or a CPU evaluator. Controlled operands and original
+canonical output roles retain structural inactivity and guard-before-write semantics.
+GeneralScan, selected reverse bodies, source-only gradients and empty storage remain
+independently checked; they do not confer arbitrary symbolic/empty or higher-order support.
 
 The previously integrated Metal identity39 source passed full F32 MLP/CNN scalar-oracle compute,
 all-parameter SGD/save/close/load/new training on the actual GPU without CPU fallback.
@@ -170,17 +194,14 @@ with zero P1/P2 findings; the component is Complete.
 
 The Conv3d extension additionally passed the grouped/bias/depthwise all-role finite-difference
 and real NN training/persistence program in a Metal-only Engine containing no CPU backend.
-Overlapping FOLD2D/FOLD3D is FLOAT32-only, output-owned and deterministic; each output sums
-its contributors without atomics, scratch, host fallback/repair or software FLOAT64.
-FLOAT64/BFLOAT16/FLOAT16 image folds and FOLD_AXIS retain non-overlapping admission.
-Current identity40 adds shared FLOAT32 Pool2d/Pool3d overlap with original-carrier validation;
-FLOAT64/low non-overlap restrictions remain. The native fixed corpus remains 87,929 bytes,
-with identity40/schema20/ABI7. Pool3d local runtime qualification is described above; no complete
-CPU/Metal operation audit or joined release acceptance follows.
-The first source-matched native attempt failed shader compilation because `kernel` was a
-reserved identifier. After the source rename, reauthentication, rebuild, ad-hoc signing and
-package verification, the actual Metal program passed. This is local source-build evidence,
-not an official prebuilt, CI/GPU-runner claim, or a measured speedup.
+FLOAT32 FOLD_AXIS/FOLD2D/FOLD3D overlap addition is output-owned and deterministic, with no
+atomics, scratch, host fallback/repair or software FLOAT64. Other carriers retain qualified
+non-overlap limits. Signed FLOAT32 SLICE materializes canonical storage; it does not authorize
+negative physical strides. Both additions close actual selected movement adjoints.
+The current coordinated identity is 41, program schema 21/header124, native ABI7/thirteen
+exports, operation wires1..116 and attribute wires0..42. The fixed corpus has 22 authenticated
+components, 192,958 UTF-8 bytes and 295 compiled functions. Source review and device compilation
+are component evidence; final joined release acceptance still requires the receipts below.
 
 The exact new native source was built, ad-hoc signed, ZIP-extracted outside checkout and
 reverified before the GPU gate. The supported reproducible local source-build installation uses

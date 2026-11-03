@@ -49,10 +49,8 @@ Support on another backend does not satisfy this Java CPU requirement.
 
 Temporarily lock BFLOAT16 (BF16) and FLOAT16 (FP16) floating computation on Java CPU for this
 production target. Retain the existing implementation without further capability expansion;
-do not delete it. Audit and scope the future fail-closed capability lock before implementation;
-unlocking requires a later explicit decision. Recording this goal neither implements the lock nor
-changes today's contracts or capability answers. No implicit emulated low-precision CPU fallback
-belongs to the target.
+do not delete it. The implemented lock is qualified in the support ledger; unlocking requires
+a later explicit decision. No implicit emulated low-precision CPU fallback belongs to the target.
 
 Shared Model data types, host storage, raw transfers and conversion helpers remain available;
 the floating-compute lock does not remove them. INT32, INT64 and BOOL semantics needed for
@@ -82,9 +80,9 @@ without promising exact optimizer/session continuation.
 CNN training is mandatory. The user's explicit Conv3d completion request supersedes the earlier
 1D/2D-only release choice. The [qualified convolution matrix](../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary)
 includes Conv1d/2d/3d; static Conv3d input/weight/bias gradients and owned train/save/load/new-train
-passed CPU FLOAT32/FLOAT64 and Metal-only FLOAT32 programs. Shared grouped convolution and window
-owners implement the extension. CPU Pool3d independently retains its non-gradient descriptor gate;
-Conv3d support does not implicitly admit a trainable Conv3d-to-Pool3d chain.
+passed CPU FLOAT32/FLOAT64 and Metal-only FLOAT32 programs. Shared grouped convolution/window
+and pooling adjoint owners also complete trainable Conv3d → Max/AveragePool3d → flatten → linear
+with all-parameter finite differences, SGD and save/close/load/fresh training in those domains.
 
 The practical RNN target uses runtime valid lengths L through the existing general Scan, which
 repeats an ordinary tensor body while carrying state between steps. Reuse the
@@ -92,6 +90,10 @@ repeats an ordinary tensor body while carrying state between steps. Reuse the
 not a second RNN executor or dedicated replacement mathematical primitives. Keep ordinary
 static-unrolled `.rnn` unchanged by this entry. NN0032's second-order compatibility gates remain;
 first-order length support does not waive them or authorize that separate migration.
+
+Metal now independently qualifies the static FLOAT32 runtime-length recurrent workflow through
+its native general Scan and existing ordinary kernels. This does not grant Metal FLOAT64
+numerical parity, widen low domains, or add BPTT to the three fixed-recurrent signatures.
 
 ## General Scan composition target
 

@@ -4,6 +4,17 @@
 
 ### Added
 
+- Qualified Metal FLOAT32 ordinary elementary/activation, masked/statistical/cumulative reduction,
+  normalization, loss, attention and colliding arithmetic-scatter execution with actual selected
+  Compiler gradients; fixed RNN/GRU/LSTM forward remains distinct from deferred fixed BPTT.
+- Native Metal general Scan through authenticated bounded body/binder plans and once-prepared
+  ordinary kernels, including actual reverse bodies and runtime-length RNN training/save/load/
+  fresh training. Structural inactivity guards operands before loads or index validation;
+  there is no Java body loop, time unrolling or CPU fallback.
+- Original-typed Metal exact stored F64/integral operations and promotion, independent Model
+  metadata inference, canonical multi-output sibling retention and source-only gradient
+  publications through the existing initializer and per-run resource owner.
+
 - Model-valid CPU promoted F32/F64 and I32/I64 pointwise operands, exact comparisons and selected
   WHERE conversion, retaining each gradient target's original carrier.
 - Checked signed/empty slice materialization and its existing extraction/update pullbacks,
@@ -25,7 +36,8 @@
 - Metadata-only `GraphCompilationPort.validateSource` shares complete cold preflight without
   Tensor identities or host copying. Decode now rejects invalid metadata before creating any
   candidate Tensor for every supported version.
-- Coordinated Metal route/workload/policy/codec identity advances to40; schema20/ABI7 remain.
+- The Pool3d checkpoint advanced Metal identity to40; the subsequent audit uses identity41,
+  program schema21/header124 and operation116/attribute42 for Scan. ABI7/thirteen exports remain.
 
 - Static homogeneous FLOAT32/FLOAT64 runtime-length general Scan cold capture and reconstruction,
   including Checkpoint in-memory copy/rebind and inherited NN acquisition/cold-forward paths.
@@ -68,6 +80,11 @@
 
 ### Changed
 
+- Complete CPU/Metal audit inventories use live ordinary signatures and classify execution,
+  selection, illegal projections and deferred/nondifferentiable roles separately. Historical
+  byte/route/count/wording pins no longer substitute for numerical or boundary regressions.
+- Metal fixed-corpus authentication now covers 22 components/192,958 UTF-8 bytes. New FLOAT32
+  predicates do not widen frozen low domains or add general FLOAT64 arithmetic.
 - Temporarily lock Java CPU BFLOAT16/FLOAT16 numerical computation at source, preparation,
   represented-IR, direct generation/definition, retained cache and fixed-recurrent admission.
   Keep the implementation, exact/raw/discrete/storage/conversion roles and explicit F32 compute/
@@ -84,14 +101,25 @@
   ScanBody. Existing affine/crop geometry, materializing-RESHAPE decisions and the separate generic
   symbolic classifier have one owner; captured graphs, ordinary inference and strict ingress
   guards remain unchanged.
-- Metal FLOAT32 FOLD2D/FOLD3D now accumulates overlapping image contributors deterministically
-  with one output writer, no atomics, scratch or host fallback. FLOAT64/low image folds and
-  FOLD_AXIS keep non-overlap placement. Coordinated identity advances from38 to39; schema20/ABI7
-  remain. CPU adds generated raw F32/F64/BF16/F16 UNFOLD3D and arithmetic F32/F64 FOLD3D through
-  existing movement/fold owners, preserving legacy carrier/identity boundaries and the low lock.
+- Metal FLOAT32 FOLD_AXIS/FOLD2D/FOLD3D accumulates overlapping contributors deterministically
+  with one output writer, no atomics, scratch or host fallback. Other carriers retain qualified
+  non-overlap placement. CPU adds generated raw F32/F64/BF16/F16 UNFOLD3D and arithmetic F32/F64
+  FOLD3D through existing movement/fold owners, preserving legacy identities and the low lock.
 
 ### Fixed
 
+- Metal signed FLOAT32 SLICE materializes canonical storage and closes negative-step update
+  gradients without fabricating negative physical strides. Overlapping FoldAxis also works in
+  controlled Scan rows, skipping inactive NaN contributors.
+- Genuine empty storage/EXPAND detects zero extents before product/stride checks, including
+  zero-grid native execution without a load or dispatch. Scalar values remain one stored element.
+- Scalar native graph arithmetic restores declared rank after literal broadcasting; original
+  FLOAT32 FLOOR/CEIL/SIGN admission agrees with native preflight and existing exact kernels.
+- Metal ordinary transport checks words/spans and ordering/reduction/fold axes before inference.
+  Malformed FoldAxis target axes reject deliberately before indexing the declared shape.
+- FLOAT32 arithmetic over affine operands now uses existing physical-stride kernels rather than
+  packed MPSGraph feed binding. Offset extraction cotangents retain every contribution when a
+  target is repeated in STACK, without new math or an extra copy; canonical routes are unchanged.
 - CPU unit contraction now proves convexity on the current quotient graph, preventing cyclic
   prepared schedules after earlier contractions. Oversized variadic candidate inventories use
   existing direct decomposition without relaxing fusion or generated-method resource limits.
