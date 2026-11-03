@@ -1,10 +1,12 @@
 package io.github.pho001.synaptik.engine;
 
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.OptionalInt;
 
 /**
@@ -90,8 +92,9 @@ public final class RunResult implements AutoCloseable {
      * deduplicated, even when publication occurrences alias the same inward representation.</p>
      *
      * <p>Current support uses the exact CPU or Metal adapter captured for each publication during
-     * shared preparation, within that adapter's fully static resolved-layout materialization
-     * domain. This operation performs no cross-backend transfer, route search, data-type
+     * shared preparation, within that adapter's fully static materialization domain. Nonempty
+     * values require a resolved layout; empty values have canonical geometry without source
+     * addresses. This operation performs no cross-backend transfer, route search, data-type
      * conversion, Tensor construction, or implicit materialization.</p>
      *
      * @param publication non-null exact occurrence object from {@link #publications()}
@@ -99,8 +102,8 @@ public final class RunResult implements AutoCloseable {
      * @return a fresh non-null detached immutable host value
      * @throws NullPointerException if {@code publication} or backend bytes are null
      * @throws IllegalArgumentException if the occurrence is foreign, the limit is negative, the
-     *     Shape is not fully static, the layout is unresolved, or the payload exceeds the caller
-     *     limit or JVM array ceiling
+     *     Shape is not fully static, a nonempty layout is unresolved, or the payload exceeds the
+     *     caller limit or JVM array ceiling
      * @throws IllegalStateException if Engine or result closure has begun, or backend byte length
      *     differs from the descriptor-derived canonical count
      * @throws ArithmeticException if checked logical count or byte-count arithmetic overflows
@@ -132,10 +135,17 @@ public final class RunResult implements AutoCloseable {
             throw new IllegalArgumentException(
                     "host snapshot requires a fully static shape: " + descriptor.shape());
         }
-        if (descriptor.layout().isEmpty()) {
-            throw new IllegalArgumentException("host snapshot requires a resolved layout");
-        }
         long elementCount = descriptor.shape().knownElementCount().orElseThrow();
+        if (descriptor.layout().isEmpty()) {
+            if (elementCount != 0) {
+                throw new IllegalArgumentException("host snapshot requires a resolved layout");
+            }
+            // An empty value has no source addresses. Give the backend copy its canonical geometry.
+            descriptor = new TensorDescriptor(
+                    descriptor.dataType(), descriptor.shape(),
+                    Optional.of(LayoutDescriptor.contiguous(descriptor.shape())),
+                    descriptor.requiresGrad());
+        }
         long byteCount = Math.multiplyExact(elementCount, descriptor.dataType().byteWidth());
         if (byteCount > maximumBytes) {
             throw new IllegalArgumentException(
