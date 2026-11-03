@@ -454,16 +454,14 @@ final class MetalMpsGraphProgram {
             if (this.dimensions.length > MAX_RANK) {
                 throw new IllegalArgumentException("Metal value rank must be in 0..16");
             }
-            long elements = 1L;
             try {
                 for (long dimension : this.dimensions) {
                     if (dimension < 0L) {
                         throw new IllegalArgumentException(
                                 "Metal value dimensions must be nonnegative");
                     }
-                    elements = Math.multiplyExact(elements, dimension);
                 }
-                Math.multiplyExact(elements, dataType.byteWidth());
+                Math.multiplyExact(elementCount(), dataType.byteWidth());
             } catch (ArithmeticException overflow) {
                 throw new IllegalArgumentException("Metal value byte geometry overflows", overflow);
             }
@@ -572,6 +570,7 @@ final class MetalMpsGraphProgram {
             }
         }
         long elementCount() {
+            for (long dimension : dimensions) if (dimension == 0) return 0;
             long result = 1L;
             for (long dimension : dimensions) result = Math.multiplyExact(result, dimension);
             return result;
@@ -790,7 +789,7 @@ final class MetalMpsGraphProgram {
             switch (attributeKind) {
                 case GENERAL_SCAN -> MetalScanEncoding.validate(attributeWords);
                 case NONE -> requireWords(0);
-                case TARGET_SHAPE -> validateShapeWords(attributeWords, scanBody);
+                case TARGET_SHAPE -> validateShapeWords(attributeWords, scanBody || kind == NodeKind.EXPAND);
                 case PERMUTATION -> validatePermutation();
                 case AXIS, MASKED_REDUCTION -> {
                     requireWords(1);

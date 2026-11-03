@@ -2495,8 +2495,9 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             return false;
         }
         TensorDescriptor input = inputs.getFirst();
-        if (!selectedAffineRead(input, true)
-                || !selectedAffineRead(output, true)
+        boolean expand = operation.kind() == ShapeTransformKind.EXPAND;
+        if (!(expand && emptyExpansionLayout(input) || selectedAffineRead(input, true))
+                || !(expand && emptyExpansionLayout(output) || selectedAffineRead(output, true))
                 || input.dataType() != output.dataType()
                 || input.requiresGrad() != output.requiresGrad()) {
             return false;
@@ -2618,6 +2619,24 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             return false;
         }
         return output.layout().orElseThrow().equals(expected);
+    }
+
+    /**
+     * Qualifies actual empty EXPAND geometry without granting empty arithmetic occurrences.
+     * The enclosing affine proof still authenticates the complete source/result equations and
+     * exact logical view layout; native transport separately authenticates its produced storage.
+     *
+     * @param descriptor exact static logical operand or result, never replaced by a sample shape
+     * @return whether the resolved zero-offset layout references an actual empty domain
+     */
+    private static boolean emptyExpansionLayout(TensorDescriptor descriptor) {
+        if (!descriptor.shape().isFullyStatic() || descriptor.shape().rank() > MetalMpsGraphProgram.MAX_RANK
+                || descriptor.layout().isEmpty()) return false;
+        var layout = descriptor.layout().orElseThrow();
+        if (layout.storageOffset() != 0 || layout.referencedElementSpan() != 0) return false;
+        // Canonical represented strides must themselves be constructible, including suffixes
+        // after a zero dimension; no sampled positive batch or fabricated element count is used.
+        return LayoutDescriptor.contiguous(descriptor.shape()).referencedElementSpan() == 0;
     }
 
     private static boolean supportsContiguous(

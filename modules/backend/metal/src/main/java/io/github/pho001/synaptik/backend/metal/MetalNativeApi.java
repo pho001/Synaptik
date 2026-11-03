@@ -2782,8 +2782,10 @@ abstract class MetalNativeApi implements AutoCloseable {
                     || input.layout().isEmpty() || output.layout().isEmpty()) return false;
             LayoutDescriptor source = input.layout().orElseThrow();
             LayoutDescriptor result = output.layout().orElseThrow();
+            boolean emptyExpand = node.kind() == MetalMpsGraphProgram.NodeKind.EXPAND
+                    && output.elementCount() == 0;
             if (!result.isView() || source.storageOffset() != result.storageOffset()
-                    || source.referencedElementSpan() != result.referencedElementSpan()) return false;
+                    || !emptyExpand && source.referencedElementSpan() != result.referencedElementSpan()) return false;
             long[] sourceStrides = source.strides();
             long[] resultStrides = result.strides();
             long[] sourceShape = input.dimensions();

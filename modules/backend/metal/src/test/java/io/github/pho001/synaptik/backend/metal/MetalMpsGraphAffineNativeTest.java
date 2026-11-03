@@ -60,6 +60,44 @@ class MetalMpsGraphAffineNativeTest {
     }
 
     @Test
+    void genuineEmptyExpandRetainsHugeStaticAxesWithoutSourceOrDestinationWork() {
+        var shape = Shape.of(Long.MAX_VALUE, 2, 0);
+        var node = MetalMpsGraphProgram.Node.targetShape(MetalMpsGraphProgram.NodeKind.EXPAND,
+                0, 1, shape.toLongArray());
+        var program = new MetalMpsGraphProgram(List.of(node));
+        try (var api = MetalNativeApi.open(configuredLibrary()); var arena = Arena.ofConfined()) {
+            var context = api.createContext();
+            try {
+                for (boolean gradient : List.of(false, true)) {
+                    var values = List.of(new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, new long[0], gradient),
+                            new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, shape.toLongArray(),
+                                    java.util.Optional.of(LayoutDescriptor.of(shape, new long[3], 0, true)), gradient, true));
+                    var executable = api.createProgramExecutable(context, values, program, new int[] {0}, new int[] {1},
+                            MetalPreparedRoute.CUSTOM_PROGRAM);
+                    var buffers = new ArrayList<MetalNativeApi.Handle>();
+                    try {
+                        var input = api.createBuffer(context, Float.BYTES); buffers.add(input);
+                        var output = api.createBuffer(context, 0); buffers.add(output);
+                        var scalar = arena.allocate(JAVA_INT); scalar.set(JAVA_INT, 0, 0x7fc12345);
+                        api.upload(input, 0, scalar, Float.BYTES);
+                        var table = arena.allocate(ADDRESS, 2);
+                        table.setAtIndex(ADDRESS, 0, input.carrier()); table.setAtIndex(ADDRESS, 1, output.carrier());
+                        var target = arena.allocate(ADDRESS); target.set(ADDRESS, 0, output.carrier());
+                        for (int repeat = 0; repeat < 2; repeat++) {
+                            api.runExecutable(executable, 2, table, 1, target);
+                            api.download(input, 0, scalar, Float.BYTES);
+                            assertEquals(0x7fc12345, scalar.get(JAVA_INT, 0));
+                        }
+                    } finally {
+                        for (int buffer = buffers.size(); buffer-- > 0;) api.releaseBuffer(buffers.get(buffer));
+                        api.releaseExecutable(executable);
+                    }
+                }
+            } finally { api.releaseContext(context); }
+        }
+    }
+
+    @Test
     void realSelectorsWriteSuppliedDenseTargetsWithExactShapesBitsAndRepeatability() {
         String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
         assumeTrue(configured != null && !configured.isBlank(),
@@ -911,6 +949,10 @@ class MetalMpsGraphAffineNativeTest {
                         new long[] {2, 3, 4},
                         new long[] {4, 6}),
                 target("expand-leading", Kind.EXPAND, new long[] {3}, new long[] {2, 3}),
+                target("expand-empty-leading", Kind.EXPAND, new long[] {3}, new long[] {0, 3}),
+                target("expand-empty-trailing", Kind.EXPAND, new long[] {2, 1}, new long[] {2, 0}),
+                target("expand-scalar-empty-time", Kind.EXPAND, new long[] {}, new long[] {0, 2, 1}),
+                target("expand-scalar-empty-batch", Kind.EXPAND, new long[] {}, new long[] {3, 0, 1}),
                 target("expand-singleton", Kind.EXPAND, new long[] {2, 1, 3}, new long[] {2, 4, 3}),
                 target(
                         "expand-multi-axis",

@@ -68,6 +68,27 @@ class MetalAffineCapabilityTest {
     }
 
     @Test
+    void emptyExpansionRetainsExactAxesViewLayoutAndGradientMetadata() {
+        for (boolean gradient : List.of(false, true))
+            for (Shape target : List.of(Shape.of(0, 2, 1), Shape.of(3, 0, 1), Shape.of(2, 1, 0),
+                    Shape.of(Long.MAX_VALUE, 2, 0))) {
+                var operation = new Operation(ShapeTransformKind.EXPAND, new TargetShapeAttrs(target));
+                var scalar = canonical(Shape.scalar(), gradient);
+                assertTrue(supports(operation, scalar, view(target, new long[target.rank()], gradient)));
+                assertFalse(supports(operation, scalar, canonical(target, gradient)),
+                        "empty results still require the exact logical EXPAND view");
+                assertFalse(supports(operation, scalar, view(target, new long[target.rank()], !gradient)));
+            }
+        var emptyTarget = Shape.of(0, 3);
+        assertFalse(supports(new Operation(ShapeTransformKind.EXPAND, new TargetShapeAttrs(emptyTarget)),
+                canonical(Shape.of(2), false), view(emptyTarget, new long[] {0, 1}, false)),
+                "zero result cardinality cannot hide incompatible nonzero feature dimensions");
+        var empty = canonical(Shape.of(2, 0), false);
+        assertFalse(supports(new Operation(io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind.NEG,
+                NoOperationAttrs.INSTANCE), empty, empty), "empty EXPAND does not grant empty arithmetic");
+    }
+
+    @Test
     void admitsCompositionAndContiguousButRejectsDescriptorAndReshapeMismatches() {
         TensorDescriptor input = canonical(Shape.of(2, 3), false);
         Operation reshape = new Operation(

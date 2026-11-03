@@ -1195,7 +1195,8 @@ static BOOL synaptik_attribute_is_valid_in_context(
     if (kind == 0U) return count == 0U;
     if (kind == 1U) {
         uint32_t cursor = 0U;
-        return synaptik_shape_is_valid(words, count, &cursor, NO, scan_body) && cursor == count;
+        return synaptik_shape_is_valid(words, count, &cursor, NO,
+                scan_body || operation == SYNAPTIK_METAL_CUSTOM_EXPAND) && cursor == count;
     }
     if (kind == 2U) {
         if (count < 1U) return NO;
@@ -1833,7 +1834,7 @@ static BOOL node_target_matches(
             || !node_values_are_zero_from(node, node.attribute_count))
         return NO;
     for (uint32_t axis = 0; axis < node.attribute_count; axis++)
-        if ((!node.scan_body && node.attribute_values[axis] == 0U)
+        if ((!node.scan_body && node.operation != SYNAPTIK_METAL_CUSTOM_EXPAND && node.attribute_values[axis] == 0U)
                 || node.attribute_values[axis] > (uint64_t)NSUIntegerMax
                 || node.attribute_values[axis]
                         != output[axis].unsignedLongLongValue)
@@ -1853,6 +1854,8 @@ static BOOL shape_expands_exactly_to(MPSShape *input, MPSShape *output) {
 }
 
 static uint64_t shape_element_count(MPSShape *shape) {
+    for (NSNumber *dimension in shape)
+        if (dimension.unsignedLongLongValue == 0U) return 0U;
     uint64_t result = 1U;
     for (NSNumber *dimension in shape)
         result *= dimension.unsignedLongLongValue;
@@ -1975,13 +1978,17 @@ static BOOL synaptik_storage_layout_supported(
             || spans == NULL || present == NULL || !present[value]
             || ranks[value] < minimum_rank || ranks[value] > SYNAPTIK_MAX_RANK)
         return NO;
+    /* Canonical strides before a later zero extent may themselves be zero. Establish the
+     * entire empty domain before applying any nonempty injectivity/broadcast restrictions. */
+    for (uint32_t axis = 0U; axis < ranks[value]; axis++)
+        if (dimensions[(size_t)value * SYNAPTIK_MAX_RANK + axis] == 0U)
+            return spans[value] == 0U && offsets[value] == 0U;
     uint32_t order[SYNAPTIK_MAX_RANK] = {0};
     uint32_t count = 0U;
     for (uint32_t axis = 0U; axis < ranks[value]; axis++) {
         uint64_t dimension =
                 dimensions[(size_t)value * SYNAPTIK_MAX_RANK + axis];
         uint64_t stride = strides[(size_t)value * SYNAPTIK_MAX_RANK + axis];
-        if (dimension == 0U) return spans[value] == 0U && offsets[value] == 0U;
         if (stride > (uint64_t)INT64_MAX || (stride == 0U && (view == NULL || !view[value])))
             return NO;
         if (stride != 0U && dimension > 1U) {
@@ -2068,7 +2075,8 @@ static BOOL synaptik_affine_layout_matches(
         const uint64_t *spans) {
     uint32_t input = node.first_input;
     uint32_t output = node.output;
-    if (offsets[input] != offsets[output] || spans[input] != spans[output]) return NO;
+    BOOL emptyExpand = node.operation == SYNAPTIK_METAL_CUSTOM_EXPAND && spans[output] == 0U;
+    if (offsets[input] != offsets[output] || (!emptyExpand && spans[input] != spans[output])) return NO;
     if (node.operation == SYNAPTIK_METAL_CUSTOM_RESHAPE)
         return synaptik_row_major_layout(input, ranks, dimensions, strides, offsets, spans)
                 && synaptik_row_major_layout(output, ranks, dimensions, strides, offsets, spans);
@@ -4037,6 +4045,20 @@ static SynaptikMetalProgramStep *make_custom_step(
         id<MTLLibrary> library,
         id<MTLLibrary> low_precision_library,
         uint32_t stage, BOOL scan, const SynaptikMetalScanStepControl *scanControl) {
+    /* The enclosing program has already authenticated all ordinary equations and layouts.
+     * A genuine empty EXPAND references no cells: retain a zero-grid step rather than
+     * inventing a positive grid, reading its source, or constructing an unused pipeline. */
+    if (node.operation == SYNAPTIK_METAL_CUSTOM_EXPAND
+            && shape_element_count(shapes[node.output]) == 0U) {
+        SynaptikMetalProgramStep *empty = [SynaptikMetalProgramStep new];
+        if (empty == nil) return nil;
+        empty.custom = YES; empty.operation = node.operation; empty.stage = stage;
+        empty.firstInput = node.first_input; empty.secondInput = node.second_input;
+        empty.auxiliaryInput = node.auxiliary; empty.output = node.output;
+        empty.scratchInput = UINT32_MAX;
+        empty.grid = MTLSizeMake(0U, 0U, 0U);
+        return empty;
+    }
     NSString *name = low_precision_custom_function(node, value_types);
     id<MTLLibrary> selected_library = name == nil ? library : low_precision_library;
     if (name == nil) name = custom_function(node, value_types, stage);
@@ -5248,7 +5270,10 @@ static int32_t synaptik_metal_create_decoded(
             uint32_t rank = value_ranks[value];
             if (rank > SYNAPTIK_MAX_RANK)
                 return SYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE;
-            uint64_t elements = 1U;
+            BOOL empty = NO;
+            for (uint32_t axis = 0U; axis < rank; axis++)
+                empty |= value_dimensions[(size_t)value * SYNAPTIK_MAX_RANK + axis] == 0U;
+            uint64_t elements = empty ? 0U : 1U;
             NSMutableArray<NSNumber *> *shape = [NSMutableArray arrayWithCapacity:rank];
             for (uint32_t axis = 0; axis < SYNAPTIK_MAX_RANK; axis++) {
                 uint64_t dimension = value_dimensions[(size_t)value * SYNAPTIK_MAX_RANK + axis];
@@ -9020,7 +9045,7 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                     }
                 }
                 if (empty) {
-                    if (!canonical || storage_offset != 0U || view || dense)
+                    if (storage_offset != 0U || ((!canonical || view || dense) && !(view && dense)))
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     span = 0U;
                 } else {
