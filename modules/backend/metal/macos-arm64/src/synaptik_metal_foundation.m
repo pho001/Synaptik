@@ -1263,8 +1263,7 @@ static BOOL synaptik_attribute_is_valid_in_context(
     if (kind == 12U)
         return count == 2U && synaptik_attribute_word(words, 0U) < SYNAPTIK_MAX_RANK
                 && synaptik_attribute_word(words, 1U) >= 1U
-                && synaptik_attribute_word(words, 1U) <= 5U
-                && (operation != 18U || synaptik_attribute_word(words, 1U) == 1U);
+                && synaptik_attribute_word(words, 1U) <= 5U;
     if (kind == 13U)
         return count == 2U && synaptik_attribute_word(words, 0U) <= UINT32_MAX
                 && synaptik_attribute_word(words, 1U) >= 1U
@@ -9080,11 +9079,6 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                     return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                 available[value] = 1U;
                 produced[value] = 1U;
-                if (operation == SYNAPTIK_METAL_CUSTOM_TOP_K
-                        || operation == SYNAPTIK_METAL_CUSTOM_DROPOUT
-                        || operation == 35U || operation == 89U
-                        || (operation >= 103U && operation <= 105U))
-                    consumed[value] = 1U;
             }
             reference_cursor = output_offset + output_count;
             if (operation == SYNAPTIK_METAL_MPSGRAPH_EXP
@@ -9581,6 +9575,27 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                 return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
             targeted[value] = 1U;
             consumed[value] = 1U;
+        }
+        // A live canonical port retains its producer's complete sibling bundle.
+        // Do not grant liveness to an otherwise disconnected multi-output node.
+        for (uint32_t node_index = 0U; node_index < node_count; node_index++) {
+            const uint8_t *descriptor =
+                    program + nodes_offset + (uint64_t)node_index * 32U;
+            uint32_t output_offset = synaptik_read_le32(descriptor + 16U);
+            uint32_t output_count = synaptik_read_le32(descriptor + 20U);
+            if (output_count < 2U) continue;
+            BOOL live = NO;
+            for (uint32_t port = 0U; port < output_count; port++) {
+                uint32_t value = synaptik_read_le32(
+                        program + references_offset + (uint64_t)(output_offset + port) * 4U);
+                live |= consumed[value] != 0U;
+            }
+            if (!live) continue;
+            for (uint32_t port = 0U; port < output_count; port++) {
+                uint32_t value = synaptik_read_le32(
+                        program + references_offset + (uint64_t)(output_offset + port) * 4U);
+                consumed[value] = 1U;
+            }
         }
         for (uint32_t value = 0U; value < value_count; value++)
             if (!available[value] || !consumed[value])

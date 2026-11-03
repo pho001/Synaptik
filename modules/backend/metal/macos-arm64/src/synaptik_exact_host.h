@@ -86,9 +86,7 @@ static BOOL synaptik_exact_f64_nan(uint64_t word) {
             && (word & UINT64_C(0x000fffffffffffff)) != 0U;
 }
 
-static BOOL synaptik_exact_clamp_ordered(uint8_t type, uint64_t lower, uint64_t upper) {
-    if (type == SYNAPTIK_METAL_TYPE_INT32) return (int32_t)(uint32_t)lower <= (int32_t)(uint32_t)upper;
-    if (type == SYNAPTIK_METAL_TYPE_INT64) return (int64_t)lower <= (int64_t)upper;
+static BOOL synaptik_exact_clamp_ordered(uint64_t lower, uint64_t upper) {
     if (synaptik_exact_f64_nan(lower) || synaptik_exact_f64_nan(upper)) return YES;
     if ((lower & UINT64_C(0x7fffffffffffffff)) == 0U
             && (upper & UINT64_C(0x7fffffffffffffff)) == 0U) return YES;
@@ -155,6 +153,7 @@ static BOOL synaptik_exact_metadata(
     } else {
         BOOL clamp = node.operation == 30U, extreme = node.operation >= 28U && node.operation <= 30U;
         if ((!synaptik_exact_integral(left_type) && !(extreme && left_type == SYNAPTIK_METAL_TYPE_FLOAT64))
+                || (clamp && left_type != SYNAPTIK_METAL_TYPE_FLOAT64)
                 || target != left_type || ![left isEqualToArray:output]
                 || node.attribute_kind != (clamp ? 8U : 7U) || node.attribute_count != (clamp ? 2U : 1U)
                 || node.axis != UINT32_MAX || node.auxiliary != 0U) return NO;
@@ -162,7 +161,7 @@ static BOOL synaptik_exact_metadata(
             if (left_type == SYNAPTIK_METAL_TYPE_INT32 && node.attribute_values[i] > UINT32_MAX) return NO;
             meta->attrs[i] = node.attribute_values[i];
         }
-        if (clamp && !synaptik_exact_clamp_ordered(left_type, meta->attrs[0], meta->attrs[1])) return NO;
+        if (clamp && !synaptik_exact_clamp_ordered(meta->attrs[0], meta->attrs[1])) return NO;
         for (uint32_t i = node.attribute_count; i < SYNAPTIK_MAX_ATTRIBUTE_WORDS; i++)
             if (node.attribute_values[i] != 0U) return NO;
     }
