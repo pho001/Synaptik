@@ -484,6 +484,46 @@ final class GradientRulesTest {
     }
 
     @Test
+    void float16NormalizationMetadataCompilesEveryFirstGradientWithoutChangingPublication() {
+        Tensor input = tensor(DataType.FLOAT16, Shape.of(2, 3, 4));
+        Tensor scale = tensor(DataType.FLOAT16, Shape.of(3, 4));
+        Tensor bias = tensor(DataType.FLOAT16, Shape.of(3, 4));
+        ScalarValue epsilon = ScalarValue.float32(1e-5f);
+        for (Tensor output : List.of(
+                input.layerNorm(Shape.of(3, 4), epsilon),
+                input.layerNorm(Shape.of(3, 4), scale, bias, epsilon),
+                input.rmsNorm(Shape.of(3, 4), epsilon),
+                input.rmsNorm(Shape.of(3, 4), scale, epsilon))) {
+            for (Tensor target : output.provenance().orElseThrow().inputs()) {
+                assertFloat16NormalizationGradient(output, target);
+            }
+        }
+
+        Tensor channelScale = tensor(DataType.FLOAT16, Shape.of(3));
+        Tensor channelBias = tensor(DataType.FLOAT16, Shape.of(3));
+        Tensor runningMean = tensor(DataType.FLOAT16, Shape.of(3));
+        Tensor runningVariance = tensor(DataType.FLOAT16, Shape.of(3));
+        Tensor inference = input.batchNormInference(
+                1, channelScale, channelBias, runningMean, runningVariance, epsilon);
+        for (Tensor target : List.of(
+                input, channelScale, channelBias, runningMean, runningVariance)) {
+            assertFloat16NormalizationGradient(inference, target);
+        }
+        BatchNormTrainingResult training = input.batchNormTraining(
+                1, channelScale, channelBias, runningMean, runningVariance,
+                ScalarValue.float32(.1f), epsilon);
+        for (Tensor target : List.of(input, channelScale, channelBias)) {
+            assertFloat16NormalizationGradient(training.output(), target);
+        }
+        for (Tensor target : List.of(input, runningMean)) {
+            assertFloat16NormalizationGradient(training.nextRunningMean(), target);
+        }
+        for (Tensor target : List.of(input, runningVariance)) {
+            assertFloat16NormalizationGradient(training.nextRunningVariance(), target);
+        }
+    }
+
+    @Test
     void matmulBuildsEveryRankCaseAndUnbroadcastsEitherBatchOperand() {
         assertMatmulGradient(Shape.of(3), Shape.of(3), 0);
         assertMatmulGradient(Shape.of(3), Shape.of(3, 4), 0);
@@ -994,6 +1034,15 @@ final class GradientRulesTest {
         assertEquals(AggregateReductionKind.SUM,
                 count.provenance().orElseThrow().inputs().getFirst()
                         .provenance().orElseThrow().operation().kind());
+    }
+
+    private static void assertFloat16NormalizationGradient(Tensor output, Tensor target) {
+        assertEquals(DataType.FLOAT16, output.descriptor().dataType());
+        Tensor objective = output.sum();
+        Tensor contribution = gradient(objective, target);
+        assertEquals(target.descriptor().shape(), contribution.descriptor().shape());
+        assertEquals(DataType.FLOAT16, contribution.descriptor().dataType());
+        assertGradientCompiles(objective, target);
     }
 
     private static void assertGradientCompiles(Tensor objective, Tensor target) {

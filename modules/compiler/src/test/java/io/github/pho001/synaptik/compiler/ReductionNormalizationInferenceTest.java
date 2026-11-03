@@ -34,6 +34,88 @@ final class ReductionNormalizationInferenceTest {
     }
 
     @Test
+    void normalizationInferencePreservesModelMetadataForEveryFloatingFamily() {
+        for (DataType type : List.of(
+                DataType.FLOAT16, DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
+            ScalarValue epsilon = switch (type) {
+                case FLOAT16, FLOAT32 -> ScalarValue.float32(1e-5f);
+                case BFLOAT16 -> ScalarValue.bfloat16(1e-5f);
+                case FLOAT64 -> ScalarValue.float64(1e-5d);
+                default -> throw new AssertionError(type);
+            };
+            ScalarValue momentum = switch (type) {
+                case FLOAT16, FLOAT32 -> ScalarValue.float32(.1f);
+                case BFLOAT16 -> ScalarValue.bfloat16(.1f);
+                case FLOAT64 -> ScalarValue.float64(.1d);
+                default -> throw new AssertionError(type);
+            };
+            Tensor input = tensor(type, Shape.of(2, 3), true);
+            Tensor scale = tensor(type, Shape.of(3), true);
+            Tensor bias = tensor(type, Shape.of(3), true);
+            Tensor mean = tensor(type, Shape.of(3), true);
+            Tensor variance = tensor(type, Shape.of(3), true);
+            BatchNormTrainingResult training = input.batchNormTraining(
+                    1, scale, bias, mean, variance, momentum, epsilon);
+            for (Tensor output : List.of(
+                    input.layerNorm(Shape.of(3), epsilon),
+                    input.layerNorm(Shape.of(3), scale, bias, epsilon),
+                    input.rmsNorm(Shape.of(3), epsilon),
+                    input.rmsNorm(Shape.of(3), scale, epsilon),
+                    input.batchNormInference(1, scale, bias, mean, variance, epsilon),
+                    training.output())) {
+                TensorProducer producer = output.provenance().orElseThrow().producer();
+                List<TensorDescriptor> expected = producer.outputDescriptors();
+                var inferred = ReductionNormalizationInference.infer(
+                        producer.operation(),
+                        producer.inputs().stream().map(Tensor::descriptor).toList());
+                assertEquals(expected, inferred.outputs());
+                for (TensorDescriptor descriptor : inferred.outputs()) {
+                    assertEquals(type, descriptor.dataType());
+                    assertTrue(descriptor.requiresGrad());
+                }
+                CapturedGraphInference.inferAndValidate(GraphCapture.capture(List.of(output)));
+            }
+        }
+    }
+
+    @Test
+    void normalizationMetadataExceptionDoesNotRelaxOtherScalarTypes() {
+        for (DataType type : List.of(DataType.FLOAT16, DataType.BFLOAT16, DataType.FLOAT32)) {
+            TensorDescriptor input = descriptor(type, Shape.of(2, 3), true);
+            TensorDescriptor vector = descriptor(type, Shape.of(3), true);
+            ScalarValue legal = type == DataType.BFLOAT16
+                    ? ScalarValue.bfloat16(.1f) : ScalarValue.float32(.1f);
+            List<ScalarValue> invalid = type == DataType.BFLOAT16
+                    ? List.of(ScalarValue.float32(.1f), ScalarValue.float64(.1d))
+                    : List.of(ScalarValue.bfloat16(.1f), ScalarValue.float64(.1d));
+            for (ScalarValue scalar : invalid) {
+                for (Operation operation : List.of(
+                        new Operation(LayerNormKind.LAYER_NORM,
+                                new LayerNormAttrs(Shape.of(3), scalar)),
+                        new Operation(LayerNormKind.LAYER_NORM,
+                                new AffineLayerNormAttrs(Shape.of(3), scalar)),
+                        new Operation(RmsNormKind.RMS_NORM,
+                                new RmsNormAttrs(Shape.of(3), scalar)),
+                        new Operation(BatchNormKind.BATCH_NORM_INFERENCE,
+                                new BatchNormInferenceAttrs(1, scalar)),
+                        new Operation(BatchNormKind.BATCH_NORM_TRAINING,
+                                new BatchNormTrainingAttrs(1, legal, scalar)),
+                        new Operation(BatchNormKind.BATCH_NORM_TRAINING,
+                                new BatchNormTrainingAttrs(1, scalar, legal)))) {
+                    List<TensorDescriptor> inputs = operation.attrs() instanceof LayerNormAttrs
+                            || operation.attrs() instanceof RmsNormAttrs
+                            ? List.of(input)
+                            : operation.attrs() instanceof AffineLayerNormAttrs
+                                    ? List.of(input, vector, vector)
+                                    : List.of(input, vector, vector, vector, vector);
+                    assertThrows(IllegalArgumentException.class,
+                            () -> ReductionNormalizationInference.infer(operation, inputs));
+                }
+            }
+        }
+    }
+
+    @Test
     void coversEveryKindAndAttributesVariant() {
         TensorDescriptor floating = descriptor(DataType.FLOAT32, Shape.of(2, 3), true);
         TensorDescriptor bool = descriptor(DataType.BOOL, Shape.of(2, 3), false);

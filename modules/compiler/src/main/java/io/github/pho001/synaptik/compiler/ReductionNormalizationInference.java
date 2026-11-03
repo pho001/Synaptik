@@ -200,5 +200,11 @@ final class ReductionNormalizationInference {
         return result;
     }
     private static void requireShape(Shape actual, Shape expected, String role) { if (!actual.equals(expected)) throw new IllegalArgumentException(role+" shape mismatch"); }
-    private static void requireScalarType(DataType scalar, DataType result, String role) { if (scalar != result) throw new IllegalArgumentException(role+" data type must match result"); }
+    private static void requireScalarType(DataType scalar, DataType result, String role) {
+        // Match the input-aware Model normalization owners, not scalar arithmetic promotion.
+        if (scalar != result
+                && (result != DataType.FLOAT16 || scalar != DataType.FLOAT32)) {
+            throw new IllegalArgumentException(role + " data type must match result");
+        }
+    }
 }

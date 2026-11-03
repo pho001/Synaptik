@@ -19,8 +19,9 @@ import java.util.function.Function;
 /**
  * Builds first-order Layer, RMS, and batch-normalization formulas selected by preflight.
  *
- * <p>Mixed-floating occurrences compute in the exact selected forward-output type and cast only
- * completed Shape-correct contributions back to their selected input types. Affine and statistic
+ * <p>Mixed-floating occurrences compute in the selected forward-output type, except FLOAT16
+ * normalization uses FLOAT32 working expressions with its exact FLOAT32 metadata. Completed
+ * Shape-correct contributions are cast back to their selected input types. Affine and statistic
  * vectors are aligned through visible reshape and expand expressions. Batch-training formulas
  * consume the exact canonical saved mean and inverse-standard-deviation wrappers from output
  * slots three and four of the same producer occurrence.</p>
@@ -107,7 +108,8 @@ final class NormalizationGradientRules<V> {
                 ops.descriptor(input).shape(), normalizedShape.rank());
         int[] prefixAxes = prefixAxes(
                 ops.descriptor(input).shape(), normalizedShape.rank());
-        DataType outputType = ops.descriptor(output).dataType();
+        DataType outputType = workingType(output);
+        gradient = cast(gradient, outputType);
         V promotedInput = cast(primal.apply(input), outputType);
         V mean = ops.mean(promotedInput, normalizedAxes, true);
         V centered = ops.sub(promotedInput, mean);
@@ -155,7 +157,8 @@ final class NormalizationGradientRules<V> {
                 ops.descriptor(input).shape(), attrs.normalizedShape().rank());
         int[] prefixAxes = prefixAxes(
                 ops.descriptor(input).shape(), attrs.normalizedShape().rank());
-        DataType outputType = ops.descriptor(output).dataType();
+        DataType outputType = workingType(output);
+        gradient = cast(gradient, outputType);
         V promotedInput = cast(primal.apply(input), outputType);
         V inverseRootMeanSquare = ops.rsqrt(ops.add(ops.mean(ops.mul(promotedInput, promotedInput), normalizedAxes, true), attrs.epsilon()));
         V h = gradient;
@@ -192,7 +195,8 @@ final class NormalizationGradientRules<V> {
         int channelAxis = attrs.channelAxis();
         int[] channelAxes = new int[] {channelAxis};
         int[] reducedAxes = excludingAxis(ops.descriptor(input).shape(), channelAxis);
-        DataType outputType = ops.descriptor(output).dataType();
+        DataType outputType = workingType(output);
+        gradient = cast(gradient, outputType);
         V promotedInput = cast(primal.apply(input), outputType);
         V scale = align(
                 cast(primal.apply(producer.inputs().get(1)), outputType),
@@ -254,15 +258,18 @@ final class NormalizationGradientRules<V> {
         int channelAxis = attrs.channelAxis();
         int[] channelAxes = new int[] {channelAxis};
         int[] reducedAxes = excludingAxis(ops.descriptor(input).shape(), channelAxis);
-        DataType outputType = ops.descriptor(output).dataType();
+        DataType outputType = workingType(output);
+        gradient = cast(gradient, outputType);
         V promotedInput = cast(primal.apply(input), outputType);
         V savedMean = align(
-                primal.apply(producer.output(3)), ops.descriptor(input).shape(), channelAxes);
+                cast(primal.apply(producer.output(3)), outputType),
+                ops.descriptor(input).shape(), channelAxes);
 
         V[] result = ops.array(5);
         if (outputIndex == 0) {
             V savedInverseStandardDeviation = align(
-                    primal.apply(producer.output(4)), ops.descriptor(input).shape(), channelAxes);
+                    cast(primal.apply(producer.output(4)), outputType),
+                    ops.descriptor(input).shape(), channelAxes);
             V scale = align(
                     cast(primal.apply(producer.inputs().get(1)), outputType),
                     ops.descriptor(input).shape(),
@@ -363,6 +370,11 @@ final class NormalizationGradientRules<V> {
             reduced = ops.reshape(reduced, ops.descriptor(target).shape());
         }
         return cast(reduced, ops.descriptor(target).dataType());
+    }
+
+    private DataType workingType(V output) {
+        DataType type = ops.descriptor(output).dataType();
+        return type == DataType.FLOAT16 ? DataType.FLOAT32 : type;
     }
 
     private V cast(V tensor, DataType dataType) {
