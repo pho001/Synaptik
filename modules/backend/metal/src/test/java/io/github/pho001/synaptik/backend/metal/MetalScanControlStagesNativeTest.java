@@ -5,12 +5,16 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.*;
 import io.github.pho001.synaptik.model.operation.*;
+import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs;
+import io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind;
 import io.github.pho001.synaptik.model.operation.index.*;
 import io.github.pho001.synaptik.model.operation.layout.*;
 import io.github.pho001.synaptik.model.operation.loss.*;
 import io.github.pho001.synaptik.model.operation.scan.*;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
+import io.github.pho001.synaptik.planning.capability.ScanActivityPlan;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.*;
@@ -22,6 +26,42 @@ import org.junit.jupiter.api.Test;
  * Integral expectations compare represented bytes, never floating conversions.
  */
 class MetalScanControlStagesNativeTest {
+    @Test void optionalIntegralAddLoadsOnlyPresentTermsAndPreservesSoleRawIdentities() {
+        for (var type : List.of(DataType.INT32, DataType.INT64)) for (boolean swapped : List.of(false, true))
+            for (int present = 0; present < 4; present++)
+                for (long base : new long[] {100, type == DataType.INT32 ? Integer.MAX_VALUE : Long.MAX_VALUE}) {
+                    try (var run = new MetalGeneralScanNativeTest.RawScan(optionalIntegralAdd(type, present, swapped), null)) {
+                        run.floats(0, 3); run.bytes(1, represented(type, base));
+                        run.poisonOutputs(0x5a5a5a5a); run.execute();
+                        long left = swapped ? 3 : base, right = swapped ? base : 3;
+                        long expected = present == 0 ? 0 : present == 1 ? left : present == 2 ? right : left + right;
+                        if (type == DataType.INT32) expected = (int) expected;
+                        assertArrayEquals(represented(type, expected), run.outputBytes(0));
+                    }
+                }
+    }
+
+    private static OperationCapabilityQuery optionalIntegralAdd(DataType type, int present, boolean swapped) {
+        var floating = MetalScanPlanTest.descriptor(DataType.FLOAT32);
+        var integral = MetalScanPlanTest.descriptor(type);
+        var seed = new ValueId(0); var invariant = new ValueId(1);
+        var converted = new ValueId(2); var result = new ValueId(3);
+        var cast = new CompiledNode(new NodeId(0), new Operation(CastKind.CAST, new CastAttrs(type)),
+                List.of(seed), List.of(converted));
+        var add = new CompiledNode(new NodeId(1), new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE),
+                swapped ? List.of(converted, invariant) : List.of(invariant, converted), List.of(result));
+        var graph = new CompiledGraphModel(List.of(new GraphValue(seed, floating), new GraphValue(invariant, integral),
+                new GraphValue(converted, integral), new GraphValue(result, integral)), List.of(cast, add),
+                List.of(seed, invariant), List.of(result), Map.of(cast.id(), GraphPhase.BACKWARD, add.id(), GraphPhase.BACKWARD));
+        var body = new CompiledScanBody(graph, List.of(), List.of(result), List.of(), List.of(0));
+        var activity = new ScanActivityPlan(graph, List.of(), List.of(0), List.of(List.of(), List.of(0)),
+                Map.of(cast.id(), 1, add.id(), present == 0 ? 0 : 1),
+                Map.of(add.id(), new ScanActivityPlan.Merge(present & 1, (present >>> 1) & 1)), List.of());
+        return new OperationCapabilityQuery(new Operation(ScanKind.SCAN, new ScanAttrs(1, 0, 1, 1, 1, 0, false)),
+                List.of(MetalScanPlanTest.descriptor(DataType.FLOAT32, 1), integral),
+                List.of(MetalScanPlanTest.descriptor(type, 1)), Optional.of(body), Optional.of(activity));
+    }
+
     @Test void replacementScatterRunsUpdateStageForBoolI32AndI64InBothModesAndTraversals() {
         for (var type : List.of(DataType.BOOL, DataType.INT32, DataType.INT64))
             for (boolean lengths : List.of(false, true)) for (boolean reverse : List.of(false, true)) {
