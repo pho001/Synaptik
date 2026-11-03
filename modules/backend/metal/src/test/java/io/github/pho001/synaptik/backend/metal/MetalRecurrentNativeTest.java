@@ -67,13 +67,39 @@ class MetalRecurrentNativeTest {
                                     ByteBuffer bytes = ByteBuffer.wrap(actual.get(target)).order(ByteOrder.nativeOrder());
                                     int word = type == DataType.FLOAT32 ? bytes.getInt()
                                             : Short.toUnsignedInt(bytes.getShort());
-                                    assertEquals(type == DataType.FLOAT32 ? Float.floatToRawIntBits(zero) : 0,
+                                    assertEquals(type == DataType.FLOAT32 ? Float.floatToRawIntBits(zero)
+                                                    : Short.toUnsignedInt(lowBits(zero, type)),
                                             word, type + " RNN singleton zero at public target " + target);
                                 }
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+
+    @Test
+    void lowSingletonNegativeZeroRemainsObservableThroughReciprocal() {
+        for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            try (var fixture = new Fixture(MetalMpsGraphProgram.NodeKind.RNN_TANH,
+                    false, false, 1, 1, -1, 1, 1, type, true)) {
+                Arrays.fill(fixture.x, -0.0f);
+                Arrays.fill(fixture.h0, -0.0f);
+                Arrays.fill(fixture.w, 1.0f);
+                Arrays.fill(fixture.u, 1.0f);
+                fixture.prepare(new long[] {1});
+                fixture.invoke();
+                List<byte[]> actual = fixture.snapshot();
+                for (int output = 0; output < 2; output++) {
+                    int bits = Short.toUnsignedInt(ByteBuffer.wrap(actual.get(fixture.readCount + output))
+                            .order(ByteOrder.nativeOrder()).getShort());
+                    assertEquals(0x8000, bits, type + " fixed recurrent negative zero output " + output);
+                }
+                int reciprocal = Short.toUnsignedInt(ByteBuffer.wrap(actual.get(fixture.values.size() - 1))
+                        .order(ByteOrder.nativeOrder()).getShort());
+                assertEquals(Short.toUnsignedInt(lowBits(Float.NEGATIVE_INFINITY, type)), reciprocal,
+                        type + " reciprocal must observe the recurrent negative zero sign");
             }
         }
     }
@@ -252,6 +278,12 @@ class MetalRecurrentNativeTest {
 
         Fixture(MetalMpsGraphProgram.NodeKind kind, boolean reverse, boolean biased,
                 int time, int batch, int selectedOutput, int input, int hidden, DataType type) {
+            this(kind, reverse, biased, time, batch, selectedOutput, input, hidden, type, false);
+        }
+
+        Fixture(MetalMpsGraphProgram.NodeKind kind, boolean reverse, boolean biased,
+                int time, int batch, int selectedOutput, int input, int hidden, DataType type,
+                boolean reciprocal) {
             String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
             assumeTrue(configured != null && !configured.isBlank(),
                     "SYNAPTIK_METAL_TEST_LIBRARY is not set");
@@ -286,15 +318,24 @@ class MetalRecurrentNativeTest {
             for (int i = 0; i < feeds.length; i++) feeds[i] = i;
             int[] outputs = new int[gates == 4 ? 3 : 2];
             for (int i = 0; i < outputs.length; i++) outputs[i] = readCount + i;
-            targets = selectedOutput < 0 ? outputs : new int[] {outputs[selectedOutput]};
+            var nodes = new ArrayList<MetalMpsGraphProgram.Node>();
+            if (reciprocal) {
+                int target = values.size();
+                values.add(typed(type, batch, hidden));
+                targets = new int[] {outputs[0], outputs[1], target};
+                nodes.add(MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.RECIPROCAL,
+                        new int[] {outputs[1]}, new int[] {target},
+                        MetalMpsGraphProgram.AttributeKind.NONE, new long[0]));
+            } else targets = selectedOutput < 0 ? outputs : new int[] {outputs[selectedOutput]};
             var node = MetalMpsGraphProgram.Node.generic(kind, feeds, outputs,
                     MetalMpsGraphProgram.AttributeKind.RECURRENT_DIRECTION,
                     new long[] {reverse ? 2L : 1L});
+            nodes.addFirst(node);
             api = MetalNativeApi.open(Path.of(configured).toAbsolutePath().normalize());
             try {
                 context = api.createContext();
                 executable = api.createProgramExecutable(context, List.copyOf(values),
-                        new MetalMpsGraphProgram(List.of(node)), feeds, targets,
+                        new MetalMpsGraphProgram(List.copyOf(nodes)), feeds, targets,
                         MetalPreparedRoute.CUSTOM_PROGRAM);
                 for (var value : values) buffers.add(api.createBuffer(context, value.byteCount()));
             } catch (RuntimeException | Error failure) {
@@ -403,13 +444,12 @@ class MetalRecurrentNativeTest {
                 float[] b = new float[a.length];
                 for (int gate = 0; gate < a.length; gate++) {
                     int inputBase = (time * f.batch + row) * f.input;
-                    int start = f.type == DataType.FLOAT32 ? 1 : 0;
-                    if (start != 0) a[gate] = x[inputBase] * w[gate * f.input];
-                    for (int k = start; k < f.input; k++) {
+                    a[gate] = x[inputBase] * w[gate * f.input];
+                    for (int k = 1; k < f.input; k++) {
                         a[gate] += x[inputBase + k] * w[gate * f.input + k];
                     }
-                    if (start != 0) b[gate] = previous[0] * u[gate * f.hidden];
-                    for (int k = start; k < f.hidden; k++) {
+                    b[gate] = previous[0] * u[gate * f.hidden];
+                    for (int k = 1; k < f.hidden; k++) {
                         b[gate] += previous[k] * u[gate * f.hidden + k];
                     }
                     if (f.biased) a[gate] += bias[gate];

@@ -297,6 +297,36 @@ final class RecurrentScanCompilerTest {
     }
 
     @Test
+    void nonlinearConsumersAcceptGeneratedCotangentsForEveryFamilyAndJointOutputs() {
+        for (DataType type : floatingTypes()) for (RecurrentScanKind kind : RecurrentScanKind.values()) {
+            for (RecurrentDirection direction : RecurrentDirection.values()) {
+                RecurrentCase recurrent = recurrentCase(fixtures(type, 3, 2, 3, 2, true),
+                        kind, direction, true);
+                var objectives = new ArrayList<Tensor>();
+                Tensor joint = null;
+                for (Tensor output : recurrent.outputs()) {
+                    Tensor objective = output.mul(output).sum();
+                    objectives.add(objective);
+                    joint = joint == null ? objective : joint.add(objective);
+                }
+                objectives.add(joint);
+                for (Tensor objective : objectives) {
+                    var request = FunctionalGradientTestSupport.request(objective, recurrent.targets());
+                    var plan = AutogradPreflight.preflight(CompileMode.FORWARD_AND_BACKWARD,
+                            List.of(objective), request, CompileTimeConstantGraph.Ingress.empty());
+                    var expansion = FirstOrderAutograd.expand(plan.stageOne(),
+                            CompileTimeConstantGraph.Ingress.empty());
+                    assertExpandedTargets(recurrent.targets(), expansion);
+                    var compiled = GraphCompiler.compile(CompileMode.FORWARD_AND_BACKWARD,
+                            List.of(objective), Optional.of(request),
+                            CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.disabled());
+                    assertEquals(recurrent.targets().size(), compiled.gradientResults().size());
+                }
+            }
+        }
+    }
+
+    @Test
     void publishesEmptyTimeAndBatchGradientsWithoutInventingPositiveGeometry() {
         for (DataType type : floatingTypes()) {
             for (RecurrentDirection direction : RecurrentDirection.values()) {
