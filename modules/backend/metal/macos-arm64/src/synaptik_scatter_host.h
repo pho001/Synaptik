@@ -402,17 +402,5 @@ static int32_t synaptik_scatter_scan_preflight_raw(
     return SYNAPTIK_METAL_STATUS_OK;
 }
 
-/* Ordinary callers may already own an NSArray table. The Scan time loop calls
- * the borrowed raw core directly, without constructing a Foundation collection. */
-static int32_t synaptik_scatter_scan_preflight(
-        const SynaptikMetalDataMeta *meta, NSArray<id<MTLBuffer>> *role_inputs,
-        const NSUInteger *offsets, const uint64_t *control,
-        const SynaptikMetalScanStepControl *step) {
-    if (role_inputs.count != 3U) return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
-    __unsafe_unretained id<MTLBuffer> roles[3] = {
-        role_inputs[0], role_inputs[1], role_inputs[2]
-    };
-    return synaptik_scatter_scan_preflight_raw(meta, roles, 3U, offsets, control, step);
-}
 
 #endif

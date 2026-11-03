@@ -85,6 +85,21 @@ class MetalCapabilityProviderTest {
     private final MetalCapabilityProvider provider = new MetalCapabilityProvider();
 
     @Test
+    void elementaryExpAndSigmoidRetainTheirUnsignedByteSpanBoundary() {
+        for (var kind : List.of(UnaryElementwiseKind.EXP, UnaryElementwiseKind.SIGMOID)) {
+            var operation = new Operation(kind, NoOperationAttrs.INSTANCE);
+            for (boolean gradient : List.of(false, true)) {
+                var supported = descriptor(Shape.of((1L << 30) - 1L), gradient);
+                var tooLarge = descriptor(Shape.of(1L << 30), gradient);
+                assertTrue(provider.supports(new OperationCapabilityQuery(
+                        operation, List.of(supported), List.of(supported))));
+                assertFalse(provider.supports(new OperationCapabilityQuery(
+                        operation, List.of(tooLarge), List.of(tooLarge))));
+            }
+        }
+    }
+
+    @Test
     void mixedExactComparisonCarriersReachTheirImplementedOriginalTypedDomain() {
         Shape shape = Shape.of(2);
         for (var pair : List.of(List.of(DataType.FLOAT64, DataType.FLOAT32),

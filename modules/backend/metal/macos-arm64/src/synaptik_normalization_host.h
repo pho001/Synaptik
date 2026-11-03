@@ -306,23 +306,5 @@ static int32_t synaptik_normalization_preflight_target(
     return SYNAPTIK_METAL_STATUS_OK;
 }
 
-/**
- * Role-buffer adapter for prepared callers that already own an ordered input
- * NSArray. Raw execution uses the target-byte core directly without allocating
- * a transient role array. Both entries share exactly one logical index mapping.
- */
-static int32_t synaptik_normalization_preflight(
-        const SynaptikNormalizationLossMeta *m,
-        NSArray<id<MTLBuffer>> *inputs,
-        const NSUInteger *offsets,
-        const uint64_t *scanControl,
-        const SynaptikMetalScanStepControl *scanStep) {
-    if (m == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
-    if (m->mode != 87U) return SYNAPTIK_METAL_STATUS_OK;
-    id<MTLBuffer> target = inputs.count > 1U ? inputs[1] : nil;
-    return synaptik_normalization_preflight_target(
-            m, offsets != NULL ? target.contents : NULL, target.length,
-            offsets != NULL ? offsets[1] : 0U, scanControl, scanStep);
-}
 
 #endif

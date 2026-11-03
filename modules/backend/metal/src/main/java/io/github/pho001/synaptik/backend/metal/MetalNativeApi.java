@@ -898,7 +898,6 @@ abstract class MetalNativeApi implements AutoCloseable {
                                 "INITIAL_STATE must retain exactly key and counter words");
                     }
                     case DROPOUT -> {
-                        int[] nodeOutputs = node.outputs();
                         requireIndex(right, valueCount, "dropout state input");
                         if (nodeOutputs.length != 3) {
                             throw new IllegalArgumentException(
@@ -995,7 +994,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                     case ADD, SUB, MUL, DIV, TENSOR_POW, GT, GE, LT, LE, EQ, NE,
                             TENSOR_MIN, TENSOR_MAX, LOGICAL_AND, LOGICAL_OR -> {
                         requireIndex(right, valueCount, "second node input");
-                        if (!node.kind().accepts(states[right])) {
+                        if (!node.kind().accepts(states[right], values.get(right))) {
                             throw new IllegalArgumentException(
                   "Metal second node input has an unsupported value state");
                         }
@@ -1260,7 +1259,6 @@ abstract class MetalNativeApi implements AutoCloseable {
                 switch (node.kind()) {
                     case INITIAL_STATE -> requireType(types, output, ValueType.INT64);
                     case DROPOUT -> {
-                        int[] nodeOutputs = node.outputs();
                         int mask = nodeOutputs[1];
                         int nextState = nodeOutputs[2];
                         if (types[left] != ValueType.FLOAT32
@@ -1347,7 +1345,6 @@ abstract class MetalNativeApi implements AutoCloseable {
                     }
                     case ARGSORT -> requireType(types, output, ValueType.INT64);
                     case TOP_K -> {
-                        int[] nodeOutputs = node.outputs();
                         if (types[left] != types[nodeOutputs[0]]) {
                             throw new IllegalArgumentException(
                                     "TOP_K values must preserve the exact input carrier");

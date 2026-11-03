@@ -18,6 +18,7 @@ import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.*;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import io.github.pho001.synaptik.prepare.*;
+import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import io.github.pho001.synaptik.runtime.run.PreparedExecutionRunner;
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
@@ -333,7 +334,7 @@ class MetalGeneralScanNativeTest {
             var preparation = new PartitionPreparation<>(new MetalNegAnalysisInputs(context), c -> {
                 var analysis = preparer.analyze(c); analyzed.set(analysis.plan()); return analysis;
             }, new MetalNegPartitionFinalizer(context));
-            var buffers = new ArrayList<MetalBufferRepresentation>();
+            var buffers = new ArrayList<BufferRepresentation>();
             try (var execution = GraphPreparation.prepare(artifacts, List.of(preparation), c ->
                     new MetalNegPreparedScheduleAssembler(context, analyzed.get(), publications).assemble(c))) {
                 for (var binding : artifacts.constants().bindableInputBindings()) {
@@ -345,7 +346,7 @@ class MetalGeneralScanNativeTest {
                     for (var binding : artifacts.constants().bindableInputBindings()) {
                         byte[] bytes = Objects.requireNonNull(runs.get(invocation).get(binding.tensorId()));
                         var source = arena.allocate(bytes.length, 8); MemorySegment.copy(bytes, 0, source, JAVA_BYTE, 0, bytes.length);
-                        if (bytes.length != 0) buffers.get(input).upload(0, source, 0, bytes.length);
+                        if (bytes.length != 0) ((MetalBufferRepresentation) buffers.get(input)).upload(0, source, 0, bytes.length);
                         input++;
                     }
                     try (var result = new PreparedExecutionRunner().run(execution, buffers)) {

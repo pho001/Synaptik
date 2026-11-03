@@ -80,22 +80,6 @@ static BOOL synaptik_scan_control_operand(const uint64_t *control,
     return synaptik_scan_control_row(control, step->scope,
             (linear / step->inputRowInner[role]) % control[1]);
 }
-static BOOL synaptik_scan_control_output_at(const uint64_t *control,
-        const SynaptikMetalScanStepControl *step, uint32_t output, uint64_t linear) {
-    if (control == NULL || step == NULL) return YES;
-    if (output >= step->outputCount || output >= 5U || linear >= step->outputElements[output]) return NO;
-    if (step->outputRowAxes[output] < 0) return synaptik_scan_control_any(control, step->outputScopes[output]);
-    if (control[1] == 0U || step->outputRowInner[output] == 0U) return NO;
-    return synaptik_scan_control_row(control, step->outputScopes[output],
-            (linear / step->outputRowInner[output]) % control[1]);
-}
-static BOOL synaptik_scan_control_any_output(const uint64_t *control,
-        const SynaptikMetalScanStepControl *step) {
-    if (control == NULL || step == NULL) return YES;
-    for (uint32_t output = 0U; output < step->outputCount && output < 5U; output++)
-        if (step->outputElements[output] != 0U && synaptik_scan_control_any(control, step->outputScopes[output])) return YES;
-    return NO;
-}
 
 /* Independent of DataMeta and all floating helpers; assemble before controlled components.
 

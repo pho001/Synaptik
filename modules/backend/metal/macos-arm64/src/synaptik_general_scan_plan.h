@@ -531,7 +531,11 @@ static BOOL synaptik_scan_bind(SynaptikMetalScanPlan *plan, id<MTLComputeCommand
     if (elements == 0U) return YES;
     SynaptikMetalScanBindMeta meta = { .elementCount = elements, .width = width, .mode = mode };
     MTLSize grid;
-    if (!custom_grid(elements, &grid, &meta.gridWidth, &meta.gridHeight)) return NO;
+    uint64_t gridWidth, gridHeight;
+    if (!custom_grid(elements, &grid, &gridWidth, &gridHeight)) return NO;
+    // custom_grid bounds each coordinate to UINT32_MAX before publication.
+    meta.gridWidth = (uint32_t)gridWidth;
+    meta.gridHeight = (uint32_t)gridHeight;
     [encoder setComputePipelineState:plan.bindingPipeline];
     [encoder setBuffer:source offset:sourceOffset atIndex:0U];
     [encoder setBuffer:destination offset:destinationOffset atIndex:1U];

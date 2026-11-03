@@ -1820,7 +1820,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             TensorDescriptor input = inputs.getFirst();
             return input.dataType() == DataType.FLOAT32 && canonicalAny(input, true)
                     && input.shape().equals(output.shape())
-                    && input.requiresGrad() == output.requiresGrad();
+                    && input.requiresGrad() == output.requiresGrad()
+                    && ((unary != UnaryElementwiseKind.EXP && unary != UnaryElementwiseKind.SIGMOID)
+                            || input.layout().orElseThrow().referencedElementSpan()
+                                    <= UINT32_MAX / Float.BYTES);
         }
         if (operation.kind() instanceof BinaryArithmeticKind) {
             if (inputs.size() != 2 || operation.attrs() != NoOperationAttrs.INSTANCE) return false;

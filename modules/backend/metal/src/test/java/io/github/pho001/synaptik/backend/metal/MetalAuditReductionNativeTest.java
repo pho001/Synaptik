@@ -138,7 +138,9 @@ class MetalAuditReductionNativeTest {
 
     @Test
     void floatingProductsRetainZerosParityAndInvalidZeroTimesInfinity() {
-        var values = List.of(value(DataType.FLOAT32, 3, 3), value(DataType.FLOAT32, 3));
+        var values = List.of(new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.FLOAT32, new long[] {3, 3}, true),
+                new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, new long[] {3}, true));
         var node = reduction(MetalMpsGraphProgram.NodeKind.PROD, 0, 1, List.of(1), false);
         float[] actual = floats(execute(values, List.of(node), new int[] {0},
                 new byte[][] {f32(0, -2, 3, -0.0f, -2, 3, 0, Float.POSITIVE_INFINITY, 1)}, 1));

@@ -3540,7 +3540,7 @@ static BOOL synaptik_is_low_precision_type(uint8_t type) {
 
 static NSString *low_precision_custom_function(
         SynaptikMetalDecodedNode node, const uint8_t *value_types) {
-    if (value_types == NULL) return nil;
+    if (value_types == NULL || synaptik_exact_handles(node, value_types)) return nil;
     uint8_t input_type = node.input_count == 0U
             ? SYNAPTIK_METAL_TYPE_UNAVAILABLE
             : value_types[node.first_input];
@@ -9117,8 +9117,14 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
                     return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                 // Scalar MUL, like RELU and CLAMP, already admits matching rank-zero values.
                 // Standalone admission is independent of the fused-record authentication below.
+                BOOL exact_integral_scalar =
+                        (operation == SYNAPTIK_METAL_MPSGRAPH_SCALAR_ADD
+                                || operation == SYNAPTIK_METAL_MPSGRAPH_SCALAR_SUB)
+                        && (declared_types[input_value] == SYNAPTIK_METAL_TYPE_INT32
+                                || declared_types[input_value] == SYNAPTIK_METAL_TYPE_INT64);
                 if (operation != SYNAPTIK_METAL_MPSGRAPH_SCALAR_MUL
                         && declared_types[input_value] != SYNAPTIK_METAL_TYPE_FLOAT32
+                        && !exact_integral_scalar
                         && (value_ranks[input_value] == 0U
                                 || value_ranks[output_value] == 0U))
                     return SYNAPTIK_METAL_STATUS_UNSUPPORTED_SHAPE;
@@ -9433,14 +9439,19 @@ SYNAPTIK_EXPORT int32_t synaptik_metal_mpsgraph_executable_create(
             }
             if (operation >= SYNAPTIK_METAL_CUSTOM_PROD
                     && operation <= SYNAPTIK_METAL_CUSTOM_ANY) {
-                for (uint32_t reference = input_offset;
-                        reference < output_offset + output_count; reference++) {
-                    uint32_t value = synaptik_read_le32(
-                            program + references_offset + (uint64_t)reference * 4U);
-                    uint32_t flags = synaptik_read_le32(
-                            program + values_offset + (uint64_t)value * 40U + 16U);
-                    if ((flags & 1U) != 0U)
-                        return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                uint32_t input_value = synaptik_read_le32(
+                        program + references_offset + (uint64_t)input_offset * 4U);
+                if (operation != SYNAPTIK_METAL_CUSTOM_PROD
+                        || declared_types[input_value] != SYNAPTIK_METAL_TYPE_FLOAT32) {
+                    for (uint32_t reference = input_offset;
+                            reference < output_offset + output_count; reference++) {
+                        uint32_t value = synaptik_read_le32(
+                                program + references_offset + (uint64_t)reference * 4U);
+                        uint32_t flags = synaptik_read_le32(
+                                program + values_offset + (uint64_t)value * 40U + 16U);
+                        if ((flags & 1U) != 0U)
+                            return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    }
                 }
             }
             if (operation == SYNAPTIK_METAL_CUSTOM_PERMUTE) {

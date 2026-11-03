@@ -2,16 +2,20 @@ package io.github.pho001.synaptik.backend.metal;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.shape.Shape;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -76,6 +80,21 @@ final class MetalFloat32MathNativeTest {
                         kind + " sweep " + input[index], activation(kind));
             }
         }
+    }
+
+    @Test
+    void tensorPowerConsumesTheDeclaredStridedExponentLayout() {
+        Shape shape = Shape.of(2);
+        var exponent = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32,
+                new long[] {2}, Optional.of(LayoutDescriptor.of(
+                        shape, new long[] {2}, 0, true)), false, false);
+        var node = MetalMpsGraphProgram.Node.generic(
+                MetalMpsGraphProgram.NodeKind.TENSOR_POW, new int[] {0, 1}, new int[] {2},
+                MetalMpsGraphProgram.AttributeKind.NONE, new long[0]);
+        float[] actual = execute(node, List.of(value(2), exponent, value(2)),
+                new int[] {0, 1}, 2, List.of(
+                        new float[] {2, 3}, new float[] {3, Float.NaN, 2}));
+        assertArrayEquals(new float[] {8, 9}, actual, 0.00001f);
     }
 
     @Test

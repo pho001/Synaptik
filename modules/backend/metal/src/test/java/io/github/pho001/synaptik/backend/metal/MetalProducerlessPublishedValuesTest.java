@@ -255,6 +255,25 @@ final class MetalProducerlessPublishedValuesTest {
         @Override void download(Handle buffer, long offset, MemorySegment target, long count) {
             target.asSlice(0, count).copyFrom(MemorySegment.ofArray(buffers.get(buffer)).asSlice(offset, count));
         }
+        @Override NativeCreateResult createProgramExecutableNative(Handle context, MemorySegment image) {
+            throw new AssertionError("Storage-only publication must not compile an executable");
+        }
+        @Override int releaseExecutableNative(Handle executable) {
+            throw new AssertionError("Storage-only publication must not own an executable");
+        }
+        @Override int runExecutableNative(Handle executable, int inputCount, MemorySegment inputs,
+                int outputCount, MemorySegment outputs) {
+            throw new AssertionError("Storage-only publication must not execute a graph");
+        }
+        @Override NativeCreateResult createNegKernelPipelineNative(Handle context, long count) {
+            throw new AssertionError("Storage-only publication must not compile a NEG pipeline");
+        }
+        @Override int releaseNegKernelPipelineNative(Handle pipeline) {
+            throw new AssertionError("Storage-only publication must not own a NEG pipeline");
+        }
+        @Override int runNegKernelPipelineNative(Handle pipeline, Handle input, Handle output) {
+            throw new AssertionError("Storage-only publication must not execute arithmetic");
+        }
         @Override public void close() { assertTrue(buffers.isEmpty()); }
         private Handle handle() { return new Handle(MemorySegment.ofAddress(next++)); }
     }
