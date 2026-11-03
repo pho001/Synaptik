@@ -74,7 +74,10 @@ final class GraphArtifactV5Test {
      */
     private static Fixture fixture(DataType type, long time, long batch, int axis, boolean reverse,
             boolean producer, boolean late, boolean state) throws Exception {
-        int dtype = type == DataType.FLOAT32 ? 2 : 1;
+        int dtype = switch (type) {
+            case FLOAT64 -> 1; case FLOAT32 -> 2; case BFLOAT16 -> 3; case FLOAT16 -> 7;
+            default -> throw new AssertionError(type);
+        };
         var bytes = new ByteArrayOutputStream(); var out = new DataOutputStream(bytes);
         var at = new HashMap<String, Integer>();
         out.writeBytes("SYNGRF05"); out.writeInt(5);
@@ -85,7 +88,11 @@ final class GraphArtifactV5Test {
         out.writeInt(state ? 1 : 0);
         if (state) {
             descriptor(out, dtype, true, batch, 2); out.writeByte(2);
-            out.writeLong(batch * 2 * (type == DataType.FLOAT32 ? 4 : 8));
+            int width = switch (type) {
+                case FLOAT32 -> 4; case FLOAT64 -> 8; case BFLOAT16, FLOAT16 -> 2;
+                default -> throw new AssertionError(type);
+            };
+            out.writeLong(batch * 2 * width);
         }
         out.writeInt(state ? 1 : 0);
         if (state) { out.writeInt(5); out.writeBytes("state"); out.writeInt(0); }
@@ -118,7 +125,13 @@ final class GraphArtifactV5Test {
         if (producer) {
             out.writeByte(1); at.put("bodyOpcode", bytes.size()); out.writeByte(25); out.writeInt(0);
             out.writeByte(dtype);
-            if (type == DataType.FLOAT32) out.writeInt(0xffc00123); else out.writeLong(0xfff8000000000123L);
+            switch (type) {
+                case FLOAT32 -> out.writeInt(0xffc00123);
+                case FLOAT64 -> out.writeLong(0xfff8000000000123L);
+                case BFLOAT16 -> out.writeShort(0xffc3);
+                case FLOAT16 -> out.writeShort(0xfe23);
+                default -> throw new AssertionError(type);
+            }
             out.writeInt(1); descriptor(out, dtype, false, batch, 2);
         }
         out.writeInt(producer ? 2 : 1); out.writeInt(0); if (producer) out.writeInt(2);
@@ -186,7 +199,7 @@ final class GraphArtifactV5Test {
     }
 
     @Test void independentlyAuthoredGoldenBytesCoverDtypesTraversalEmptyDomainsAndRoleAxes() throws Exception {
-        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16))
             for (long time : new long[]{0, 3, 1_000_000}) for (long batch : new long[]{0, 1, 3})
                 for (int axis : new int[]{-1, 0, 1}) for (boolean reverse : List.of(false, true))
                     for (boolean producer : List.of(false, true)) {
@@ -214,8 +227,13 @@ final class GraphArtifactV5Test {
      * @return typed raw-NaN scalar
      */
     private static ScalarValue scalar(DataType type) {
-        return type == DataType.FLOAT32 ? ScalarValue.float32(Float.intBitsToFloat(0xffc00123))
-                : ScalarValue.float64(Double.longBitsToDouble(0xfff8000000000123L));
+        return switch (type) {
+            case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(0xffc00123));
+            case FLOAT64 -> ScalarValue.float64(Double.longBitsToDouble(0xfff8000000000123L));
+            case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0xffc3);
+            case FLOAT16 -> ScalarValue.float16Bits((short) 0xfe23);
+            default -> throw new AssertionError(type);
+        };
     }
 
     @Test void malformedRolesReferencesTuplesAndNestedScansFailBeforeProducerIds() throws Exception {
@@ -324,24 +342,26 @@ final class GraphArtifactV5Test {
     }
 
     @Test void lateInvalidBodyWithNamedStateFailsBeforeImportAndAnyFormalOrProducer() throws Exception {
-        for (long time : new long[]{0, 3}) {
-            var fixture = fixture(DataType.FLOAT32, time, 2, 0, false, true, true, true);
-            var valid = new ArtifactEnvelope("graph-model.v5", List.of(new ArtifactEnvelope.Entry("schema", fixture.bytes()),
-                    new ArtifactEnvelope.Entry("state/00000000", raw(DataType.FLOAT32, 4))));
-            var loaded = GraphArtifactCodec.decode(valid, LIMITS);
-            assertArrayEquals(fixture.bytes(), schema(GraphArtifactCodec.encode(GraphSource.capture(loaded), LIMITS)));
-            var state = loaded.leaves().getFirst().tensor();
-            assertArrayEquals(raw(DataType.FLOAT32, 4), GraphValueStorage.encode(state.descriptor(),
-                    state.hostStorage().orElseThrow().segment()));
-            byte[] bad = fixture.bytes().clone(); bad[fixture.offsets().get("formal") + 1] = 1;
-            var image = new ArtifactEnvelope("graph-model.v5", List.of(new ArtifactEnvelope.Entry("schema", bad),
-                    new ArtifactEnvelope.Entry("state/00000000", raw(DataType.FLOAT32, 4))));
-            rejected(image);
-        }
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16))
+            for (long time : new long[]{0, 3}) {
+                var fixture = fixture(type, time, 2, 0, false, true, true, true);
+                var valid = new ArtifactEnvelope("graph-model.v5", List.of(new ArtifactEnvelope.Entry("schema", fixture.bytes()),
+                        new ArtifactEnvelope.Entry("state/00000000", raw(type, 4))));
+                var loaded = GraphArtifactCodec.decode(valid, LIMITS);
+                assertArrayEquals(fixture.bytes(), schema(GraphArtifactCodec.encode(GraphSource.capture(loaded), LIMITS)));
+                var state = loaded.leaves().getFirst().tensor();
+                assertArrayEquals(raw(type, 4), GraphValueStorage.encode(state.descriptor(),
+                        state.hostStorage().orElseThrow().segment()));
+                byte[] bad = fixture.bytes().clone(); bad[fixture.offsets().get("formal") + 1] = 1;
+                var image = new ArtifactEnvelope("graph-model.v5", List.of(new ArtifactEnvelope.Entry("schema", bad),
+                        new ArtifactEnvelope.Entry("state/00000000", raw(type, 4))));
+                rejected(image);
+            }
     }
 
     @Test void rowRolesTerminalAccumulatorsAliasesUnusedFormalsAndAllPortsRoundTrip() throws Exception {
-        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) for (boolean reverse : List.of(false, true))
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16))
+            for (boolean reverse : List.of(false, true))
             for (long time : new long[]{0, 3}) for (long batch : new long[]{0, 1, 3}) {
                 Tensor h = f(type, batch, 2), unusedCarry = f(type, batch, 2), accumulator = f(type, 2);
                 Tensor row0 = f(type, batch, 2), duplicate = f(type, batch, 2), row1 = f(type, 2, batch), shared = f(type, 2);

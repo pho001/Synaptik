@@ -71,7 +71,7 @@ final class GraphCheckpointGeneralScanTest {
     }
 
     @Test void staticLengthCopyPersistenceAndRebindPreservePrivateStateRawBitsAndUnreadExternalControls() throws Exception {
-        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16))
             for (long batch : List.of(0L, 1L, 3L)) for (long time : List.of(0L, 3L))
                 for (boolean reverse : List.of(false, true)) {
                     Tensor h = f(type, batch, 2), x = f(type, batch, 2), w = f(type, 2);
@@ -118,6 +118,81 @@ final class GraphCheckpointGeneralScanTest {
                     assertSame(freshLengths, reboundProducer.inputs().getLast());
                     assertSame(control, lengths.hostStorage().orElseThrow()); assertFalse(control.isAlive());
                 }
+    }
+
+    @Test void lowStateWithExplicitFloatWorkingSitesSurvivesSaveLoadCopyAndRebind(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16))
+            for (boolean gradient : List.of(false, true)) for (boolean lengthAware : List.of(false, true))
+                for (long batch : new long[]{0, 2}) for (long time : new long[]{0, 3})
+                    for (boolean reverse : List.of(false, true)) {
+                        Tensor h = prototype(type, Shape.of(batch, 2), gradient, true);
+                        Tensor total = prototype(DataType.FLOAT32, Shape.of(batch, 2), gradient, true);
+                        Tensor x = prototype(DataType.FLOAT32, Shape.of(batch, 2), gradient, true);
+                        Tensor w = prototype(type, Shape.of(2, 2), gradient, true);
+                        Tensor work = h.cast(DataType.FLOAT32).add(x.matmul(w.cast(DataType.FLOAT32)))
+                                .add(total).tanh();
+                        Tensor next = work.cast(type);
+                        var body = new ScanBody(List.of(h, total), List.of(x), List.of(w),
+                                List.of(next, work), List.of(next, work, next));
+                        Tensor initial = TensorFactory.create(h.descriptor());
+                        Tensor accumulator = TensorFactory.create(total.descriptor());
+                        Tensor sequence = prototype(DataType.FLOAT32, Shape.of(time, batch, 2), gradient, true);
+                        Tensor lengths = f(DataType.INT64, batch);
+                        Tensor state = tensor(type, Shape.of(2, 2), gradient, true, raw(type, 4));
+                        var scan = lengthAware
+                                ? Scan.apply(List.of(initial, accumulator), List.of(sequence), List.of(state), lengths,
+                                        2, List.of(java.util.OptionalInt.of(0)), body, reverse)
+                                : Scan.apply(List.of(initial, accumulator), List.of(sequence), List.of(state), body, reverse);
+                        var roots = new ArrayList<>(scan.finalCarry());
+                        roots.addAll(scan.outputs()); roots.addAll(scan.residuals());
+                        var inputs = lengthAware ? List.of(sequence, accumulator, initial, lengths)
+                                : List.of(sequence, accumulator, initial);
+                        var role = gradient ? GraphCheckpoint.Role.PARAMETER : GraphCheckpoint.Role.BUFFER;
+                        var source = new GraphCheckpoint.Source(inputs, roots,
+                                List.of(leaf("weight", role, state), leaf("alias", role, state)));
+                        var expected = GraphSource.capture(source).graph;
+                        GraphCompilationPort.validateSource(expected);
+                        var path = directory.resolve(type + "-" + gradient + "-" + lengthAware + "-"
+                                + batch + "-" + time + "-" + reverse);
+                        GraphCheckpoint.save(path, source, LIMITS);
+                        for (var acquired : List.of(GraphCheckpoint.copy(source), GraphCheckpoint.load(path, LIMITS))) {
+                            assertEquals(expected, GraphSource.capture(acquired).graph);
+                            assertEquals(roots.stream().map(Tensor::descriptor).toList(),
+                                    acquired.outputs().stream().map(Tensor::descriptor).toList());
+                            Tensor owned = acquired.leaves().getFirst().tensor();
+                            assertSame(owned, acquired.leaves().getLast().tensor());
+                            assertNotSame(state, owned);
+                            assertEquals(state.descriptor(), owned.descriptor());
+                            assertArrayEquals(raw(type, 4), GraphValueStorage.encode(
+                                    owned.descriptor(), owned.hostStorage().orElseThrow().segment()));
+                            assertTrue(acquired.inputs().stream().allMatch(t -> t.hostStorage().isEmpty()));
+                            var p = acquired.outputs().getFirst().provenance().orElseThrow().producer();
+                            for (int port = 0; port < p.outputCount(); port++)
+                                assertSame(p.output(port), acquired.outputs().get(port));
+                            assertSame(owned, p.inputs().get(3));
+                            var fresh = p.scanBody().orElseThrow();
+                            assertEquals(type, fresh.carry().getFirst().descriptor().dataType());
+                            assertEquals(DataType.FLOAT32, fresh.carry().getLast().descriptor().dataType());
+                            assertEquals(DataType.FLOAT32, fresh.step().getFirst().descriptor().dataType());
+                            assertEquals(gradient, fresh.invariants().getFirst().descriptor().requiresGrad());
+                            assertSame(fresh.nextCarry().getFirst(), fresh.emissions().getFirst());
+                            assertSame(fresh.emissions().getFirst(), fresh.emissions().getLast());
+                            var replacements = acquired.inputs().stream()
+                                    .map(t -> TensorFactory.create(t.descriptor())).toList();
+                            var rebound = GraphCheckpoint.rebind(acquired, replacements);
+                            var rp = rebound.getFirst().provenance().orElseThrow().producer();
+                            assertSame(replacements.get(2), rp.inputs().get(0));
+                            assertSame(replacements.get(1), rp.inputs().get(1));
+                            assertSame(replacements.get(0), rp.inputs().get(2));
+                            assertSame(owned, rp.inputs().get(3));
+                            if (lengthAware) assertSame(replacements.getLast(), rp.inputs().getLast());
+                            assertEquals(expected, GraphSource.capture(new GraphCheckpoint.Source(
+                                    replacements, rebound, acquired.leaves())).graph);
+                        }
+                        assertArrayEquals(raw(type, 4), GraphValueStorage.encode(
+                                state.descriptor(), state.hostStorage().orElseThrow().segment()));
+                    }
     }
 
     @Test void namedLengthsFollowOrdinaryNamedStateCopyAndPersistenceRules() throws Exception {
@@ -386,7 +461,8 @@ final class GraphCheckpointGeneralScanTest {
     /** Unsupported exact body signatures reject even behind an unused emission at zero time. */
     @Test void unsupportedPureBodiesFailBeforeCopyAllocationOrReplacementAdmission() {
         Tensor h = f(DataType.FLOAT32, 2, 2), x = f(DataType.FLOAT32, 2, 2);
-        for (Tensor unsupported : List.of(h.abs(), h.mean(), h.cast(DataType.FLOAT64), h.permute(0, 1), h.pow(x))) {
+        for (Tensor unsupported : List.of(h.abs(), h.mean(), h.cast(DataType.INT32), h.cast(DataType.BOOL),
+                h.permute(0, 1), h.pow(x))) {
             var body = new ScanBody(List.of(h), List.of(x), List.of(), List.of(h), List.of(unsupported));
             Tensor initial = f(DataType.FLOAT32, 2, 2), sequence = f(DataType.FLOAT32, 0, 2, 2);
             var scan = Scan.apply(List.of(initial), List.of(sequence), List.of(), body, false);

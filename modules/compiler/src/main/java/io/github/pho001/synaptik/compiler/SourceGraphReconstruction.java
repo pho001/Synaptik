@@ -76,8 +76,8 @@ final class SourceGraphReconstruction {
     /**
      * Checks every value and occurrence in one lexical scope before any Tensor allocation.
      * General bodies recurse only from the outer scope; their broader inventory stays local.
-     * Static homogeneous FLOAT32/FLOAT64 length bodies intersect that same constructor inventory
-     * with independently inferred row rules, including dead/zero-time scans.
+     * Static floating length bodies intersect that same constructor inventory with independently
+     * inferred per-role dtypes and row rules, including dead/zero-time scans.
      *
      * @param graph non-null structurally validated raw graph
      * @param bodyScope whether this graph is a contained general-scan body
@@ -122,16 +122,14 @@ final class SourceGraphReconstruction {
                             + ": cold scan requires empty demand and first-encounter unique role outputs");
                 }
                 if (attrs.lengthAware()) {
-                    DataType type = descriptors.get(node.inputs().getFirst()).dataType();
                     int formalCount = Math.addExact(Math.addExact(attrs.carryCount(),
                             attrs.sequenceCount()), attrs.invariantCount());
-                    if ((type != DataType.FLOAT32 && type != DataType.FLOAT64)
-                            || node.inputs().subList(0, formalCount).stream()
-                                    .anyMatch(id -> descriptors.get(id).dataType() != type)
+                    if (node.inputs().subList(0, formalCount).stream()
+                                    .anyMatch(id -> !descriptors.get(id).dataType().isFloating())
                             || body.graph().values().stream()
-                                    .anyMatch(value -> value.descriptor().dataType() != type)) {
+                                    .anyMatch(value -> !value.descriptor().dataType().isFloating())) {
                         throw new IllegalArgumentException(node.id()
-                                + ": cold length scan requires homogeneous FLOAT32/FLOAT64 values");
+                                + ": cold length scan requires floating role and body values");
                     }
                 }
                 Map<ValueId, TensorDescriptor> bodyDescriptors = preflight(body.graph(), true);
@@ -271,8 +269,10 @@ final class SourceGraphReconstruction {
             return attrs instanceof TargetShapeAttrs target && target.targetShape().isFullyStatic();
         if (kind == AxisTransformKind.EXPAND_DIMS || kind == AxisTransformKind.SQUEEZE)
             return attrs instanceof AxisTransformAttrs;
-        return kind == CastKind.CAST && attrs instanceof CastAttrs cast
-                && cast.targetDataType() == descriptors.get(node.inputs().getFirst()).dataType();
+        if (kind != CastKind.CAST || !(attrs instanceof CastAttrs cast)) return false;
+        DataType inputType = descriptors.get(node.inputs().getFirst()).dataType();
+        return cast.targetDataType() == inputType
+                || inputType.isFloating() && cast.targetDataType().isFloating();
     }
 
     /**

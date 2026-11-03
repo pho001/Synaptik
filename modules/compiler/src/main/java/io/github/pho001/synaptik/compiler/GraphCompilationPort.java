@@ -48,8 +48,8 @@ import java.util.Optional;
  * <p>Length-aware ordinary compilation independently checks bounded row semantics. Its first-order
  * AD requires every original carry and sequence to be ROW(0), even unused/non-gradient positions;
  * generated reverse histories/seeds retain explicit mixed roles and the same lengths actual.
- * Cold capture/reconstruction admits only the fully static homogeneous FLOAT32/FLOAT64
- * length intersection below. Compiler success grants no length-mode backend or codec support.</p>
+ * Cold capture/reconstruction admits only the fully static floating length intersection below,
+ * retaining each role's dtype. Compiler success grants no length-mode backend or codec support.</p>
  */
 public final class GraphCompilationPort {
     private GraphCompilationPort() {}
@@ -76,12 +76,14 @@ public final class GraphCompilationPort {
      * <p>General bodies reuse the flat mappings except scans, and additionally admit tensor DIV,
      * integral tensor SUB, exact typed scalar ADD/SUB/MUL/DIV, full/axis/ordered-multi-axis/target-Shape
      * SUM, static EXPAND, scalar/empty RESHAPE, arbitrary normalized EXPAND_DIMS/SQUEEZE,
-     * CONTIGUOUS and identity CAST. Model family/dtype guards still apply, independently of CPU
-     * qualification (including low TANH and FLOAT32 RELU). No other PURE family is implicitly
-     * admitted. Constants are explicit outer bindings to invariant formals or scalar attributes.
-     * All-valid bodies retain every applicable Model dtype. Length bodies require homogeneous
-     * FLOAT32/FLOAT64 across every declaration, actual and interior, with separate non-gradient
-     * INT64[B] lengths and the existing ROW(0), rank-two ROW(1), SHARED and terminal-SHARED rules.
+     * CONTIGUOUS and floating-to-floating or identity CAST. Model family/dtype guards still apply,
+     * independently of CPU qualification (including low TANH and FLOAT32 RELU). No other PURE
+     * family is implicitly admitted. Constants are explicit outer bindings to invariant formals
+     * or scalar attributes. All-valid bodies retain every applicable Model dtype. Length bodies
+     * require floating FLOAT32/FLOAT64/BFLOAT16/FLOAT16 declarations, actuals and interiors, with
+     * each carry matching its own dtype and explicit CAST preserving mixed working boundaries.
+     * Nonfloating length-body values remain unsupported. Separate non-gradient INT64[B] lengths
+     * and the existing ROW(0), rank-two ROW(1), SHARED and terminal-SHARED rules are retained.
      * Pool3d retains those same length-mode coordinate rules, including unchanged row axes;
      * no other formerly excluded length-body constructor is admitted by this addition.
      * Bodies require empty raw demand and graph outputs equal to first-encounter-unique
@@ -159,8 +161,9 @@ public final class GraphCompilationPort {
      * <p>This borrowed sidecar has no storage ownership, close lifecycle or cache and is never
      * retained by compile artifacts. General bodies are Tensor-free independent graph scopes
      * with raw empty demand and ordered unique role outputs, not borrowed source templates.
-     * Length bodies retain their explicit row roles and separate lengths input; static homogeneous
-     * body eligibility is checked independently of ordinary inference and of codec eligibility.
+     * Length bodies retain each role's floating dtype, explicit casts, row roles and separate
+     * lengths input; static body eligibility is checked independently of ordinary inference and
+     * of codec eligibility.
      * Record equality includes both components; Tensor elements
      * retain ordinary identity semantics. The graph remains Tensor-free.</p>
      *

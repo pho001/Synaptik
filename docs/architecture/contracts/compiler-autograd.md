@@ -604,9 +604,10 @@ those require independent Compiler AD and complete backend-closure qualification
 ### Bounded general-scan cold reconstruction
 
 The implemented cold inventory includes the all-valid constructors below and the fully static
-homogeneous FLOAT32/FLOAT64 length-mode intersection specified here.
+floating length-mode intersection specified here.
 [Compiler0018](../../planning/modules/compiler/tasks/0018-static-length-scan-cold-reconstruction.md#result)
-records accepted implementation, independent review and source-matched consumer verification.
+records the original homogeneous F32/F64 implementation and its qualification. The per-role
+floating cutover below extends source admission; it does not claim new backend/runtime qualification.
 Preserve the [scan header and roles](recurrent-scan.md#header-bindings-and-source-admission), with
 complete preflight of late/dead/zero-time scans before any formal/producer IDs or host copy/import.
 Compiler0013's ordinary length-mode inference/first-order reverse construction is separate:
@@ -634,7 +635,7 @@ not cold copying. No arbitrary PURE-body copier is authorized.
 | EXPAND_DIMS / SQUEEZE, one input | `AxisTransformAttrs`; `expandDims(axis)` / `squeeze(axis)` at any normalized valid axis; squeeze singleton only. |
 | PERMUTE, one input | Existing rank-two `PermutationAttrs [1,0]` only; `permute(1,0)`. |
 | CONTIGUOUS, one input | `NoOperationAttrs.INSTANCE`; `contiguous()`; retain exact canonical result geometry without reading/copying storage. |
-| CAST, one input | `CastAttrs` target equals input dtype; `cast(targetDataType)`, retaining the fresh producer/unresolved layout, not returning the input. Cross-dtype casts are outside this selected closure. |
+| CAST, one input | `CastAttrs`; `cast(targetDataType)` between any two floating dtypes, or identity for nonfloating dtypes. Preserve the explicit target, exact inferred result dtype/gradient/layout and fresh producer; never replace casts with aliases or normalize stored descriptors to F32. Nonfloating cross-dtype casts remain outside this cold closure. |
 
 Constants are explicit outer input substitutions bound to invariant formals, or scalar operation
 attributes; no free/host-backed body Tensor, hidden literal producer or constant sidecar is added.
@@ -643,14 +644,26 @@ leak into flat outer admission. Unsupported PURE operations remain Model-valid b
 
 Length-mode cold admission intersects that same constructor inventory with the existing
 ROW(0), rank-two ROW(1), SHARED and terminal-SHARED length rules. Every carry/sequence/invariant
-actual, formal and body value must have the same FLOAT32 or FLOAT64 dtype, including unused
-declarations, dead interiors and intermediates hidden by casts. Only identity CAST is admitted.
-The separate final non-gradient INT64[B] lengths actual has no body formal; no length value is read.
-Reject symbolic geometry, heterogeneous/low/discrete body values and deferred obligations here,
-without narrowing the existing all-valid cold inventory or querying a backend.
+actual, formal and body value must be floating (FLOAT32, FLOAT64, BFLOAT16 or FLOAT16), including
+unused declarations, dead interiors and intermediates hidden by casts. Each positional actual
+matches its own formal, and each next carry matches its own initial carry dtype/shape; roles need
+not share one dtype. Ordinary family inference owns promotion and exact result descriptors.
+Explicit low↔F32 (or other floating) CAST boundaries retain both original-storage and working-site
+metadata; there is no implicit compute-dtype rewrite. Nonfloating length-body values remain
+unsupported, including otherwise valid identity casts. The separate final non-gradient INT64[B]
+lengths actual has no body formal; no length value is read. Reject symbolic geometry and deferred
+obligations here, without narrowing the existing all-valid cold inventory or querying a backend.
 The length constructor whitelist additionally admits only MAX_POOL3D and AVERAGE_POOL3D with
-their exact typed attributes. This does not relax static homogeneous FLOAT32/FLOAT64, ROW/SHARED,
-terminal-SHARED, role/axis or no-deferred-obligation restrictions, nor admit other CNN constructors.
+their exact typed attributes. This does not relax static geometry, ROW/SHARED, terminal-SHARED,
+role/axis or no-deferred-obligation restrictions, nor admit other CNN constructors.
+
+Existing graph-model V4/V5/V6 descriptor/scalar dtype words and body CAST opcode 32 already
+represent these original floating types and explicit targets; length opcode 33 retains its role
+fields. This cutover requires no schema bump. Checkpoint copy/rebind/save/load must preserve raw
+low named-state bytes, aliases and canonical ports, and validate complete source metadata before
+candidate identities or state import. Cold support does not authorize CPU low arithmetic; the CPU
+BF16/F16 lock remains. Training objectives remain scalar gradient-eligible F32/F64, so low outputs
+require an explicit ordinary cast when used as an objective.
 
 Before any formal or producer allocation, validate positional substitutions against each
 length occurrence's outer ROW/SHARED roles. Newly tied actuals must denote the same outer row

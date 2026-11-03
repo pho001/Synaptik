@@ -35,22 +35,38 @@ final class GraphArtifactV4Test {
     }
 
     @Test
-    void newlyTypedLengthSourcesRejectIndependentEncodingAndHomogeneousColdAdmission() throws Exception {
+    void independentTypedLengthEncodingPreservesFloatingDeclarationsAndRetainsDiscreteAndSymbolicRejections() throws Exception {
         for (var batch : List.of(new io.github.pho001.synaptik.model.shape.StaticDimension(0),
                 new io.github.pho001.synaptik.model.shape.DynamicDimension("Customers")))
             for (long time : new long[] {0, 3}) for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16,
                     DataType.FLOAT64, DataType.INT32, DataType.INT64, DataType.BOOL)) for (int role = -1; role < 3; role++) {
-                if (type == DataType.FLOAT32
-                        && batch instanceof io.github.pho001.synaptik.model.shape.StaticDimension) continue;
+                var path = directory.resolve("typed-length-" + batch.isStatic() + "-" + type + "-" + time + "-" + role);
                 var raw = typedLengthCodecFixture(type, batch, time, role);
                 var source = raw.source;
+                if (type.isFloating() && batch.isStatic()) {
+                    var expected = GraphSource.capture(source).graph;
+                    assertEquals(expected, raw.graph);
+                    var encoded = GraphArtifactCodec.encode(raw, LIMITS);
+                    assertEquals("graph-model.v5", encoded.kind());
+                    var decoded = GraphArtifactCodec.decode(encoded, LIMITS);
+                    var copy = GraphCheckpoint.copy(source);
+                    assertEquals(expected, GraphSource.capture(decoded).graph);
+                    assertEquals(expected, GraphSource.capture(copy).graph);
+                    var rebound = GraphCheckpoint.rebind(source, source.inputs());
+                    assertEquals(expected, GraphSource.capture(new GraphCheckpoint.Source(
+                            source.inputs(), rebound, source.leaves())).graph);
+                    GraphCheckpoint.save(path, source, LIMITS);
+                    assertEquals(expected, GraphSource.capture(GraphCheckpoint.load(path, LIMITS)).graph);
+                    assertTrue(decoded.inputs().stream().allMatch(t -> t.hostStorage().isEmpty()));
+                    continue;
+                }
                 Tensor probe = f();
                 assertThrows(IllegalArgumentException.class, () -> GraphCheckpoint.copy(source));
                 assertThrows(IllegalArgumentException.class, () -> GraphCheckpoint.rebind(source, source.inputs()));
                 assertThrows(IllegalArgumentException.class, () -> GraphArtifactCodec.encode(raw, LIMITS));
                 assertThrows(IllegalArgumentException.class,
-                        () -> GraphCheckpoint.save(directory.resolve("unsupported-typed-length"), source, LIMITS));
-                assertFalse(Files.exists(directory.resolve("unsupported-typed-length")));
+                        () -> GraphCheckpoint.save(path, source, LIMITS));
+                assertFalse(Files.exists(path));
                 assertEquals(probe.id().value() + 1, f().id().value(), "cold rejection allocates no Tensors");
                 assertTrue(source.inputs().stream().allMatch(t -> t.hostStorage().isEmpty()));
             }
@@ -115,7 +131,7 @@ final class GraphArtifactV4Test {
      * @param batch exact static or named row Dimension
      * @param time fixed T
      * @param role -1 for cast interior, otherwise unused carry/step/invariant (0/1/2)
-     * @return raw association at the encoder seam, outside the homogeneous cold intersection
+     * @return raw association at the encoder seam, independent of Compiler cold capture
      * @throws Exception if reflective construction of the raw association fails
      */
     private static GraphSource typedLengthCodecFixture(DataType type, io.github.pho001.synaptik.model.shape.Dimension batch,
@@ -319,6 +335,97 @@ final class GraphArtifactV4Test {
         return new ArtifactEnvelope("graph-model.v4", List.of(new ArtifactEnvelope.Entry("schema", bytes)));
     }
 
+    @Test void independentlyAuthoredFloatingCastsRetainTargetAndEveryCanonicalPortWithoutVersionChange() throws Exception {
+        for (DataType target : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.INT32, DataType.INT64, DataType.BOOL)) for (long time : new long[]{0, 3}) {
+            int wireType = switch (target) {
+                case FLOAT64 -> 1; case FLOAT32 -> 2; case BFLOAT16 -> 3;
+                case INT32 -> 4; case INT64 -> 5; case BOOL -> 6; case FLOAT16 -> 7;
+            };
+            var fixture = fixture(32, new byte[]{(byte) wireType}, false, time);
+            byte[] golden = fixture.bytes().clone();
+            golden[fixture.offsets().get("bodyResult")] = (byte) wireType;
+            var cursor = ByteBuffer.wrap(golden);
+            cursor.position(fixture.offsets().get("outerResult"));
+            skipDescriptor(cursor); // final carry remains F32
+            int emission = cursor.position(); skipDescriptor(cursor);
+            skipDescriptor(cursor); // carry residual remains F32
+            golden[emission] = (byte) wireType;
+            golden[cursor.position()] = (byte) wireType; // cast residual
+            if (!target.isFloating()) {
+                assertRejected(golden, "nonfloating cross-type body CAST remains outside the cold inventory");
+                continue;
+            }
+            Tensor h = f(), x = f(), initial = f(), sequence = f(time);
+            Tensor cast = h.cast(target);
+            var body = new ScanBody(List.of(h), List.of(x), List.of(), List.of(h), List.of(cast));
+            var scan = Scan.apply(List.of(initial), List.of(sequence), List.of(), body, false);
+            var source = new GraphCheckpoint.Source(List.of(initial, sequence), scan.finalCarry(), List.of());
+            var expected = GraphSource.capture(source).graph;
+            assertArrayEquals(golden, schema(GraphArtifactCodec.encode(GraphSource.capture(source), LIMITS)));
+            var loaded = GraphArtifactCodec.decode(image(golden), LIMITS);
+            assertEquals(expected, GraphSource.capture(loaded).graph);
+            var producer = loaded.outputs().getFirst().provenance().orElseThrow().producer();
+            assertEquals(target, producer.output(1).descriptor().dataType());
+            assertEquals(target, producer.output(3).descriptor().dataType());
+            var fresh = producer.scanBody().orElseThrow();
+            assertSame(fresh.emissions().getFirst(), fresh.retainedValues().getLast());
+            assertEquals(target, fresh.emissions().getFirst().descriptor().dataType());
+            var encoded = GraphArtifactCodec.encode(GraphSource.capture(loaded), LIMITS);
+            assertEquals("graph-model.v4", encoded.kind());
+            assertArrayEquals(golden, schema(encoded));
+        }
+    }
+
+    @Test void independentLowStateAndFloatCastMetadataPreflightBeforeNamedImport() throws Exception {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) for (long time : new long[]{0, 3}) {
+            int lowType = type == DataType.BFLOAT16 ? 3 : 7;
+            var fixture = fixture(32, new byte[]{2}, false, time, true);
+            byte[] golden = fixture.bytes().clone();
+            var cursor = ByteBuffer.wrap(golden);
+            cursor.position(16); // input count was one
+            int sequence = cursor.position(); skipDescriptor(cursor);
+            assertEquals(1, cursor.getInt());
+            int state = cursor.position(); skipDescriptor(cursor);
+            assertEquals(2, cursor.get()); // BUFFER role
+            int stateSize = cursor.position();
+            assertEquals(4, cursor.getLong());
+            cursor.putLong(stateSize, 2);
+            var lowDescriptors = new ArrayList<>(List.of(sequence, state));
+            cursor.position(fixture.offsets().get("formal"));
+            lowDescriptors.add(cursor.position()); skipDescriptor(cursor);
+            lowDescriptors.add(cursor.position()); skipDescriptor(cursor);
+            cursor.position(fixture.offsets().get("outerResult"));
+            lowDescriptors.add(cursor.position()); skipDescriptor(cursor); // low final carry
+            skipDescriptor(cursor); // F32 emission
+            lowDescriptors.add(cursor.position()); // low carry residual
+            for (int offset : lowDescriptors) golden[offset] = (byte) lowType;
+            var valid = new ArtifactEnvelope("graph-model.v4", List.of(
+                    new ArtifactEnvelope.Entry("schema", golden),
+                    new ArtifactEnvelope.Entry("state/00000000", raw(type, 1))));
+            var loaded = GraphArtifactCodec.decode(valid, LIMITS);
+            Tensor restored = loaded.leaves().getFirst().tensor();
+            assertEquals(type, restored.descriptor().dataType());
+            assertArrayEquals(raw(type, 1), GraphValueStorage.encode(
+                    restored.descriptor(), restored.hostStorage().orElseThrow().segment()));
+            var producer = loaded.outputs().getFirst().provenance().orElseThrow().producer();
+            assertSame(restored, producer.inputs().getFirst());
+            assertEquals(type, producer.output(0).descriptor().dataType());
+            assertEquals(DataType.FLOAT32, producer.output(1).descriptor().dataType());
+            assertArrayEquals(golden, schema(GraphArtifactCodec.encode(GraphSource.capture(loaded), LIMITS)));
+            byte[] bad = golden.clone();
+            bad[fixture.offsets().get("attrs")] = 1; // F64 target with stored F32 working result
+            var malformed = new ArtifactEnvelope("graph-model.v4", List.of(
+                    new ArtifactEnvelope.Entry("schema", bad),
+                    new ArtifactEnvelope.Entry("state/00000000", raw(type, 1))));
+            Tensor before = f();
+            var failure = assertThrows(ArtifactFormatException.class, () -> GraphArtifactCodec.decode(malformed, LIMITS));
+            assertInstanceOf(IllegalArgumentException.class, failure.getCause());
+            assertEquals(before.id().value() + 1, f().id().value(),
+                    "invalid working metadata rejects before candidate leaves, state import or body identities");
+        }
+    }
+
     /**
      * Copies detached schema bytes for inspection/mutation.
      * @param image encoded envelope
@@ -475,7 +582,7 @@ final class GraphArtifactV4Test {
         var reshape = fixture(10, new byte[]{127, -1, -1, -1}, true, 0);
         assertRejected(reshape.bytes(), "target rank");
         var cast = fixture(32, new byte[]{1}, true, 0);
-        assertRejected(cast.bytes(), "cross-dtype CAST");
+        assertRejected(cast.bytes(), "CAST target disagrees with its stored result descriptor");
         var good = fixture(1, new byte[0], true, 0);
         for (int rank : new int[]{-1, Integer.MAX_VALUE}) {
             byte[] bad = good.bytes().clone(); ByteBuffer.wrap(bad).putInt(good.offsets().get("formal") + 2, rank);
