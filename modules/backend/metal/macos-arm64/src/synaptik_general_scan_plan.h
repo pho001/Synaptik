@@ -434,7 +434,9 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
 
 /* Complete independent outer binding check. Reference spans are borrowed little-endian bytes
  * from the enclosing authenticated image; no fixed ordinary16/5 arrays or extra copies apply.
- * Result references enumerate demanded roles only; all latent role identities remain local. */
+ * Result references enumerate demanded roles only; all latent role identities remain local.
+ * Ordinary complete-program validation has independently authenticated canonical represented
+ * storage for both canonical and materialized affine-view inputs before this binding check. */
 static BOOL synaptik_scan_validate_outer(SynaptikMetalScanPlan *plan,
         uint32_t inputCount, const uint8_t *inputRefs, uint32_t outputCount, const uint8_t *outputRefs,
         uint32_t valueCount, const uint32_t *ranks, const uint64_t *dimensions,
@@ -450,7 +452,8 @@ static BOOL synaptik_scan_validate_outer(SynaptikMetalScanPlan *plan,
         const SynaptikMetalScanValueBinding *formal = locals + w[w[25] + f];
         BOOL sequence = f >= w[5] && f < w[5] + w[6];
         if (actual >= valueCount || types[actual] != formal->type || gradientFlags[actual] != formal->gradient
-                || states[actual] != 1U || ranks[actual] != formal->rank + (sequence ? 1U : 0U)) return NO;
+                || (states[actual] != 1U && states[actual] != 2U)
+                || ranks[actual] != formal->rank + (sequence ? 1U : 0U)) return NO;
         const uint64_t *shape = dimensions + (size_t)actual * SYNAPTIK_MAX_RANK;
         if (sequence && shape[0] != w[3]) return NO;
         for (uint32_t a = 0U; a < formal->rank; a++) if (shape[a + (sequence ? 1U : 0U)] != formal->dimensions[a]) return NO;
@@ -467,7 +470,8 @@ static BOOL synaptik_scan_validate_outer(SynaptikMetalScanPlan *plan,
     }
     if (lengths) {
         uint32_t actual = synaptik_read_le32(inputRefs + (size_t)(inputCount - 1U) * 4U);
-        if (actual >= valueCount || types[actual] != 6U || gradientFlags[actual] != 0U || states[actual] != 1U
+        if (actual >= valueCount || types[actual] != 6U || gradientFlags[actual] != 0U
+                || (states[actual] != 1U && states[actual] != 2U)
                 || ranks[actual] != 1U || dimensions[(size_t)actual * SYNAPTIK_MAX_RANK] != w[11]) return NO;
     }
     for (uint32_t d = 0U; d < outputCount; d++) {

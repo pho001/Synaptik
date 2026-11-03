@@ -244,7 +244,7 @@ final class MetalMpsGraphProgram {
         L2_NORM(115, 1, 1, 1, 1, AttributeKind.REDUCTION,
                 ValueState.CANONICAL, true, true),
         GENERAL_SCAN(116, 0, 4096, 0, 4096, AttributeKind.GENERAL_SCAN,
-                ValueState.CANONICAL, false, true);
+                ValueState.CANONICAL, true, true);
 
         private final int wireIdentity;
         private final int minimumInputs;

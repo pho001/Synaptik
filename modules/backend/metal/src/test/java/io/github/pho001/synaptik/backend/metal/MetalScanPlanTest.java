@@ -96,6 +96,31 @@ class MetalScanPlanTest {
         assertDoesNotThrow(() -> MetalScanLowering.validate(node, values));
     }
 
+    @Test void producedLogicalViewsRequireIndependentDenseRepresentationAtTheOuterBoundary() {
+        var original = additiveQuery(3, 2, true, false);
+        var carryShape = original.inputs().getFirst().shape();
+        var expanded = new TensorDescriptor(DataType.FLOAT32, carryShape,
+                Optional.of(LayoutDescriptor.of(carryShape, new long[] {0, 0}, 0, true)), false);
+        var sequenceShape = original.inputs().get(1).shape();
+        var transposed = new TensorDescriptor(DataType.FLOAT32, sequenceShape,
+                Optional.of(LayoutDescriptor.of(sequenceShape, new long[] {1, 3, 1}, 0, true)), false);
+        var query = new OperationCapabilityQuery(original.operation(),
+                List.of(expanded, transposed, original.inputs().getLast()), original.outputs(),
+                original.scanBody(), original.scanActivityPlan());
+        assertDoesNotThrow(() -> MetalScanLowering.plan(query),
+                "logical view descriptors are not the represented storage proof");
+        var values = new java.util.ArrayList<MetalMpsGraphProgram.ValueDescriptor>();
+        values.add(MetalMpsGraphProgram.ValueDescriptor.from(expanded, MetalMpsGraphProgram.ValueState.AFFINE_VIEW));
+        values.add(MetalMpsGraphProgram.ValueDescriptor.from(transposed, MetalMpsGraphProgram.ValueState.AFFINE_VIEW));
+        values.add(MetalMpsGraphProgram.ValueDescriptor.from(query.inputs().getLast()));
+        query.outputs().forEach(d -> values.add(MetalMpsGraphProgram.ValueDescriptor.from(d)));
+        var node = MetalScanLowering.lower(query, new int[] {0, 1, 2}, new int[] {3, 4, 5});
+        assertDoesNotThrow(() -> MetalScanLowering.validate(node, values));
+        values.set(0, MetalMpsGraphProgram.ValueDescriptor.from(expanded));
+        assertThrows(IllegalArgumentException.class, () -> MetalScanLowering.validate(node, values),
+                "a true external broadcast layout is not canonical represented storage");
+    }
+
     @Test void rawCoordinatesAreProvedFromOperationsDespiteEqualBatchAndFeatureExtents() {
         for (long batch : new long[] {0, 1, 2}) for (long time : new long[] {0, 2}) {
             var plan = MetalScanLowering.plan(transposedQuery(time, batch, false));

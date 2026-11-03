@@ -114,7 +114,7 @@ final class MetalScanLowering {
             checkTypeShape(value.descriptor());
             projected.put(value.id(), value);
         }
-        query.inputs().forEach(MetalScanLowering::checkBoundary);
+        query.inputs().forEach(MetalScanLowering::checkInputBoundary);
         query.outputs().forEach(MetalScanLowering::checkBoundary);
         var roles = new ArrayList<>(body.nextCarry());
         roles.addAll(body.emissions());
@@ -330,6 +330,22 @@ final class MetalScanLowering {
         long elements = 1;
         for (var dimension : descriptor.shape().dimensions()) elements = Math.multiplyExact(elements, dimension.staticSize().orElseThrow());
         Math.multiplyExact(elements, descriptor.dataType().byteWidth());
+    }
+
+    /**
+     * Checks logical input geometry without mistaking a produced view for represented storage.
+     * Prepare and the raw outer validator independently require its authenticated dense physical
+     * representation before the binder may use direct offsets.
+     */
+    private static void checkInputBoundary(TensorDescriptor descriptor) {
+        checkTypeShape(descriptor);
+        var physical = MetalMpsGraphProgram.ValueDescriptor.from(descriptor);
+        boolean emptyView = physical.elementCount() == 0 && descriptor.layout()
+                .filter(layout -> layout.isView()
+                        && java.util.Arrays.stream(layout.strides()).allMatch(stride -> stride >= 0)).isPresent();
+        if (!physical.supportsStorageLayout(0) && !emptyView) {
+            throw invalid("resolved Scan input layout required");
+        }
     }
 
     private static void checkBoundary(TensorDescriptor descriptor) {

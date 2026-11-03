@@ -5305,8 +5305,13 @@ static int32_t synaptik_metal_create_decoded(
                     return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                 for (uint32_t role = 0U; role < node.input_count; role++) {
                     uint32_t value = synaptik_node_input(node, role);
-                    if (value >= value_count || states[value] != SYNAPTIK_METAL_VALUE_CANONICAL)
+                    if (value >= value_count
+                            || (states[value] != SYNAPTIK_METAL_VALUE_CANONICAL
+                                    && states[value] != SYNAPTIK_METAL_VALUE_AFFINE_VIEW))
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    /* Scan binds canonical represented words, never an elided transpose. */
+                    if (local_transpose[value] != 0U) local_transpose[value] = 3U;
+                    if (local_singleton_height[value] != 0U) local_singleton_height[value] = 3U;
                     used[value] |= 1U;
                 }
                 for (uint32_t port = 0U; port < node.output_count; port++) {
@@ -7070,6 +7075,11 @@ static int32_t synaptik_metal_create_decoded(
 #endif
                 SynaptikMetalDecodedNode node = nodes[node_index];
                 if (node.operation == 116U) {
+                    for (uint32_t role = 0U; role < node.input_count; role++) {
+                        uint32_t value = synaptik_node_input(node, role);
+                        if (physical_states[value] != SYNAPTIK_METAL_VALUE_CANONICAL)
+                            return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+                    }
                     SynaptikMetalScanPlan *scan = synaptik_decode_scan_plan(node.scan_words,
                             node.attribute_count, ctx.device, library, low_precision_library);
                     if (scan == nil || !synaptik_scan_validate_outer(scan, node.input_count,

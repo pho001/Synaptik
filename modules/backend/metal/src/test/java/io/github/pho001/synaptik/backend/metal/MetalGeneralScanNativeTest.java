@@ -204,6 +204,46 @@ class MetalGeneralScanNativeTest {
         }
     }
 
+    @Test void canonicalRnnReverseMaterializesExpandedAccumulatorsAndRowLiterals() {
+        library();
+        Tensor h = tensor(false, 2, 3), x = tensor(false, 2, 2);
+        Tensor w = tensor(true, 3, 2), u = tensor(true, 3, 3), b = tensor(true, 3);
+        Tensor initial = tensor(false, 2, 3), sequence = tensor(false, 2, 2, 2);
+        Tensor weight = tensor(true, 3, 2), recurrent = tensor(true, 3, 3), bias = tensor(true, 3);
+        Tensor lengths = TensorFactory.create(MetalScanPlanTest.descriptor(DataType.INT64, 2));
+        Tensor next = x.matmul(w.permute(1, 0)).add(b).add(h.matmul(u.permute(1, 0))).tanh();
+        var body = new ScanBody(List.of(h), List.of(x), List.of(w, u, b), List.of(next), List.of(next));
+        Tensor root = Scan.apply(List.of(initial), List.of(sequence), List.of(weight, recurrent, bias),
+                lengths, 1, List.of(OptionalInt.of(0)), body, false).finalCarry().getFirst();
+        Tensor seed = tensor(false, 2, 3);
+        var request = new FunctionalGradientRequest(List.of(new FunctionalGradientRequest.Stage(
+                List.of(new FunctionalGradientRequest.ForwardTensorReference(root)), List.of(Optional.of(seed)),
+                List.of(weight, recurrent, bias), false, FunctionalGradientRequest.DisconnectedPolicy.ZERO)));
+        var availability = new BackendAvailabilitySnapshot(MetalCapabilityProvider.METAL_BACKEND_ID,
+                Map.of(new BackendDeviceId(MetalCapabilityProvider.METAL_BACKEND_ID, "default"), DeviceClass.ACCELERATOR));
+        var artifacts = GraphCompilationPort.compile(CompileMode.FORWARD_AND_BACKWARD, List.of(root), Optional.of(request),
+                GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(), PartitionScoringConfig.neutral(),
+                List.of(new MetalCapabilityProvider()), List.of(availability));
+        assertTrue(artifacts.graph().nodes().stream().anyMatch(n -> n.operation().kind() == ScanKind.SCAN
+                && artifacts.derivatives().derivativeOrderByNode().get(n.id()) == 1));
+        var first = new HashMap<TensorId, byte[]>();
+        first.put(initial.id(), floats(0, 0, 0, 0, 0, 0));
+        first.put(sequence.id(), floats(1, 2, 3, 4, 5, 6, Float.NaN, Float.NaN));
+        first.put(weight.id(), floats(0, 0, 0, 0, 0, 0));
+        first.put(recurrent.id(), floats(1, 0, 0, 0, 1, 0, 0, 0, 1));
+        first.put(bias.id(), floats(0, 0, 0));
+        first.put(seed.id(), floats(1, 1, 1, 1, 1, 1));
+        first.put(lengths.id(), longs(2, 1));
+        var zero = new HashMap<>(first);
+        zero.put(sequence.id(), floats(Float.NaN, Float.NaN, Float.NaN, Float.NaN,
+                Float.NaN, Float.NaN, Float.NaN, Float.NaN));
+        zero.put(lengths.id(), longs(0, 0));
+        assertPrepared(artifacts, List.of(first, zero, first), List.of(
+                List.of(new float[6], new float[] {9, 12, 9, 12, 9, 12}, new float[9], new float[] {3, 3, 3}),
+                List.of(new float[6], new float[6], new float[9], new float[3]),
+                List.of(new float[6], new float[] {9, 12, 9, 12, 9, 12}, new float[9], new float[] {3, 3, 3})));
+    }
+
     @Test void compilerActualReverseUsesControlledSumAndMatmulAndCanBeReused() {
         library();
         for (boolean matrix : List.of(false, true)) for (boolean reverse : List.of(false, true))

@@ -283,7 +283,7 @@ final class MetalScanDecoding {
             long[] expected = formal.shape().toLongArray();
             if (f >= w[5] && f < w[5] + w[6]) expected = prepend(w[3], expected);
             if (actual.dataType() != formal.dataType() || actual.requiresGrad() != formal.requiresGrad()
-                    || !Arrays.equals(actual.dimensions(), expected) || !canonical(actual)) throw malformed();
+                    || !Arrays.equals(actual.dimensions(), expected) || !denseInput(actual)) throw malformed();
             gradient |= actual.requiresGrad();
             if ((w[4] & 2) != 0) for (int earlier = 0; earlier < f; earlier++) if (inputs[earlier] == inputs[f]) {
                 int axis = d.values().get(d.formals().get(f)).rowAxis();
@@ -295,7 +295,7 @@ final class MetalScanDecoding {
         }
         if ((w[4] & 2) != 0) {
             var lengths = outer.get(inputs[inputs.length - 1]);
-            if (lengths.dataType() != DataType.INT64 || lengths.requiresGrad() || !Arrays.equals(lengths.dimensions(), new long[] {w[11]}) || !canonical(lengths)) throw malformed();
+            if (lengths.dataType() != DataType.INT64 || lengths.requiresGrad() || !Arrays.equals(lengths.dimensions(), new long[] {w[11]}) || !denseInput(lengths)) throw malformed();
         }
         for (int demand = 0; demand < d.demands().size(); demand++) {
             int p = d.demands().get(demand);
@@ -307,6 +307,15 @@ final class MetalScanDecoding {
     }
 
     private static long[] prepend(long time, long[] shape) { long[] result = new long[shape.length + 1]; result[0] = time; System.arraycopy(shape, 0, result, 1, shape.length); return result; }
+    /**
+     * A produced affine view has canonical represented storage, authenticated by its ordinary
+     * producer, despite retaining its exact logical view layout. External non-dense storage
+     * cannot claim this flag; complete-program validation authenticates every source separately.
+     */
+    private static boolean denseInput(MetalMpsGraphProgram.ValueDescriptor d) {
+        return canonical(d) || d.densePhysical() && d.layout().isPresent();
+    }
+
     private static boolean canonical(MetalMpsGraphProgram.ValueDescriptor d) { return d.layout().filter(l -> l.equals(LayoutDescriptor.contiguous(Shape.of(d.dimensions())))).isPresent() && !d.densePhysical(); }
     private static boolean sameValueShapeType(MetalScanPlan.Value a, MetalScanPlan.Value b) { return a.descriptor().dataType() == b.descriptor().dataType() && a.descriptor().shape().equals(b.descriptor().shape()); }
     private static List<Integer> indices(long[] w, long offset, long count, int bound) {

@@ -795,6 +795,12 @@ abstract class MetalNativeApi implements AutoCloseable {
                                 "Metal MPSGraph node input value state is unavailable or"
                                     + " incompatible");
                     }
+                    if (node.kind() == MetalMpsGraphProgram.NodeKind.GENERAL_SCAN
+                            && !LayoutDescriptor.contiguous(Shape.of(values.get(input).dimensions()))
+                                    .equals(physicalLayouts[input])) {
+                        throw new IllegalArgumentException(
+                                "Metal Scan requires authenticated dense represented input storage");
+                    }
                     used[input] = true;
                 }
                 if (node.kind() != MetalMpsGraphProgram.NodeKind.GENERAL_SCAN
