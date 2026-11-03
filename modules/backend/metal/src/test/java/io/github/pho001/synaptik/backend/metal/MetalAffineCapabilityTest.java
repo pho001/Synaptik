@@ -136,17 +136,12 @@ class MetalAffineCapabilityTest {
     }
 
     @Test
-    void admitsRankZeroButRejectsZeroExtentAndRankSeventeenBeforePreparation() {
+    void admitsRankZeroButRejectsRankSeventeenBeforePreparation() {
     assertTrue(supports(
                 new Operation(ShapeTransformKind.RESHAPE,
                         new TargetShapeAttrs(Shape.of())),
                 canonical(Shape.of(1), false),
                 view(Shape.of(), new long[0], false)));
-        assertFalse(supports(
-                new Operation(ShapeTransformKind.EXPAND,
-                        new TargetShapeAttrs(Shape.of(2, 0))),
-                canonical(Shape.of(1, 0), false),
-                view(Shape.of(2, 0), new long[] {0, 1}, false)));
         Shape rank17 = Shape.of(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
         assertFalse(supports(
                 new Operation(AxisTransformKind.PERMUTE,

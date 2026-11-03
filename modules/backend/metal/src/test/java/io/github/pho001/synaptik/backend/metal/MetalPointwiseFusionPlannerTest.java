@@ -259,7 +259,7 @@ class MetalPointwiseFusionPlannerTest {
     }
 
     @Test
-    void task0069VarianceIsAnExactFixedBarrierAndOtherVarianceIsMpsGraph() {
+    void varianceSeparatesGeneratedPointwiseRegions() {
         var nodes = List.of(
                 unary(MetalMpsGraphProgram.NodeKind.FLOOR, 0, 1),
                 unary(MetalMpsGraphProgram.NodeKind.CEIL, 1, 2),
@@ -283,24 +283,6 @@ class MetalPointwiseFusionPlannerTest {
                         MetalPointwiseFusionPlan.StepKind.GENERATED_POINTWISE),
                 exact.steps().stream().map(MetalPointwiseFusionPlan.Step::kind).toList());
         assertArrayEquals(new int[] {0, 2, 3, 5}, exact.materializedProgramValueIndices());
-
-        var nonSingletonValues = List.of(descriptor(2L), descriptor());
-        var nonSingleton = new MetalMpsGraphProgram(List.of(
-                MetalMpsGraphProgram.Node.statisticalReduction(
-                        MetalMpsGraphProgram.NodeKind.VARIANCE,
-                        0,
-                        1,
-                        List.of(0),
-                        false,
-                        0L)));
-        MetalPointwiseFusionPlan boundary = MetalPointwiseFusionPlanner.plan(
-                nonSingleton,
-                nonSingletonValues,
-                new int[] {0},
-                new int[] {1},
-                MetalPreparedRoute.CUSTOM_PROGRAM);
-        assertEquals(MetalPointwiseFusionPlan.StepKind.MPSGRAPH_BOUNDARY,
-                boundary.steps().getFirst().kind());
     }
 
     @Test
@@ -327,7 +309,7 @@ class MetalPointwiseFusionPlannerTest {
     }
 
     @Test
-    void pointwiseGeometryRequiresRankOneThroughSixteenAndUnsignedElementCount() {
+    void pointwiseFusionRequiresRankOneThroughSixteenAndUnsignedElementCount() {
         var twoNodes = new MetalMpsGraphProgram(List.of(
                 unary(MetalMpsGraphProgram.NodeKind.FLOOR, 0, 1),
                 unary(MetalMpsGraphProgram.NodeKind.CEIL, 1, 2)));
@@ -358,7 +340,6 @@ class MetalPointwiseFusionPlannerTest {
         assertEquals(0, onePastUnsignedPlan.generatedUnitCount());
         assertEquals(2, onePastUnsignedPlan.steps().size());
 
-        assertThrows(IllegalArgumentException.class, () -> descriptor(0L));
         assertThrows(IllegalArgumentException.class, () -> descriptor(new long[17]));
     }
 

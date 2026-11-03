@@ -141,6 +141,11 @@ class MetalReductionSupportTest {
         for (int fixture = 0; fixture < 3; fixture++) {
             long[] strides = fixture == 0 ? new long[] {0, 1, 1} : new long[] {0, 2, 1};
             boolean view = fixture != 1;
+            if (fixture == 1) {
+                assertThrows(IllegalArgumentException.class,
+                        () -> LayoutDescriptor.of(shape, strides, 0, view));
+                continue;
+            }
             LayoutDescriptor layout = LayoutDescriptor.of(shape, strides, 0, view);
             boolean valid = fixture == 2;
             var input = new TensorDescriptor(DataType.INT64, shape, Optional.of(layout), false);

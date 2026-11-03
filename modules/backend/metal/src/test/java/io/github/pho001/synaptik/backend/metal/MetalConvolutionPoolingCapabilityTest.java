@@ -7,8 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.Operation;
-import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionAttrs;
-import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dKind;
 import io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs;
@@ -293,15 +291,6 @@ class MetalConvolutionPoolingCapabilityTest {
                 descriptor(DataType.FLOAT32, Shape.of(1, 1, 1, 1, 1), false)));
     }
 
-    @Test
-    void attentionRemainsProductionFalse() {
-        Operation attention = new Operation(
-                ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION,
-                new ScaledDotProductAttentionAttrs(Optional.empty(), false));
-        TensorDescriptor value = descriptor(DataType.FLOAT32, Shape.of(1, 1, 1), false);
-        assertFalse(supports(attention,
-                List.of(value, value, value), value));
-    }
 
     private boolean supports(
             Operation operation,

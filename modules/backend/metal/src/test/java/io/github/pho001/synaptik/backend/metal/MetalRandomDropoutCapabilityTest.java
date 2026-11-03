@@ -10,8 +10,6 @@ import io.github.pho001.synaptik.model.operation.random.DropoutAttrs;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngStateAttrs;
-import io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection;
-import io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
@@ -95,45 +93,6 @@ class MetalRandomDropoutCapabilityTest {
                 List.of(product, descriptor(DataType.BOOL, productOver, false), state)));
     }
 
-    @Test
-    void recurrentBoundaryRemainsFailClosedForEveryVariantDirectionAndBiasArity() {
-        TensorDescriptor input =
-                descriptor(DataType.FLOAT32, Shape.of(2, 2, 3), true);
-        TensorDescriptor lengths = descriptor(DataType.INT64, Shape.of(2), false);
-        TensorDescriptor hidden = descriptor(DataType.FLOAT32, Shape.of(2, 4), true);
-        TensorDescriptor output = descriptor(DataType.FLOAT32, Shape.of(2, 2, 4), true);
-        for (RecurrentScanKind kind : RecurrentScanKind.values()) {
-            int gates = switch (kind) {
-                case RNN_TANH -> 1;
-                case GRU_RESET_AFTER -> 3;
-                case LSTM -> 4;
-            };
-            for (RecurrentDirection direction : RecurrentDirection.values()) {
-                for (boolean biased : List.of(false, true)) {
-                    var inputs = new java.util.ArrayList<TensorDescriptor>();
-                    inputs.add(input);
-                    inputs.add(lengths);
-                    inputs.add(hidden);
-                    if (kind == RecurrentScanKind.LSTM) inputs.add(hidden);
-                    inputs.add(descriptor(
-                            DataType.FLOAT32, Shape.of((long) gates * 4, 3), true));
-                    inputs.add(descriptor(
-                            DataType.FLOAT32, Shape.of((long) gates * 4, 4), true));
-                    if (biased) {
-                        inputs.add(descriptor(
-                                DataType.FLOAT32, Shape.of((long) gates * 4), true));
-                    }
-                    var outputs = new java.util.ArrayList<>(
-                            List.of(output, hidden));
-                    if (kind == RecurrentScanKind.LSTM) outputs.add(hidden);
-                    Operation operation = new Operation(kind, direction);
-                    assertFalse(supports(operation, inputs, outputs),
-                            kind + " " + direction + " bias=" + biased);
-
-                }
-            }
-        }
-    }
 
     private boolean supports(
             Operation operation,

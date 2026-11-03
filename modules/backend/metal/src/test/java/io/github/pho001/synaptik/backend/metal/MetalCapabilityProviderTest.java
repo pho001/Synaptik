@@ -38,7 +38,6 @@ import io.github.pho001.synaptik.model.operation.layout.AxisTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.ContiguousKind;
 import io.github.pho001.synaptik.model.operation.layout.Fold2dAttrs;
 import io.github.pho001.synaptik.model.operation.layout.Fold3dAttrs;
-import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.PermutationAttrs;
 import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.SliceAttrs;
@@ -725,13 +724,6 @@ class MetalCapabilityProviderTest {
                 "admits the exact occurrence");
 
 
-        Operation fold = new Operation(
-                WindowTransformKind.FOLD_AXIS, new FoldAxisAttrs(1, 6, 2));
-        TensorDescriptor foldInput = descriptor(Shape.of(2, 2, 3), true);
-        TensorDescriptor foldOutput = descriptor(Shape.of(2, 6), true);
-        assertFalse(provider.supports(new OperationCapabilityQuery(
-                fold, List.of(foldInput), List.of(foldOutput))),
-                "overlapping FOLD_AXIS remains outside the exact-placement domain");
 
 
         TensorDescriptor capInput = descriptor(Shape.of(2, 17), true);

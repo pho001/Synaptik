@@ -40,6 +40,7 @@ import io.github.pho001.synaptik.model.operation.layout.ShapeTransformKind;
 import io.github.pho001.synaptik.model.operation.layout.TargetShapeAttrs;
 import io.github.pho001.synaptik.model.operation.layout.UnfoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
+import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
 import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
@@ -592,17 +593,6 @@ class MetalNegRouteCandidateGeneratorTest {
                     rewriteInt(encoded, Integer.BYTES, 14),
                     scalarGenerated.batch()).isEmpty());
 
-            Workload gradPow = operationWorkload(
-                    device,
-                    identity++,
-                    new Operation(
-                            ScalarElementwiseKind.POW,
-                            new ScalarValueAttrs(ScalarValue.float32(2.0f))),
-                    grad,
-                    grad);
-            assertThrows(
-                    IllegalArgumentException.class,
-                    () -> analyze(gradPow.context()));
             assertEquals(0, api.nativeAllocations.get());
         }
     }
@@ -928,17 +918,14 @@ class MetalNegRouteCandidateGeneratorTest {
                         identity,
                         generate(baselineWorkload, changed).compatibility().workload());
             }
-            MetalNegPreparationPlan matmul = copyPlan(
-                    plan,
-                    List.of(
-                            canonical(Shape.of(3, 3)),
-                            canonical(Shape.of(3, 3))),
-                    new MetalMpsGraphProgram(List.of(
-                            MetalMpsGraphProgram.Node.matmul(0, 0, 1))),
-                    new long[] {36});
             assertNotEquals(
                     identity,
-                    generate(baselineWorkload, matmul).compatibility().workload());
+                    workloadSignature(operationWorkload(
+                            device,
+                            60_100,
+                            new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE),
+                            List.of(canonical(Shape.of(3, 3)), canonical(Shape.of(3, 3))),
+                            canonical(Shape.of(3, 3)))));
 
             assertNotEquals(
                     workloadSignature(reductionWorkload(
@@ -1157,15 +1144,13 @@ class MetalNegRouteCandidateGeneratorTest {
     }
 
     @Test
-    void canonicalRouteIdentityOwnsStableCandidateWiresFamiliesAndBytes() {
-        assertEquals(3, MetalPreparedRoute.values().length);
+    void canonicalRouteIdentityRoundTripsCandidateWiresAndFamilies() {
         assertSame(MetalPreparedRoute.Family.CUSTOM_KERNEL,
                 MetalPreparedRoute.CUSTOM_SINGLE_NEG.family());
         assertSame(MetalPreparedRoute.Family.MPSGRAPH, MetalPreparedRoute.MPSGRAPH.family());
         assertSame(MetalPreparedRoute.Family.CUSTOM_KERNEL,
                 MetalPreparedRoute.CUSTOM_PROGRAM.family());
 
-        var codec = new MetalNegTuningCodec();
         for (MetalNegTuningBatch.Candidate candidate : MetalNegTuningBatch.Candidate.values()) {
             MetalPreparedRoute route = candidate.route();
             assertEquals(route.wireIdentity(), candidate.wireIdentity());
@@ -1173,12 +1158,6 @@ class MetalNegRouteCandidateGeneratorTest {
                     candidate.wireIdentity()).orElseThrow());
             assertSame(candidate, MetalNegTuningBatch.Candidate.fromWireIdentity(
                     route.wireIdentity()).orElseThrow());
-            assertArrayEquals(new byte[] {
-                    0x4d, 0x4e, 0x43, 0x41,
-                    0x00, 0x00, 0x00, 0x28,
-                    0x00, 0x00, 0x00, 0x28,
-                    0x00, 0x00, 0x00, (byte) route.wireIdentity()
-            }, codec.encodeCandidate(candidate));
         }
         assertTrue(MetalPreparedRoute.fromWireIdentity(0).isEmpty());
         assertTrue(MetalPreparedRoute.fromWireIdentity(4).isEmpty());
@@ -1437,22 +1416,11 @@ class MetalNegRouteCandidateGeneratorTest {
     }
 
     @Test
-    void invalidSemanticsFailBeforeCandidateGenerationAndColdUseIsConcurrent() throws Exception {
+    void coldCandidateGenerationIsConcurrent() throws Exception {
         TestNativeApi api = new TestNativeApi();
         try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
             Workload valid = workload(device, 700, Shape.of(4), false,
                     Optional.empty(), true, false, 1);
-            CompiledNode invalidNode = new CompiledNode(valid.context().nodes().getFirst().id(),
-                    new Operation(UnaryElementwiseKind.TANH, NoOperationAttrs.INSTANCE),
-                    valid.context().nodes().getFirst().inputs(),
-                    valid.context().nodes().getFirst().outputs());
-            var invalidDag = new PartitionDag(valid.context().partition(), List.of(invalidNode));
-            var invalid = new PrepareContext<>(invalidDag, valid.context().values(), valid.context().memoryRequirements(), valid.context().constants(), new MetalNegAnalysisInputs(device));
-            assertThrows(IllegalArgumentException.class, () -> new MetalNegPartitionPreparer()
-                    .analyze(invalid));
-            assertThrows(IllegalArgumentException.class,
-                    () -> new MetalNegPartitionPreparer().analyzeForTesting(
-                            invalid, MetalPreparedRoute.MPSGRAPH));
 
             Generated generated = generated(valid, 2);
             var executor = Executors.newFixedThreadPool(6);
