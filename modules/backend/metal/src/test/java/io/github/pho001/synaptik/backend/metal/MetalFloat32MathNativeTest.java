@@ -184,7 +184,7 @@ final class MetalFloat32MathNativeTest {
     }
 
     /** Evaluates the named working sites; elementary ERF is independently integrated. */
-    private static float reference(MetalMpsGraphProgram.NodeKind kind, float x) {
+    static float reference(MetalMpsGraphProgram.NodeKind kind, float x) {
         return switch (kind) {
             case LOG -> (float) StrictMath.log(x);
             case LOG1P -> (float) StrictMath.log1p(x);

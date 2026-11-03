@@ -8,15 +8,14 @@
  * dependent numerical components. Compile with MTLMathModeSafe: the named
  * composite intermediates are observable FLOAT32 sites, not fast-math identities.
  *
- * No new host POD: unary/scalar kernels use the existing 32-byte PointMeta;
- * tensor POW uses the existing 432-byte BinaryMeta. All offsets are in elements.
- * Unary/scalar buffers: input=0, output=1, PointMeta=2; scalar is raw F32 bits.
- * Tensor POW buffers: left=0, right=1, output=2, BinaryMeta=3. Existing 3-D
- * linear grid, one canonical output cell per thread, no workspace or atomics.
- * Controlled variants append _scan to each ordinary entry name and add read-only
- * control buffer 28 plus the shared ScanStepControl at buffer 29. Their
- * eligibility guard precedes every input load; inactive output cells are untouched.
- * These functions neither narrow to low storage nor authorize a low-domain route.
+ * Numeric F32/BF16/F16 storage shares these FLOAT32 working-precision functions.
+ * Assemble the shared numeric codec before this source. PointMeta carries valueType;
+ * BinaryMeta carries original left/right and promoted output types. Scalar bits remain
+ * in their original carrier. Offsets are element-based and outputs narrow exactly once.
+ * Unary/scalar bindings: input=0, output=1, PointMeta=2.
+ * Tensor POW bindings: left=0, right=1, output=2, BinaryMeta=3.
+ * Controlled variants append _scan and bind control28/step29; their eligibility guard
+ * precedes every input load and leaves structurally inactive output cells untouched.
  */
 static NSString *const SynaptikFloat32MathKernelSource =
 @"\n"
@@ -182,55 +181,55 @@ static NSString *const SynaptikFloat32MathKernelSource =
 "    float magnitude = metal::pow(a, y);\n"
 "    return negative ? -magnitude : magnitude;\n"
 "}\n"
-"#define SYNAPTIK_F32_UNARY(KERNEL, FUNCTION) \\\n"
-"inline void KERNEL##_body(device const float *input, device float *output, ulong linear) { output[linear] = FUNCTION(input[linear]); } \\\n"
-"kernel void KERNEL(device const float *input [[buffer(0)]], device float *output [[buffer(1)]], constant PointMeta &m [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) { \\\n"
+"#define SYNAPTIK_NUMERIC_UNARY(KERNEL, FUNCTION) \\\n"
+"inline void KERNEL##_body(device const uchar *input, device uchar *output, constant PointMeta &m, ulong linear) { synaptik_store_numeric(output, linear, m.valueType, FUNCTION(synaptik_load_numeric(input, linear, m.valueType))); } \\\n"
+"kernel void KERNEL(device const uchar *input [[buffer(0)]], device uchar *output [[buffer(1)]], constant PointMeta &m [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) { \\\n"
 "    ulong linear = linear_id(gid, m.gridWidth, m.gridHeight); \\\n"
-"    if (linear < m.elementCount) KERNEL##_body(input, output, linear); \\\n"
+"    if (linear < m.elementCount) KERNEL##_body(input, output, m, linear); \\\n"
 "} \\\n"
-"kernel void KERNEL##_scan(device const float *input [[buffer(0)]], device float *output [[buffer(1)]], constant PointMeta &m [[buffer(2)]], device const ulong *scanControl [[buffer(28)]], constant ScanStepControl &scanStep [[buffer(29)]], uint3 gid [[thread_position_in_grid]]) { \\\n"
+"kernel void KERNEL##_scan(device const uchar *input [[buffer(0)]], device uchar *output [[buffer(1)]], constant PointMeta &m [[buffer(2)]], device const ulong *scanControl [[buffer(28)]], constant ScanStepControl &scanStep [[buffer(29)]], uint3 gid [[thread_position_in_grid]]) { \\\n"
 "    ulong linear = linear_id(gid, m.gridWidth, m.gridHeight); \\\n"
 "    if (linear >= m.elementCount || !scan_control_output(scanControl, scanStep, linear)) return; \\\n"
-"    KERNEL##_body(input, output, linear); \\\n"
+"    KERNEL##_body(input, output, m, linear); \\\n"
 "}\n"
-"SYNAPTIK_F32_UNARY(f32_log, synaptik_f32_log)\n"
-"SYNAPTIK_F32_UNARY(f32_log1p, synaptik_f32_log1p)\n"
-"SYNAPTIK_F32_UNARY(f32_exp, synaptik_f32_exp)\n"
-"SYNAPTIK_F32_UNARY(f32_expm1, synaptik_f32_expm1)\n"
-"SYNAPTIK_F32_UNARY(f32_erf, synaptik_f32_erf)\n"
-"SYNAPTIK_F32_UNARY(f32_sqrt, synaptik_f32_sqrt)\n"
-"SYNAPTIK_F32_UNARY(f32_rsqrt, synaptik_f32_rsqrt)\n"
-"SYNAPTIK_F32_UNARY(f32_sigmoid, synaptik_f32_sigmoid)\n"
-"SYNAPTIK_F32_UNARY(f32_tanh, synaptik_f32_tanh)\n"
-"SYNAPTIK_F32_UNARY(f32_gelu, synaptik_f32_gelu)\n"
-"SYNAPTIK_F32_UNARY(f32_gelu_tanh, synaptik_f32_gelu_tanh)\n"
-"SYNAPTIK_F32_UNARY(f32_silu, synaptik_f32_silu)\n"
-"#undef SYNAPTIK_F32_UNARY\n"
-"inline void f32_scalar_pow_body(device const float *input, device float *output, constant PointMeta &m, ulong linear) {\n"
-"    output[linear] = synaptik_f32_pow(input[linear], as_type<float>(m.scalar));\n"
+"SYNAPTIK_NUMERIC_UNARY(numeric_log, synaptik_f32_log)\n"
+"SYNAPTIK_NUMERIC_UNARY(numeric_log1p, synaptik_f32_log1p)\n"
+"SYNAPTIK_NUMERIC_UNARY(numeric_exp, synaptik_f32_exp)\n"
+"SYNAPTIK_NUMERIC_UNARY(numeric_expm1, synaptik_f32_expm1)\n"
+"SYNAPTIK_NUMERIC_UNARY(numeric_erf, synaptik_f32_erf)\n"
+"SYNAPTIK_NUMERIC_UNARY(numeric_sqrt, synaptik_f32_sqrt)\n"
+"SYNAPTIK_NUMERIC_UNARY(numeric_rsqrt, synaptik_f32_rsqrt)\n"
+"SYNAPTIK_NUMERIC_UNARY(numeric_sigmoid, synaptik_f32_sigmoid)\n"
+"SYNAPTIK_NUMERIC_UNARY(numeric_tanh, synaptik_f32_tanh)\n"
+"SYNAPTIK_NUMERIC_UNARY(numeric_gelu, synaptik_f32_gelu)\n"
+"SYNAPTIK_NUMERIC_UNARY(numeric_gelu_tanh, synaptik_f32_gelu_tanh)\n"
+"SYNAPTIK_NUMERIC_UNARY(numeric_silu, synaptik_f32_silu)\n"
+"#undef SYNAPTIK_NUMERIC_UNARY\n"
+"inline void numeric_scalar_pow_body(device const uchar *input, device uchar *output, constant PointMeta &m, ulong linear) {\n"
+"    synaptik_store_numeric(output, linear, m.valueType, synaptik_f32_pow(synaptik_load_numeric(input, linear, m.valueType), lp_widen(ulong(m.scalar), m.valueType)));\n"
 "}\n"
-"kernel void f32_scalar_pow(device const float *input [[buffer(0)]], device float *output [[buffer(1)]], constant PointMeta &m [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) {\n"
+"kernel void numeric_scalar_pow(device const uchar *input [[buffer(0)]], device uchar *output [[buffer(1)]], constant PointMeta &m [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) {\n"
 "    ulong linear = linear_id(gid, m.gridWidth, m.gridHeight);\n"
-"    if (linear < m.elementCount) f32_scalar_pow_body(input, output, m, linear);\n"
+"    if (linear < m.elementCount) numeric_scalar_pow_body(input, output, m, linear);\n"
 "}\n"
-"kernel void f32_scalar_pow_scan(device const float *input [[buffer(0)]], device float *output [[buffer(1)]], constant PointMeta &m [[buffer(2)]], device const ulong *scanControl [[buffer(28)]], constant ScanStepControl &scanStep [[buffer(29)]], uint3 gid [[thread_position_in_grid]]) {\n"
+"kernel void numeric_scalar_pow_scan(device const uchar *input [[buffer(0)]], device uchar *output [[buffer(1)]], constant PointMeta &m [[buffer(2)]], device const ulong *scanControl [[buffer(28)]], constant ScanStepControl &scanStep [[buffer(29)]], uint3 gid [[thread_position_in_grid]]) {\n"
 "    ulong linear = linear_id(gid, m.gridWidth, m.gridHeight);\n"
 "    if (linear >= m.elementCount || !scan_control_output(scanControl, scanStep, linear)) return;\n"
-"    f32_scalar_pow_body(input, output, m, linear);\n"
+"    numeric_scalar_pow_body(input, output, m, linear);\n"
 "}\n"
-"inline void f32_tensor_pow_body(device const float *left, device const float *right, device float *output, constant BinaryMeta &m, ulong linear) {\n"
+"inline void numeric_tensor_pow_body(device const uchar *left, device const uchar *right, device uchar *output, constant BinaryMeta &m, ulong linear) {\n"
 "    ulong leftOffset, rightOffset;\n"
 "    binary_offsets(linear, m, leftOffset, rightOffset);\n"
-"    output[linear] = synaptik_f32_pow(left[leftOffset], right[rightOffset]);\n"
+"    synaptik_store_numeric(output, linear, m.outputType, synaptik_f32_pow(synaptik_load_numeric(left, leftOffset, m.leftType), synaptik_load_numeric(right, rightOffset, m.rightType)));\n"
 "}\n"
-"kernel void f32_tensor_pow(device const float *left [[buffer(0)]], device const float *right [[buffer(1)]], device float *output [[buffer(2)]], constant BinaryMeta &m [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) {\n"
+"kernel void numeric_tensor_pow(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant BinaryMeta &m [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) {\n"
 "    ulong linear = linear_id(gid, m.gridWidth, m.gridHeight);\n"
-"    if (linear < m.elementCount) f32_tensor_pow_body(left, right, output, m, linear);\n"
+"    if (linear < m.elementCount) numeric_tensor_pow_body(left, right, output, m, linear);\n"
 "}\n"
-"kernel void f32_tensor_pow_scan(device const float *left [[buffer(0)]], device const float *right [[buffer(1)]], device float *output [[buffer(2)]], constant BinaryMeta &m [[buffer(3)]], device const ulong *scanControl [[buffer(28)]], constant ScanStepControl &scanStep [[buffer(29)]], uint3 gid [[thread_position_in_grid]]) {\n"
+"kernel void numeric_tensor_pow_scan(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant BinaryMeta &m [[buffer(3)]], device const ulong *scanControl [[buffer(28)]], constant ScanStepControl &scanStep [[buffer(29)]], uint3 gid [[thread_position_in_grid]]) {\n"
 "    ulong linear = linear_id(gid, m.gridWidth, m.gridHeight);\n"
 "    if (linear >= m.elementCount || !scan_control_output(scanControl, scanStep, linear)) return;\n"
-"    f32_tensor_pow_body(left, right, output, m, linear);\n"
+"    numeric_tensor_pow_body(left, right, output, m, linear);\n"
 "}\n";
 
 #endif

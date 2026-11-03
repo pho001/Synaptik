@@ -12,11 +12,12 @@
 static BOOL synaptik_reduction_handles(SynaptikMetalDecodedNode node, const uint8_t *types) {
     if (types == NULL || node.input_count == 0U || node.first_input == UINT32_MAX) return NO;
     uint8_t type = types[node.first_input];
+    BOOL numeric = type == 1U || type == 5U || type == 7U;
     if (node.operation == 13U)
-        return type == 1U || type == 2U || type == 6U;
+        return numeric || type == 2U || type == 6U;
     if (node.operation == 31U || node.operation == 32U)
-        return type == 1U || type == 2U || type == 4U || type == 6U;
-    return type == 1U && (node.operation == 14U || node.operation == 106U
+        return numeric || type == 2U || type == 4U || type == 6U;
+    return numeric && (node.operation == 14U || node.operation == 106U
             || (node.operation >= 111U && node.operation <= 115U));
 }
 
@@ -101,7 +102,8 @@ static BOOL synaptik_reduction_metadata(SynaptikMetalDecodedNode node,
     BOOL masked = node.attribute_kind == 37U;
     BOOL statistical = node.operation == 112U || node.operation == 113U;
     if (node.input_count != (masked ? 2U : 1U)) return NO;
-    if (masked && (types[node.first_input] != 1U
+    if (masked && ((types[node.first_input] != 1U && types[node.first_input] != 5U
+                    && types[node.first_input] != 7U)
             || (node.operation != 13U && node.operation != 14U)
             || node.second_input >= shapes.count || types[node.second_input] != 3U
             || node.attribute_count != 1U || node.attribute_values[0] >= input.count)) return NO;
@@ -115,7 +117,8 @@ static BOOL synaptik_reduction_metadata(SynaptikMetalDecodedNode node,
     BOOL keep = NO; uint64_t correction = 0U;
     BOOL empty_input = NO;
     for (NSNumber *extent in input) empty_input |= extent.unsignedLongLongValue == 0U;
-    if (empty_input && types[node.first_input] != SYNAPTIK_METAL_TYPE_FLOAT32) return NO;
+    if (empty_input && types[node.first_input] != 1U
+            && types[node.first_input] != 5U && types[node.first_input] != 7U) return NO;
     /* The statistical owner rejects a selected zero extent before division, while
      * permitting an unselected zero axis and valid denominator with empty output. */
     NSArray<NSNumber *> *axes = statistical

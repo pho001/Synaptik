@@ -7,11 +7,11 @@
  * SynaptikGeneralScanKernelSource (the Scan-owned ScanStepControl ABI).
  * This component adds no host POD or workspace.
  *
- * audit_reduce_f32 bindings: 0=data, 1=BOOL mask (data again when unmasked), 2=output,
+ * audit_reduce_numeric bindings: 0=data, 1=BOOL mask (data again when unmasked), 2=output,
  * 3=SynaptikMetalDataMeta. One grid workitem owns one output; custom_grid supplies the
  * ordinary elementCount/gridWidth/gridHeight geometry. No atomics or partial buffers.
  *
- * Native preparation independently proves FLOAT32 input/output, ranks <=16, canonical
+ * Native preparation independently proves F32/BF16/F16 input/output, ranks <=16, canonical
  * output, checked affine referenced input/mask spans (input zero strides are legal),
  * exact result shape, mask right-aligned broadcast, and logical BOOL contents. attrs[0]
  * is the normalized reduction-axis bitmask; attrs[1] is statistical correction. Other
@@ -22,13 +22,13 @@
  * loads and its divisor is the real selected count. Absent scope is a no-write
  * unit; all-valid empty domains instead publish their ordinary empty identities.
  * VAR/STD require contributorCount>correction before any dispatch. The defensive NaN
- * below is not a substitute for that pre-write validation. No low arithmetic is granted.
+ * below is not a substitute for that pre-write validation. Numeric storage narrows once at publication.
  *
  * audit_reduce_exact binds data=0, output=1, DataMeta=2 with the same coordinate
  * metadata. It admits integral modular SUM and stored-value MIN/MAX, including F64
  * extrema without FP64 arithmetic. Exact extrema use the shared typed comparator;
- * F64 SUM/MEAN/PROD and new low domains are deliberately absent.
- * audit_reduce_f32_scan and audit_reduce_exact_scan additionally bind control=28,
+ * F64 SUM/MEAN/PROD arithmetic remains absent.
+ * audit_reduce_numeric_scan and audit_reduce_exact_scan additionally bind control=28,
  * step=29 and guard their complete ordinary calculation before every input read or
  * statistical pass. They require the Scan owner's proof that a ROW input's row axis
  * is retained in the output (or that all inputs are SHARED). Only the controlled
@@ -66,7 +66,7 @@ static NSString *const SynaptikAuditReductionKernelSource =
 "    return mask[offset] != uchar(0);\n"
 "}\n"
 "inline uint audit_reduction_load(device const uchar *input, thread const ulong *coords, constant DataMeta &m) {\n"
-"    return uint(load_word(input, coords_storage(coords, m.inputStrides, m.inputRank, m.inputOffset), 4u));\n"
+"    return as_type<uint>(synaptik_load_numeric(input, coords_storage(coords, m.inputStrides, m.inputRank, m.inputOffset), m.sourceType));\n"
 "}\n"
 "inline bool audit_reduction_nan(uint word) { return (word & 0x7fffffffu) > 0x7f800000u; }\n"
 "inline bool audit_reduction_inf(uint word) { return (word & 0x7fffffffu) == 0x7f800000u; }\n"
@@ -74,7 +74,7 @@ static NSString *const SynaptikAuditReductionKernelSource =
 "inline float audit_reduction_mul(float a, float b) { return a * b; }\n"
 "inline float audit_reduction_sub(float a, float b) { return a - b; }\n"
 "inline float audit_reduction_div(float a, float b) { return a / b; }\n"
-"inline uint audit_reduce_f32_impl(device const uchar *input, device const uchar *mask,\n"
+"inline uint audit_reduce_numeric_impl(device const uchar *input, device const uchar *mask,\n"
 "        ulong linear, constant DataMeta &m, device const ulong *scanControl,\n"
 "        constant ScanStepControl *scanStep) {\n"
 "    ulong domain = audit_reduction_domain(m), selected = 0ul;\n"
@@ -157,42 +157,44 @@ static NSString *const SynaptikAuditReductionKernelSource =
 "    }\n"
 "    return result;\n"
 "}\n"
-"inline uint audit_reduce_f32_word(device const uchar *input, device const uchar *mask,\n"
+"inline uint audit_reduce_numeric_word(device const uchar *input, device const uchar *mask,\n"
 "        ulong linear, constant DataMeta &m) {\n"
-"    return audit_reduce_f32_impl(input, mask, linear, m, nullptr, nullptr);\n"
+"    return audit_reduce_numeric_impl(input, mask, linear, m, nullptr, nullptr);\n"
 "}\n"
-"kernel void audit_reduce_f32(device const uchar *input [[buffer(0)]],\n"
+"kernel void audit_reduce_numeric(device const uchar *input [[buffer(0)]],\n"
 "        device const uchar *mask [[buffer(1)]], device uchar *output [[buffer(2)]],\n"
 "        constant DataMeta &m [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) {\n"
 "    ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return;\n"
-"    uint result = audit_reduce_f32_word(input, mask, linear, m);\n"
+"    uint result = audit_reduce_numeric_word(input, mask, linear, m);\n"
 "    ulong destination = logical_storage(linear, m.outDims, m.outputStrides, m.outputRank, m.outputOffset);\n"
-"    store_word(output, destination, 4u, ulong(result));\n"
+"    store_word(output, destination, lp_width(m.targetType), lp_convert(ulong(result), 1u, m.targetType));\n"
 "}\n"
-"kernel void audit_reduce_f32_scan(device const uchar *input [[buffer(0)]],\n"
+"kernel void audit_reduce_numeric_scan(device const uchar *input [[buffer(0)]],\n"
 "        device const uchar *mask [[buffer(1)]], device uchar *output [[buffer(2)]],\n"
 "        constant DataMeta &m [[buffer(3)]], device const ulong *scanControl [[buffer(28)]],\n"
 "        constant ScanStepControl &scanStep [[buffer(29)]], uint3 gid [[thread_position_in_grid]]) {\n"
 "    ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return;\n"
 "    if (!scan_control_output(scanControl, scanStep, linear)) return;\n"
-"    uint result = audit_reduce_f32_word(input, mask, linear, m);\n"
+"    uint result = audit_reduce_numeric_word(input, mask, linear, m);\n"
 "    ulong destination = logical_storage(linear, m.outDims, m.outputStrides, m.outputRank, m.outputOffset);\n"
-"    store_word(output, destination, 4u, ulong(result));\n"
+"    store_word(output, destination, lp_width(m.targetType), lp_convert(ulong(result), 1u, m.targetType));\n"
 "}\n"
-"kernel void audit_reduce_f32_controlled(device const uchar *input [[buffer(0)]],\n"
+"kernel void audit_reduce_numeric_controlled(device const uchar *input [[buffer(0)]],\n"
 "        device const uchar *mask [[buffer(1)]], device uchar *output [[buffer(2)]],\n"
 "        constant DataMeta &m [[buffer(3)]], device const ulong *scanControl [[buffer(28)]],\n"
 "        constant ScanStepControl &scanStep [[buffer(29)]], uint3 gid [[thread_position_in_grid]]) {\n"
 "    ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount) return;\n"
 "    if (!scan_control_output(scanControl, scanStep, linear)) return;\n"
-"    uint result = audit_reduce_f32_impl(input, mask, linear, m, scanControl, &scanStep);\n"
+"    uint result = audit_reduce_numeric_impl(input, mask, linear, m, scanControl, &scanStep);\n"
 "    ulong destination = logical_storage(linear, m.outDims, m.outputStrides, m.outputRank, m.outputOffset);\n"
-"    store_word(output, destination, 4u, ulong(result));\n"
+"    store_word(output, destination, lp_width(m.targetType), lp_convert(ulong(result), 1u, m.targetType));\n"
 "}\n"
 "inline ulong audit_reduction_extreme_identity(uint type, bool maximum) {\n"
 "    if (type == 2u) return maximum ? 0x80000000ul : 0x7ffffffful;\n"
 "    if (type == 6u) return maximum ? 0x8000000000000000ul : 0x7ffffffffffffffful;\n"
 "    if (type == 4u) return maximum ? 0xfff0000000000000ul : 0x7ff0000000000000ul;\n"
+"    if (type == 5u) return maximum ? 0xff80ul : 0x7f80ul;\n"
+"    if (type == 7u) return maximum ? 0xfc00ul : 0x7c00ul;\n"
 "    return maximum ? 0xff800000ul : 0x7f800000ul;\n"
 "}\n"
 "inline ulong audit_reduce_exact_word(device const uchar *input, ulong linear, constant DataMeta &m) {\n"
@@ -205,8 +207,11 @@ static NSString *const SynaptikAuditReductionKernelSource =
 "        ulong word = load_word(input, source, m.width);\n"
 "        if (m.operation == 13u) accumulator = m.sourceType == 2u\n"
 "                ? ulong(uint(accumulator) + uint(word)) : accumulator + word;\n"
-"        else accumulator = item == 0ul ? word : exact_numeric_extreme(\n"
-"                accumulator, m.sourceType, word, m.sourceType, m.targetType, m.operation == 32u);\n"
+"        else if (item == 0ul) accumulator = word;\n"
+"        else if (m.sourceType == 5u || m.sourceType == 7u)\n"
+"            accumulator = lp_extreme(accumulator, word, m.sourceType, m.operation == 32u);\n"
+"        else accumulator = exact_numeric_extreme(accumulator, m.sourceType,\n"
+"                word, m.sourceType, m.targetType, m.operation == 32u);\n"
 "    }\n"
 "    return accumulator;\n"
 "}\n"

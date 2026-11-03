@@ -14,8 +14,8 @@ import java.util.stream.IntStream;
 /**
  * Owns original-carrier numerical reduction admission and independent encoded validation.
  *
- * <p>Only stored-value extrema use FLOAT64: no FLOAT64 arithmetic or low arithmetic extension is
- * inferred from a FLOAT32 numerical reduction. Validation is cold and precedes resource creation.
+ * <p>F32/BF16/F16 arithmetic shares FLOAT32 working sites and narrows at publication.
+ * Only stored-value extrema use FLOAT64. Validation is cold and precedes resource creation.
  */
 final class MetalReductionSupport {
     private static final long MAX_BUFFER_BYTES = 0xffff_ffffL;
@@ -77,13 +77,18 @@ final class MetalReductionSupport {
         if (node.firstInputIndex() == MetalMpsGraphProgram.NO_SECOND_INPUT) return false;
         DataType type = values.get(node.firstInputIndex()).dataType();
         return switch (node.kind()) {
-            case SUM -> type == DataType.FLOAT32 || type == DataType.INT32 || type == DataType.INT64;
-            case REDUCTION_MIN, REDUCTION_MAX -> type == DataType.FLOAT32 || type == DataType.FLOAT64
+            case SUM -> numeric(type) || type == DataType.INT32 || type == DataType.INT64;
+            case REDUCTION_MIN, REDUCTION_MAX -> numeric(type) || type == DataType.FLOAT64
                     || type == DataType.INT32 || type == DataType.INT64;
             case MEAN, PROD, VARIANCE, STANDARD_DEVIATION, L1_NORM, L2_NORM, LOG_SUM_EXP ->
-                    type == DataType.FLOAT32;
+                    numeric(type);
             default -> false;
         };
+    }
+
+    /** Identifies the three original storage carriers sharing numerical working sites. */
+    private static boolean numeric(DataType type) {
+        return type == DataType.FLOAT32 || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
     }
 
     /**
@@ -101,7 +106,7 @@ final class MetalReductionSupport {
     /**
      * Validates an authenticated Scan-local reduction without projecting empty axes to one.
      *
-     * <p>Canonical empty FLOAT32 local values use the empty-layout exception. Every axis,
+     * <p>Canonical empty F32/BF16/F16 local values use the empty-layout exception. Every axis,
      * shape, mask and correction check remains identical to ordinary validation. Empty SUM/norms
      * produce positive zero, PROD one, MEAN NaN, LSE negative infinity and extrema their signed
      * infinity identities; a zero statistical count still violates the required denominator.
@@ -120,7 +125,7 @@ final class MetalReductionSupport {
      *
      * @param node encoded reduction with checked references
      * @param values actual descriptor table
-     * @param scanLocal whether canonical empty local FLOAT32 reductions are authorized
+     * @param scanLocal whether canonical empty local numeric reductions are authorized
      * @throws IllegalArgumentException if the encoded operation is not valid in the selected domain
      */
     private static void validate(MetalMpsGraphProgram.Node node,
@@ -128,11 +133,11 @@ final class MetalReductionSupport {
         if (!handles(node, values) || node.outputs().length != 1) throw invalid();
         var input = values.get(node.firstInputIndex()); var output = values.get(node.outputIndex());
         DataType type = input.dataType(); long[] source = input.dimensions(), target = output.dimensions();
-        boolean allowEmpty = scanLocal && type == DataType.FLOAT32;
+        boolean allowEmpty = scanLocal && numeric(type);
         boolean masked = node.attributeKind() == MetalMpsGraphProgram.AttributeKind.MASKED_REDUCTION;
         if (node.inputs().length != (masked ? 2 : 1) || output.dataType() != type
                 || input.requiresGrad() != output.requiresGrad()
-                || (type != DataType.FLOAT32 && (input.requiresGrad() || output.requiresGrad()))
+                || (!numeric(type) && (input.requiresGrad() || output.requiresGrad()))
                 || !physical(input, allowEmpty)
                 || !physical(output, allowEmpty)
                 || !canonical(output.layout().orElse(null), target)) throw invalid();
@@ -141,7 +146,7 @@ final class MetalReductionSupport {
         if (masked) {
             if ((node.kind() != MetalMpsGraphProgram.NodeKind.SUM
                     && node.kind() != MetalMpsGraphProgram.NodeKind.MEAN)
-                    || type != DataType.FLOAT32 || words.length != 1) throw invalid();
+                    || !numeric(type) || words.length != 1) throw invalid();
             select(axes, Math.toIntExact(words[0]));
             var mask = values.get(node.secondInputIndex());
             if (mask.dataType() != DataType.BOOL || mask.requiresGrad()
@@ -204,7 +209,7 @@ final class MetalReductionSupport {
     private static boolean physical(MetalMpsGraphProgram.ValueDescriptor value, boolean allowEmpty) {
         if (value.elementCount() == 0) {
             return allowEmpty && value.rank() <= 16
-                    && (value.dataType() == DataType.FLOAT32 || value.dataType() == DataType.BOOL)
+                    && (numeric(value.dataType()) || value.dataType() == DataType.BOOL)
                     && canonical(value.layout().orElse(null), value.dimensions())
                     && value.byteCount() == 0;
         }

@@ -303,6 +303,208 @@ class MetalAuditReductionNativeTest {
         }
     }
 
+    @Test
+    void originalNumericCarriersExecuteAllNineteenUnariesIncludingRankZero() {
+        var kinds = List.of(MetalMpsGraphProgram.NodeKind.NEG, MetalMpsGraphProgram.NodeKind.ABS,
+                MetalMpsGraphProgram.NodeKind.FLOOR, MetalMpsGraphProgram.NodeKind.CEIL,
+                MetalMpsGraphProgram.NodeKind.SIGN, MetalMpsGraphProgram.NodeKind.RELU,
+                MetalMpsGraphProgram.NodeKind.RECIPROCAL, MetalMpsGraphProgram.NodeKind.EXP,
+                MetalMpsGraphProgram.NodeKind.LOG, MetalMpsGraphProgram.NodeKind.LOG1P,
+                MetalMpsGraphProgram.NodeKind.EXPM1, MetalMpsGraphProgram.NodeKind.ERF,
+                MetalMpsGraphProgram.NodeKind.SQRT, MetalMpsGraphProgram.NodeKind.RSQRT,
+                MetalMpsGraphProgram.NodeKind.SIGMOID, MetalMpsGraphProgram.NodeKind.TANH,
+                MetalMpsGraphProgram.NodeKind.GELU, MetalMpsGraphProgram.NodeKind.GELU_TANH_APPROXIMATION,
+                MetalMpsGraphProgram.NodeKind.SILU);
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            for (var kind : kinds) {
+                for (boolean scalar : List.of(false, true)) {
+                    float[] input = scalar ? new float[] {2} : new float[] {0.125f, 1, 2};
+                    long[] dimensions = scalar ? new long[0] : new long[] {input.length};
+                    var node = MetalMpsGraphProgram.Node.generic(kind, new int[] {0}, new int[] {1},
+                            MetalMpsGraphProgram.AttributeKind.NONE, new long[0]);
+                    float[] actual = numericFloats(type, execute(List.of(value(type, dimensions),
+                            value(type, dimensions)), List.of(node), new int[] {0},
+                            new byte[][] {numeric(type, input)}, 1));
+                    for (int index = 0; index < input.length; index++) {
+                        float x = input[index];
+                        float expected = switch (kind) {
+                            case NEG -> -x; case ABS, RELU -> x;
+                            case FLOOR -> (float) Math.floor(x); case CEIL -> (float) Math.ceil(x);
+                            case SIGN -> 1f; case RECIPROCAL -> 1f / x;
+                            case EXP -> (float) StrictMath.exp(x);
+                            case SIGMOID -> 1f / (1f + (float) StrictMath.exp(-x));
+                            default -> MetalFloat32MathNativeTest.reference(kind, x);
+                        };
+                        assertNumeric(type, expected, actual[index], type + " " + kind + " scalar=" + scalar);
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    void typedScalarTensorAndPowerOperationsReadOriginalBitsAndAffineOperands() {
+        var scalarKinds = List.of(MetalMpsGraphProgram.NodeKind.SCALAR_ADD,
+                MetalMpsGraphProgram.NodeKind.SCALAR_SUB, MetalMpsGraphProgram.NodeKind.SCALAR_MUL,
+                MetalMpsGraphProgram.NodeKind.SCALAR_DIV, MetalMpsGraphProgram.NodeKind.SCALAR_POW,
+                MetalMpsGraphProgram.NodeKind.SCALAR_MIN, MetalMpsGraphProgram.NodeKind.SCALAR_MAX);
+        var tensorKinds = List.of(MetalMpsGraphProgram.NodeKind.ADD, MetalMpsGraphProgram.NodeKind.SUB,
+                MetalMpsGraphProgram.NodeKind.MUL, MetalMpsGraphProgram.NodeKind.DIV,
+                MetalMpsGraphProgram.NodeKind.TENSOR_POW, MetalMpsGraphProgram.NodeKind.TENSOR_MIN,
+                MetalMpsGraphProgram.NodeKind.TENSOR_MAX);
+        float[] expected = {5, 1, 6, 1.5f, 9, 2, 3};
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            for (int operation = 0; operation < scalarKinds.size(); operation++) {
+                var scalar = MetalMpsGraphProgram.Node.scalarValue(scalarKinds.get(operation), 0, 1,
+                        type, numericWord(type, 2));
+                assertNumeric(type, expected[operation], numericFloats(type, execute(
+                        List.of(value(type), value(type)), List.of(scalar), new int[] {0},
+                        new byte[][] {numeric(type, 3)}, 1))[0], type + " scalar " + scalarKinds.get(operation));
+                var right = new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2}, Optional.of(
+                        LayoutDescriptor.of(Shape.of(2), new long[] {2}, 1, true)), false, false);
+                var tensor = MetalMpsGraphProgram.Node.binary(tensorKinds.get(operation), 0, 1, 2);
+                float[] actual = numericFloats(type, execute(List.of(value(type), right, value(type, 2)),
+                        List.of(tensor), new int[] {0, 1}, new byte[][] {numeric(type, 3),
+                                numeric(type, Float.NaN, 2, Float.NaN, 2)}, 2));
+                for (float result : actual) assertNumeric(type, expected[operation], result, type + " tensor");
+            }
+        }
+    }
+
+    @Test
+    void typedReductionsPreserveMaskedStatisticalAndExpandedOneGeometry() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            var expanded = new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 3}, Optional.of(
+                    LayoutDescriptor.of(Shape.of(2, 3), new long[] {0, 0}, 0, true)), true, true);
+            var countValues = List.of(new MetalMpsGraphProgram.ValueDescriptor(type, new long[0], true),
+                    expanded, new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 1}, true));
+            var countNodes = List.of(MetalMpsGraphProgram.Node.targetShape(
+                            MetalMpsGraphProgram.NodeKind.EXPAND, 0, 1, new long[] {2, 3}),
+                    reduction(MetalMpsGraphProgram.NodeKind.SUM, 1, 2, List.of(1), true));
+            assertArrayEquals(numeric(type, 3, 3), execute(countValues, countNodes, new int[] {0},
+                    new byte[][] {numeric(type, 1)}, 2));
+            var kinds = List.of(MetalMpsGraphProgram.NodeKind.SUM, MetalMpsGraphProgram.NodeKind.MEAN,
+                    MetalMpsGraphProgram.NodeKind.PROD, MetalMpsGraphProgram.NodeKind.LOG_SUM_EXP,
+                    MetalMpsGraphProgram.NodeKind.L1_NORM, MetalMpsGraphProgram.NodeKind.L2_NORM,
+                    MetalMpsGraphProgram.NodeKind.REDUCTION_MIN, MetalMpsGraphProgram.NodeKind.REDUCTION_MAX);
+            float[] expected = {6, 2, 6, (float) Math.log(Math.exp(1) + Math.exp(2) + Math.exp(3)),
+                    6, (float) Math.sqrt(14), 1, 3};
+            var values = List.of(new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {3}, true),
+                    new MetalMpsGraphProgram.ValueDescriptor(type, new long[0], true));
+            for (int index = 0; index < kinds.size(); index++) {
+                float actual = numericFloats(type, execute(values, List.of(reduction(kinds.get(index),
+                        0, 1, List.of(0), false)), new int[] {0}, new byte[][] {numeric(type, 1, 2, 3)}, 1))[0];
+                assertNumeric(type, expected[index], actual, type + " " + kinds.get(index));
+            }
+            for (var kind : List.of(MetalMpsGraphProgram.NodeKind.VARIANCE,
+                    MetalMpsGraphProgram.NodeKind.STANDARD_DEVIATION)) {
+                var node = MetalMpsGraphProgram.Node.statisticalReduction(kind, 0, 1, List.of(0), false, 1);
+                assertArrayEquals(numeric(type, 1), execute(values, List.of(node), new int[] {0},
+                        new byte[][] {numeric(type, 1, 2, 3)}, 1));
+            }
+            var maskValues = List.of(value(type, 3), value(DataType.BOOL, 3), value(type));
+            for (var kind : List.of(MetalMpsGraphProgram.NodeKind.SUM, MetalMpsGraphProgram.NodeKind.MEAN)) {
+                assertArrayEquals(numeric(type, 2), execute(maskValues,
+                        List.of(masked(kind, 0, 1, 2, 0)), new int[] {0, 1},
+                        new byte[][] {numeric(type, Float.NaN, 2, Float.POSITIVE_INFINITY), new byte[] {0, 1, 0}}, 2));
+            }
+            var tile = MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.TILE,
+                    new int[] {0}, new int[] {1}, MetalMpsGraphProgram.AttributeKind.TILE, new long[] {1, 2});
+            var tileValues = List.of(new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2}, true),
+                    new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {4}, true),
+                    new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {4}, true));
+            assertArrayEquals(numeric(type, 3, 4, 3, 4), execute(tileValues,
+                    List.of(tile, MetalMpsGraphProgram.Node.scalarValue(
+                            MetalMpsGraphProgram.NodeKind.SCALAR_ADD, 1, 2, type, numericWord(type, 2))),
+                    new int[] {0}, new byte[][] {numeric(type, 1, 2)}, 2));
+        }
+    }
+
+    @Test
+    void cumulativeIntegerCarriersWrapInEveryDirectionAndExclusiveMode() {
+        for (DataType type : List.of(DataType.INT32, DataType.INT64)) {
+            long max = type == DataType.INT32 ? Integer.MAX_VALUE : Long.MAX_VALUE;
+            long[] input = {max, 2, -3};
+            for (boolean reverse : List.of(false, true)) for (boolean exclusive : List.of(false, true)) {
+                for (boolean product : List.of(false, true)) {
+                    long[] expected = new long[3]; long accumulator = product ? 1 : 0;
+                    for (int step = 0; step < input.length; step++) {
+                        int index = reverse ? input.length - step - 1 : step;
+                        if (exclusive) expected[index] = accumulator;
+                        accumulator = product ? accumulator * input[index] : accumulator + input[index];
+                        if (type == DataType.INT32) accumulator = (int) accumulator;
+                        if (!exclusive) expected[index] = accumulator;
+                    }
+                    var node = MetalMpsGraphProgram.Node.scan(product ? MetalMpsGraphProgram.NodeKind.CUM_PROD
+                            : MetalMpsGraphProgram.NodeKind.CUM_SUM, 0, 1, 0, exclusive, reverse);
+                    assertArrayEquals(bytes(type, expected), execute(List.of(value(type, 3), value(type, 3)),
+                            List.of(node), new int[] {0}, new byte[][] {bytes(type, input)}, 1));
+                }
+            }
+        }
+    }
+
+    @Test
+    void lowStoredExtremaPreserveNanPayloadSignedZerosAndSubnormals() {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            long nan = type == DataType.BFLOAT16 ? 0x7f81 : 0x7c01;
+            var values = List.of(value(type, 3, 2), value(type, 3));
+            byte[][] input = {bytes(type, 0x8000, 0, 1, 2, nan, 0)};
+            assertArrayEquals(bytes(type, 0x8000, 1, nan), execute(values,
+                    List.of(reduction(MetalMpsGraphProgram.NodeKind.REDUCTION_MIN, 0, 1, List.of(1), false)),
+                    new int[] {0}, input, 1));
+            assertArrayEquals(bytes(type, 0, 2, nan), execute(values,
+                    List.of(reduction(MetalMpsGraphProgram.NodeKind.REDUCTION_MAX, 0, 1, List.of(1), false)),
+                    new int[] {0}, input, 1));
+        }
+    }
+
+    @Test
+    void lowCumulativeKeepsFloat32AccumulatorUntilEachPrefixPublication() {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            float halfUlp = type == DataType.BFLOAT16 ? 0x1p-8f : 0x1p-11f;
+            var values = List.of(value(type, 3), value(type, 3));
+            var node = MetalMpsGraphProgram.Node.scan(MetalMpsGraphProgram.NodeKind.CUM_SUM,
+                    0, 1, 0, false, false);
+            assertArrayEquals(numeric(type, 1, 1, 1 + 2 * halfUlp), execute(values, List.of(node),
+                    new int[] {0}, new byte[][] {numeric(type, 1, halfUlp, halfUlp)}, 1));
+        }
+    }
+
+    private static long numericWord(DataType type, float value) {
+        int word = Float.floatToRawIntBits(value);
+        if (type == DataType.FLOAT32) return Integer.toUnsignedLong(word);
+        if (type == DataType.FLOAT16) return Short.toUnsignedLong(Float.floatToFloat16(value));
+        if (Float.isNaN(value)) return 0x7fc0;
+        return Integer.toUnsignedLong(word + 0x7fff + ((word >>> 16) & 1)) >>> 16;
+    }
+
+    private static byte[] numeric(DataType type, float... input) {
+        long[] words = new long[input.length];
+        for (int index = 0; index < input.length; index++) words[index] = numericWord(type, input[index]);
+        return bytes(type, words);
+    }
+
+    private static float[] numericFloats(DataType type, byte[] bytes) {
+        if (type == DataType.FLOAT32) return floats(bytes);
+        var buffer = ByteBuffer.wrap(bytes).order(ByteOrder.nativeOrder());
+        float[] result = new float[bytes.length / Short.BYTES];
+        for (int index = 0; index < result.length; index++) {
+            short word = buffer.getShort();
+            result[index] = type == DataType.FLOAT16 ? Float.float16ToFloat(word)
+                    : Float.intBitsToFloat(Short.toUnsignedInt(word) << 16);
+        }
+        return result;
+    }
+
+    private static void assertNumeric(DataType type, float expected, float actual, String context) {
+        float rounded = numericFloats(type, numeric(type, expected))[0];
+        float tolerance = type == DataType.FLOAT32 ? Math.max(1e-6f, Math.abs(rounded) * 2e-6f)
+                : Math.max(type == DataType.BFLOAT16 ? 0x1p-126f : 0x1p-24f,
+                        Math.abs(rounded) * (type == DataType.BFLOAT16 ? 0x1p-6f : 0x1p-9f));
+        assertEquals(rounded, actual, tolerance, context);
+    }
+
     private static MetalMpsGraphProgram.Node reduction(MetalMpsGraphProgram.NodeKind kind,
             int input, int output, List<Integer> axes, boolean keep) {
         return MetalMpsGraphProgram.Node.reduction(kind, input, output,
@@ -369,7 +571,8 @@ class MetalAuditReductionNativeTest {
         var result = ByteBuffer.allocate(Math.multiplyExact(words.length, type.byteWidth()))
                 .order(ByteOrder.nativeOrder());
         for (long word : words) {
-            if (type.byteWidth() == 4) result.putInt((int) word); else result.putLong(word);
+            if (type.byteWidth() == 2) result.putShort((short) word);
+            else if (type.byteWidth() == 4) result.putInt((int) word); else result.putLong(word);
         }
         return result.array();
     }
