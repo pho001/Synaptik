@@ -1234,14 +1234,22 @@ static BOOL synaptik_attribute_is_valid_in_context(
     if (kind == 7U) {
         uint64_t type = synaptik_attribute_word(words, 0U);
         return count == 2U && synaptik_scalar_is_valid(words, count, 0U)
-                && (operation > 34U || type == 1U || type == 5U || type == 7U);
+                && (operation > 34U || type == 1U || type == 5U || type == 7U
+                        || ((operation == SYNAPTIK_METAL_CUSTOM_SCALAR_MIN
+                                    || operation == SYNAPTIK_METAL_CUSTOM_SCALAR_MAX)
+                                && (type == SYNAPTIK_METAL_TYPE_INT32
+                                        || type == SYNAPTIK_METAL_TYPE_INT64
+                                        || type == SYNAPTIK_METAL_TYPE_FLOAT64)));
     }
     if (kind == 8U) {
         uint64_t lower_type = synaptik_attribute_word(words, 0U);
         return count == 4U && synaptik_scalar_is_valid(words, count, 0U)
                 && synaptik_scalar_is_valid(words, count, 2U)
                 && lower_type == synaptik_attribute_word(words, 2U)
-                && (lower_type == 1U || lower_type == 5U || lower_type == 7U);
+                && (lower_type == SYNAPTIK_METAL_TYPE_FLOAT32
+                        || lower_type == SYNAPTIK_METAL_TYPE_FLOAT64
+                        || lower_type == SYNAPTIK_METAL_TYPE_BFLOAT16
+                        || lower_type == SYNAPTIK_METAL_TYPE_FLOAT16);
     }
     if (kind == 9U)
         return count == 3U && synaptik_attribute_word(words, 0U) < SYNAPTIK_MAX_RANK
@@ -5559,7 +5567,11 @@ static int32_t synaptik_metal_create_decoded(
                             || node.operation == SYNAPTIK_METAL_MPSGRAPH_MUL
                             || node.operation == SYNAPTIK_METAL_MPSGRAPH_DIV
                             || (node.operation >= SYNAPTIK_METAL_CUSTOM_GT
-                                    && node.operation <= SYNAPTIK_METAL_CUSTOM_NE);
+                                    && node.operation <= SYNAPTIK_METAL_CUSTOM_NE)
+                            || (declared_types[node.first_input] == SYNAPTIK_METAL_TYPE_FLOAT32
+                                    && (node.operation == SYNAPTIK_METAL_MPSGRAPH_TENSOR_POW
+                                            || node.operation == SYNAPTIK_METAL_CUSTOM_TENSOR_MIN
+                                            || node.operation == SYNAPTIK_METAL_CUSTOM_TENSOR_MAX));
                     BOOL first_valid =
                             states[node.first_input] != SYNAPTIK_METAL_VALUE_UNAVAILABLE
                             && (states[node.first_input] == SYNAPTIK_METAL_VALUE_CANONICAL
