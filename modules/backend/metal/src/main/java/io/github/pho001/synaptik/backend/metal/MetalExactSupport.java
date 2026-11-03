@@ -20,9 +20,9 @@ import java.util.List;
 /**
  * Cold admission/lowering and independent encoded validation for non-hardware exact operations.
  *
- * <p>Only original FLOAT64 and integral occurrences are selected. Floating extrema widen within
- * their Model category; integral arithmetic and extrema never use a floating proxy. Existing
- * FLOAT32 and low routes retain their independent admission. Outputs are canonical; reads may be
+ * <p>Original FLOAT64 and integral arithmetic/extrema retain their exact routes.
+ * Comparisons accept all floating carriers and preserve represented values across promotion.
+ * Integral arithmetic and extrema never use a floating proxy. Outputs are canonical; reads may be
  * positive affine or explicit zero-stride views. Comparisons publish exact nondifferentiable BOOL
  * results even when floating inputs require gradients. No FP64 numerical arithmetic is introduced.</p>
  */
@@ -37,8 +37,10 @@ final class MetalExactSupport {
      * @return whether independent exact validation owns this occurrence
      */
     static boolean handles(Operation operation, List<TensorDescriptor> inputs, List<TensorDescriptor> outputs) {
-        return kind(operation) != null && !inputs.isEmpty()
-                && inputs.stream().anyMatch(input -> exactCarrier(input.dataType()));
+        var kind = kind(operation);
+        return kind != null && !inputs.isEmpty()
+                && inputs.stream().anyMatch(input -> exactCarrier(input.dataType())
+                        || comparison(kind) && input.dataType().isFloating());
     }
 
     /**
@@ -117,12 +119,13 @@ final class MetalExactSupport {
      * Selects encoded original-carrier occurrences before independent validation.
      * @param node encoded node
      * @param values full ordered value table
-     * @return whether an exact kind consumes an original FLOAT64/integral carrier
+     * @return whether an exact kind consumes an original FLOAT64/integral carrier or compares floating carriers
      */
     static boolean handles(MetalMpsGraphProgram.Node node, List<MetalMpsGraphProgram.ValueDescriptor> values) {
         if (!unary(node.kind()) && !binary(node.kind()) && !scalar(node.kind())) return false;
         for (int input : node.inputs())
-            if (input >= 0 && input < values.size() && exactCarrier(values.get(input).dataType())) return true;
+            if (input >= 0 && input < values.size() && (exactCarrier(values.get(input).dataType())
+                    || comparison(node.kind()) && values.get(input).dataType().isFloating())) return true;
         return false;
     }
 
@@ -213,7 +216,8 @@ final class MetalExactSupport {
 
     private static boolean exactCarrier(DataType type) { return type == DataType.FLOAT64 || type.isIntegral(); }
     private static boolean allowedBinary(MetalMpsGraphProgram.NodeKind kind, DataType left, DataType right, DataType promoted) {
-        if (comparison(kind) || kind == MetalMpsGraphProgram.NodeKind.TENSOR_MIN || kind == MetalMpsGraphProgram.NodeKind.TENSOR_MAX)
+        if (comparison(kind)) return promoted.isIntegral() || promoted.isFloating();
+        if (kind == MetalMpsGraphProgram.NodeKind.TENSOR_MIN || kind == MetalMpsGraphProgram.NodeKind.TENSOR_MAX)
             return promoted.isIntegral() || promoted == DataType.FLOAT64;
         return left.isIntegral() && right.isIntegral() && promoted.isIntegral();
     }

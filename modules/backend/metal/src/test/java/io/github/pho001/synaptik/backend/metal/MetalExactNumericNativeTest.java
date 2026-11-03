@@ -267,6 +267,39 @@ class MetalExactNumericNativeTest {
         }
     }
 
+    @Test
+    void everyFloatingComparisonPairRetainsOriginalRepresentedValuesAndIgnoresSourceGradients() {
+        for (DataType left : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            for (DataType right : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                long[] a = comparisonWords(left), b = comparisonWords(right);
+                checkComparisons(left, right, a, b, representedValues(left, a), representedValues(right, b));
+            }
+        }
+    }
+
+    private static long[] comparisonWords(DataType type) {
+        return switch (type) {
+            case FLOAT32 -> new long[] {0x80000000L, 0, 1, 0xbf800000L, 0x3f800000L,
+                    0x7f800000L, 0xff800000L, 0x7f800123L};
+            case BFLOAT16 -> new long[] {0x8000, 0, 1, 0xbf80, 0x3f80, 0x7f80, 0xff80, 0x7f81};
+            case FLOAT16 -> new long[] {0x8000, 0, 1, 0xbc00, 0x3c00, 0x7c00, 0xfc00, 0x7c01};
+            default -> throw new AssertionError(type);
+        };
+    }
+
+    private static double[] representedValues(DataType type, long[] words) {
+        double[] result = new double[words.length];
+        for (int i = 0; i < words.length; i++) {
+            result[i] = switch (type) {
+                case FLOAT32 -> Float.intBitsToFloat((int) words[i]);
+                case BFLOAT16 -> io.github.pho001.synaptik.model.datatype.BFloat16Bits.toFloat((short) words[i]);
+                case FLOAT16 -> io.github.pho001.synaptik.model.datatype.Float16Bits.toFloat((short) words[i]);
+                default -> throw new AssertionError(type);
+            };
+        }
+        return result;
+    }
+
     private static void checkComparisons(DataType left, DataType right, long[] a, long[] b,
             double[] floatingA, double[] floatingB) {
         var kinds = List.of(MetalMpsGraphProgram.NodeKind.GT, MetalMpsGraphProgram.NodeKind.GE,
@@ -274,7 +307,8 @@ class MetalExactNumericNativeTest {
                 MetalMpsGraphProgram.NodeKind.EQ, MetalMpsGraphProgram.NodeKind.NE);
         var nodes = new ArrayList<MetalMpsGraphProgram.Node>();
         var values = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>();
-        values.add(typed(left, a.length, 1)); values.add(typed(right, b.length));
+        values.add(new MetalMpsGraphProgram.ValueDescriptor(left, new long[] {a.length, 1}, left.isFloating()));
+        values.add(new MetalMpsGraphProgram.ValueDescriptor(right, new long[] {b.length}, right.isFloating()));
         int[] targets = new int[kinds.size()];
         for (int k = 0; k < kinds.size(); k++) {
             targets[k] = k + 2; nodes.add(node(kinds.get(k), new int[] {0, 1}, k + 2));
