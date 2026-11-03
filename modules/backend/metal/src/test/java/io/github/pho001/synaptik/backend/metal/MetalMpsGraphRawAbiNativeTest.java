@@ -1101,7 +1101,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void javaAndNativeValidateScalarAttributesOnTheApprovedCustomRoute() throws Throwable {
+    void javaAndNativeValidateScalarAttributesAndMatchingGradientMetadata() throws Throwable {
         Path library = configuredLibrary();
         try (RawAbi abi = new RawAbi(library)) {
             for (MetalMpsGraphProgram.NodeKind kind : List.of(
@@ -1130,20 +1130,20 @@ class MetalMpsGraphRawAbiNativeTest {
                         program,
                         new int[] {0},
                         new int[] {1},
-                        MetalPreparedRoute.CUSTOM_PROGRAM);
+                        MetalPreparedRoute.MPSGRAPH);
                 byte[] gradImage = program.encodedProgramImage(
-                        grad, new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM);
+                        grad, new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH);
                 assertEquals(0, abi.create(gradImage, gradImage.length), kind + " grad");
 
                 List<MetalMpsGraphProgram.ValueDescriptor> rankZero =
                         List.of(scalarDescriptor(DataType.FLOAT32), scalarDescriptor(DataType.FLOAT32));
                 MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        rankZero, program, new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM);
+                        rankZero, program, new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH);
                 byte[] scalarImage = program.encodedProgramImage(
                         rankZero,
                         new int[] {0},
                         new int[] {1},
-                        MetalPreparedRoute.CUSTOM_PROGRAM);
+                        MetalPreparedRoute.MPSGRAPH);
                 assertEquals(0, abi.create(scalarImage, scalarImage.length), kind + " rank zero");
                 if (kind != MetalMpsGraphProgram.NodeKind.RECIPROCAL) {
                     assertThrows(
