@@ -23,7 +23,7 @@ final class MetalExpCapabilityConformanceTest {
             UnaryElementwiseKind.EXP, NoOperationAttrs.INSTANCE);
 
     @Test
-    void currentProviderAdmitsOnlyCanonicalNoGradientTypedExp() {
+    void float32PreservesGradientAndScalarDomainWhileLowExpRemainsFrozen() {
         TensorDescriptor float32 = descriptor(DataType.FLOAT32, Shape.of(2, 3), false);
         assertTrue(supports(EXP, float32, float32));
         for (DataType low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
@@ -33,6 +33,8 @@ final class MetalExpCapabilityConformanceTest {
             assertFalse(supports(EXP, descriptor(low, Shape.of(2, 3), true),
                     lowValue), low.name());
             assertFalse(supports(EXP, lowValue,
+                    descriptor(low, Shape.of(2, 3), true)), low.name());
+            assertFalse(supports(EXP, lowValue,
                     descriptor(low, Shape.of(3, 2), false)), low.name());
             assertFalse(supports(EXP, descriptor(low, Shape.scalar(), false),
                     descriptor(low, Shape.scalar(), false)), low.name());
@@ -41,12 +43,16 @@ final class MetalExpCapabilityConformanceTest {
                 descriptor(DataType.FLOAT16, Shape.of(2, 3), false)));
         TensorDescriptor float64 = descriptor(DataType.FLOAT64, Shape.of(2, 3), false);
         assertFalse(supports(EXP, float64, float64));
-        assertFalse(supports(EXP, descriptor(DataType.FLOAT32, Shape.of(2, 3), true),
+        assertTrue(supports(EXP, descriptor(DataType.FLOAT32, Shape.of(2, 3), true),
                 descriptor(DataType.FLOAT32, Shape.of(2, 3), true)));
         assertFalse(supports(EXP, float32,
                 descriptor(DataType.FLOAT32, Shape.of(3, 2), false)));
-        assertFalse(supports(EXP, descriptor(DataType.FLOAT32, Shape.scalar(), false),
+        assertTrue(supports(EXP, descriptor(DataType.FLOAT32, Shape.scalar(), false),
                 descriptor(DataType.FLOAT32, Shape.scalar(), false)));
+        assertFalse(supports(EXP, float32,
+                descriptor(DataType.FLOAT32, Shape.of(2, 3), true)));
+        assertFalse(supports(EXP, descriptor(DataType.FLOAT32, Shape.of(2, 3), true),
+                float32));
     }
 
     private boolean supports(Operation operation, TensorDescriptor input,

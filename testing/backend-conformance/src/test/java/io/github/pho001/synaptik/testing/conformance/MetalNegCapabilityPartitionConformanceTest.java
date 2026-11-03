@@ -71,24 +71,14 @@ final class MetalNegCapabilityPartitionConformanceTest {
         TensorDescriptor matrix = descriptor(Shape.of(2, 3));
         TensorDescriptor row = descriptor(Shape.of(3));
         for (UnaryElementwiseKind kind : UnaryElementwiseKind.values()) {
-            assertEquals(
-                    exactRawUnary(kind) || kind == UnaryElementwiseKind.RECIPROCAL
-                            || kind == UnaryElementwiseKind.EXP
-                            || kind == UnaryElementwiseKind.SIGMOID,
-                    provider.supports(query(
+            assertTrue(provider.supports(query(
                             operation(kind),
                             List.of(matrix),
                             List.of(matrix))),
                     kind.toString());
         }
         for (BinaryArithmeticKind kind : BinaryArithmeticKind.values()) {
-            boolean supported = kind == BinaryArithmeticKind.ADD
-                    || kind == BinaryArithmeticKind.SUB
-                    || kind == BinaryArithmeticKind.MUL
-                    || kind == BinaryArithmeticKind.DIV
-                    || kind == BinaryArithmeticKind.MIN
-                    || kind == BinaryArithmeticKind.MAX;
-            assertEquals(supported, provider.supports(query(
+            assertTrue(provider.supports(query(
                     operation(kind),
                     List.of(matrix, row),
                     List.of(matrix))));
@@ -100,14 +90,7 @@ final class MetalNegCapabilityPartitionConformanceTest {
                             kind,
                             new ScalarValueAttrs(ScalarValue.float32(2.0f)));
             if (scalarOperation == null) continue;
-            assertEquals(
-                    kind == ScalarElementwiseKind.ADD
-                            || kind == ScalarElementwiseKind.SUB
-                            || kind == ScalarElementwiseKind.MUL
-                            || kind == ScalarElementwiseKind.DIV
-                            || kind == ScalarElementwiseKind.MIN
-                            || kind == ScalarElementwiseKind.MAX,
-                    provider.supports(query(
+            assertTrue(provider.supports(query(
                             scalarOperation,
                             List.of(matrix),
                             List.of(matrix))),
@@ -126,6 +109,7 @@ final class MetalNegCapabilityPartitionConformanceTest {
             Operation full = new Operation(kind, NoOperationAttrs.INSTANCE);
             assertEquals(
                     kind == AggregateReductionKind.SUM
+                            || kind == AggregateReductionKind.PROD
                             || kind == AggregateReductionKind.MEAN
                             || kind == AggregateReductionKind.MIN
                             || kind == AggregateReductionKind.MAX,
@@ -728,14 +712,6 @@ final class MetalNegCapabilityPartitionConformanceTest {
                 Optional.of(LayoutDescriptor.of(shape, strides, 0L, true)), false);
     }
 
-    private static boolean exactRawUnary(UnaryElementwiseKind kind) {
-        return kind == UnaryElementwiseKind.NEG
-                || kind == UnaryElementwiseKind.ABS
-                || kind == UnaryElementwiseKind.FLOOR
-                || kind == UnaryElementwiseKind.CEIL
-                || kind == UnaryElementwiseKind.SIGN
-                || kind == UnaryElementwiseKind.RELU;
-    }
 
     private static Operation operation(UnaryElementwiseKind kind) {
         return new Operation(kind, NoOperationAttrs.INSTANCE);

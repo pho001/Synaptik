@@ -23,7 +23,7 @@ final class MetalSigmoidCapabilityConformanceTest {
             UnaryElementwiseKind.SIGMOID, NoOperationAttrs.INSTANCE);
 
     @Test
-    void eachQualifiedTypeAdmitsOnlyItsOwnNoGradientOccurrence() {
+    void float32PreservesGradientAndScalarDomainWhileLowSigmoidRemainsFrozen() {
         TensorDescriptor float32 = descriptor(DataType.FLOAT32, Shape.of(2, 3), false);
         assertTrue(supports(float32, float32));
         for (DataType low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
@@ -32,17 +32,22 @@ final class MetalSigmoidCapabilityConformanceTest {
             assertFalse(supports(value, float32));
             assertFalse(supports(float32, value));
             assertFalse(supports(descriptor(low, Shape.of(2, 3), true), value));
+            assertFalse(supports(value, descriptor(low, Shape.of(2, 3), true)));
+            TensorDescriptor scalar = descriptor(low, Shape.scalar(), false);
+            assertFalse(supports(scalar, scalar));
         }
         for (DataType unsupported : List.of(DataType.FLOAT64)) {
             TensorDescriptor value = descriptor(unsupported, Shape.of(2, 3), false);
             assertFalse(supports(value, value), unsupported.name());
         }
-        assertFalse(supports(descriptor(DataType.FLOAT32, Shape.of(2, 3), true),
+        assertTrue(supports(descriptor(DataType.FLOAT32, Shape.of(2, 3), true),
                 descriptor(DataType.FLOAT32, Shape.of(2, 3), true)));
         assertFalse(supports(float32,
                 descriptor(DataType.FLOAT32, Shape.of(3, 2), false)));
-        assertFalse(supports(descriptor(DataType.FLOAT32, Shape.scalar(), false),
+        assertTrue(supports(descriptor(DataType.FLOAT32, Shape.scalar(), false),
                 descriptor(DataType.FLOAT32, Shape.scalar(), false)));
+        assertFalse(supports(float32, descriptor(DataType.FLOAT32, Shape.of(2, 3), true)));
+        assertFalse(supports(descriptor(DataType.FLOAT32, Shape.of(2, 3), true), float32));
     }
 
     private boolean supports(TensorDescriptor input, TensorDescriptor output) {

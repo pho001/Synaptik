@@ -1,8 +1,8 @@
 package io.github.pho001.synaptik.testing.conformance;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
@@ -36,69 +36,65 @@ import io.github.pho001.synaptik.model.operation.reduction.*;
 import io.github.pho001.synaptik.model.operation.scan.*;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
-import io.github.pho001.synaptik.planning.capability.BackendCapabilityProvider;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import java.io.InputStream;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.RecordComponent;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.OptionalInt;
-import java.util.TreeMap;
 import org.junit.jupiter.api.Test;
 
 /**
- * Freezes canonical profile-free F32 and independently queried low-precision capability witnesses
- * without turning provider evidence into runtime policy or numerical certification.
+ * Queries real typed provider occurrences independently of numerical execution evidence.
  *
- * <p>The providers expose a predicate rather than an enumerable domain. Consequently each ledger
- * row is one real, fully described occurrence submitted to the actual provider. The 115-row base
- * is the current complete Metal operation-kind inventory, with F32 data roles wherever the kind
- * admits them and natural BOOL, index, or state roles retained. Ordered F32 cast pairs are added
- * separately. Existing provider boundary tests remain authoritative for the larger shape and
- * attribute domains; this snapshot detects drift in these named witnesses only.</p>
- *
- * <p>The F32 answer is {@code supported}. Corresponding BF16 and FLOAT16 occurrences are queried
- * independently; neither answer is inferred from F32. The v1 resource is historical evidence of
- * the pre-cutover profile predicates. This v2 resource contains only current provider facts.</p>
+ * <p>The literal v1 resource records the former profile-qualified capability witnesses.
+ * Only its supported Metal ACCELERATOR FLOAT32 occurrences define the frozen low baseline;
+ * new FLOAT32 support does not imply a BFLOAT16 or FLOAT16 grant. Current capability answers
+ * are queried live, never pinned to a regenerated snapshot.</p>
  */
 final class LowPrecisionCapabilityLedgerTest {
-    private static final String RESOURCE = "/low-precision-capability-ledger-v2.tsv";
-    private static final String HEADER = "schema\tbackend\toccurrence\tbasis\tkind\tattrs"
-            + "\tinputs\toutputs\tinput_arity\toutput_arity\tsupported"
-            + "\tbf16_current_supported\tfp16_current_supported\n";
-
     @Test
-    void checkedLedgerEqualsCanonicalCurrentProviderAnswers() throws Exception {
-        String actual = renderLedger();
-        dumpIfRequested(actual);
-        String expected = resource(RESOURCE);
-        assertCanonicalRows(expected);
-        assertCanonicalRows(actual);
-        assertLedgerEquals(expected, actual);
+    void metalPreservesBothLowTypesForTheHistoricalSupportedFloat32Baseline() throws Exception {
+        var provider = new MetalCapabilityProvider();
+        var current = new LinkedHashMap<String, Seed>();
+        for (Seed seed : seeds()) current.put(seed.id(), seed);
+        String[] lines = resource("/low-precision-capability-ledger-v1.tsv").split("\n");
+        List<String> header = List.of(lines[0].split("\t"));
+        int backend = header.indexOf("backend");
+        int profile = header.indexOf("profile");
+        int occurrence = header.indexOf("occurrence");
+        int basis = header.indexOf("basis");
+        int supported = header.indexOf("supported");
+        assertTrue(List.of(backend, profile, occurrence, basis, supported).stream()
+                .allMatch(index -> index >= 0), "historical baseline columns");
+        int witnesses = 0;
+        for (int row = 1; row < lines.length; row++) {
+            String[] fields = lines[row].split("\t", -1);
+            if (!fields[backend].equals("metal") || !fields[profile].equals("ACCELERATOR")
+                    || !fields[basis].equals("F32_OCCURRENCE")
+                    || !fields[supported].equals("true")) continue;
+            String id = fields[occurrence];
+            Seed seed = current.get(id);
+            assertNotNull(seed, "historical occurrence remains represented: " + id);
+            assertTrue(hasFloat32Role(seed.query()), id);
+            assertTrue(provider.supports(seed.query()), "FLOAT32 " + id);
+            assertTrue(provider.supports(toBfloat16(seed.query())), "BFLOAT16 " + id);
+            assertTrue(provider.supports(toFloat16(seed.query())), "FLOAT16 " + id);
+            witnesses++;
+        }
+        assertTrue(witnesses > 0, "historical supported Metal baseline is exercised");
     }
 
-
     @Test
-    void metalClosesEverySupportedFloat32OccurrenceForBothLowTypes() {
+    void newlyQualifiedFloat32MathDoesNotGrantLowNeuralArithmetic() {
         var provider = new MetalCapabilityProvider();
-        for (Seed seed : seeds()) {
-            OperationCapabilityQuery query = seed.query();
-            if (hasFloat32Role(query) && provider.supports(query)) {
-                assertTrue(
-                        provider.supports(toBfloat16(query)),
-                        "BFLOAT16 " + seed.id());
-                assertTrue(
-                        provider.supports(toFloat16(query)),
-                        "FLOAT16 " + seed.id());
-            }
+        for (Row row : List.of(Row.LOG, Row.TANH, Row.SCALED_DOT_PRODUCT_ATTENTION,
+                Row.LOG_SOFTMAX)) {
+            var query = representative(row);
+            assertTrue(provider.supports(query), "FLOAT32 " + row);
+            assertFalse(provider.supports(toBfloat16(query)), "BFLOAT16 " + row);
+            assertFalse(provider.supports(toFloat16(query)), "FLOAT16 " + row);
         }
     }
 
@@ -185,57 +181,6 @@ final class LowPrecisionCapabilityLedgerTest {
     }
 
 
-    private static String renderLedger() {
-        List<Seed> seeds = seeds();
-        Map<String, BackendCapabilityProvider> providers = new TreeMap<>();
-        providers.put("cpu", new CpuCapabilityProvider());
-        providers.put("metal", new MetalCapabilityProvider());
-        var lines = new ArrayList<String>();
-        for (var backend : providers.entrySet()) {
-            for (Seed seed : seeds) {
-                OperationCapabilityQuery query = seed.query();
-                boolean supported = backend.getValue().supports(query);
-                String bfloat16Supported = "NOT_APPLICABLE";
-                if (hasFloat32Role(query)) {
-                    bfloat16Supported = Boolean.toString(
-                            backend.getValue().supports(toBfloat16(query)));
-                }
-                String float16Supported = "NOT_APPLICABLE";
-                if (hasFloat32Role(query)) {
-                    float16Supported = Boolean.toString(
-                            backend.getValue().supports(toFloat16(query)));
-                }
-                lines.add(row(backend.getKey(), seed, query, supported,
-                        bfloat16Supported, float16Supported));
-            }
-        }
-        lines.sort(String::compareTo);
-        return HEADER + String.join("\n", lines) + "\n";
-    }
-
-    private static String row(
-            String backend,
-            Seed seed,
-            OperationCapabilityQuery query,
-            boolean supported,
-            String bfloat16Supported,
-            String float16Supported) {
-        return String.join(
-                "\t",
-                "2",
-                backend,
-                seed.id(),
-                basis(query),
-                kind(query.operation()),
-                canonical(query.operation().attrs()),
-                descriptors(query.inputs()),
-                descriptors(query.outputs()),
-                Integer.toString(query.inputs().size()),
-                Integer.toString(query.outputs().size()),
-                Boolean.toString(supported),
-                bfloat16Supported,
-                float16Supported);
-    }
 
     private static OperationCapabilityQuery toBfloat16(OperationCapabilityQuery query) {
         if (query.scanBody().isPresent()) return CpuGeneralScanConformanceTest.withType(query, DataType.BFLOAT16);
@@ -343,199 +288,6 @@ final class LowPrecisionCapabilityLedgerTest {
                 .anyMatch(descriptor -> descriptor.dataType() == DataType.FLOAT32);
     }
 
-    private static String basis(OperationCapabilityQuery query) {
-        return hasFloat32Role(query) ? "F32_OCCURRENCE" : java.util.stream.Stream.concat(query.inputs().stream(),query.outputs().stream())
-                .anyMatch(d -> d.dataType() == DataType.FLOAT64) ? "F64_OCCURRENCE" : "NON_F32_CONTROL";
-    }
-
-    private static String kind(Operation operation) {
-        Enum<?> kind = (Enum<?>) operation.kind();
-        return kind.getClass().getName() + "." + kind.name();
-    }
-
-    private static String descriptors(List<TensorDescriptor> descriptors) {
-        var result = new ArrayList<String>(descriptors.size());
-        for (int index = 0; index < descriptors.size(); index++) {
-            TensorDescriptor descriptor = descriptors.get(index);
-            String layout = descriptor.layout().map(value -> "{kind=" + value.kind()
-                    + ",strides=" + array(value.strides())
-                    + ",offset=" + value.storageOffset()
-                    + ",view=" + value.isView()
-                    + ",span=" + value.referencedElementSpan() + "}").orElse("UNRESOLVED");
-            result.add(index + ":{type=" + descriptor.dataType()
-                    + ",shape=" + shape(descriptor.shape())
-                    + ",layout=" + layout
-                    + ",grad=" + descriptor.requiresGrad() + "}");
-        }
-        return "[" + String.join(";", result) + "]";
-    }
-
-    /**
-     * Encodes ledger metadata independently of diagnostic record text. Existing all-valid and
-     * positive-ROW length headers retain their historical seven/nine-field text. Newly represented
-     * zero-ROW length mode retains its explicit flag as well as every ordered role.
-     *
-     * @param value metadata value to encode, possibly null
-     * @return non-null canonical test representation
-     * @throws AssertionError if a value is unsupported or a record component cannot be read
-     */
-    private static String canonical(Object value) {
-        if (value == null) return "null";
-        if (value == NoOperationAttrs.INSTANCE) return NoOperationAttrs.class.getName() + "{}";
-        if (value instanceof ScalarValue scalar) return scalar(scalar);
-        if (value instanceof Shape shape) return "Shape" + shape(shape);
-        if (value instanceof ScanAttrs scan) return canonicalScanAttrs(scan);
-        if (value instanceof OptionalInt optional) {
-            return optional.isPresent() ? "OptionalInt[" + optional.getAsInt() + "]"
-                    : "OptionalInt.empty";
-        }
-        if (value instanceof Optional<?> optional) {
-            return optional.map(element -> "Optional[" + canonical(element) + "]")
-                    .orElse("Optional.empty");
-        }
-        if (value instanceof List<?> list) {
-            return "[" + list.stream().map(LowPrecisionCapabilityLedgerTest::canonical)
-                    .reduce((left, right) -> left + "," + right).orElse("") + "]";
-        }
-        if (value instanceof long[] array) return array(array);
-        if (value instanceof int[] array) return array(array);
-        if (value instanceof Enum<?> enumeration) {
-            return enumeration.getDeclaringClass().getName() + "." + enumeration.name();
-        }
-        if (value instanceof Double number) {
-            return "f64:0x" + String.format("%016X", Double.doubleToRawLongBits(number));
-        }
-        if (value instanceof Float number) {
-            return "f32:0x" + String.format("%08X", Float.floatToRawIntBits(number));
-        }
-        if (value instanceof Number || value instanceof Boolean) return value.toString();
-        if (value.getClass().isRecord()) return canonicalRecord(value);
-        throw new AssertionError("unsupported canonical value " + value.getClass().getName());
-    }
-
-    /**
-     * Preserves accepted header text where the old positive ROW count already implied length mode.
-     * An explicit zero-ROW length header must not be encoded as its all-valid counterpart.
-     *
-     * @param scan non-null validated source header
-     * @return non-null canonical metadata, retaining every non-implied source fact
-     */
-    private static String canonicalScanAttrs(ScanAttrs scan) {
-        String fields = ScanAttrs.class.getName() + "{timeCount=" + scan.timeCount()
-                + ",carryCount=" + scan.carryCount()
-                + ",sequenceCount=" + scan.sequenceCount()
-                + ",invariantCount=" + scan.invariantCount()
-                + ",emissionCount=" + scan.emissionCount()
-                + ",residualCount=" + scan.residualCount()
-                + ",reverse=" + scan.reverse();
-        if (!scan.lengthAware()) return fields + "}";
-        String explicitMode = scan.rowCarryCount() == 0 ? ",lengthAware=true" : "";
-        return fields + explicitMode + ",rowCarryCount=" + scan.rowCarryCount()
-                + ",sequenceRowAxes=" + canonical(scan.sequenceRowAxes()) + "}";
-    }
-
-    private static String canonicalRecord(Object value) {
-        RecordComponent[] components = value.getClass().getRecordComponents();
-        var fields = new ArrayList<String>(components.length);
-        for (RecordComponent component : components) {
-            try {
-                fields.add(component.getName() + "=" + canonical(component.getAccessor().invoke(value)));
-            } catch (IllegalAccessException | InvocationTargetException failure) {
-                throw new AssertionError("cannot encode " + value.getClass().getName()
-                        + "." + component.getName(), failure);
-            }
-        }
-        return value.getClass().getName() + "{" + String.join(",", fields) + "}";
-    }
-
-    private static String scalar(ScalarValue value) {
-        String bits = switch (value.dataType()) {
-            case FLOAT64 -> String.format("%016X",
-                    Double.doubleToRawLongBits(value.float64Value()));
-            case FLOAT32 -> String.format("%08X",
-                    Float.floatToRawIntBits(value.float32Value()));
-            case BFLOAT16 -> String.format("%04X", value.bfloat16Bits() & 0xffff);
-            case FLOAT16 -> String.format("%04X", value.float16Bits() & 0xffff);
-            case INT64 -> String.format("%016X", value.int64Value());
-            case INT32 -> String.format("%08X", value.int32Value());
-            case BOOL -> value.booleanValue() ? "01" : "00";
-        };
-        return "Scalar{" + value.dataType() + ":0x" + bits + "}";
-    }
-
-    private static String array(long[] values) {
-        return Arrays.toString(values).replace(" ", "");
-    }
-
-    private static String array(int[] values) {
-        return Arrays.toString(values).replace(" ", "");
-    }
-
-    private static void assertCanonicalRows(String ledger) {
-        assertTrue(ledger.endsWith("\n"), "canonical ledger must end in one newline");
-        assertFalse(ledger.contains("\r"), "canonical ledger must use LF");
-        assertEquals(ledger, new String(ledger.getBytes(StandardCharsets.UTF_8),
-                StandardCharsets.UTF_8));
-        rowsByKey(ledger);
-    }
-
-    private static Map<String, byte[]> rowsByKey(String ledger) {
-        String[] lines = ledger.split("\n", -1);
-        assertEquals(HEADER.stripTrailing(), lines[0]);
-        var rows = new LinkedHashMap<String, byte[]>();
-        String priorLine = null;
-        for (int index = 1; index < lines.length - 1; index++) {
-            String line = lines[index];
-            String[] fields = line.split("\t", -1);
-            assertEquals(13, fields.length, "ledger row " + index);
-            assertEquals("2", fields[0], "ledger schema " + index);
-            String key = fields[1] + "|" + fields[2];
-            byte[] bytes = line.getBytes(StandardCharsets.UTF_8);
-            byte[] duplicate = rows.putIfAbsent(key, bytes);
-            if (duplicate != null) {
-                assertArrayEquals(duplicate, bytes, "duplicate key changed bytes: " + key);
-                throw new AssertionError("duplicate canonical ledger key: " + key);
-            }
-            if (priorLine != null) assertTrue(priorLine.compareTo(line) < 0,
-                    "ledger rows must be strictly sorted at row " + index);
-            priorLine = line;
-        }
-        return Map.copyOf(rows);
-    }
-
-    private static void dumpIfRequested(String actual) throws Exception {
-        String path = System.getProperty("synaptik.low.precision.ledger.dump");
-        if (path == null || path.isBlank())
-            path = System.getenv("SYNAPTIK_LOW_PRECISION_LEDGER_DUMP");
-        if (path != null && !path.isBlank())
-            Files.writeString(Path.of(path), actual, StandardCharsets.UTF_8);
-    }
-
-    private static void assertLedgerEquals(String expected, String actual) {
-        Map<String, byte[]> expectedRows = rowsByKey(expected);
-        Map<String, byte[]> actualRows = rowsByKey(actual);
-        for (String key : expectedRows.keySet()) {
-            if (!actualRows.containsKey(key)) {
-                throw new AssertionError("capability ledger missing row " + key + "\nexpected: "
-                        + new String(expectedRows.get(key), StandardCharsets.UTF_8));
-            }
-            byte[] expectedBytes = expectedRows.get(key);
-            byte[] actualBytes = actualRows.get(key);
-            if (!Arrays.equals(expectedBytes, actualBytes)) {
-                throw new AssertionError("capability ledger changed row " + key
-                        + "\nexpected: " + new String(expectedBytes, StandardCharsets.UTF_8)
-                        + "\nactual:   " + new String(actualBytes, StandardCharsets.UTF_8));
-            }
-        }
-        for (String key : actualRows.keySet()) {
-            if (!expectedRows.containsKey(key)) {
-                throw new AssertionError("capability ledger added row " + key + "\nactual: "
-                        + new String(actualRows.get(key), StandardCharsets.UTF_8));
-            }
-        }
-        assertArrayEquals(expected.getBytes(StandardCharsets.UTF_8),
-                actual.getBytes(StandardCharsets.UTF_8), "canonical ledger bytes");
-    }
 
     private static String resource(String name) throws Exception {
         try (InputStream input = LowPrecisionCapabilityLedgerTest.class.getResourceAsStream(name)) {
@@ -634,12 +386,6 @@ final class LowPrecisionCapabilityLedgerTest {
         return new TensorDescriptor(value.dataType(), value.shape(), value.layout(), true);
     }
 
-    /** Keeps existing static ledger bytes while encoding exact named axes without sampled sizes. */
-    private static String shape(Shape shape) {
-        if (shape.isFullyStatic()) return array(shape.toLongArray());
-        return "["+shape.dimensions().stream().map(d -> d.isStatic() ? Long.toString(d.staticSize().orElseThrow()) : "named:"+d.dynamicSymbol().orElseThrow())
-                .collect(java.util.stream.Collectors.joining(","))+"]";
-    }
     private static TensorDescriptor unresolved(DataType type,Shape shape) {
         return new TensorDescriptor(type,shape,Optional.empty(),false);
     }

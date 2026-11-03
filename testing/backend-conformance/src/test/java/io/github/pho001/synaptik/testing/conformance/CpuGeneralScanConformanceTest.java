@@ -97,7 +97,16 @@ final class CpuGeneralScanConformanceTest {
     @org.junit.jupiter.params.provider.EnumSource(value=DataType.class,names={"FLOAT32","FLOAT64"})
     void lengthControlRemainsInt64AndProvidersIndependentlyQualifyTypedPrefixes(DataType type) {
         var q = lengthQuery(type); var cpu = new CpuCapabilityProvider();
-        assertTrue(cpu.supports(q)); assertFalse(new MetalCapabilityProvider().supports(q));
+        assertTrue(cpu.supports(q));
+        assertEquals(type == DataType.FLOAT32,new MetalCapabilityProvider().supports(q));
+        assertEquals(DataType.INT64,q.inputs().getLast().dataType());
+        for (var control : List.of(DataType.INT32,DataType.FLOAT32)) {
+            var inputs = new ArrayList<>(q.inputs());
+            inputs.set(inputs.size()-1,descriptor(control,Shape.of(2)));
+            var malformed = new OperationCapabilityQuery(q.operation(),inputs,q.outputs(),q.scanBody(),q.scanActivityPlan());
+            assertFalse(cpu.supports(malformed));
+            assertFalse(new MetalCapabilityProvider().supports(malformed));
+        }
         for (var low : List.of(DataType.BFLOAT16,DataType.FLOAT16)) {
             var negative = withType(q,low); assertEquals(DataType.INT64,negative.inputs().getLast().dataType());
             assertFalse(cpu.supports(negative));
@@ -137,7 +146,8 @@ final class CpuGeneralScanConformanceTest {
                     LayoutDescriptor.of(d.shape(),d.layout().orElseThrow().strides(),0,true)),d.requiresGrad())).toList();
             var q = new OperationCapabilityQuery(canonical.operation(),views,canonical.outputs(),canonical.scanBody(),canonical.scanActivityPlan());
             for (var d : q.inputs()) assertTrue(d.layout().orElseThrow().isView(),"actual binder gets the view");
-            assertTrue(new CpuCapabilityProvider().supports(q)); assertFalse(new MetalCapabilityProvider().supports(q));
+            assertTrue(new CpuCapabilityProvider().supports(q));
+            assertEquals(type == DataType.FLOAT32,new MetalCapabilityProvider().supports(q));
             for (var low : List.of(DataType.BFLOAT16,DataType.FLOAT16)) assertFalse(new CpuCapabilityProvider().supports(withType(q,low)));
             var a = new CpuPartitionPreparer().analyze(context(canonical)); var b = new CpuPartitionPreparer().analyze(context(q));
             assertEquals(a.requirements(),b.requirements());
@@ -167,7 +177,7 @@ final class CpuGeneralScanConformanceTest {
         for (var type : List.of(DataType.FLOAT32,DataType.FLOAT64,DataType.BFLOAT16,DataType.FLOAT16)) {
             var typed = withType(q,type);
             assertEquals(type == DataType.FLOAT32 || type == DataType.FLOAT64,new CpuCapabilityProvider().supports(typed));
-            assertFalse(new MetalCapabilityProvider().supports(typed));
+            assertEquals(type == DataType.FLOAT32,new MetalCapabilityProvider().supports(typed));
         }
         for (int mode = 0; mode < 3; mode++) {
             var analysis = new CpuPartitionPreparer().analyze(context(q));
@@ -207,7 +217,7 @@ final class CpuGeneralScanConformanceTest {
         assertTrue(new CpuCapabilityProvider().supports(q));
         for (var type : List.of(DataType.BFLOAT16,DataType.FLOAT16))
             assertFalse(new CpuCapabilityProvider().supports(withType(q,type)));
-        assertFalse(new MetalCapabilityProvider().supports(q));
+        assertEquals(executionType == DataType.FLOAT32,new MetalCapabilityProvider().supports(q));
         for (int mode = 0; mode < 3; mode++) {
             var analysis = new CpuPartitionPreparer().analyze(context(q));
             try (var f = new CpuRecurrentScanConformanceTest.Fixture(analysis,mode,true,true,Map.of())) {
@@ -255,7 +265,7 @@ final class CpuGeneralScanConformanceTest {
         for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16)) {
             var q = query(type, UnaryElementwiseKind.TANH, false, 3, Shape.of(2));
             assertEquals(type == DataType.FLOAT32 || type == DataType.FLOAT64, new CpuCapabilityProvider().supports(q));
-            assertFalse(new MetalCapabilityProvider().supports(q));
+            assertEquals(type == DataType.FLOAT32,new MetalCapabilityProvider().supports(q));
             assertEquals(type == DataType.FLOAT32 || type == DataType.FLOAT64,
                     new CpuCapabilityProvider().supports(query(type, UnaryElementwiseKind.RELU, false, 0, Shape.of(2))));
         }
