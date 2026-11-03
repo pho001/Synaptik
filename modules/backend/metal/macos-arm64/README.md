@@ -4,9 +4,9 @@
 
 This directory builds the native ABI used by Synaptik Metal on Apple-silicon macOS.
 ABI 7 retains thirteen context, shared-storage buffer, executable and singleton-NEG exports.
-The current graph image is schema 21 (`SM21`) with a 124-byte header, operation wires1..116,
+The current graph image is schema 22 (`SM22`) with a 124-byte header, operation wires1..116,
 attribute wires0..42, carrier wires1..7 and fixed graph route2 or3.
-Coordinated Java candidate/workload/policy/compatibility/codec identities are version41; stale inputs
+Coordinated Java candidate/workload/policy/compatibility/codec identities are version42; stale inputs
 have no compatibility reader or migration alias.
 
 Java and native code independently validate declared types, shapes, attributes, gradient bits,
@@ -20,20 +20,25 @@ Current capabilities and independently exercised numerical/training domains are 
 The ordinary inventory has 115 kinds and 137 signatures; general Scan is separate. Historical
 structural-recipe counts are not current capability authority.
 
-Qualified FLOAT32 execution includes ordinary elementary/reduction/statistical/masked,
-normalization/loss/attention, convolution/pooling, arithmetic scatter and selected Compiler
-gradients. Conv3d/Pool3d train through existing shared grouped/window/fold owners.
-FLOAT32 FOLD_AXIS/FOLD2D/FOLD3D overlap has one writer per output, without atomics or host repair.
-Other carriers retain qualified non-overlap bounds. Maximum pooling preserves exact winner
-rules; average pooling uses the full kernel divisor. Geometry and contributor guards remain
-operation-specific.
+The shared FLOAT32/BFLOAT16/FLOAT16 implementation includes ordinary elementary/reduction/
+statistical/masked, normalization/loss/attention, convolution/pooling, arithmetic scatter and
+selected Compiler gradients. Original storage carriers and per-role POD metadata retain each
+input/output type, gradient bit and canonical sibling role; there is no FLOAT32 tensor proxy.
+Conv3d/Pool3d train through shared grouped/window/fold owners. Three-family FOLD_AXIS/
+FOLD2D/FOLD3D overlap has one writer per output, without atomics or host repair; FLOAT64 remains
+non-overlapping exact movement only. Maximum pooling preserves exact winner rules; average
+pooling uses the full kernel divisor. Geometry and contributor guards remain operation-specific.
 
 Exact raw operations retain original FLOAT64/integral/BOOL/low carriers without software FP64.
 All 49 casts and qualified movement/index/ordering/selection paths preserve their Model semantics.
-FLOAT32 signed-step SLICE materializes canonical storage rather than negative physical strides.
-Read-only broadcast views retain authenticated physical strides; writable outputs remain injective.
-Rank zero is one stored value. Qualified empty source/EXPAND/normalization/Scan paths detect zero
-extents before products and perform no zero-grid load or dispatch.
+Seven-carrier signed-step SLICE materializes canonical storage rather than negative physical
+strides. INT32/INT64 cumulative arithmetic is exact and modular. Read-only broadcast views
+retain authenticated physical strides; writable outputs remain injective. CONCAT/STACK use
+dynamic operand references and one disjoint direct-copy child per operand in the shared ordinary/
+Scan owner, not N-wide argument binding or intermediate pairwise tensors. There is no
+sixteen-operand cap: 17/33/257-input three-family cases exercise views and last-operand-only AD.
+Rank zero is one stored value. Qualified empty source/EXPAND/normalization/Scan and zero-output
+CONCAT/STACK cotangent paths detect zero extents without zero-grid loads or dispatch.
 
 General Scan uses wire116/attribute42 for an authenticated bounded body/binder plan within the
 existing native executable. A true native time loop reuses once-prepared ordinary kernels and
@@ -41,24 +46,32 @@ run-private control/storage. Traversal, carry/history ports, original demanded o
 per-operand structural activity remain explicit. Inactive contributors are skipped before loads
 or index validation; present zero is not absence. Actual Compiler reverse bodies use the same
 controlled ordinary owners. There is no Java body interpreter, T-fold unrolling or copied CPU
-evaluator. Static FLOAT32 runtime-length RNN training/persistence is qualified independently;
-fixed RNN/GRU/LSTM signatures support forward only.
+evaluator. Explicit NN GeneralScan exercises FLOAT32/BFLOAT16/FLOAT16, both directions, optional
+bias, changing lengths and inactive NaNs against an independent ordinary RnnCell unroll and
+parameter AD, including save/load/fresh SGD. Fixed RNN/GRU/LSTM first AD separately exercises
+every floating input/state/weight/bias role, lengths 0/1/3, both directions and optional bias
+against independent FLOAT32 finite differences and typed scalar adjoints. Fixed-cell working/
+publication rounding remains distinct from the explicit ordinary-cell Scan path.
+Owned MLP and Conv3d/overlap AvgPool3d/MaxPool3d journeys exercise three-family forward/MSE,
+input/parameter AD, SGD and save/close/load/rebind/fresh training. Cold NN decoding accepts
+Model-legal per-role floating types/casts without changing public checkpoint wire or loosening
+strict rebind descriptors.
 
 Low-containing partitions have only the fixed CUSTOM_PROGRAM whole-partition route. Their
-BFLOAT16/FLOAT16-valued steps use separately qualified typed kernels, never implicit MPSGraph
-low execution. Approved FLOAT32-only internal boundary steps do not change that partition route.
-New FLOAT32 capability does not widen the frozen low baseline. Direct BFLOAT16/FLOAT16 mixing
-still requires explicit casts through FLOAT32; general FLOAT64 neural arithmetic remains false.
+BFLOAT16/FLOAT16-valued steps use the same typed numerical owners as FLOAT32, never implicit
+MPSGraph low execution. Approved FLOAT32-only internal boundary steps do not change that route.
+The separate low-precision library is retired; `synaptik_numeric_codec.h` supplies the shared
+codec. Model-legal floating promotion is validated per operation; other mixes require explicit casts.
+CPU low arithmetic is unchanged; there is no CPU fallback, FP64 arithmetic or FP64 emulation.
 
-Low inputs decode exactly into FLOAT32 working/accumulator sites and observable low results
-narrow once with round-to-nearest, ties-to-even. Exact selection/order/extrema preserve stored
-words; arithmetic special values and named DAZ/FTZ sites follow Model. No blanket tolerance or
-zero-sign freedom is added. Dedicated EXP/SIGMOID device oracles remain separate from Runtime
-policy. Low EXP/SIGMOID keep canonical positive-rank no-gradient bounds; FLOAT32 additionally
-supports admitted scalar/gradient occurrences.
+Low inputs decode into FLOAT32 working/accumulator sites; each observable output publishes in
+its declared carrier, with low results rounded to nearest, ties to even. Exact selection/order/
+extrema preserve stored words; arithmetic special values and named DAZ/FTZ sites follow Model.
+No blanket tolerance or zero-sign freedom is added. Dedicated EXP/SIGMOID device oracles
+remain separate from Runtime policy; admitted scalar/gradient occurrences use all three families.
 
-The fixed corpus authenticates 22 components and their ordered 192,958-byte UTF-8 source before
-safe-math Metal 3.2 compilation; the current device compile exposes 295 functions. Generated
+The fixed corpus authenticates 23 components and their ordered 187,750-byte UTF-8 source before
+safe-math Metal 3.2 compilation; the current device compile exposes 165 functions. Generated
 pointwise/anchor source retains exact count, digest and cap validation. Low-containing
 partitions do not use those fusions. The native body, metadata, pipelines and resources are
 prepared once; invocation has no route lookup, compilation, retry or resource-plan rebuilding.
@@ -67,7 +80,9 @@ Workload signatures bind exact operation/carrier/shape/attribute/gradient, logic
 geometry, original boundary roles, constants, body/control plans and current identity meaning.
 The local native package remains deterministic and source-build/ad-hoc signed, not a trusted
 public prebuilt. Final distribution acceptance requires its separate frozen source and installed
-consumer receipts; a historical task probe does not certify the current binary.
+consumer receipts; a historical task probe does not certify the current binary. The refreshed
+operation catalogs have matched three-family coverage; final root and installed-consumer receipts
+are recorded separately in the production ledger.
 
 ```text
 Java analysis -> choose fixed whole-partition route -> declare every exact resource
@@ -112,7 +127,7 @@ package and independently verify the final signed bytes:
 The ignored `build/package-v1/macos-arm64/` directory contains exactly the signed dylib,
 `manifest.json`, and `SHA256SUMS`. The canonical schema-1 manifest records the final dylib's
 relative name, size, SHA-256, platform, architecture, macOS 26.0 minimum, install name, empty
-rpath set, ABI7, node schema21, required frameworks and fixed ad-hoc identifier. It contains no
+rpath set, ABI7, node schema22, required frameworks and fixed ad-hoc identifier. It contains no
 time, host, absolute path, source revision, product version, SDK version, Team ID, notarization,
 provenance, or release field. Packaging the same exact signed input produces byte-identical
 manifest and checksum files.
@@ -209,7 +224,7 @@ int32_t synaptik_metal_mpsgraph_executable_create(
     void **out_executable);
 ```
 
-`program` is one canonical little-endian schema21 image of at most `INT32_MAX` bytes:
+`program` is one canonical little-endian schema22 image of at most `INT32_MAX` bytes:
 
 ```text
 124-byte header
@@ -229,7 +244,7 @@ CUSTOM_PROGRAM only:
   32-byte SHA-256 manifest digest
 ```
 
-The 31 header words are magic `SM21` (`0x31324d53`), schema `21`, header bytes `124`, total
+The 31 header words are magic `SM22` (`0x32324d53`), schema `22`, header bytes `124`, total
 bytes, fixed route, generator schema/extension flag, the eight core
 counts, the five execution-record counts, manifest/digest byte counts, generated-unit count,
 generated/fixed/total source byte counts, first rejected node, cap reason, and the per-function,
@@ -442,9 +457,9 @@ capability narrowing, tuning, fallback, or a performance claim.
 
 ## Shared exact custom whole-program execution
 
-Any schema21 program containing a custom-only node or native Scan uses its retained custom-
-program handle. Creation authenticates 22 reviewed fixed-kernel components and their ordered
-192,958-byte total. The sole production pointwise emitter first traverses a structured
+Any schema22 program containing a custom-only node or native Scan uses its retained custom-
+program handle. Creation authenticates 23 reviewed fixed-kernel components and their ordered
+187,750-byte total. The sole production pointwise emitter first traverses a structured
 no-allocation count sink, validates unit, instruction, per-function, generated, and total caps,
 allocates the exact byte count, traverses the same emitter once for compiler input, independently
 authenticates the assembled source, and only then compiles with `MTLMathModeSafe` and
@@ -663,7 +678,7 @@ including grouped biased anisotropic geometry/overlap and unbiased depthwise cas
 NN training/save/close/load/fresh training without any CPU backend. See the
 [bounded evidence](../../../../docs/backend-guide/production-support.md#metal-production-target),
 including the initial reserved-identifier shader failure and corrected source-matched rebuild.
-Qualified FLOAT32 attention and its generated gradients are supported; convolution transpose is not.
+Qualified FLOAT32/BFLOAT16/FLOAT16 attention and generated gradients are supported; convolution transpose is not.
 
 ## Boundaries
 
@@ -680,11 +695,12 @@ address their physical source directly. There is no tiling, atomics, autotuning,
 selection, retry, or fallback. Generated floating gradients use the same admitted
 domain without implying unrestricted training.
 
-Non-FLOAT32 overlapping folds, convolution transpose, asymmetric padding, unsafe layouts and
-unqualified dynamic/empty geometry remain unavailable. Static FLOAT32 Conv3d/Pool3d and native
-general Scan training do not imply arbitrary layouts, general FLOAT64 arithmetic or new low
-capability. Fixed RNN/GRU/LSTM are forward-only; their BPTT remains deferred. Portable/configurable
-RNG, entropy/random-quality guarantees, generic buffer pools, autotuning, atomics and host repair
+FLOAT64 overlapping numerical folds, convolution transpose, asymmetric padding, unsafe layouts
+and unqualified dynamic/empty geometry remain unavailable. Common rank-16, geometry and
+workspace bounds remain, but CONCAT/STACK have no sixteen-operand bound. Three-family
+Conv3d/Pool3d, fixed-cell first AD and native general Scan training do not imply arbitrary
+layouts, higher-order derivatives or general FLOAT64 arithmetic. Portable/configurable RNG,
+entropy/random-quality guarantees, generic buffer pools, autotuning, atomics and host repair
 are not added.
 
 The public Java Metal surface is `MetalCapabilityProvider`, `MetalBackendConfiguration`, and

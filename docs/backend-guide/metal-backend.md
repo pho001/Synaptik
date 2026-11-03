@@ -4,10 +4,10 @@
 
 Metal is a first-production backend, not an experimental CPU fallback. One backend owns each
 complete maximal Metal partition. The active protocol is native ABI 7 with thirteen exports,
-program schema 21 and its 124-byte header, operation wires `1..116`, attribute wires `0..42`,
-type wires `1..7`, route wires `1..3`, and coordinated backend-local identity 41.
+program schema 22 (`SM22`) and its 124-byte header, operation wires `1..116`, attribute wires `0..42`,
+type wires `1..7`, route wires `1..3`, and coordinated backend-local identity 42.
 Older program and decision identities are rejected. The authenticated fixed shader corpus has
-22 components, 192,958 UTF-8 bytes and 295 compiled functions.
+23 components, 187,750 UTF-8 bytes and 165 compiled functions.
 
 The [production support ledger](production-support.md#metal-production-target) separates
 operation-catalog execution, independent numerical oracles, composed training and final
@@ -17,10 +17,10 @@ kinds and 137 signatures; general Scan is recorded separately.
 
 ### Ordinary numerical and exact domains
 
-Qualified static FLOAT32 execution includes tensor/scalar arithmetic and the Model's nineteen
-unary kinds; masked, statistical and cumulative reductions; softmax/log-softmax; LayerNorm,
-RMSNorm and BatchNorm; dense/index cross entropy and MSE; attention; grouped convolution;
-maximum/average pooling; arithmetic scatter; and fixed RNN/GRU/LSTM forward execution.
+The shared FLOAT32/BFLOAT16/FLOAT16 numerical implementation includes tensor/scalar arithmetic
+and the Model's nineteen unary kinds; masked, statistical and cumulative reductions;
+softmax/log-softmax; LayerNorm, RMSNorm and BatchNorm; dense/index cross entropy and MSE;
+attention; grouped convolution; maximum/average pooling; arithmetic scatter; and fixed RNN/GRU/LSTM.
 Each family retains its actual shape, layout, attribute, contributor and value-domain guards.
 Original descriptors determine promotion, optional operands, gradient bits and canonical sibling
 roles before any backend projection. BatchNorm and attention retain all required internal
@@ -30,7 +30,9 @@ Compiler-generated first-order graphs reuse those ordinary owners rather than st
 backward kernels. This includes actual Conv3d and Pool3d input/parameter training, Gather
 cotangents through colliding ScatterAdd, statistical/normalization/loss/attention derivatives,
 and signed slice/update and window adjoints. Entire generated topology must be supported.
-Fixed RNN/GRU/LSTM signatures remain forward-only; trainable recurrent models use general Scan.
+Fixed RNN/GRU/LSTM first AD has been exercised for all three floating families, both directions
+and optional bias, including every floating input/state/weight/bias role, lengths 0/1/3 and
+inactive NaNs against independent FLOAT32 finite differences and typed scalar adjoints.
 No universal higher-order, arbitrary-layout or mixed-dtype training claim follows.
 
 Exact represented operations use the Model's original carrier, not a FLOAT32 proxy:
@@ -38,27 +40,33 @@ Exact represented operations use the Model's original carrier, not a FLOAT32 pro
 - all 49 ordered casts; stored-value comparisons/classification; BOOL logic; and the admitted
   promoted floating WHERE signatures with exact branch-gradient OR;
 - seven-carrier raw movement, rank edits, indexing, padding, replacement scatter and ordinary
-  CONCAT/STACK up to sixteen operands, with independently checked geometry;
+  CONCAT/STACK with dynamically sized operand references and independently checked geometry.
+  One disjoint direct-copy child per operand serves ordinary execution and Scan without an
+  N-wide argument binding or intermediate pairwise tensor chain. Actual 17/33/257-input
+  FLOAT32/BFLOAT16/FLOAT16 cases include original-carrier views and last-operand-only AD;
+  zero-output CONCAT/STACK empty cotangents also execute through the public GPU Engine;
 - stable SORT/ARGSORT/TOP_K and numeric ARG_MIN/ARG_MAX, with exact index/tie behavior;
-- exact FLOAT64 unary/extrema rows and promoted integral operations that require no software
-  floating-point arithmetic; promoted integral MATMUL remains no-gradient;
-- FLOAT32 signed-step SLICE materializes a canonical destination rather than inventing negative
-  physical strides. Positive-step affine views retain their authenticated storage geometry;
-- FOLD_AXIS accepts non-BOOL carriers, with overlap addition only for FLOAT32. Image unfold/fold
-  accepts FLOAT64/FLOAT32/BFLOAT16/FLOAT16; overlapping FOLD2D/FOLD3D is FLOAT32-only.
-  Output-owned accumulation has no atomics, scratch or host repair; uncovered cells are zero.
+- exact FLOAT64 stored-value unary/extrema rows and promoted integral operations that require
+  no software floating-point arithmetic; promoted integral MATMUL remains no-gradient.
+  INT32/INT64 cumulative arithmetic uses exact modular operations;
+- seven-carrier signed-step SLICE materializes a canonical destination rather than inventing
+  negative physical strides. Positive-step affine views retain authenticated storage geometry;
+- FOLD_AXIS accepts non-BOOL carriers; FLOAT32/BFLOAT16/FLOAT16 support overlap addition.
+  Image unfold/fold accepts FLOAT64/FLOAT32/BFLOAT16/FLOAT16, with overlap accumulation for
+  the three numerical families. Output-owned accumulation uses no atomics or host repair;
+  uncovered cells are zero. FLOAT64 remains exact movement only, not numerical overlap.
 
-BFLOAT16/FLOAT16 retain their separately qualified existing arithmetic, exact, movement and
-gradient domains. The new FLOAT32 predicates do not grant new low capability by proxy.
-Low inputs decode exactly into FLOAT32 working/accumulator sites; observable low results narrow
-once with round-to-nearest, ties-to-even. Direct mixed BFLOAT16/FLOAT16 computation remains false;
-explicit casts through FLOAT32 remain the boundary. FLOAT64 neural arithmetic/MATMUL/training is
-not added merely because exact FLOAT64 storage operations are available.
+Original storage carriers and per-role POD metadata select one shared numerical implementation,
+not FLOAT32 tensor proxies or duplicated low kernels. The separate low-precision library is
+retired; `synaptik_numeric_codec.h` supplies the common codec. Low inputs decode into FLOAT32
+working/accumulator sites and each observable output publishes in its declared carrier with
+round-to-nearest, ties-to-even. Roles retain their own types, gradient bits and sibling identity.
+Direct mixed BFLOAT16/FLOAT16 computation still requires explicit casts through FLOAT32.
+There is no CPU fallback, CPU BFLOAT16/FLOAT16 arithmetic unlock, or FP64 arithmetic/emulation.
+Exact FLOAT64 storage support does not authorize FLOAT64 neural arithmetic/MATMUL/training.
 
-Rank zero is one stored value, not an empty tensor. FLOAT32 scalar arithmetic and admitted
-unary execution preserve declared scalar output rank. Existing low scalar RELU/MUL/CLAMP remain
-qualified; low EXP/SIGMOID retain their positive-static-rank, canonical, no-gradient bounds.
-FLOAT32 EXP/SIGMOID additionally admit matching gradient metadata and scalar rank.
+Rank zero is one stored value, not an empty tensor. Admitted scalar arithmetic and unary
+execution in all three numerical families preserve declared scalar rank and gradient metadata.
 The dedicated [EXP](../../modules/backend/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalExpNativeTest.java)
 and [SIGMOID](../../modules/backend/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalSigmoidNativeTest.java)
 device oracles own their exact class/branch, underflow and ordinary-finite checks. They are not a
@@ -73,7 +81,7 @@ positive-zero padding. Conv1d/Pool1d use authenticated singleton-height composit
 
 ### Native general Scan
 
-Qualified static FLOAT32 numerical bodies, typed discrete intermediates and proved all-valid
+Static FLOAT32/BFLOAT16/FLOAT16 numerical bodies, typed discrete intermediates and proved all-valid
 or runtime-length row semantics execute inside the existing native executable owner. Wire 116
 and attribute 42 carry an authenticated bounded body/binder plan. The native time loop reuses
 once-prepared ordinary steps; it neither unrolls T nor invokes child graphs from Java.
@@ -83,14 +91,20 @@ Carry/history bindings, traversal, demanded original output roles and per-operan
 activity are retained. Inactive contributors are skipped before index validation or loads;
 present zero is not structural absence. Guards complete before the affected stage writes.
 Compiled reverse bodies use the same controlled ordinary kernels, including overlapping
-FLOAT32 FoldAxis, reductions and MATMUL. Empty T/B, all-inactive lengths, canonical empty
+three-family FoldAxis, reductions and MATMUL. Empty T/B, all-inactive lengths, canonical empty
 EXPAND and source-only gradient publications use their qualified no-work/initializer paths.
 They do not authorize arbitrary empty ordinary operations or bypass semantic admission.
 
 The public runtime-length RNN journey includes actual all-parameter finite differences, changing
 lengths, SGD, invalid-length nonmutation/retry, save/close/load and freshly configured training
-on a Metal-only Engine. Cold capture, wire formats, ordinary symbolic admission and general
-higher-order Scan remain independently bounded.
+on a Metal-only Engine. Explicit NN GeneralScan also exercises all three families, both
+directions and optional bias, changing lengths and inactive NaNs against an independent
+ordinary RnnCell unroll with parameter AD, then save/load/fresh SGD. Its ordinary-cell rounding
+semantics remain distinct from the fixed-cell builder's working/publication sites.
+Owned MLP and Conv3d/overlap AvgPool3d/MaxPool3d journeys exercise forward, MSE, input/parameter
+AD, SGD and save/close/load/rebind/fresh training across all three families. Cold NN decoding
+accepts Model-legal per-role floating types and casts without changing the public checkpoint
+wire or weakening strict rebind descriptors. General higher-order Scan remains bounded.
 
 ### Physical authentication and fixed routes
 
@@ -205,8 +219,8 @@ refresh.
 distinct non-physical identities. The first is an abstract availability slot, the second a Metal
 trace correlation token, and the third a session-compatibility identity that makes no stable-device
 claim. No mapping among them is implied. ABI 7 and the thirteen native exports are fixed. The
-route-bearing image is schema21 with a 124-byte header, and coordinated workload/exact-policy/
-candidate/compatibility/route/codec identities are41. Every stale identity fails closed.
+route-bearing image is schema22 with a 124-byte header, and coordinated workload/exact-policy/
+candidate/compatibility/route/codec identities are42. Every stale identity fails closed.
 Tuning remains session-scoped and non-persistent.
 
 Future asynchronous execution requires a separate cross-module contract for completion/failure,
@@ -290,14 +304,15 @@ gradient OR.
 All-seven-carrier affine/movement occurrences validate exact rank, axis, shape, layout,
 attribute and gradient relations. Index roles use INT32 or INT64. Replacement scatter requires
 globally unique destinations; admitted arithmetic modes allow collisions in declared order.
-UNFOLD_AXIS is raw movement; FOLD_AXIS rejects BOOL and permits overlap only for FLOAT32.
-Image unfold/fold accepts the four floating carriers, with FLOAT32-only overlap addition.
-Selected negative-step FLOAT32 SLICE writes canonical storage; positive-step affine views retain
-independently derived strides/offset/span. Qualified zero extents do not relax overflow or alias
-checks.
+UNFOLD_AXIS is raw movement; FOLD_AXIS rejects BOOL and permits numerical overlap for
+FLOAT32/BFLOAT16/FLOAT16. Image unfold/fold accepts four floating carriers, with overlap
+addition for those same three numerical families, not FLOAT64.
+Selected negative-step SLICE in all seven carriers writes canonical storage; positive-step
+affine views retain independently derived strides/offset/span. Qualified zero extents do not
+relax overflow or alias checks.
 
-The current FLOAT32 audit families validate original typed Model metadata before physical
-lowering; the frozen low baseline is separate. Binary differentiability uses operand OR,
+The shared three-family audit validates original per-role typed Model metadata before physical
+lowering. Binary differentiability uses operand OR,
 scalar/reduction/cumulative operations preserve their Model relationship, and saved discrete
 roles remain no-gradient. MATMUL retains its exact dense/local-transpose physical domain and
 original promotion rules. General FLOAT64-result numerical MATMUL, mixed BFLOAT16/FLOAT16 and
@@ -374,7 +389,7 @@ consuming a caller position. Existing shared `GraphPreparation` tests independen
 chain `CompileConstantPlan.ConstantSource -> PrepareContext.constants() -> InitializedBuffer`.
 
 Once stable values, states, feeds, targets, checked byte geometry, typed node records, and the
-canonical execution plan are known, analysis creates a version-forty-one candidate batch and
+canonical execution plan are known, analysis creates the current candidate batch and
 workload fingerprint. Every partition containing BFLOAT16/FLOAT16 values or a selected
 Task-0066/Task-0069 occurrence forces the fixed `CUSTOM_PROGRAM` production candidate; the batch
 rejects a selected-node MPSGraph route before native allocation. Other FLOAT32 partitions retain
@@ -383,14 +398,14 @@ rank-two FLOAT32 MATMUL where no selected custom-only node requires the whole-pr
 Package-private structural forcing remains available only for a route already present in the fresh
 authenticated batch.
 
-The version-forty-one canonical workload fingerprint covers the schema21 route-bearing program
-image and authenticated execution/body extension, ordered
+The current canonical workload fingerprint covers the route-bearing program image and its
+authenticated execution/body extension, ordered
 input and output references, all typed attributes, logical and physical value states,
 authenticated local provenance, complete tensor descriptors and storage layouts, compact
 materialized and target sets, exact scalar/splat bits, logical-boundary roles,
 policy/candidate/route schemas, and ABI version. It encodes structural positions rather than graph
 object identity. Target compatibility also contains a fresh private nonce from the exact
-`MetalDeviceContext`; only identity41 is accepted. Every stale decision fails closed.
+`MetalDeviceContext`; only the current coordinated identity is accepted. Every stale decision fails closed.
 Metal can construct an absent- or present-decision `BackendPartitionTuningHandoff`. Fresh analysis
 always regenerates the current batch. Every supplied handoff is accepted only when the exact
 partition, candidate schema, workload fingerprint, and context session match. An absent decision
@@ -415,14 +430,14 @@ exposes this test seam.
 
 ### Session decision codec and limitations
 
-The package-private version-forty-one Metal codec produces bounded canonical compatibility,
+The package-private current Metal codec produces bounded canonical compatibility,
 candidate, and checksummed decision bytes. Decode rejects wrong magic, schema, session scope,
 malformed or truncated content, trailing or corrupt bytes, changed workload or
 context, and unknown or pruned candidates. The bytes contain no native handle or executable. Only
-identity41 is accepted; stale decisions fail closed even with a valid trailing checksum.
+the current identity is accepted; stale decisions fail closed even with a valid trailing checksum.
 
 The public `MetalLocalWorkloadTuning` retained by `MetalBackendIntegration` wraps this codec and
-candidate generator without changing their version-forty-one bytes. It returns a handoff only
+candidate generator without changing their canonical bytes. It returns a handoff only
 for an exact singleton NEG whose complete ordered candidate list is `[CUSTOM_SINGLE_NEG, MPSGRAPH]`.
 `MetalCompletePlanTuning` authenticates the exact Phase-1 association and exposes one complete-plan
 candidate fixed to that selected route. Both collaborations use opaque exact-owner/batch values,
@@ -435,9 +450,9 @@ or hit a persistent workload-cache entry, and its complete-plan phase never touc
 model-plan path. Cross-session Metal reuse still requires a separately authorized stable
 device/library fingerprint.
 
-Schema21 workload bytes and compatibility include the fixed route, authenticated execution/body
+Schema22 workload bytes and compatibility include the fixed route, authenticated execution/body
 extension and manifest digest. Candidate/decision bytes retain route wires `1..3`,
-route-policy version41 and the target session.
+route-policy version42 and the target session.
 Prepared plans and native resources are route-specific. A future executable-cache key would
 therefore require the tuple `(workload compatibility, route wire, route-policy version, target
 session)` rather than a workload digest alone. The repository has no persistent Metal executable
@@ -463,7 +478,7 @@ AIR proves it write-only, so runtime validation requires the actual read-write r
 rather than fabricating a stronger access value. `PointMeta` must expose exactly five ordered
 members with types/offsets `ulong@0`, `ulong@8`, `ulong@16`, `uint@24`, and `uint@28`, size 32,
 and alignment eight. For the
-ordinary MPSGraph route, native creation validates one canonical bounded schema21 route-bearing
+ordinary MPSGraph route, native creation validates one canonical bounded schema22 route-bearing
 program image with no extension and compiles one fixed-shape whole-partition executable. MATMUL
 compilation requires reduced-precision-fast-math read-back `None`. All compilation happens during
 finalization, never invocation.
@@ -495,7 +510,7 @@ Each run receives isolated mutable state and fresh nominal representation identi
    prepared immutable buffer, with no allocation, fill, or upload;
 3. each target allocates a fresh run-owned output buffer; affine-view targets use the full positive
    logical element count and retain exact finalized-route authentication, scalar reduction targets
-   use exactly four bytes, and other canonical targets use the ordinary canonical buffer path;
+   use their declared carrier's byte width, and other canonical targets use the canonical buffer path;
 4. an MPSGraph or `CUSTOM_PROGRAM` run allocates one native address-array workspace, while a
    `CUSTOM_SINGLE_NEG` run allocates no workspace; and
 5. cold binding validates context, byte extent, scalar type/raw bits, read/write role, and physical
@@ -660,7 +675,7 @@ publish c, t
 ```
 
 Preparation lowers the normalized axis and binding-resolved sum-to-Shape target into the bounded
-schema21 route-bearing program image. The canonical results may compose with subsequent
+current route-bearing program image. The canonical results may compose with subsequent
 independently eligible ordinary nodes, including admitted scalar consumers.
 One run publishes `c = [[71, 78, 85, 92], [83, 90, 97, 104]]` plus `t = 300`; local materialization of
 `t` copies exactly four bytes; its declared rank remains zero.
@@ -825,17 +840,17 @@ variant or automatic Metal selection outside the explicitly registered inventory
 Private ABI version `7` exports exactly thirteen symbols: the version/context/buffer foundation,
 `synaptik_metal_mpsgraph_executable_create`, executable release/run, and the three typed custom
 singleton-NEG pipeline operations. The create function accepts a pointer plus unsigned byte count
-for one schema21 program image. The old
+for one schema22 program image. The old
 `synaptik_metal_context_certification_environment` and
 `synaptik_metal_mpsgraph_neg_executable_create` symbols are absent. Statuses `0..12` retain their
 documented meanings, status `13` reports a structurally valid registered operation without a
 current native route, and unknown integers fail closed with the raw value retained.
 
-The schema21 image is little-endian, at least 124 bytes, and at most `Integer.MAX_VALUE` bytes on
+The schema22 image is little-endian, at least 124 bytes, and at most `Integer.MAX_VALUE` bytes on
 both sides. Its core contains a 124-byte/31-word header, 40-byte value descriptors, 32-byte node
 descriptors, 64-bit dimensions, 64-bit element strides, 32-bit value references, and 64-bit
 attribute words. Every section follows its predecessor immediately; in particular, the reference
-pool is never padded before attributes. The header begins with `SM21=0x31324d53`, schema `21`,
+pool is never padded before attributes. The header begins with `SM22=0x32324d53`, schema `22`,
 header bytes `124`, total bytes, and fixed route; it has no numerical-profile wire. Each value descriptor carries layout
 presence, kind, view and dense-physical flags, stride-pool offset, storage offset, and referenced
 span.
@@ -876,7 +891,7 @@ status `12`.
 ## Evidence composition
 
 The task-era probes and certificates below are historical evidence for earlier profile and
-schema allocations. They do not certify current schema21 routes by themselves. Current
+schema allocations. They do not certify current routes by themselves. Current
 qualification must check the profile-free Model contract, current source/package authentication,
 native preflight, and focused route conformance; a passing old sample is not capability authority.
 
@@ -898,7 +913,7 @@ NaN remains NaN and ordinary finite, infinity, and required signed-zero classes 
 the Model formula and existing publication freedoms. Reduced precision, reciprocal substitution,
 cross-node contraction, algebraic rewrites, and tolerance acceptance remain forbidden. The
 historical 0015 probe evidence qualified earlier routes under that earlier set; it is not a
-current schema21 certificate.
+current-program certificate.
 
 Task 0019 reused the still-current 0016 exact ABS selector gate because only planning documents
 changed after the recorded executable baseline and the same Apple M3 Max, SDK/toolchain, selector,
@@ -933,14 +948,14 @@ intermediate, hidden contributor, dropped contributor, or alternate vendor MSE s
 That finite source composition was the task-era authorization proof for the admitted domain. Model's
 loss formula still names the same `SUB`, `delta*delta`, and exact reduction sites. Tasks 0015 and
 0020 supplied earlier accelerator-route evidence, but that historical recursive argument does
-not alone qualify every current schema21 result. Focused raw-bit
+not alone qualify every current result. Focused raw-bit
 tests independently enumerate the same per-site DAZ/FTZ, signed-zero, NaN-class, all-binary-tree,
 all-contributors-once, and final-quotient choices and exercise both quiet and signaling NaNs,
 infinities, maximum finite values, normal/subnormal boundaries, repeated inputs, direct targets,
 reuse, isolated sessions, and input preservation. Those runs corroborate the fixed composition;
 they do not authorize it by sampling. Java/native parity tests separately reject wrong reduction,
-type, rank, Shape, and gradient metadata before resource creation. The other loss and
-normalization wires remain structurally cataloged but production-false.
+type, rank, Shape, and gradient metadata before resource creation. Other loss and normalization
+wires were production-false at that checkpoint; current typed admission is qualified separately.
 
 Task 0021 ran a completely fresh disposable M3 Max MATMUL probe before production edits. The
 matrix passed 384 independently compiled executables and 3,072 runs across two contexts,
@@ -983,7 +998,7 @@ strongest available reflection, and test-only dispatch observation site. At that
 native validated frozen SHA-256 values for all ten fixed components and their ordered 84,541-byte
 total, then validated the assembled total independently before compiler entry. The Task-0078
 WHERE metadata repair later used 84,593 bytes; image-fold overlap used 87,929. The current
-source-bound corpus is 192,958 bytes; historical counts are not its authentication target.
+source-bound corpus is 187,750 bytes; historical counts are not its authentication target.
 One structured sink implements both a
 no-allocation count traversal and the exact byte traversal: production validates all five caps
 before allocating the counted byte size and emits once for compile. A standalone native fixture includes that exact
@@ -1035,7 +1050,7 @@ MATMUL cases and observes the new structural PREPARE and planned RUN payloads. F
 all-or-none at 64 anchors; structural trace scans only through cap-plus-one and reports count 65 as
 the exceeded-cap sentinel with bounded composed member facts.
 
-Historical task validation comprised the following evidence; the current schema21 integration
+Historical task validation comprised the following evidence; the current integration
 gate is separate:
 
 - focused capability, historical schema-nineteen/native-preflight, raw-bit native execution, route-identity,
@@ -1119,7 +1134,7 @@ persistent Metal splat binding is accepted only as a Metal read source; it canno
 destination. Runtime executes only the resulting direct prepared references.
 
 For one exact singleton NEG Metal plan, public `prepareTuned(...)` measures the complete two-route
-local batch, authenticates the selected version-forty-one decision, then correctness-checks and
+local batch, authenticates the selected current decision, then correctness-checks and
 times one complete-plan candidate fixed to that route. The returned production recipe is freshly
 prepared after representative cleanup. Metal policy, producer, and decision-codec identities are
 adapter-owned and distinct from CPU identities; existing CPU bytes and behavior remain unchanged.
@@ -1145,16 +1160,19 @@ owner-indexed mixed schedule in
 ## Limitations and related documentation
 
 Current support is occurrence-specific, not inferred from operation names or historical
-`STRICT_IEEE`/`ACCELERATOR` columns. FLOAT32 masked/product/statistical reductions, attention
-and fixed-recurrent forward are now admitted in their qualified domains. General Scan training
-is separate from the three deferred fixed-recurrent BPTT signatures.
+`STRICT_IEEE`/`ACCELERATOR` columns. The shared FLOAT32/BFLOAT16/FLOAT16 implementation
+retains each operation's admitted shape, layout, value and derivative domain; fixed-cell first
+AD and general Scan training are separately exercised paths, not universal higher-order support.
 
-General FLOAT64 numerical arithmetic/MATMUL/training, new low numerical domains, direct
-BFLOAT16/FLOAT16 mixing, arbitrary symbolic geometry, unsupported external layouts and
-over-limit programs remain false. FLOAT64/low overlapping folds remain false. CONCAT/STACK
-retain the ordinary ABI bound of sixteen inputs; the CPU's wider variadic domain is independent.
-Empty support is limited to its proved source/affine/normalization/Scan paths. Rank zero remains
-one stored element.
+General FLOAT64 numerical arithmetic/MATMUL/training, arbitrary symbolic geometry,
+unsupported type/layout combinations and over-limit programs remain false. Model-legal floating
+promotions are checked by each owning operation, not a blanket mixed-type permission.
+Common rank-16, geometry and workspace bounds remain; CONCAT/STACK have no sixteen-operand
+cap. FLOAT64 overlapping numerical folds remain false. Empty support includes its proved
+source/affine/normalization/Scan and zero-output CONCAT/STACK paths. Rank zero is one element.
+The refreshed complete operation catalog has equal three-family forward/selected-AD coverage.
+Final source/artifact/installation receipts are recorded separately in the production ledger;
+historical receipts do not seal the current source or binary.
 
 The fixed shared custom route is not a general custom-kernel framework: cold preparation owns the
 reviewed fixed corpus, authenticated bounded pointwise generator, and any interleaved existing-node
@@ -1247,9 +1265,9 @@ also retains its ordinal-zero filter, raw-base unaddressed select, one static st
 
 There is no profile in partition plans or route/tuning/codec/workload identities. Java
 enforces the boundary before native entry. ABI version `7` exposes exactly thirteen export names
-and accepts one bounded schema-21 route-bearing image with a 124-byte header; operation wires
+and accepts one bounded schema-22 route-bearing image with a 124-byte header; operation wires
 `1..116`, attribute wires `0..42`, route wires `1..3` and type wires `1..7` cover the current
-registry. Coordinated route/candidate/compatibility/workload/policy/codec identities are 41;
+registry. Coordinated route/candidate/compatibility/workload/policy/codec identities are 42;
 stale identities reject. The production ledger records the live ordinary and separate Scan
 qualification rather than pinning historical kind-count snapshots.
 The complete-plan wrapper remains version `1`.

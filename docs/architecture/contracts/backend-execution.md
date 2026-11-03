@@ -195,13 +195,17 @@ operations are unsupported; an explicit
 cast to FLOAT32 is the sole mixed-low boundary. Forward capability remains distinct from
 generated-backward ownership.
 
-Every active Metal low family has a qualified custom implementation with FLOAT32 working/accumulator
-values and Model-owned exact discrete/raw/cast/one-final-ties-to-even-narrowing rules. The
-Model's named arithmetic-site DAZ/FTZ table and family exact-zero sign and NaN class/domain
-rules govern it. Operation-local
-reassociation/FMA is permitted only within the qualified implementation; low partitions cannot
-enter generated-pointwise or anchor-epilogue fusion. Public, saved, fan-out, predicate, index, mask,
-selection, and state boundaries remain barriers.
+Every active Metal low family uses the shared typed custom implementation with FLOAT32
+working/accumulator values and Model-owned exact discrete/raw/cast/publication rules. Original
+per-role FLOAT32, BFLOAT16 and FLOAT16 storage and POD types remain explicit; the common
+`synaptik_numeric_codec.h` decodes inputs and narrows each observable low output once with
+round-to-nearest, ties-to-even. The Model's named arithmetic-site DAZ/FTZ table and family
+exact-zero sign and NaN class/domain rules govern it. Fixed-cell working/publication boundaries
+remain distinct from an explicit GeneralScan ordinary-cell composition; sharing arithmetic
+owners does not make those rounding schedules interchangeable. Operation-local reassociation/FMA
+is permitted only within the qualified implementation; low partitions cannot enter generated-
+pointwise or anchor-epilogue fusion. Public, saved, fan-out, predicate, index, mask, selection,
+and state boundaries remain barriers.
 
 An opaque or transformed route is eligible only after the same occurrence-scoped exact/special
 and finite test qualification as an explicit route. A route name, examples, or generic `allclose`
@@ -1522,8 +1526,9 @@ retry/lifetime/identity evidence and independent source/Javadoc review are manda
 
 The Java project lives in `modules/backend/metal`; its macOS arm64 native bridge is colocated at
 `modules/backend/metal/macos-arm64`, without a nested `native/` directory. The current
-[audit-driven completion](#audit-driven-backend-completion) governs the expanded FLOAT32 and
-native Scan domains. Task-era qualification paragraphs retain their explicit checkpoint scope;
+[audit-driven completion](#audit-driven-backend-completion) governs the qualified FLOAT32,
+BFLOAT16 and FLOAT16 ordinary, fixed-cell first-order and native Scan domains.
+Task-era qualification paragraphs retain their explicit checkpoint scope;
 they neither certify nor veto subsequent independently qualified occurrences.
 
 Metal backend owns:
@@ -1584,31 +1589,43 @@ and also supports canonical rank-zero through rank-sixteen targets for all seven
 host ingress preserves exact represented storage bytes; descriptor-aware execution, transfer, and
 publication paths validate logical BOOL values without treating storage holes as BOOL elements.
 
+A fully static empty descriptor may be materialized to the host without a layout hint.
+There are no source addresses to resolve: `RunResult` supplies canonical zero geometry to the
+existing selected-backend copy. Nonempty descriptors with unresolved geometry remain rejected.
+This empty publication rule changes neither cross-owner transfer admission above nor lease,
+identity, budget, lifetime or selected-backend ownership checks.
+
 The exact movement domain uses existing fixed custom owners and original typed descriptors.
-All seven carriers retain qualified reshape/rank edits, positive-step affine extraction,
-canonicalization, gather, padding, slice update, bounded CONCAT/STACK/TILE and UNFOLD_AXIS.
-Selected FLOAT32 negative-step SLICE instead materializes a canonical destination; negative
-logical coordinates do not authorize negative physical storage strides.
-Index roles accept INT32/INT64; ONE_HOT publishes canonical BOOL.
+All seven carriers retain qualified reshape/rank edits, affine extraction, canonicalization,
+gather, padding, slice update, CONCAT/STACK/TILE and UNFOLD_AXIS. Signed-step SLICE materializes
+a canonical destination for all seven carriers; negative logical coordinates do not authorize
+negative physical storage strides. Index roles accept INT32/INT64; ONE_HOT publishes canonical BOOL.
+
+CONCAT/STACK no longer have a sixteen-operand limit. Dynamic operand references feed one
+disjoint direct-copy child per operand through the shared ordinary/Scan owner, without N-wide
+argument binding or an intermediate pairwise tensor chain. Original-carrier views and selected
+operand cotangents retain their descriptors. Common rank-sixteen, checked geometry, byte-span,
+dispatch and workspace bounds still apply; absence of an operand-sixteen guard is not an
+unbounded-resource promise.
 
 FOLD_AXIS accepts the six numeric carriers; image unfold/fold accepts the four floating carriers.
-Only FLOAT32 folds may add overlapping contributors, using deterministic output-owned
-accumulation in declared working precision and order. No atomics, host repair, scratch or
-software FP64 is introduced. Uncovered cells receive exact carrier zero. Other carriers retain
-their qualified non-overlap boundaries. Java and native preflight independently validate this
-domain using original carrier facts, never a FLOAT32 proxy.
+FLOAT32, BFLOAT16 and FLOAT16 folds may add overlapping contributors, using deterministic
+output-owned FLOAT32 accumulation in declared order and per-output typed publication. No atomics,
+host repair, scratch or software FP64 is introduced. Uncovered cells receive exact carrier zero.
+FLOAT64 and integral folds retain their qualified non-overlap boundaries. Java and native
+preflight independently validate this domain using original carrier facts, never a FLOAT32 proxy.
 
 Shared Compiler convolution/pooling adjoints reuse unfold, MATMUL, reduction and fold.
-FLOAT32 Pool2d/Pool3d overlap preserves existing forward winner/divisor semantics, and Conv3d
-training retains groups and selected input/weight/bias roles. No standalone backward kernel
-or implicit low-arithmetic unlock follows.
+FLOAT32/BFLOAT16/FLOAT16 Pool2d/Pool3d overlap preserves existing forward winner/divisor semantics,
+and Conv3d training retains groups and selected input/weight/bias roles. These are shared typed
+owners, not standalone backward kernels or permission for CPU low arithmetic.
 
 Every logical index is validated in stable node then row-major ordinal order. Replacement
 scatter completes bounds and global destination-uniqueness checks before mutation; admitted
 arithmetic modes retain colliding contributors in declared order. Public prepared execution
 reproduces Model bounds/duplicate exception classes, while the raw ABI reports typed status.
 Validation failure preserves inputs and the affected operation's write targets, not already
-completed producers. Colliding replacement, unqualified rows and non-FLOAT32 overlapping folds remain false.
+completed producers. Colliding replacement, unqualified rows and overlapping FLOAT64/integral folds remain false.
 
 Selected affine views retain their exact logical shape, nonnegative read strides and offset.
 Preparation/native preflight separately authenticate represented physical storage and complete
@@ -1622,7 +1639,7 @@ negative physical strides, unsafe overlap and overflow fail closed.
 MAIN implements the bounded [Metal0080](../../planning/backends/metal/tasks/0080-dense-view-matmul-composition.md)
 extension for first-production consumers. Its identity38 source-matched GPU/package/unchanged
 consumer proof predates identity39's FLOAT32 image-fold addition, identity40's pooling-overlap
-admission and the current identity41 audit extension; release acceptance remains separate.
+admission, identity41's audit extension and the current identity42 typed cutover; release acceptance remains separate.
 
 MATMUL input geometry may be exact canonical row-major strides, zero offset and referenced span
 equal to logical element count with logical isView true or false. Retain positive fully static
@@ -1712,20 +1729,21 @@ After the cutover, a new supported occurrence must have an independently true pr
 its exact dtype, descriptors, attributes, and gradient metadata; a route qualified against Model
 semantics and the applicable exact, special-value, finite, and failure conformance tests; and an
 updated current ledger and provider/conformance tests. A FLOAT32 true answer never implies a
-BFLOAT16 or FLOAT16 true answer, including through a FLOAT32 descriptor proxy used to preserve
-the frozen Metal low baseline. Each newly supported Metal low occurrence additionally needs its
-own qualified custom step under the fixed low-containing CUSTOM_PROGRAM rule; preserve existing
-Metal low occurrences. CPU-only arithmetic availability follows CPU0078 above. Advance the relevant compatibility identity append-only when changed
+BFLOAT16 or FLOAT16 true answer. Metal checks original per-role carriers and scalar metadata
+without a FLOAT32 descriptor proxy. Each admitted low occurrence requires its qualified shared
+custom step under the fixed low-containing CUSTOM_PROGRAM rule. CPU-only arithmetic availability
+follows CPU0078 above. Advance the relevant compatibility identity append-only when changed
 route, program, plan, serialized, or generated behavior makes old inputs incompatible; reject
 stale inputs. Capability evidence and route qualification remain cold backend/Prepare concerns,
 not a Runtime certificate, tolerance policy, retry, or fallback layer.
 
-Current generated CPU artifact envelopes use schema 71. Current Metal images use schema 21 with a
-124-byte header, and coordinated workload, exact-policy, candidate, compatibility, route and
-codec identities use version 41. Native ABI7 retains thirteen exports. CPU schema68 and Metal
-schema19/identity29 are historical pre-cutover baselines. Metal identities30–38 record prior
-profile-free, elementary, boundary and view repairs;39 added FLOAT32 image folds,40 shared
-pooling overlap, and41 the joined ordinary/native-Scan audit extension. Stale identities reject.
+Current generated CPU artifact envelopes use schema 71. Current Metal images use schema 22
+(`SM22`) with a 124-byte header, and coordinated workload, exact-policy, candidate, compatibility,
+route and codec identities use version 42. Native ABI7 retains thirteen exports. CPU schema68
+and Metal schema19/identity29 are historical pre-cutover baselines. Metal identities30–38 record
+prior profile-free, elementary, boundary and view repairs;39 added FLOAT32 image folds,40 shared
+pooling overlap,41 the joined ordinary/native-Scan audit extension, and42 shared original-typed
+FLOAT32/BFLOAT16/FLOAT16 execution and dynamic composition references. Stale identities reject.
 CPU schema 70
 corrected activation extremes and named low FLOAT32 working sites; those repairs changed neither
 Model semantics nor provider admission. CPU schema 71 retains those repairs and adds the bounded
@@ -1743,7 +1761,7 @@ and unrelated identities are unchanged. Current identities reject stale inputs, 
 identity 38 and CPU schema 70 and earlier. Existing CPU family projections and historical
 versioned evidence remain distinct from this current global envelope identity.
 Native source, manifest, and package authentication remain safety gates; historical schema-19
-source certificates do not certify current schema-21 programs.
+source certificates do not certify current schema-22 programs.
 
 Metal's current exact occurrence domain contains exact unary operations; all 49
 ordered casts; FLOAT64/FLOAT32/BFLOAT16/FLOAT16 classification; scalar and right-aligned BOOL
@@ -1757,23 +1775,26 @@ Float-to-integral casts may consume a differentiable input but produce a non-dif
 `WHERE` differentiability is the exact branch-role OR and never includes its condition.
 
 The CPU-free generated-gradient closure includes floating casts, inverse affine movement,
-positive-step extraction/update and selected FLOAT32 signed-step materialization, PAD,
-CONCAT/STACK/TILE, exact replacement and admitted arithmetic scatter, broadcast reductions,
-ordinary arithmetic/statistical/normalization/loss/attention formulas, saved-mask dropout and
-qualified window adjoints. Saved condition/index/mask/forward roles remain live until consumed.
-Low rows retain their separately admitted closure; new FLOAT32 predicates do not broaden them.
-Conv3d/Pool3d and general Scan have actual FLOAT32 selected-first-order/training qualification
-on a Metal-only Engine. Entire generated topology must be eligible. Unsupported geometry,
-dtype and order remain false; fixed RNN/GRU/LSTM signatures still have no BPTT.
+signed-step materializing extraction and selected updates, PAD, CONCAT/STACK/TILE, exact
+replacement and admitted arithmetic scatter, broadcast reductions, ordinary arithmetic/
+statistical/normalization/loss/attention formulas, saved-mask dropout and qualified window
+adjoints. Saved condition/index/mask/forward roles remain live until consumed. FLOAT32,
+BFLOAT16 and FLOAT16 use original typed roles through these shared owners; qualification is
+still occurrence-specific, not inferred from a FLOAT32 proxy. Conv3d/overlapping Pool3d,
+general Scan and fixed RNN/GRU/LSTM have actual selected-first-order qualification in all three
+types on a Metal-only Engine. Fixed-cell rules cover selected floating input/state/weight/bias
+roles, not higher-order or arbitrary geometry. Entire generated topology must be eligible;
+unsupported geometry, dtype and order remain false.
 
 The current provider also admits no-gradient INT32/INT64 MATMUL pairs with INT64-dominant
 promotion and modular result arithmetic. For the frozen supported ACCELERATOR FLOAT32 occurrences,
 Metal's independently queried homogeneous BFLOAT16 and FLOAT16 counterparts remain true. This
-covers the documented
-tensor/scalar arithmetic, comparisons, extrema, reductions, scans, positive-static MATMUL
-geometries, MSE, L1, ScatterAdd, singleton VARIANCE, convolution, average pooling, and explicit
-state dropout domains. Each low input is decoded exactly, every working value and accumulator is
-FLOAT32, and each observable low result is narrowed once with round-to-nearest, ties-to-even.
+covers the qualified tensor/scalar arithmetic, comparisons, extrema, reductions, cumulative
+operations, positive-static MATMUL geometries, normalization, losses, attention, convolution,
+pooling, explicit-state dropout and recurrent domains. Each low input is decoded exactly,
+every numerical working value and accumulator is FLOAT32, and each observable low result is
+narrowed once at its declared publication boundary with round-to-nearest, ties-to-even.
+INT32/INT64 cumulative operations retain exact modular arithmetic, not floating emulation.
 Conv1d/Pool1d may use only authenticated local singleton-height views. This paragraph does not
 widen unlisted or false provider occurrences.
 
@@ -1924,7 +1945,8 @@ cutover, version 30 at cutover, version 31 for FLOAT32 `EXP`, version 32 for low
 for FLOAT32 `SIGMOID`, version 34 for low `SIGMOID`, and version 35 for the native-boundary and
 exact low-value repairs. Version36 corrected standalone scalar admission and37 added dense-view
 MATMUL;38 added selected materializing RESHAPE;39 added overlapping FLOAT32 image folds;
-40 added shared FLOAT32 pooling overlap; the current audit cutover is41/schema21.
+40 added shared FLOAT32 pooling overlap;41/schema21 added the ordinary/native-Scan audit;
+the current typed cutover is42/schema22.
 Stale versions fail closed. The complete-plan wrapper retains its unrelated version-one format.
 
 ## Accepted ordinary materializing RESHAPE extension
@@ -1966,25 +1988,38 @@ Preserve checked resource/classfile limits, exact stored-value comparisons, prom
 and original cotangent carrier conversion. CPU0078's low-computation lock and independent
 ordinary named-B predicates remain unchanged.
 
-Metal implements ordinary FLOAT32 elementary/activation and statistical/masked-reduction
-signatures, affine/scalar reduction reads, colliding arithmetic scatter and Gather adjoints,
-softmax/normalization/loss/attention, and fixed-recurrent forward through existing Model/Compiler
-equations and prepared Metal owners. Exact original-typed FLOAT64/integral operations use
-represented semantics without software floating arithmetic. Original descriptors determine
-promotion, optional operands, gradient bits and canonical siblings. Cancellation, signed zero,
-nonfinite classes, exclusions and named working sites follow Model, not old structural recipes.
-The separately qualified low baseline is not widened through a FLOAT32 proxy.
+Metal implements the qualified FLOAT32/BFLOAT16/FLOAT16 elementary/activation and
+statistical/masked-reduction signatures, affine/scalar reduction reads, colliding arithmetic
+scatter and Gather adjoints, softmax/normalization/loss/attention, spatial operations and fixed
+recurrent forward/selected first-order rules through existing Model/Compiler equations and
+shared prepared Metal owners. The separate low-precision library is retired; common typed
+arithmetic and numeric codecs retain each original role's storage/POD type and each output's
+publication boundary. There is no FLOAT32 tensor proxy or duplicated low implementation.
+Exact original-typed FLOAT64/integral operations use represented semantics without software
+floating arithmetic; INT32/INT64 cumulative arithmetic remains exactly modular. Original
+descriptors determine promotion, optional operands, gradient bits and canonical siblings.
+Cancellation, signed zero, nonfinite classes, exclusions and named working sites follow Model,
+not old structural recipes. Fixed-cell and explicit GeneralScan ordinary-cell rounding remain
+distinct. No CPU low arithmetic, FP64 arithmetic/emulation or CPU fallback is enabled.
 
 General Metal Scan uses an authenticated bounded native body/binder plan inside the existing
 executable owner. It reuses neutral compiled-body/activity/demand transport and once-prepared
-ordinary Metal steps in a native time loop, preserving traversal, carry/history bindings,
+ordinary typed Metal steps in a native time loop, preserving traversal, carry/history bindings,
 original demanded output roles, structural inactivity, pre-write validation, empty identities
-and actual reverse-body semantics. There is no Runtime graph interpreter, Java child loop,
-T-fold unrolling, copied CPU evaluator or CPU fallback. Symbolic/cold/order admission is separate.
+and actual reverse-body semantics. FLOAT32/BFLOAT16/FLOAT16 explicit ordinary-cell bodies use
+that same owner, not a fixed-cell compatibility fallback. There is no Runtime graph interpreter,
+Java child loop, T-fold unrolling, copied CPU evaluator or CPU fallback. Symbolic/cold/order
+admission is separate.
 
-Ordinary operation/attribute identities are reused where their grammar suffices. Scan adds wire
-116/attribute42 and the clean schema21/identity41 cutover; every caller uses the current grammar,
+Cold reconstruction accepts Model-legal per-role floating descriptors and casts in the existing
+recipe domain. Public checkpoint wire versions and strict descriptor rebind remain unchanged;
+this does not admit arbitrary PURE bodies or optimizer/history/compiled-plan continuation.
+
+Ordinary operation/attribute identities are reused where their grammar suffices. Scan added wire
+116/attribute42 at schema21/identity41; current schema22/`SM22`/header124/identity42 carries the
+shared typed execution and dynamic composition-reference grammar. Every caller uses that grammar,
 shader/component/source authentication is renewed and stale inputs reject. ABI7/thirteen exports
 remain. Metal general FLOAT64 numerical arithmetic, unsupported mixed-low domains, CPU low
-arithmetic and Compiler's three deferred fixed-recurrent BPTT signatures remain locked.
-Source-matched device execution and independent source review precede production-support claims.
+arithmetic and unqualified higher-order recurrent derivatives remain excluded. Source-matched
+device execution and independent source review precede production-support claims; current
+component evidence is not final full-catalog or sealed-release qualification.

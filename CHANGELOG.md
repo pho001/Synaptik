@@ -4,11 +4,10 @@
 
 ### Added
 
-- Source support for shared Metal FLOAT32/BFLOAT16/FLOAT16 elementary, scalar/tensor power,
-  masked/statistical reductions and cumulative kernels, including rank-zero values, affine
-  scalar/clamp/reduction reads and generated expanded-one counts. Numerical bodies use FLOAT32 working
-  sites and original-carrier publication; cumulative INT32/INT64 arithmetic is modular.
-  Native runtime qualification remains a separate integration step.
+- Qualified shared Metal FLOAT32/BFLOAT16/FLOAT16 elementary, scalar/tensor power,
+  masked/statistical reduction and cumulative execution, including rank-zero values, affine
+  scalar/clamp/reduction reads and generated expanded-one counts. Numerical bodies use FLOAT32
+  working sites and original-carrier publication; cumulative INT32/INT64 arithmetic is modular.
 - Metal normalization, categorical losses and attention now share original-carrier FLOAT32,
   BFLOAT16 and FLOAT16 kernel bodies, with explicit per-role metadata, Model promotion and
   typed epsilon/scale bits. Attention keeps scores/probabilities in declared FLOAT32 work
@@ -16,9 +15,11 @@
   Independent raw validation preserves canonical batch-statistic siblings, labels, masks and
   exact gradient role flags. FLOAT16 attention accepts its documented FLOAT32 scale metadata
   in both public construction and captured inference; CPU low arithmetic restrictions are unchanged.
-- Qualified Metal FLOAT32 ordinary elementary/activation, masked/statistical/cumulative reduction,
-  normalization, loss, attention and colliding arithmetic-scatter execution with actual selected
-  Compiler gradients.
+- Removed the Metal CONCAT/STACK sixteen-operand binding limit through dynamic references and
+  disjoint copies directly into final storage, shared by ordinary and controlled Scan execution.
+  Actual public GPU qualification covers 17/33/257 whole inputs, last-operand-only gradients,
+  empty outputs/cotangents and 33 distinct Scan operands in both directions and activity modes
+  across FLOAT32/BFLOAT16/FLOAT16.
 - Native Metal general Scan through authenticated bounded body/binder plans and once-prepared
   ordinary kernels, including actual reverse bodies and runtime-length RNN training/save/load/
   fresh training. Structural inactivity guards operands before loads or index validation;
@@ -34,8 +35,8 @@
 
 - Model-valid CPU promoted F32/F64 and I32/I64 pointwise operands, exact comparisons and selected
   WHERE conversion, retaining each gradient target's original carrier.
-- Checked signed/empty slice materialization and its existing extraction/update pullbacks,
-  bounded one-pass variadic CONCAT/STACK beyond sixteen inputs, and shared sound CPU output
+- Checked CPU signed/empty slice materialization and its existing extraction/update pullbacks,
+  bounded one-pass variadic CONCAT/STACK beyond sixteen inputs, and shared sound output
   injectivity proofs for large interleaved layouts.
 
 - Shared Metal FLOAT32/BFLOAT16/FLOAT16 matmul, convolution, pooling and overlapping
@@ -57,19 +58,22 @@
 - Metadata-only `GraphCompilationPort.validateSource` shares complete cold preflight without
   Tensor identities or host copying. Decode now rejects invalid metadata before creating any
   candidate Tensor for every supported version.
-- The Pool3d checkpoint advanced Metal identity to40; the subsequent audit uses identity41,
-  program schema21/header124 and operation116/attribute42 for Scan. ABI7/thirteen exports remain.
-
-- Static homogeneous FLOAT32/FLOAT64 runtime-length general Scan cold capture and reconstruction,
-  including Checkpoint in-memory copy/rebind and inherited NN acquisition/cold-forward paths.
-  Reconstruction preserves explicit row roles, aliases and canonical ports without time unrolling
-  or reading external length values. Symbolic/wider-typed cold bodies remain unsupported.
-- Selective graph-model.v5 persistence for that static length-aware intersection, preserving row
-  roles, aliases, all canonical ports and named values without saving external length batches.
-  Loaded F32/F64 Models accept fresh lengths and newly configured training.
-- RnnSequence.forwardGeneralScan and trainable F32/F64 explicit rnnScan Models, sharing the ordinary
-  RnnCell equation and initialization. Semantic final-hidden selection supports general/fixed ports;
-  repeated fresh-length training and v5 save/close/load/new training use existing execution owners.
+- The Pool3d checkpoint advanced Metal identity to40 and the previous audit used identity41/
+  schema21. The shared numerical cutover uses identity42/schema22/header124, retaining operation116/
+  attribute42 for Scan and ABI7/thirteen exports.
+- Static Model-legal per-role FLOAT32/FLOAT64/BFLOAT16/FLOAT16 general Scan cold capture,
+  including legal casts, Checkpoint copy/rebind and NN acquisition/cold-forward paths.
+  Reconstruction preserves explicit row roles, aliases and canonical ports without unrolling
+  time, reading external lengths or loosening exact rebind descriptors. Symbolic cold bodies
+  remain outside this domain; Metal FLOAT64 numerical execution is not implied.
+- Existing selective graph-model.v5/v6 persistence retains row roles, aliases, canonical ports
+  and named values without storing external length batches or changing checkpoint wire versions.
+  Loaded typed Models accept fresh lengths and newly configured training.
+- Explicit `RnnSequence.forwardGeneralScan` and trainable `rnnScan` Models support all four
+  floating carriers through the ordinary RnnCell equation and initialization. Existing low
+  default builders retain fixed-cell working/publication semantics. Semantic final-hidden
+  selection supports general/fixed ports; fresh-length training and save/close/load/new training
+  use the existing execution owners.
 - True empty-carry Scan source and explicit lengthAware metadata, including zero-ROW Shared
   source with B derived from lengths. All canonical typed ports/aliases remain; source validity,
   selected derivatives, backend execution and cold/wire admission remain separate checks.
@@ -101,11 +105,14 @@
 
 ### Changed
 
-- Complete CPU/Metal audit inventories use live ordinary signatures and classify execution,
-  selection, illegal projections and deferred/nondifferentiable roles separately. Historical
-  byte/route/count/wording pins no longer substitute for numerical or boundary regressions.
-- Metal fixed-corpus authentication now covers 22 components/192,958 UTF-8 bytes. New FLOAT32
-  predicates do not widen frozen low domains or add general FLOAT64 arithmetic.
+- Live CPU/Metal audits cover all 115 ordinary operation kinds, 137 signatures and separate Scan,
+  classifying execution, selection, illegal projections and nondifferentiable/deferred roles.
+  Each Metal F32/BF16/F16 family executes the same 187 forward and 358 selected-gradient cases
+  without a Model-legal selection gap. Execution counts do not substitute for independent
+  numerical and public model/training/checkpoint checks.
+- One Metal fixed-corpus authentication covers 23 components/187,750 UTF-8 bytes and the common
+  original-carrier codec; the separate low library and frozen FLOAT32 descriptor proxy are retired.
+  General FLOAT64 arithmetic and CPU low arithmetic are not added.
 - Temporarily lock Java CPU BFLOAT16/FLOAT16 numerical computation at source, preparation,
   represented-IR, direct generation/definition, retained cache and fixed-recurrent admission.
   Keep the implementation, exact/raw/discrete/storage/conversion roles and explicit F32 compute/
@@ -122,20 +129,26 @@
   ScanBody. Existing affine/crop geometry, materializing-RESHAPE decisions and the separate generic
   symbolic classifier have one owner; captured graphs, ordinary inference and strict ingress
   guards remain unchanged.
-- Metal FLOAT32 FOLD_AXIS/FOLD2D/FOLD3D accumulates overlapping contributors deterministically
-  with one output writer, no atomics, scratch or host fallback. Other carriers retain qualified
-  non-overlap placement. CPU adds generated raw F32/F64/BF16/F16 UNFOLD3D and arithmetic F32/F64
-  FOLD3D through existing movement/fold owners, preserving legacy identities and the low lock.
+- CPU generated raw F32/F64/BF16/F16 UNFOLD3D and arithmetic F32/F64 FOLD3D share existing
+  movement/fold owners, preserving qualified legacy identities and the low arithmetic lock.
 
 ### Fixed
 
-- Metal signed FLOAT32 SLICE materializes canonical storage and closes negative-step update
-  gradients without fabricating negative physical strides. Overlapping FoldAxis also works in
-  controlled Scan rows, skipping inactive NaN contributors.
+- Metal signed SLICE materializes all seven stored carriers without negative physical strides;
+  numerical extraction/update pullbacks use existing owners. Overlapping floating FoldAxis works
+  in controlled Scan rows and guards inactive NaN contributors.
 - Genuine empty storage/EXPAND detects zero extents before product/stride checks, including
   zero-grid native execution without a load or dispatch. Scalar values remain one stored element.
 - Scalar native graph arithmetic restores declared rank after literal broadcasting; original
   FLOAT32 FLOOR/CEIL/SIGN admission agrees with native preflight and existing exact kernels.
+- FLOAT16 normalization inference accepts the Model's FLOAT32 epsilon/momentum metadata;
+  its existing normalization adjoints use FLOAT32 working expressions and publish original
+  target-carrier gradients. BFLOAT16/FLOAT32/FLOAT64 metadata matching remains exact.
+- Dropout capability checks original F32/BF16/F16 value/output descriptors while preserving
+  canonical BOOL mask and INT64 state roles.
+- Host snapshots resolve canonical geometry for fully static empty publications with no logical
+  layout hint, preserving selected-backend ownership, leases and byte budgets. Nonempty unresolved
+  publications remain rejected.
 - Metal ordinary transport checks words/spans and ordering/reduction/fold axes before inference.
   Malformed FoldAxis target axes reject deliberately before indexing the declared shape.
 - FLOAT32 arithmetic over affine operands now uses existing physical-stride kernels rather than
