@@ -101,7 +101,9 @@ static BOOL synaptik_decode_attributes_in_context(
         if (attribute_word_count != 2U || axis > UINT32_MAX
                 || reduction < 1U || reduction > 5U) return NO;
         node.axis = (uint32_t)axis;
-        if (reduction == 1U && types[node.first_input] != SYNAPTIK_METAL_TYPE_FLOAT32) {
+        if (reduction == 1U && types[node.first_input] != SYNAPTIK_METAL_TYPE_FLOAT32
+                && types[node.first_input] != SYNAPTIK_METAL_TYPE_BFLOAT16
+                && types[node.first_input] != SYNAPTIK_METAL_TYPE_FLOAT16) {
             node.attribute_kind = SYNAPTIK_METAL_MPSGRAPH_ATTR_AXIS;
             node.attribute_count = 1U;
         } else {

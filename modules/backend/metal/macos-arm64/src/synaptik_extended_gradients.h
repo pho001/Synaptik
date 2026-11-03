@@ -54,14 +54,14 @@ static BOOL synaptik_extended_gradients_valid(
     /* Index-valued arg extrema do not inherit the data role's gradient bit. */
     BOOL reduction = operation == 13U || operation == 14U || operation == 31U
             || operation == 32U || operation == 106U || (operation >= 111U && operation <= 115U);
-    if (reduction && types[0] == 1U) {
+    if (reduction && (types[0] == 1U || types[0] == 5U || types[0] == 7U)) {
         return (input_count == 1U || (input_count == 2U && !inputs[1]))
                 && output_count == 1U && outputs[0] == inputs[0];
     }
     BOOL elementary = operation == 38U || operation == 50U || operation == 53U
             || operation == 54U || (operation >= 56U && operation <= 59U)
             || (operation >= 65U && operation <= 68U)
-            || (types[0] == 1U && (operation == 1U || operation == 12U
+            || ((types[0] == 1U || types[0] == 5U || types[0] == 7U) && (operation == 1U || operation == 12U
                     || (operation >= 28U && operation <= 30U)
                     || (operation >= 46U && operation <= 49U)
                     || operation == 52U || (operation >= 60U && operation <= 64U)));
@@ -88,8 +88,21 @@ static BOOL synaptik_extended_gradients_valid(
  * never acquires gradient metadata merely because another result has a floating carrier. */
 static BOOL synaptik_scan_validate_gradient_flags(
         SynaptikMetalDecodedNode node, const uint8_t *types, const uint8_t *flags) {
-    if (types == NULL || flags == NULL || node.input_count > SYNAPTIK_MAX_NODE_INPUTS
+    if (types == NULL || flags == NULL
             || node.output_count == 0U || node.output_count > SYNAPTIK_MAX_NODE_OUTPUTS) return NO;
+    if (node.operation == 77U || node.operation == 78U) {
+        if (node.input_count == 0U || node.output_count != 1U) return NO;
+        uint8_t output_type = types[node.outputs[0]];
+        BOOL floating = output_type == 1U || output_type == 4U || output_type == 5U || output_type == 7U;
+        BOOL gradient = NO;
+        for (uint32_t role = 0U; role < node.input_count; role++) {
+            uint32_t value = node.inputs[role];
+            if (types[value] != output_type || (!floating && flags[value] != 0U)) return NO;
+            gradient |= flags[value] != 0U;
+        }
+        return (flags[node.outputs[0]] != 0U) == gradient;
+    }
+    if (node.input_count > SYNAPTIK_MAX_NODE_INPUTS) return NO;
     uint8_t inputs_types[SYNAPTIK_MAX_NODE_INPUTS] = {0};
     BOOL inputs[SYNAPTIK_MAX_NODE_INPUTS] = {NO}, outputs[SYNAPTIK_MAX_NODE_OUTPUTS] = {NO};
     BOOL any = NO;

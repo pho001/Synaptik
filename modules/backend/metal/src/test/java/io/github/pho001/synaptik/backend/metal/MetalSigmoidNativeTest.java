@@ -34,9 +34,8 @@ final class MetalSigmoidNativeTest {
                 value(DataType.FLOAT32, shape, false));
         assertThrows(IllegalArgumentException.class,
                 () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(valid, program(),
-                        new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM),
-                "a standalone FLOAT32 node does not justify a custom partition route");
-        for (MetalPreparedRoute route : List.of(MetalPreparedRoute.MPSGRAPH)) {
+                        new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH));
+        for (MetalPreparedRoute route : List.of(MetalPreparedRoute.CUSTOM_PROGRAM)) {
             MetalNativeApi.ProgramExecutableAbi.validateCreate(valid, program(),
                     new int[] {0}, new int[] {1}, route);
             MetalNativeApi.ProgramExecutableAbi.validateCreate(
@@ -45,8 +44,7 @@ final class MetalSigmoidNativeTest {
             MetalNativeApi.ProgramExecutableAbi.validateCreate(
                     List.of(value(DataType.FLOAT32, Shape.scalar(), false), value(DataType.FLOAT32, Shape.scalar(), false)),
                     program(), new int[] {0}, new int[] {1}, route);
-            for (DataType wrong : List.of(DataType.BFLOAT16, DataType.FLOAT16,
-                    DataType.FLOAT64)) {
+            for (DataType wrong : List.of(DataType.FLOAT64)) {
                 assertThrows(IllegalArgumentException.class,
                         () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
                                 List.of(value(wrong, shape, false),
@@ -372,7 +370,7 @@ final class MetalSigmoidNativeTest {
         MetalNativeApi.Handle executable = api.createProgramExecutable(context,
                 List.of(value(DataType.FLOAT32, shape, requiresGrad),
                         value(DataType.FLOAT32, shape, requiresGrad)),
-                program(), new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH);
+                program(), new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM);
         long bytes = Math.multiplyExact((long) samples.length, Float.BYTES);
         MetalNativeApi.Handle input = api.createBuffer(context, bytes);
         MetalNativeApi.Handle output = api.createBuffer(context, bytes);
@@ -383,7 +381,7 @@ final class MetalSigmoidNativeTest {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment source = arena.allocate(bytes, Integer.BYTES);
             MemorySegment destination = arena.allocate(bytes, Integer.BYTES);
-            MemorySegment feeds = arena.allocate(ADDRESS);
+            MemorySegment feeds = arena.allocate(ADDRESS, 2);
             MemorySegment targets = arena.allocate(ADDRESS);
             for (int index = 0; index < samples.length; index++) {
                 source.setAtIndex(JAVA_INT, index, original[index]);
@@ -392,9 +390,10 @@ final class MetalSigmoidNativeTest {
             api.upload(input, 0L, source, bytes);
             api.upload(output, 0L, destination, bytes);
             feeds.setAtIndex(ADDRESS, 0, input.carrier());
+            feeds.setAtIndex(ADDRESS, 1, output.carrier());
             targets.setAtIndex(ADDRESS, 0, input.carrier());
             assertThrows(RuntimeException.class,
-                    () -> api.runExecutable(executable, 1, feeds, 1, targets));
+                    () -> api.runExecutable(executable, 2, feeds, 1, targets));
             api.download(input, 0L, destination, bytes);
             for (int index = 0; index < samples.length; index++) {
                 assertEquals(original[index], destination.getAtIndex(JAVA_INT, index),
@@ -407,7 +406,7 @@ final class MetalSigmoidNativeTest {
             }
             targets.setAtIndex(ADDRESS, 0, output.carrier());
             for (int repeat = 0; repeat < 3; repeat++) {
-                api.runExecutable(executable, 1, feeds, 1, targets);
+                api.runExecutable(executable, 2, feeds, 1, targets);
                 api.download(output, 0L, destination, bytes);
                 for (int index = 0; index < samples.length; index++) {
                     assertSigmoid(samples[index], destination.getAtIndex(JAVA_INT, index));

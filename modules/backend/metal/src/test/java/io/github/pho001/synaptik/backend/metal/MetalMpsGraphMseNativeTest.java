@@ -54,7 +54,7 @@ class MetalMpsGraphMseNativeTest {
                             program,
                             new int[] {0, 1},
                             new int[] {2},
-                            MetalPreparedRoute.MPSGRAPH);
+                            MetalPreparedRoute.CUSTOM_PROGRAM);
                     List<MetalMpsGraphProgram.ValueDescriptor> wrongGradient = List.of(
                             values.get(0),
                             values.get(1),
@@ -69,7 +69,7 @@ class MetalMpsGraphMseNativeTest {
                                     program,
                                     new int[] {0, 1},
                                     new int[] {2},
-                                    MetalPreparedRoute.MPSGRAPH));
+                                    MetalPreparedRoute.CUSTOM_PROGRAM));
                 }
             }
         }
@@ -86,18 +86,13 @@ class MetalMpsGraphMseNativeTest {
                         none,
                         new int[] {0, 1},
                         new int[] {2},
-                        MetalPreparedRoute.MPSGRAPH));
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        List.of(
-                                descriptor(DataType.FLOAT32, Shape.scalar(), false),
-                                descriptor(DataType.FLOAT32, Shape.scalar(), false),
-                                descriptor(DataType.FLOAT32, Shape.scalar(), false)),
-                        none,
-                        new int[] {0, 1},
-                        new int[] {2},
-                        MetalPreparedRoute.MPSGRAPH));
+                        MetalPreparedRoute.CUSTOM_PROGRAM));
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                List.of(
+                        descriptor(DataType.FLOAT32, Shape.scalar(), false),
+                        descriptor(DataType.FLOAT32, Shape.scalar(), false),
+                        descriptor(DataType.FLOAT32, Shape.scalar(), false)),
+                none, new int[] {0, 1}, new int[] {2}, MetalPreparedRoute.CUSTOM_PROGRAM);
         assertThrows(
                 IllegalArgumentException.class,
                 () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
@@ -108,7 +103,7 @@ class MetalMpsGraphMseNativeTest {
                         none,
                         new int[] {0, 1},
                         new int[] {2},
-                        MetalPreparedRoute.MPSGRAPH));
+                        MetalPreparedRoute.CUSTOM_PROGRAM));
         assertThrows(
                 IllegalArgumentException.class,
                 () -> mseNode(0, 1, 2, 4L));
@@ -122,7 +117,7 @@ class MetalMpsGraphMseNativeTest {
                 repeated,
                 new int[] {0},
                 new int[] {1},
-                MetalPreparedRoute.MPSGRAPH);
+                MetalPreparedRoute.CUSTOM_PROGRAM);
     }
 
     @Test
@@ -134,6 +129,7 @@ class MetalMpsGraphMseNativeTest {
         MetalNativeApi api = MetalNativeApi.open(
                 Path.of(configured).toAbsolutePath().normalize());
         try {
+            runScenario(api, Shape.scalar(), bits(3.0f), bits(1.0f));
             int[] specialPrediction = {
                 0x00000000,
                 POSITIVE_MIN_SUBNORMAL,
@@ -272,7 +268,7 @@ class MetalMpsGraphMseNativeTest {
             program,
             new int[] {0, 1},
             new int[] {2, 3, 4, 5},
-            MetalPreparedRoute.MPSGRAPH);
+            MetalPreparedRoute.CUSTOM_PROGRAM);
             for (int elements : new int[] {count, count, count, 1, 1, count}) {
                 buffers.add(api.createBuffer(context, (long) elements * Integer.BYTES));
             }
@@ -287,9 +283,9 @@ class MetalMpsGraphMseNativeTest {
             Allowed mean = withFinalZeroSignFreedom(
                     divideByExactPositiveCount(unreleasedSum, count));
             try (Arena arena = Arena.ofConfined()) {
-                MemorySegment inputs = arena.allocate(ADDRESS, 2);
-                inputs.setAtIndex(ADDRESS, 0, buffers.get(0).carrier());
-                inputs.setAtIndex(ADDRESS, 1, buffers.get(1).carrier());
+                MemorySegment inputs = arena.allocate(ADDRESS, buffers.size());
+                for (int value = 0; value < buffers.size(); value++)
+                    inputs.setAtIndex(ADDRESS, value, buffers.get(value).carrier());
                 MemorySegment outputs = arena.allocate(ADDRESS, 4);
                 for (int output = 0; output < 4; output++) {
                     outputs.setAtIndex(ADDRESS, output, buffers.get(output + 2).carrier());
@@ -300,7 +296,7 @@ class MetalMpsGraphMseNativeTest {
                     upload(api, buffers.get(3), poison(1));
                     upload(api, buffers.get(4), poison(1));
                     upload(api, buffers.get(5), poison(count));
-                    api.runExecutable(executable, 2, inputs, 4, outputs);
+                    api.runExecutable(executable, buffers.size(), inputs, 4, outputs);
                     int[] none = download(api, buffers.get(2), count);
                     int[] repeated = download(api, buffers.get(5), count);
                     for (int lane = 0; lane < count; lane++) {

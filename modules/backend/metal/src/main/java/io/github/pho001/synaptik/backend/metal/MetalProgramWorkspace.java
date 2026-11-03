@@ -1,13 +1,14 @@
 package io.github.pho001.synaptik.backend.metal;
 
+import io.github.pho001.synaptik.model.datatype.DataType;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Exact run-owned numerical workspace geometry derived from the authenticated program.
- * No workspace is retained in a native executable or shared across invocations. Canonical
- * attention weights are reused when declared; an output-only attention owns its complete
- * score/weight matrix in explicitly prepared scratch instead.
+ * No workspace is retained in a native executable or shared across invocations. Only FLOAT32
+ * attention weights may double as working storage; low siblings are narrowed publications,
+ * independent of the FLOAT32 scores/probabilities consumed by the primary result.
  */
 final class MetalProgramWorkspace {
     private MetalProgramWorkspace() {}
@@ -25,9 +26,11 @@ final class MetalProgramWorkspace {
             MetalMpsGraphProgram.Node node,
             List<MetalMpsGraphProgram.ValueDescriptor> values) {
         if (node.kind() == MetalMpsGraphProgram.NodeKind.SCALED_DOT_PRODUCT_ATTENTION
-                && node.outputCount() == 1) {
+                && (node.outputCount() == 1
+                        || values.get(node.outputIndex()).dataType() != DataType.FLOAT32)) {
             long[] output = values.get(node.outputIndex()).dimensions();
-            for (long extent : output) if (extent == 0L) return 0L;
+            if (node.outputCount() == 1)
+                for (long extent : output) if (extent == 0L) return 0L;
             long[] key = values.get(node.inputs()[1]).dimensions();
             long rows = 1L;
             for (int axis = 0; axis < output.length - 1; axis++)

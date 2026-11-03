@@ -128,7 +128,7 @@ final class MetalNegPreparedScheduleAssembler
                             assignment.valueId(),
                             descriptor,
                             bytes);
-            boolean authenticatedAffineInternal = authenticatedAffineInternal(
+            boolean authenticatedPreparedValue = authenticatedPreparedValue(
                     scheduleContext.partitions(),
                     assignment.valueId(),
                     descriptor,
@@ -142,7 +142,7 @@ final class MetalNegPreparedScheduleAssembler
             if (descriptor == null
                     || !task0059Carrier(dataType)
                     || (!canonical
-                            && !authenticatedAffineInternal
+                            && !authenticatedPreparedValue
                             && affinePublication.isEmpty()
                             && !MetalMpsGraphProgram.ValueDescriptor.from(descriptor)
                                     .supportsStorageLayout(0))) {
@@ -418,7 +418,7 @@ final class MetalNegPreparedScheduleAssembler
     }
 
 
-    private static boolean authenticatedAffineInternal(
+    private static boolean authenticatedPreparedValue(
             List<PreparedPartition> partitions,
             ValueId valueId,
             TensorDescriptor descriptor,
@@ -428,6 +428,17 @@ final class MetalNegPreparedScheduleAssembler
             if (partition.executable() instanceof MetalNegPreparedExecutable executable) {
                 MetalNegPreparationPlan candidate = executable.preparationPlan();
                 int value = candidate.valueIds().indexOf(valueId);
+                if (value >= 0
+                        && candidate.descriptors().get(value).equals(descriptor)
+                        && candidate.valueStates().get(value) == MetalMpsGraphProgram.ValueState.CANONICAL
+                        && (candidate.targetValueIds().contains(valueId)
+                                || candidate.internalValueIds().contains(valueId))) {
+                    var physical = candidate.physicalLayouts().get(value);
+                    MetalMpsGraphProgram.ValueDescriptor encoded = candidate.programValueDescriptors().get(value);
+                    if (encoded.layout().orElseThrow().equals(physical)
+                            && encoded.denseStorage(physical)
+                            && logicalByteSize(descriptor) <= byteSize) return true;
+                }
                 if (value >= 0
                         && candidate.internalValueIds().contains(valueId)
                         && candidate.valueStates().get(value)

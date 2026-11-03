@@ -721,7 +721,7 @@ final class MetalPointwiseFusionPlanner {
             MetalPointwiseFusionPlan.CapReason reason) {
         StringBuilder text = new StringBuilder(4096);
         text.append("format 2\n")
-                .append("schema 21\n")
+                .append("schema 22\n")
                 .append("generator 2\n")
                 .append("route 3\n")
                 .append("counts ").append(values.size()).append(' ').append(nodes.size()).append(' ')
@@ -742,7 +742,7 @@ final class MetalPointwiseFusionPlanner {
                 .append(MetalPointwiseFusionPlan.FIXED_CORPUS_UTF8_BYTES).append('\n')
                 .append("opcodes floor=1 ceil=2 sign=3 relu=4\n")
                 .append("anchor-opcodes scalar-mul=1 add=2 relu=3 clamp=4\n")
-                .append("pointmeta-abi size=32 align=8 elementCount=u64@0 gridWidth=u64@8 gridHeight=u64@16 scalar=u32@24 reserved=u32@28\n");
+                .append("pointmeta-abi size=32 align=8 elementCount=u64@0 gridWidth=u64@8 gridHeight=u64@16 scalar=u32@24 valueType=u32@28\n");
         for (int value = 0; value < values.size(); value++) {
             MetalMpsGraphProgram.ValueDescriptor descriptor = values.get(value);
             text.append("value ").append(value).append(' ')
@@ -773,7 +773,7 @@ final class MetalPointwiseFusionPlanner {
                 int terminalNode = members[step.memberStart() + step.memberCount() - 1];
                 long elements = values.get(nodes.get(terminalNode).outputIndex()).elementCount();
                 text.append("pointmeta ").append(ordinal).append(' ')
-                        .append(elements).append(' ').append(elements).append(" 1 0 0\n");
+                        .append(elements).append(' ').append(elements).append(" 1 0 1\n");
             }
         }
         for (int ordinal = 0; ordinal < members.length; ordinal++) {

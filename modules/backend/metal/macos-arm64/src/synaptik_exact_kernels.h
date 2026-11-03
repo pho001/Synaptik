@@ -6,59 +6,19 @@ static NSString *const SynaptikExactKernelSource =
 @"using namespace metal;\n"
 @"struct BinaryMeta { ulong dims[16]; ulong leftStrides[16]; ulong rightStrides[16]; ulong leftOffset; ulong rightOffset; ulong elementCount; ulong gridWidth; ulong gridHeight; uint rank; uint leftType; uint rightType; uint outputType; };\n"
 @"struct PointMeta { ulong elementCount; ulong gridWidth; ulong gridHeight; uint scalar; uint valueType; };\n"
-@"struct ClampMeta { ulong elementCount; ulong gridWidth; ulong gridHeight; uint lower; uint upper; uint valueType; uint reserved; };\n"
-@"struct ReductionMeta { ulong dims[16]; ulong strides[16]; ulong outputCount; ulong reducedCount; ulong gridWidth; ulong gridHeight; uint rank; uint axesMask; };\n"
 @"struct ScanMeta { ulong elementCount; ulong axisLength; ulong inner; ulong lineCount; ulong gridWidth; ulong gridHeight; uint exclusive; uint reverse; uint valueType; uint reserved; };\n"
-@"struct TernaryMeta { ulong dims[16]; ulong conditionStrides[16]; ulong trueStrides[16]; ulong falseStrides[16]; ulong conditionOffset; ulong trueOffset; ulong falseOffset; ulong elementCount; ulong gridWidth; ulong gridHeight; uint rank; uint reserved; };\n"
 @"inline ulong linear_id(uint3 gid, ulong width, ulong height) { return ulong(gid.x) + width * (ulong(gid.y) + height * ulong(gid.z)); }\n"
 @"inline bool nan_bits(uint value) { return (value & 0x7f800000u) == 0x7f800000u && (value & 0x007fffffu) != 0u; }\n"
 @"inline bool zero_bits(uint value) { return (value & 0x7fffffffu) == 0u; }\n"
 @"inline uint ordered_key(uint value) { return (value & 0x80000000u) != 0u ? ~value : (value ^ 0x80000000u); }\n"
 @"inline bool exact_equal(uint left, uint right) { if (nan_bits(left) || nan_bits(right)) return false; if (zero_bits(left) && zero_bits(right)) return true; return left == right; }\n"
 @"inline bool exact_less(uint left, uint right) { if (nan_bits(left) || nan_bits(right) || exact_equal(left, right)) return false; return ordered_key(left) < ordered_key(right); }\n"
-@"inline bool exact_compare(uint left, uint right, uint operation) { switch (operation) { case 0u: return exact_less(right, left); case 1u: return exact_less(right, left) || exact_equal(left, right); case 2u: return exact_less(left, right); case 3u: return exact_less(left, right) || exact_equal(left, right); case 4u: return exact_equal(left, right); default: return !exact_equal(left, right); } }\n"
 @"inline uint exact_extreme(uint left, uint right, bool maximum) { if (nan_bits(left)) return left; if (nan_bits(right)) return right; if (zero_bits(left) && zero_bits(right)) { uint sign = maximum ? ((left & right) & 0x80000000u) : ((left | right) & 0x80000000u); return sign; } if (exact_equal(left, right)) return left; bool leftLess = exact_less(left, right); return maximum ? (leftLess ? right : left) : (leftLess ? left : right); }\n"
 @"inline void binary_offsets(ulong linear, constant BinaryMeta &meta, thread ulong &leftOffset, thread ulong &rightOffset) { ulong remaining = linear; leftOffset = meta.leftOffset; rightOffset = meta.rightOffset; for (int axis = int(meta.rank) - 1; axis >= 0; --axis) { ulong coordinate = remaining % meta.dims[axis]; remaining /= meta.dims[axis]; leftOffset += coordinate * meta.leftStrides[axis]; rightOffset += coordinate * meta.rightStrides[axis]; } }\n"
-@"inline void compare_body(device const uint *left, device const uint *right, device uchar *output, constant BinaryMeta &meta, uint3 gid, uint operation) { ulong linear = linear_id(gid, meta.gridWidth, meta.gridHeight); if (linear >= meta.elementCount) return; ulong leftOffset, rightOffset; binary_offsets(linear, meta, leftOffset, rightOffset); output[linear] = exact_compare(left[leftOffset], right[rightOffset], operation) ? uchar(1) : uchar(0); }\n"
-@"kernel void cmp_gt(device const uint *left [[buffer(0)]], device const uint *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant BinaryMeta &meta [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) { compare_body(left, right, output, meta, gid, 0u); }\n"
-@"kernel void cmp_ge(device const uint *left [[buffer(0)]], device const uint *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant BinaryMeta &meta [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) { compare_body(left, right, output, meta, gid, 1u); }\n"
-@"kernel void cmp_lt(device const uint *left [[buffer(0)]], device const uint *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant BinaryMeta &meta [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) { compare_body(left, right, output, meta, gid, 2u); }\n"
-@"kernel void cmp_le(device const uint *left [[buffer(0)]], device const uint *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant BinaryMeta &meta [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) { compare_body(left, right, output, meta, gid, 3u); }\n"
-@"kernel void cmp_eq(device const uint *left [[buffer(0)]], device const uint *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant BinaryMeta &meta [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) { compare_body(left, right, output, meta, gid, 4u); }\n"
-@"kernel void cmp_ne(device const uint *left [[buffer(0)]], device const uint *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant BinaryMeta &meta [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) { compare_body(left, right, output, meta, gid, 5u); }\n"
-@"inline void binary_extreme_body(device const uint *left, device const uint *right, device uint *output, constant BinaryMeta &meta, uint3 gid, bool maximum) { ulong linear = linear_id(gid, meta.gridWidth, meta.gridHeight); if (linear >= meta.elementCount) return; ulong leftOffset, rightOffset; binary_offsets(linear, meta, leftOffset, rightOffset); output[linear] = exact_extreme(left[leftOffset], right[rightOffset], maximum); }\n"
-@"kernel void tensor_min(device const uint *left [[buffer(0)]], device const uint *right [[buffer(1)]], device uint *output [[buffer(2)]], constant BinaryMeta &meta [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) { binary_extreme_body(left, right, output, meta, gid, false); }\n"
-@"kernel void tensor_max(device const uint *left [[buffer(0)]], device const uint *right [[buffer(1)]], device uint *output [[buffer(2)]], constant BinaryMeta &meta [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) { binary_extreme_body(left, right, output, meta, gid, true); }\n"
-@"inline void scalar_extreme_body(device const uint *input, device uint *output, constant PointMeta &meta, uint3 gid, bool maximum) { ulong linear = linear_id(gid, meta.gridWidth, meta.gridHeight); if (linear >= meta.elementCount) return; output[linear] = exact_extreme(input[linear], meta.scalar, maximum); }\n"
-@"kernel void scalar_min(device const uint *input [[buffer(0)]], device uint *output [[buffer(1)]], constant PointMeta &meta [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) { scalar_extreme_body(input, output, meta, gid, false); }\n"
-@"kernel void scalar_max(device const uint *input [[buffer(0)]], device uint *output [[buffer(1)]], constant PointMeta &meta [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) { scalar_extreme_body(input, output, meta, gid, true); }\n"
 @"inline uint floor_bits(uint word) { uint magnitude = word & 0x7fffffffu; uint exponentBits = magnitude >> 23u; if (exponentBits == 0xffu || magnitude == 0u) return word; int exponent = int(exponentBits) - 127; if (exponent < 0) return (word & 0x80000000u) != 0u ? 0xbf800000u : 0x00000000u; if (exponent >= 23) return word; uint unit = 1u << uint(23 - exponent); uint mask = unit - 1u; if ((word & mask) == 0u) return word; uint truncated = word & ~mask; return (word & 0x80000000u) != 0u ? truncated + unit : truncated; }\n"
 @"inline uint ceil_bits(uint word) { uint magnitude = word & 0x7fffffffu; uint exponentBits = magnitude >> 23u; if (exponentBits == 0xffu || magnitude == 0u) return word; int exponent = int(exponentBits) - 127; if (exponent < 0) return (word & 0x80000000u) != 0u ? 0x80000000u : 0x3f800000u; if (exponent >= 23) return word; uint unit = 1u << uint(23 - exponent); uint mask = unit - 1u; if ((word & mask) == 0u) return word; uint truncated = word & ~mask; return (word & 0x80000000u) != 0u ? truncated : truncated + unit; }\n"
 @"inline uint sign_bits(uint word) { if (nan_bits(word) || zero_bits(word)) return word; return (word & 0x80000000u) != 0u ? 0xbf800000u : 0x3f800000u; }\n"
-@"inline uint relu_bits(uint word) { if (nan_bits(word)) return word; return (word & 0x80000000u) != 0u ? 0x00000000u : word; }\n"
-@"inline void exact_unary_body(device const uint *input, device uint *output, constant PointMeta &meta, uint3 gid, uint operation) { ulong linear = linear_id(gid, meta.gridWidth, meta.gridHeight); if (linear >= meta.elementCount) return; uint word = input[linear]; output[linear] = operation == 0u ? floor_bits(word) : operation == 1u ? ceil_bits(word) : operation == 2u ? sign_bits(word) : relu_bits(word); }\n"
-@"kernel void exact_floor(device const uint *input [[buffer(0)]], device uint *output [[buffer(1)]], constant PointMeta &meta [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) { exact_unary_body(input, output, meta, gid, 0u); }\n"
-@"kernel void exact_ceil(device const uint *input [[buffer(0)]], device uint *output [[buffer(1)]], constant PointMeta &meta [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) { exact_unary_body(input, output, meta, gid, 1u); }\n"
-@"kernel void exact_sign(device const uint *input [[buffer(0)]], device uint *output [[buffer(1)]], constant PointMeta &meta [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) { exact_unary_body(input, output, meta, gid, 2u); }\n"
-@"kernel void exact_relu(device const uint *input [[buffer(0)]], device uint *output [[buffer(1)]], constant PointMeta &meta [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) { exact_unary_body(input, output, meta, gid, 3u); }\n"
-@"kernel void clamp_fused(device const uint *input [[buffer(0)]], device uint *output [[buffer(1)]], constant ClampMeta &meta [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) { ulong linear = linear_id(gid, meta.gridWidth, meta.gridHeight); if (linear >= meta.elementCount) return; uint lowered = exact_extreme(input[linear], meta.lower, true); output[linear] = exact_extreme(lowered, meta.upper, false); }\n"
-@"inline ulong reduction_offset(ulong outputLinear, ulong reducedLinear, constant ReductionMeta &meta) { ulong outputRemaining = outputLinear; ulong reducedRemaining = reducedLinear; ulong offset = 0ul; for (int axis = int(meta.rank) - 1; axis >= 0; --axis) { ulong coordinate; if ((meta.axesMask & (1u << uint(axis))) != 0u) { coordinate = reducedRemaining % meta.dims[axis]; reducedRemaining /= meta.dims[axis]; } else { coordinate = outputRemaining % meta.dims[axis]; outputRemaining /= meta.dims[axis]; } offset += coordinate * meta.strides[axis]; } return offset; }\n"
-@"inline void reduction_body(device const uint *input, device uint *output, constant ReductionMeta &meta, uint3 gid, bool maximum) { ulong outputLinear = linear_id(gid, meta.gridWidth, meta.gridHeight); if (outputLinear >= meta.outputCount) return; uint accumulator = input[reduction_offset(outputLinear, 0ul, meta)]; for (ulong contributor = 1ul; contributor < meta.reducedCount; ++contributor) accumulator = exact_extreme(accumulator, input[reduction_offset(outputLinear, contributor, meta)], maximum); output[outputLinear] = accumulator; }\n"
-@"kernel void reduction_min(device const uint *input [[buffer(0)]], device uint *output [[buffer(1)]], constant ReductionMeta &meta [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) { reduction_body(input, output, meta, gid, false); }\n"
-@"kernel void reduction_max(device const uint *input [[buffer(0)]], device uint *output [[buffer(1)]], constant ReductionMeta &meta [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) { reduction_body(input, output, meta, gid, true); }\n"
-@"inline void scan_body(device const uint *input, device uint *output, constant ScanMeta &meta, uint3 gid, bool product) { ulong line = linear_id(gid, meta.gridWidth, meta.gridHeight); if (line >= meta.lineCount) return; ulong outer = line / meta.inner; ulong innerIndex = line % meta.inner; ulong base = outer * meta.axisLength * meta.inner + innerIndex; uint accumulator = product ? 0x3f800000u : 0x00000000u; bool hasContributor = false; for (ulong step = 0ul; step < meta.axisLength; ++step) { ulong logical = meta.reverse != 0u ? (meta.axisLength - 1ul - step) : step; ulong offset = base + logical * meta.inner; uint value = input[offset]; if (meta.exclusive != 0u) output[offset] = hasContributor ? accumulator : (product ? 0x3f800000u : 0x00000000u); if (!hasContributor) { accumulator = value; hasContributor = true; } else { float left = as_type<float>(accumulator); float right = as_type<float>(value); float result = product ? (left * right) : (left + right); accumulator = as_type<uint>(result); } if (meta.exclusive == 0u) output[offset] = accumulator; } }\n"
-@"kernel void scan_sum(device const uint *input [[buffer(0)]], device uint *output [[buffer(1)]], constant ScanMeta &meta [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) { scan_body(input, output, meta, gid, false); }\n"
-@"inline void classify_body(device const uint *input, device uchar *output, constant PointMeta &meta, uint3 gid, uint operation) { ulong linear = linear_id(gid, meta.gridWidth, meta.gridHeight); if (linear >= meta.elementCount) return; uint word = input[linear]; uint exponent = word & 0x7f800000u; uint fraction = word & 0x007fffffu; bool result = operation == 0u ? exponent != 0x7f800000u : operation == 1u ? exponent == 0x7f800000u && fraction != 0u : exponent == 0x7f800000u && fraction == 0u; output[linear] = result ? uchar(1) : uchar(0); }\n"
-@"kernel void bool_is_finite(device const uint *input [[buffer(0)]], device uchar *output [[buffer(1)]], constant PointMeta &meta [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) { classify_body(input, output, meta, gid, 0u); }\n"
-@"kernel void bool_is_nan(device const uint *input [[buffer(0)]], device uchar *output [[buffer(1)]], constant PointMeta &meta [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) { classify_body(input, output, meta, gid, 1u); }\n"
-@"kernel void bool_is_inf(device const uint *input [[buffer(0)]], device uchar *output [[buffer(1)]], constant PointMeta &meta [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) { classify_body(input, output, meta, gid, 2u); }\n"
-@"inline void logical_binary_body(device const uchar *left, device const uchar *right, device uchar *output, constant BinaryMeta &meta, uint3 gid, bool useOr) { ulong linear = linear_id(gid, meta.gridWidth, meta.gridHeight); if (linear >= meta.elementCount) return; ulong leftOffset, rightOffset; binary_offsets(linear, meta, leftOffset, rightOffset); bool result = useOr ? left[leftOffset] != uchar(0) || right[rightOffset] != uchar(0) : left[leftOffset] != uchar(0) && right[rightOffset] != uchar(0); output[linear] = result ? uchar(1) : uchar(0); }\n"
-@"kernel void bool_and(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant BinaryMeta &meta [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) { logical_binary_body(left, right, output, meta, gid, false); }\n"
-@"kernel void bool_or(device const uchar *left [[buffer(0)]], device const uchar *right [[buffer(1)]], device uchar *output [[buffer(2)]], constant BinaryMeta &meta [[buffer(3)]], uint3 gid [[thread_position_in_grid]]) { logical_binary_body(left, right, output, meta, gid, true); }\n"
-@"kernel void bool_not(device const uchar *input [[buffer(0)]], device uchar *output [[buffer(1)]], constant PointMeta &meta [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) { ulong linear = linear_id(gid, meta.gridWidth, meta.gridHeight); if (linear >= meta.elementCount) return; output[linear] = input[linear] == uchar(0) ? uchar(1) : uchar(0); }\n"
-@"inline void ternary_offsets(ulong linear, constant TernaryMeta &meta, thread ulong &conditionOffset, thread ulong &trueOffset, thread ulong &falseOffset) { ulong remaining = linear; conditionOffset = meta.conditionOffset; trueOffset = meta.trueOffset; falseOffset = meta.falseOffset; for (int axis = int(meta.rank) - 1; axis >= 0; --axis) { ulong coordinate = remaining % meta.dims[axis]; remaining /= meta.dims[axis]; conditionOffset += coordinate * meta.conditionStrides[axis]; trueOffset += coordinate * meta.trueStrides[axis]; falseOffset += coordinate * meta.falseStrides[axis]; } }\n"
-@"kernel void bool_where(device const uchar *condition [[buffer(0)]], device const uint *whenTrue [[buffer(1)]], device const uint *whenFalse [[buffer(2)]], device uint *output [[buffer(3)]], constant TernaryMeta &meta [[buffer(4)]], uint3 gid [[thread_position_in_grid]]) { ulong linear = linear_id(gid, meta.gridWidth, meta.gridHeight); if (linear >= meta.elementCount) return; ulong conditionOffset, trueOffset, falseOffset; ternary_offsets(linear, meta, conditionOffset, trueOffset, falseOffset); output[linear] = condition[conditionOffset] != uchar(0) ? whenTrue[trueOffset] : whenFalse[falseOffset]; }\n"
-@"kernel void scan_prod(device const uint *input [[buffer(0)]], device uint *output [[buffer(1)]], constant ScanMeta &meta [[buffer(2)]], uint3 gid [[thread_position_in_grid]]) { scan_body(input, output, meta, gid, true); }\n";
+@"inline uint relu_bits(uint word) { if (nan_bits(word)) return word; return (word & 0x80000000u) != 0u ? 0x00000000u : word; }\n";
 
 /*
  * Assemble this component after the data, dtype-layout and ordering sources.
@@ -233,15 +193,9 @@ static NSString *const SynaptikExactTypedKernelSource =
 "    exact_numeric_scalar_body(input, output, m, linear);\n"
 "}\n";
 
-/*
- * Original FLOAT32 exact sites under authenticated Scan activity. Assemble
- * after GeneralScan and Exact sources. The extra control buffers are 28/29;
- * ordinary kernel signatures remain unchanged. Cumulative Scan lines must have
- * a constant ROW coordinate (the cumulative axis is not a ROW axis), as proved
- * by the binder. Reduction contributors are gated in original logical space,
- * before physical loads. This does not admit MIN/MAX that eliminate a ROW axis:
- * the Model Scan protocol permits only SUM at that cross-row boundary.
- */
+/* Exact stored-value sites share the same ordinary bodies under Scan activity.
+ * Assemble after GeneralScan, NumericCodec and typed exact sources. The output
+ * activity guard precedes address calculation and represented operand loads. */
 static NSString *const SynaptikExactControlledKernelSource =
 @"\n"
 "// Presence is tested before either the address calculation or any represented operand load.\n"
@@ -261,56 +215,6 @@ static NSString *const SynaptikExactControlledKernelSource =
 "kernel void exact_numeric_scalar_scan(device const uchar *input [[buffer(0)]], device uchar *output [[buffer(1)]], constant DataMeta &m [[buffer(2)]], device const ulong *control [[buffer(28)]], constant ScanStepControl &step [[buffer(29)]], uint3 gid [[thread_position_in_grid]]) {\n"
 "    ulong linear = data_linear_id(gid, m); if (linear >= m.elementCount || !scan_control_output(control, step, linear)) return;\n"
 "    exact_numeric_scalar_body(input, output, m, linear);\n"
-"}\n"
-"#define EXACT_SCAN_CONTROL device const ulong *scanControl [[buffer(28)]], constant ScanStepControl &scanStep [[buffer(29)]]\n"
-"#define EXACT_SCAN_COMPARE(NAME, OP) kernel void NAME(device const uint *l [[buffer(0)]], device const uint *r [[buffer(1)]], device uchar *o [[buffer(2)]], constant BinaryMeta &m [[buffer(3)]], EXACT_SCAN_CONTROL, uint3 g [[thread_position_in_grid]]) { ulong linear = linear_id(g, m.gridWidth, m.gridHeight); if (linear >= m.elementCount || !scan_control_output(scanControl, scanStep, linear)) return; compare_body(l, r, o, m, g, OP); }\n"
-"EXACT_SCAN_COMPARE(cmp_gt_scan, 0u) EXACT_SCAN_COMPARE(cmp_ge_scan, 1u)\n"
-"EXACT_SCAN_COMPARE(cmp_lt_scan, 2u) EXACT_SCAN_COMPARE(cmp_le_scan, 3u)\n"
-"EXACT_SCAN_COMPARE(cmp_eq_scan, 4u) EXACT_SCAN_COMPARE(cmp_ne_scan, 5u)\n"
-"#define EXACT_SCAN_BINARY(NAME, MAXIMUM) kernel void NAME(device const uint *l [[buffer(0)]], device const uint *r [[buffer(1)]], device uint *o [[buffer(2)]], constant BinaryMeta &m [[buffer(3)]], EXACT_SCAN_CONTROL, uint3 g [[thread_position_in_grid]]) { ulong linear = linear_id(g, m.gridWidth, m.gridHeight); if (linear >= m.elementCount || !scan_control_output(scanControl, scanStep, linear)) return; binary_extreme_body(l, r, o, m, g, MAXIMUM); }\n"
-"EXACT_SCAN_BINARY(tensor_min_scan, false) EXACT_SCAN_BINARY(tensor_max_scan, true)\n"
-"#define EXACT_SCAN_SCALAR(NAME, MAXIMUM) kernel void NAME(device const uint *i [[buffer(0)]], device uint *o [[buffer(1)]], constant PointMeta &m [[buffer(2)]], EXACT_SCAN_CONTROL, uint3 g [[thread_position_in_grid]]) { ulong linear = linear_id(g, m.gridWidth, m.gridHeight); if (linear >= m.elementCount || !scan_control_output(scanControl, scanStep, linear)) return; scalar_extreme_body(i, o, m, g, MAXIMUM); }\n"
-"EXACT_SCAN_SCALAR(scalar_min_scan, false) EXACT_SCAN_SCALAR(scalar_max_scan, true)\n"
-"#define EXACT_SCAN_UNARY(NAME, OP) kernel void NAME(device const uint *i [[buffer(0)]], device uint *o [[buffer(1)]], constant PointMeta &m [[buffer(2)]], EXACT_SCAN_CONTROL, uint3 g [[thread_position_in_grid]]) { ulong linear = linear_id(g, m.gridWidth, m.gridHeight); if (linear >= m.elementCount || !scan_control_output(scanControl, scanStep, linear)) return; exact_unary_body(i, o, m, g, OP); }\n"
-"EXACT_SCAN_UNARY(exact_floor_scan, 0u) EXACT_SCAN_UNARY(exact_ceil_scan, 1u)\n"
-"EXACT_SCAN_UNARY(exact_sign_scan, 2u) EXACT_SCAN_UNARY(exact_relu_scan, 3u)\n"
-"kernel void clamp_fused_scan(device const uint *input [[buffer(0)]], device uint *output [[buffer(1)]], constant ClampMeta &m [[buffer(2)]], EXACT_SCAN_CONTROL, uint3 gid [[thread_position_in_grid]]) {\n"
-"    ulong linear = linear_id(gid, m.gridWidth, m.gridHeight);\n"
-"    if (linear >= m.elementCount || !scan_control_output(scanControl, scanStep, linear)) return;\n"
-"    output[linear] = exact_extreme(exact_extreme(input[linear], m.lower, true), m.upper, false);\n"
-"}\n"
-"inline ulong exact_reduction_logical(ulong output, ulong reduced, constant ReductionMeta &m) {\n"
-"    ulong linear = 0ul, stride = 1ul;\n"
-"    for (int axis = int(m.rank) - 1; axis >= 0; --axis) {\n"
-"        bool reduce = (m.axesMask & (1u << uint(axis))) != 0u;\n"
-"        ulong coordinate = (reduce ? reduced : output) % m.dims[axis];\n"
-"        if (reduce) reduced /= m.dims[axis]; else output /= m.dims[axis];\n"
-"        linear += coordinate * stride; stride *= m.dims[axis];\n"
-"    }\n"
-"    return linear;\n"
-"}\n"
-"inline void exact_controlled_reduction(device const uint *input, device uint *output, constant ReductionMeta &m, device const ulong *control, constant ScanStepControl &step, uint3 gid, bool maximum) {\n"
-"    ulong linear = linear_id(gid, m.gridWidth, m.gridHeight);\n"
-"    if (linear >= m.outputCount || !scan_control_output(control, step, linear)) return;\n"
-"    bool seen = false; uint accumulator = 0u;\n"
-"    for (ulong contributor = 0ul; contributor < m.reducedCount; ++contributor) {\n"
-"        ulong logical = exact_reduction_logical(linear, contributor, m);\n"
-"        if (!scan_control_operand(control, step, 0u, logical)) continue;\n"
-"        uint word = input[reduction_offset(linear, contributor, m)];\n"
-"        accumulator = seen ? exact_extreme(accumulator, word, maximum) : word; seen = true;\n"
-"    }\n"
-"    if (seen) output[linear] = accumulator;\n"
-"}\n"
-"#define EXACT_SCAN_REDUCTION(NAME, MAXIMUM) kernel void NAME(device const uint *i [[buffer(0)]], device uint *o [[buffer(1)]], constant ReductionMeta &m [[buffer(2)]], EXACT_SCAN_CONTROL, uint3 g [[thread_position_in_grid]]) { exact_controlled_reduction(i, o, m, scanControl, scanStep, g, MAXIMUM); }\n"
-"EXACT_SCAN_REDUCTION(reduction_min_scan, false) EXACT_SCAN_REDUCTION(reduction_max_scan, true)\n"
-"#define EXACT_SCAN_CUMULATIVE(NAME, PRODUCT) kernel void NAME(device const uint *i [[buffer(0)]], device uint *o [[buffer(1)]], constant ScanMeta &m [[buffer(2)]], EXACT_SCAN_CONTROL, uint3 g [[thread_position_in_grid]]) { ulong line = linear_id(g, m.gridWidth, m.gridHeight); if (line >= m.lineCount) return; ulong base = (line / m.inner) * m.axisLength * m.inner + line % m.inner; if (!scan_control_operand(scanControl, scanStep, 0u, base)) return; scan_body(i, o, m, g, PRODUCT); }\n"
-"EXACT_SCAN_CUMULATIVE(scan_sum_scan, false) EXACT_SCAN_CUMULATIVE(scan_prod_scan, true)\n"
-"#undef EXACT_SCAN_CUMULATIVE\n"
-"#undef EXACT_SCAN_REDUCTION\n"
-"#undef EXACT_SCAN_UNARY\n"
-"#undef EXACT_SCAN_SCALAR\n"
-"#undef EXACT_SCAN_BINARY\n"
-"#undef EXACT_SCAN_COMPARE\n"
-"#undef EXACT_SCAN_CONTROL\n";
+"}\n";
 
 #endif

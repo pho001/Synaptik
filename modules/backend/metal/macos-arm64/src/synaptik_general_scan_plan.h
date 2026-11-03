@@ -63,7 +63,7 @@ static BOOL synaptik_scan_scope(uint64_t scope, uint64_t count) {
 static BOOL synaptik_append_scan_ordinary_steps(
         SynaptikMetalDecodedNode node, NSArray<MPSShape *> *shapes, const uint8_t *types,
         const uint64_t *strides, const uint64_t *offsets, const uint8_t *states,
-        id<MTLDevice> device, id<MTLLibrary> library, id<MTLLibrary> lowLibrary,
+        id<MTLDevice> device, id<MTLLibrary> library,
         const SynaptikMetalScanStepControl *control, const int32_t *allValueRowAxes,
         const uint64_t *allValueRowInner, uint32_t semanticScatterReduction,
         NSMutableArray<SynaptikMetalProgramStep *> *sink);
@@ -85,7 +85,7 @@ static BOOL synaptik_scan_prove_coordinates(SynaptikMetalDecodedNode node, NSArr
         const int32_t *rows, const uint8_t *terminals, uint64_t batch);
 
 static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, uint32_t wordCount,
-        id<MTLDevice> device, id<MTLLibrary> library, id<MTLLibrary> lowLibrary) {
+        id<MTLDevice> device, id<MTLLibrary> library) {
     if (bytes == NULL || wordCount < 32U || wordCount > (1U << 20U) || device == nil || library == nil) return nil;
     NSMutableData *wordData = [NSMutableData dataWithLength:(NSUInteger)wordCount * 8U];
     if (wordData == nil) return nil;
@@ -312,7 +312,7 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
         if (unit.scratchBytes != expectedScratch) return nil;
         unit.firstStage = (uint32_t)steps.count;
         if (!synaptik_append_scan_ordinary_steps(unit.node, shapes, types, strides, offsets,
-                states, device, library, lowLibrary, &unit.control, allValueRowAxes, allValueRowInner,
+                states, device, library, &unit.control, allValueRowAxes, allValueRowInner,
                 unit.semanticScatterReduction, steps)) return nil;
         unit.stageCount = (uint32_t)steps.count - unit.firstStage;
         for (uint32_t stage = 0U; stage < unit.stageCount; stage++) {

@@ -31,16 +31,15 @@ import java.util.Optional;
  * image schema.</p>
  */
 final class MetalMpsGraphProgram {
-    static final int SCHEMA_VERSION = 21;
+    static final int SCHEMA_VERSION = 22;
     static final int MAX_RANK = 16;
-    static final int MAX_SELECTOR_EXPANSION = 16;
     static final int HEADER_BYTES = 124;
     static final int VALUE_DESCRIPTOR_BYTES = 40;
     static final int NODE_DESCRIPTOR_BYTES = 32;
     static final int STEP_DESCRIPTOR_BYTES = 40;
     static final int BINDING_DESCRIPTOR_BYTES = 24;
     static final int INSTRUCTION_DESCRIPTOR_BYTES = 64;
-    static final int MAGIC = 0x31324d53; // little-endian bytes "SM21"
+    static final int MAGIC = 0x32324d53; // little-endian bytes "SM22"
     private static final int EXECUTION_EXTENSION_PRESENT = 1;
     static final int NO_SECOND_INPUT = -1;
     static final int NO_AXIS = -1;
@@ -294,6 +293,9 @@ final class MetalMpsGraphProgram {
          * @return exact view or canonical materialization state, or UNAVAILABLE for a false claim
          */
         ValueState outputState(ValueDescriptor input, ValueDescriptor output) {
+            if ((this == SELECT || this == SLICE)
+                    && (output.elementCount() == 0L || output.layout().isEmpty()))
+                return ValueState.CANONICAL;
             if (this == SLICE && output.layout().isPresent()) {
                 LayoutDescriptor result = output.layout().orElseThrow();
                 if (!result.isView() && output.denseStorage(result)) return ValueState.CANONICAL;
@@ -324,24 +326,26 @@ final class MetalMpsGraphProgram {
         boolean isAffine() { return outputState == ValueState.AFFINE_VIEW; }
         boolean executable() { return executable; }
 
-        /** Qualified first-class FLOAT32 elementary math uses the fixed custom component. */
-        boolean isFloat32Elementary() {
-            return wireIdentity == 38 || wireIdentity == 50
+        /** Shared F32/BF16/F16 elementary math uses the fixed numerical component. */
+        boolean isNumericElementary() {
+            return this == SIGMOID || wireIdentity == 38 || wireIdentity >= 46 && wireIdentity <= 50
                     || wireIdentity == 53 || wireIdentity == 54
                     || wireIdentity >= 56 && wireIdentity <= 59
                     || wireIdentity >= 65 && wireIdentity <= 68;
         }
 
         /** PointMeta has no strides; logical views require independently proved dense storage. */
-        boolean requiresDenseFloat32Input() {
-            return this == NEG || this == ABS
-                    || wireIdentity >= 28 && wireIdentity <= 30
-                    || wireIdentity >= 46 && wireIdentity <= 50
-                    || wireIdentity >= 52 && wireIdentity <= 68;
+        boolean requiresDenseNumericInput() {
+            return switch (this) {
+                case NEG, ABS, RECIPROCAL, EXP, SIGMOID, LOG, LOG1P, EXPM1, ERF,
+                        SQRT, RSQRT, FLOOR, CEIL, SIGN, RELU, TANH, GELU,
+                        GELU_TANH_APPROXIMATION, SILU -> true;
+                default -> false;
+            };
         }
 
         boolean isCustomProgramOperation() {
-            if (this == GENERAL_SCAN) return true;
+            if (this == GENERAL_SCAN || isNumericElementary()) return true;
             if (wireIdentity == 36
                     || wireIdentity == 35 || wireIdentity >= 86 && wireIdentity <= 93
                     || wireIdentity >= 103 && wireIdentity <= 105
@@ -350,17 +354,13 @@ final class MetalMpsGraphProgram {
                 return true;
             }
             return wireIdentity >= 6 && wireIdentity <= 11
-                    || wireIdentity == 38 || wireIdentity == 50
-                    || wireIdentity == 53 || wireIdentity == 54
-                    || wireIdentity >= 56 && wireIdentity <= 59
-                    || wireIdentity >= 65 && wireIdentity <= 68
                     || wireIdentity >= 16 && wireIdentity <= 19
                     || wireIdentity >= 20 && wireIdentity <= 34
                     || wireIdentity == 39
                     || wireIdentity >= 40 && wireIdentity <= 45
                     || wireIdentity == 51
                     || wireIdentity >= 60 && wireIdentity <= 63
-                    || wireIdentity >= 69 && wireIdentity <= 84
+                    || wireIdentity >= 69 && wireIdentity <= 85
                     || wireIdentity >= 94 && wireIdentity <= 96
                     || wireIdentity >= 106 && wireIdentity <= 110
                     || wireIdentity == 112
@@ -391,8 +391,8 @@ final class MetalMpsGraphProgram {
         }
 
         /**
-         * Admits physical reads for original-carrier extensions without widening low proxies.
-         * Complete family geometry, carrier and gradient checks remain independent at preflight.
+         * Admits physical reads on original carriers. Complete family geometry, carrier and
+         * gradient checks remain independent at preflight.
          *
          * @param inputState authenticated earlier producer or feed state
          * @param descriptor exact original-carrier logical and represented geometry
@@ -401,19 +401,17 @@ final class MetalMpsGraphProgram {
         boolean accepts(ValueState inputState, ValueDescriptor descriptor) {
             boolean physicalRead = inputState == ValueState.AFFINE_VIEW
                     || inputState == ValueState.MATERIALIZED_LAYOUT;
-            boolean originalCarrier = descriptor.dataType() != DataType.BFLOAT16
-                    && descriptor.dataType() != DataType.FLOAT16;
-            boolean extension = isFloat32Reduction() || isFloat32Elementary()
+            boolean extension = isFloat32Reduction() || isNumericElementary()
                     || wireIdentity == 35 || wireIdentity >= 86 && wireIdentity <= 93
                     || this == NEG || this == ABS
                     || wireIdentity >= 26 && wireIdentity <= 32
                     || wireIdentity >= 60 && wireIdentity <= 63
                     || this == ADD || this == SUB || this == MUL
-                    || this == DIV && descriptor.dataType() == DataType.FLOAT32
+                    || this == DIV
                     || this == SCALAR_ADD || this == SCALAR_SUB
                     || this == SCALAR_MUL || this == SCALAR_DIV;
             return accepts(inputState)
-                    || physicalRead && originalCarrier && extension
+                    || physicalRead && extension
                     || this == MATMUL
                             && inputState == ValueState.MATERIALIZED_LAYOUT
                             && descriptor.matmulDense();
@@ -852,9 +850,9 @@ final class MetalMpsGraphProgram {
                     requireWords(2);
                     requireAxis(attributeWords[0]);
                 }
-                case CROP_TO_SHAPE -> validateCrop(scanBody);
+                case CROP_TO_SHAPE -> validateCrop();
                 case PAD -> validatePad();
-                case SLICE -> validateSlice(scanBody);
+                case SLICE -> validateSlice();
                 case TILE -> validatePositiveList();
                 case WINDOW_2D -> validateWindow(2, false, false, scanBody);
                 case PADDED_WINDOW_2D -> validateWindow(2, true, false, scanBody);
@@ -932,14 +930,13 @@ final class MetalMpsGraphProgram {
             validateAxes(Arrays.copyOfRange(attributeWords, 1, attributeWords.length), count, true);
         }
 
-        private void validateCrop(boolean scanBody) {
+        private void validateCrop() {
             int targetRank = checkedCount(attributeWords, 0);
             if (targetRank > MAX_RANK || attributeWords.length < 1 + targetRank) {
                 throw malformed();
             }
             for (int index = 1; index <= targetRank; index++) {
-                if (attributeWords[index] < 0L
-                        || attributeWords[index] == 0L && !scanBody && kind != NodeKind.SLICE_UPDATE) {
+                if (attributeWords[index] < 0L) {
                     throw malformed();
                 }
             }
@@ -965,16 +962,14 @@ final class MetalMpsGraphProgram {
             validateScalar(attributeWords, 1 + rank * 2);
         }
 
-        private void validateSlice(boolean scanBody) {
+        private void validateSlice() {
             int count = checkedCount(attributeWords, 0);
             if (count > MAX_RANK || attributeWords.length != 1 + count * 4) {
                 throw malformed();
             }
             boolean[] seen = new boolean[MAX_RANK];
             for (int index = 0; index < count; index++) {
-                if (attributeWords[1 + count + index] < 0L
-                        || attributeWords[1 + count + index] == 0L
-                                && !scanBody && kind != NodeKind.SLICE_UPDATE) {
+                if (attributeWords[1 + count + index] < 0L) {
                     throw malformed();
                 }
                 long axis = attributeWords[1 + count * 2 + index];

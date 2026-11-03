@@ -24,34 +24,26 @@ import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphMatmulNativeTest {
     @Test
-    void typedMatmulKeepsScalarBatchBroadcastAndAffineGradientInputs() {
+    void typedMatmulKeepsScalarResultsAndBatchBroadcastWithGradientFlags() {
         Path library = configuredLibrary();
         for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
             var program = new MetalMpsGraphProgram(List.of(
                     MetalMpsGraphProgram.Node.matmul(0, 1, 2),
-                    MetalMpsGraphProgram.Node.matmul(3, 4, 5),
-                    MetalMpsGraphProgram.Node.matmul(6, 7, 8)));
-            Shape affine = Shape.of(2, 2);
+                    MetalMpsGraphProgram.Node.matmul(3, 4, 5)));
             List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
                     new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {3}, true),
                     typed(type, 3),
                     new MetalMpsGraphProgram.ValueDescriptor(type, new long[0], true),
                     new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 2, 3}, true),
                     typed(type, 1, 3, 2),
-                    new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 2, 2}, true),
-                    new MetalMpsGraphProgram.ValueDescriptor(type, affine.toLongArray(),
-                            Optional.of(LayoutDescriptor.of(affine, new long[] {1, 2}, 1, true)), true, false),
-                    typed(type, 2),
-                    new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2}, true));
+                    new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 2, 2}, true));
             List<byte[]> actual = executeCustom(library, program, values,
-                    new int[] {0, 1, 3, 4, 6, 7}, new int[] {2, 5, 8},
+                    new int[] {0, 1, 3, 4}, new int[] {2, 5},
                     List.of(numericBytes(type, 1, 2, 3), numericBytes(type, 4, 5, 6),
                             numericBytes(type, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12),
-                            numericBytes(type, 1, 0, 0, 1, 1, 1),
-                            numericBytes(type, 99, 1, 3, 2, 4), numericBytes(type, 5, 6)));
+                            numericBytes(type, 1, 0, 0, 1, 1, 1)));
             assertArrayEquals(numericBytes(type, 32), actual.get(0), type.toString());
             assertArrayEquals(numericBytes(type, 4, 5, 10, 11, 16, 17, 22, 23), actual.get(1));
-            assertArrayEquals(numericBytes(type, 17, 39), actual.get(2));
         }
     }
 

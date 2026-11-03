@@ -175,7 +175,8 @@ final class MetalNormalizationSupport {
         }
         require(in.length >= 1 && out.length >= 1);
         var x = values.get(in[0]);
-        require(numeric(x.dataType()) && x.rank() >= 1);
+        require(numeric(x.dataType()) && (x.rank() >= 1
+                || node.kind() == MetalMpsGraphProgram.NodeKind.MEAN_SQUARED_ERROR));
         for (int id : in) physical(values.get(id), false);
         DataType resultType = x.dataType();
         for (int role = 1; role < in.length; role++) {

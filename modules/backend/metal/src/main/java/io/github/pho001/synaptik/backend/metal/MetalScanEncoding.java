@@ -3,7 +3,7 @@ package io.github.pho001.synaptik.backend.metal;
 import java.util.List;
 
 /**
- * Single bounded native Scan grammar carried by GENERAL_SCAN attribute words in schema 21.
+ * Single bounded native Scan grammar carried by GENERAL_SCAN attribute words in schema 22.
  * Offsets and lengths are in 64-bit little-endian words. Every section is contiguous, every
  * record self-sizes, and the final offset equals the complete attribute payload length; unknown
  * versions, trailing words and overlapping sections fail closed.

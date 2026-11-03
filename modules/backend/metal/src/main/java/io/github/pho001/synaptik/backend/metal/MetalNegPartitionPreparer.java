@@ -102,38 +102,32 @@ import java.util.Optional;
  *
  * <p>The deterministic analysis assigns stable native value indices, retains every node kind and
  * ordered operand, and derives unique feeds and targets before selecting a closed private route.
- * It walks in node order through the retained exact unary, affine, canonicalization,
- * movement/indexing,
- * replacement/fold/aggregate, BOOL, ordering/arg-extrema, maximum-pooling, promoted integral
- * MATMUL, and zero-input {@code INITIAL_STATE} domains. The schema-twenty-one execution cutover
- * carries all seven types through exact affine movement, INT32/INT64 index roles, all 49 cast pairs,
- * floating classification and promotion, and the precise legal first-order saved-role relations.
- * Authenticated local zero-stride descendants retain their logical layouts while preparation
- * assigns independently safe physical buffers. For every FLOAT32 occurrence in the frozen,
- * formerly ACCELERATOR support baseline,
- * homogeneous BFLOAT16 and FLOAT16 descriptors are admitted with the same geometry and attributes
- * and lowered to a fixed custom implementation. That closure includes arithmetic, reductions and
- * scans, MSE, MATMUL, convolution/pooling, ordering, dropout, L1, ScatterAdd, and singleton
- * variance. The low-precision capability is the selected occurrence-scoped predicate; arithmetic
- * may flush only at the named arithmetic sites. FLOAT32 arithmetic scatter binds its original
- * affine reads and canonical result, including materialized produced indices; replacement
- * uniqueness remains separate from additive contributors. Random lowering preserves initializer
- * key/counter words, dropout's raw binary64 probability and all value/mask/state edges. Fixed
- * recurrent forward and authenticated Scan retain their complete canonical output/resource roles.
+ * It preserves the focused original-carrier numerical and exact stored/indexing domains.
+ * FLOAT32/BFLOAT16/FLOAT16 working kernels, all seven stored types, INT32/INT64 index roles,
+ * all 49 cast pairs and legal saved-gradient roles share one self-describing program.
+ * Authenticated local zero-stride descendants retain logical provenance while preparation
+ * assigns independently safe physical buffers. Numerical capability validates actual descriptors
+ * and scalar metadata; no FLOAT32 descriptor proxy or separate low implementation is involved.
+ * Arithmetic scatter binds its original affine reads and canonical result, including produced
+ * indices; replacement uniqueness remains separate from additive contributors. Random lowering
+ * preserves initializer key/counter words, dropout's raw binary64 probability and all
+ * value/mask/state edges. Fixed recurrent and GeneralScan lowering retain every canonical
+ * output, activity and workspace role. Wide CONCAT/STACK retain all operand references and
+ * share direct final-output copy children in ordinary and controlled execution.
  * MATMUL admits exact dense logical views without changing their view flags. A
  * non-dense affine operand requires the exact earlier local last-two-axis {@code PERMUTE} rooted
  * in an authenticated dense value; materialized affine buffers retain represented addressing.
  * RESHAPE resolves its state from the actual source/result descriptors: exact inferred views
  * retain AFFINE_VIEW, while noncontiguous-source canonical results use CANONICAL and a distinct
  * ordinary destination. The source's logical provenance and represented storage remain separate.
- * Schema-twenty lowering emits one bounded
- * self-describing image over stable type wires 1..7, complete operation registry 1..115, attribute
- * registry 0..41, the explicit prepared route, and its authenticated execution plan. Production
- * capability remains bounded by the provider's occurrence predicate, including its frozen-baseline
- * low-precision proxy; preparation has no separate capability fallback. Every selected
- * exact custom occurrence and every partition containing BFLOAT16 or FLOAT16 values fixes the
- * whole partition to {@code CUSTOM_PROGRAM}. No low-precision partition exposes another candidate.
- * Neither low routes nor existing FLOAT32 routes permit retry, CPU fallback, timing, or autotuning.
+ * Schema-twenty-two lowering emits one bounded self-describing image over stable type wires
+ * 1..7, ordinary operation registry 1..115, GeneralScan wire 116, attribute registry 0..42,
+ * the prepared route and authenticated execution plan. Production capability remains bounded
+ * by the provider's original-occurrence predicate; preparation has no separate fallback.
+ * Every selected exact custom occurrence and every partition containing BFLOAT16 or FLOAT16
+ * values fixes the whole partition to {@code CUSTOM_PROGRAM}.
+ * No low-precision partition exposes another candidate.
+ * Preparation and execution permit no retry, CPU fallback or timing-based route switch.
  * Rank-zero values participate only where exact capability permits them. Analysis freshly
  * regenerates the complete candidate batch. Every supplied handoff authenticates its exact
  * partition, schema, workload, and session target; an absent decision preserves the
@@ -353,11 +347,11 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 localTranspose.put(outputId, exactLocalTranspose);
                 localSingletonHeight.put(outputId, exactLocalSingletonHeight);
         TensorDescriptor outputDescriptor = outputDescriptors.get(outputPosition);
-        physicalLayouts.put(
-            outputId,
-            physicalOutputLayout(
-                node.operation(), node.inputs(), outputDescriptor, physicalLayouts));
+        LayoutDescriptor outputPhysical = physicalOutputLayout(
+            node.operation(), node.inputs(), outputDescriptor, physicalLayouts);
+        physicalLayouts.put(outputId, outputPhysical);
         boolean denseLogicalView =
+            outputPhysical.referencedElementSpan() != 0L &&
             (lowered.kind() == MetalMpsGraphProgram.NodeKind.SELECT
                     || lowered.kind() == MetalMpsGraphProgram.NodeKind.SLICE)
                 && outputDescriptor.layout().orElseThrow().hasZeroStride();
@@ -365,6 +359,7 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             denseLogicalView
                 ? MetalMpsGraphProgram.ValueState.AFFINE_VIEW
                 : (lowered.kind() == MetalMpsGraphProgram.NodeKind.RESHAPE
+                        || lowered.kind() == MetalMpsGraphProgram.NodeKind.SELECT
                         || lowered.kind() == MetalMpsGraphProgram.NodeKind.SLICE)
                         ? lowered.kind().outputState(
                                 MetalMpsGraphProgram.ValueDescriptor.from(inputDescriptors.getFirst()),
@@ -433,8 +428,14 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
         var programValueDescriptors =
                 new ArrayList<MetalMpsGraphProgram.ValueDescriptor>(descriptors.size());
         for (int value = 0; value < descriptors.size(); value++) {
-            programValueDescriptors.add(MetalMpsGraphProgram.ValueDescriptor.from(
-                    descriptors.get(value), valueStates.get(value)));
+            TensorDescriptor descriptor = descriptors.get(value);
+            Optional<LayoutDescriptor> layout = descriptor.layout();
+            if (layout.isEmpty())
+                layout = Optional.of(Objects.requireNonNull(physicalLayouts.get(valueIds.get(value))));
+            programValueDescriptors.add(new MetalMpsGraphProgram.ValueDescriptor(
+                    descriptor.dataType(), descriptor.shape().toLongArray(), layout,
+                    descriptor.requiresGrad(),
+                    valueStates.get(value) == MetalMpsGraphProgram.ValueState.AFFINE_VIEW));
         }
         boolean containsAnchorEpilogue = !MetalAnchorEpilogueRecognizer.recognize(
                 graphProgram,
@@ -754,7 +755,8 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
       List<ValueId> inputIds,
       TensorDescriptor output,
       Map<ValueId, LayoutDescriptor> physicalLayouts) {
-    if (operation.kind() != SelectKind.SELECT && operation.kind() != SliceKind.SLICE) {
+    if (operation.kind() != SelectKind.SELECT && operation.kind() != SliceKind.SLICE
+        || output.shape().knownElementCount().orElseThrow() == 0L) {
       return LayoutDescriptor.contiguous(output.shape());
     }
     if (inputIds.size() != 1) {

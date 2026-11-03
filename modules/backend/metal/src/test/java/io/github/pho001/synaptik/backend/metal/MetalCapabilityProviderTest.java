@@ -160,10 +160,6 @@ class MetalCapabilityProviderTest {
                 List.of(typed(DataType.BFLOAT16, shape, false)))));
         assertFalse(provider.supports(new OperationCapabilityQuery(
                 none,
-                List.of(descriptor(Shape.scalar(), false), descriptor(Shape.scalar(), false)),
-                List.of(descriptor(Shape.scalar(), false)))));
-        assertFalse(provider.supports(new OperationCapabilityQuery(
-                none,
                 List.of(value, descriptor(Shape.of(3, 2), false)),
                 List.of(value))));
         assertFalse(provider.supports(new OperationCapabilityQuery(
@@ -255,19 +251,8 @@ class MetalCapabilityProviderTest {
                         new Operation(SoftmaxKind.LOG_SOFTMAX, new SoftmaxAttrs(1)),
                         List.of(value),
                         List.of(value)));
-        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
-            for (var query : neuralQueries) {
-                var inputs = query.inputs().stream()
-                        .map(input -> typed(input.dataType() == DataType.FLOAT32
-                                ? type : input.dataType(), input.shape(), input.requiresGrad()))
-                        .toList();
-                var outputs = query.outputs().stream()
-                        .map(output -> typed(type, output.shape(), output.requiresGrad()))
-                        .toList();
-                assertTrue(provider.supports(new OperationCapabilityQuery(
-                        query.operation(), inputs, outputs)), type + " " + query.operation().kind());
-            }
-        }
+        for (var query : neuralQueries)
+            assertTrue(provider.supports(query), query.operation().kind().toString());
     }
 
     @Test

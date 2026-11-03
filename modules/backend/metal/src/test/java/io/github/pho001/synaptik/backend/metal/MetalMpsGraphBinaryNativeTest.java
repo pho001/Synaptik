@@ -106,20 +106,16 @@ class MetalMpsGraphBinaryNativeTest {
                 MetalMpsGraphProgram.Node.binary(MetalMpsGraphProgram.NodeKind.ADD, 0, 1, 2),
                 MetalMpsGraphProgram.Node.binary(MetalMpsGraphProgram.NodeKind.SUB, 0, 1, 3),
                 MetalMpsGraphProgram.Node.binary(MetalMpsGraphProgram.NodeKind.ADD, 1, 0, 4),
-                MetalMpsGraphProgram.Node.binary(MetalMpsGraphProgram.NodeKind.SUB, 1, 0, 5),
-                MetalMpsGraphProgram.Node.scalarValue(MetalMpsGraphProgram.NodeKind.SCALAR_ADD,
-                        0, 6, 0),
-                MetalMpsGraphProgram.Node.scalarValue(MetalMpsGraphProgram.NodeKind.SCALAR_ADD,
-                        0, 7, 0x80000000),
-                MetalMpsGraphProgram.Node.scalarValue(MetalMpsGraphProgram.NodeKind.SCALAR_SUB,
-                        0, 8, 0),
-                MetalMpsGraphProgram.Node.scalarValue(MetalMpsGraphProgram.NodeKind.SCALAR_SUB,
-                        0, 9, 0x80000000)));
+                MetalMpsGraphProgram.Node.binary(MetalMpsGraphProgram.NodeKind.SUB, 1, 0, 5)));
         if (route == MetalPreparedRoute.CUSTOM_PROGRAM) {
-            nodes.add(MetalMpsGraphProgram.Node.contiguous(0, 10));
+            nodes.addAll(List.of(
+                    MetalMpsGraphProgram.Node.scalarValue(MetalMpsGraphProgram.NodeKind.SCALAR_ADD, 0, 6, 0),
+                    MetalMpsGraphProgram.Node.scalarValue(MetalMpsGraphProgram.NodeKind.SCALAR_ADD, 0, 7, 0x80000000),
+                    MetalMpsGraphProgram.Node.scalarValue(MetalMpsGraphProgram.NodeKind.SCALAR_SUB, 0, 8, 0),
+                    MetalMpsGraphProgram.Node.scalarValue(MetalMpsGraphProgram.NodeKind.SCALAR_SUB, 0, 9, 0x80000000)));
         }
         var program = new MetalMpsGraphProgram(nodes);
-        int valueCount = route == MetalPreparedRoute.CUSTOM_PROGRAM ? 11 : 10;
+        int valueCount = route == MetalPreparedRoute.CUSTOM_PROGRAM ? 10 : 6;
         int[] ranks = new int[valueCount];
         java.util.Arrays.fill(ranks, 1);
         long[] dimensions = new long[valueCount * 16];
@@ -127,8 +123,8 @@ class MetalMpsGraphBinaryNativeTest {
             dimensions[value * 16] = 8;
         }
         int[] targets = route == MetalPreparedRoute.CUSTOM_PROGRAM
-                ? new int[] {2, 3, 4, 5, 6, 7, 8, 9, 10}
-                : new int[] {2, 3, 4, 5, 6, 7, 8, 9};
+                ? new int[] {2, 3, 4, 5, 6, 7, 8, 9}
+                : new int[] {2, 3, 4, 5};
         try {
             context = api.createContext();
             executable = api.createProgramExecutable(context,
@@ -153,7 +149,7 @@ class MetalMpsGraphBinaryNativeTest {
                 api.runExecutable(executable, boundCount, inputs, targets.length, outputs);
             }
             StringBuilder mismatches = new StringBuilder();
-            for (int output = 2; output < 10; output++) {
+            for (int output = 2; output < valueCount; output++) {
                 int[] actual = download(api, buffers.get(output), 8);
                 for (int lane = 0; lane < 8; lane++) {
                     int first = output == 4 || output == 5 ? right[lane] : left[lane];

@@ -228,10 +228,12 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
             MetalMpsGraphProgram.ValueDescriptor expected =
                     MetalMpsGraphProgram.ValueDescriptor.from(
                             this.descriptors.get(index), this.valueStates.get(index));
+            Optional<LayoutDescriptor> expectedLayout = expected.layout();
+            if (expectedLayout.isEmpty()) expectedLayout = Optional.of(this.physicalLayouts.get(index));
             MetalMpsGraphProgram.ValueDescriptor actual = this.programValueDescriptors.get(index);
             if (actual.dataType() != expected.dataType()
                     || !java.util.Arrays.equals(actual.dimensions(), expected.dimensions())
-                    || !actual.layout().equals(expected.layout())
+                    || !actual.layout().equals(expectedLayout)
                     || actual.requiresGrad() != expected.requiresGrad()
                     || actual.densePhysical() != expected.densePhysical()) {
                 throw new IllegalArgumentException(
@@ -302,7 +304,7 @@ final class MetalNegPreparationPlan implements BackendPreparationPlan {
                 || this.graphProgram.nodes().stream()
                         .anyMatch(node ->
                                 node.kind().isTask0066Selected()
-                                        || node.kind().isFloat32Elementary()
+                                        || node.kind().isNumericElementary()
                                         || MetalNormalizationSupport.handles(node)
                                         || MetalAttentionSupport.handles(node)
                                         || MetalRecurrentSupport.handles(node)

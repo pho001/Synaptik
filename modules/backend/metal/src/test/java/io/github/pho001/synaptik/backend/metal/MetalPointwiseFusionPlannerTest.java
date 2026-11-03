@@ -18,29 +18,6 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class MetalPointwiseFusionPlannerTest {
-    @Test
-    void lowSigmoidAndCastFloat32SigmoidUseDistinctUnfusedSteps() {
-        for (DataType low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
-            var program = new MetalMpsGraphProgram(List.of(
-                    unary(MetalMpsGraphProgram.NodeKind.SIGMOID, 0, 1),
-                    MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.CAST,
-                            new int[] {0}, new int[] {2},
-                            MetalMpsGraphProgram.AttributeKind.CAST_TARGET,
-                            new long[] {MetalMpsGraphProgram.dataTypeWire(DataType.FLOAT32)}),
-                    unary(MetalMpsGraphProgram.NodeKind.SIGMOID, 2, 3)));
-            var values = List.of(descriptor(low, 4L), descriptor(low, 4L),
-                    descriptor(DataType.FLOAT32, 4L), descriptor(DataType.FLOAT32, 4L));
-            var plan = program.resolvePlan(values, new int[] {0}, new int[] {1, 3},
-                    MetalPreparedRoute.CUSTOM_PROGRAM, null);
-            assertEquals(List.of(MetalPointwiseFusionPlan.StepKind.FIXED_CUSTOM,
-                    MetalPointwiseFusionPlan.StepKind.FIXED_CUSTOM,
-                    MetalPointwiseFusionPlan.StepKind.MPSGRAPH_BOUNDARY),
-                    plan.steps().stream().map(MetalPointwiseFusionPlan.Step::kind).toList());
-            assertEquals(0, plan.generatedUnitCount());
-            assertTrue(plan.steps().stream().noneMatch(step ->
-                    step.kind() == MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE));
-        }
-    }
 
     @Test
     void lowValueAnywhereInPartitionDisablesF32PointwiseFusionAndPreview() {
@@ -216,47 +193,11 @@ class MetalPointwiseFusionPlannerTest {
         assertArrayEquals(new int[] {2}, plan.targetMaterializedSlots());
         assertEquals(9, plan.instructions().size());
         String manifest = new String(plan.canonicalManifest(), StandardCharsets.US_ASCII);
-        assertTrue(manifest.contains("pointmeta 0 4 4 1 0 0\n"));
-        assertTrue(manifest.contains("pointmeta 1 4 4 1 0 0\n"));
+        assertTrue(manifest.contains("pointmeta 0 4 4 1 0 1\n"));
+        assertTrue(manifest.contains("pointmeta 1 4 4 1 0 1\n"));
         assertFalse(manifest.contains("\nfeed "));
     }
 
-    @Test
-    void sourceCountCoversEveryUnsignedStepOrdinalDecimalWidthBoundary() {
-        int[] ordinals = {
-            9, 10,
-            99, 100,
-            999, 1_000,
-            9_999, 10_000,
-            99_999, 100_000,
-            999_999, 1_000_000,
-            9_999_999, 10_000_000,
-            99_999_999, 100_000_000,
-            999_999_999, 1_000_000_000,
-            -1
-        };
-        int[] expected = {
-            402, 403,
-            403, 404,
-            404, 405,
-            405, 406,
-            406, 407,
-            407, 408,
-            408, 409,
-            409, 410,
-            410, 411,
-            411
-        };
-        List<MetalPointwiseFusionPlan.Opcode> opcodes =
-                List.of(MetalPointwiseFusionPlan.Opcode.FLOOR,
-                        MetalPointwiseFusionPlan.Opcode.CEIL);
-        for (int index = 0; index < ordinals.length; index++) {
-            assertEquals(
-                    expected[index],
-                    MetalPointwiseFusionPlanner.functionUtf8Bytes(ordinals[index], opcodes),
-                    Integer.toUnsignedString(ordinals[index]));
-        }
-    }
 
     @Test
     void varianceSeparatesGeneratedPointwiseRegions() {

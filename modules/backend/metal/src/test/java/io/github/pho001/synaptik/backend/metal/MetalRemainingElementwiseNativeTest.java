@@ -2006,7 +2006,7 @@ class MetalRemainingElementwiseNativeTest {
                 var program = new MetalMpsGraphProgram(List.of(node));
                 int[] feeds = java.util.stream.IntStream.range(0, feedWords.size()).toArray();
                 int target = values.size() - 1;
-                MetalPreparedRoute route = node.kind().isCustomProgramOperation()
+                MetalPreparedRoute route = MetalPointwiseFusionPlanner.fixedCustom(node, values)
                         ? MetalPreparedRoute.CUSTOM_PROGRAM : MetalPreparedRoute.MPSGRAPH;
                 executable = api.createProgramExecutable(context, values, program, feeds, new int[] {target}, route);
                 for (int[] words : feedWords) {

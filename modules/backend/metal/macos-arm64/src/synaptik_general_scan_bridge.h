@@ -11,7 +11,7 @@
 static BOOL synaptik_append_scan_ordinary_steps(
         SynaptikMetalDecodedNode node, NSArray<MPSShape *> *shapes, const uint8_t *types,
         const uint64_t *strides, const uint64_t *offsets, const uint8_t *states,
-        id<MTLDevice> device, id<MTLLibrary> library, id<MTLLibrary> lowLibrary,
+        id<MTLDevice> device, id<MTLLibrary> library,
         const SynaptikMetalScanStepControl *control, const int32_t *allValueRowAxes,
         const uint64_t *allValueRowInner, uint32_t semanticScatterReduction,
         NSMutableArray<SynaptikMetalProgramStep *> *sink) {
@@ -45,7 +45,7 @@ static BOOL synaptik_append_scan_ordinary_steps(
              * Missing controlled implementations remain hard admission failures.
              */
             step = make_custom_step(node, shapes, types, strides, offsets, states,
-                    NULL, NULL, device, library, lowLibrary, stage, YES, control);
+                    NULL, NULL, device, library, stage, YES, control);
             if (step == nil) return NO;
             if (step.compositionSteps == nil && (step.pipeline == nil || step.metadata == nil
                     || step.grid.width == 0U || step.grid.height == 0U || step.grid.depth == 0U

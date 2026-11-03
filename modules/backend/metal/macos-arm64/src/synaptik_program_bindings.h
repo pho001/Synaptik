@@ -59,14 +59,15 @@ static BOOL synaptik_encode_fixed_step(
             SYNAPTIK_BIND(input, role);
         }
         SYNAPTIK_BIND(output, 4U);
-        if (step.outputValues.count == 2U) {
-            SYNAPTIK_BIND(step.outputValues[1].unsignedIntegerValue, 5U);
-        } else if (step.scratchBytes != 0U) {
+        if (step.scratchBytes != 0U) {
             if (!synaptik_bind_step_buffer(encoder, bindings, step.scratchInput,
                         step.scratchOffset, 5U)) return NO;
         } else {
-            SYNAPTIK_BIND(output, 5U);
+            SYNAPTIK_BIND(step.outputValues.count == 2U
+                    ? step.outputValues[1].unsignedIntegerValue : output, 5U);
         }
+        SYNAPTIK_BIND(step.outputValues.count == 2U
+                ? step.outputValues[1].unsignedIntegerValue : output, 7U);
         [encoder setBuffer:step.metadata offset:0U atIndex:6U];
     } else if (operation >= 103U && operation <= 105U) {
         BOOL lstm = operation == 105U;
@@ -87,9 +88,11 @@ static BOOL synaptik_encode_fixed_step(
         BOOL scatter = operation == 70U
                 || ((operation == 18U || operation == 72U) && (step.extended || step.stage == 1U));
         BOOL reduction_mask = step.extended && step.metadata.length == sizeof(SynaptikMetalDataMeta)
-                && ((operation == 13U || operation == 14U || operation == 106U
-                        || (operation >= 111U && operation <= 115U)))
-                && ((const SynaptikMetalDataMeta *)step.metadata.contents)->sourceType == 1U;
+                && (operation == 13U || operation == 14U || operation == 106U
+                        || (operation >= 111U && operation <= 115U));
+        if (reduction_mask)
+            reduction_mask = synaptik_is_numeric_type(
+                    ((const SynaptikMetalDataMeta *)step.metadata.contents)->sourceType);
         BOOL binary = (operation >= 2U && operation <= 5U)
                 || (operation >= 20U && operation <= 27U) || operation == 38U
                 || operation == 43U || operation == 44U || operation == 85U

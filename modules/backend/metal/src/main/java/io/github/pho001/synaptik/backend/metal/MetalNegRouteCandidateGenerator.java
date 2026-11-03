@@ -25,14 +25,14 @@ import java.util.Optional;
  * and the scalar-composition source wire, exact raw constant, rank-one {@code [1]} shape, operand
  * order, and primitive opcode. Graph-local identities, partition object identity, native handles,
  * measurements, and cache state are excluded. Generation is cold, thread-safe, deterministic, and
- * performs no native work. Version 41 authenticates the complete typed operation/resource program
- * and native Scan body/activity grammar. Predecessor compatibility is rejected without aliases;
+ * performs no native work. Version 42 authenticates original numerical carrier roles,
+ * dynamic composition operands and typed Scan body/activity grammar.
  * the established candidate wires and exact singleton-NEG tuning policy remain unchanged.
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;
-    private static final int WORKLOAD_SIGNATURE_VERSION = 41;
-    private static final int EXACT_DEFAULT_POLICY = 41;
+    private static final int WORKLOAD_SIGNATURE_VERSION = 42;
+    private static final int EXACT_DEFAULT_POLICY = 42;
 
     /**
      * Generates every currently valid complete candidate up to a positive budget.
@@ -199,6 +199,8 @@ final class MetalNegRouteCandidateGenerator {
             updateBoolean(digest, descriptor.requiresGrad());
             long[] dimensions = descriptor.shape().toLongArray();
             updateLongs(digest, dimensions);
+            updateBoolean(digest, descriptor.layout().isPresent());
+            if (descriptor.layout().isEmpty()) continue;
             var layout = descriptor.layout().orElseThrow();
             updateInt(digest, layout.kind().ordinal());
             updateLongs(digest, layout.strides());

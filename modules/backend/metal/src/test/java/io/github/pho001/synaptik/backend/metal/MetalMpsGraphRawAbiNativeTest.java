@@ -38,9 +38,10 @@ class MetalMpsGraphRawAbiNativeTest {
             assertEquals(0, abi.create(valid, valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 0, 0), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 0, 0x38314d53), valid.length));
-            for (int schema = 12; schema <= 20; schema++)
+            for (int schema = 1; schema < MetalMpsGraphProgram.SCHEMA_VERSION; schema++)
                 assertEquals(1, abi.create(rewriteInt(valid, 4, schema), valid.length));
-            assertEquals(1, abi.create(rewriteInt(valid, 4, 22), valid.length));
+            assertEquals(1, abi.create(
+                    rewriteInt(valid, 4, MetalMpsGraphProgram.SCHEMA_VERSION + 1), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 8, 0), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 8, 64), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 8, 132), valid.length));
@@ -287,7 +288,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void schemaTwentyOneAuthenticatesTypedLowExpCustomStepsAndRejectsForgedImages()
+    void typedLowUnaryCustomStepsRejectInconsistentWireImages()
             throws Throwable {
         var exp = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.generic(
@@ -323,8 +324,6 @@ class MetalMpsGraphRawAbiNativeTest {
                         readInt(image, outputDescriptor + 16) | 1), image.length));
                 assertEquals(1, abi.create(rewriteLong(image,
                         inputDescriptor + 32, 0L), image.length));
-                assertEquals(1, abi.create(rewriteInt(image, nodeOffset(2),
-                        MetalMpsGraphProgram.NodeKind.EXPM1.wireIdentity()), image.length));
             }
         }
     }
@@ -649,7 +648,8 @@ class MetalMpsGraphRawAbiNativeTest {
                 valid, coreBytes + 7 * Integer.BYTES, 16_385);
         overFunctionCap = rewriteManifest(
                 overFunctionCap,
-                "step 0 3 0 2 0 2 0 2 402 0\n",
+                "step 0 3 0 2 0 2 0 2 "
+                        + readInt(valid, coreBytes + 7 * Integer.BYTES) + " 0\n",
                 "step 0 3 0 2 0 2 0 2 16385 0\n");
 
         byte[] virtualInsteadOfTarget = rewriteInt(
@@ -702,9 +702,8 @@ class MetalMpsGraphRawAbiNativeTest {
                 List.of(descriptor(4), descriptor(4), descriptor(4)),
                 new int[] {0},
                 new int[] {2},
-                MetalPreparedRoute.MPSGRAPH);
+                MetalPreparedRoute.CUSTOM_PROGRAM);
 
-        assertEquals(400, image.length);
         try (RawAbi abi = new RawAbi(library)) {
             assertEquals(0, abi.create(image, image.length));
         }
@@ -1115,25 +1114,27 @@ class MetalMpsGraphRawAbiNativeTest {
                                 DataType.FLOAT32, new long[] {4}, true),
                         new MetalMpsGraphProgram.ValueDescriptor(
                                 DataType.FLOAT32, new long[] {4}, true));
+                MetalPreparedRoute route = MetalPointwiseFusionPlanner.fixedCustom(node, grad)
+                        ? MetalPreparedRoute.CUSTOM_PROGRAM : MetalPreparedRoute.MPSGRAPH;
                 MetalNativeApi.ProgramExecutableAbi.validateCreate(
                         grad,
                         program,
                         new int[] {0},
                         new int[] {1},
-                        MetalPreparedRoute.MPSGRAPH);
+                        route);
                 byte[] gradImage = program.encodedProgramImage(
-                        grad, new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH);
+                        grad, new int[] {0}, new int[] {1}, route);
                 assertEquals(0, abi.create(gradImage, gradImage.length), kind + " grad");
 
                 List<MetalMpsGraphProgram.ValueDescriptor> rankZero =
                         List.of(scalarDescriptor(DataType.FLOAT32), scalarDescriptor(DataType.FLOAT32));
                 MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                        rankZero, program, new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH);
+                        rankZero, program, new int[] {0}, new int[] {1}, route);
                 byte[] scalarImage = program.encodedProgramImage(
                         rankZero,
                         new int[] {0},
                         new int[] {1},
-                        MetalPreparedRoute.MPSGRAPH);
+                        route);
                 assertEquals(0, abi.create(scalarImage, scalarImage.length), kind + " rank zero");
             }
         }
@@ -1840,9 +1841,9 @@ class MetalMpsGraphRawAbiNativeTest {
                 program,
                 new int[] {0, 1},
                 new int[] {2},
-                MetalPreparedRoute.MPSGRAPH);
+                MetalPreparedRoute.CUSTOM_PROGRAM);
         byte[] validImage = program.encodedProgramImage(
-                valid, new int[] {0, 1}, new int[] {2}, MetalPreparedRoute.MPSGRAPH);
+                valid, new int[] {0, 1}, new int[] {2}, MetalPreparedRoute.CUSTOM_PROGRAM);
 
         List<List<MetalMpsGraphProgram.ValueDescriptor>> invalidValues = List.of(
                 List.of(
@@ -1865,11 +1866,7 @@ class MetalMpsGraphRawAbiNativeTest {
                         new MetalMpsGraphProgram.ValueDescriptor(
                                 DataType.FLOAT32, new long[] {3, 2}, false),
                         new MetalMpsGraphProgram.ValueDescriptor(
-                                DataType.FLOAT32, new long[] {2, 3}, false)),
-                List.of(
-                        scalarDescriptor(DataType.FLOAT32),
-                        scalarDescriptor(DataType.FLOAT32),
-                        scalarDescriptor(DataType.FLOAT32)));
+                                DataType.FLOAT32, new long[] {2, 3}, false)));
 
         try (RawAbi abi = new RawAbi(library)) {
             assertEquals(0, abi.create(validImage, validImage.length));
@@ -1881,12 +1878,12 @@ class MetalMpsGraphRawAbiNativeTest {
                                 program,
                                 new int[] {0, 1},
                                 new int[] {2},
-                                MetalPreparedRoute.MPSGRAPH));
+                                MetalPreparedRoute.CUSTOM_PROGRAM));
                 byte[] image = program.encodedProgramImage(
                         invalid,
                         new int[] {0, 1},
                         new int[] {2},
-                        MetalPreparedRoute.MPSGRAPH);
+                        MetalPreparedRoute.CUSTOM_PROGRAM);
                 assertEquals(1, abi.create(image, image.length));
             }
 
@@ -1924,12 +1921,12 @@ class MetalMpsGraphRawAbiNativeTest {
                             sumProgram,
                             new int[] {0, 1},
                             new int[] {2},
-                            MetalPreparedRoute.MPSGRAPH));
+                            MetalPreparedRoute.CUSTOM_PROGRAM));
             byte[] wrongSumShape = sumProgram.encodedProgramImage(
                     List.of(descriptor(2, 3), descriptor(2, 3), descriptor(2, 3)),
                     new int[] {0, 1},
                     new int[] {2},
-                    MetalPreparedRoute.MPSGRAPH);
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
             assertEquals(1, abi.create(wrongSumShape, wrongSumShape.length));
     }
   }
@@ -2724,8 +2721,8 @@ class MetalMpsGraphRawAbiNativeTest {
                                         new MetalMpsGraphProgram.ValueDescriptor(type, target, gradient));
                                 String label = kind + " " + type + " grad=" + gradient
                                         + " overlappingAxis=" + overlappingAxis;
-                                if ((maximum || type != DataType.FLOAT64)
-                                        && (!gradient || overlappingAxis < 0 || type == DataType.FLOAT32)) {
+                                if (type != DataType.FLOAT64
+                                        || maximum && (!gradient || overlappingAxis < 0)) {
                                     assertTask0064AcceptedByJavaAndNative(
                                             abi, program, values, new int[] {0}, new int[] {1}, label);
                                 } else {
@@ -2766,7 +2763,7 @@ class MetalMpsGraphRawAbiNativeTest {
                         var values = List.of(
                                 new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {1, columns, columns}, gradient),
                                 new MetalMpsGraphProgram.ValueDescriptor(type, shape, gradient));
-                        if (type == DataType.FLOAT32) {
+                        if (type != DataType.FLOAT64) {
                             assertTask0064AcceptedByJavaAndNative(
                                     abi, program, values, new int[] {0}, new int[] {1}, type + " fold" + dimensions);
                         } else {
@@ -2788,7 +2785,7 @@ class MetalMpsGraphRawAbiNativeTest {
             var foldAxis = new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.generic(
                     MetalMpsGraphProgram.NodeKind.FOLD_AXIS, new int[] {0}, new int[] {1},
                     MetalMpsGraphProgram.AttributeKind.WINDOW_AXIS, new long[] {0, 2, 1})));
-            for (DataType type : List.of(DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16)) {
+            for (DataType type : List.of(DataType.FLOAT64)) {
                 assertTask0064RejectedByJavaAndNative(abi, foldAxis,
                         List.of(descriptor(type, 2, 2), descriptor(type, 3)),
                         new int[] {0}, new int[] {1}, type + " FOLD_AXIS overlap");
@@ -3232,8 +3229,11 @@ class MetalMpsGraphRawAbiNativeTest {
         var node = MetalMpsGraphProgram.Node.generic(
                 kind, new int[] {0}, new int[] {1},
                 MetalMpsGraphProgram.AttributeKind.NONE, new long[0]);
+        var values = List.of(descriptor(4), descriptor(4));
+        var route = MetalPointwiseFusionPlanner.fixedCustom(node, values)
+                ? MetalPreparedRoute.CUSTOM_PROGRAM : MetalPreparedRoute.MPSGRAPH;
         return new MetalMpsGraphProgram(List.of(node)).encodedProgramImage(
-                List.of(descriptor(4), descriptor(4)), new int[] {0}, new int[] {1});
+                values, new int[] {0}, new int[] {1}, route);
     }
     private static MetalMpsGraphProgram.Node unaryNode(
             MetalMpsGraphProgram.NodeKind kind, int input, int output) {

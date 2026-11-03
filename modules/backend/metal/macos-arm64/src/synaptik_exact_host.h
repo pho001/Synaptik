@@ -33,6 +33,9 @@ static BOOL synaptik_exact_handles(SynaptikMetalDecodedNode node, const uint8_t 
     if (!synaptik_exact_unary(node.operation) && !synaptik_exact_binary(node.operation)
             && !synaptik_exact_scalar(node.operation)) return NO;
     uint8_t left = types[node.first_input];
+    if (node.operation >= 20U && node.operation <= 25U && node.input_count == 2U
+            && node.second_input != UINT32_MAX && task0066_is_floating(left)
+            && task0066_is_floating(types[node.second_input])) return YES;
     if (left == SYNAPTIK_METAL_TYPE_FLOAT64 || synaptik_exact_integral(left)) return YES;
     return synaptik_exact_binary(node.operation) && node.input_count == 2U
             && node.second_input != UINT32_MAX
@@ -135,8 +138,9 @@ static BOOL synaptik_exact_metadata(
                 ? (left_type == SYNAPTIK_METAL_TYPE_INT64 || right_type == SYNAPTIK_METAL_TYPE_INT64
                         ? SYNAPTIK_METAL_TYPE_INT64 : SYNAPTIK_METAL_TYPE_INT32)
                 : SYNAPTIK_METAL_TYPE_FLOAT64;
-        if (!node_has_no_attributes(node) || (!integral && !((extreme || comparison) && floating
-                    && (left_type == SYNAPTIK_METAL_TYPE_FLOAT64 || right_type == SYNAPTIK_METAL_TYPE_FLOAT64)))
+        if (!node_has_no_attributes(node) || (!integral && !(floating
+                    && (comparison || (extreme && (left_type == SYNAPTIK_METAL_TYPE_FLOAT64
+                            || right_type == SYNAPTIK_METAL_TYPE_FLOAT64)))))
                 || target != (comparison ? SYNAPTIK_METAL_TYPE_BOOL : promoted)
                 || output.count != MAX(left.count, right.count)) return NO;
         meta->auxiliaryRank = (uint32_t)right.count; meta->reserved = right_type;

@@ -17,6 +17,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.IntStream;
@@ -587,6 +588,10 @@ class MetalAuditReductionNativeTest {
                 assertArrayEquals(initial[index], source.toArray(JAVA_BYTE));
             }
             return result.toArray(JAVA_BYTE);
+        } catch (RuntimeException failure) {
+            throw new AssertionError("Metal " + nodes.stream().map(MetalMpsGraphProgram.Node::kind).toList()
+                    + " " + values.stream().map(value -> value.dataType()
+                            + Arrays.toString(value.dimensions())).toList(), failure);
         } finally {
             for (int index = buffers.size(); index-- > 0;) api.releaseBuffer(buffers.get(index));
             if (executable != null) api.releaseExecutable(executable);

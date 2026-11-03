@@ -520,7 +520,9 @@ static int synaptik_scan_coordinate_output(const SynaptikMetalDecodedNode *node,
 static BOOL synaptik_scan_prove_coordinates(SynaptikMetalDecodedNode node, NSArray<MPSShape *> *shapes,
         const int32_t *rows, const uint8_t *terminals, uint64_t batch) {
     if (shapes == nil || rows == NULL || terminals == NULL || batch > INT64_MAX
-            || node.input_count == 0U || node.input_count > SYNAPTIK_MAX_NODE_INPUTS
+            || node.input_count == 0U
+            || (node.operation != 77U && node.operation != 78U
+                    && node.input_count > SYNAPTIK_MAX_NODE_INPUTS)
             || node.output_count == 0U || node.output_count > SYNAPTIK_MAX_NODE_OUTPUTS
             || node.operation == 0U || node.operation > 115U
             || (node.operation >= 101U && node.operation <= 105U)) return NO;

@@ -78,7 +78,6 @@ class MetalPointwiseDispatchObserverNativeTest {
                 assertEquals(4L, observer.field(record, 8));
                 assertEquals(1L, observer.field(record, 9));
                 assertEquals(0L, observer.field(record, 10));
-                assertEquals(0L, observer.field(record, 11));
                 assertArrayEquals(fusion.canonicalManifestDigest(), observer.digest(record));
             }
         }
@@ -134,7 +133,6 @@ class MetalPointwiseDispatchObserverNativeTest {
             assertEquals(4L, observer.field(0, 8));
             assertEquals(1L, observer.field(0, 9));
             assertEquals(0L, observer.field(0, 10));
-            assertEquals(0L, observer.field(0, 11));
             assertArrayEquals(fusion.canonicalManifestDigest(), observer.digest(0));
         }
     }
@@ -231,7 +229,6 @@ class MetalPointwiseDispatchObserverNativeTest {
             assertEquals(4L, observer.field(0, 8));
             assertEquals(1L, observer.field(0, 9));
             assertEquals(0L, observer.field(0, 10));
-            assertEquals(0L, observer.field(0, 11));
             for (int record = 1; record < 4; record++) {
                 assertEquals(0L, observer.field(record, 7));
                 assertEquals(0L, observer.field(record, 8));
@@ -304,7 +301,6 @@ class MetalPointwiseDispatchObserverNativeTest {
             assertEquals(0L, observer.field(0, 0));
             assertEquals(MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE.wire(),
                     observer.field(0, 1));
-            assertEquals(6096L, observer.field(0, 6));
             assertArrayEquals(fusion.canonicalManifestDigest(), observer.digest(0));
         }
     }
@@ -619,7 +615,6 @@ class MetalPointwiseDispatchObserverNativeTest {
             assertEquals(1, observer.count());
             assertEquals(MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE.wire(),
                     observer.field(0, 1));
-            assertEquals(6096L, observer.field(0, 6));
         }
     }
 

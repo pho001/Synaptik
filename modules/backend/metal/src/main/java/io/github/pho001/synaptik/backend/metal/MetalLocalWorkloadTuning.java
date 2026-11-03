@@ -16,8 +16,8 @@ import java.util.Optional;
 /**
  * Supported Metal-owned collaboration for cold local route tuning.
  *
- * <p>One instance is retained by one {@link MetalBackendIntegration}. It wraps the existing
- * version-forty-one singleton-NEG candidate and decision implementation in opaque public values
+ * <p>One instance is retained by one {@link MetalBackendIntegration}. It wraps the current
+ * singleton-NEG candidate and decision implementation in opaque public values
  * with exact association. It performs no representative execution, measurement, cache input/output,
  * selection, or fallback-policy work. Every trial and selected preparation repeats authoritative
  * Metal analysis before returning a preparation that retains the integration's trace producer.</p>
@@ -82,7 +82,7 @@ public final class MetalLocalWorkloadTuning {
     }
 
     /**
-     * Returns defensive canonical version-forty-one session compatibility.
+     * Returns defensive canonical current session compatibility.
      *
      * @param batch non-null batch issued by this collaboration
      * @return immutable session-scoped compatibility with defensive bytes
@@ -99,7 +99,7 @@ public final class MetalLocalWorkloadTuning {
     }
 
     /**
-     * Returns defensive canonical version-forty-one identity bytes for one route candidate.
+     * Returns defensive canonical current identity bytes for one route candidate.
      *
      * @param candidate non-null candidate issued by this collaboration
      * @return immutable opaque identity with defensive bytes
@@ -137,7 +137,7 @@ public final class MetalLocalWorkloadTuning {
     }
 
     /**
-     * Encodes one current decision using the bounded version-forty-one Metal codec.
+     * Encodes one current decision using the bounded Metal codec.
      *
      * @param decision non-null decision issued by this collaboration
      * @return fresh canonical caller-owned bytes

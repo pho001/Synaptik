@@ -267,6 +267,26 @@ class MetalBoolNativeTest {
 
     }
 
+    @Test
+    void mixedLowWhereWidensSelectedRawWordsToTheModelFloat32Result() {
+        Path library = configuredLibrary();
+        for (DataType falseType : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            DataType trueType = falseType == DataType.BFLOAT16 ? DataType.FLOAT16 : DataType.BFLOAT16;
+            int negativeThree = falseType == DataType.BFLOAT16 ? 0xc040 : 0xc200;
+            int nan = falseType == DataType.BFLOAT16 ? 0x7fc1 : 0x7e01;
+            int widenedSubnormal = falseType == DataType.BFLOAT16 ? 0x00010000 : 0x33800000;
+            assertArrayEquals(ints(new int[] {
+                    0x80000000, 0xc0400000, widenedSubnormal,
+                    0x40000000, 0xc0400000, widenedSubnormal
+            }), executeDirect(
+                    library, node(MetalMpsGraphProgram.NodeKind.WHERE, new int[] {0, 1, 2}, 3),
+                    List.of(value(DataType.BOOL, 3), value(trueType, 2, 1),
+                            value(falseType, 1, 3), value(DataType.FLOAT32, 2, 3)),
+                    List.of(new byte[] {1, 0, 0}, shorts(0x8000, 0x4000),
+                            shorts(nan, negativeThree, 1))));
+        }
+    }
+
     private static byte[] executeDirect(
             Path library,
             MetalMpsGraphProgram.Node node,
@@ -388,6 +408,12 @@ class MetalBoolNativeTest {
             api.download(buffer, 0L, target, bytes);
             return target.toArray(JAVA_BYTE);
         }
+    }
+
+    private static byte[] shorts(int... words) {
+        ByteBuffer bytes = ByteBuffer.allocate(words.length * Short.BYTES).order(ByteOrder.nativeOrder());
+        for (int word : words) bytes.putShort((short) word);
+        return bytes.array();
     }
 
     private static Path configuredLibrary() {

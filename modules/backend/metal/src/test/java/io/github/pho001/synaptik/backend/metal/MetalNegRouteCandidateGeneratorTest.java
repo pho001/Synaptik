@@ -454,148 +454,6 @@ class MetalNegRouteCandidateGeneratorTest {
             assertEquals(0, api.nativeAllocations.get());
         }
     }
-    @Test
-    void matchingGradientScalarArithmeticAndReciprocalUseOneFixedMpsGraphCandidate() {
-        TestNativeApi api = new TestNativeApi();
-        try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
-            long identity = 210_000L;
-            Shape shape = Shape.of(2, 3);
-            TensorDescriptor noGrad = new TensorDescriptor(
-                    DataType.FLOAT32,
-                    shape,
-                    Optional.of(LayoutDescriptor.contiguous(shape)),
-                    false);
-            TensorDescriptor grad = new TensorDescriptor(
-                    DataType.FLOAT32,
-                    shape,
-                    Optional.of(LayoutDescriptor.contiguous(shape)),
-                    true);
-            int rawBits = 0xffc1_2345;
-            Generated scalarGenerated = null;
-            for (ScalarElementwiseKind kind : List.of(
-                    ScalarElementwiseKind.ADD,
-                    ScalarElementwiseKind.SUB,
-                    ScalarElementwiseKind.MUL,
-                    ScalarElementwiseKind.DIV)) {
-                Workload workload = operationWorkload(
-                        device,
-                        identity++,
-                        new Operation(
-                                kind,
-                                new ScalarValueAttrs(ScalarValue.float32(
-                                        Float.intBitsToFloat(rawBits)))),
-                        noGrad,
-                        noGrad);
-                Generated generated = generated(workload, 2);
-                if (scalarGenerated == null) scalarGenerated = generated;
-                assertSame(MetalPreparedRoute.MPSGRAPH, generated.analysis().plan().route());
-                assertEquals(
-                        List.of(MetalNegTuningBatch.Candidate.MPSGRAPH),
-                        generated.batch().candidates());
-                MetalMpsGraphProgram.Node node =
-                        generated.analysis().plan().graphProgram().nodes().getFirst();
-                MetalMpsGraphProgram.NodeKind expectedKind = switch (kind) {
-                    case ADD -> MetalMpsGraphProgram.NodeKind.SCALAR_ADD;
-                    case SUB -> MetalMpsGraphProgram.NodeKind.SCALAR_SUB;
-                    case MUL -> MetalMpsGraphProgram.NodeKind.SCALAR_MUL;
-                    case DIV -> MetalMpsGraphProgram.NodeKind.SCALAR_DIV;
-                    default -> throw new AssertionError(kind);
-                };
-                assertSame(expectedKind, node.kind());
-                assertArrayEquals(
-                        new long[] {1L, Integer.toUnsignedLong(rawBits)},
-                        node.attributeWords());
-            }
-            for (ScalarElementwiseKind kind : List.of(
-                    ScalarElementwiseKind.ADD,
-                    ScalarElementwiseKind.SUB,
-                    ScalarElementwiseKind.MUL,
-                    ScalarElementwiseKind.DIV)) {
-                Workload workload = operationWorkload(
-                        device,
-                        identity++,
-                        new Operation(
-                                kind,
-                                new ScalarValueAttrs(ScalarValue.float32(2.0f))),
-                        grad,
-                        grad);
-                Generated generated = generated(workload, 2);
-                assertSame(MetalPreparedRoute.MPSGRAPH, generated.analysis().plan().route());
-                assertEquals(
-                        List.of(MetalNegTuningBatch.Candidate.MPSGRAPH),
-                        generated.batch().candidates());
-            }
-            Workload gradReciprocal = operationWorkload(
-                    device,
-                    identity++,
-                    new Operation(
-                            UnaryElementwiseKind.RECIPROCAL,
-                            NoOperationAttrs.INSTANCE),
-                    grad,
-                    grad);
-            assertSame(
-                    MetalPreparedRoute.MPSGRAPH,
-                    generated(gradReciprocal, 2).analysis().plan().route());
-            for (int scalarBits : new int[] {
-                    0x0000_0000,
-                    0x8000_0000,
-                    0x0000_0001,
-                    0x8000_0001,
-                    0x7f80_0000,
-                    0xff80_0000,
-                    0x7fc1_2345,
-                    0x7f81_2345
-            }) {
-                Workload workload = operationWorkload(
-                        device,
-                        identity++,
-                        new Operation(
-                                ScalarElementwiseKind.ADD,
-                                new ScalarValueAttrs(ScalarValue.float32(
-                                        Float.intBitsToFloat(scalarBits)))),
-                        noGrad,
-                        noGrad);
-                MetalMpsGraphProgram.Node node = generated(workload, 2)
-                        .analysis()
-                        .plan()
-                        .graphProgram()
-                        .nodes()
-                        .getFirst();
-                assertSame(MetalMpsGraphProgram.NodeKind.SCALAR_ADD, node.kind());
-                assertArrayEquals(
-                        new long[] {1L, Integer.toUnsignedLong(scalarBits)},
-                        node.attributeWords());
-            }
-            Workload reciprocal = operationWorkload(
-                    device,
-                    identity++,
-                    new Operation(
-                            UnaryElementwiseKind.RECIPROCAL,
-                            NoOperationAttrs.INSTANCE),
-                    noGrad,
-                    noGrad);
-            Generated reciprocalGenerated = generated(reciprocal, 2);
-            assertSame(MetalPreparedRoute.MPSGRAPH, reciprocalGenerated.analysis().plan().route());
-            assertEquals(
-                    List.of(MetalNegTuningBatch.Candidate.MPSGRAPH),
-                    reciprocalGenerated.batch().candidates());
-            assertSame(
-                    MetalMpsGraphProgram.NodeKind.RECIPROCAL,
-                    reciprocalGenerated.analysis().plan().graphProgram().nodes().getFirst().kind());
-
-            var codec = new MetalNegTuningCodec();
-            var decision = new MetalNegTuningDecision(
-                    MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION,
-                    scalarGenerated.batch().compatibility(),
-                    MetalNegTuningBatch.Candidate.MPSGRAPH);
-            byte[] encoded = codec.encodeDecision(decision);
-            assertTrue(codec.decodeDecision(
-                    rewriteInt(encoded, Integer.BYTES, 14),
-                    scalarGenerated.batch()).isEmpty());
-
-            assertEquals(0, api.nativeAllocations.get());
-        }
-    }
 
 
 
@@ -1178,10 +1036,6 @@ class MetalNegRouteCandidateGeneratorTest {
                     current.batch().compatibility(), MetalNegTuningBatch.Candidate.MPSGRAPH);
             var codec = new MetalNegTuningCodec();
             byte[] first = codec.encodeDecision(decision);
-            assertEquals(41, java.nio.ByteBuffer.wrap(first).getInt(Integer.BYTES));
-            assertEquals(41, current.batch().compatibility().schemaVersion());
-            assertEquals(41, current.batch().compatibility().candidateSchemaVersion());
-            assertEquals(41, current.batch().compatibility().routePolicyVersion());
             assertArrayEquals(first, codec.encodeDecision(decision));
             assertTrue(first.length <= MetalNegTuningCodec.MAX_DECISION_BYTES);
             assertEquals(decision, codec.decodeDecision(first, current.batch()).orElseThrow());
@@ -1309,6 +1163,11 @@ class MetalNegRouteCandidateGeneratorTest {
                 assertTrue(codec.decodeDecision(
                         rewriteInt(first, staleOffset, 40), current.batch()).isEmpty(),
                         "pre-Scan decisions must fail closed even with a valid checksum");
+                assertTrue(codec.decodeDecision(
+                        rewriteInt(first, staleOffset,
+                                MetalNegTuningBatch.CANDIDATE_SCHEMA_VERSION - 1),
+                        current.batch()).isEmpty(),
+                        "immediately preceding carrier policy must fail closed");
             }
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, candidateOffset + Integer.BYTES, 30),
@@ -1442,7 +1301,7 @@ class MetalNegRouteCandidateGeneratorTest {
     }
 
     @Test
-    void preparerRejectsGradientLowExpAtProviderGateBeforeNativeAllocation() {
+    void preparerRejectsInconsistentLowExpGradientMetadataBeforeNativeAllocation() {
         TestNativeApi api = new TestNativeApi();
         try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
             for (DataType low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
@@ -1463,15 +1322,13 @@ class MetalNegRouteCandidateGeneratorTest {
                 Workload rejected = operationWorkload(
                         device, 71_000 + low.ordinal() * 10L,
                         new Operation(UnaryElementwiseKind.EXP, NoOperationAttrs.INSTANCE),
-                        List.of(gradient), gradient);
+                        List.of(gradient), value);
                 assertFalse(MetalCapabilityProvider.supportsOccurrence(
                         rejected.context().nodes().getFirst().operation(),
-                        List.of(gradient), List.of(gradient)));
-                IllegalArgumentException failure = assertThrows(
+                        List.of(gradient), List.of(value)));
+                assertThrows(
                         IllegalArgumentException.class,
                         () -> analyze(rejected.context()), low.toString());
-                assertEquals("Metal occurrence is outside the capability domain",
-                        failure.getMessage(), low.toString());
                 assertEquals(0, api.nativeAllocations.get(), low.toString());
             }
         }

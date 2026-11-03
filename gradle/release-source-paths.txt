@@ -1578,10 +1578,10 @@ modules/backend/metal/macos-arm64/src/synaptik_general_scan_coordinates.h
 modules/backend/metal/macos-arm64/src/synaptik_general_scan_plan.h
 modules/backend/metal/macos-arm64/src/synaptik_general_scan_validation.h
 modules/backend/metal/macos-arm64/src/synaptik_general_scan_value_validation.h
-modules/backend/metal/macos-arm64/src/synaptik_low_precision_kernels.h
 modules/backend/metal/macos-arm64/src/synaptik_metal_foundation.m
 modules/backend/metal/macos-arm64/src/synaptik_normalization_host.h
 modules/backend/metal/macos-arm64/src/synaptik_normalization_loss_kernels.h
+modules/backend/metal/macos-arm64/src/synaptik_numeric_codec.h
 modules/backend/metal/macos-arm64/src/synaptik_ordinary_attributes.h
 modules/backend/metal/macos-arm64/src/synaptik_program_bindings.h
 modules/backend/metal/macos-arm64/src/synaptik_program_control_preflight.h
@@ -1692,6 +1692,7 @@ modules/backend/metal/src/test/java/io/github/pho001/synaptik/backend/metal/Meta
 modules/backend/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalNegPreparedExecutionTest.java
 modules/backend/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalNegRouteCandidateGeneratorTest.java
 modules/backend/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalNormalizationLossNativeTest.java
+modules/backend/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalNormalizationSupportTest.java
 modules/backend/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalOperationCompletenessAuditTest.java
 modules/backend/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalOperationRouteCatalogTest.java
 modules/backend/metal/src/test/java/io/github/pho001/synaptik/backend/metal/MetalOrderingCapabilityTest.java
@@ -1799,6 +1800,7 @@ modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/OrdinaryConstr
 modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/PoolingGradientRules.java
 modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/PublicationPlan.java
 modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/PublishedCompileTimeConstantDescriptorClosure.java
+modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/RecurrentGradientRules.java
 modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/RecurrentScanInference.java
 modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/ReductionGradientRules.java
 modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/ReductionNormalizationInference.java
@@ -1851,6 +1853,7 @@ modules/compiler/src/test/java/io/github/pho001/synaptik/compiler/OrdinaryConstr
 modules/compiler/src/test/java/io/github/pho001/synaptik/compiler/Pool3dAndWindow3dCompilerTest.java
 modules/compiler/src/test/java/io/github/pho001/synaptik/compiler/PublicationPlanTest.java
 modules/compiler/src/test/java/io/github/pho001/synaptik/compiler/PublishedCompileTimeConstantDescriptorClosureTest.java
+modules/compiler/src/test/java/io/github/pho001/synaptik/compiler/RecurrentGradientRulesTest.java
 modules/compiler/src/test/java/io/github/pho001/synaptik/compiler/RecurrentScanCompilerTest.java
 modules/compiler/src/test/java/io/github/pho001/synaptik/compiler/RecurrentScanInferenceTest.java
 modules/compiler/src/test/java/io/github/pho001/synaptik/compiler/ReductionNormalizationInferenceTest.java
