@@ -415,7 +415,7 @@ static NSString *synaptik_authenticated_fixed_source(void) {
         { SynaptikTask0064ConvolutionPoolingKernelSource, 13487U, "4a636939eafe87b606654f329b59975d1c7d502c88d79543d20b08c4f6d126c9" },
         { SynaptikTask0069AggregateKernelSource, 2886U, "6791792854f011172b98c9998fe67717c83ab13eb771d8b967cc64cf6f9548ca" },
         { SynaptikTask0065RngDropoutKernelSource, 1301U, "8217948f0c28d3df56c5f2edb5408306b588bf2c5e0b1f90a23463e295ac6b99" },
-        { SynaptikTask0066DtypeLayoutKernelSource, 31846U, "9fab12b3d4238efb9b652adc67ad217bcad2bcc8e783981810b78fa2dee68d9d" },
+        { SynaptikTask0066DtypeLayoutKernelSource, 33430U, "144fbf115dd6c30ff683434da7206a05049d9ef68fc9998a4ed8a4d6c2b27f39" },
         { SynaptikTask0071AnchorEpilogueKernelSource, 7097U, "e165612540f551ce547c145dde4fa48e46ff06e652b4729272b8bfabc75f0663" },
         { SynaptikExactTypedKernelSource, 9775U, "d69047c24edf8b17506bd0b143f368838f1d73714a23e28a5dce54d09e6a50f5" },
         { SynaptikFloat32OrdinaryKernelSource, 4942U, "ce395e35da0a2570a8abd40ac62bcb5669fe5477198cf0d49d5d87b7bab2537d" },
@@ -437,7 +437,7 @@ static NSString *synaptik_authenticated_fixed_source(void) {
     }
     return [fixed lengthOfBytesUsingEncoding:NSUTF8StringEncoding] == SYNAPTIK_POINTWISE_FIXED_CORPUS_BYTES
             && synaptik_source_digest_matches(fixed,
-                    "45fb698cc9b60bbdc4a2f35019d48a9c7173782b41feef5ad89b0b87e309ca1c")
+                    "5b29e23c37d7b07250a19db972db7578f885616c96ddea904f54432168c1551c")
             ? fixed : nil;
 }
 
@@ -2117,6 +2117,17 @@ static BOOL task0059_layout_add_product(
     return YES;
 }
 
+/* Signed extraction is a real canonical copy; negative strides are never fabricated. */
+static BOOL node_materializes_signed_slice(SynaptikMetalDecodedNode node) {
+    if (node.operation != SYNAPTIK_METAL_CUSTOM_SLICE
+            || node.attribute_kind != 17U || node.attribute_count == 0U) return NO;
+    uint64_t count = node.attribute_values[0];
+    if (count > SYNAPTIK_MAX_RANK || node.attribute_count != 1U + 4U * count) return NO;
+    for (uint64_t item = 0U; item < count; item++)
+        if ((int64_t)node.attribute_values[1U + count * 3U + item] < 0) return YES;
+    return NO;
+}
+
 static BOOL task0059_validate_layout(
         SynaptikMetalDecodedNode node,
         const uint32_t *ranks,
@@ -2136,6 +2147,10 @@ static BOOL task0059_validate_layout(
     uint32_t output_rank = ranks[output];
     uint32_t minimum_input_rank =
             node.operation == SYNAPTIK_METAL_CUSTOM_SELECT ? 1U : 0U;
+    if (node_materializes_signed_slice(node))
+        return present[input] && present[output] && input_rank == output_rank
+                && !view[output] && offsets[output] == 0U
+                && synaptik_row_major_layout(output, ranks, dimensions, strides, offsets, spans);
     if (!present[input] || !present[output]
             || input_rank < minimum_input_rank
             || !view[output])
@@ -2275,6 +2290,9 @@ static BOOL task0066_derive_physical_view(
     uint32_t output = node.output;
     uint32_t input_rank = ranks[input];
     uint32_t output_rank = ranks[output];
+    if (node_materializes_signed_slice(node))
+        return offsets[output] == 0U
+                && synaptik_row_major_layout(output, ranks, dimensions, strides, offsets, spans);
     uint64_t expected_offset = offsets[input];
     if (node.operation == SYNAPTIK_METAL_CUSTOM_SELECT) {
         if (node.attribute_count != 2U
@@ -2451,19 +2469,16 @@ static BOOL task0059_validate_shape(
                 int64_t step =
                         (int64_t)node.attribute_values[1U + count * 3U + item];
                 if (node.scan_body && length == 0U) {
-                    if (axis >= input.count || start != 0 || step <= 0) return NO;
+                    if (axis >= input.count || start != 0 || step == 0) return NO;
                     expected[axis] = 0U;
                     continue;
                 }
-                if (axis >= input.count || length == 0U || step <= 0
-                        || start < 0 || length - 1U > (uint64_t)INT64_MAX
-                        || length - 1U
-                                > (uint64_t)(INT64_MAX - start) / (uint64_t)step)
+                if (axis >= input.count || length == 0U || step == 0 || start < 0)
                     return NO;
-                int64_t last = start + (int64_t)(length - 1U) * step;
+                __int128 last = (__int128)start + (__int128)(length - 1U) * (__int128)step;
                 if (last < 0
                         || (uint64_t)start >= input[axis].unsignedLongLongValue
-                        || (uint64_t)last >= input[axis].unsignedLongLongValue)
+                        || last >= (__int128)input[axis].unsignedLongLongValue)
                     return NO;
                 expected[axis] = length;
             }
@@ -4317,8 +4332,11 @@ static SynaptikMetalProgramStep *make_custom_step(
             meta.attrs[0] = node.axis;
         if (node.operation == SYNAPTIK_METAL_CUSTOM_UNFOLD_AXIS)
             meta.attrs[2] = node.axis;
-        if (node.operation == SYNAPTIK_METAL_MPSGRAPH_FOLD_AXIS)
+        if (node.operation == SYNAPTIK_METAL_MPSGRAPH_FOLD_AXIS) {
+            if (value_types[node.first_input] != SYNAPTIK_METAL_TYPE_FLOAT32
+                    && node.attribute_values[1] < node.attribute_values[0]) return nil;
             meta.reserved = node.axis;
+        }
         if (node.operation >= SYNAPTIK_METAL_CUSTOM_PROD
                 && node.operation <= SYNAPTIK_METAL_CUSTOM_ANY) {
             uint32_t axes_mask = 0U;
@@ -6228,6 +6246,7 @@ static int32_t synaptik_metal_create_decoded(
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     if (route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM) {
                         if (node.operation == SYNAPTIK_METAL_MPSGRAPH_FOLD_AXIS
+                                && declared_types[node.first_input] != SYNAPTIK_METAL_TYPE_FLOAT32
                                 && node.attribute_values[1] < node.attribute_values[0])
                             return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                         if (node.operation == SYNAPTIK_METAL_MPSGRAPH_FOLD2D
@@ -6829,7 +6848,9 @@ static int32_t synaptik_metal_create_decoded(
                 [index_validations addObject:validation];
             }
             uint8_t output_state;
-            if (node.operation == SYNAPTIK_METAL_CUSTOM_SELECT
+            if (node_materializes_signed_slice(node)) {
+                output_state = SYNAPTIK_METAL_VALUE_CANONICAL;
+            } else if (node.operation == SYNAPTIK_METAL_CUSTOM_SELECT
                     || node.operation == SYNAPTIK_METAL_CUSTOM_SLICE) {
                 output_state = has_layouts
                         ? declared_states[node.output]

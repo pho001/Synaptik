@@ -292,6 +292,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                     && inputs.getFirst().dataType() == DataType.FLOAT32) {
                 return MetalReductionSupport.supports(operation, inputs, outputs);
             }
+            if (operation.kind() == SliceKind.SLICE && !inputs.isEmpty()
+                    && inputs.getFirst().dataType() == DataType.FLOAT32) {
+                return outputs.size() == 1 && supportsSlice(operation, inputs, outputs.getFirst(), true);
+            }
             if (MetalNormalizationSupport.supports(operation, inputs, outputs)
                     || MetalAttentionSupport.supports(operation, inputs, outputs)
                     || MetalRecurrentSupport.supports(operation, inputs, outputs)
@@ -406,7 +410,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 return supportsSelect(operation, inputs, output);
             }
             if (operation.kind() == SliceKind.SLICE) {
-                return supportsSlice(operation, inputs, output);
+                return supportsSlice(operation, inputs, output, false);
             }
             if (operation.kind() == ScatterNdKind.SCATTER_ND) {
                 return supportsScatterNdReplacement(operation, inputs, output);
@@ -816,7 +820,8 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     }
 
     private static boolean supportsSlice(
-            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output) {
+            Operation operation, List<TensorDescriptor> inputs, TensorDescriptor output,
+            boolean allowSignedMaterialization) {
         if (inputs.size() != 1) {
             return false;
         }
@@ -833,6 +838,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         long[] starts;
         int[] axes;
         long[] steps;
+        boolean materialized = false;
         if (operation.attrs() instanceof SliceAttrs attrs) {
             int count = attrs.axes().size();
             starts = new long[count];
@@ -843,9 +849,11 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 long start = attrs.starts().get(index);
                 long length = attrs.lengths().get(index);
                 long step = attrs.steps().get(index);
-                if (axis < 0 || axis >= inputShape.length || length <= 0L || step <= 0L) {
+                if (axis < 0 || axis >= inputShape.length || length <= 0L || step == 0L
+                        || step < 0L && !allowSignedMaterialization) {
                     return false;
                 }
+                materialized |= step < 0L;
                 long last = Math.addExact(start, Math.multiplyExact(length - 1L, step));
                 if (start >= inputShape[axis] || last < 0L || last >= inputShape[axis]) {
                     return false;
@@ -882,6 +890,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         if (!Arrays.equals(expectedShape, output.shape().toLongArray())) {
             return false;
         }
+        if (materialized) return canonicalAny(output, true);
         LayoutDescriptor inputLayout = input.layout().orElseThrow();
         long[] expectedStrides = inputLayout.strides();
         long offset = inputLayout.storageOffset();
@@ -1324,7 +1333,8 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
                 return false;
             }
             long size = source[source.length - 1];
-            if (attrs.step() < size || target[attrs.axis()] < size) return false;
+            if ((type != DataType.FLOAT32 && attrs.step() < size)
+                    || target[attrs.axis()] < size) return false;
             long positions = (target[attrs.axis()] - size) / attrs.step() + 1L;
             for (int axis = 0; axis < target.length; axis++) {
                 if (source[axis] != (axis == attrs.axis() ? positions : target[axis])) {

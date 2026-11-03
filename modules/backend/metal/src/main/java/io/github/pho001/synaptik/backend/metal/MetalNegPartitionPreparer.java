@@ -364,7 +364,8 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
                 states.put(outputId,
             denseLogicalView
                 ? MetalMpsGraphProgram.ValueState.AFFINE_VIEW
-                : lowered.kind() == MetalMpsGraphProgram.NodeKind.RESHAPE
+                : (lowered.kind() == MetalMpsGraphProgram.NodeKind.RESHAPE
+                        || lowered.kind() == MetalMpsGraphProgram.NodeKind.SLICE)
                         ? lowered.kind().outputState(
                                 MetalMpsGraphProgram.ValueDescriptor.from(inputDescriptors.getFirst()),
                                 MetalMpsGraphProgram.ValueDescriptor.from(outputDescriptor))
@@ -781,6 +782,9 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
       }
     } else {
       SliceAttrs attrs = (SliceAttrs) operation.attrs();
+      for (long step : attrs.steps()) {
+        if (step < 0L) return LayoutDescriptor.contiguous(output.shape());
+      }
       for (int index = 0; index < attrs.axes().size(); index++) {
         int axis = attrs.axes().get(index);
         long step = attrs.steps().get(index);

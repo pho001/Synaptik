@@ -147,6 +147,32 @@ class MetalAuditReductionNativeTest {
     }
 
     @Test
+    void axisFoldAccumulatesEveryOverlapAndZerosTheUncoveredTail() {
+        var values = List.of(new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.FLOAT32, new long[] {2, 2, 3}, true),
+                new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, new long[] {2, 6}, true));
+        var node = MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.FOLD_AXIS,
+                new int[] {0}, new int[] {1}, MetalMpsGraphProgram.AttributeKind.WINDOW_AXIS,
+                new long[] {1, 3, 2});
+        assertArrayEquals(new float[] {1, 2, 7, 5, 6, 0, 7, 8, 19, 11, 12, 0},
+                floats(execute(values, List.of(node), new int[] {0},
+                        new byte[][] {f32(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)}, 1)));
+    }
+
+    @Test
+    void signedSliceMaterializesRawAdjointSitesWithoutInventingNegativeStorageStrides() {
+        var values = List.of(new MetalMpsGraphProgram.ValueDescriptor(
+                        DataType.FLOAT32, new long[] {4}, true),
+                new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, new long[] {2}, true));
+        var node = MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.SLICE,
+                new int[] {0}, new int[] {1}, MetalMpsGraphProgram.AttributeKind.SLICE,
+                new long[] {1, 3, 2, 0, -2});
+        assertArrayEquals(bytes(DataType.FLOAT32, 0x7f812345L, 0x80000000L),
+                execute(values, List.of(node), new int[] {0}, new byte[][] {
+                        bytes(DataType.FLOAT32, 0x3f800000L, 0x80000000L, 1, 0x7f812345L)}, 1));
+    }
+
+    @Test
     void correctedMultiaxisStatisticsAndGeneralNormsHaveNumericResults() {
         var values = List.of(value(DataType.FLOAT32, 2, 2, 2), value(DataType.FLOAT32, 2));
         byte[][] inputs = {f32(1, 2, 3, 4, 5, 6, 7, 8)};

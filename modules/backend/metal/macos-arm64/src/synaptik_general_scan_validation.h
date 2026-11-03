@@ -149,7 +149,8 @@ static BOOL synaptik_scan_validate_ordinary(SynaptikMetalDecodedNode node, NSArr
             return task0059_validate_shape(node, shapes);
         case 80U:
             return synaptik_scan_numeric_type(inputType) && outputType == inputType
-                    && node.attribute_values[1] >= node.attribute_values[0]
+                    && (inputType == SYNAPTIK_METAL_TYPE_FLOAT32
+                            || node.attribute_values[1] >= node.attribute_values[0])
                     && task0059_validate_shape(node, shapes);
         case 81U: case 82U: case 83U: case 84U:
             return inputType == 1U && outputType == 1U && task0059_validate_shape(node, shapes);

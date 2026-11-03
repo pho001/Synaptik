@@ -1606,7 +1606,8 @@ abstract class MetalNativeApi implements AutoCloseable {
                 for (int nodeOutput : nodeOutputs) {
                     MetalMpsGraphProgram.ValueState outputState =
                             scanBody ? MetalMpsGraphProgram.ValueState.CANONICAL
-                                    : node.kind() == MetalMpsGraphProgram.NodeKind.RESHAPE
+                                    : (node.kind() == MetalMpsGraphProgram.NodeKind.RESHAPE
+                                            || node.kind() == MetalMpsGraphProgram.NodeKind.SLICE)
                                     ? node.kind().outputState(values.get(left), values.get(nodeOutput))
                                     : node.kind().outputState();
                     if (!scanBody && (node.kind() == MetalMpsGraphProgram.NodeKind.SELECT
@@ -2008,10 +2009,10 @@ abstract class MetalNativeApi implements AutoCloseable {
         private static boolean supportsFoldGeometry(
                 MetalMpsGraphProgram.Node node, ValueType type) {
             long[] words = node.attributeWords();
+            if (type == ValueType.FLOAT32) return true;
             if (node.kind() == MetalMpsGraphProgram.NodeKind.FOLD_AXIS) {
                 return words[2] >= words[1];
             }
-            if (type == ValueType.FLOAT32) return true;
             int dimensions = node.kind() == MetalMpsGraphProgram.NodeKind.FOLD2D ? 2 : 3;
             int offset = dimensions + 3;
             try {
@@ -2502,10 +2503,17 @@ abstract class MetalNativeApi implements AutoCloseable {
                         }
                     } else {
                         int count = Math.toIntExact(words[0]);
+                        boolean materialized = false;
                         for (int item = 0; item < count; item++) {
                             int axis = Math.toIntExact(words[1 + count * 2 + item]);
                             long step = words[1 + count * 3 + item];
-                            if (axis < 0 || axis >= strides.length || step <= 0L) return null;
+                            if (axis < 0 || axis >= strides.length || step == 0L) return null;
+                            materialized |= step < 0L;
+                        }
+                        if (materialized) return LayoutDescriptor.contiguous(Shape.of(outputShape));
+                        for (int item = 0; item < count; item++) {
+                            int axis = Math.toIntExact(words[1 + count * 2 + item]);
+                            long step = words[1 + count * 3 + item];
                             offset = Math.addExact(offset,
                                     Math.multiplyExact(words[1 + item], strides[axis]));
                             strides[axis] = Math.multiplyExact(strides[axis], step);
@@ -2538,8 +2546,6 @@ abstract class MetalNativeApi implements AutoCloseable {
             int count = Math.toIntExact(words[0]);
             if (count > input.length) return null;
             long[] expected = input.clone();
-            boolean update =
-                    node.kind() == MetalMpsGraphProgram.NodeKind.SLICE_UPDATE;
             for (int item = 0; item < count; item++) {
                 long start = words[1 + item];
                 long length = words[1 + count + item];
@@ -2549,8 +2555,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                         || axis >= input.length
                         || start < 0L
                         || length < 0L || length == 0L && !scanBody
-                        || (!update && step <= 0L)
-                        || (update && step == 0L)
+                        || step == 0L
                         || (length == 0L ? start != 0L : start >= input[axis])) {
                     return null;
                 }

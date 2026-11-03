@@ -286,7 +286,7 @@ final class MetalMpsGraphProgram {
         ValueState outputState() { return outputState; }
 
         /**
-         * Resolves a RESHAPE occurrence without changing other affine producers' state.
+         * Resolves canonical Slice materialization or an authenticated RESHAPE occurrence.
          * The source is authenticated independently by its feed or earlier producer.
          *
          * @param input actual source descriptor, including its logical offset and strides
@@ -294,6 +294,10 @@ final class MetalMpsGraphProgram {
          * @return exact view or canonical materialization state, or UNAVAILABLE for a false claim
          */
         ValueState outputState(ValueDescriptor input, ValueDescriptor output) {
+            if (this == SLICE && output.layout().isPresent()) {
+                LayoutDescriptor result = output.layout().orElseThrow();
+                if (!result.isView() && output.denseStorage(result)) return ValueState.CANONICAL;
+            }
             if (this != RESHAPE) return outputState;
             if (input.dataType() != output.dataType()
                     || input.requiresGrad() != output.requiresGrad()

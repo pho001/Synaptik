@@ -13,6 +13,8 @@ import io.github.pho001.synaptik.model.operation.*;
 import io.github.pho001.synaptik.model.operation.reduction.*;
 import io.github.pho001.synaptik.model.operation.index.AxisGatherKind;
 import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
+import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.scan.*;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.*;
@@ -96,6 +98,36 @@ class MetalGeneralScanNativeTest {
             assertRaw(new float[] {-0.0f, 5}, run.output(0));
             assertArrayEquals(new int[(int) time * 2], run.output(1));
             assertArrayEquals(new int[(int) time * 2], run.output(2));
+        }
+    }
+
+    @Test void overlappingAxisFoldUsesTheOrdinaryKernelInWholeTensorAndControlledRows() {
+        for (boolean lengths : List.of(false, true)) {
+            var operation = new Operation(WindowTransformKind.FOLD_AXIS,
+                    new FoldAxisAttrs(lengths ? 1 : 0, 4, 1));
+            var query = singleEmissionQuery(operation,
+                    lengths ? new long[] {2, 2, 3} : new long[] {2, 3},
+                    lengths ? new long[] {2, 4} : new long[] {4});
+            if (lengths) {
+                var inputs = new ArrayList<>(query.inputs());
+                inputs.add(MetalScanPlanTest.descriptor(DataType.INT64, 2));
+                query = new OperationCapabilityQuery(new Operation(ScanKind.SCAN,
+                        new ScanAttrs(2, 0, 1, 0, 1, 0, false, true, 0,
+                                List.of(OptionalInt.of(0)))),
+                        inputs, query.outputs(), query.scanBody(), Optional.empty());
+            }
+            try (var run = new RawScan(query, null)) {
+                if (lengths) {
+                    run.floats(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+                            13, 14, 15, 16, 17, 18,
+                            Float.NaN, Float.NaN, Float.NaN, Float.NaN, Float.NaN, Float.NaN);
+                    run.longs(1, 2, 1);
+                } else run.floats(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
+                run.execute();
+                assertRaw(lengths
+                        ? new float[] {1, 6, 8, 6, 7, 18, 20, 12, 13, 30, 32, 18, 0, 0, 0, 0}
+                        : new float[] {1, 6, 8, 6, 7, 18, 20, 12}, run.output(0));
+            }
         }
     }
 
@@ -387,16 +419,27 @@ class MetalGeneralScanNativeTest {
 
     private static OperationCapabilityQuery emptyReductionQuery(
             AggregateReductionKind kind, OperationAttrs attrs, long... outputShape) {
-        var input = MetalScanPlanTest.descriptor(DataType.FLOAT32, 0, 3);
+        return singleEmissionQuery(new Operation(kind, attrs), new long[] {0, 3}, outputShape);
+    }
+
+    private static OperationCapabilityQuery singleEmissionQuery(
+            Operation operation, long[] inputShape, long... outputShape) {
+        var input = MetalScanPlanTest.descriptor(DataType.FLOAT32, inputShape);
         var output = MetalScanPlanTest.descriptor(DataType.FLOAT32, outputShape);
         var id = new ValueId(0); var result = new ValueId(1);
-        var reduce = new CompiledNode(new NodeId(0), new Operation(kind, attrs), List.of(id), List.of(result));
-        var graph = new CompiledGraphModel(List.of(new GraphValue(id, input), new GraphValue(result, output)), List.of(reduce),
-                List.of(id), List.of(result), Map.of(reduce.id(), GraphPhase.FORWARD));
+        var ordinary = new CompiledNode(new NodeId(0), operation, List.of(id), List.of(result));
+        var graph = new CompiledGraphModel(List.of(new GraphValue(id, input), new GraphValue(result, output)),
+                List.of(ordinary), List.of(id), List.of(result), Map.of(ordinary.id(), GraphPhase.FORWARD));
         var body = new CompiledScanBody(graph, List.of(), List.of(result), List.of(), List.of(0));
-        long[] stacked = new long[outputShape.length + 1]; stacked[0] = 2; System.arraycopy(outputShape, 0, stacked, 1, outputShape.length);
-        return new OperationCapabilityQuery(new Operation(ScanKind.SCAN, new ScanAttrs(2, 0, 1, 0, 1, 0, false)),
-                List.of(MetalScanPlanTest.descriptor(DataType.FLOAT32, 2, 0, 3)), List.of(MetalScanPlanTest.descriptor(DataType.FLOAT32, stacked)), Optional.of(body), Optional.empty());
+        long[] stackedInput = new long[inputShape.length + 1];
+        stackedInput[0] = 2; System.arraycopy(inputShape, 0, stackedInput, 1, inputShape.length);
+        long[] stackedOutput = new long[outputShape.length + 1];
+        stackedOutput[0] = 2; System.arraycopy(outputShape, 0, stackedOutput, 1, outputShape.length);
+        return new OperationCapabilityQuery(new Operation(ScanKind.SCAN,
+                new ScanAttrs(2, 0, 1, 0, 1, 0, false)),
+                List.of(MetalScanPlanTest.descriptor(DataType.FLOAT32, stackedInput)),
+                List.of(MetalScanPlanTest.descriptor(DataType.FLOAT32, stackedOutput)),
+                Optional.of(body), Optional.empty());
     }
 
     private static void assertPrepared(CompileArtifacts artifacts, List<Map<TensorId, byte[]>> runs, List<List<float[]>> expected) {
