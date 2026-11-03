@@ -117,11 +117,8 @@ static BOOL synaptik_encode_fixed_step(
                 [encoder setBuffer:step.metadata offset:0U atIndex:3U];
             } else [encoder setBuffer:step.metadata offset:0U atIndex:2U];
         } else if (operation == 77U || operation == 78U) {
-            if (step.inputValues.count == 0U || step.inputValues.count > 16U) return NO;
-            for (NSUInteger slot = 0U; slot < 16U; slot++)
-                SYNAPTIK_BIND(step.inputValues[MIN(slot, step.inputValues.count - 1U)].unsignedIntegerValue, slot);
-            SYNAPTIK_BIND(output, 16U);
-            [encoder setBuffer:step.metadata offset:0U atIndex:17U];
+            SYNAPTIK_BIND(output, 1U);
+            [encoder setBuffer:step.metadata offset:0U atIndex:2U];
         } else if (scatter || operation == 51U) {
             SYNAPTIK_BIND(step.secondInput, 1U);
             SYNAPTIK_BIND(step.auxiliaryInput, 2U);
@@ -137,6 +134,22 @@ static BOOL synaptik_encode_fixed_step(
         }
     }
 #undef SYNAPTIK_BIND
+    return YES;
+}
+
+static BOOL synaptik_dispatch_fixed_step(
+        SynaptikMetalProgramStep *step, id<MTLComputeCommandEncoder> encoder,
+        SynaptikMetalStepBindings bindings) {
+    if (step == nil || encoder == nil) return NO;
+    if (step.compositionSteps != nil) {
+        for (SynaptikMetalProgramStep *copy in step.compositionSteps)
+            if (!synaptik_dispatch_fixed_step(copy, encoder, bindings)) return NO;
+        return YES;
+    }
+    if (step.grid.width == 0U || step.grid.height == 0U || step.grid.depth == 0U) return YES;
+    if (!synaptik_encode_fixed_step(step, encoder, bindings)) return NO;
+    [encoder dispatchThreads:step.grid threadsPerThreadgroup:
+            MTLSizeMake(step.threadsPerThreadgroup, 1U, 1U)];
     return YES;
 }
 
