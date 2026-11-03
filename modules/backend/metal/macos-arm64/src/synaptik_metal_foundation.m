@@ -411,7 +411,7 @@ static NSString *synaptik_authenticated_fixed_source(void) {
         { SynaptikNumericCodecSource, 8514U, "268b30d176eab328a9e946e3bb0aa825ceed583aa20968b218a68a44846e9b83" },
         { SynaptikFloat32MathKernelSource, 8778U, "ac55bdbd4529a463261a6cafabd287c9e205d28b1dacb6e1659b0ca57ac3112b" },
         { SynaptikTask0060ReductionKernelSource, 6287U, "8251b76eec9f0fac02f1143175f9e044e40533f1ec0e72dcceceb4b9f0b0b052" },
-        { SynaptikTask0061MatmulKernelSource, 6273U, "f7fb4de401cca6e1e63755bc21e212c3687bac0ba702b9bb8473c0326c6500f9" },
+        { SynaptikTask0061MatmulKernelSource, 7013U, "cc7ba9eacdbfe9f423f704d53834e52daba018845e0b9c515ffa005c735ad607" },
         { SynaptikTask0063OrderingKernelSource, 8781U, "2636a8a4c9850a583cb7776a04305b7d35ba58fe577341baee9b1eebffd27fc8" },
         { SynaptikTask0064ConvolutionPoolingKernelSource, 15807U, "00bc226b18320ca8f98a744abbd7fae0e6edc952fae0592b5c6c4e6b90a00faa" },
         { SynaptikTask0069AggregateKernelSource, 1061U, "411e6a254294f13e78bd9d851f64649c5f48cc994156426df470a272afe81dcd" },
@@ -438,7 +438,7 @@ static NSString *synaptik_authenticated_fixed_source(void) {
     }
     return [fixed lengthOfBytesUsingEncoding:NSUTF8StringEncoding] == SYNAPTIK_POINTWISE_FIXED_CORPUS_BYTES
             && synaptik_source_digest_matches(fixed,
-                    "f1f2429fdbb7a87c3bacd5358564f4abffca3aac2fc4d3e1e86429c5ca6dff35")
+                    "9d0d08724f5deac665bb4e09c08af3b0fad08efff050dad2d8ae265f39a030d4")
             ? fixed : nil;
 }
 
@@ -7558,8 +7558,16 @@ static int32_t synaptik_metal_create_decoded(
                             name:nil];
                     break;
                 case SYNAPTIK_METAL_MPSGRAPH_MATMUL:
-                    output = [graph matrixMultiplicationWithPrimaryTensor:first
-                            secondaryTensor:second name:nil];
+                    // A singleton contraction is its one product, without an additive zero.
+                    if (shapes[node.first_input].count == 2U
+                            && shapes[node.second_input].count == 2U
+                            && shapes[node.first_input][1].unsignedLongLongValue == 1U) {
+                        output = [graph multiplicationWithPrimaryTensor:first
+                                secondaryTensor:second name:nil];
+                    } else {
+                        output = [graph matrixMultiplicationWithPrimaryTensor:first
+                                secondaryTensor:second name:nil];
+                    }
                     break;
                 case SYNAPTIK_METAL_CUSTOM_CONTIGUOUS:
                     output = [graph reshapeTensor:first

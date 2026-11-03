@@ -5,9 +5,9 @@
 Metal is a first-production backend, not an experimental CPU fallback. One backend owns each
 complete maximal Metal partition. The active protocol is native ABI 7 with thirteen exports,
 program schema 22 (`SM22`) and its 124-byte header, operation wires `1..116`, attribute wires `0..42`,
-type wires `1..7`, route wires `1..3`, and coordinated backend-local identity 42.
+type wires `1..7`, route wires `1..3`, and coordinated backend-local identity 43.
 Older program and decision identities are rejected. The authenticated fixed shader corpus has
-23 components, 187,750 UTF-8 bytes and 165 compiled functions.
+23 components and 188,490 UTF-8 bytes; the last device compilation exposed 165 functions.
 
 The [production support ledger](production-support.md#metal-production-target) separates
 operation-catalog execution, independent numerical oracles, composed training and final
@@ -220,7 +220,7 @@ distinct non-physical identities. The first is an abstract availability slot, th
 trace correlation token, and the third a session-compatibility identity that makes no stable-device
 claim. No mapping among them is implied. ABI 7 and the thirteen native exports are fixed. The
 route-bearing image is schema22 with a 124-byte header, and coordinated workload/exact-policy/
-candidate/compatibility/route/codec identities are42. Every stale identity fails closed.
+candidate/compatibility/route/codec identities are43. Every stale identity fails closed.
 Tuning remains session-scoped and non-persistent.
 
 Future asynchronous execution requires a separate cross-module contract for completion/failure,
@@ -452,7 +452,7 @@ device/library fingerprint.
 
 Schema22 workload bytes and compatibility include the fixed route, authenticated execution/body
 extension and manifest digest. Candidate/decision bytes retain route wires `1..3`,
-route-policy version42 and the target session.
+route-policy version43 and the target session.
 Prepared plans and native resources are route-specific. A future executable-cache key would
 therefore require the tuple `(workload compatibility, route wire, route-policy version, target
 session)` rather than a workload digest alone. The repository has no persistent Metal executable
@@ -998,7 +998,7 @@ strongest available reflection, and test-only dispatch observation site. At that
 native validated frozen SHA-256 values for all ten fixed components and their ordered 84,541-byte
 total, then validated the assembled total independently before compiler entry. The Task-0078
 WHERE metadata repair later used 84,593 bytes; image-fold overlap used 87,929. The current
-source-bound corpus is 187,750 bytes; historical counts are not its authentication target.
+source-bound corpus is 188,490 bytes; historical counts are not its authentication target.
 One structured sink implements both a
 no-allocation count traversal and the exact byte traversal: production validates all five caps
 before allocating the counted byte size and emits once for compile. A standalone native fixture includes that exact
@@ -1267,7 +1267,7 @@ There is no profile in partition plans or route/tuning/codec/workload identities
 enforces the boundary before native entry. ABI version `7` exposes exactly thirteen export names
 and accepts one bounded schema-22 route-bearing image with a 124-byte header; operation wires
 `1..116`, attribute wires `0..42`, route wires `1..3` and type wires `1..7` cover the current
-registry. Coordinated route/candidate/compatibility/workload/policy/codec identities are 42;
+registry. Coordinated route/candidate/compatibility/workload/policy/codec identities are 43;
 stale identities reject. The production ledger records the live ordinary and separate Scan
 qualification rather than pinning historical kind-count snapshots.
 The complete-plan wrapper remains version `1`.

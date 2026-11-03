@@ -57,6 +57,78 @@ class MetalMpsGraphMatmulNativeTest {
     }
 
     @Test
+    void rankTwoSingletonPublishesBroadcastProductsInDirectAndNestedGraphs() {
+        Path library = configuredLibrary();
+        float[] left = {-0.0f, 0.0f, 2.0f};
+        float[] right = {1.0f, -1.0f, -0.0f, 2.0f};
+        float[] expected = new float[left.length * right.length];
+        for (int row = 0; row < left.length; row++) {
+            for (int column = 0; column < right.length; column++) {
+                expected[row * right.length + column] = left[row] * right[column];
+            }
+        }
+        for (MetalPreparedRoute route : List.of(
+                MetalPreparedRoute.MPSGRAPH, MetalPreparedRoute.CUSTOM_PROGRAM)) {
+            var nodes = new ArrayList<MetalMpsGraphProgram.Node>();
+            nodes.add(MetalMpsGraphProgram.Node.matmul(0, 1, 2));
+            var values = new ArrayList<>(List.of(
+                    typed(DataType.FLOAT32, 3, 1), typed(DataType.FLOAT32, 1, 4),
+                    typed(DataType.FLOAT32, 3, 4)));
+            int[] targets = {2};
+            if (route == MetalPreparedRoute.CUSTOM_PROGRAM) {
+                nodes.add(MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.FLOOR, new int[] {2}, new int[] {3},
+                        MetalMpsGraphProgram.AttributeKind.NONE, new long[0]));
+                values.add(typed(DataType.FLOAT32, 3, 4));
+                targets = new int[] {2, 3};
+            }
+            List<byte[]> actual = execute(library, new MetalMpsGraphProgram(List.copyOf(nodes)),
+                    List.copyOf(values), new int[] {0, 1}, targets,
+                    List.of(floatBytes(left), floatBytes(right)), route);
+            assertArrayEquals(floatBytes(expected), actual.getFirst(), route.toString());
+        }
+    }
+
+    @Test
+    void customSingletonKeepsProductSignsForEveryCarrierInVectorBatchAndTransposeForms() {
+        Path library = configuredLibrary();
+        var program = new MetalMpsGraphProgram(List.of(
+                MetalMpsGraphProgram.Node.matmul(0, 1, 2),
+                MetalMpsGraphProgram.Node.matmul(3, 4, 5),
+                MetalMpsGraphProgram.Node.matmul(6, 7, 8),
+                MetalMpsGraphProgram.Node.permutation(9, 10, List.of(1, 0)),
+                MetalMpsGraphProgram.Node.matmul(10, 11, 12)));
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            Shape transposed = Shape.of(2, 1);
+            List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
+                    typed(type, 1), typed(type, 1), typed(type),
+                    typed(type, 1), typed(type, 1, 3), typed(type, 3),
+                    typed(type, 2, 2, 1), typed(type, 1, 1, 3), typed(type, 2, 2, 3),
+                    typed(type, 1, 2),
+                    new MetalMpsGraphProgram.ValueDescriptor(type, transposed.toLongArray(),
+                            Optional.of(LayoutDescriptor.of(
+                                    transposed, new long[] {1, 2}, 0L, true)), false, true),
+                    typed(type, 1, 3), typed(type, 2, 3));
+            List<byte[]> actual = executeCustom(library, program, values,
+                    new int[] {0, 1, 3, 4, 6, 7, 9, 11}, new int[] {2, 5, 8, 12},
+                    List.of(numericBytes(type, -0.0f), numericBytes(type, 1),
+                            numericBytes(type, 0.0f), numericBytes(type, -1, 1, -2),
+                            numericBytes(type, -0.0f, 0.0f, 0.0f, -0.0f),
+                            numericBytes(type, 1, -1, 2),
+                            numericBytes(type, -0.0f, 0.0f), numericBytes(type, -1, 1, -2)));
+            assertArrayEquals(numericBytes(type, -0.0f), actual.get(0), type + " scalar");
+            assertArrayEquals(numericBytes(type, -0.0f, 0.0f, -0.0f),
+                    actual.get(1), type + " vector");
+            assertArrayEquals(numericBytes(type,
+                            -0.0f, 0.0f, -0.0f, 0.0f, -0.0f, 0.0f,
+                            0.0f, -0.0f, 0.0f, -0.0f, 0.0f, -0.0f),
+                    actual.get(2), type + " batch broadcast");
+            assertArrayEquals(numericBytes(type, 0.0f, -0.0f, 0.0f, -0.0f, 0.0f, -0.0f),
+                    actual.get(3), type + " authenticated transpose");
+        }
+    }
+
+    @Test
     void rankTwoMatmulKeepsCanonicalDirectAndRoutesAuthenticatedTransposeFormsCustomAcrossReuse() {
         String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
         assumeTrue(configured != null && !configured.isBlank(),
@@ -215,13 +287,12 @@ class MetalMpsGraphMatmulNativeTest {
         assertEquals(Float.floatToRawIntBits(Float.POSITIVE_INFINITY), rawInt(actual.get(0)));
         assertEquals(Float.floatToRawIntBits(Float.NEGATIVE_INFINITY), rawInt(actual.get(1)));
         assertTrue(Float.isNaN(Float.intBitsToFloat(rawInt(actual.get(2)))));
-        assertEquals(0x00000000, rawInt(actual.get(3)));
+        assertEquals(0x80000000, rawInt(actual.get(3)));
         assertTrue(
                 rawInt(actual.get(4)) == 0x00000001 || rawInt(actual.get(4)) == 0x00000000);
         assertEquals(Float.floatToRawIntBits(Float.POSITIVE_INFINITY), rawInt(actual.get(5)));
-        assertTrue(
-                rawInt(actual.get(6)) == 0x00000000 || rawInt(actual.get(6)) == 0x80000000,
-                "final exact-zero sign is intentionally free");
+        assertEquals(0x80000000, rawInt(actual.get(6)),
+                "singleton negative underflow retains its product sign");
     }
 
     @Test
@@ -745,16 +816,14 @@ class MetalMpsGraphMatmulNativeTest {
                             "reduced-precision sentinel repetition=" + repetition);
                     assertEquals(Float.floatToRawIntBits(-precisionInput), actual[1]);
                     assertEquals(0x00000000, actual[2]);
-                    assertEquals(0x00000000, actual[3]);
+                    assertEquals(0x80000000, actual[3]);
                     assertTrue(
                             actual[4] == 0x00000001 || actual[4] == 0x00000000,
                             "positive DAZ/FTZ result=0x"
                                     + Integer.toHexString(actual[4]));
                     assertTrue(
-                            actual[5] == 0x80000001
-                                    || actual[5] == 0x80000000
-                                    || actual[5] == 0x00000000,
-                            "negative DAZ/FTZ with final-zero sign freedom result=0x"
+                            actual[5] == 0x80000001 || actual[5] == 0x80000000,
+                            "negative DAZ/FTZ product sign result=0x"
                                     + Integer.toHexString(actual[5]));
                     for (int input = 0; input < inputs.size(); input++) {
                         assertArrayEquals(

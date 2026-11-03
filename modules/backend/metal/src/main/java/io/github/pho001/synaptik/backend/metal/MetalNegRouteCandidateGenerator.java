@@ -19,20 +19,20 @@ import java.util.Optional;
  * Generates complete, stable, budget-bounded Metal supported-operation route candidates.
  *
  * <p>The workload fingerprint uses only versioned semantics and structural positions, including the
- * schema-twenty-one program image and execution plan, exact logical
+ * schema-twenty-two program image and execution plan, exact logical
  * descriptors, ordered edges, explicit value states, compact materialized set, target sets,
  * dense represented-order geometry, ABI identity, typed splats,
  * and the scalar-composition source wire, exact raw constant, rank-one {@code [1]} shape, operand
  * order, and primitive opcode. Graph-local identities, partition object identity, native handles,
  * measurements, and cache state are excluded. Generation is cold, thread-safe, deterministic, and
- * performs no native work. Version 42 authenticates original numerical carrier roles,
- * dynamic composition operands and typed Scan body/activity grammar.
- * the established candidate wires and exact singleton-NEG tuning policy remain unchanged.
+ * performs no native work. Version 43 retains original numerical carrier roles,
+ * dynamic composition operands and typed Scan body/activity grammar, and binds singleton
+ * MATMUL product semantics. Candidate wires and the exact singleton-NEG tuning policy are unchanged.
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;
-    private static final int WORKLOAD_SIGNATURE_VERSION = 42;
-    private static final int EXACT_DEFAULT_POLICY = 42;
+    private static final int WORKLOAD_SIGNATURE_VERSION = 43;
+    private static final int EXACT_DEFAULT_POLICY = 43;
 
     /**
      * Generates every currently valid complete candidate up to a positive budget.

@@ -17,6 +17,7 @@ import io.github.pho001.synaptik.model.operation.index.IndexAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.FoldAxisAttrs;
 import io.github.pho001.synaptik.model.operation.layout.WindowTransformKind;
 import io.github.pho001.synaptik.model.operation.scan.*;
+import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.*;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
@@ -378,6 +379,58 @@ class MetalGeneralScanNativeTest {
             assertRaw(new float[] {6, 0, 0, 0}, run.output(0));
             run.longs(1, 0, 0); run.execute(); assertRaw(new float[] {0, 0, 0, 0}, run.output(0));
         }
+    }
+
+    @Test void controlledMatmulSingletonUsesOneActiveProductAndSkipsBothInactiveOperands() {
+        for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            try (var run = new RawScan(terminalMatmulQuery(type, 1), null)) {
+                run.bytes(0, numeric(type, -0.0f, Float.NaN));
+                run.bytes(1, numeric(type, 1, Float.NaN));
+                run.longs(2, 1); run.poisonOutputs(0x5a5a5a5a); run.execute();
+                assertArrayEquals(numeric(type, -0.0f, 0.0f), run.outputBytes(0), type.toString());
+                run.bytes(0, numeric(type, 0.0f, -0.0f));
+                run.bytes(1, numeric(type, -1, 1));
+                run.longs(2, 2); run.execute();
+                assertArrayEquals(numeric(type, -0.0f, -0.0f), run.outputBytes(0), type.toString());
+                run.bytes(0, numeric(type, Float.NaN, Float.NaN));
+                run.bytes(1, numeric(type, Float.NaN, Float.NaN));
+                run.longs(2, 0); run.execute();
+                assertArrayEquals(numeric(type, 0.0f, 0.0f), run.outputBytes(0), type.toString());
+            }
+            try (var run = new RawScan(terminalMatmulQuery(type, 2), null)) {
+                run.bytes(0, numeric(type, Float.NaN, 3, Float.NaN, Float.NaN));
+                run.bytes(1, numeric(type, Float.NaN, 2, Float.NaN, Float.NaN));
+                run.longs(2, 0, 1); run.poisonOutputs(0x5a5a5a5a); run.execute();
+                assertArrayEquals(numeric(type, 6, 0.0f), run.outputBytes(0), type.toString());
+            }
+            try (var run = new RawScan(terminalMatmulQuery(type, 0), null)) {
+                run.poisonOutputs(0x5a5a5a5a); run.execute();
+                assertArrayEquals(numeric(type, 0.0f, 0.0f), run.outputBytes(0), type.toString());
+            }
+        }
+    }
+
+    private static OperationCapabilityQuery terminalMatmulQuery(DataType type, long contraction) {
+        var operand = MetalScanPlanTest.descriptor(type, contraction);
+        var result = MetalScanPlanTest.descriptor(type);
+        var left = new ValueId(0); var right = new ValueId(1); var output = new ValueId(2);
+        var product = new CompiledNode(new NodeId(0),
+                new Operation(MatmulKind.MATMUL, NoOperationAttrs.INSTANCE),
+                List.of(left, right), List.of(output));
+        var graph = new CompiledGraphModel(List.of(
+                new GraphValue(left, operand), new GraphValue(right, operand),
+                new GraphValue(output, result)), List.of(product),
+                List.of(left, right), List.of(left, output), Map.of(product.id(), GraphPhase.FORWARD));
+        // Retain a semantic row emission; only the terminal contraction residual is demanded.
+        var body = new CompiledScanBody(graph, List.of(), List.of(left), List.of(output), List.of(1));
+        return new OperationCapabilityQuery(new Operation(ScanKind.SCAN,
+                new ScanAttrs(2, 0, 2, 0, 1, 1, false, true, 0,
+                        List.of(OptionalInt.of(0), OptionalInt.of(0)))),
+                List.of(MetalScanPlanTest.descriptor(type, 2, contraction),
+                        MetalScanPlanTest.descriptor(type, 2, contraction),
+                        MetalScanPlanTest.descriptor(DataType.INT64, contraction)),
+                List.of(MetalScanPlanTest.descriptor(type, 2, contraction),
+                        MetalScanPlanTest.descriptor(type, 2)), Optional.of(body), Optional.empty());
     }
 
     @Test void canonicalRnnReverseMaterializesExpandedAccumulatorsAndRowLiterals() {

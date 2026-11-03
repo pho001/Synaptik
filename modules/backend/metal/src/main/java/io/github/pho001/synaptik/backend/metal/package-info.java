@@ -46,9 +46,9 @@
  * wire {@code 116}, and its separate body/activity attribute grammar. Native authenticates each
  * fixed source component and their dependency-ordered assembled corpus before compilation;
  * Java carries the corresponding bounded source-size facts. One shared corpus contains
- * twenty-three components and 187,750 UTF-8 bytes; there is no separate low-precision library.
+ * twenty-three components and 188,490 UTF-8 bytes; there is no separate low-precision library.
  * Workload, exact-policy, candidate, compatibility, route-policy and session-codec identities are
- * forty-two. Predecessor images and decisions have no compatibility reader or migration alias.
+ * forty-three. Predecessor images and decisions have no compatibility reader or migration alias.
  *
  * <p>The package-private exhaustive route catalog is cold descriptive metadata, not admission or
  * execution authority. Pointwise/anchor fusion retains its own source-order and eligibility proofs;

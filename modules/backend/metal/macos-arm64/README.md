@@ -6,7 +6,7 @@ This directory builds the native ABI used by Synaptik Metal on Apple-silicon mac
 ABI 7 retains thirteen context, shared-storage buffer, executable and singleton-NEG exports.
 The current graph image is schema 22 (`SM22`) with a 124-byte header, operation wires1..116,
 attribute wires0..42, carrier wires1..7 and fixed graph route2 or3.
-Coordinated Java candidate/workload/policy/compatibility/codec identities are version42; stale inputs
+Coordinated Java candidate/workload/policy/compatibility/codec identities are version43; stale inputs
 have no compatibility reader or migration alias.
 
 Java and native code independently validate declared types, shapes, attributes, gradient bits,
@@ -70,10 +70,14 @@ extrema preserve stored words; arithmetic special values and named DAZ/FTZ sites
 No blanket tolerance or zero-sign freedom is added. Dedicated EXP/SIGMOID device oracles
 remain separate from Runtime policy; admitted scalar/gradient occurrences use all three families.
 
-The fixed corpus authenticates 23 components and their ordered 187,750-byte UTF-8 source before
-safe-math Metal 3.2 compilation; the current device compile exposes 165 functions. Generated
-pointwise/anchor source retains exact count, digest and cap validation. Low-containing
-partitions do not use those fusions. The native body, metadata, pipelines and resources are
+The fixed corpus authenticates 23 components and their ordered 188,490-byte UTF-8 source before
+safe-math Metal 3.2 compilation. Its SHA-256 is
+`9d0d08724f5deac665bb4e09c08af3b0fad08efff050dad2d8ae265f39a030d4`;
+the MATMUL component is 7,013 bytes with SHA-256
+`cc7ba9eacdbfe9f423f704d53834e52daba018845e0b9c515ffa005c735ad607`.
+The last device compile exposed 165 functions. Generated pointwise/anchor source retains exact
+count, digest and cap validation. Low-containing partitions do not use those fusions.
+The native body, metadata, pipelines and resources are
 prepared once; invocation has no route lookup, compilation, retry or resource-plan rebuilding.
 
 Workload signatures bind exact operation/carrier/shape/attribute/gradient, logical and physical
@@ -459,7 +463,7 @@ capability narrowing, tuning, fallback, or a performance claim.
 
 Any schema22 program containing a custom-only node or native Scan uses its retained custom-
 program handle. Creation authenticates 23 reviewed fixed-kernel components and their ordered
-187,750-byte total. The sole production pointwise emitter first traverses a structured
+188,490-byte total. The sole production pointwise emitter first traverses a structured
 no-allocation count sink, validates unit, instruction, per-function, generated, and total caps,
 allocates the exact byte count, traverses the same emitter once for compiler input, independently
 authenticates the assembled source, and only then compiles with `MTLMathModeSafe` and
