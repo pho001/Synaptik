@@ -11,7 +11,7 @@
   Native runtime qualification remains a separate integration step.
 - Qualified Metal FLOAT32 ordinary elementary/activation, masked/statistical/cumulative reduction,
   normalization, loss, attention and colliding arithmetic-scatter execution with actual selected
-  Compiler gradients; fixed RNN/GRU/LSTM forward remains distinct from deferred fixed BPTT.
+  Compiler gradients.
 - Native Metal general Scan through authenticated bounded body/binder plans and once-prepared
   ordinary kernels, including actual reverse bodies and runtime-length RNN training/save/load/
   fresh training. Structural inactivity guards operands before loads or index validation;
@@ -19,6 +19,11 @@
 - Original-typed Metal exact stored F64/integral operations and promotion, independent Model
   metadata inference, canonical multi-output sibling retention and source-only gradient
   publications through the existing initializer and per-run resource owner.
+- First-order fixed RNN_TANH, GRU_RESET_AFTER and LSTM gradients through the shared length-aware
+  Scan/ordinary formula owners, including sequence/final-state seeds, both directions and empty
+  time/batch domains. Fixed Metal forward uses the common F32/BF16/F16 numerical codec with
+  F32 low-carrier working sites and explicit recurrent-state narrowing. CPU low arithmetic
+  admission and fixed recurrent higher-order restrictions remain unchanged.
 
 - Model-valid CPU promoted F32/F64 and I32/I64 pointwise operands, exact comparisons and selected
   WHERE conversion, retaining each gradient target's original carrier.

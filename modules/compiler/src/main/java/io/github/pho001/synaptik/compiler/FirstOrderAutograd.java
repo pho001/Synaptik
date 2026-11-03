@@ -146,6 +146,14 @@ final class FirstOrderAutograd {
                 OrdinaryConstruction.real(constants, null), normalize, null);
     }
 
+    /** Expands a fixed-cell Scan recipe using the enclosing request's constant/activity owner. */
+    static List<Tensor> expandRecipe(AutogradPreflight.StagePlan plan, List<Tensor> seeds,
+            DerivativeConstants constants) {
+        return expandContributions(plan, seeds, IDENTITY, IDENTITY,
+                OrdinaryConstruction.real(constants, null), (target, incoming) -> incoming,
+                null, REAL_RULES, constants);
+    }
+
     /**
      * Accumulates one approved reverse stage through ordinary or lexically bound existing rules.
      * @param plan successful stage plan
@@ -372,6 +380,38 @@ final class FirstOrderAutograd {
                 start--;
             }
             TensorProducer grouped = selected.get(start).producer();
+            if (selected.get(start).familyOwner() == FirstOrderGradientCoverage.FamilyOwner.RECURRENT) {
+                if (special == null) throw new IllegalStateException("ordinary body cannot dispatch fixed recurrence");
+                var recurrentSeeds = new ArrayList<V>(grouped.outputCount());
+                boolean present = false;
+                for (int port = 0; port < grouped.outputCount(); port++) {
+                    Tensor output = grouped.output(port);
+                    V seed = accumulated.get(output);
+                    if (seed == null) {
+                        seed = accumulate(contributions.get(output), construction, observer);
+                        if (seed != null) accumulated.put(output, seed);
+                    }
+                    recurrentSeeds.add(seed);
+                    present |= seed != null;
+                }
+                if (present) {
+                    boolean[] requested = new boolean[grouped.inputs().size()];
+                    for (int index = start; index < end; index++) {
+                        var occurrence = selected.get(index);
+                        for (int input = 0; input < requested.length; input++) {
+                            requested[input] |= occurrence.selectedInput(input)
+                                    && plan.retainsRoute(grouped, occurrence.outputIndex(), input);
+                        }
+                    }
+                    V[] inputs = special.recurrent(grouped, recurrentSeeds, requested, constants);
+                    for (int input = 0; input < inputs.length; input++) if (requested[input]) {
+                        appendTerm(contributions, grouped.inputs().get(input), inputs[input],
+                                construction, normalize);
+                    }
+                }
+                end = start;
+                continue;
+            }
             if (grouped.scanBody().isPresent()) {
                 if (special == null) {
                     throw new IllegalStateException("ordinary body cannot dispatch a joint Scan");
@@ -484,6 +524,10 @@ final class FirstOrderAutograd {
                 List<Tensor> seeds, DerivativeConstants constants) {
             return ScanGradientRules.apply(plan, seeds, constants);
         }
+        @Override public Tensor[] recurrent(TensorProducer producer, List<Tensor> seeds,
+                boolean[] selected, DerivativeConstants constants) {
+            return RecurrentGradientRules.apply(producer, seeds, selected, constants);
+        }
     };
 
     /**
@@ -508,6 +552,9 @@ final class FirstOrderAutograd {
          * @return original-input-position-aligned nullable cotangents
          */
         V[] scan(ScanGradientRules.BackwardPlan plan, List<V> seeds, DerivativeConstants constants);
+        /** Joint canonical fixed-cell output seeds, preserving selected positional input roles. */
+        V[] recurrent(TensorProducer producer, List<V> seeds, boolean[] selected,
+                DerivativeConstants constants);
     }
 
     /**
@@ -557,8 +604,8 @@ final class FirstOrderAutograd {
             case INDEXING -> construction.indexing().apply(
                     producer, gradient, selectedInputs, primal);
             case ORDERING -> construction.ordering().apply(producer, gradient, primal);
-            case STOCHASTIC, SCAN -> throw new IllegalStateException(
-                    "ordinary construction excludes stochastic and joint Scan rules");
+            case STOCHASTIC, SCAN, RECURRENT -> throw new IllegalStateException(
+                    "ordinary construction excludes stochastic, joint Scan and fixed recurrence rules");
         };
     }
 

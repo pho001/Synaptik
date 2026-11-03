@@ -34,8 +34,8 @@ final class ScanGradientRules {
     /**
      * Validates the complete lexical source independently of selected derivative demand.
      * Ordinary Model and Compiler guards check every canonical sibling, including unused work.
-     * Grouped 2D/3D convolution uses the ordinary shared formula; fixed recurrent scans remain
-     * excluded throughout the complete lexical inventory.
+     * Grouped 2D/3D convolution uses the ordinary shared formula; nested fixed-cell occurrences
+     * remain outside Model's ordinary Scan-body algebra.
      * @param producer exact containing source occurrence
      * @return immutable compile-local source facts; no derivative Tensor is constructed
      * @throws IllegalArgumentException if the source or its lexical inventory is invalid
@@ -69,7 +69,7 @@ final class ScanGradientRules {
             if (!checked.add(p.producer())) return;
             if (p.producer().operation().kind()
                     instanceof io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind) {
-                throw new IllegalArgumentException("forward-only occurrence in complete scan lexical inventory");
+                throw new IllegalArgumentException("nested fixed recurrence is outside the Scan-body algebra");
             }
             List<TensorDescriptor> inputs = p.producer().inputs().stream().map(Tensor::descriptor).toList();
             List<TensorDescriptor> outputs = p.producer().outputDescriptors();

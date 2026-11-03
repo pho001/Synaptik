@@ -477,6 +477,25 @@ final class ScanGradientRulesTest {
             } else if (kind == ShapeTransformKind.EXPAND) {
                 for (int i = 0; i < result.length; i++) if (activeCell(tensor, i))
                     result[i] = inputs.getFirst()[broadcast(i, outShape, actualShape(p.inputs().getFirst()))];
+            } else if (kind instanceof SliceKind && attrs instanceof SliceAttrs slice) {
+                boolean update = kind == SliceKind.SLICE_UPDATE;
+                int[] selectedShape = update ? actualShape(p.inputs().get(1)) : outShape;
+                int[] baseShape = update ? outShape : actualShape(p.inputs().getFirst());
+                if (update) result = inputs.getFirst().clone();
+                int count = update ? inputs.get(1).length : result.length;
+                for (int i = 0; i < count; i++) {
+                    int[] coordinate = coordinates(i, selectedShape);
+                    for (int axis = 0; axis < slice.axes().size(); axis++) {
+                        int a = slice.axes().get(axis);
+                        coordinate[a] = Math.toIntExact(slice.starts().get(axis)
+                                + coordinate[a] * slice.steps().get(axis));
+                    }
+                    int base = index(coordinate, baseShape);
+                    int destination = update ? base : i;
+                    if (activeCell(tensor, destination)) {
+                        result[destination] = update ? inputs.get(1)[i] : inputs.getFirst()[base];
+                    }
+                }
             } else if (kind == AggregateReductionKind.SUM || kind == AggregateReductionKind.MEAN) {
                 int[] inShape = actualShape(p.inputs().getFirst());
                 List<Integer> axes;

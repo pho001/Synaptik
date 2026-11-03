@@ -23,6 +23,7 @@ import io.github.pho001.synaptik.model.graph.CompiledNode;
 import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementwiseKind;
 import io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection;
 import io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind;
+import io.github.pho001.synaptik.model.operation.scan.ScanAttrs;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.LstmRecurrentScanResult;
@@ -226,67 +227,281 @@ final class RecurrentScanCompilerTest {
     }
 
     @Test
-    void rejectsEveryBackwardModeFromCompleteInventoryBeforeAnyTensorAllocation()
-            throws Exception {
-        for (CompileMode mode : List.of(
-                CompileMode.FORWARD_AND_BACKWARD, CompileMode.TRAINING_STEP)) {
-            Fixtures f = fixtures(DataType.FLOAT32, 2, 1, 3, 4, true);
-            RecurrentScanResult recurrent = RecurrentScan.rnn(
-                    f.input, f.lengths, f.hidden, f.rnnInputWeight, f.rnnHiddenWeight,
-                    RecurrentDirection.FORWARD);
-            Tensor target = tensor(DataType.FLOAT32, Shape.of(2), true);
-            Tensor objective = target.mul(target).sum();
-            long before = nextTensorId();
+    void publishesFirstOrderGradientsForEveryOutputStateAndFloatingRole() {
+        for (DataType type : floatingTypes()) {
+            for (RecurrentDirection direction : RecurrentDirection.values()) {
+                for (RecurrentScanKind kind : RecurrentScanKind.values()) {
+                    for (boolean bias : List.of(false, true)) {
+                        Fixtures f = fixtures(type, 3, 2, 3, 2, true);
+                        RecurrentCase recurrent = recurrentCase(f, kind, direction, bias);
+                        List<List<Tensor>> selections = new ArrayList<>();
+                        recurrent.outputs().forEach(output -> selections.add(List.of(output)));
+                        selections.add(recurrent.outputs());
+                        for (List<Tensor> selected : selections) {
+                            List<Tensor> seeds = seeds(selected);
+                            var request = ScanGradientRulesTest.request(
+                                    selected, seeds, recurrent.targets());
+                            var expansion = FirstOrderAutograd.expand(
+                                    AutogradPreflight.preflight(
+                                            CompileMode.FORWARD_AND_BACKWARD,
+                                            recurrent.outputs(), request,
+                                            CompileTimeConstantGraph.Ingress.empty()).stageOne(),
+                                    CompileTimeConstantGraph.Ingress.empty());
+                            assertExpandedTargets(recurrent.targets(), expansion);
 
-            IllegalArgumentException failure = assertThrows(
-                    IllegalArgumentException.class,
-                    () -> GraphCompiler.compile(
-                            mode,
-                            List.of(recurrent.finalHidden(), objective),
-                            Optional.of(FunctionalGradientTestSupport.request(
-                                    objective, List.of(target))),
-                            CompileTimeConstantGraph.Ingress.empty(),
-                            GraphOptimizationConfig.standard()));
-
-            assertAll(
-                    () -> assertTrue(failure.getMessage().startsWith(
-                            "producerPostorder[0] "), failure.getMessage()),
-                    () -> assertTrue(failure.getMessage().contains(
-                            RecurrentScanKind.class.getName() + ".RNN_TANH")),
-                    () -> assertTrue(failure.getMessage().contains(
-                            "forward-only until backpropagation through time is implemented")),
-                    () -> assertEquals(before, nextTensorId()));
+                            BackendId backendId = new BackendId("recurrent-gradient-query-test");
+                            List<OperationCapabilityQuery> queries = new ArrayList<>();
+                            CompileArtifacts artifacts = GraphCompiler.compile(
+                                    CompileMode.FORWARD_AND_BACKWARD,
+                                    recurrent.outputs(), Optional.of(request),
+                                    CompileTimeConstantGraph.Ingress.empty(),
+                                    GraphOptimizationConfig.standard(),
+                                    BackendIntent.unconstrained(), PartitionScoringConfig.neutral(),
+                                    List.of(recordingProvider(backendId, queries)),
+                                    List.of(snapshot(backendId)));
+                            assertPublications(artifacts, recurrent);
+                            CompiledNode fixed = artifacts.graph().nodes().stream()
+                                    .filter(node -> node.operation().kind() == kind)
+                                    .findFirst().orElseThrow();
+                            List<CompiledNode> scans = artifacts.graph().nodes().stream()
+                                    .filter(node -> node.scanBody().isPresent()).toList();
+                            assertFalse(scans.isEmpty(), "BPTT must use real shared Scan bodies");
+                            assertTrue(scans.stream().anyMatch(node ->
+                                    ((ScanAttrs) node.operation().attrs()).reverse()
+                                            == (direction == RecurrentDirection.FORWARD)),
+                                    "the derivative traverses the same valid prefix in the opposite direction");
+                            for (CompiledNode scan : scans) {
+                                ScanAttrs attrs = (ScanAttrs) scan.operation().attrs();
+                                assertTrue(attrs.lengthAware());
+                                assertEquals(3, attrs.timeCount());
+                                assertEquals(fixed.inputs().get(1), scan.inputs().getLast(),
+                                        "every generated Scan must retain the exact runtime lengths binding");
+                                assertFalse(scan.scanBody().orElseThrow()
+                                        .demandedOutputIndices().isEmpty());
+                            }
+                            assertTrue(queries.stream().anyMatch(query -> query.scanBody().isPresent()));
+                            for (OperationCapabilityQuery query : queries) {
+                                if (query.scanBody().isEmpty()) {
+                                    continue;
+                                }
+                                assertEquals(DataType.INT64, query.inputs().getLast().dataType());
+                                assertFalse(query.inputs().getLast().requiresGrad());
+                                assertTrue(CapturedGraphInference.inferAndValidate(
+                                        query.scanBody().orElseThrow().graph()).constraints().isEmpty());
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
     @Test
-    void rejectsFirstRecurrentOccurrenceInDeterministicProducerPostorder() throws Exception {
-        Fixtures f = fixtures(DataType.FLOAT32, 2, 1, 3, 4, true);
-        RecurrentScanResult first = RecurrentScan.gru(
-                f.input, f.lengths, f.hidden, f.gruInputWeight, f.gruHiddenWeight,
-                RecurrentDirection.REVERSE);
-        LstmRecurrentScanResult second = RecurrentScan.lstm(
-                f.input, f.lengths, f.hidden, f.cell, f.lstmInputWeight,
-                f.lstmHiddenWeight, RecurrentDirection.FORWARD);
-        Tensor target = tensor(DataType.FLOAT32, Shape.of(2), true);
-        Tensor objective = target.sum();
-        long before = nextTensorId();
-
-        String message = assertThrows(IllegalArgumentException.class,
-                () -> GraphCompiler.compile(
-                        CompileMode.FORWARD_AND_BACKWARD,
-                        List.of(first.outputs(), second.outputs(), objective),
-                        Optional.of(FunctionalGradientTestSupport.request(
-                                objective, List.of(target))),
-                        CompileTimeConstantGraph.Ingress.empty(),
-                        GraphOptimizationConfig.disabled())).getMessage();
-
-        assertAll(
-                () -> assertTrue(message.contains("producerPostorder[0]")),
-                () -> assertTrue(message.contains(".GRU_RESET_AFTER")),
-                () -> assertFalse(message.contains(".LSTM")),
-                () -> assertEquals(before, nextTensorId()));
+    void publishesEmptyTimeAndBatchGradientsWithoutInventingPositiveGeometry() {
+        for (DataType type : floatingTypes()) {
+            for (RecurrentDirection direction : RecurrentDirection.values()) {
+                for (RecurrentScanKind kind : RecurrentScanKind.values()) {
+                    for (long[] geometry : List.of(
+                            new long[] {0, 2}, new long[] {3, 0}, new long[] {0, 0})) {
+                        Fixtures f = fixtures(type, geometry[0], geometry[1], 3, 2, true);
+                        RecurrentCase recurrent = recurrentCase(f, kind, direction, true);
+                        var request = ScanGradientRulesTest.request(
+                                recurrent.outputs(), seeds(recurrent.outputs()), recurrent.targets());
+                        BackendId backendId = new BackendId("empty-recurrent-gradient-test");
+                        CompileArtifacts artifacts = GraphCompiler.compile(
+                                CompileMode.FORWARD_AND_BACKWARD,
+                                recurrent.outputs(), Optional.of(request),
+                                CompileTimeConstantGraph.Ingress.empty(),
+                                GraphOptimizationConfig.disabled(),
+                                BackendIntent.unconstrained(), PartitionScoringConfig.neutral(),
+                                List.of(recordingProvider(backendId, new ArrayList<>())),
+                                List.of(snapshot(backendId)));
+                        assertPublications(artifacts, recurrent);
+                        assertEquals(Shape.of(geometry[0], geometry[1], 2),
+                                recurrent.outputs().getFirst().descriptor().shape());
+                        for (CompiledNode node : artifacts.graph().nodes()) {
+                            if (node.scanBody().isPresent()) {
+                                assertEquals(geometry[0],
+                                        ((ScanAttrs) node.operation().attrs()).timeCount());
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
+
+    @Test
+    void zeroTimeFinalStatesPublishTheExactCallerSeedsAsInitialStateGradients() {
+        for (DataType type : floatingTypes()) {
+            for (RecurrentDirection direction : RecurrentDirection.values()) {
+                for (RecurrentScanKind kind : RecurrentScanKind.values()) {
+                    Fixtures f = fixtures(type, 0, 2, 3, 2, true);
+                    RecurrentCase recurrent = recurrentCase(f, kind, direction, false);
+                    List<Tensor> states = recurrent.outputs().subList(1, recurrent.outputs().size());
+                    List<Tensor> stateSeeds = seeds(states);
+                    List<Tensor> targets = kind == RecurrentScanKind.LSTM
+                            ? List.of(f.hidden, f.cell) : List.of(f.hidden);
+                    var request = ScanGradientRulesTest.request(states, stateSeeds, targets);
+                    var expansion = FirstOrderAutograd.expand(AutogradPreflight.preflight(
+                            CompileMode.FORWARD_AND_BACKWARD, recurrent.outputs(), request,
+                            CompileTimeConstantGraph.Ingress.empty()).stageOne(),
+                            CompileTimeConstantGraph.Ingress.empty());
+                    assertExpandedTargets(targets, expansion);
+                    for (int i = 0; i < targets.size(); i++) {
+                        assertSame(stateSeeds.get(i), expansion.targetGradients().get(i).gradient(),
+                                "T=0 is the identity, not a dummy reverse Scan or a copied seed");
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    void admitsUnrelatedRecurrentBranchesInBackwardAndTrainingModes() {
+        for (CompileMode mode : List.of(
+                CompileMode.FORWARD_AND_BACKWARD, CompileMode.TRAINING_STEP)) {
+            for (RecurrentScanKind kind : RecurrentScanKind.values()) {
+                Fixtures f = fixtures(DataType.FLOAT32, 2, 1, 3, 4, true);
+                RecurrentCase recurrent = recurrentCase(f, kind, RecurrentDirection.REVERSE, false);
+                Tensor target = tensor(DataType.FLOAT32, Shape.of(2), true);
+                Tensor objective = target.mul(target).sum();
+                List<Tensor> roots = new ArrayList<>(recurrent.outputs());
+                roots.add(objective);
+                var compilation = GraphCompiler.compile(mode, roots,
+                        Optional.of(FunctionalGradientTestSupport.request(objective, List.of(target))),
+                        CompileTimeConstantGraph.Ingress.empty(), GraphOptimizationConfig.standard());
+                assertEquals(roots.size(), compilation.forwardOutputs().size());
+                assertTrue(compilation.validatedGraph().graph().nodes().stream()
+                        .anyMatch(node -> node.operation().kind() == kind));
+            }
+        }
+    }
+
+    @Test
+    void rejectsRecurrentCreateGraphAndSecondOrderBeforeDerivativeAllocation() throws Exception {
+        for (RecurrentScanKind kind : RecurrentScanKind.values()) {
+            for (RecurrentDirection direction : RecurrentDirection.values()) {
+                Fixtures f = fixtures(DataType.FLOAT32, 3, 2, 3, 2, true);
+                RecurrentCase recurrent = recurrentCase(f, kind, direction, true);
+                Tensor output = recurrent.outputs().getFirst();
+                Tensor seed = seeds(List.of(output)).getFirst();
+                var first = new FunctionalGradientRequest.Stage(
+                        List.of(new FunctionalGradientRequest.ForwardTensorReference(output)),
+                        List.of(Optional.of(seed)), List.of(f.input), true,
+                        FunctionalGradientRequest.DisconnectedPolicy.ZERO);
+                var second = new FunctionalGradientRequest.Stage(
+                        List.of(new FunctionalGradientRequest.FirstStageGradientReference(0)),
+                        List.of(Optional.of(tensor(
+                                DataType.FLOAT32, f.input.descriptor().shape(), false))),
+                        List.of(f.input), false, FunctionalGradientRequest.DisconnectedPolicy.ZERO);
+                long before = nextTensorId();
+                assertThrows(IllegalArgumentException.class,
+                        () -> new FunctionalGradientRequest(List.of(first)));
+                assertEquals(before, nextTensorId(),
+                        "standalone createGraph is rejected by the public request contract");
+                var request = new FunctionalGradientRequest(List.of(first, second));
+                IllegalArgumentException failure = assertThrows(
+                        IllegalArgumentException.class,
+                        () -> GraphCompiler.compile(CompileMode.FORWARD_AND_BACKWARD,
+                                recurrent.outputs(), Optional.of(request),
+                                CompileTimeConstantGraph.Ingress.empty(),
+                                GraphOptimizationConfig.disabled()));
+                assertFalse(failure.getMessage().isBlank());
+                assertEquals(before, nextTensorId(),
+                        "unsupported recurrent higher-order requests fail before derivative allocation");
+            }
+        }
+    }
+
+    private static List<DataType> floatingTypes() {
+        return List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16);
+    }
+
+    private static List<Tensor> seeds(List<Tensor> outputs) {
+        return outputs.stream().map(output -> tensor(
+                output.descriptor().dataType(), output.descriptor().shape(), false)).toList();
+    }
+
+    private static void assertExpandedTargets(
+            List<Tensor> targets, FirstOrderAutograd.Expansion expansion) {
+        assertEquals(targets.size(), expansion.targetGradients().size());
+        for (int i = 0; i < targets.size(); i++) {
+            var gradient = expansion.targetGradients().get(i);
+            assertSame(targets.get(i), gradient.target());
+            assertEquals(targets.get(i).descriptor().shape(), gradient.gradient().descriptor().shape());
+            assertEquals(targets.get(i).descriptor().dataType(), gradient.gradient().descriptor().dataType());
+            assertTrue(gradient.gradient().descriptor().layout().isEmpty());
+        }
+    }
+
+    private static void assertPublications(CompileArtifacts artifacts, RecurrentCase recurrent) {
+        for (Tensor output : recurrent.outputs()) {
+            var binding = artifacts.publication().forwardBindings().stream()
+                    .filter(candidate -> candidate.tensorId().equals(output.id()))
+                    .findFirst().orElseThrow();
+            assertEquals(output.descriptor().shape(),
+                    descriptor(artifacts.graph(), binding.valueId()).shape());
+            assertEquals(output.descriptor().dataType(),
+                    descriptor(artifacts.graph(), binding.valueId()).dataType());
+        }
+        assertEquals(recurrent.targets().size(), artifacts.publication().gradientBindings().size());
+        for (Tensor target : recurrent.targets()) {
+            var binding = artifacts.publication().gradientBindings().stream()
+                    .filter(candidate -> candidate.target().equals(target.id()))
+                    .findFirst().orElseThrow();
+            TensorDescriptor gradient = descriptor(artifacts.graph(), binding.valueId());
+            assertEquals(target.descriptor().shape(), gradient.shape());
+            assertEquals(target.descriptor().dataType(), gradient.dataType());
+        }
+        assertTrue(artifacts.publication().gradientBindings().stream()
+                .noneMatch(binding -> binding.target().equals(recurrent.lengths().id())));
+        assertEquals(artifacts.graph().values().size(), artifacts.memory().requirements().size());
+        assertTrue(artifacts.diagnostics().constraints().isEmpty());
+    }
+
+    private static RecurrentCase recurrentCase(
+            Fixtures f, RecurrentScanKind kind, RecurrentDirection direction, boolean bias) {
+        if (kind == RecurrentScanKind.LSTM) {
+            LstmRecurrentScanResult result = bias
+                    ? RecurrentScan.lstm(f.input, f.lengths, f.hidden, f.cell,
+                            f.lstmInputWeight, f.lstmHiddenWeight, f.lstmBias, direction)
+                    : RecurrentScan.lstm(f.input, f.lengths, f.hidden, f.cell,
+                            f.lstmInputWeight, f.lstmHiddenWeight, direction);
+            List<Tensor> targets = new ArrayList<>(List.of(
+                    f.input, f.hidden, f.cell, f.lstmInputWeight, f.lstmHiddenWeight));
+            if (bias) targets.add(f.lstmBias);
+            return new RecurrentCase(
+                    List.of(result.outputs(), result.finalHidden(), result.finalCell()),
+                    List.copyOf(targets), f.lengths);
+        }
+        Tensor inputWeight = kind == RecurrentScanKind.RNN_TANH
+                ? f.rnnInputWeight : f.gruInputWeight;
+        Tensor hiddenWeight = kind == RecurrentScanKind.RNN_TANH
+                ? f.rnnHiddenWeight : f.gruHiddenWeight;
+        Tensor packedBias = kind == RecurrentScanKind.RNN_TANH ? f.rnnBias : f.gruBias;
+        RecurrentScanResult result;
+        if (kind == RecurrentScanKind.RNN_TANH) {
+            result = bias
+                    ? RecurrentScan.rnn(f.input, f.lengths, f.hidden,
+                            inputWeight, hiddenWeight, packedBias, direction)
+                    : RecurrentScan.rnn(f.input, f.lengths, f.hidden,
+                            inputWeight, hiddenWeight, direction);
+        } else {
+            result = bias
+                    ? RecurrentScan.gru(f.input, f.lengths, f.hidden,
+                            inputWeight, hiddenWeight, packedBias, direction)
+                    : RecurrentScan.gru(f.input, f.lengths, f.hidden,
+                            inputWeight, hiddenWeight, direction);
+        }
+        List<Tensor> targets = new ArrayList<>(List.of(
+                f.input, f.hidden, inputWeight, hiddenWeight));
+        if (bias) targets.add(packedBias);
+        return new RecurrentCase(
+                List.of(result.outputs(), result.finalHidden()), List.copyOf(targets), f.lengths);
+    }
+
+    private record RecurrentCase(List<Tensor> outputs, List<Tensor> targets, Tensor lengths) {}
 
     private static GraphCompilation compileForward(
             List<Tensor> outputs, GraphOptimizationConfig optimization) {

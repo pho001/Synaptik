@@ -41,6 +41,8 @@ import io.github.pho001.synaptik.model.operation.random.DropoutKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngKind;
 import io.github.pho001.synaptik.model.operation.random.GraphRngStateAttrs;
 import io.github.pho001.synaptik.model.operation.reduction.*;
+import io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection;
+import io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanKind;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.tensor.TensorProducer;
@@ -58,11 +60,10 @@ import java.util.Objects;
  * {@link AutogradPreflight}'s occurrence-local shape, type, cardinality, auxiliary, and policy
  * proof before a formula may be constructed.</p>
  *
- * <p>The immutable signature inventory is deliberately exact: 39 current operation-kind enum
- * families, 112 constants, and 134 complete kind/attributes/cardinality fingerprints. It names
- * every accepted ordinary variant instead of deriving the inventory from Model declarations, so
- * a newly added or changed production signature fails closed until its first-order disposition
- * is reviewed. This type constructs no Tensor or graph state, scans no class path, uses no
+ * <p>The immutable signature inventory is deliberately exact. It names every accepted ordinary
+ * variant instead of deriving the inventory from Model declarations, so a newly added or changed
+ * production signature fails closed until its first-order disposition is reviewed. This type
+ * constructs no Tensor or graph state, scans no class path, uses no
  * reflection, retains no request state, and is neither a public registry nor an extension
  * surface. General scans use the producer-aware entry, because their exact scalar header and
  * attached body are required to distinguish public roots from residual ports. They are not an
@@ -182,7 +183,7 @@ final class FirstOrderGradientCoverage {
     /**
      * Returns the exact immutable Compiler checkpoint inventory.
      *
-     * @return the non-null immutable 134-row signature fingerprint list
+     * @return the non-null immutable signature fingerprint list
      */
     static List<SignatureFingerprint> signatures() {
         return SIGNATURES;
@@ -231,6 +232,9 @@ final class FirstOrderGradientCoverage {
                 || kind == OrderingKind.ARGSORT
                 || kind instanceof GraphRngKind) {
             return nd("input role has no Tensor cotangent route");
+        }
+        if (kind instanceof RecurrentScanKind && inputIndex == 1) {
+            return nd("recurrent valid lengths have no cotangent");
         }
         if (kind == WhereSelectionKind.WHERE && inputIndex == 0) {
             return nd("WHERE condition role is non-differentiable");
@@ -369,6 +373,9 @@ final class FirstOrderGradientCoverage {
         if (kind instanceof DropoutKind) {
             return FamilyOwner.STOCHASTIC;
         }
+        if (kind instanceof RecurrentScanKind) {
+            return FamilyOwner.RECURRENT;
+        }
         return null;
     }
 
@@ -395,7 +402,7 @@ final class FirstOrderGradientCoverage {
     }
 
     private static List<SignatureFingerprint> buildSignatures() {
-        List<SignatureFingerprint> rows = new ArrayList<>(134);
+        List<SignatureFingerprint> rows = new ArrayList<>();
         rows.add(range(
                 ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION,
                 ScaledDotProductAttentionAttrs.class, 3, 4, 1, 2));
@@ -492,6 +499,9 @@ final class FirstOrderGradientCoverage {
         rows.add(fixed(Pool3dKind.AVERAGE_POOL3D, AveragePool3dAttrs.class, 1, 1));
         rows.add(fixed(DropoutKind.DROPOUT, DropoutAttrs.class, 2, 3));
         rows.add(fixed(GraphRngKind.INITIAL_STATE, GraphRngStateAttrs.class, 0, 1));
+        rows.add(range(RecurrentScanKind.RNN_TANH, RecurrentDirection.class, 5, 6, 2, 2));
+        rows.add(range(RecurrentScanKind.GRU_RESET_AFTER, RecurrentDirection.class, 5, 6, 2, 2));
+        rows.add(range(RecurrentScanKind.LSTM, RecurrentDirection.class, 6, 7, 3, 3));
 
         addFixed(rows, List.of(AggregateReductionKind.SUM),
                 NoOperationAttrs.class, 1, 1);
@@ -652,7 +662,10 @@ final class FirstOrderGradientCoverage {
         ORDERING,
 
         /** Explicit-state dropout formulas. */
-        STOCHASTIC
+        STOCHASTIC,
+
+        /** Fixed recurrent cells differentiated through the shared ordinary Scan recipe. */
+        RECURRENT
     }
 
     /**

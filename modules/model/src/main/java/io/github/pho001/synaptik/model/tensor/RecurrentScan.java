@@ -27,12 +27,11 @@ import java.util.Optional;
  * output ordering, operation construction, and public result assembly. It never reads Tensor
  * storage or valid-length values, unrolls a transition, captures a body or region, constructs a
  * gradient, selects a backend, or executes recurrence. The existing NN sequence APIs still use
- * construction-time Java {@code long[]} lengths and static unrolling. Current package-private
- * Compiler forward-only inference adopts the resulting operation family. The CPU backend executes
- * canonical fully static FLOAT32 occurrences through ordinary Engine compile/prepare/run, with
- * runtime INT64 lengths and isolated run-owned outputs and scratch; this namespace itself remains
- * expression-only. Both backward-capable
- * modes remain allocation-free fail-closed until backpropagation through time is implemented.</p>
+ * construction-time Java {@code long[]} lengths and static unrolling. Compiler inference adopts
+ * the fixed family and its first-order BPTT uses the shared length-aware Scan and ordinary
+ * formula owners. This namespace remains expression-only; backend execution and derivative
+ * closure qualify independently. CPU low-precision arithmetic admission remains unchanged.
+ * Higher-order recurrent requests remain allocation-free fail-closed.</p>
  */
 public final class RecurrentScan {
     private RecurrentScan() {

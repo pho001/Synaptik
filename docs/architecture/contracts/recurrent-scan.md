@@ -242,19 +242,21 @@ scan graphs and named host values may be copied, saved, loaded and rebound under
 fixed operation meaning, descriptors and ordered ports, not the result-carrier Java objects or an
 executable graph. Prepared executables, native/backend artifacts and runtime state are rebuilt,
 never serialized. Cold preflight does not read valid-length values; runtime bounds remain an
-execution responsibility. Persistence grants neither backend execution nor BPTT.
+execution responsibility. Persistence grants neither backend execution nor derivative capability;
+those require the actual forward and first-order closures described below.
 
 Owner boundaries are exact:
 
 - Model owns operation kind and attributes, fixed semantics, descriptor-visible validation,
   result metadata, canonical multi-output provenance, and the current focused
   `model.tensor.RecurrentScan` expression surface.
-- Compiler captures one ordinary flat node, owns inference and final validation, adopts the
-  operation in its exact closed inventory, and initially rejects every backward-capable request
-  that reaches the family before constructing any gradient Tensor.
-- Backpropagation through time (BPTT) is a later explicit Compiler decision. No saved-gate output,
-  tape, checkpointing or recomputation policy, backward operation, or derivative formula is
-  selected here.
+- Compiler captures one ordinary flat fixed node, owns inference and final validation, and adopts
+  the operation in its exact closed inventory. First-order BPTT uses the shared length-aware
+  Scan transition recipe and ordinary Tensor derivative rules described below.
+- The recipe owns internal saved sites through the existing Scan residual protocol; it adds no
+  public fixed-family saved-gate output, independent backward operation, backward kernel, or
+  second recurrent derivative algebra. Higher-order/createGraph requests remain rejected before
+  derivative allocation.
 - Planning performs its existing ordinary operation capability query and selects backend
   ownership. It does not interpret recurrence, direction, valid lengths, active rows, loop
   parameters, or routes.
@@ -278,6 +280,47 @@ Owner boundaries are exact:
 The current Planning, Prepare, and Runtime shared contracts are sufficient for this static-Shape
 ordinary-node design. A later implementation must stop and provide evidence if a concrete backend
 reveals an actual shared-contract gap; it must not add speculative region or loop-body types.
+
+### Fixed-family first-order differentiation and numerical sites
+
+`RNN_TANH`, `GRU_RESET_AFTER`, and `LSTM` admit first-order differentiation of every public
+output: dense outputs, final hidden, and LSTM final cell. Each floating input, initial-state,
+weight, and optional-bias position is a differentiable role; valid lengths remain a discrete
+non-gradient input. Selected output seeds may be supplied independently or jointly. Missing
+seeds are typed zeros, and positional ties and cross-occurrence contributions add exactly once
+each through ordinary Tensor algebra. A recurrent occurrence on an unrelated forward branch
+does not by itself reject a backward-capable or training request.
+
+Compiler constructs a bounded shared transition recipe using ordinary operations inside one
+length-aware Scan, then applies the existing first-order Scan/ordinary AD protocol. It carries
+the exact original lengths actual into the generated opposite-traversal sibling. No host length
+read, static time unroll, separately maintained gate derivative, or backend-specific backward
+kernel is permitted. Public fixed-result wrappers retain their original identities and port
+order; internal recipe histories are not additional public fixed outputs. Recipe and derivative
+graph size remain independent of `time`.
+
+The transition recipe must preserve the fixed operation's numerical sites, not merely equivalent
+real-number equations. For BFLOAT16 and FLOAT16 forward execution, projections and gate arithmetic
+use FLOAT32 working sites; recurrent hidden and cell states narrow to their declared carrier at
+each step. LSTM's hidden update consumes the already narrowed cell state. Retained values and
+ordinary derivative operands must denote these exact sites. FLOAT32/FLOAT64 retain their declared
+ordinary sites. Compiler admission of floating derivative graphs does not grant backend arithmetic
+capability: Java CPU BFLOAT16/FLOAT16 arithmetic admission remains locked, while each backend must
+qualify the complete actual generated closure independently.
+
+Length-mode activity rules apply to the whole recipe and reverse body. Padded input and seed
+coordinates cause no gate, contraction, or dependent arithmetic; inactive state cotangents pass
+through unchanged, and shared parameter gradients accumulate only active row contributions under
+the existing ordered reduction rules. A zero-length row passes final-state seeds to the
+corresponding initial states, with zero input and parameter contributions. At `time == 0`, a
+selected final-state seed is the exact initial-state gradient and may be published directly
+through the existing producerless-value contract; no fictitious reverse Scan, copy, or dummy
+state is allowed. Empty batch and time domains retain their actual descriptor geometry.
+
+This admission is first-order only. Higher-order/createGraph requests, including a second stage
+rooted at a first-stage recurrent gradient, reject before any derivative allocation. Existing
+general-Scan residual-root, unsupported-body and generated-reverse guards remain unchanged.
+
 
 ### Performance and migration invariants
 
@@ -466,7 +509,8 @@ Residual ports use the conservative outer construction flags defined above, but 
 rooted at a residual port, unsupported body rules, and every scan higher-order/createGraph request
 reject before derivative allocation. Preflight includes unsupported occurrences on otherwise
 unrelated original branches.
-This exception grants no fixed RNN/GRU/LSTM BPTT.
+Fixed RNN/GRU/LSTM first-order admission is defined separately by the shared recipe above;
+it grants no higher-order exception to this protocol.
 
 ### Traversal, empty domains and declared qualification
 
@@ -584,7 +628,7 @@ and `configureTraining`/`train`. Its first tested execution is static canonical 
 FLOAT32/FLOAT64. Compiler cold reconstruction, Checkpoint attachment-preserving copy/rebind and
 NN ownership/lifecycle qualification were serial prerequisites. The bounded owned workflow is now
 implemented under [the NN owner](extensions-training.md#owned-tensor-models); no fixed builder
-redirection or fixed-scan BPTT follows.
+redirection follows. Fixed-family BPTT is separately owned by the shared recipe above.
 
 The separate per-row semantic decision is now selected below; implementation and padded NN
 migration remain gated. General Scan grants no automatic Model.train/save/load admission.
@@ -1258,9 +1302,10 @@ evidence. CPU0042 records those checks and their limits; Compiler0013 alone supp
 execution or performance qualification.
 Cold/wire and NN admission remain with [their owner](extensions-training.md#canonical-graph-model-version-5).
 Lengths govern only this scan: downstream bias/head/loss remains ordinary dense algebra with
-no model-wide mask or changed MEAN denominator. `.rnn` migration, fixed BPTT, GRU/LSTM migration,
-low types and higher-order waivers remain excluded; NN0032's second-order CPU compile regression,
-singleton-CONCAT copy and unproved mixed-engine compatibility remain separate gates.
+no model-wide mask or changed MEAN denominator. `.rnn` migration and GRU/LSTM NN migration,
+low-type CPU arithmetic and higher-order waivers remain excluded; fixed-family first-order BPTT
+is separately specified above. NN0032's second-order CPU compile regression, singleton-CONCAT
+copy and unproved mixed-engine compatibility remain separate gates.
 
 ### General ordinary-unit Scan cutover
 
@@ -1323,8 +1368,9 @@ carry updates retain exact own descriptors. Intermediate proved ROW(axis) histor
 sequence/formal support at every valid axis/rank, not only rank-two ROW(1). Complete canonical-B
 and fixed-feature proofs remain; no equal-extent, empty-domain, sampled-B or B=1 shortcut.
 Original length-AD sources still require all original carries and sequences ROW(0); broader
-generated histories do not broaden those source bindings. Fixed recurrent, residual-root and
-higher-order exclusions remain independent. Conv3d uses the shared ordinary convolution adjoints,
+generated histories do not broaden those source bindings. Fixed-family first-order BPTT uses
+the shared recipe above; residual-root and higher-order exclusions remain independent. Conv3d
+uses the shared ordinary convolution adjoints,
 not a Scan-specific exclusion or derivative. CPU F32/F64 full-body forward and actual first-order
 reverse composition is qualified for all-valid and length-aware scans in both traversal directions;
 ordinary body geometry, row proof and complete backend-closure checks still apply. This does not

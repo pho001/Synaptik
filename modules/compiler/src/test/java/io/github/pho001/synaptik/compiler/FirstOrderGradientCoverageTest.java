@@ -11,7 +11,6 @@ import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
-import io.github.pho001.synaptik.model.operation.OperationAttrs;
 import io.github.pho001.synaptik.model.operation.OperationKind;
 import io.github.pho001.synaptik.model.operation.OperationSignature;
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionKind;
@@ -57,34 +56,38 @@ import org.junit.jupiter.api.Test;
 
 final class FirstOrderGradientCoverageTest {
     @Test
-    void failsClosedForEveryDeferredSignatureWithoutAllocation() throws Exception {
+    void classifiesEveryRecurrentOutputAndFloatingRoleWithoutAllocation() throws Exception {
         long before = nextTensorId();
         for (FirstOrderGradientCoverage.SignatureFingerprint signature
-                : deferredSignatures()) {
-            for (int inputCount : boundaryCounts(
-                    signature.minimumInputs(), signature.maximumInputs())) {
-                for (int outputIndex = 0;
-                        outputIndex < signature.minimumOutputs();
-                        outputIndex++) {
-                    assertDeferredFailClosed(FirstOrderGradientCoverage.classify(
-                            signature.kind(),
-                            signature.attributesType(),
-                            inputCount,
-                            signature.minimumOutputs(),
-                            outputIndex,
-                            -1,
-                            null,
-                            DataType.FLOAT32));
-                    for (int inputIndex = 0; inputIndex < inputCount; inputIndex++) {
-                        assertDeferredFailClosed(FirstOrderGradientCoverage.classify(
-                                signature.kind(),
-                                signature.attributesType(),
-                                inputCount,
-                                signature.minimumOutputs(),
-                                outputIndex,
-                                inputIndex,
-                                DataType.FLOAT32,
-                                DataType.FLOAT32));
+                : recurrentSignatures()) {
+            assertTrue(FirstOrderGradientCoverage.signatures().contains(signature));
+            for (DataType type : List.of(
+                    DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16)) {
+                for (int inputCount : boundaryCounts(
+                        signature.minimumInputs(), signature.maximumInputs())) {
+                    for (int outputIndex = 0;
+                            outputIndex < signature.minimumOutputs();
+                            outputIndex++) {
+                        var output = FirstOrderGradientCoverage.classify(
+                                signature.kind(), signature.attributesType(), inputCount,
+                                signature.minimumOutputs(), outputIndex, -1, null, type);
+                        assertWellFormed(output);
+                        assertEquals(FirstOrderGradientCoverage.Disposition.D, output.disposition());
+                        for (int inputIndex = 0; inputIndex < inputCount; inputIndex++) {
+                            var role = FirstOrderGradientCoverage.classify(
+                                    signature.kind(), signature.attributesType(), inputCount,
+                                    signature.minimumOutputs(), outputIndex, inputIndex,
+                                    inputIndex == 1 ? DataType.INT64 : type, type);
+                            assertWellFormed(role);
+                            assertEquals(
+                                    inputIndex == 1 ? FirstOrderGradientCoverage.Disposition.ND
+                                            : FirstOrderGradientCoverage.Disposition.D,
+                                    role.disposition(),
+                                    signature + " output " + outputIndex + " input " + inputIndex);
+                            if (inputIndex != 1) {
+                                assertEquals(output.owner(), role.owner());
+                            }
+                        }
                     }
                 }
             }
@@ -541,6 +544,9 @@ final class FirstOrderGradientCoverageTest {
         if (kind == WhereSelectionKind.WHERE && inputIndex == 0) {
             return FirstOrderGradientCoverage.Disposition.ND;
         }
+        if (kind instanceof RecurrentScanKind && inputIndex == 1) {
+            return FirstOrderGradientCoverage.Disposition.ND;
+        }
         if (kind instanceof AggregateReductionKind reduction) {
             if (reduction == AggregateReductionKind.ALL
                     || reduction == AggregateReductionKind.ANY
@@ -606,27 +612,15 @@ final class FirstOrderGradientCoverageTest {
         assertFalse(decision.reason().isBlank());
     }
 
-    private static void assertDeferredFailClosed(
-            FirstOrderGradientCoverage.Decision decision) {
-        assertFailClosed(decision);
-        assertEquals(
-                "unknown or unclassified operation kind/attributes pairing",
-                decision.reason());
-    }
 
     private static Set<FirstOrderGradientCoverage.SignatureFingerprint>
-            deferredSignatures() {
+            recurrentSignatures() {
         return Set.of(
                 recurrentSignature(RecurrentScanKind.RNN_TANH, 5, 6, 2),
                 recurrentSignature(RecurrentScanKind.GRU_RESET_AFTER, 5, 6, 2),
                 recurrentSignature(RecurrentScanKind.LSTM, 6, 7, 3));
     }
 
-    private static FirstOrderGradientCoverage.SignatureFingerprint fixedSignature(
-            OperationKind kind, Class<? extends OperationAttrs> attributesType) {
-        return new FirstOrderGradientCoverage.SignatureFingerprint(
-                kind, attributesType, 1, 1, 1, 1);
-    }
 
     private static FirstOrderGradientCoverage.SignatureFingerprint recurrentSignature(
             RecurrentScanKind kind, int minimumInputs, int maximumInputs, int outputCount) {

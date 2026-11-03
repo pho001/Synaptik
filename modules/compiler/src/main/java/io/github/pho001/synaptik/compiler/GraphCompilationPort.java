@@ -40,8 +40,8 @@ import java.util.Optional;
  * the exact selected finite-time root/input routes and the actual generated ordinary closure
  * before materialization. Joint selected carry/emission seeds create one compact reverse sibling.
  * Structural cotangent absence is retained separately from numerical zero in component-eight
- * derivative metadata. Residual differentiation, whole-lexical forward-only exclusions and scan
- * higher-order requests still reject before derivative allocation. Final capability queries
+ * derivative metadata. Residual differentiation and Scan/fixed-recurrent higher-order requests
+ * still reject before derivative allocation. Final capability queries
  * retain the complete exact body and its applicable activity plan, without granting backend
  * support. Cold source reconstruction remains independently bounded as documented by
  * {@link #captureSource(List)}; execution and persistence retain their own gates.</p>

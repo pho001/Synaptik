@@ -186,12 +186,11 @@ import java.util.Set;
  * <p>This owner selects rules and rejects unsupported operation, input/output signature, attribute,
  * role, data-type, Shape, and policy combinations. A known rejection occurs before the seed, a
  * derivative constant, a matching {@code ARGSORT}, or another formula Tensor is constructed, so it
- * consumes no derivative {@code TensorId}. Fixed recurrent-scan occurrences are rejected
- * from the complete original forward inventory in deterministic producer postorder before stage,
- * seed, route, occurrence-policy, or formula validation; recurrent BPTT remains deferred.
+ * consumes no derivative {@code TensorId}. Fixed recurrent first-order routes validate the
+ * ordinary fixed descriptors and dispatch joint canonical seeds through the shared length-aware
+ * Scan recipe. Higher-order recurrent requests reject before derivative construction.
  * Convolution, pooling, and image-window transforms prove their matching public unfold/fold
- * geometry and structural kernel volume before allocation. Fixed recurrent rejection also
- * applies when a requested gradient belongs to an unrelated supported branch. The guarantee ends
+ * geometry and structural kernel volume before allocation. The guarantee ends
  * after a successful plan is returned: later public Tensor construction, capture, inference,
  * validation, or optimization may consume IDs before failing. This owner neither reads Tensor
  * payloads, captures a graph, allocates storage, binds a dynamic Dimension, lowers work, nor
@@ -240,10 +239,13 @@ final class AutogradPreflight {
 
         Inventory original = inventory(forwardOutputs);
         ScanBodyInference.validateScopes(forwardOutputs);
-        var scanSources = rejectForwardOnlyOccurrences(original);
+        var scanSources = preflightScanSources(original);
         for (TensorProducer producer : original.producerPostorder()) {
             if (producer.scanBody().isPresent() && request.stages().size() != 1) {
                 throw new IllegalArgumentException("general scan supports first-order only; createGraph is unsupported");
+            }
+            if (producer.operation().kind() instanceof RecurrentScanKind && request.stages().size() != 1) {
+                throw new IllegalArgumentException("fixed recurrent scan supports first-order only; createGraph is unsupported");
             }
         }
         FunctionalGradientRequest.Stage firstRequest = request.stages().getFirst();
@@ -1325,6 +1327,15 @@ final class AutogradPreflight {
         // Whole-source validity is already checked. Selected finite construction is proved only
         // after exact root/input pairs have been retained, never through a Cartesian body plan.
         if (producer.scanBody().isPresent()) return;
+        if (operation.kind() instanceof RecurrentScanKind) {
+            var inferred = RecurrentScanInference.infer(operation,
+                    producer.inputs().stream().map(Tensor::descriptor).toList(), producer.outputCount());
+            if (!inferred.outputs().equals(producer.outputDescriptors())) {
+                throw unsupported(producerIndex, producer, outputIndex, -1,
+                        "recurrent output descriptors differ from the fixed semantic contract");
+            }
+            return;
+        }
         if (operation.kind() == BatchNormKind.BATCH_NORM_TRAINING) {
             if (producer.outputCount() != 5) {
                 throw unsupported(
@@ -2867,30 +2878,18 @@ final class AutogradPreflight {
     }
 
     /**
-     * Rejects the first complete-forward occurrence whose gradients are deliberately deferred.
-     *
-     * @param original non-null allocation-free inventory in deterministic producer postorder
-     * @return request-local exact-occurrence Scan source facts, including unrelated branches
-     * @throws IllegalArgumentException if the inventory contains fixed recurrence;
-     *     rejection occurs before seed normalization or derivative Tensor construction
+     * Checks complete lexical Scan sources independently of selected derivative demand.
+     * @param original complete deterministic source inventory
+     * @return request-local exact-occurrence source facts
      */
     private static IdentityHashMap<TensorProducer, ScanGradientRules.SourcePlan>
-            rejectForwardOnlyOccurrences(Inventory original) {
+            preflightScanSources(Inventory original) {
         var sources = new IdentityHashMap<TensorProducer, ScanGradientRules.SourcePlan>();
         for (int producerIndex = 0;
                 producerIndex < original.producerPostorder().size();
                 producerIndex++) {
             TensorProducer producer = original.producerPostorder().get(producerIndex);
             if (producer.scanBody().isPresent()) sources.put(producer, ScanGradientRules.preflightSource(producer));
-            if (producer.operation().kind() instanceof RecurrentScanKind) {
-                throw new IllegalArgumentException(
-                        "producerPostorder[" + producerIndex + "] "
-                                + producer.operation().kind().getClass().getName() + "."
-                                + producer.operation().kind().name() + " attrs="
-                                + producer.operation().attrs().getClass().getName()
-                                + ": fixed recurrent scan is forward-only until "
-                                + "backpropagation through time is implemented");
-            }
         }
         return sources;
     }
