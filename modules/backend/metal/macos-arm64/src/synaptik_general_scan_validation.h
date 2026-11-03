@@ -78,7 +78,8 @@ static BOOL synaptik_scan_validate_ordinary(SynaptikMetalDecodedNode node, NSArr
                     && outputType == task0066_promote_floating(inputType, types[node.second_input]) && node_has_no_attributes(node)
                     && shape_broadcasts_exactly_to(input, shapes[node.second_input], output);
         case 20U: case 21U: case 22U: case 23U: case 24U: case 25U:
-            return synaptik_scan_numeric_type(inputType) && types[node.second_input] == inputType
+            return ((synaptik_scan_floating_type(inputType) && synaptik_scan_floating_type(types[node.second_input]))
+                    || (synaptik_scan_index_type(inputType) && types[node.second_input] == inputType))
                     && outputType == 3U && node_has_no_attributes(node)
                     && shape_broadcasts_exactly_to(input, shapes[node.second_input], output);
         case 26U: case 27U:

@@ -82,6 +82,19 @@ class MetalGeneralScanNativeTest {
             }
     }
 
+    @Test void mixedComparisonBodiesBindOriginalCarrierWidthsAndPublishBoolRows() {
+        var types = List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16);
+        for (var left : types) for (var right : types)
+            for (boolean lengths : List.of(false, true)) for (boolean reverse : List.of(false, true))
+                try (var run = new RawScan(MetalScanPlanTest.mixedComparisonQuery(left, right, lengths, reverse), null)) {
+                    run.bytes(0, numeric(left, 3, lengths ? Float.NaN : 4, 1, lengths ? Float.NaN : 0));
+                    run.bytes(1, numeric(right, 2));
+                    if (lengths) run.longs(2, 2, 0);
+                    run.poisonOutputs(0x5a5a5a5a); run.execute();
+                    assertArrayEquals(new byte[] {1, (byte) (lengths ? 0 : 1), 0, 0}, run.outputBytes(0));
+                }
+    }
+
     @Test void variadicCompositionInsideScanRetainsAllInputsAndFullOutputRowCoordinates() {
         int arity = 33;
         for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16))

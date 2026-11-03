@@ -325,6 +325,38 @@ class MetalScanPlanTest {
                 }
     }
 
+    @Test void comparisonsRetainBothOriginalNumericCarriersAndTheBoolResultRole() {
+        var types = List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16);
+        for (var left : types) for (var right : types)
+            for (boolean lengths : List.of(false, true)) for (boolean reverse : List.of(false, true)) {
+                var plan = MetalScanLowering.plan(mixedComparisonQuery(left, right, lengths, reverse));
+                var decoded = MetalScanDecoding.decode(MetalScanEncoding.encode(plan));
+                assertEquals(left, decoded.values().get(0).descriptor().dataType());
+                assertEquals(right, decoded.values().get(1).descriptor().dataType());
+                assertEquals(DataType.BOOL, decoded.values().get(2).descriptor().dataType());
+                assertEquals(2, decoded.values().get(2).byteSize());
+            }
+    }
+
+    static OperationCapabilityQuery mixedComparisonQuery(DataType left, DataType right, boolean lengths, boolean reverse) {
+        var x = new ValueId(0); var r = new ValueId(1); var y = new ValueId(2);
+        var input = descriptor(left, 2, 1);
+        var invariant = descriptor(right);
+        var output = descriptor(DataType.BOOL, 2, 1);
+        var compare = new CompiledNode(new NodeId(0), new Operation(
+                io.github.pho001.synaptik.model.operation.elementwise.comparison.BinaryComparisonKind.GREATER_THAN,
+                NoOperationAttrs.INSTANCE), List.of(x, r), List.of(y));
+        var graph = new CompiledGraphModel(List.of(new GraphValue(x, input), new GraphValue(r, invariant), new GraphValue(y, output)),
+                List.of(compare), List.of(x, r), List.of(y), Map.of(compare.id(), GraphPhase.FORWARD));
+        var body = new CompiledScanBody(graph, List.of(), List.of(y), List.of(), List.of(0));
+        var attrs = lengths ? new ScanAttrs(2, 0, 1, 1, 1, 0, reverse, true, 0, List.of(OptionalInt.of(0)))
+                : new ScanAttrs(2, 0, 1, 1, 1, 0, reverse);
+        var inputs = new java.util.ArrayList<>(List.of(descriptor(left, 2, 2, 1), invariant));
+        if (lengths) inputs.add(descriptor(DataType.INT64, 2));
+        return new OperationCapabilityQuery(new Operation(ScanKind.SCAN, attrs), inputs,
+                List.of(descriptor(DataType.BOOL, 2, 2, 1)), Optional.of(body), Optional.empty());
+    }
+
     static TensorDescriptor descriptor(DataType type, long... dimensions) {
         Shape shape = Shape.of(dimensions);
         return new TensorDescriptor(type, shape, Optional.of(LayoutDescriptor.contiguous(shape)), false);
