@@ -7608,13 +7608,6 @@ static int32_t synaptik_metal_create_decoded(
                 case SYNAPTIK_METAL_MPSGRAPH_ABS:
                     output = [graph absoluteWithTensor:first name:nil];
                     break;
-                case SYNAPTIK_METAL_MPSGRAPH_RECIPROCAL: {
-                    MPSGraphTensor *one = exact_float32_scalar(
-                            graph, UINT32_C(0x3f800000));
-                    output = [graph divisionWithPrimaryTensor:one
-                            secondaryTensor:first name:nil];
-                    break;
-                }
                 case SYNAPTIK_METAL_MPSGRAPH_LOG:
                     output = [graph logarithmWithTensor:first name:nil];
                     break;
@@ -7811,14 +7804,20 @@ static int32_t synaptik_metal_create_decoded(
                     }
                     break;
                 }
+                case SYNAPTIK_METAL_MPSGRAPH_RECIPROCAL:
                 case SYNAPTIK_METAL_MPSGRAPH_SCALAR_ADD:
                 case SYNAPTIK_METAL_MPSGRAPH_SCALAR_SUB:
                 case SYNAPTIK_METAL_MPSGRAPH_SCALAR_MUL:
                 case SYNAPTIK_METAL_MPSGRAPH_SCALAR_DIV:
                 case SYNAPTIK_METAL_MPSGRAPH_SCALAR_POW: {
                     MPSGraphTensor *scalar = exact_float32_scalar(
-                            graph, (uint32_t)node.attribute_values[0]);
+                            graph, node.operation == SYNAPTIK_METAL_MPSGRAPH_RECIPROCAL
+                                    ? UINT32_C(0x3f800000) : (uint32_t)node.attribute_values[0]);
                     switch ((SynaptikMetalOperation)node.operation) {
+                        case SYNAPTIK_METAL_MPSGRAPH_RECIPROCAL:
+                            output = [graph divisionWithPrimaryTensor:scalar
+                                    secondaryTensor:first name:nil];
+                            break;
                         case SYNAPTIK_METAL_MPSGRAPH_SCALAR_ADD:
                             output = [graph additionWithPrimaryTensor:first
                                     secondaryTensor:scalar name:nil];
