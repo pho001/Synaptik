@@ -395,29 +395,34 @@ public final class TensorScaledDotProductAttentionExpressionTest {
     }
 
     @Test
-    void promotesInQueryKeyValueOrderAndRequiresAnExactExplicitScaleType() {
+    void promotesInQueryKeyValueOrderAndRequiresExactScalarMetadataType() {
         Tensor query = tensor(DataType.BFLOAT16, Shape.of(2, 3), true);
         Tensor key = tensor(DataType.FLOAT32, Shape.of(4, 3), false);
         Tensor value = tensor(DataType.FLOAT64, Shape.of(4, 5), true);
         var exact = new ScaledDotProductAttentionAttrs(
                 Optional.of(ScalarValue.float64(0.25d)), false);
         Tensor output = query.scaledDotProductAttention(key, value, exact);
-        Tensor defaultOutput = query.scaledDotProductAttention(key, value);
         var wrong = new ScaledDotProductAttentionAttrs(
                 Optional.of(ScalarValue.float32(0.25f)), false);
-        IllegalArgumentException failure = assertThrows(IllegalArgumentException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> query.scaledDotProductAttention(key, value, wrong));
 
-        assertAll(
-                () -> assertSame(DataType.FLOAT64, output.descriptor().dataType()),
-                () -> assertTrue(output.descriptor().requiresGrad()),
-                () -> assertSame(exact, output.provenance().orElseThrow().operation().attrs()),
-                () -> assertTrue(((ScaledDotProductAttentionAttrs) defaultOutput.provenance()
-                        .orElseThrow().operation().attrs()).scale().isEmpty()),
-                () -> assertEquals(
-                        "scale data type must match promoted attention data type: "
-                                + "scale=FLOAT32, promoted=FLOAT64",
-                        failure.getMessage()));
+        assertSame(DataType.FLOAT64, output.descriptor().dataType());
+        assertTrue(output.descriptor().requiresGrad());
+
+        Tensor halfQuery = tensor(DataType.FLOAT16, Shape.of(2, 3), true);
+        Tensor halfKey = tensor(DataType.FLOAT16, Shape.of(4, 3), false);
+        Tensor halfValue = tensor(DataType.FLOAT16, Shape.of(4, 5), false);
+        var halfScale = new ScaledDotProductAttentionAttrs(
+                Optional.of(ScalarValue.float32(0.25f)), false);
+        Tensor halfOutput = halfQuery.scaledDotProductAttention(halfKey, halfValue, halfScale);
+        assertSame(DataType.FLOAT16, halfOutput.descriptor().dataType());
+        assertEquals(Shape.of(2, 5), halfOutput.descriptor().shape());
+        assertTrue(halfOutput.descriptor().requiresGrad());
+        var wrongHalfScale = new ScaledDotProductAttentionAttrs(
+                Optional.of(ScalarValue.float64(0.25d)), false);
+        assertThrows(IllegalArgumentException.class,
+                () -> halfQuery.scaledDotProductAttention(halfKey, halfValue, wrongHalfScale));
     }
 
     @Test

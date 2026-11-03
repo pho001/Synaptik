@@ -56,7 +56,7 @@ final class RecurrentGradientRulesTest {
         double[] hiddenSeed = {.5, -.25, .375}, cellSeed = {-.125, .25, -.5};
         var plan = AutogradPreflight.preflight(CompileMode.FORWARD_AND_BACKWARD, outputs,
                 ScanGradientRulesTest.request(outputs, seeds, targets), CompileTimeConstantGraph.Ingress.empty());
-        var expansion = FirstOrderAutograd.expand(plan, CompileTimeConstantGraph.Ingress.empty());
+        var expansion = FirstOrderAutograd.expand(plan.stageOne(), CompileTimeConstantGraph.Ingress.empty());
         var oracle = new ScanGradientRulesTest.Oracle();
         for (int i = 0; i < targets.size(); i++) oracle.bind(targets.get(i), data.get(i));
         oracle.bind(lengths, new double[] {0, 1, 3});

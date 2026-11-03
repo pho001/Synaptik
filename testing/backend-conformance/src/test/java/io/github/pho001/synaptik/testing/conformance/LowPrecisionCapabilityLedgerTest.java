@@ -2,7 +2,6 @@ package io.github.pho001.synaptik.testing.conformance;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
@@ -37,67 +36,13 @@ import io.github.pho001.synaptik.model.operation.scan.*;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
-/**
- * Queries real typed provider occurrences independently of numerical execution evidence.
- *
- * <p>The literal v1 resource records the former profile-qualified capability witnesses.
- * Only its supported Metal ACCELERATOR FLOAT32 occurrences define the frozen low baseline;
- * new FLOAT32 support does not imply a BFLOAT16 or FLOAT16 grant. Current capability answers
- * are queried live, never pinned to a regenerated snapshot.</p>
- */
+/** Queries original-typed Metal admission bounds and the independent CPU low-arithmetic lock. */
 final class LowPrecisionCapabilityLedgerTest {
-    @Test
-    void metalPreservesBothLowTypesForTheHistoricalSupportedFloat32Baseline() throws Exception {
-        var provider = new MetalCapabilityProvider();
-        var current = new LinkedHashMap<String, Seed>();
-        for (Seed seed : seeds()) current.put(seed.id(), seed);
-        String[] lines = resource("/low-precision-capability-ledger-v1.tsv").split("\n");
-        List<String> header = List.of(lines[0].split("\t"));
-        int backend = header.indexOf("backend");
-        int profile = header.indexOf("profile");
-        int occurrence = header.indexOf("occurrence");
-        int basis = header.indexOf("basis");
-        int supported = header.indexOf("supported");
-        assertTrue(List.of(backend, profile, occurrence, basis, supported).stream()
-                .allMatch(index -> index >= 0), "historical baseline columns");
-        int witnesses = 0;
-        for (int row = 1; row < lines.length; row++) {
-            String[] fields = lines[row].split("\t", -1);
-            if (!fields[backend].equals("metal") || !fields[profile].equals("ACCELERATOR")
-                    || !fields[basis].equals("F32_OCCURRENCE")
-                    || !fields[supported].equals("true")) continue;
-            String id = fields[occurrence];
-            Seed seed = current.get(id);
-            assertNotNull(seed, "historical occurrence remains represented: " + id);
-            assertTrue(hasFloat32Role(seed.query()), id);
-            assertTrue(provider.supports(seed.query()), "FLOAT32 " + id);
-            assertTrue(provider.supports(toBfloat16(seed.query())), "BFLOAT16 " + id);
-            assertTrue(provider.supports(toFloat16(seed.query())), "FLOAT16 " + id);
-            witnesses++;
-        }
-        assertTrue(witnesses > 0, "historical supported Metal baseline is exercised");
-    }
-
-    @Test
-    void newlyQualifiedFloat32MathDoesNotGrantLowNeuralArithmetic() {
-        var provider = new MetalCapabilityProvider();
-        for (Row row : List.of(Row.LOG, Row.TANH, Row.SCALED_DOT_PRODUCT_ATTENTION,
-                Row.LOG_SOFTMAX)) {
-            var query = representative(row);
-            assertTrue(provider.supports(query), "FLOAT32 " + row);
-            assertFalse(provider.supports(toBfloat16(query)), "BFLOAT16 " + row);
-            assertFalse(provider.supports(toFloat16(query)), "FLOAT16 " + row);
-        }
-    }
-
     @Test
     void metalLowSupportNeverExceedsCurrentFloat32Support() {
         var provider = new MetalCapabilityProvider();
@@ -118,7 +63,7 @@ final class LowPrecisionCapabilityLedgerTest {
         assertCurrentLowMatrix();
     }
 
-    @Test void lowRecurrentAndMalformedVariantsAreExplicitlyUnsupported() {
+    @Test void cpuLowRecurrentAndMalformedVariantsAreExplicitlyUnsupported() {
         var provider = new CpuCapabilityProvider();
         for (var seed : seeds()) if (seed.query().operation().kind() instanceof RecurrentScanKind) {
             for (var q : List.of(toBfloat16(seed.query()), toFloat16(seed.query()))) {
@@ -286,14 +231,6 @@ final class LowPrecisionCapabilityLedgerTest {
     private static boolean hasFloat32Role(OperationCapabilityQuery query) {
         return java.util.stream.Stream.concat(query.inputs().stream(), query.outputs().stream())
                 .anyMatch(descriptor -> descriptor.dataType() == DataType.FLOAT32);
-    }
-
-
-    private static String resource(String name) throws Exception {
-        try (InputStream input = LowPrecisionCapabilityLedgerTest.class.getResourceAsStream(name)) {
-            if (input == null) throw new AssertionError("missing resource " + name);
-            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
-        }
     }
 
     private static List<Seed> seeds() {
@@ -804,7 +741,7 @@ final class LowPrecisionCapabilityLedgerTest {
 
     private record Seed(String id, OperationCapabilityQuery query) { }
 
-    /** Frozen current Model-kind basis; names follow the append-only Metal wires 1 through 115. */
+    /** Representative Model operation kinds for the independent provider queries. */
     private enum Row {
         NEG, ADD, SUB, MUL, DIV, RESHAPE, EXPAND, PERMUTE, EXPAND_DIMS, SQUEEZE, CONTIGUOUS,
         ABS, SUM, MEAN, MATMUL, GATHER, ONE_HOT, SCATTER_ELEMENTS, UNFOLD_AXIS, GT, GE, LT, LE,

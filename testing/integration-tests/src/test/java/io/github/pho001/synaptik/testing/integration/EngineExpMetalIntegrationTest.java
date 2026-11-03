@@ -3,7 +3,6 @@ package io.github.pho001.synaptik.testing.integration;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration;
@@ -108,7 +107,8 @@ final class EngineExpMetalIntegrationTest {
             builder.takeOwnership(MetalBackendIntegration.open(
                     new MetalBackendConfiguration(library)));
             try (Engine engine = builder.build()) {
-                for (DataType low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+                for (DataType low : List.of(DataType.BFLOAT16, DataType.FLOAT16))
+                    for (boolean requiresGrad : List.of(false, true)) {
                     MemorySegment storage = arena.allocate(
                             samples.length * Short.BYTES, Short.BYTES);
                     short[] original = new short[samples.length];
@@ -118,7 +118,7 @@ final class EngineExpMetalIntegrationTest {
                                 : Float16Bits.fromFloat(samples[index]);
                         storage.setAtIndex(JAVA_SHORT, index, original[index]);
                     }
-                    Tensor input = tensor(low, Shape.of(samples.length), false,
+                    Tensor input = tensor(low, Shape.of(samples.length), requiresGrad,
                             storage, samples.length);
                     var compiled = engine.compile(List.of(input.exp()));
                     assertEquals(List.of("metal"),
@@ -170,10 +170,6 @@ final class EngineExpMetalIntegrationTest {
                         assertEquals(original[index], storage.getAtIndex(JAVA_SHORT, index),
                                 low + " input " + index);
                     }
-                    Tensor gradientInput = tensor(low, Shape.of(samples.length), true,
-                            storage, samples.length);
-                    assertThrows(IllegalStateException.class,
-                            () -> engine.compile(List.of(gradientInput.exp())), low.name());
                 }
             }
         }

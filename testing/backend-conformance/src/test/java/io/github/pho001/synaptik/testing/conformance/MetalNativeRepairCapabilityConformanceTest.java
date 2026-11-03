@@ -41,10 +41,13 @@ final class MetalNativeRepairCapabilityConformanceTest {
                                 value(type, falseShape)), List.of(value(type, output)))));
             }
         }
+        Operation where = new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE);
+        List<TensorDescriptor> mixed = List.of(value(DataType.BOOL, 3),
+                value(DataType.BFLOAT16, 3), value(DataType.FLOAT16, 3));
+        assertTrue(metal.supports(new OperationCapabilityQuery(
+                where, mixed, List.of(value(DataType.FLOAT32, 3)))));
         assertFalse(metal.supports(new OperationCapabilityQuery(
-                new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE),
-                List.of(value(DataType.BOOL, 3), value(DataType.BFLOAT16, 3),
-                        value(DataType.FLOAT16, 3)), List.of(value(DataType.FLOAT32, 3)))));
+                where, mixed, List.of(value(DataType.BFLOAT16, 3)))));
     }
 
     @Test

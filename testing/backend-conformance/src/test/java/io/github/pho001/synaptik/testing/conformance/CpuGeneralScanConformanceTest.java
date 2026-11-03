@@ -177,7 +177,7 @@ final class CpuGeneralScanConformanceTest {
         for (var type : List.of(DataType.FLOAT32,DataType.FLOAT64,DataType.BFLOAT16,DataType.FLOAT16)) {
             var typed = withType(q,type);
             assertEquals(type == DataType.FLOAT32 || type == DataType.FLOAT64,new CpuCapabilityProvider().supports(typed));
-            assertEquals(type == DataType.FLOAT32,new MetalCapabilityProvider().supports(typed));
+            assertEquals(type != DataType.FLOAT64,new MetalCapabilityProvider().supports(typed));
         }
         for (int mode = 0; mode < 3; mode++) {
             var analysis = new CpuPartitionPreparer().analyze(context(q));
@@ -265,7 +265,7 @@ final class CpuGeneralScanConformanceTest {
         for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16)) {
             var q = query(type, UnaryElementwiseKind.TANH, false, 3, Shape.of(2));
             assertEquals(type == DataType.FLOAT32 || type == DataType.FLOAT64, new CpuCapabilityProvider().supports(q));
-            assertEquals(type == DataType.FLOAT32,new MetalCapabilityProvider().supports(q));
+            assertEquals(type != DataType.FLOAT64,new MetalCapabilityProvider().supports(q));
             assertEquals(type == DataType.FLOAT32 || type == DataType.FLOAT64,
                     new CpuCapabilityProvider().supports(query(type, UnaryElementwiseKind.RELU, false, 0, Shape.of(2))));
         }

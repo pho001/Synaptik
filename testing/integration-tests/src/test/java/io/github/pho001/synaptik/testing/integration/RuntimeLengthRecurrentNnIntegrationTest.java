@@ -95,11 +95,27 @@ class RuntimeLengthRecurrentNnIntegrationTest {
             }
             Tensor objective = roots.get(1).sum();
             Tensor parameter = sequence.children().get("cell").parameters().getFirst().value();
-            assertThrows(IllegalArgumentException.class,
-                    () -> engine.backward(objective, List.of(parameter), 10000));
+            var backward = engine.backward(objective, List.of(parameter), 10000);
+            assertEquals(1, backward.gradients().size());
+            assertEquals(parameter.descriptor().shape(),
+                    backward.gradients().getFirst().shape());
+            Tensor seed = floats(Shape.scalar(), false, 1);
+            var differentiated = engine.compile(List.of(objective), List.of(seed), List.of(parameter));
+            var gradientPool = new ArrayList<>(pool);
+            gradientPool.add(seed);
+            var gradientValues = ordered(differentiated, gradientPool);
+            try (var prepared = engine.prepare(differentiated);
+                    var result = engine.runValues(prepared, gradientValues)) {
+                assertEquals(2, result.resultCount());
+                for (float gradient : floats(result, 1)) assertTrue(Float.isFinite(gradient));
+                try (var zero = engine.runValues(prepared,
+                        fresh(gradientValues, x, nextX, lengths, new long[] {0, 0}))) {
+                    for (float gradient : floats(zero, 1)) assertEquals(0f, gradient);
+                }
+            }
             assertThrows(IllegalArgumentException.class,
                     () -> engine.compile(List.of(objective),
-                            List.of(floats(Shape.scalar(), false, 1)), List.of(parameter)));
+                            List.of(floats(Shape.of(1), false, 1)), List.of(parameter)));
         }
     }
 

@@ -72,9 +72,26 @@ final class EngineCpuRecurrentScanIntegrationTest {
                 }
                 assertThrows(IllegalArgumentException.class, () -> engine.compile(List.of(p.outputs().get(0), p.outputs().get(0))));
                 var objective = p.outputs().getLast().sum();
-                assertThrows(IllegalArgumentException.class, () -> engine.backward(objective, List.of(p.weight()), 10000));
+                var backward = engine.backward(objective, List.of(p.weight()), 10000);
+                assertEquals(1, backward.gradients().size());
+                assertEquals(p.weight().descriptor().shape(),
+                        backward.gradients().getFirst().shape());
+                var seed = floating(type, Shape.scalar(), false, 0, 1);
+                var differentiated = engine.compile(List.of(objective), List.of(seed), List.of(p.weight()));
+                var gradientInputs = new ArrayList<>(p.inputs());
+                gradientInputs.add(seed);
+                try (var prepared = engine.prepare(differentiated);
+                        var result = engine.run(prepared, ordered(differentiated, gradientInputs))) {
+                    assertEquals(2, result.resultCount());
+                    for (double gradient : numbers(result, 1, type)) assertTrue(Double.isFinite(gradient));
+                    var zeroLengths = freshValues(ordered(differentiated, gradientInputs),
+                            p.lengths(), new long[] {0, 0});
+                    try (var zero = engine.runValues(prepared, zeroLengths)) {
+                        for (double gradient : numbers(zero, 1, type)) assertEquals(0d, gradient);
+                    }
+                }
                 assertThrows(IllegalArgumentException.class, () -> engine.compile(List.of(objective),
-                        List.of(floats(Shape.scalar(), false, 1)), List.of(p.weight())));
+                        List.of(floating(type, Shape.of(1), false, 0, 1)), List.of(p.weight())));
             }
     }
 

@@ -36,6 +36,8 @@ import io.github.pho001.synaptik.model.operation.linalg.MatmulKind;
 import io.github.pho001.synaptik.model.operation.loss.LossReduction;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
+import io.github.pho001.synaptik.model.tensor.Scan;
+import io.github.pho001.synaptik.model.tensor.ScanBody;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
@@ -51,6 +53,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -1723,6 +1726,151 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
+    void thirtyThreeDistinctScanOperandsRetainLastInvariantGradientsAndInactiveZeros() {
+        Path library = configuredMetalLibrary();
+        try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
+            builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
+            try (Engine engine = builder.build()) {
+                for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                    for (boolean stack : List.of(false, true)) {
+                        for (boolean reverse : List.of(false, true)) {
+                            // All-valid, unequal prefixes with an empty row, and entirely inactive.
+                            for (int mask = 0; mask < 3; mask++) {
+                                assertWideScanExecution(engine, arena, type, stack, reverse, mask);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Uses genuinely distinct ROW operands, with only the thirty-third eligible for AD.
+     * Length-aware invariants are SHARED, so each [2] invariant is added to the live
+     * [B,2] next carry before composition; merely giving an invariant a B-sized extent
+     * would not establish a legal row coordinate. No NN or CPU execution is involved.
+     */
+    private static void assertWideScanExecution(
+            Engine engine, Arena arena, DataType type, boolean stack, boolean reverse, int mask) {
+        Shape rowShape = Shape.of(3, 2);
+        Shape sequenceShape = Shape.of(3, 3, 2);
+        Shape invariantShape = Shape.of(2);
+        Shape emissionShape = stack ? Shape.of(3, 3, 33, 2) : Shape.of(3, 3, 66);
+        Tensor h = wideScanFormal(type, rowShape, false);
+        Tensor x = wideScanFormal(type, rowShape, false);
+        Tensor next = h.add(x);
+        Tensor[] operands = new Tensor[33];
+        operands[0] = next;
+        assertFalse(operands[0].descriptor().requiresGrad());
+        List<Tensor> invariantFormals = new ArrayList<>();
+        List<Tensor> invariants = new ArrayList<>();
+        for (int operand = 1; operand < operands.length; operand++) {
+            boolean requiresGrad = operand == operands.length - 1;
+            Tensor formal = wideScanFormal(type, invariantShape, requiresGrad);
+            invariantFormals.add(formal);
+            invariants.add(variadicTensor(formal.descriptor(), arena, 2 * operand, 2 * operand + 1));
+            operands[operand] = next.add(formal);
+            assertEquals(requiresGrad, operands[operand].descriptor().requiresGrad());
+            assertEquals(requiresGrad, invariants.getLast().descriptor().requiresGrad());
+        }
+        Tensor emission = stack ? Tensor.stack(1, operands) : Tensor.concat(1, operands);
+        var body = new ScanBody(List.of(h), List.of(x), invariantFormals, List.of(next), List.of(emission));
+        long[] activeLengths = mask == 0 ? new long[] {3, 3, 3}
+                : mask == 1 ? new long[] {3, 1, 0} : new long[] {0, 0, 0};
+        float poison = Float.intBitsToFloat(0x7fc12345);
+        float[] initialValues = new float[6];
+        float[] sequenceValues = new float[18];
+        float[] seedValues = new float[3 * 3 * 33 * 2];
+        for (int row = 0; row < 3; row++) {
+            for (int column = 0; column < 2; column++) {
+                initialValues[row * 2 + column] = 1 + 4 * row + column;
+                for (int time = 0; time < 3; time++) {
+                    sequenceValues[(time * 3 + row) * 2 + column] = time < activeLengths[row]
+                            ? 1 + 3 * time + row + column : poison;
+                    for (int operand = 0; operand < 33; operand++) {
+                        int position = ((time * 3 + row) * 33 + operand) * 2 + column;
+                        // Only positions beyond the old sixteen-input boundary receive finite nonzero seeds.
+                        seedValues[position] = time >= activeLengths[row] ? poison
+                                : operand < 16 ? 0 : operand - 15 + 4 * time + 2 * row + column;
+                    }
+                }
+            }
+        }
+        Tensor initial = variadicTensor(h.descriptor(), arena, initialValues);
+        Tensor sequence = variadicTensor(wideScanFormal(type, sequenceShape, false).descriptor(),
+                arena, sequenceValues);
+        Tensor lengths = nativeLongTensor(Shape.of(3), arena, activeLengths);
+        var scan = mask == 0
+                ? Scan.apply(List.of(initial), List.of(sequence), invariants, body, reverse)
+                : Scan.apply(List.of(initial), List.of(sequence), invariants, lengths, 1,
+                        List.of(OptionalInt.of(0)), body, reverse);
+        Tensor output = scan.outputs().getFirst();
+        assertEquals(type, output.descriptor().dataType());
+        assertEquals(emissionShape, output.descriptor().shape());
+        assertTrue(output.descriptor().requiresGrad());
+        List<Tensor> feeds = new ArrayList<>(List.of(initial, sequence));
+        feeds.addAll(invariants);
+        if (mask != 0) {
+            feeds.add(lengths);
+        }
+
+        // Plain integer recurrence/index arithmetic: no Tensor operators or backend reference.
+        // All intermediate values, seeds and sums are exactly represented in all three carriers.
+        float[] expectedCarry = initialValues.clone();
+        float[] expectedEmission = new float[seedValues.length];
+        float[] expectedGradient = new float[2];
+        for (int iteration = 0; iteration < 3; iteration++) {
+            int time = reverse ? 2 - iteration : iteration;
+            for (int row = 0; row < 3; row++) {
+                if (time >= activeLengths[row]) {
+                    continue;
+                }
+                for (int column = 0; column < 2; column++) {
+                    int carryPosition = row * 2 + column;
+                    expectedCarry[carryPosition] += 1 + 3 * time + row + column;
+                    for (int operand = 0; operand < 33; operand++) {
+                        int position = ((time * 3 + row) * 33 + operand) * 2 + column;
+                        expectedEmission[position] = expectedCarry[carryPosition]
+                                + (operand == 0 ? 0 : 2 * operand + column);
+                    }
+                    expectedGradient[column] += 17 + 4 * time + 2 * row + column;
+                }
+            }
+        }
+        var forward = engine.compile(List.of(scan.finalCarry().getFirst(), output));
+        try (var prepared = engine.prepare(forward);
+                var result = engine.run(prepared, feeds)) {
+            assertEquals(2, result.resultCount());
+            assertEquals(rowShape, result.publications().getFirst().descriptor().shape());
+            assertEquals(emissionShape, result.publications().get(1).descriptor().shape());
+            assertVariadicPublication(result, 0, type, expectedCarry);
+            assertVariadicPublication(result, 1, type, expectedEmission);
+        }
+
+        Tensor seed = variadicTensor(wideScanFormal(type, emissionShape, false).descriptor(),
+                arena, seedValues);
+        Tensor target = invariants.getLast();
+        var gradients = engine.compile(List.of(output), List.of(seed), List.of(target));
+        feeds.add(seed);
+        try (var prepared = engine.prepare(gradients);
+                var result = engine.run(prepared, feeds)) {
+            assertEquals(2, result.resultCount());
+            assertEquals(emissionShape, result.publications().getFirst().descriptor().shape());
+            assertEquals(invariantShape, result.publications().get(1).descriptor().shape());
+            assertVariadicPublication(result, 0, type, expectedEmission);
+            // Masked NaNs cannot contribute, including the all-inactive positive-zero cotangent.
+            assertVariadicPublication(result, 1, type, expectedGradient);
+        }
+    }
+
+    /** Declares a canonical, storage-free public Scan formal in the original carrier. */
+    private static Tensor wideScanFormal(DataType type, Shape shape, boolean requiresGrad) {
+        return TensorFactory.create(new TensorDescriptor(type, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), requiresGrad));
+    }
+
+    @Test
     void variadicEmptyOutputsPreserveShapesAndEmptyLastOperandCotangents() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
@@ -1734,6 +1882,14 @@ final class EngineExplicitCompositionMetalIntegrationTest {
                             Tensor.concat(1, inputs), Shape.of(2, 0), new float[0], new int[0]);
                     assertVariadicExecution(engine, arena, type, inputs,
                             Tensor.stack(1, inputs), Shape.of(2, 17, 0), new float[0], new int[0]);
+                    Tensor emptySlice = inputs[0].slice(
+                            new long[] {0}, new long[] {0}, new int[] {1}, new long[] {-1});
+                    var sliced = engine.compile(List.of(emptySlice));
+                    try (var prepared = engine.prepare(sliced);
+                            var result = engine.run(prepared, List.of(inputs[0]))) {
+                        assertEquals(Shape.of(2, 0), result.publications().getFirst().descriptor().shape());
+                        assertVariadicPublication(result, 0, type, new float[0]);
+                    }
                 }
             }
         }
@@ -1774,7 +1930,14 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     private static Tensor[] variadicMatrixInputs(DataType type, Arena arena, int[] widths) {
         Tensor[] inputs = new Tensor[widths.length];
         for (int operand = 0; operand < inputs.length; operand++) {
-            float[] storage = widths[operand] == 0 ? new float[0] : new float[11];
+            if (widths[operand] == 0) {
+                Shape shape = Shape.of(2, 0);
+                var descriptor = new TensorDescriptor(type, shape,
+                        Optional.of(LayoutDescriptor.contiguous(shape)), operand == inputs.length - 1);
+                inputs[operand] = variadicTensor(descriptor, arena);
+                continue;
+            }
+            float[] storage = new float[11];
             java.util.Arrays.fill(storage, -99);
             for (int row = 0; row < 2; row++) {
                 for (int column = 0; column < widths[operand]; column++) {
@@ -1852,8 +2015,8 @@ final class EngineExplicitCompositionMetalIntegrationTest {
         for (int index = 0; index < seedValues.length; index++) {
             seedValues[index] = index % 29 - 14 + (index % 2) * 0.25f;
         }
-        Tensor seed = variadicView(type, expectedShape,
-                LayoutDescriptor.contiguous(expectedShape).strides(), 0, false, arena, seedValues);
+        Tensor seed = variadicTensor(new TensorDescriptor(type, expectedShape,
+                Optional.of(LayoutDescriptor.contiguous(expectedShape)), false), arena, seedValues);
         Tensor target = inputs[inputs.length - 1];
         var gradients = engine.compile(List.of(output), List.of(seed), List.of(target));
         List<Tensor> feeds = new ArrayList<>(List.of(inputs));
@@ -1888,6 +2051,12 @@ final class EngineExplicitCompositionMetalIntegrationTest {
             boolean requiresGrad, Arena arena, float... values) {
         TensorDescriptor descriptor = new TensorDescriptor(type, shape,
                 Optional.of(LayoutDescriptor.of(shape, strides, offset, true)), requiresGrad);
+        return variadicTensor(descriptor, arena, values);
+    }
+
+    /** Allocates typed fixture storage once for either canonical or affine descriptors. */
+    private static Tensor variadicTensor(TensorDescriptor descriptor, Arena arena, float... values) {
+        DataType type = descriptor.dataType();
         MemorySegment segment = arena.allocate((long) values.length * type.byteWidth(), type.byteWidth());
         for (int index = 0; index < values.length; index++) {
             switch (type) {

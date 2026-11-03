@@ -16,43 +16,34 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
-/** Cross-module provider evidence for independently qualified FLOAT32 and low EXP routes. */
+/** Cross-module provider evidence for original-typed EXP admission boundaries. */
 final class MetalExpCapabilityConformanceTest {
     private final MetalCapabilityProvider metal = new MetalCapabilityProvider();
     private static final Operation EXP = new Operation(
             UnaryElementwiseKind.EXP, NoOperationAttrs.INSTANCE);
 
     @Test
-    void float32PreservesGradientAndScalarDomainWhileLowExpRemainsFrozen() {
-        TensorDescriptor float32 = descriptor(DataType.FLOAT32, Shape.of(2, 3), false);
-        assertTrue(supports(EXP, float32, float32));
-        for (DataType low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
-            TensorDescriptor lowValue = descriptor(low, Shape.of(2, 3), false);
-            assertTrue(supports(EXP, lowValue, lowValue), low.name());
-            assertFalse(supports(EXP, lowValue, float32), low.name());
-            assertFalse(supports(EXP, descriptor(low, Shape.of(2, 3), true),
-                    lowValue), low.name());
-            assertFalse(supports(EXP, lowValue,
-                    descriptor(low, Shape.of(2, 3), true)), low.name());
-            assertFalse(supports(EXP, lowValue,
-                    descriptor(low, Shape.of(3, 2), false)), low.name());
-            assertFalse(supports(EXP, descriptor(low, Shape.scalar(), false),
-                    descriptor(low, Shape.scalar(), false)), low.name());
+    void expRequiresMatchingOriginalTypeShapeAndGradientDescriptors() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            TensorDescriptor value = descriptor(type, Shape.of(2, 3), false);
+            assertTrue(supports(EXP, value, value), type.name());
+            for (DataType other : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                if (other != type) {
+                    assertFalse(supports(EXP, value,
+                            descriptor(other, value.shape(), false)), type + "/" + other);
+                }
+            }
+            assertFalse(supports(EXP, value,
+                    descriptor(type, Shape.of(3, 2), false)), type.name());
+            TensorDescriptor gradient = descriptor(type, value.shape(), true);
+            assertTrue(supports(EXP, gradient, gradient), type.name());
+            assertFalse(supports(EXP, gradient, value), type.name());
+            assertFalse(supports(EXP, value, gradient), type.name());
+            TensorDescriptor scalar = descriptor(type, Shape.scalar(), false);
+            assertTrue(supports(EXP, scalar, scalar), type.name());
         }
-        assertFalse(supports(EXP, descriptor(DataType.BFLOAT16, Shape.of(2, 3), false),
-                descriptor(DataType.FLOAT16, Shape.of(2, 3), false)));
         TensorDescriptor float64 = descriptor(DataType.FLOAT64, Shape.of(2, 3), false);
         assertFalse(supports(EXP, float64, float64));
-        assertTrue(supports(EXP, descriptor(DataType.FLOAT32, Shape.of(2, 3), true),
-                descriptor(DataType.FLOAT32, Shape.of(2, 3), true)));
-        assertFalse(supports(EXP, float32,
-                descriptor(DataType.FLOAT32, Shape.of(3, 2), false)));
-        assertTrue(supports(EXP, descriptor(DataType.FLOAT32, Shape.scalar(), false),
-                descriptor(DataType.FLOAT32, Shape.scalar(), false)));
-        assertFalse(supports(EXP, float32,
-                descriptor(DataType.FLOAT32, Shape.of(2, 3), true)));
-        assertFalse(supports(EXP, descriptor(DataType.FLOAT32, Shape.of(2, 3), true),
-                float32));
     }
 
     private boolean supports(Operation operation, TensorDescriptor input,

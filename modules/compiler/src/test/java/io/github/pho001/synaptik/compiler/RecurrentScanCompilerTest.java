@@ -461,7 +461,6 @@ final class RecurrentScanCompilerTest {
             assertSame(targets.get(i), gradient.target());
             assertEquals(targets.get(i).descriptor().shape(), gradient.gradient().descriptor().shape());
             assertEquals(targets.get(i).descriptor().dataType(), gradient.gradient().descriptor().dataType());
-            assertTrue(gradient.gradient().descriptor().layout().isEmpty());
         }
     }
 

@@ -129,8 +129,8 @@ final class GeneralScanOwnedModelTest {
                         assertNotSame(parameter.tensor(), adopted);
                     }
                     // Descriptor-only rebind accepts produced inputs and never reads lengths.
-                    Tensor freshInput = TensorFactory.create(input.descriptor()).neg();
-                    Tensor freshInitial = TensorFactory.create(initial.descriptor()).neg();
+                    Tensor freshInput = TensorFactory.create(input.descriptor()).neg().contiguous();
+                    Tensor freshInitial = TensorFactory.create(initial.descriptor()).neg().contiguous();
                     Tensor freshLengths = TensorFactory.create(lengths.descriptor());
                     var rebound = loaded.forward(List.of(freshInput, freshLengths, freshInitial));
                     for (int i = 0; i < outputs.size(); i++) assertEquals(outputs.get(i).descriptor(), rebound.get(i).descriptor());

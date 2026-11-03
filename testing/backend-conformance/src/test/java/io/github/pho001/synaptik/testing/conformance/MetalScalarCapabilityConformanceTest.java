@@ -1,6 +1,5 @@
 package io.github.pho001.synaptik.testing.conformance;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -20,10 +19,11 @@ import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
-/** Independent scalar dtype queries preserve FLOAT32 math and the frozen low-storage boundary. */
+/** Independent scalar dtype queries preserve original-carrier admission and FLOAT64 boundaries. */
 final class MetalScalarCapabilityConformanceTest {
     private final MetalCapabilityProvider metal = new MetalCapabilityProvider();
 
@@ -63,23 +63,8 @@ final class MetalScalarCapabilityConformanceTest {
         }
     }
 
-    @ParameterizedTest
-    @EnumSource(value = DataType.class, names = {"FLOAT32", "BFLOAT16", "FLOAT16"})
-    void scalarFloat32MathDoesNotWidenLowOrFloat64NumericalDomains(DataType type) {
-        TensorDescriptor value = value(type, Shape.scalar(), false);
-        for (var kind : List.of(UnaryElementwiseKind.NEG, UnaryElementwiseKind.ABS,
-                UnaryElementwiseKind.FLOOR, UnaryElementwiseKind.CEIL, UnaryElementwiseKind.SIGN,
-                UnaryElementwiseKind.EXP, UnaryElementwiseKind.SIGMOID, UnaryElementwiseKind.RECIPROCAL)) {
-            assertEquals(type == DataType.FLOAT32,
-                    supports(new Operation(kind, NoOperationAttrs.INSTANCE), value, value), kind.name());
-        }
-        for (var kind : List.of(ScalarElementwiseKind.ADD, ScalarElementwiseKind.SUB,
-                ScalarElementwiseKind.DIV, ScalarElementwiseKind.MIN, ScalarElementwiseKind.MAX,
-                ScalarElementwiseKind.POW)) {
-            assertEquals(type == DataType.FLOAT32,
-                    supports(new Operation(kind, new ScalarValueAttrs(scalar(type, 2.0f))),
-                            value, value), kind.name());
-        }
+    @Test
+    void float64ScalarAdmissionRetainsExactReluAndClampButRejectsNumericalMath() {
         TensorDescriptor float64 = value(DataType.FLOAT64, Shape.scalar(), false);
         assertTrue(supports(new Operation(UnaryElementwiseKind.RELU, NoOperationAttrs.INSTANCE),
                 float64, float64));
