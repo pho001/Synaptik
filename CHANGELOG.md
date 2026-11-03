@@ -40,7 +40,8 @@
 
 - Shared Metal FLOAT32/BFLOAT16/FLOAT16 matmul, convolution, pooling and overlapping
   axis/image fold execution owners, with FLOAT32 working sites and one final low-format
-  conversion. General scatter reductions and Gather cotangents retain original value carriers,
+  conversion after actual additions; single-contributor fold sites preserve original raw words.
+  General scatter reductions and Gather cotangents retain original value carriers,
   multidimensional indices and gradient flags. Raw signed slices materialize all seven carriers;
   mixed floating comparisons use exact represented-value ordering. Metal FLOAT64 folding remains
   non-overlapping and CPU BFLOAT16/FLOAT16 arithmetic restrictions remain unchanged.
