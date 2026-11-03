@@ -27,8 +27,10 @@ The licensing decision is resolved for this internal scope; future public redist
 separate owner authorization. This changes no technical acceptance or required backend/workflow.
 
 The [reviewed support matrix](../backend-guide/production-support.md) freezes the first-release
-scope and distinguishes actual numerical/workflow evidence from pending qualification. Scope and
-evidence classification have independent approval; code repairs and release acceptance remain open.
+scope and separates execution counts from independent numerical/workflow proof. Required code
+repairs and bounded local source/runtime qualification are accepted. The separate documentation-
+only artifact-freeze receipt binds final candidate acceptance to the actual archive checksums
+and preservation of the qualified non-documentation bytes; it is not an open implementation gate.
 
 ## Engineering acceptance
 
@@ -145,46 +147,47 @@ The user's project order is:
 
 The release gate flow is scope freeze → required CPU/Metal blocker fixes → a frozen release
 candidate (RC) and the checklist below. oneDNN is not a prerequisite for the first release.
-Metal's production role is decided; its exact supported scope still needs qualification against
-hardware limits. No new oneDNN architecture, build layout, native binary interface or dependencies
-are selected.
+Metal's production role and qualified hardware-bounded scope are settled by the accepted support
+matrix. No new oneDNN architecture, build layout, native binary interface or dependencies are selected.
 
-Compiler0017 and CPU0081 are now Ready for the complete mandatory all-valid/length typed selected-
-proof/activity/ordinary-unit cutover after independent authority/interface APPROVE0 and exact
-dirty-source admission. This is active implementation, not a deferred or narrower whitelist goal.
+Compiler0017 and CPU0081's complete all-valid/length typed selected-proof/activity/ordinary-unit
+cutover is integrated and qualified. Pool3d training and the CPU/Metal operation audit additionally
+passed independent numerical, joined-root and installed-artifact/source consumer gates. Historical
+Ready/dirty-source launch records do not describe the current implementation state.
 
 ## Release acceptance checklist
 
-Unchecked items are not yet accepted against the frozen scope.
+The checked items below are accepted for the explicit bounded matrix and local candidate recorded
+in the [support ledger](../backend-guide/production-support.md#accepted-local-candidate-pool3d-and-operation-audit-closure).
 
-- [ ] Publish a truthful operation × dtype × shape/layout × forward/backward × backend matrix,
+- [x] Publish a truthful operation × dtype × shape/layout × forward/backward × backend matrix,
   including applicable strategies and whole generated derivative closure. Java CPU F32/F64 have
   equal declared support; audit the temporary CPU low-arithmetic lock separately from retained
   implementation, shared types, storage/transfer/conversion and discrete semantics. Freeze CNN
   ranks through Conv3d under explicit dtype/geometry predicates, and qualify Metal's separate production support matrix.
-- [ ] Verify BF16/FP16 floating computation is locked on Java CPU without deleting its existing
+- [x] Verify BF16/FP16 floating computation is locked on Java CPU without deleting its existing
   implementation or disabling retained storage/raw transfers/conversions and discrete semantics.
   No implicit low-precision CPU fallback or expansion of the locked capability is permitted.
-- [ ] Qualify exact/discrete results and permitted floating approximations under the existing
+- [x] Qualify exact/discrete results and permitted floating approximations under the existing
   [single Model numerical semantics](../architecture/contracts/foundational-modules.md#profile-free-numerical-semantics).
   Use operation-specific test tolerances, special-value and saved-value checks, not new numerical
   profiles, runtime tolerance stores, certificates or wrapper layers.
-- [ ] Pass complete MLP, CNN and runtime-length RNN scenarios in both CPU dtypes: compute,
+- [x] Pass complete MLP, CNN and runtime-length RNN scenarios in both CPU dtypes: compute,
   configure training, repeated updates, save, load, compare restored inference and configure/train
   again. Cover changed inputs, relevant lengths/empty domains and actual backward numerics, not
   only construction, admission or forward smoke tests.
-- [ ] Pass real-device Metal conformance and supported consumer workflows against its frozen
+- [x] Pass real-device Metal conformance and supported consumer workflows against its frozen
   production matrix using a source-matched native package and reproducible installation.
   Record hardware/environment and limitations; compile-only or device-skipped checks are insufficient.
-- [ ] Verify invalid-input errors, failure ordering/cleanup, close and borrowed-resource lifetimes,
+- [x] Verify invalid-input errors, failure ordering/cleanup, close and borrowed-resource lifetimes,
   repeated-run memory growth and concurrency under current contracts, with no stale inputs,
   accumulating resources or partial state publication.
-- [ ] Verify a clean installation and runnable documented API examples without developer-local paths;
+- [x] Verify a clean installation and runnable documented API examples without developer-local paths;
   ship accurate support/limitations, API documentation, licences and third-party notices.
-- [ ] Freeze an RC matched to the validated source. Pass affected tests and one appropriate
+- [x] Freeze an RC matched to the validated source. Pass affected tests and one appropriate
   root/integration checkpoint, with environment, skips and limitations recorded. Historical failed
   commands remain failed; targeted recovery does not rename them PASS or imply a clean full suite.
-- [ ] Use short representative performance regressions and generated-versus-optimal-clean-Java
+- [x] Use short representative performance regressions and generated-versus-optimal-clean-Java
   structural/performance checks for actual hot-path changes. Global speed parity or a five-fork
   benchmark campaign is not a release gate; diagnosed avoidable overhead still needs disposition.
 
@@ -198,7 +201,8 @@ computation remains part of the target; unlocking requires a later explicit deci
 F64 parity and all-pure-operation Scan composition do not move into optional later work.
 Existing compatibility gates remain in force.
 
-The 3D CNN scope is settled by the reviewed matrix above. Metal's required first-release production
-role is settled; its exact support qualification and release acceptance remain unfinished. The
-[roadmap](roadmap.md#current-priority-and-next-design-decision) remains the execution index;
-no successor tasks or implementation grants are created here.
+The 3D CNN scope and Metal's required first-release production role are settled. The Pool3d
+and CPU/Metal operation-audit candidate is locally accepted against its explicit support
+matrix and exact artifact receipts, not as universal operation/geometry coverage or public
+distribution approval. The [roadmap](roadmap.md#current-priority-and-next-design-decision)
+remains the execution index; no successor tasks or implementation grants are created here.

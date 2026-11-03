@@ -256,3 +256,43 @@ observations with warmup/host/storage limits, not a speed or zero-allocation pro
 The owner chose private/internal distribution: no public licence or registry publication is
 selected. Cephes/Gradle notices remain packaged; they do not grant public rights to the project's
 own code. Final candidate acceptance is recorded separately against its actual frozen artifacts.
+
+## Accepted local candidate: Pool3d and operation-audit closure
+
+The private/internal 0.1.0 candidate passed the joined `test build releaseDistribution` gate
+on 2026-11-03. The gate reported 220 actionable tasks: 106 executed, five from cache and 109
+up-to-date; it does not claim every test was freshly rerun in that command. The preceding
+unfiltered joined `test build` also passed. Earlier failed commands remain failed evidence.
+
+Fresh catalog replay against the qualified code reproduced the CPU 804 forward/736 actual-AD
+and Metal 744 forward/494 actual-AD totals above, with zero execution-stage gaps. Separate
+independent numerical replay passed CPU 178 and Metal 93 all-role cases plus 136 exact-domain
+cases in each of two isolated installations: a Maven consumer declaring only `nn:0.1.0`, and
+a clean no-Git source build with build cache disabled and all sixteen classes tasks rerun.
+Every one of the sixteen resolved runtime JARs matched the published bytes. Neither runtime
+classpath used checkout classes or old product JARs.
+
+Both installations passed CPU F32/F64 and Metal-only F32 MLP/CNN/runtime-length RNN workflows,
+Conv3d → max/average Pool3d → dense all-parameter training/save/close/load/fresh training, and
+24 Pool3d Scan finite-difference/cold replay cases across the qualified types, both activity
+modes and both traversal directions. The documented FluentModelExample produced `6`, `25`,
+`-2` from installed artifacts and independently compiled extracted classes.
+
+The native package was rebuilt from the qualified source, locally signed, extracted and
+verified outside the checkout, then exercised on Apple M3 Max with JDK 26 and explicit native
+access, without preview or the incubator Vector module. Short promoted-ADD and offset-SELECT/ADD
+timings are retained as report-only public-execution observations; they include ownership/
+scheduling and GPU-transfer costs, unlike the clean-Java kernel-only reference. No global
+speed parity, allocation plateau or throughput SLA is inferred.
+
+The versioned `build/release/0.1.0/verification.json`, `SHA256SUMS` and `qualification/` records
+bind source provenance, artifact/native hashes, commands, failure/recovery history, exact
+catalog rows, installation logs and limitations. The final documentation-only artifact freeze
+must retain the qualified non-documentation bytes. Acceptance is for this explicit matrix,
+not arbitrary geometry, newly unlocked CPU low arithmetic, general Metal F64 arithmetic,
+fixed-recurrent BPTT, public licensing/registry publication or a trusted public native prebuilt.
+
+The successful root gate accepted 794 retained JUnit suite reports: 5,852 tests, 65 skips,
+zero failures and zero errors. Metal contributes 545 tests with ten skips; actual-GPU numerical
+and installed-consumer proof above is separate from those skips. Cached/up-to-date report
+acceptance is not reported as a fresh execution of every test.
