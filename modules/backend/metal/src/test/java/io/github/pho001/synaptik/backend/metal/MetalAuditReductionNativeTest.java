@@ -19,6 +19,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 
 /** Device regressions for ordinary, masked, affine and stored-value reductions. */
@@ -549,28 +550,40 @@ class MetalAuditReductionNativeTest {
             int[] targetIndices = new int[siblingTargets.length + 1];
             targetIndices[0] = target;
             System.arraycopy(siblingTargets, 0, targetIndices, 1, siblingTargets.length);
-            executable = api.createProgramExecutable(context, values, new MetalMpsGraphProgram(nodes),
-                    feeds, targetIndices, MetalPreparedRoute.CUSTOM_PROGRAM);
-            MemorySegment all = arena.allocate(ADDRESS, values.size());
-            for (int index = 0; index < values.size(); index++) {
-                var buffer = api.createBuffer(context, values.get(index).byteCount());
-                buffers.add(buffer); all.setAtIndex(ADDRESS, index, buffer.carrier());
+            var program = new MetalMpsGraphProgram(nodes);
+            var route = nodes.stream().anyMatch(node -> MetalPointwiseFusionPlanner.fixedCustom(node, values))
+                    ? MetalPreparedRoute.CUSTOM_PROGRAM : MetalPreparedRoute.MPSGRAPH;
+            var fusion = route == MetalPreparedRoute.CUSTOM_PROGRAM
+                    ? MetalPointwiseFusionPlanner.plan(program, values, feeds, targetIndices, route) : null;
+            executable = api.createProgramExecutable(context, values, program,
+                    feeds, targetIndices, route, fusion);
+            int[] slots = fusion == null
+                    ? IntStream.range(0, values.size()).toArray() : fusion.programToMaterializedSlot();
+            int[] materialized = fusion == null ? slots : fusion.materializedProgramValueIndices();
+            for (int value : materialized) {
+                buffers.add(api.createBuffer(context, values.get(value).byteCount()));
+            }
+            int inputCount = route == MetalPreparedRoute.CUSTOM_PROGRAM ? buffers.size() : feeds.length;
+            MemorySegment inputs = arena.allocate(ADDRESS, inputCount);
+            for (int index = 0; index < inputCount; index++) {
+                int slot = route == MetalPreparedRoute.CUSTOM_PROGRAM ? index : slots[feeds[index]];
+                inputs.setAtIndex(ADDRESS, index, buffers.get(slot).carrier());
             }
             for (int index = 0; index < feeds.length; index++) {
                 MemorySegment source = arena.allocate(initial[index].length, 1);
                 MemorySegment.copy(initial[index], 0, source, JAVA_BYTE, 0, initial[index].length);
-                api.upload(buffers.get(feeds[index]), 0, source, source.byteSize());
+                api.upload(buffers.get(slots[feeds[index]]), 0, source, source.byteSize());
             }
             MemorySegment targets = arena.allocate(ADDRESS, targetIndices.length);
             for (int index = 0; index < targetIndices.length; index++) {
-                targets.setAtIndex(ADDRESS, index, buffers.get(targetIndices[index]).carrier());
+                targets.setAtIndex(ADDRESS, index, buffers.get(slots[targetIndices[index]]).carrier());
             }
-            api.runExecutable(executable, buffers.size(), all, targetIndices.length, targets);
+            api.runExecutable(executable, inputCount, inputs, targetIndices.length, targets);
             MemorySegment result = arena.allocate(values.get(target).byteCount(), 1);
-            api.download(buffers.get(target), 0, result, result.byteSize());
+            api.download(buffers.get(slots[target]), 0, result, result.byteSize());
             for (int index = 0; index < feeds.length; index++) {
                 MemorySegment source = arena.allocate(initial[index].length, 1);
-                api.download(buffers.get(feeds[index]), 0, source, source.byteSize());
+                api.download(buffers.get(slots[feeds[index]]), 0, source, source.byteSize());
                 assertArrayEquals(initial[index], source.toArray(JAVA_BYTE));
             }
             return result.toArray(JAVA_BYTE);
