@@ -14,7 +14,7 @@ import java.util.stream.IntStream;
  * ordinary family equations and trailing feature products remain intact; no sample batch is
  * substituted. Physical body materializations use the same canonical ordinary native-ABI validator
  * as nonempty units, scoped explicitly to Scan. Neither empty cardinality nor child support grants
- * ordinary public empty/symbolic admission, low arithmetic or missing body control.
+ * ordinary public empty/symbolic admission or missing body control.
  */
 final class MetalScanBodySupport {
     private MetalScanBodySupport() {}
@@ -33,7 +33,8 @@ final class MetalScanBodySupport {
             for (var descriptor : descriptors) {
                 DataType type = descriptor.dataType();
                 if (!descriptor.shape().isFullyStatic() || descriptor.shape().rank() > 16 || descriptor.layout().isEmpty()
-                        || type != DataType.FLOAT32 && type != DataType.BOOL && type != DataType.INT32 && type != DataType.INT64) return false;
+                        || !MetalScanLowering.numericCarrier(type) && type != DataType.BOOL
+                                && type != DataType.INT32 && type != DataType.INT64) return false;
                 long trailing = 1;
                 for (int a = descriptor.shape().rank() - 1; a >= 0; a--) {
                     long extent = descriptor.shape().dimension(a).staticSize().orElseThrow(); empty |= extent == 0;

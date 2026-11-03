@@ -46,11 +46,15 @@ class MetalScanPlanTest {
     }
 
     @Test void zeroTimeAndZeroBatchDoNotEraseBindingsOrStructuralValidation() {
-        for (boolean lengths : List.of(false, true)) for (boolean reverse : List.of(false, true)) {
+        for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16))
+            for (boolean lengths : List.of(false, true)) for (boolean reverse : List.of(false, true)) {
             for (long time : new long[] {0, 3}) for (long batch : new long[] {0, 1}) {
-                var query = additiveQuery(time, batch, lengths, reverse);
+                var query = additiveQuery(type, time, batch, lengths, reverse);
                 assertTrue(MetalScanLowering.supports(query));
-                assertEquals(reverse, MetalScanLowering.plan(query).header().reverse());
+                var plan = MetalScanLowering.plan(query);
+                assertEquals(reverse, plan.header().reverse());
+                assertEquals(batch * type.byteWidth(), plan.values().getFirst().byteSize());
+                assertDoesNotThrow(() -> MetalScanEncoding.validate(MetalScanEncoding.encode(plan)));
             }
         }
         var valid = additiveQuery(0, 0, true, false);
@@ -59,7 +63,7 @@ class MetalScanPlanTest {
         assertFalse(MetalScanLowering.supports(wrong), "T=B=0 does not hide a malformed carry result");
     }
 
-    @Test void independentLowAndSymbolicDomainsAreNotGrantedByTheBinder() {
+    @Test void mismatchedCarriersMissingBodiesAndSymbolicDomainsAreNotGrantedByTheBinder() {
         var valid = additiveQuery(3, 2, false, false);
         var inputs = new java.util.ArrayList<>(valid.inputs());
         inputs.set(0, descriptor(DataType.FLOAT16, 2, 1));
@@ -82,6 +86,33 @@ class MetalScanPlanTest {
         assertThrows(IllegalArgumentException.class, () -> MetalScanEncoding.validate(overlap));
         long[] wideType = valid.clone(); wideType[Math.toIntExact(wideType[23]) + 1] = 0x1_0000_0001L;
         assertThrows(IllegalArgumentException.class, () -> MetalScanEncoding.validate(wideType));
+    }
+
+    @Test void lowCarrierWidthsAndOriginalGradientFlagsSurviveTheIndependentCodec() {
+        for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            var query = additiveQuery(type, 3, 2, false, false);
+            var original = query.scanBody().orElseThrow();
+            var graph = original.graph();
+            var values = graph.values().stream().map(v -> new GraphValue(v.id(), gradient(v.descriptor()))).toList();
+            var differentiated = new CompiledGraphModel(values, graph.nodes(), graph.inputs(), graph.outputs(),
+                    Map.of(graph.nodes().getFirst().id(), GraphPhase.FORWARD));
+            var body = new CompiledScanBody(differentiated, original.nextCarry(), original.emissions(),
+                    original.residuals(), original.demandedOutputIndices());
+            var typed = new OperationCapabilityQuery(query.operation(), query.inputs().stream().map(MetalScanPlanTest::gradient).toList(),
+                    query.outputs().stream().map(MetalScanPlanTest::gradient).toList(), Optional.of(body), Optional.empty());
+            var plan = MetalScanLowering.plan(typed);
+            var decoded = MetalScanDecoding.decode(MetalScanEncoding.encode(plan));
+            assertTrue(decoded.values().stream().allMatch(v -> v.descriptor().requiresGrad()));
+            assertEquals(2L * type.byteWidth(), decoded.values().getFirst().byteSize());
+            long[] forged = MetalScanEncoding.encode(plan);
+            forged[Math.toIntExact(forged[23]) + 8] = 2L * (type.byteWidth() == 4 ? 2 : 4);
+            assertThrows(IllegalArgumentException.class, () -> MetalScanEncoding.validate(forged),
+                    "physical byte count must use the original carrier");
+        }
+    }
+
+    private static TensorDescriptor gradient(TensorDescriptor descriptor) {
+        return new TensorDescriptor(descriptor.dataType(), descriptor.shape(), descriptor.layout(), true);
     }
 
     @Test void rawOuterReferencesContainOnlyDemandedCanonicalPorts() {
@@ -231,6 +262,67 @@ class MetalScanPlanTest {
         return new OperationCapabilityQuery(new Operation(ScanKind.SCAN, attrs), inputs,
                 List.of(step, descriptor(type, time, batch, 1), descriptor(type, time, batch, 1)),
                 Optional.of(body), Optional.empty());
+    }
+
+    @Test void variadicBodyKeepsEveryRepeatedReferenceBeyondSixteen() {
+        for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16))
+            for (int arity : new int[] {33, 257}) for (boolean stack : List.of(false, true))
+                for (boolean lengths : List.of(false, true)) {
+                    var plan = MetalScanLowering.plan(variadicQuery(type, arity, stack, lengths, false));
+                    var decoded = MetalScanDecoding.decode(MetalScanEncoding.encode(plan));
+                    assertEquals(arity, decoded.units().getFirst().node().inputs().length);
+                    assertTrue(java.util.Arrays.stream(decoded.units().getFirst().node().inputs()).allMatch(i -> i == 0));
+                }
+    }
+
+    static OperationCapabilityQuery variadicQuery(DataType type, int arity, boolean stack, boolean lengths, boolean reverse) {
+        var input = descriptor(type, 2, 1);
+        long[] shape = stack ? new long[] {2, arity, 1} : new long[] {2, arity};
+        var output = descriptor(type, shape);
+        var x = new ValueId(0); var y = new ValueId(1);
+        var operation = new Operation(stack
+                ? io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind.STACK
+                : io.github.pho001.synaptik.model.operation.layout.TensorCompositionKind.CONCAT,
+                new io.github.pho001.synaptik.model.operation.layout.CompositionAxisAttrs(1));
+        var node = new CompiledNode(new NodeId(0), operation, java.util.Collections.nCopies(arity, x), List.of(y));
+        var graph = new CompiledGraphModel(List.of(new GraphValue(x, input), new GraphValue(y, output)), List.of(node),
+                List.of(x), List.of(y), Map.of(node.id(), GraphPhase.FORWARD));
+        var body = new CompiledScanBody(graph, List.of(), List.of(y), List.of(), List.of(0));
+        var attrs = lengths ? new ScanAttrs(2, 0, 1, 0, 1, 0, reverse, true, 0, List.of(OptionalInt.of(0)))
+                : new ScanAttrs(2, 0, 1, 0, 1, 0, reverse);
+        var inputs = new java.util.ArrayList<>(List.of(descriptor(type, 2, 2, 1)));
+        if (lengths) inputs.add(descriptor(DataType.INT64, 2));
+        long[] history = new long[shape.length + 1]; history[0] = 2;
+        System.arraycopy(shape, 0, history, 1, shape.length);
+        return new OperationCapabilityQuery(new Operation(ScanKind.SCAN, attrs), inputs,
+                List.of(descriptor(type, history)), Optional.of(body), Optional.empty());
+    }
+
+    static OperationCapabilityQuery sourceOnlyQuery(DataType type, long time, long batch, boolean lengths, boolean reverse) {
+        var step = descriptor(type, batch, 1);
+        var invariant = descriptor(type);
+        var h = new ValueId(0); var x = new ValueId(1); var k = new ValueId(2);
+        var graph = new CompiledGraphModel(List.of(new GraphValue(h, step), new GraphValue(x, step), new GraphValue(k, invariant)),
+                List.of(), List.of(h, x, k), List.of(h, x, k), Map.of());
+        var body = new CompiledScanBody(graph, List.of(h), List.of(x), List.of(k), List.of(0, 1, 2));
+        var attrs = lengths ? new ScanAttrs(time, 1, 1, 1, 1, 1, reverse, true, 1, List.of(OptionalInt.of(0)))
+                : new ScanAttrs(time, 1, 1, 1, 1, 1, reverse);
+        var inputs = new java.util.ArrayList<>(List.of(step, descriptor(type, time, batch, 1), invariant));
+        if (lengths) inputs.add(descriptor(DataType.INT64, batch));
+        return new OperationCapabilityQuery(new Operation(ScanKind.SCAN, attrs), inputs,
+                List.of(step, descriptor(type, time, batch, 1), descriptor(type, time)), Optional.of(body), Optional.empty());
+    }
+
+    @Test void sourceOnlyPlansKeepTypedInvariantsAndRealEmptyDomains() {
+        for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16, DataType.BOOL, DataType.INT32, DataType.INT64))
+            for (long time : new long[] {0, 3}) for (long batch : new long[] {0, 2})
+                for (boolean lengths : List.of(false, true)) for (boolean reverse : List.of(false, true)) {
+                    var plan = MetalScanLowering.plan(sourceOnlyQuery(type, time, batch, lengths, reverse));
+                    assertTrue(plan.units().isEmpty());
+                    assertEquals(3, plan.formals().size());
+                    assertEquals(type.byteWidth(), plan.values().get(2).byteSize());
+                    assertDoesNotThrow(() -> MetalScanEncoding.validate(MetalScanEncoding.encode(plan)));
+                }
     }
 
     static TensorDescriptor descriptor(DataType type, long... dimensions) {

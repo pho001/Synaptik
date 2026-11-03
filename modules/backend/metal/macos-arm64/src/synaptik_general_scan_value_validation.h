@@ -29,7 +29,6 @@ static NSData *synaptik_scan_validation_roles(SynaptikMetalDecodedNode node,
         const int32_t *allValueRowAxes, const uint64_t *allValueRowInner,
         uint32_t semanticScatterReduction) {
     if (shapes == nil || types == NULL || allValueRowAxes == NULL || allValueRowInner == NULL
-            || node.input_count > SYNAPTIK_MAX_NODE_INPUTS
             || node.output_count == 0U || node.output_count > SYNAPTIK_MAX_NODE_OUTPUTS)
         return nil;
     BOOL scatter = synaptik_scan_validation_scatter(node.operation);
@@ -99,6 +98,7 @@ static NSData *synaptik_scan_validation_roles(SynaptikMetalDecodedNode node,
         if (node.operation == 18U || node.operation == 70U) meta->attrs[0] = node.axis;
         meta->attrs[1] = semanticScatterReduction;
         for (uint32_t role = 0U; role < 3U; role++) {
+            meta->roleTypes[role] = roles[role].type;
             meta->roleRanks[role] = roles[role].rank;
             for (uint32_t axis = 0U; axis < roles[role].rank; axis++) {
                 meta->roleDims[role][axis] = roles[role].dimensions[axis];
@@ -153,8 +153,7 @@ static int32_t synaptik_scan_validate_value_domains(SynaptikMetalProgramStep *st
         SynaptikMetalDecodedNode node, id<MTLBuffer> __unsafe_unretained const *buffers,
         uint32_t bufferCount, const NSUInteger *offsets,
         const uint64_t *control, const SynaptikMetalScanStepControl *stepControl) {
-    if (step == nil || buffers == NULL || offsets == NULL || control == NULL || stepControl == NULL
-            || node.input_count > SYNAPTIK_MAX_NODE_INPUTS)
+    if (step == nil || buffers == NULL || offsets == NULL || control == NULL || stepControl == NULL)
         return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
     __unsafe_unretained NSData *facts = step.scanValidationRoles;
     NSUInteger roleBytes = (NSUInteger)node.input_count * sizeof(SynaptikMetalScanValidationRole);

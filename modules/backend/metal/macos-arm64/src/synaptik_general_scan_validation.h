@@ -6,7 +6,8 @@
  * zero extents are retained. No sample batch, positive-shape stand-in or runtime data is used.
  * Include after the ordinary and joined numerical validators, before Scan plan construction.
  */
-static BOOL synaptik_scan_numeric_type(uint8_t type) { return type == 1U || type == 2U || type == 6U; }
+static BOOL synaptik_scan_floating_type(uint8_t type) { return type == 1U || type == 5U || type == 7U; }
+static BOOL synaptik_scan_numeric_type(uint8_t type) { return synaptik_scan_floating_type(type) || type == 2U || type == 6U; }
 static BOOL synaptik_scan_index_type(uint8_t type) { return type == 2U || type == 6U; }
 static BOOL synaptik_scan_carrier_type(uint8_t type) { return synaptik_scan_numeric_type(type) || type == 3U; }
 static BOOL synaptik_scan_shape_product(MPSShape *shape, uint64_t *elements) {
@@ -71,30 +72,35 @@ static BOOL synaptik_scan_validate_ordinary(SynaptikMetalDecodedNode node, NSArr
     switch (node.operation) {
         case 1U: case 12U: case 52U: case 53U: case 54U: case 55U: case 56U: case 57U: case 58U: case 59U:
         case 60U: case 61U: case 62U: case 63U: case 64U: case 65U: case 66U: case 67U: case 68U:
-            return inputType == 1U && outputType == 1U && sameShape && node_has_no_attributes(node);
+            return synaptik_scan_floating_type(inputType) && outputType == inputType && sameShape && node_has_no_attributes(node);
         case 2U: case 3U: case 4U: case 5U: case 38U:
-            return inputType == 1U && types[node.second_input] == 1U && outputType == 1U && node_has_no_attributes(node)
+            return synaptik_scan_floating_type(inputType) && synaptik_scan_floating_type(types[node.second_input])
+                    && outputType == task0066_promote_floating(inputType, types[node.second_input]) && node_has_no_attributes(node)
                     && shape_broadcasts_exactly_to(input, shapes[node.second_input], output);
         case 20U: case 21U: case 22U: case 23U: case 24U: case 25U:
             return synaptik_scan_numeric_type(inputType) && types[node.second_input] == inputType
                     && outputType == 3U && node_has_no_attributes(node)
                     && shape_broadcasts_exactly_to(input, shapes[node.second_input], output);
         case 26U: case 27U:
-            return synaptik_scan_numeric_type(inputType) && types[node.second_input] == inputType && outputType == inputType
+            return ((synaptik_scan_floating_type(inputType) && synaptik_scan_floating_type(types[node.second_input])
+                            && outputType == task0066_promote_floating(inputType, types[node.second_input]))
+                    || (synaptik_scan_index_type(inputType) && types[node.second_input] == inputType && outputType == inputType))
                     && node_has_no_attributes(node) && shape_broadcasts_exactly_to(input, shapes[node.second_input], output);
         case 28U: case 29U: case 46U: case 47U: case 48U: case 49U: case 50U:
-            return inputType == 1U && outputType == 1U && sameShape && node.attribute_kind == 7U && node.attribute_count == 1U;
+            return synaptik_scan_floating_type(inputType) && outputType == inputType && sameShape && node.attribute_kind == 7U && node.attribute_count == 1U;
         case 30U:
-            return inputType == 1U && outputType == 1U && sameShape && node.attribute_kind == 8U && node.attribute_count == 2U;
+            return synaptik_scan_floating_type(inputType) && outputType == inputType && sameShape && node.attribute_kind == 8U && node.attribute_count == 2U;
         case 40U: case 41U: case 42U:
-            return inputType == 1U && outputType == 3U && sameShape && node_has_no_attributes(node);
+            return synaptik_scan_floating_type(inputType) && outputType == 3U && sameShape && node_has_no_attributes(node);
         case 43U: case 44U:
             return inputType == 3U && types[node.second_input] == 3U && outputType == 3U && node_has_no_attributes(node)
                     && shape_broadcasts_exactly_to(input, shapes[node.second_input], output);
         case 45U:
             return inputType == 3U && outputType == 3U && sameShape && node_has_no_attributes(node);
         case 51U:
-            return inputType == 3U && types[node.second_input] == 1U && types[node.inputs[2]] == 1U && outputType == 1U
+            return inputType == 3U && synaptik_scan_floating_type(types[node.second_input])
+                    && synaptik_scan_floating_type(types[node.inputs[2]])
+                    && outputType == task0066_promote_floating(types[node.second_input], types[node.inputs[2]])
                     && node.attribute_kind == 0U && node.attribute_count == 0U && node.axis == UINT32_MAX
                     && node_values_are_zero_from(node, 0U) && shape_broadcasts_exactly_to(shapes[node.second_input], shapes[node.inputs[2]], output)
                     && shape_broadcasts_exactly_to(input, output, output);
@@ -112,7 +118,8 @@ static BOOL synaptik_scan_validate_ordinary(SynaptikMetalDecodedNode node, NSArr
         case 11U: return inputType == outputType && sameShape && node_has_no_attributes(node);
         case 15U: {
             uint8_t right = types[node.second_input];
-            BOOL typed = inputType == 1U && right == 1U && outputType == 1U;
+            BOOL typed = synaptik_scan_floating_type(inputType) && synaptik_scan_floating_type(right)
+                    && outputType == task0066_promote_floating(inputType, right);
             if (synaptik_scan_index_type(inputType) && synaptik_scan_index_type(right))
                 typed = outputType == (inputType == 6U || right == 6U ? 6U : 2U);
             return typed && node_has_no_attributes(node)
@@ -128,7 +135,7 @@ static BOOL synaptik_scan_validate_ordinary(SynaptikMetalDecodedNode node, NSArr
                     && node_scatter_elements_matches(node, input, shapes[node.second_input], shapes[node.inputs[2]], output);
         case 19U: return inputType == outputType && node_unfold_axis_matches(node, input, output);
         case 33U: case 34U:
-            return inputType == 1U && outputType == 1U && sameShape && node.attribute_kind == 9U
+            return synaptik_scan_numeric_type(inputType) && outputType == inputType && sameShape && node.attribute_kind == 9U
                     && node.axis < input.count && node.attribute_count == 2U
                     && node.attribute_values[0] <= 1U && node.attribute_values[1] <= 1U;
         case 39U:
@@ -149,23 +156,31 @@ static BOOL synaptik_scan_validate_ordinary(SynaptikMetalDecodedNode node, NSArr
             return task0059_validate_shape(node, shapes);
         case 80U:
             return synaptik_scan_numeric_type(inputType) && outputType == inputType
-                    && (inputType == SYNAPTIK_METAL_TYPE_FLOAT32
+                    && (synaptik_scan_floating_type(inputType)
                             || node.attribute_values[1] >= node.attribute_values[0])
                     && task0059_validate_shape(node, shapes);
         case 81U: case 82U: case 83U: case 84U:
-            return inputType == 1U && outputType == 1U && task0059_validate_shape(node, shapes);
+            return synaptik_scan_floating_type(inputType) && outputType == inputType && task0059_validate_shape(node, shapes);
         case 85U: {
             uint64_t reduction = node.attribute_values[0];
-            return inputType == 1U && types[node.second_input] == 1U && outputType == 1U
+            return synaptik_scan_floating_type(inputType) && types[node.second_input] == inputType && outputType == inputType
                     && input.count != 0U && [input isEqualToArray:shapes[node.second_input]]
                     && node.attribute_kind == 25U && node.attribute_count == 1U
                     && reduction >= 1U && reduction <= 3U && node.axis == UINT32_MAX
                     && node.auxiliary == 0U && node_values_are_zero_from(node, 1U)
                     && (reduction == 1U ? sameShape : output.count == 0U);
         }
-        case 36U: case 37U: case 97U: case 98U: case 99U: case 100U:
-            for (uint32_t i = 0U; i < node.input_count; i++) if (types[node.inputs[i]] != 1U) return NO;
-            return outputType == 1U && task0064_validate_scan_node(node, shapes, states);
+        case 36U: case 37U: {
+            if (!synaptik_scan_floating_type(inputType)) return NO;
+            uint8_t promoted = inputType;
+            for (uint32_t i = 1U; i < node.input_count; i++) {
+                if (!synaptik_scan_floating_type(types[node.inputs[i]])) return NO;
+                promoted = task0066_promote_floating(promoted, types[node.inputs[i]]);
+            }
+            return outputType == promoted && task0064_validate_scan_node(node, shapes, states);
+        }
+        case 97U: case 98U: case 99U: case 100U:
+            return synaptik_scan_floating_type(inputType) && outputType == inputType && task0064_validate_scan_node(node, shapes, states);
         case 31U: case 32U:
             return synaptik_scan_numeric_type(inputType) && outputType == inputType && synaptik_scan_exact_reduction_shape(node, input, output);
         case 106U:

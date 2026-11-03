@@ -59,7 +59,7 @@ final class MetalScanDecoding {
             int record = Math.addExact(13, Math.multiplyExact(rank, 2));
             if (w[cursor] != record || record > w[24] - cursor) throw malformed();
             DataType type = carrier(w[cursor + 1]);
-            if (w[cursor + 3] < 0 || w[cursor + 3] > 1 || w[cursor + 3] != 0 && type != DataType.FLOAT32
+            if (w[cursor + 3] < 0 || w[cursor + 3] > 1 || w[cursor + 3] != 0 && !MetalScanLowering.numericCarrier(type)
                     || w[cursor + 4] != 1 || w[cursor + 5] != 0 || w[cursor + 10] < 0 || w[cursor + 10] > 1 || w[cursor + 12] != 0) throw malformed();
             long[] dimensions = Arrays.copyOfRange(w, cursor + 13, cursor + 13 + rank);
             Shape shape = Shape.of(dimensions);
@@ -112,10 +112,13 @@ final class MetalScanDecoding {
         var units = new ArrayList<MetalScanPlan.Unit>();
         for (int u = 0; u < w[13]; u++) {
             if (w[25] - cursor < 14) throw malformed();
-            int inputs = bounded(w[cursor + 3], 16), outputs = bounded(w[cursor + 4], 5), attributes = bounded(w[cursor + 5], 65);
+            var kind = kind(w[cursor + 1]);
+            boolean variadic = kind == MetalMpsGraphProgram.NodeKind.CONCAT || kind == MetalMpsGraphProgram.NodeKind.STACK;
+            int inputs = bounded(w[cursor + 3], variadic ? MetalScanEncoding.MAX_WORDS : 16);
+            int outputs = bounded(w[cursor + 4], 5), attributes = bounded(w[cursor + 5], 65);
             int record = Math.addExact(14, Math.addExact(inputs, Math.addExact(outputs, attributes)));
             if (outputs == 0 || w[cursor] != record || record > w[25] - cursor) throw malformed();
-            var kind = kind(w[cursor + 1]); var attributeKind = attributeKind(w[cursor + 2]);
+            var attributeKind = attributeKind(w[cursor + 2]);
             int[] operandIds = indices(w, cursor + 14L, inputs, values.size()).stream().mapToInt(Integer::intValue).toArray();
             int[] outputIds = indices(w, cursor + 14L + inputs, outputs, values.size()).stream().mapToInt(Integer::intValue).toArray();
             for (int operand : operandIds) if (!available.contains(operand)) throw malformed();
@@ -189,14 +192,15 @@ final class MetalScanDecoding {
             if (w.length - cursor < 3) throw malformed();
             int position = bounded(w[cursor], Math.toIntExact(w[5]) - 1), nextScope = scope(w[cursor + 2], w[18]);
             if (nextScope < 0 || w[cursor + 1] < 0 || w[cursor + 1] > 1 || !numeric.add(position)
-                    || lengths && position >= w[10] || values.get(formals.get(position)).descriptor().dataType() != DataType.FLOAT32) throw malformed();
+                    || lengths && position >= w[10]
+                    || !MetalScanLowering.numericCarrier(values.get(formals.get(position)).descriptor().dataType())) throw malformed();
             carries.add(new ScanActivityPlan.Carry(position, w[cursor + 1] != 0, nextScope)); cursor += 3;
         }
         for (int s = 0; s < w[20]; s++) {
             if (cursor >= w.length) throw malformed();
             int position = Math.toIntExact(w[cursor++]);
             if (position < w[5] || position >= w[5] + w[6] || !seedSet.add(position)
-                    || values.get(formals.get(position)).descriptor().dataType() != DataType.FLOAT32) throw malformed();
+                    || !MetalScanLowering.numericCarrier(values.get(formals.get(position)).descriptor().dataType())) throw malformed();
             seeds.add(position);
         }
         for (int s = 0; s < w[18]; s++) {
@@ -209,7 +213,8 @@ final class MetalScanDecoding {
         for (int a = 0; a < w[21]; a++) {
             if (w.length - cursor < 2) throw malformed();
             int position = bounded(w[cursor], Math.toIntExact(w[5]) - 1), contribution = scope(w[cursor + 1], w[18]);
-            if (contribution < 0 || !numeric.add(position) || lengths && position < w[10]) throw malformed();
+            if (contribution < 0 || !numeric.add(position) || lengths && position < w[10]
+                    || !MetalScanLowering.numericCarrier(values.get(formals.get(position)).descriptor().dataType())) throw malformed();
             accumulators.add(new ScanActivityPlan.Accumulator(position, contribution)); cursor += 2;
         }
         if (cursor != w.length || activity && numeric.size() != w[5]) throw malformed();
@@ -324,7 +329,18 @@ final class MetalScanDecoding {
     }
     private static int scope(long value, long count) { if (value == -1) return -1; if (value < 0 || value >= count) throw malformed(); return Math.toIntExact(value); }
     private static int bounded(long value, int maximum) { if (value < 0 || value > maximum) throw malformed(); return (int) value; }
-    private static DataType carrier(long wire) { if (wire < 0 || wire > 6) throw malformed(); return switch ((int) wire) { case 1 -> DataType.FLOAT32; case 2 -> DataType.INT32; case 3 -> DataType.BOOL; case 6 -> DataType.INT64; default -> throw malformed(); }; }
+    private static DataType carrier(long wire) {
+        if (wire < 0 || wire > 7) throw malformed();
+        return switch ((int) wire) {
+            case 1 -> DataType.FLOAT32;
+            case 2 -> DataType.INT32;
+            case 3 -> DataType.BOOL;
+            case 5 -> DataType.BFLOAT16;
+            case 6 -> DataType.INT64;
+            case 7 -> DataType.FLOAT16;
+            default -> throw malformed();
+        };
+    }
     private static MetalMpsGraphProgram.NodeKind kind(long wire) { if (wire >= 101 && wire <= 105) throw malformed(); for (var kind : MetalMpsGraphProgram.NodeKind.values()) if (kind.wireIdentity() == wire && wire >= 1 && wire <= 115) return kind; throw malformed(); }
     private static MetalMpsGraphProgram.AttributeKind attributeKind(long wire) { for (var kind : MetalMpsGraphProgram.AttributeKind.values()) if (kind.wireIdentity() == wire && wire != 42) return kind; throw malformed(); }
 

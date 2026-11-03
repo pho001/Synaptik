@@ -3,8 +3,8 @@
 
 /* Included in the existing executable implementation after its ordinary metadata/build/encode
  * owners. No exported entry point, alternate ordinary decoder, or Runtime body executor is added.
- * This decoder consumes exactly MetalScanEncoding v1 attribute words in the enclosing authenticated
- * schema-21 program. All mutable local/control storage is a declared invocation workspace region.
+ * This decoder consumes exactly MetalScanEncoding v1 attribute words in the authenticated
+ * enclosing program schema. All mutable local/control storage is a declared invocation workspace region.
  */
 #include "synaptik_general_scan_binding_kernels.h"
 
@@ -28,6 +28,7 @@ typedef struct {
 @property(nonatomic, strong) NSData *words;
 @property(nonatomic, strong) NSData *values;
 @property(nonatomic, strong) NSData *units;
+@property(nonatomic, strong) NSData *inputReferences;
 @property(nonatomic, strong) NSData *valueScopes;
 @property(nonatomic, strong) NSData *carryOffsets;
 @property(nonatomic, strong) NSData *carryPromoted;
@@ -48,8 +49,9 @@ static BOOL synaptik_scan_multiply(uint64_t a, uint64_t b, uint64_t *result) {
     *result = a * b; return YES;
 }
 static uint32_t synaptik_scan_width(uint64_t type) {
-    switch (type) { case 1U: case 2U: return 4U; case 6U: return 8U; case 3U: return 1U; default: return 0U; }
+    switch (type) { case 1U: case 2U: return 4U; case 5U: case 7U: return 2U; case 6U: return 8U; case 3U: return 1U; default: return 0U; }
 }
+static BOOL synaptik_scan_differentiable_type(uint64_t type) { return type == 1U || type == 5U || type == 7U; }
 static BOOL synaptik_scan_scope(uint64_t scope, uint64_t count) {
     return scope == UINT64_MAX || scope < count;
 }
@@ -135,7 +137,7 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
         if (cursor > w[24] || w[24] - cursor < 13U) return nil;
         uint64_t *r = w + cursor, rank = r[2];
         if (rank > 16U || r[0] != 13U + 2U * rank || r[0] > w[24] - cursor
-                || synaptik_scan_width(r[1]) == 0U || r[3] > 1U || (r[3] != 0U && r[1] != 1U)
+                || synaptik_scan_width(r[1]) == 0U || r[3] > 1U || (r[3] != 0U && !synaptik_scan_differentiable_type(r[1]))
                 || r[4] != 1U || r[5] != 0U || r[10] > 1U || r[12] != 0U) return nil;
         int64_t row = (int64_t)r[9];
         if (row < -1 || row >= (int64_t)rank || (!lengthAware && (row != -1 || r[10] != 0U))
@@ -207,6 +209,22 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
         if (port >= w[15] || (d != 0U && port <= previousDemand)) return nil;
         previousDemand = port;
     }
+    /* Decode variable input vectors once into aligned, plan-owned storage. Nodes borrow
+     * these immutable references during preparation and execution, never a stack/inline copy. */
+    uint64_t inputReferenceCount = 0U, referenceCursor = w[24];
+    for (uint32_t u = 0U; u < unitCount; u++) {
+        if (referenceCursor > w[25] || w[25] - referenceCursor < 14U) return nil;
+        const uint64_t *record = w + referenceCursor;
+        if (record[0] < 14U || record[0] > w[25] - referenceCursor
+                || record[3] > record[0] - 14U
+                || !synaptik_scan_add(inputReferenceCount, record[3], &inputReferenceCount)) return nil;
+        referenceCursor += record[0];
+    }
+    if (referenceCursor != w[25] || inputReferenceCount > NSUIntegerMax / sizeof(uint32_t)) return nil;
+    NSMutableData *inputReferenceData = [NSMutableData dataWithLength:(NSUInteger)inputReferenceCount * sizeof(uint32_t)];
+    if (inputReferenceData == nil) return nil;
+    uint32_t *inputReferences = inputReferenceData.mutableBytes;
+    uint64_t inputReferenceOffset = 0U;
     NSMutableArray<SynaptikMetalProgramStep *> *steps = [NSMutableArray arrayWithCapacity:(NSUInteger)unitCount * 2U];
     NSMutableArray<id<MTLBuffer>> *controls = [NSMutableArray arrayWithCapacity:unitCount];
     cursor = w[24];
@@ -214,9 +232,11 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
         if (cursor > w[25] || w[25] - cursor < 14U) return nil;
         uint64_t *r = w + cursor;
         if (r[0] < 14U || r[0] > w[25] - cursor || r[0] != 14U + r[3] + r[4] + r[5]
-                || r[1] < 1U || r[1] > 115U || r[3] > SYNAPTIK_MAX_NODE_INPUTS || r[4] == 0U
+                || r[1] < 1U || r[1] > 115U
+                || ((r[1] != 77U && r[1] != 78U) && r[3] > SYNAPTIK_MAX_NODE_INPUTS) || r[4] == 0U
                 || r[4] > SYNAPTIK_MAX_NODE_OUTPUTS || r[5] > SYNAPTIK_MAX_ATTRIBUTE_WORDS
-                || r[3] < SYNAPTIK_MIN_INPUTS[r[1]] || r[3] > SYNAPTIK_MAX_INPUTS[r[1]]
+                || r[3] < SYNAPTIK_MIN_INPUTS[r[1]]
+                || ((r[1] != 77U && r[1] != 78U) && r[3] > SYNAPTIK_MAX_INPUTS[r[1]])
                 || r[4] < SYNAPTIK_MIN_OUTPUTS[r[1]] || r[4] > SYNAPTIK_MAX_OUTPUTS[r[1]]
                 || !synaptik_scan_scope(r[6], w[18]) || !synaptik_scan_scope(r[7], w[18])
                 || !synaptik_scan_scope(r[8], w[18]) || ((r[7] == UINT64_MAX) != (r[8] == UINT64_MAX))
@@ -238,11 +258,13 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
             allocatedEnd = unit.scratchOffset + unit.scratchBytes;
         }
         for (uint32_t role = 0U; role < 4U; role++) unit.control.inputRowAxes[role] = -1;
+        unit.node.inputs = inputReferences + inputReferenceOffset;
         for (uint32_t i = 0U; i < unit.node.input_count; i++) {
             uint64_t v = r[14U + i]; if (v >= valueCount || !available[v]) return nil;
-            unit.node.inputs[i] = (uint32_t)v;
+            inputReferences[inputReferenceOffset + i] = (uint32_t)v;
             if (i < 4U) { unit.control.inputRowAxes[i] = values[v].rowAxis; unit.control.inputRowInner[i] = values[v].rowInner; }
         }
+        inputReferenceOffset += unit.node.input_count;
         for (uint32_t o = 0U; o < unit.node.output_count; o++) {
             uint64_t v = r[14U + unit.node.input_count + o];
             if (v >= valueCount || available[v] || values[v].offset == UINT64_MAX) return nil;
@@ -275,7 +297,9 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
                         unit.node, shapes, allValueRowAxes, allValueTerminals, w[11]))) return nil;
         if (unit.control.leftScope != UINT32_MAX && (unit.node.operation != 2U || unit.node.input_count != 2U || unit.node.output_count != 1U)) return nil;
         uint64_t expectedScratch = 0U;
-        if (unit.node.operation == 35U && unit.node.output_count == 1U) {
+        if (unit.node.operation == 35U && (unit.node.output_count == 1U
+                || values[unit.node.outputs[1]].type != 1U)
+                && (unit.node.output_count > 1U || values[unit.node.output].elements != 0U)) {
             const SynaptikMetalScanValueBinding *output = values + unit.node.output;
             const SynaptikMetalScanValueBinding *key = values + unit.node.second_input;
             if (output->rank < 2U || key->rank < 2U) return nil;
@@ -337,13 +361,14 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
     for (uint32_t c = 0U; c < w[19]; c++) {
         if (cursor + 3U > w[29] || w[cursor] >= w[5] || w[cursor + 1U] > 1U || w[cursor + 2U] >= w[18]
                 || [numericCarries containsIndex:(NSUInteger)w[cursor]] || (lengthAware && w[cursor] >= w[10])
-                || values[w[w[25] + w[cursor]]].type != 1U) return nil;
+                || !synaptik_scan_differentiable_type(values[w[w[25] + w[cursor]]].type)) return nil;
         [numericCarries addIndex:(NSUInteger)w[cursor]];
         valueScopes[w[w[25] + w[cursor]]] = (uint32_t)(w[18] + c); cursor += 3U;
     }
     for (uint32_t s = 0U; s < w[20]; s++) {
         if (cursor >= w[29] || w[cursor] < w[5] || w[cursor] >= w[5] + w[6]
-                || [seedPositions containsIndex:(NSUInteger)w[cursor]]) return nil;
+                || [seedPositions containsIndex:(NSUInteger)w[cursor]]
+                || !synaptik_scan_differentiable_type(values[w[w[25] + w[cursor]]].type)) return nil;
         [seedPositions addIndex:(NSUInteger)w[cursor]];
         valueScopes[w[w[25] + w[cursor]]] = (uint32_t)(w[18] + w[19] + s); cursor++;
     }
@@ -394,7 +419,8 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
     NSMutableIndexSet *accumulatorUnits = [NSMutableIndexSet indexSet];
     for (uint32_t a = 0U; a < w[21]; a++) {
         if (cursor + 2U > w[29] || w[cursor] >= w[5] || w[cursor + 1U] >= w[18]
-                || [numericCarries containsIndex:(NSUInteger)w[cursor]] || (lengthAware && w[cursor] < w[10])) return nil;
+                || [numericCarries containsIndex:(NSUInteger)w[cursor]] || (lengthAware && w[cursor] < w[10])
+                || !synaptik_scan_differentiable_type(values[w[w[25] + w[cursor]]].type)) return nil;
         uint64_t position = w[cursor], next = w[w[26] + position], formal = w[w[25] + position];
         uint32_t producer = UINT32_MAX;
         for (uint32_t u = 0U; u < unitCount; u++)
@@ -424,6 +450,7 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
             : [device newComputePipelineStateWithFunction:bindingFunction error:&error];
     if (bindingPipeline == nil || error != nil) return nil;
     SynaptikMetalScanPlan *plan = [SynaptikMetalScanPlan new];
+    plan.inputReferences = inputReferenceData;
     plan.words = wordData; plan.values = valueData; plan.units = unitData; plan.valueScopes = scopeData;
     plan.carryOffsets = carryOffsetsData;
     plan.scopeMemberships = membershipData;
@@ -480,7 +507,7 @@ static BOOL synaptik_scan_validate_outer(SynaptikMetalScanPlan *plan,
         const SynaptikMetalScanValueBinding *role = locals + w[w[26] + port];
         BOOL history = port >= w[5];
         if (actual >= valueCount || types[actual] != role->type || states[actual] != 1U
-                || gradientFlags[actual] != (uint8_t)(gradient && role->type == 1U)
+                || gradientFlags[actual] != (uint8_t)(gradient && synaptik_scan_differentiable_type(role->type))
                 || ranks[actual] != role->rank + (history ? 1U : 0U)) return NO;
         const uint64_t *shape = dimensions + (size_t)actual * SYNAPTIK_MAX_RANK;
         if (history && shape[0] != w[3]) return NO;

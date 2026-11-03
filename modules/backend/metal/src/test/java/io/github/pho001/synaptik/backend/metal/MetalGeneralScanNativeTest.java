@@ -8,6 +8,7 @@ import io.github.pho001.synaptik.backend.contract.*;
 import io.github.pho001.synaptik.compiler.*;
 import io.github.pho001.synaptik.config.compile.*;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.*;
 import io.github.pho001.synaptik.model.operation.*;
 import io.github.pho001.synaptik.model.operation.reduction.*;
@@ -46,6 +47,101 @@ class MetalGeneralScanNativeTest {
             assertRaw(reverse ? new float[] {7, 10, 6, 0, 4, 0} : new float[] {2, 10, 4, 0, 7, 0}, run.output(1));
             assertRaw(reverse ? new float[] {6, -0.0f, 4, 0, 1, 0} : new float[] {1, -0.0f, 2, 0, 4, 0}, run.output(2));
         }
+    }
+
+    @Test void allNumericCarriersUseOriginalStorageAndRoundAtEveryCarryTransition() {
+        for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16))
+            for (boolean lengths : List.of(false, true)) for (boolean reverse : List.of(false, true)) {
+                float large = type == DataType.FLOAT16 ? 2048 : 256;
+                float[] original = {large, -0.0f};
+                float[] sequence = {1, 3, -large, Float.NaN, 2, Float.NaN};
+                if (!lengths) { sequence[3] = 4; sequence[5] = 5; }
+                float[] carry = original.clone(), history = new float[6], previous = new float[6];
+                for (int iteration = 0; iteration < 3; iteration++) {
+                    int time = reverse ? 2 - iteration : iteration;
+                    for (int row = 0; row < 2; row++) if (!lengths || row == 0 || time == 0) {
+                        previous[time * 2 + row] = carry[row];
+                        carry[row] = rounded(type, carry[row] + sequence[time * 2 + row]);
+                        history[time * 2 + row] = carry[row];
+                    }
+                }
+                try (var run = new RawScan(MetalScanPlanTest.additiveQuery(type, 3, 2, lengths, reverse), null)) {
+                    run.bytes(0, numeric(type, original)); run.bytes(1, numeric(type, sequence));
+                    if (lengths) run.longs(2, 3, 1);
+                    run.poisonOutputs(0x5a5a5a5a); run.execute();
+                    assertArrayEquals(numeric(type, carry), run.outputBytes(0));
+                    assertArrayEquals(numeric(type, history), run.outputBytes(1));
+                    assertArrayEquals(numeric(type, previous), run.outputBytes(2));
+                    if (lengths) {
+                        run.longs(2, 0, 0); run.execute();
+                        assertArrayEquals(numeric(type, original), run.outputBytes(0));
+                        assertArrayEquals(new byte[6 * type.byteWidth()], run.outputBytes(1));
+                        assertArrayEquals(new byte[6 * type.byteWidth()], run.outputBytes(2));
+                    }
+                }
+            }
+    }
+
+    @Test void variadicCompositionInsideScanRetainsAllInputsAndFullOutputRowCoordinates() {
+        int arity = 33;
+        for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16))
+            for (boolean stack : List.of(false, true)) for (boolean lengths : List.of(false, true))
+                for (boolean reverse : List.of(false, true)) {
+                    var query = MetalScanPlanTest.variadicQuery(type, arity, stack, lengths, reverse);
+                    try (var run = new RawScan(query, null)) {
+                        run.bytes(0, numeric(type, 1, lengths ? Float.NaN : 3, 2, lengths ? Float.NaN : 4));
+                        if (lengths) run.longs(1, 2, 0);
+                        run.poisonOutputs(0x5a5a5a5a); run.execute();
+                        float[] expected = new float[4 * arity];
+                        for (int time = 0; time < 2; time++) for (int row = 0; row < 2; row++)
+                            Arrays.fill(expected, (time * 2 + row) * arity, (time * 2 + row + 1) * arity,
+                                    row == 0 ? time + 1 : lengths ? 0 : time + 3);
+                        assertArrayEquals(numeric(type, expected), run.outputBytes(0));
+                    }
+                }
+    }
+
+    @Test void sourceOnlyLowBindingsPreserveRawPayloadsAcrossCarryHistoryAndInvariant() {
+        for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16))
+            for (boolean lengths : List.of(false, true)) for (boolean reverse : List.of(false, true)) {
+                int negativeZero = type == DataType.FLOAT32 ? 0x80000000 : 0x8000;
+                int nan = type == DataType.FLOAT32 ? 0x7fc12345 : type == DataType.BFLOAT16 ? 0x7fc5 : 0x7e45;
+                var query = MetalScanPlanTest.sourceOnlyQuery(type, 2, 2, lengths, reverse);
+                try (var run = new RawScan(query, null)) {
+                    byte[] carry = rawNumeric(type, negativeZero, nan);
+                    run.bytes(0, carry);
+                    run.bytes(1, rawNumeric(type, nan, negativeZero, negativeZero, nan));
+                    run.bytes(2, rawNumeric(type, nan));
+                    if (lengths) run.longs(3, 2, 0);
+                    run.poisonOutputs(0x5a5a5a5a); run.execute();
+                    assertArrayEquals(carry, run.outputBytes(0));
+                    assertArrayEquals(rawNumeric(type, nan, lengths ? 0 : negativeZero, negativeZero, lengths ? 0 : nan), run.outputBytes(1));
+                    assertArrayEquals(rawNumeric(type, nan, nan), run.outputBytes(2));
+                    if (lengths) {
+                        run.longs(3, 0, 0); run.execute();
+                        assertArrayEquals(carry, run.outputBytes(0));
+                        assertArrayEquals(new byte[4 * type.byteWidth()], run.outputBytes(1));
+                        assertArrayEquals(new byte[2 * type.byteWidth()], run.outputBytes(2));
+                    }
+                }
+            }
+    }
+
+    @Test void emptyTimeAndBatchAreRealNativeTypedGeometries() {
+        for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16))
+            for (long time : new long[] {0, 2}) for (long batch : new long[] {0, 2}) {
+                if (time != 0 && batch != 0) continue;
+                for (boolean lengths : List.of(false, true)) for (boolean reverse : List.of(false, true))
+                    try (var run = new RawScan(MetalScanPlanTest.additiveQuery(type, time, batch, lengths, reverse), null)) {
+                        float[] initial = batch == 0 ? new float[0] : new float[] {-0.0f, 5};
+                        run.bytes(0, numeric(type, initial));
+                        if (lengths) run.longs(2, batch == 0 ? new long[0] : new long[] {0, 0});
+                        run.poisonOutputs(0x5a5a5a5a); run.execute();
+                        assertArrayEquals(numeric(type, initial), run.outputBytes(0));
+                        assertArrayEquals(new byte[0], run.outputBytes(1));
+                        assertArrayEquals(new byte[0], run.outputBytes(2));
+                    }
+            }
     }
 
     @Test void integralCarryAndHistoryUseControlledOrdinaryModularArithmetic() {
@@ -273,16 +369,18 @@ class MetalGeneralScanNativeTest {
 
     @Test void canonicalRnnReverseMaterializesExpandedAccumulatorsAndRowLiterals() {
         library();
-        Tensor h = tensor(false, 2, 3), x = tensor(false, 2, 2);
-        Tensor w = tensor(true, 3, 2), u = tensor(true, 3, 3), b = tensor(true, 3);
-        Tensor initial = tensor(false, 2, 3), sequence = tensor(false, 2, 2, 2);
-        Tensor weight = tensor(true, 3, 2), recurrent = tensor(true, 3, 3), bias = tensor(true, 3);
+        for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16))
+            for (boolean reverse : List.of(false, true)) {
+        Tensor h = tensor(type, false, 2, 3), x = tensor(type, false, 2, 2);
+        Tensor w = tensor(type, true, 3, 2), u = tensor(type, true, 3, 3), b = tensor(type, true, 3);
+        Tensor initial = tensor(type, false, 2, 3), sequence = tensor(type, false, 2, 2, 2);
+        Tensor weight = tensor(type, true, 3, 2), recurrent = tensor(type, true, 3, 3), bias = tensor(type, true, 3);
         Tensor lengths = TensorFactory.create(MetalScanPlanTest.descriptor(DataType.INT64, 2));
         Tensor next = x.matmul(w.permute(1, 0)).add(b).add(h.matmul(u.permute(1, 0))).tanh();
         var body = new ScanBody(List.of(h), List.of(x), List.of(w, u, b), List.of(next), List.of(next));
         Tensor root = Scan.apply(List.of(initial), List.of(sequence), List.of(weight, recurrent, bias),
-                lengths, 1, List.of(OptionalInt.of(0)), body, false).finalCarry().getFirst();
-        Tensor seed = tensor(false, 2, 3);
+                lengths, 1, List.of(OptionalInt.of(0)), body, reverse).finalCarry().getFirst();
+        Tensor seed = tensor(type, false, 2, 3);
         var request = new FunctionalGradientRequest(List.of(new FunctionalGradientRequest.Stage(
                 List.of(new FunctionalGradientRequest.ForwardTensorReference(root)), List.of(Optional.of(seed)),
                 List.of(weight, recurrent, bias), false, FunctionalGradientRequest.DisconnectedPolicy.ZERO)));
@@ -294,21 +392,22 @@ class MetalGeneralScanNativeTest {
         assertTrue(artifacts.graph().nodes().stream().anyMatch(n -> n.operation().kind() == ScanKind.SCAN
                 && artifacts.derivatives().derivativeOrderByNode().get(n.id()) == 1));
         var first = new HashMap<TensorId, byte[]>();
-        first.put(initial.id(), floats(0, 0, 0, 0, 0, 0));
-        first.put(sequence.id(), floats(1, 2, 3, 4, 5, 6, Float.NaN, Float.NaN));
-        first.put(weight.id(), floats(0, 0, 0, 0, 0, 0));
-        first.put(recurrent.id(), floats(1, 0, 0, 0, 1, 0, 0, 0, 1));
-        first.put(bias.id(), floats(0, 0, 0));
-        first.put(seed.id(), floats(1, 1, 1, 1, 1, 1));
+        first.put(initial.id(), numeric(type, 0, 0, 0, 0, 0, 0));
+        first.put(sequence.id(), numeric(type, 1, 2, 3, 4, 5, 6, Float.NaN, Float.NaN));
+        first.put(weight.id(), numeric(type, 0, 0, 0, 0, 0, 0));
+        first.put(recurrent.id(), numeric(type, 1, 0, 0, 0, 1, 0, 0, 0, 1));
+        first.put(bias.id(), numeric(type, 0, 0, 0));
+        first.put(seed.id(), numeric(type, 1, 1, 1, 1, 1, 1));
         first.put(lengths.id(), longs(2, 1));
         var zero = new HashMap<>(first);
-        zero.put(sequence.id(), floats(Float.NaN, Float.NaN, Float.NaN, Float.NaN,
+        zero.put(sequence.id(), numeric(type, Float.NaN, Float.NaN, Float.NaN, Float.NaN,
                 Float.NaN, Float.NaN, Float.NaN, Float.NaN));
         zero.put(lengths.id(), longs(0, 0));
-        assertPrepared(artifacts, List.of(first, zero, first), List.of(
+        assertPrepared(type, artifacts, List.of(first, zero, first), List.of(
                 List.of(new float[6], new float[] {9, 12, 9, 12, 9, 12}, new float[9], new float[] {3, 3, 3}),
                 List.of(new float[6], new float[6], new float[9], new float[3]),
                 List.of(new float[6], new float[] {9, 12, 9, 12, 9, 12}, new float[9], new float[] {3, 3, 3})));
+        }
     }
 
     private static OperationCapabilityQuery rowProductQuery() {
@@ -326,10 +425,30 @@ class MetalGeneralScanNativeTest {
                 List.of(MetalScanPlanTest.descriptor(DataType.FLOAT32, 2, 2)), Optional.of(body), Optional.empty());
     }
 
+    @Test void typedGatherPreflightsActiveIndicesWithoutInspectingInactiveRowsAndAllowsRetry() {
+        for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16))
+            try (var run = new RawScan(indexQuery(type, true), null)) {
+                run.bytes(0, numeric(type, 1, 2, Float.NaN, Float.NaN, 3, 4, Float.NaN, Float.NaN));
+                run.longs(1, 2, Long.MAX_VALUE, 0, Long.MIN_VALUE);
+                run.longs(2, 2, 0);
+                run.poisonOutputs(0x5a5a5a5a);
+                var failure = assertThrows(MetalNativeApi.NativeFailure.class, run::execute);
+                assertEquals(MetalNativeApi.Status.RANGE_OUT_OF_BOUNDS, failure.status());
+                byte[] poison = new byte[4 * type.byteWidth()]; Arrays.fill(poison, (byte) 0x5a);
+                assertArrayEquals(poison, run.outputBytes(0));
+                run.longs(1, 1, Long.MAX_VALUE, 0, Long.MIN_VALUE); run.execute();
+                assertArrayEquals(numeric(type, 2, 0, 3, 0), run.outputBytes(0));
+            }
+    }
+
     private static OperationCapabilityQuery indexQuery(boolean lengths) {
-        var data = MetalScanPlanTest.descriptor(DataType.FLOAT32, lengths ? new long[] {2, 2} : new long[] {2});
+        return indexQuery(DataType.FLOAT32, lengths);
+    }
+
+    private static OperationCapabilityQuery indexQuery(DataType type, boolean lengths) {
+        var data = MetalScanPlanTest.descriptor(type, lengths ? new long[] {2, 2} : new long[] {2});
         var indices = MetalScanPlanTest.descriptor(DataType.INT64, lengths ? new long[] {2, 1} : new long[] {1});
-        var result = MetalScanPlanTest.descriptor(DataType.FLOAT32, lengths ? new long[] {2, 1} : new long[] {1});
+        var result = MetalScanPlanTest.descriptor(type, lengths ? new long[] {2, 1} : new long[] {1});
         var d = new ValueId(0); var i = new ValueId(1); var y = new ValueId(2);
         var gather = new CompiledNode(new NodeId(0), new Operation(lengths ? AxisGatherKind.GATHER_ELEMENTS : AxisGatherKind.GATHER,
                 new IndexAxisAttrs(lengths ? 1 : 0)), List.of(d, i), List.of(y));
@@ -339,10 +458,10 @@ class MetalGeneralScanNativeTest {
         var attrs = lengths ? new ScanAttrs(2, 0, 2, 0, 1, 0, false, true, 0, List.of(OptionalInt.of(0), OptionalInt.of(0)))
                 : new ScanAttrs(2, 0, 1, 1, 1, 0, false);
         return new OperationCapabilityQuery(new Operation(ScanKind.SCAN, attrs), lengths
-                ? List.of(MetalScanPlanTest.descriptor(DataType.FLOAT32, 2, 2, 2), MetalScanPlanTest.descriptor(DataType.INT64, 2, 2, 1),
+                ? List.of(MetalScanPlanTest.descriptor(type, 2, 2, 2), MetalScanPlanTest.descriptor(DataType.INT64, 2, 2, 1),
                         MetalScanPlanTest.descriptor(DataType.INT64, 2))
-                : List.of(MetalScanPlanTest.descriptor(DataType.FLOAT32, 2, 2), indices),
-                List.of(MetalScanPlanTest.descriptor(DataType.FLOAT32, lengths ? new long[] {2, 2, 1} : new long[] {2, 1})),
+                : List.of(MetalScanPlanTest.descriptor(type, 2, 2), indices),
+                List.of(MetalScanPlanTest.descriptor(type, lengths ? new long[] {2, 2, 1} : new long[] {2, 1})),
                 Optional.of(body), Optional.empty());
     }
 
@@ -357,10 +476,26 @@ class MetalGeneralScanNativeTest {
         return singleEmissionQuery(new Operation(kind, attrs), new long[] {0, 3}, outputShape);
     }
 
+    @Test void typedEmptyContributorsPublishTheSharedOrdinarySumIdentity() {
+        for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            var query = singleEmissionQuery(type, new Operation(AggregateReductionKind.SUM,
+                    new AxisReductionAttrs(0, false)), new long[] {0, 3}, 3);
+            try (var run = new RawScan(query, null)) {
+                run.poisonOutputs(0x5a5a5a5a); run.execute();
+                assertArrayEquals(new byte[6 * type.byteWidth()], run.outputBytes(0));
+            }
+        }
+    }
+
     private static OperationCapabilityQuery singleEmissionQuery(
             Operation operation, long[] inputShape, long... outputShape) {
-        var input = MetalScanPlanTest.descriptor(DataType.FLOAT32, inputShape);
-        var output = MetalScanPlanTest.descriptor(DataType.FLOAT32, outputShape);
+        return singleEmissionQuery(DataType.FLOAT32, operation, inputShape, outputShape);
+    }
+
+    private static OperationCapabilityQuery singleEmissionQuery(
+            DataType type, Operation operation, long[] inputShape, long... outputShape) {
+        var input = MetalScanPlanTest.descriptor(type, inputShape);
+        var output = MetalScanPlanTest.descriptor(type, outputShape);
         var id = new ValueId(0); var result = new ValueId(1);
         var ordinary = new CompiledNode(new NodeId(0), operation, List.of(id), List.of(result));
         var graph = new CompiledGraphModel(List.of(new GraphValue(id, input), new GraphValue(result, output)),
@@ -372,12 +507,12 @@ class MetalGeneralScanNativeTest {
         stackedOutput[0] = 2; System.arraycopy(outputShape, 0, stackedOutput, 1, outputShape.length);
         return new OperationCapabilityQuery(new Operation(ScanKind.SCAN,
                 new ScanAttrs(2, 0, 1, 0, 1, 0, false)),
-                List.of(MetalScanPlanTest.descriptor(DataType.FLOAT32, stackedInput)),
-                List.of(MetalScanPlanTest.descriptor(DataType.FLOAT32, stackedOutput)),
+                List.of(MetalScanPlanTest.descriptor(type, stackedInput)),
+                List.of(MetalScanPlanTest.descriptor(type, stackedOutput)),
                 Optional.of(body), Optional.empty());
     }
 
-    private static void assertPrepared(CompileArtifacts artifacts, List<Map<TensorId, byte[]>> runs, List<List<float[]>> expected) {
+    private static void assertPrepared(DataType type, CompileArtifacts artifacts, List<Map<TensorId, byte[]>> runs, List<List<float[]>> expected) {
         List<ValueId> publications = new ArrayList<>();
         artifacts.publication().forwardBindings().forEach(b -> publications.add(b.valueId()));
         artifacts.publication().gradientBindings().forEach(b -> publications.add(b.valueId()));
@@ -405,12 +540,12 @@ class MetalGeneralScanNativeTest {
                     try (var result = new PreparedExecutionRunner().run(execution, buffers)) {
                         for (int output = 0; output < expected.get(invocation).size(); output++) {
                             float[] values = expected.get(invocation).get(output);
-                            var target = arena.allocate((long) values.length * 4, 4);
+                            byte[] represented = numeric(type, values);
+                            var target = arena.allocate(represented.length, 8);
                             var representation = (MetalBufferRepresentation) result.publicationRepresentation(output);
-                            assertEquals((long) values.length * Float.BYTES, representation.byteSize());
-                            if (values.length != 0) representation.download(0, target, 0, target.byteSize());
-                            int[] actual = new int[values.length]; for (int i = 0; i < actual.length; i++) actual[i] = target.getAtIndex(JAVA_INT, i);
-                            assertRaw(values, actual);
+                            assertEquals(represented.length, representation.byteSize());
+                            if (represented.length != 0) representation.download(0, target, 0, target.byteSize());
+                            assertArrayEquals(represented, target.toArray(JAVA_BYTE));
                         }
                     }
                 }
@@ -418,10 +553,38 @@ class MetalGeneralScanNativeTest {
         }
     }
 
-    private static Tensor tensor(boolean grad, long... shape) {
-        var descriptor = MetalScanPlanTest.descriptor(DataType.FLOAT32, shape);
+    private static Tensor tensor(DataType type, boolean grad, long... shape) {
+        var descriptor = MetalScanPlanTest.descriptor(type, shape);
         return TensorFactory.create(new TensorDescriptor(descriptor.dataType(), descriptor.shape(), descriptor.layout(), grad));
     }
+    private static byte[] numeric(DataType type, float... values) {
+        var bytes = ByteBuffer.allocate(values.length * type.byteWidth()).order(ByteOrder.nativeOrder());
+        for (float value : values) switch (type) {
+            case FLOAT32 -> bytes.putInt(Float.floatToRawIntBits(value));
+            case BFLOAT16 -> bytes.putShort(ScalarValue.bfloat16(value).bfloat16Bits());
+            case FLOAT16 -> bytes.putShort(Float.floatToFloat16(value));
+            default -> throw new IllegalArgumentException("not a numeric Scan carrier");
+        }
+        return bytes.array();
+    }
+
+    private static float rounded(DataType type, float value) {
+        return switch (type) {
+            case FLOAT32 -> value;
+            case BFLOAT16 -> Float.intBitsToFloat(Short.toUnsignedInt(ScalarValue.bfloat16(value).bfloat16Bits()) << 16);
+            case FLOAT16 -> Float.float16ToFloat(Float.floatToFloat16(value));
+            default -> throw new IllegalArgumentException("not a numeric Scan carrier");
+        };
+    }
+
+    private static byte[] rawNumeric(DataType type, int... words) {
+        var bytes = ByteBuffer.allocate(words.length * type.byteWidth()).order(ByteOrder.nativeOrder());
+        for (int word : words) {
+            if (type == DataType.FLOAT32) bytes.putInt(word); else bytes.putShort((short) word);
+        }
+        return bytes.array();
+    }
+
     private static byte[] integers(DataType type, long... values) {
         var bytes = ByteBuffer.allocate(values.length * type.byteWidth()).order(ByteOrder.nativeOrder());
         for (long value : values) {

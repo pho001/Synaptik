@@ -46,9 +46,10 @@ static BOOL synaptik_append_scan_ordinary_steps(
              */
             step = make_custom_step(node, shapes, types, strides, offsets, states,
                     NULL, NULL, device, library, lowLibrary, stage, YES, control);
-            if (step == nil || step.pipeline == nil || step.metadata == nil
+            if (step == nil) return NO;
+            if (step.compositionSteps == nil && (step.pipeline == nil || step.metadata == nil
                     || step.grid.width == 0U || step.grid.height == 0U || step.grid.depth == 0U
-                    || step.threadsPerThreadgroup == 0U) return NO;
+                    || step.threadsPerThreadgroup == 0U)) return NO;
         } else {
             /* Genuine zero work, never a positive-grid stand-in. Stage zero still
              * carries complete validation for nonempty domains of empty results.
@@ -76,10 +77,10 @@ static int32_t synaptik_encode_scan_step(SynaptikMetalProgramStep *step,
         uint32_t bufferCount, const NSUInteger *offsets) {
     if (step == nil) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
     MTLSize grid = step.grid;
-    if (grid.width == 0U && grid.height == 0U && grid.depth == 0U)
+    if (step.compositionSteps == nil && grid.width == 0U && grid.height == 0U && grid.depth == 0U)
         return SYNAPTIK_METAL_STATUS_OK;
-    if (step.pipeline == nil || step.metadata == nil || step.threadsPerThreadgroup == 0U
-            || grid.width == 0U || grid.height == 0U || grid.depth == 0U)
+    if (step.compositionSteps == nil && (step.pipeline == nil || step.metadata == nil || step.threadsPerThreadgroup == 0U
+            || grid.width == 0U || grid.height == 0U || grid.depth == 0U))
         return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
     if (encoder == nil || buffers == NULL || bufferCount == 0U || offsets == NULL)
         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
@@ -88,10 +89,8 @@ static int32_t synaptik_encode_scan_step(SynaptikMetalProgramStep *step,
      * carry promotion changes offsets between iterations, including scratch's workspace base.
      */
     SynaptikMetalStepBindings bindings = {bufferCount, NULL, nil, offsets, buffers};
-    if (!synaptik_encode_fixed_step(step, encoder, bindings))
+    if (!synaptik_dispatch_fixed_step(step, encoder, bindings))
         return SYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE;
-    [encoder dispatchThreads:grid threadsPerThreadgroup:
-            MTLSizeMake(step.threadsPerThreadgroup, 1U, 1U)];
     return SYNAPTIK_METAL_STATUS_OK;
 }
 

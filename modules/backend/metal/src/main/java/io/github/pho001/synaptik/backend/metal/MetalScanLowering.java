@@ -30,7 +30,7 @@ import java.util.OptionalInt;
 /**
  * Builds a bounded native binder around the actual neutral compiled body and ordinary Metal
  * lowering. No source Tensor, derivative formula, Runtime graph or invocation value is consulted.
- * Static FLOAT32 computation is independent of ordinary symbolic admission and of low carriers.
+ * Static F32/BF16/F16 computation uses the same ordinary owners and original typed storage.
  */
 final class MetalScanLowering {
     private MetalScanLowering() {}
@@ -83,7 +83,7 @@ final class MetalScanLowering {
 
     /**
      * Resolves local physical layouts and freezes binding, demand, control and resource facts.
-     * @param query exact containing occurrence; no symbolic dimensions or low/FLOAT64 values
+     * @param query exact containing occurrence; no symbolic dimensions or FLOAT64 arithmetic
      * @return immutable bounded plan retaining the actual compiled graph and body association
      * @throws IllegalArgumentException if any binding, local instruction or physical fact is invalid
      * @throws ArithmeticException if checked resource arithmetic overflows
@@ -323,13 +323,17 @@ final class MetalScanLowering {
 
     private static void checkTypeShape(TensorDescriptor descriptor) {
         if (!descriptor.shape().isFullyStatic() || descriptor.shape().rank() > 16
-                || (descriptor.dataType() != DataType.FLOAT32 && descriptor.dataType() != DataType.BOOL
+                || (!numericCarrier(descriptor.dataType()) && descriptor.dataType() != DataType.BOOL
                         && descriptor.dataType() != DataType.INT32 && descriptor.dataType() != DataType.INT64)) {
-            throw invalid("static FLOAT32/typed-control domain");
+            throw invalid("static F32/BF16/F16/typed-control domain");
         }
         long elements = 1;
         for (var dimension : descriptor.shape().dimensions()) elements = Math.multiplyExact(elements, dimension.staticSize().orElseThrow());
         Math.multiplyExact(elements, descriptor.dataType().byteWidth());
+    }
+
+    static boolean numericCarrier(DataType type) {
+        return type == DataType.FLOAT32 || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
     }
 
     /**
