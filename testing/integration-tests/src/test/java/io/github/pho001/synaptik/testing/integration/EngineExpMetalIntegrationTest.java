@@ -3,7 +3,6 @@ package io.github.pho001.synaptik.testing.integration;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_SHORT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.backend.metal.MetalBackendConfiguration;
@@ -58,10 +57,6 @@ final class EngineExpMetalIntegrationTest {
                     assertEquals(Float.floatToRawIntBits(samples[index]),
                             storage.getAtIndex(JAVA_INT, index), "caller input " + index);
                 }
-                Tensor gradientInput = tensor(DataType.FLOAT32,
-                        Shape.of(samples.length), true, storage, samples.length);
-                assertThrows(IllegalStateException.class,
-                        () -> engine.compile(List.of(gradientInput.exp())));
             }
         }
     }

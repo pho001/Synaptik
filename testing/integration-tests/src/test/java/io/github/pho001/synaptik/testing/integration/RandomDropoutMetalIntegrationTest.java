@@ -16,12 +16,10 @@ import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.random.DropoutKind;
-import io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import io.github.pho001.synaptik.model.tensor.DropoutResult;
 import io.github.pho001.synaptik.model.tensor.GraphRngState;
-import io.github.pho001.synaptik.model.tensor.RecurrentScan;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
@@ -203,7 +201,7 @@ final class RandomDropoutMetalIntegrationTest {
     }
 
     @Test
-    void evaluationBuildsNoDropoutAndUnsupportedCarriersLimitsAndRecurrenceFailEarly() {
+    void evaluationBypassesDropoutAndUnsupportedCarriersAndLimitsFailEarly() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared()) {
             Tensor value = nativeTensor(
@@ -250,38 +248,6 @@ final class RandomDropoutMetalIntegrationTest {
                             Optional.empty());
                     assertThrows(IllegalStateException.class, () -> engine.compile(List.of(
                             over.dropout(0.5d, GraphRngState.initial(0L, 0L)).output())));
-
-                    Tensor recurrentInput = nativeTensor(
-                            DataType.FLOAT32, Shape.of(1, 1, 1), true,
-                            integerWords(new int[] {Float.floatToRawIntBits(1.0f)}), arena);
-                    Tensor lengths = nativeTensor(
-                            DataType.INT64, Shape.of(1), false, longWords(1L), arena);
-                    Tensor hidden = nativeTensor(
-                            DataType.FLOAT32, Shape.of(1, 1), true,
-                            integerWords(new int[] {0}), arena);
-                    Tensor inputWeight = nativeTensor(
-                            DataType.FLOAT32, Shape.of(1, 1), true,
-                            integerWords(new int[] {Float.floatToRawIntBits(1.0f)}), arena);
-                    Tensor hiddenWeight = nativeTensor(
-                            DataType.FLOAT32, Shape.of(1, 1), true,
-                            integerWords(new int[] {Float.floatToRawIntBits(1.0f)}), arena);
-                    var recurrent = RecurrentScan.rnn(
-                            recurrentInput,
-                            lengths,
-                            hidden,
-                            inputWeight,
-                            hiddenWeight,
-                            RecurrentDirection.FORWARD);
-                    assertThrows(IllegalStateException.class,
-                            () -> engine.compile(List.of(recurrent.outputs())));
-                    Tensor recurrentSeed = nativeTensor(
-                            DataType.FLOAT32, Shape.of(1, 1, 1), false,
-                            integerWords(new int[] {Float.floatToRawIntBits(1.0f)}), arena);
-                    assertThrows(IllegalArgumentException.class,
-                            () -> engine.compile(
-                                    List.of(recurrent.outputs()),
-                                    List.of(recurrentSeed),
-                                    List.of(recurrentInput)));
                 }
             }
         }

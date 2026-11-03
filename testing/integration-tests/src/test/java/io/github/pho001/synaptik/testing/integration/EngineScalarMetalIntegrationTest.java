@@ -136,14 +136,14 @@ final class EngineScalarMetalIntegrationTest {
             builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library())));
             builder.takeOwnership(CpuBackendIntegration.open());
             try (Engine engine = builder.build()) {
-                MemorySegment storage = arena.allocate(Float.BYTES, Float.BYTES);
-                Tensor input = tensor(DataType.FLOAT32, false, storage);
-                var compiled = engine.compile(List.of(input.exp().relu()));
+                MemorySegment storage = arena.allocate(Double.BYTES, Double.BYTES);
+                Tensor input = tensor(DataType.FLOAT64, false, storage);
+                var compiled = engine.compile(List.of(input.exp().cast(DataType.FLOAT32).relu()));
                 assertEquals(List.of("cpu", "metal"), EngineMixedOwnerTestAccess.partitionOwners(compiled));
                 try (var session = engine.prepare(compiled)) {
                     for (float sample : new float[] {-2.0f, -0.0f, 0.0f, 2.0f,
                             Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY, Float.NaN}) {
-                        write(storage, DataType.FLOAT32, sample);
+                        storage.set(java.lang.foreign.ValueLayout.JAVA_DOUBLE, 0L, (double) sample);
                         try (var result = engine.run(session, List.of(input))) {
                             float actual = Float.intBitsToFloat(read(result, 0, DataType.FLOAT32));
                             float expected = (float) StrictMath.exp(sample);
@@ -153,7 +153,8 @@ final class EngineScalarMetalIntegrationTest {
                             } else assertValue(DataType.FLOAT32, expected,
                                     Float.floatToRawIntBits(actual), false, "mixed special " + sample);
                         }
-                        assertEquals(bits(DataType.FLOAT32, sample), storedBits(storage, DataType.FLOAT32));
+                        assertEquals(Double.doubleToRawLongBits((double) sample),
+                                storage.get(java.lang.foreign.ValueLayout.JAVA_LONG, 0L));
                     }
                 }
             }
