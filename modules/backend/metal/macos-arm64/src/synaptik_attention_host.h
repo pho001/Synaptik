@@ -73,6 +73,14 @@ static BOOL synaptik_attention_layout(
             offset, &referencedSpan, &present, &present, 0U);
 }
 
+static BOOL synaptik_attention_numeric(uint32_t type) {
+    return type == 1U || type == 5U || type == 7U;
+}
+
+static uint32_t synaptik_attention_width(uint32_t type) {
+    return type == 3U ? 1U : type == 5U || type == 7U ? 2U : 4U;
+}
+
 static BOOL synaptik_attention_metadata(
         SynaptikMetalDecodedNode node, NSArray<MPSShape *> *shapes,
         const uint8_t *types, const uint64_t *strides, const uint64_t *offsets,
@@ -90,11 +98,14 @@ static BOOL synaptik_attention_metadata(
     if (present == 0U && node.attribute_count == 2U) {
         causal = node.attribute_values[1];
     } else if (present == 1U && node.attribute_count == 4U
-            && node.attribute_values[1] == SYNAPTIK_METAL_TYPE_FLOAT32
-            && node.attribute_values[2] <= UINT32_MAX) {
-        uint32_t bits = (uint32_t)node.attribute_values[2];
-        memcpy(&m.scale, &bits, sizeof(bits));
-        if (!isfinite(m.scale) || m.scale <= 0.0f) return NO;
+            && (node.attribute_values[1] == 1U || node.attribute_values[1] == 5U)
+            && node.attribute_values[2] <= (node.attribute_values[1] == 5U ? UINT16_MAX : UINT32_MAX)) {
+        m.scaleType = (uint32_t)node.attribute_values[1];
+        m.scaleBits = (uint32_t)node.attribute_values[2];
+        uint32_t widened = m.scaleType == 5U ? m.scaleBits << 16U : m.scaleBits;
+        float scale;
+        memcpy(&scale, &widened, sizeof(scale));
+        if (!isfinite(scale) || scale <= 0.0f) return NO;
         causal = node.attribute_values[3];
         m.flags |= 4U;
     } else return NO;
@@ -103,14 +114,19 @@ static BOOL synaptik_attention_metadata(
         if (node.attribute_values[word] != 0U) return NO;
     if (causal != 0U) m.flags |= 2U;
     if (node.input_count == 4U) m.flags |= 1U;
+    if (node.output_count == 2U) m.flags |= 8U;
     for (uint32_t input = 0U; input < node.input_count; ++input) {
         uint32_t index = node.inputs[input];
-        if (index >= shapes.count || types[index] != (input == 3U
-                ? SYNAPTIK_METAL_TYPE_BOOL : SYNAPTIK_METAL_TYPE_FLOAT32)) return NO;
+        if (index >= shapes.count || (input == 3U
+                ? types[index] != 3U : !synaptik_attention_numeric(types[index]))) return NO;
+        m.roleTypes[input] = types[index];
+        if (input < 3U) m.outputType = m.outputType == 0U || m.outputType == types[index]
+                ? types[index] : 1U;
     }
+    if ((m.flags & 4U) != 0U && m.scaleType != (m.outputType == 5U ? 5U : 1U)) return NO;
     for (uint32_t output = 0U; output < node.output_count; ++output) {
         uint32_t index = node.outputs[output];
-        if (index >= shapes.count || types[index] != SYNAPTIK_METAL_TYPE_FLOAT32) return NO;
+        if (index >= shapes.count || types[index] != m.outputType) return NO;
         for (uint32_t input = 0U; input < node.input_count; ++input)
             if (index == node.inputs[input]) return NO;
         if (output != 0U && index == node.outputs[0]) return NO;
@@ -142,7 +158,7 @@ static BOOL synaptik_attention_metadata(
     uint64_t workspace = 0U, outputCount;
     if (!synaptik_attention_product(batchCount, m.queryLength, &m.rowCount)
             || !synaptik_attention_product(m.rowCount, m.valueEmbedding, &outputCount)
-            || !synaptik_attention_product(outputCount, 4U, &outputCount)) return NO;
+            || !synaptik_attention_product(outputCount, synaptik_attention_width(m.outputType), &outputCount)) return NO;
     BOOL noNumericalOutput = node.output_count == 1U && outputCount == 0U;
     if (!noNumericalOutput && (!synaptik_attention_product(m.rowCount, m.keyLength, &workspace)
             || !synaptik_attention_product(workspace, 4U, &workspace))) return NO;
@@ -156,7 +172,8 @@ static BOOL synaptik_attention_metadata(
                 || shape[m.batchRank + 1U].unsignedLongLongValue
                     != (port == 0U ? m.valueEmbedding : m.keyLength)) return NO;
         uint64_t physical[16] = {0}, offset;
-        if (!synaptik_attention_layout(shape, index, strides, offsets, states, 4U, physical, &offset, YES))
+        if (!synaptik_attention_layout(shape, index, strides, offsets, states,
+                synaptik_attention_width(types[index]), physical, &offset, YES))
             return NO;
     }
     uint64_t physical[4][16] = {{0}};
@@ -164,7 +181,7 @@ static BOOL synaptik_attention_metadata(
         uint32_t index = node.inputs[role];
         MPSShape *shape = shapes[index];
         if (!synaptik_attention_layout(shape, index, strides, offsets, states,
-                role == 3U ? 1U : 4U, physical[role], &m.roleOffsets[role], NO)) return NO;
+                synaptik_attention_width(types[index]), physical[role], &m.roleOffsets[role], NO)) return NO;
         if (role < 3U) {
             NSUInteger batchRank = shape.count - 2U;
             for (NSUInteger axis = 0U; axis < batchRank; ++axis) {

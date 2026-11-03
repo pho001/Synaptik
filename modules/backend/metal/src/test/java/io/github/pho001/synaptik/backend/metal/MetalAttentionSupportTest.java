@@ -66,18 +66,45 @@ class MetalAttentionSupportTest {
     }
 
     @Test
-    void originalLowCarrierAndNonF32ScalarAreNotAdmittedByProjectedWorkingType() {
+    void originalMixedCarriersPromoteWithoutAcceptingUnrelatedScalarTypes() {
         var inputs = List.of(descriptor(DataType.BFLOAT16, false, 1, 2),
-                descriptor(DataType.FLOAT32, false, 3, 2), descriptor(DataType.FLOAT32, false, 3, 4));
+                descriptor(DataType.FLOAT32, false, 3, 2), descriptor(DataType.FLOAT16, false, 3, 4));
         var outputs = List.of(descriptor(DataType.FLOAT32, false, 1, 4));
-        assertFalse(MetalAttentionSupport.supports(operation(Optional.empty()), inputs, outputs));
-        var f32 = List.of(descriptor(DataType.FLOAT32, false, 1, 2), inputs.get(1), inputs.get(2));
-        assertFalse(MetalAttentionSupport.supports(operation(Optional.of(ScalarValue.float64(0.5))), f32, outputs));
-        var values = List.of(new MetalMpsGraphProgram.ValueDescriptor(DataType.BFLOAT16, new long[] {1, 2}, false),
-                new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, new long[] {3, 2}, false),
-                new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, new long[] {3, 4}, false),
-                new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, new long[] {1, 4}, false));
+        assertTrue(MetalAttentionSupport.supports(operation(Optional.empty()), inputs, outputs));
+        assertFalse(MetalAttentionSupport.supports(operation(Optional.of(ScalarValue.float64(0.5))), inputs, outputs));
+        var values = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>();
+        inputs.forEach(d -> values.add(MetalMpsGraphProgram.ValueDescriptor.from(d)));
+        outputs.forEach(d -> values.add(MetalMpsGraphProgram.ValueDescriptor.from(d)));
+        assertDoesNotThrow(() -> MetalAttentionSupport.validate(node(false), values));
+        values.set(3, MetalMpsGraphProgram.ValueDescriptor.from(descriptor(DataType.BFLOAT16, false, 1, 4)));
         assertThrows(IllegalArgumentException.class, () -> MetalAttentionSupport.validate(node(false), values));
+    }
+
+    @Test
+    void allNumericCarriersRetainEveryOriginalGradientRoleAndExactScaleWords() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            for (int flags = 0; flags < 8; flags++) {
+                var inputs = List.of(descriptor(type, (flags & 1) != 0, 2, 2),
+                        descriptor(type, (flags & 2) != 0, 3, 2),
+                        descriptor(type, (flags & 4) != 0, 3, 4));
+                var outputs = List.of(descriptor(type, flags != 0, 2, 4),
+                        descriptor(type, (flags & 3) != 0, 2, 3));
+                ScalarValue scale = type == DataType.BFLOAT16 ? ScalarValue.bfloat16(0.5f) : ScalarValue.float32(0.5f);
+                var operation = operation(Optional.of(scale));
+                assertTrue(MetalAttentionSupport.supports(operation, inputs, outputs));
+                var node = MetalAttentionSupport.lower(operation, new int[] {0, 1, 2},
+                        new int[] {3, 4}, inputs, outputs);
+                var values = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>();
+                inputs.forEach(d -> values.add(MetalMpsGraphProgram.ValueDescriptor.from(d)));
+                outputs.forEach(d -> values.add(MetalMpsGraphProgram.ValueDescriptor.from(d)));
+                assertDoesNotThrow(() -> MetalAttentionSupport.validate(node, values));
+                var badScalar = MetalMpsGraphProgram.Node.generic(node.kind(), node.inputs(), node.outputs(),
+                        node.attributeKind(), new long[] {1, type == DataType.BFLOAT16 ? 1 : 5, 0x3f00, 0});
+                assertThrows(IllegalArgumentException.class, () -> MetalAttentionSupport.validate(badScalar, values));
+                values.set(4, MetalMpsGraphProgram.ValueDescriptor.from(descriptor(type, (flags & 3) == 0, 2, 3)));
+                assertThrows(IllegalArgumentException.class, () -> MetalAttentionSupport.validate(node, values));
+            }
+        }
     }
 
     @Test

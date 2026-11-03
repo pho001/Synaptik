@@ -1,6 +1,7 @@
 package io.github.pho001.synaptik.backend.metal;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.DataTypePromotion;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.attention.ScaledDotProductAttentionAttrs;
@@ -12,12 +13,12 @@ import java.util.HashSet;
 import java.util.List;
 
 /**
- * FLOAT32 attention admission and lowering, with an independent raw-program validator.
+ * Numeric attention admission and lowering, with an independent raw-program validator.
  *
  * <p>The original carriers, exact per-port gradient metadata, physical layouts and canonical
- * weights sibling are checked, not inferred from a projected FLOAT32 operation. No low or
- * FLOAT64 arithmetic domain follows from this owner. Mask contents are validated by native
- * invocation preflight before scores, outputs or declared workspace are written.</p>
+ * weights sibling are checked, never projected to a FLOAT32 occurrence. FLOAT32, BFLOAT16 and
+ * FLOAT16 roles follow Model promotion. Mask contents are validated by native invocation
+ * preflight before scores, outputs or declared workspace are written.</p>
  *
  * <p>An empty primary without a requested weights sibling declares no score workspace or
  * numerical dispatch. Descriptor, attribute and Boolean-content validation still apply;
@@ -37,20 +38,21 @@ final class MetalAttentionSupport {
      * @param operation actual semantic operation
      * @param inputs ordered original input descriptors
      * @param outputs ordered original output descriptors
-     * @return whether this exact occurrence has a prepared FLOAT32 implementation
+     * @return whether this exact occurrence has a prepared numeric implementation
      */
     static boolean supports(Operation operation, List<TensorDescriptor> inputs, List<TensorDescriptor> outputs) {
         if (!handles(operation) || !(operation.attrs() instanceof ScaledDotProductAttentionAttrs attrs)
                 || inputs.size() < 3 || inputs.size() > 4 || outputs.isEmpty() || outputs.size() > 2) return false;
         try {
+            DataType resultType = promoted(inputs.get(0).dataType(), inputs.get(1).dataType(), inputs.get(2).dataType());
             if (attrs.scale().isPresent()) {
                 var scale = attrs.scale().orElseThrow();
-                if (scale.dataType() != DataType.FLOAT32 || !Float.isFinite(scale.float32Value())
-                        || scale.float32Value() <= 0) return false;
+                long[] scalar = {MetalNormalizationSupport.scalarType(scale), MetalNormalizationSupport.floatingBits(scale)};
+                if (!(MetalNormalizationSupport.scalar(scalar, 0, resultType) > 0)) return false;
             }
             for (int i = 0; i < inputs.size(); i++) {
                 TensorDescriptor descriptor = inputs.get(i);
-                if (descriptor.dataType() != (i == 3 ? DataType.BOOL : DataType.FLOAT32)
+                if (!(i == 3 ? descriptor.dataType() == DataType.BOOL : MetalNormalizationSupport.numeric(descriptor.dataType()))
                         || i == 3 && descriptor.requiresGrad()
                         || !physical(descriptor.shape(), descriptor.layout().orElse(null), false,
                                 descriptor.dataType().byteWidth())
@@ -59,9 +61,10 @@ final class MetalAttentionSupport {
             boolean gradient = inputs.get(0).requiresGrad() || inputs.get(1).requiresGrad();
             for (int i = 0; i < outputs.size(); i++) {
                 TensorDescriptor descriptor = outputs.get(i);
-                if (descriptor.dataType() != DataType.FLOAT32
+                if (descriptor.dataType() != resultType
                         || descriptor.requiresGrad() != (gradient || i == 0 && inputs.get(2).requiresGrad())
-                        || !physical(descriptor.shape(), descriptor.layout().orElse(null), true, Float.BYTES)) return false;
+                        || !physical(descriptor.shape(), descriptor.layout().orElse(null), true,
+                                descriptor.dataType().byteWidth())) return false;
             }
             return shapes(inputs.stream().map(d -> d.shape().toLongArray()).toList(),
                     outputs.stream().map(d -> d.shape().toLongArray()).toList());
@@ -72,7 +75,7 @@ final class MetalAttentionSupport {
 
     /**
      * Encodes the existing exact attention attribute grammar after original occurrence admission.
-     * @param operation semantic operation with exact F32 optional scale
+     * @param operation semantic operation with exact typed optional scale
      * @param inputs ordered input value indices
      * @param outputs ordered output value indices
      * @param inputDescriptors original input facts
@@ -84,11 +87,11 @@ final class MetalAttentionSupport {
             List<TensorDescriptor> inputDescriptors, List<TensorDescriptor> outputDescriptors) {
         if (inputs.length != inputDescriptors.size() || outputs.length != outputDescriptors.size()
                 || !supports(operation, inputDescriptors, outputDescriptors))
-            throw new IllegalArgumentException("unsupported Metal FLOAT32 attention occurrence");
+            throw new IllegalArgumentException("unsupported Metal numeric attention occurrence");
         var attrs = (ScaledDotProductAttentionAttrs) operation.attrs();
         long[] words = attrs.scale().isPresent()
-                ? new long[] {1, 1, Integer.toUnsignedLong(Float.floatToRawIntBits(
-                        attrs.scale().orElseThrow().float32Value())), attrs.causal() ? 1 : 0}
+                ? new long[] {1, MetalNormalizationSupport.scalarType(attrs.scale().orElseThrow()),
+                        MetalNormalizationSupport.floatingBits(attrs.scale().orElseThrow()), attrs.causal() ? 1 : 0}
                 : new long[] {0, attrs.causal() ? 1 : 0};
         return MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.SCALED_DOT_PRODUCT_ATTENTION,
                 inputs, outputs, MetalMpsGraphProgram.AttributeKind.ATTENTION, words);
@@ -113,14 +116,15 @@ final class MetalAttentionSupport {
             int[] inputs = node.inputs(), outputs = node.outputs();
             if (inputs.length < 3 || inputs.length > 4 || outputs.length < 1 || outputs.length > 2)
                 throw malformed();
+            for (int input : inputs) if (input < 0 || input >= values.size()) throw malformed();
+            DataType resultType = promoted(values.get(inputs[0]).dataType(),
+                    values.get(inputs[1]).dataType(), values.get(inputs[2]).dataType());
             long[] words = node.attributeWords();
             if (words.length == 2 && words[0] == 0) {
                 if (words[1] != 0 && words[1] != 1) throw malformed();
-            } else if (words.length == 4 && words[0] == 1 && words[1] == 1) {
-                if ((words[2] & ~0xffff_ffffL) != 0 || words[3] != 0 && words[3] != 1)
-                    throw malformed();
-                float scale = Float.intBitsToFloat((int) words[2]);
-                if (!(scale > 0) || !Float.isFinite(scale)) throw malformed();
+            } else if (words.length == 4 && words[0] == 1) {
+                if (words[3] != 0 && words[3] != 1
+                        || !(MetalNormalizationSupport.scalar(words, 1, resultType) > 0)) throw malformed();
             } else throw malformed();
             var destinations = new HashSet<Integer>();
             for (int output : outputs) {
@@ -131,7 +135,7 @@ final class MetalAttentionSupport {
                 int index = inputs[role];
                 if (index < 0 || index >= values.size()) throw malformed();
                 var d = values.get(index);
-                if (d.dataType() != (role == 3 ? DataType.BOOL : DataType.FLOAT32)
+                if (!(role == 3 ? d.dataType() == DataType.BOOL : MetalNormalizationSupport.numeric(d.dataType()))
                         || role == 3 && d.requiresGrad()
                         || !physical(Shape.of(d.dimensions()), d.layout().orElse(null), false, d.dataType().byteWidth())
                         || !d.supportsStorageLayout(0)
@@ -140,15 +144,22 @@ final class MetalAttentionSupport {
             boolean gradient = values.get(inputs[0]).requiresGrad() || values.get(inputs[1]).requiresGrad();
             for (int port = 0; port < outputs.length; port++) {
                 var d = values.get(outputs[port]);
-                if (d.dataType() != DataType.FLOAT32 || d.densePhysical()
+                if (d.dataType() != resultType || d.densePhysical()
                         || d.requiresGrad() != (gradient || port == 0 && values.get(inputs[2]).requiresGrad())
-                        || !physical(Shape.of(d.dimensions()), d.layout().orElse(null), true, Float.BYTES)) throw malformed();
+                        || !physical(Shape.of(d.dimensions()), d.layout().orElse(null), true,
+                                d.dataType().byteWidth())) throw malformed();
             }
             if (!shapes(Arrays.stream(inputs).mapToObj(i -> values.get(i).dimensions()).toList(),
                     Arrays.stream(outputs).mapToObj(i -> values.get(i).dimensions()).toList())) throw malformed();
         } catch (ArithmeticException | IndexOutOfBoundsException failure) {
-            throw new IllegalArgumentException("malformed Metal FLOAT32 attention geometry", failure);
+            throw new IllegalArgumentException("malformed Metal numeric attention geometry", failure);
         }
+    }
+
+    private static DataType promoted(DataType query, DataType key, DataType value) {
+        if (!MetalNormalizationSupport.numeric(query) || !MetalNormalizationSupport.numeric(key)
+                || !MetalNormalizationSupport.numeric(value)) throw malformed();
+        return DataTypePromotion.promoteFloating(DataTypePromotion.promoteFloating(query, key), value);
     }
 
     private static boolean canonical(MetalMpsGraphProgram.ValueDescriptor d) {
@@ -211,6 +222,6 @@ final class MetalAttentionSupport {
     }
 
     private static IllegalArgumentException malformed() {
-        return new IllegalArgumentException("malformed Metal FLOAT32 attention occurrence");
+        return new IllegalArgumentException("malformed Metal numeric attention occurrence");
     }
 }

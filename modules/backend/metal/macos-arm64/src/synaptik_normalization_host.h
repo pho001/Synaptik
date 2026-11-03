@@ -21,13 +21,20 @@ static BOOL synaptik_nl_product(MPSShape *shape, NSUInteger first, NSUInteger la
     return YES;
 }
 
-static BOOL synaptik_nl_scalar(const uint64_t *words, uint32_t start, BOOL positive, uint32_t *bits) {
-    if (words[start] != 1U || words[start+1U] > UINT32_MAX) return NO;
-    uint32_t raw = (uint32_t)words[start+1U];
+static BOOL synaptik_nl_numeric(uint32_t type) {
+    return type == 1U || type == 5U || type == 7U;
+}
+
+static BOOL synaptik_nl_scalar(const uint64_t *words, uint32_t start,
+        uint32_t outputType, BOOL positive, uint32_t *bits, uint32_t *scalarType) {
+    uint32_t expected = outputType == 5U ? 5U : 1U;
+    if (words[start] != expected || words[start+1U] > (expected == 5U ? UINT16_MAX : UINT32_MAX)) return NO;
+    uint32_t raw = (uint32_t)words[start+1U], widened = expected == 5U ? raw << 16U : raw;
     float value;
-    memcpy(&value, &raw, sizeof(value));
+    memcpy(&value, &widened, sizeof(value));
     if (!isfinite(value) || (positive && !(value > 0.0f))) return NO;
     *bits = raw;
+    *scalarType = expected;
     return YES;
 }
 
@@ -47,10 +54,13 @@ static BOOL synaptik_nl_storage_supported(MPSShape *shape,
 static BOOL synaptik_nl_layout(MPSShape *shape, uint32_t value, uint8_t type,
         const uint64_t *strides, const uint64_t *offsets, const uint8_t *states,
         BOOL output, SynaptikNormalizationLossView *view) {
-    if (shape == nil || shape.count > 16U || (type != 1U && type != 2U && type != 6U)) return NO;
+    if (shape == nil || shape.count > 16U
+            || (!synaptik_nl_numeric(type) && type != 2U && type != 6U)) return NO;
+    view->valueType = type;
+    view->reserved = 0U;
     uint64_t elements;
     if (!synaptik_nl_product(shape, 0U, shape.count, &elements)) return NO;
-    uint64_t width = type == 6U ? 8U : 4U;
+    uint64_t width = type == 6U ? 8U : (type == 5U || type == 7U ? 2U : 4U);
     if (elements > NSUIntegerMax / width) return NO;
     if (elements == 0U) {
         // No cell is addressed. custom_physical_layout's nonempty-only premise
@@ -104,14 +114,20 @@ static BOOL synaptik_normalization_metadata(SynaptikMetalDecodedNode node,
             || (layer && ((node.input_count != 1U && node.input_count != 3U) || node.output_count != 1U))
             || (rms && ((node.input_count != 1U && node.input_count != 2U) || node.output_count != 1U))
             || (loss && (node.input_count != 2U || node.output_count != 1U))) return NO;
+    uint32_t outputType = 0U;
     for (uint32_t i = 0U; i < node.input_count; i++) {
         if (node.inputs[i] >= shapes.count) return NO;
         if (states[node.inputs[i]] < 1U || states[node.inputs[i]] > 3U) return NO;
         uint8_t type = types[node.inputs[i]];
-        if (index && i == 1U ? type != 2U && type != 6U : type != 1U) return NO;
+        if (index && i == 1U) {
+            if (type != 2U && type != 6U) return NO;
+        } else {
+            if (!synaptik_nl_numeric(type)) return NO;
+            outputType = outputType == 0U || outputType == type ? type : 1U;
+        }
     }
     for (uint32_t i = 0U; i < node.output_count; i++) {
-        if (node.outputs[i] >= shapes.count || types[node.outputs[i]] != 1U) return NO;
+        if (node.outputs[i] >= shapes.count || types[node.outputs[i]] != outputType) return NO;
         if (states[node.outputs[i]] != 1U) return NO;
         for (uint32_t j = 0U; j < node.input_count; j++) if (node.outputs[i] == node.inputs[j]) return NO;
         for (uint32_t j = 0U; j < i; j++) if (node.outputs[i] == node.outputs[j]) return NO;
@@ -120,6 +136,7 @@ static BOOL synaptik_normalization_metadata(SynaptikMetalDecodedNode node,
     if (input.count < 1U || input.count > 16U) return NO;
     SynaptikNormalizationLossMeta m = {0};
     m.mode = node.operation;
+    m.outputType = outputType;
     m.rank = (uint32_t)input.count;
     for (NSUInteger a = 0U; a < input.count; a++) m.dims[a] = input[a].unsignedLongLongValue;
     if (!synaptik_nl_product(input, 0U, input.count, &m.elementCount)) return NO;
@@ -134,7 +151,8 @@ static BOOL synaptik_normalization_metadata(SynaptikMetalDecodedNode node,
         m.axis = (uint32_t)(input.count-suffixRank);
         for (uint32_t a = 0U; a < suffixRank; a++)
             if (node.attribute_values[a+1U] != m.dims[m.axis+a]) return NO;
-        if (!synaptik_nl_scalar(node.attribute_values, (uint32_t)suffixRank+1U, YES, &m.epsilonBits)) return NO;
+        if (!synaptik_nl_scalar(node.attribute_values, (uint32_t)suffixRank+1U,
+                outputType, YES, &m.epsilonBits, &m.epsilonType)) return NO;
         MPSShape *suffix = [input subarrayWithRange:NSMakeRange(m.axis, (NSUInteger)suffixRank)];
         for (uint32_t role = 1U; role < node.input_count; role++)
             if (![shapes[node.inputs[role]] isEqualToArray:suffix]) return NO;
@@ -147,11 +165,14 @@ static BOOL synaptik_normalization_metadata(SynaptikMetalDecodedNode node,
         if (batch) {
             if (input.count < 2U || node.attribute_kind != (training ? 30U : 29U)
                     || node.attribute_count != (training ? 5U : 3U)) return NO;
-            if (!synaptik_nl_scalar(node.attribute_values, training ? 3U : 1U, YES, &m.epsilonBits)) return NO;
+            if (!synaptik_nl_scalar(node.attribute_values, training ? 3U : 1U,
+                    outputType, YES, &m.epsilonBits, &m.epsilonType)) return NO;
             if (training) {
-                if (!synaptik_nl_scalar(node.attribute_values, 1U, NO, &m.momentumBits)) return NO;
+                if (!synaptik_nl_scalar(node.attribute_values, 1U, outputType,
+                        NO, &m.momentumBits, &m.momentumType)) return NO;
                 float momentum;
-                memcpy(&momentum, &m.momentumBits, sizeof(momentum));
+                uint32_t widened = m.momentumType == 5U ? m.momentumBits << 16U : m.momentumBits;
+                memcpy(&momentum, &widened, sizeof(momentum));
                 if (momentum < 0.0f || momentum > 1.0f) return NO;
             }
             MPSShape *channel = @[@(m.dims[m.axis])];

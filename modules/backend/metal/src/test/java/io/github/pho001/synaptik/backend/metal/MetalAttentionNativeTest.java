@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.shape.Shape;
 import java.lang.foreign.Arena;
@@ -22,6 +24,62 @@ import org.junit.jupiter.api.Test;
 
 /** Actual native SDPA checks, including behavior that cannot be delegated to ordinary softmax. */
 class MetalAttentionNativeTest {
+    @Test
+    void lowPrimaryConsumesWorkingProbabilitiesNotRoundedWeightsSibling() {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            float[] exponentials = {1, (float) Math.exp(0.5), (float) Math.exp(1)};
+            float sum = exponentials[0] + exponentials[1] + exponentials[2];
+            float[] probabilities = {exponentials[0]/sum, exponentials[1]/sum, exponentials[2]/sum};
+            float expected = probabilities[0]*2;
+            expected = Math.fma(probabilities[1], 6, expected);
+            expected = Math.fma(probabilities[2], -4, expected);
+            byte[] primary = numeric(type, expected);
+            for (boolean sibling : List.of(false, true)) {
+                var values = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>();
+                for (long[] dims : List.of(new long[] {1, 1}, new long[] {3, 1}, new long[] {3, 1},
+                        new long[] {1, 1})) values.add(new MetalMpsGraphProgram.ValueDescriptor(type, dims, false));
+                if (sibling) values.add(new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {1, 3}, false));
+                long scalarType = type == DataType.BFLOAT16 ? 5 : 1;
+                long bits = type == DataType.BFLOAT16 ? Short.toUnsignedLong(BFloat16Bits.fromFloat(0.5f))
+                        : Integer.toUnsignedLong(Float.floatToRawIntBits(0.5f));
+                var program = new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.generic(
+                        MetalMpsGraphProgram.NodeKind.SCALED_DOT_PRODUCT_ATTENTION, new int[] {0, 1, 2},
+                        sibling ? new int[] {3, 4} : new int[] {3}, MetalMpsGraphProgram.AttributeKind.ATTENTION,
+                        new long[] {1, scalarType, bits, 0})));
+                var actual = execute(program, values, new int[] {0, 1, 2},
+                        sibling ? new int[] {3, 4} : new int[] {3},
+                        List.of(numeric(type, 1), numeric(type, 0, 1, 2), numeric(type, 2, 6, -4)));
+                assertArrayEquals(primary, actual.getFirst());
+                if (sibling) assertArrayEquals(numeric(type, probabilities), actual.get(1));
+            }
+        }
+    }
+
+    @Test
+    void lowMaskExclusionPrecedesExceptionalQueryKeyAndValueLoads() {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            var values = List.of(new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {1, 1}, false),
+                    new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 1}, false),
+                    new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 1}, false),
+                    new MetalMpsGraphProgram.ValueDescriptor(DataType.BOOL, new long[] {2}, false),
+                    new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {1, 1}, false),
+                    new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {1, 2}, false));
+            var actual = execute(attention(true, true, false, false), values, new int[] {0, 1, 2, 3},
+                    new int[] {4, 5}, List.of(numeric(type, Float.NaN),
+                            numeric(type, Float.NaN, Float.POSITIVE_INFINITY),
+                            numeric(type, Float.NaN, Float.NEGATIVE_INFINITY), new byte[] {0, 0}));
+            assertArrayEquals(numeric(type, 0), actual.getFirst());
+            assertArrayEquals(numeric(type, 0, 0), actual.get(1));
+        }
+    }
+
+    private static byte[] numeric(DataType type, float... values) {
+        ByteBuffer bytes = ByteBuffer.allocate(values.length*type.byteWidth()).order(ByteOrder.nativeOrder());
+        for (float value : values) bytes.putShort(type == DataType.BFLOAT16
+                ? BFloat16Bits.fromFloat(value) : Float16Bits.fromFloat(value));
+        return bytes.array();
+    }
+
     @Test
     void nonemptyValueContractionDoesNotIntroduceAnExtraPositiveZeroContributor() {
         for (boolean sibling : List.of(false, true)) {

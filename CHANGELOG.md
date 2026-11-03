@@ -9,6 +9,13 @@
   reduction reads and generated expanded-one counts. Numerical bodies use FLOAT32 working
   sites and original-carrier publication; cumulative INT32/INT64 arithmetic is modular.
   Native runtime qualification remains a separate integration step.
+- Metal normalization, categorical losses and attention now share original-carrier FLOAT32,
+  BFLOAT16 and FLOAT16 kernel bodies, with explicit per-role metadata, Model promotion and
+  typed epsilon/scale bits. Attention keeps scores/probabilities in declared FLOAT32 work
+  storage until each final output is narrowed; low weights siblings do not replace that work.
+  Independent raw validation preserves canonical batch-statistic siblings, labels, masks and
+  exact gradient role flags. FLOAT16 attention accepts its documented FLOAT32 scale metadata
+  in both public construction and captured inference; CPU low arithmetic restrictions are unchanged.
 - Qualified Metal FLOAT32 ordinary elementary/activation, masked/statistical/cumulative reduction,
   normalization, loss, attention and colliding arithmetic-scatter execution with actual selected
   Compiler gradients.

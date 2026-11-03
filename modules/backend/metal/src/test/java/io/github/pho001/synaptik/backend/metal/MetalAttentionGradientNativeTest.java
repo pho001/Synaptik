@@ -15,6 +15,8 @@ import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
@@ -29,6 +31,8 @@ import io.github.pho001.synaptik.prepare.PartitionPreparation;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import io.github.pho001.synaptik.runtime.run.PreparedExecutionRunner;
 import java.lang.foreign.Arena;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -60,19 +64,31 @@ class MetalAttentionGradientNativeTest {
         }
     }
 
+    @Test
+    void originalLowOutputAndWeightsRootsExecuteActualCompilerAdjoints() {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16))
+            for (boolean weightsRoot : List.of(false, true))
+                for (boolean masked : List.of(false, true)) assertAttention(weightsRoot, masked, true, type);
+    }
+
     private static void assertAttention(boolean weightsRoot, boolean masked, boolean explicit) {
+        assertAttention(weightsRoot, masked, explicit, DataType.FLOAT32);
+    }
+
+    private static void assertAttention(boolean weightsRoot, boolean masked, boolean explicit, DataType type) {
         String library = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
         assumeTrue(library != null && !library.isBlank(), "SYNAPTIK_METAL_TEST_LIBRARY is not set");
-        Tensor query = tensor(DataType.FLOAT32, true, 1, 2, 2);
-        Tensor key = tensor(DataType.FLOAT32, true, 2, 3, 2);
-        Tensor value = tensor(DataType.FLOAT32, true, 1, 3, 2);
+        Tensor query = tensor(type, true, 1, 2, 2);
+        Tensor key = tensor(type, true, 2, 3, 2);
+        Tensor value = tensor(type, true, 1, 3, 2);
         Tensor mask = tensor(DataType.BOOL, false, 2, 3);
         var attrs = new ScaledDotProductAttentionAttrs(
-                explicit ? Optional.of(ScalarValue.float32(0.5f)) : Optional.empty(), masked);
+                explicit ? Optional.of(type == DataType.BFLOAT16 ? ScalarValue.bfloat16(0.5f)
+                        : ScalarValue.float32(0.5f)) : Optional.empty(), masked);
         var attention = masked ? query.scaledDotProductAttentionWithWeights(key, value, mask, attrs)
                 : query.scaledDotProductAttentionWithWeights(key, value, attrs);
         Tensor root = weightsRoot ? attention.weights() : attention.output();
-        Tensor seed = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32, root.descriptor().shape(),
+        Tensor seed = TensorFactory.create(new TensorDescriptor(type, root.descriptor().shape(),
                 Optional.of(LayoutDescriptor.contiguous(root.descriptor().shape())), false));
         float[] seeds = new float[weightsRoot ? 12 : 8];
         for (int i = 0; i < seeds.length; i++) seeds[i] = (i % 5 - 2) * 0.25f;
@@ -92,7 +108,7 @@ class MetalAttentionGradientNativeTest {
         List<ValueId> publications = new ArrayList<>();
         artifacts.publication().forwardBindings().forEach(binding -> publications.add(binding.valueId()));
         artifacts.publication().gradientBindings().forEach(binding -> publications.add(binding.valueId()));
-        List<float[]> expected = oracle(weightsRoot, masked, explicit, seeds);
+        List<float[]> expected = oracle(weightsRoot, masked, explicit, seeds, type);
         assertEquals(expected.size(), publications.size());
         try (MetalDeviceContext context = MetalDeviceContext.open(Path.of(library));
                 Arena arena = Arena.ofConfined()) {
@@ -125,12 +141,21 @@ class MetalAttentionGradientNativeTest {
                     try (var result = new PreparedExecutionRunner().run(execution, inputs)) {
                         for (int publication = 0; publication < expected.size(); publication++) {
                             float[] wanted = expected.get(publication);
-                            var host = arena.allocate((long) wanted.length * Float.BYTES, Float.BYTES);
+                            var host = arena.allocate((long) wanted.length * type.byteWidth(), type.byteWidth());
                             ((MetalBufferRepresentation) result.publicationRepresentation(publication))
                                     .download(0, host, 0, host.byteSize());
-                            assertArrayEquals(wanted, host.toArray(JAVA_FLOAT), 3e-5f,
+                            float[] actual = new float[wanted.length];
+                            ByteBuffer bytes = ByteBuffer.wrap(host.toArray(java.lang.foreign.ValueLayout.JAVA_BYTE))
+                                    .order(ByteOrder.nativeOrder());
+                            for (int i = 0; i < actual.length; i++) actual[i] = type == DataType.FLOAT32
+                                    ? bytes.getFloat() : type == DataType.BFLOAT16 ? BFloat16Bits.toFloat(bytes.getShort())
+                                    : Float16Bits.toFloat(bytes.getShort());
+                            // The independent analytic derivative is not the rounded ordinary AD graph:
+                            // low primitive outputs narrow at each actual compiler expression.
+                            assertArrayEquals(wanted, actual, type == DataType.FLOAT32 ? 3e-5f
+                                            : type == DataType.BFLOAT16 ? 0.007f : 0.001f,
                                     "publication " + publication + ", weightsRoot=" + weightsRoot
-                                            + ", mask/causal=" + masked + ", explicit=" + explicit);
+                                            + ", mask/causal=" + masked + ", explicit=" + explicit + ", type=" + type);
                         }
                     }
                 } finally {
@@ -148,14 +173,20 @@ class MetalAttentionGradientNativeTest {
 
     private static void putFloat(Map<TensorId, MetalBufferRepresentation> buffers,
             Tensor tensor, float[] values, MetalDeviceContext context, Arena arena) {
-        var buffer = context.createBuffer((long) values.length * Float.BYTES);
+        DataType type = tensor.descriptor().dataType();
+        ByteBuffer bytes = ByteBuffer.allocate(values.length * type.byteWidth()).order(ByteOrder.nativeOrder());
+        for (float value : values) {
+            if (type == DataType.FLOAT32) bytes.putFloat(value);
+            else bytes.putShort(type == DataType.BFLOAT16 ? BFloat16Bits.fromFloat(value) : Float16Bits.fromFloat(value));
+        }
+        var buffer = context.createBuffer(bytes.capacity());
         buffers.put(tensor.id(), buffer);
-        var host = arena.allocateFrom(JAVA_FLOAT, values);
+        var host = arena.allocateFrom(java.lang.foreign.ValueLayout.JAVA_BYTE, bytes.array());
         buffer.upload(0, host, 0, host.byteSize());
     }
 
     /** Independent scalar formula with explicit broadcast accumulation for each original role. */
-    private static List<float[]> oracle(boolean weightsRoot, boolean masked, boolean explicit, float[] seed) {
+    private static List<float[]> oracle(boolean weightsRoot, boolean masked, boolean explicit, float[] seed, DataType type) {
         float scale = explicit ? 0.5f : (float) (1.0 / Math.sqrt(2));
         float[] output = new float[weightsRoot ? 12 : 8];
         float[] dq = new float[QUERY.length], dk = new float[KEY.length], dv = new float[VALUE.length];
@@ -168,7 +199,7 @@ class MetalAttentionGradientNativeTest {
                     if (masked && (j > i || MASK[i * 3 + j] == 0)) continue;
                     float score = 0;
                     for (int e = 0; e < 2; e++)
-                        score += QUERY[i * 2 + e] * KEY[(batch * 3 + j) * 2 + e];
+                        score += rounded(type, QUERY[i * 2 + e]) * rounded(type, KEY[(batch * 3 + j) * 2 + e]);
                     weights[j] = (float) Math.exp(score * scale);
                     sum += weights[j];
                 }
@@ -182,10 +213,10 @@ class MetalAttentionGradientNativeTest {
                     } else {
                         for (int d = 0; d < 2; d++) {
                             if (!masked || j <= i && MASK[i * 3 + j] != 0) {
-                                float term = weights[j] * VALUE[j * 2 + d];
+                                float term = weights[j] * rounded(type, VALUE[j * 2 + d]);
                                 output[row * 2 + d] = hasValueTerm ? output[row * 2 + d] + term : term;
                             }
-                            upstream[j] += seed[row * 2 + d] * VALUE[j * 2 + d];
+                            upstream[j] += seed[row * 2 + d] * rounded(type, VALUE[j * 2 + d]);
                             dv[j * 2 + d] += weights[j] * seed[row * 2 + d];
                         }
                         if (!masked || j <= i && MASK[i * 3 + j] != 0) hasValueTerm = true;
@@ -196,12 +227,16 @@ class MetalAttentionGradientNativeTest {
                 for (int j = 0; j < 3; j++) {
                     float ds = weights[j] * (upstream[j] - center) * scale;
                     for (int e = 0; e < 2; e++) {
-                        dq[i * 2 + e] += ds * KEY[(batch * 3 + j) * 2 + e];
-                        dk[(batch * 3 + j) * 2 + e] += ds * QUERY[i * 2 + e];
+                        dq[i * 2 + e] += ds * rounded(type, KEY[(batch * 3 + j) * 2 + e]);
+                        dk[(batch * 3 + j) * 2 + e] += ds * rounded(type, QUERY[i * 2 + e]);
                     }
                 }
             }
         }
         return weightsRoot ? List.of(output, dq, dk) : List.of(output, dq, dk, dv);
+    }
+    private static float rounded(DataType type, float value) {
+        return type == DataType.FLOAT32 ? value : type == DataType.BFLOAT16
+                ? BFloat16Bits.toFloat(BFloat16Bits.fromFloat(value)) : Float16Bits.toFloat(Float16Bits.fromFloat(value));
     }
 }

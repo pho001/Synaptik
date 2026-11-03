@@ -1,5 +1,7 @@
 package io.github.pho001.synaptik.backend.metal;
 
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
+import io.github.pho001.synaptik.model.datatype.DataTypePromotion;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
@@ -8,6 +10,7 @@ import io.github.pho001.synaptik.model.operation.loss.DenseCategoricalCrossEntro
 import io.github.pho001.synaptik.model.operation.loss.IndexCategoricalCrossEntropyWithLogitsAttrs;
 import io.github.pho001.synaptik.model.operation.loss.LossKind;
 import io.github.pho001.synaptik.model.operation.loss.LossReduction;
+import io.github.pho001.synaptik.model.operation.loss.MeanSquaredErrorAttrs;
 import io.github.pho001.synaptik.model.operation.normalization.AffineLayerNormAttrs;
 import io.github.pho001.synaptik.model.operation.normalization.BatchNormInferenceAttrs;
 import io.github.pho001.synaptik.model.operation.normalization.BatchNormKind;
@@ -25,10 +28,10 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * FLOAT32 normalization/loss admission, typed wire lowering and independent raw-node preflight.
+ * Numeric normalization/loss admission, typed wire lowering and independent raw-node preflight.
  * Reads reuse the shared broadcast-aware storage proof: zero-stride axes never exempt the
- * remaining axes from the nonoverlap requirement. Outputs must be canonical. No low-valued
- * occurrence is admitted, and canonical saved batch statistics retain their exact Compiler roles.
+ * remaining axes from the nonoverlap requirement. Outputs are canonical; all original numeric
+ * carriers participate in promotion and saved batch statistics retain their exact Compiler roles.
  */
 final class MetalNormalizationSupport {
     private MetalNormalizationSupport() {}
@@ -37,6 +40,7 @@ final class MetalNormalizationSupport {
     static boolean handles(Operation operation) {
         return operation.kind() instanceof SoftmaxKind || operation.kind() instanceof BatchNormKind
                 || operation.kind() == LayerNormKind.LAYER_NORM || operation.kind() == RmsNormKind.RMS_NORM
+                || operation.kind() == LossKind.MEAN_SQUARED_ERROR
                 || operation.kind() == LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS
                 || operation.kind() == LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS;
     }
@@ -45,7 +49,7 @@ final class MetalNormalizationSupport {
      * @param operation complete typed occurrence
      * @param inputs ordered logical input descriptors
      * @param outputs all ordered canonical output descriptors, including all five BN siblings
-     * @return whether the complete occurrence has the component's FLOAT32 physical contract
+     * @return whether the complete occurrence has the component's numeric physical contract
      */
     static boolean supports(Operation operation, List<TensorDescriptor> inputs, List<TensorDescriptor> outputs) {
         if (!handles(operation)) return false;
@@ -66,7 +70,7 @@ final class MetalNormalizationSupport {
      * @param inputDescriptors complete ordered Model input descriptors
      * @param outputDescriptors complete ordered Model output descriptors
      * @return authenticated ordinary node with unchanged operation and attribute identities
-     * @throws IllegalArgumentException if the occurrence is outside this FLOAT32 domain
+     * @throws IllegalArgumentException if the occurrence is outside this numeric domain
      */
     static MetalMpsGraphProgram.Node lower(Operation operation, int[] inputs, int[] outputs,
             List<TensorDescriptor> inputDescriptors, List<TensorDescriptor> outputDescriptors) {
@@ -98,12 +102,18 @@ final class MetalNormalizationSupport {
                 && operation.attrs() instanceof BatchNormInferenceAttrs a) {
             kind = MetalMpsGraphProgram.NodeKind.BATCH_NORM_INFERENCE;
             attr = MetalMpsGraphProgram.AttributeKind.BATCH_NORM_INFERENCE;
-            words = new long[] {a.channelAxis(), 1, floatingBits(a.epsilon())};
+            words = new long[] {a.channelAxis(), scalarType(a.epsilon()), floatingBits(a.epsilon())};
         } else if (operation.kind() == BatchNormKind.BATCH_NORM_TRAINING
                 && operation.attrs() instanceof BatchNormTrainingAttrs a) {
             kind = MetalMpsGraphProgram.NodeKind.BATCH_NORM_TRAINING;
             attr = MetalMpsGraphProgram.AttributeKind.BATCH_NORM_TRAINING;
-            words = new long[] {a.channelAxis(), 1, floatingBits(a.momentum()), 1, floatingBits(a.epsilon())};
+            words = new long[] {a.channelAxis(), scalarType(a.momentum()), floatingBits(a.momentum()),
+                    scalarType(a.epsilon()), floatingBits(a.epsilon())};
+        } else if (operation.kind() == LossKind.MEAN_SQUARED_ERROR
+                && operation.attrs() instanceof MeanSquaredErrorAttrs a) {
+            kind = MetalMpsGraphProgram.NodeKind.MEAN_SQUARED_ERROR;
+            attr = MetalMpsGraphProgram.AttributeKind.MSE;
+            words = new long[] {reduction(a.reduction())};
         } else if (operation.kind() == LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS
                 && operation.attrs() instanceof DenseCategoricalCrossEntropyWithLogitsAttrs a) {
             kind = MetalMpsGraphProgram.NodeKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS;
@@ -132,7 +142,7 @@ final class MetalNormalizationSupport {
     /** @param node encoded ordinary node @return whether this component owns its operation wire */
     static boolean handles(MetalMpsGraphProgram.Node node) {
         return switch (node.kind()) {
-            case SOFTMAX, LOG_SOFTMAX, LAYER_NORM, RMS_NORM, BATCH_NORM_INFERENCE,
+            case MEAN_SQUARED_ERROR, SOFTMAX, LOG_SOFTMAX, LAYER_NORM, RMS_NORM, BATCH_NORM_INFERENCE,
                     BATCH_NORM_TRAINING, DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
                     INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS -> true;
             default -> false;
@@ -165,13 +175,29 @@ final class MetalNormalizationSupport {
         }
         require(in.length >= 1 && out.length >= 1);
         var x = values.get(in[0]);
-        require(x.dataType() == DataType.FLOAT32 && x.rank() >= 1);
+        require(numeric(x.dataType()) && x.rank() >= 1);
         for (int id : in) physical(values.get(id), false);
-        for (int id : out) { physical(values.get(id), true); require(values.get(id).dataType() == DataType.FLOAT32); }
+        DataType resultType = x.dataType();
+        for (int role = 1; role < in.length; role++) {
+            DataType type = values.get(in[role]).dataType();
+            if (node.kind() == MetalMpsGraphProgram.NodeKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS) continue;
+            require(numeric(type));
+            resultType = DataTypePromotion.promoteFloating(resultType, type);
+        }
+        for (int id : out) { physical(values.get(id), true); require(values.get(id).dataType() == resultType); }
         long[] dims = x.dimensions(), words = node.attributeWords();
         boolean gradient = false;
         for (int id : in) gradient |= values.get(id).requiresGrad();
         switch (node.kind()) {
+            case MEAN_SQUARED_ERROR -> {
+                require(in.length == 2 && out.length == 1 && words.length == 1
+                        && node.attributeKind() == MetalMpsGraphProgram.AttributeKind.MSE
+                        && words[0] >= 1 && words[0] <= 3);
+                require(Arrays.equals(values.get(in[1]).dimensions(), dims));
+                for (int id : in) require(values.get(id).layout().orElseThrow()
+                        .equals(LayoutDescriptor.contiguous(Shape.of(dims))));
+                result(values.get(out[0]), words[0] == 1 ? dims : new long[0], gradient);
+            }
             case SOFTMAX, LOG_SOFTMAX -> {
                 require(in.length == 1 && out.length == 1 && words.length == 1
                         && node.attributeKind() == MetalMpsGraphProgram.AttributeKind.AXIS);
@@ -191,9 +217,9 @@ final class MetalNormalizationSupport {
                 for (int i = 0; i < dims.length-rank; i++) rows = Math.multiplyExact(rows, dims[i]);
                 if (x.elementCount() != 0) dispatchCount(rows);
                 require(Arrays.equals(suffix, Arrays.copyOfRange(words, 1, rank+1)));
-                positiveScalar(words, rank+1);
+                positiveScalar(words, rank+1, resultType);
                 for (int i = 1; i < in.length; i++) {
-                    require(values.get(in[i]).dataType() == DataType.FLOAT32);
+                    require(numeric(values.get(in[i]).dataType()));
                     require(Arrays.equals(values.get(in[i]).dimensions(), suffix));
                 }
                 result(values.get(out[0]), dims, gradient);
@@ -207,12 +233,12 @@ final class MetalNormalizationSupport {
                 int a = axis(words[0], dims.length);
                 dispatchCount(dims[a]);
                 long[] channelShape = {dims[a]};
-                for (int i = 1; i < 5; i++) require(values.get(in[i]).dataType() == DataType.FLOAT32
+                for (int i = 1; i < 5; i++) require(numeric(values.get(in[i]).dataType())
                         && Arrays.equals(values.get(in[i]).dimensions(), channelShape));
                 if (training) {
-                    float momentum = scalar(words, 1);
+                    float momentum = scalar(words, 1, resultType);
                     require(momentum >= 0 && momentum <= 1);
-                    positiveScalar(words, 3);
+                    positiveScalar(words, 3, resultType);
                     long population = productExcept(dims, a);
                     require(dims[a] == 0 || population >= 2);
                     result(values.get(out[0]), dims, x.requiresGrad() || values.get(in[1]).requiresGrad() || values.get(in[2]).requiresGrad());
@@ -220,7 +246,7 @@ final class MetalNormalizationSupport {
                     result(values.get(out[2]), channelShape, x.requiresGrad() || values.get(in[4]).requiresGrad());
                     result(values.get(out[3]), channelShape, x.requiresGrad());
                     result(values.get(out[4]), channelShape, x.requiresGrad());
-                } else { positiveScalar(words, 1); result(values.get(out[0]), dims, gradient); }
+                } else { positiveScalar(words, 1, resultType); result(values.get(out[0]), dims, gradient); }
             }
             case DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS, INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS -> {
                 boolean index = node.kind() == MetalMpsGraphProgram.NodeKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS;
@@ -242,7 +268,7 @@ final class MetalNormalizationSupport {
                         require(words[3] == MetalMpsGraphProgram.dataTypeWire(target.dataType()));
                         if (target.dataType() == DataType.INT32) require((words[4] & ~0xffff_ffffL) == 0);
                     }
-                } else require(words.length == 2 && target.dataType() == DataType.FLOAT32
+                } else require(words.length == 2 && numeric(target.dataType())
                         && Arrays.equals(target.dimensions(), dims));
                 require(dims[a] > 0 || productExcept(dims, a) == 0 || index && words[2] == 1);
                 result(values.get(out[0]), words[1] == 1 ? samples : new long[0],
@@ -271,24 +297,38 @@ final class MetalNormalizationSupport {
         long[] dims = shape.toLongArray(), words = new long[dims.length+3];
         words[0] = dims.length;
         System.arraycopy(dims, 0, words, 1, dims.length);
-        words[dims.length+1] = 1;
+        words[dims.length+1] = scalarType(epsilon);
         words[dims.length+2] = floatingBits(epsilon);
         return words;
     }
 
-    private static long floatingBits(ScalarValue value) {
-        require(value.dataType() == DataType.FLOAT32);
-        return Integer.toUnsignedLong(Float.floatToRawIntBits(value.float32Value()));
+    static boolean numeric(DataType type) {
+        return type == DataType.FLOAT32 || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
     }
 
-    private static float scalar(long[] words, int start) {
-        require(start+1 < words.length && words[start] == 1 && (words[start+1] & ~0xffff_ffffL) == 0);
-        float value = Float.intBitsToFloat((int) words[start+1]);
+    static long scalarType(ScalarValue value) {
+        require(value.dataType() == DataType.FLOAT32 || value.dataType() == DataType.BFLOAT16);
+        return MetalMpsGraphProgram.dataTypeWire(value.dataType());
+    }
+
+    static long floatingBits(ScalarValue value) {
+        scalarType(value);
+        return value.dataType() == DataType.BFLOAT16 ? Short.toUnsignedLong(value.bfloat16Bits())
+                : Integer.toUnsignedLong(Float.floatToRawIntBits(value.float32Value()));
+    }
+
+    static float scalar(long[] words, int start, DataType resultType) {
+        require(start+1 < words.length);
+        long expected = resultType == DataType.BFLOAT16 ? 5 : 1;
+        require(words[start] == expected);
+        require((words[start+1] & ~(expected == 5 ? 0xffffL : 0xffff_ffffL)) == 0);
+        float value = expected == 5 ? BFloat16Bits.toFloat((short) words[start+1])
+                : Float.intBitsToFloat((int) words[start+1]);
         require(Float.isFinite(value));
         return value;
     }
 
-    private static void positiveScalar(long[] words, int start) { require(scalar(words, start) > 0); }
+    private static void positiveScalar(long[] words, int start, DataType type) { require(scalar(words, start, type) > 0); }
     private static int axis(long word, int rank) { require(word >= 0 && word < rank); return (int) word; }
     private static void dispatchCount(long count) { require(count >= 0 && count <= 0xffff_ffffL); }
     private static long productExcept(long[] dims, int axis) {
@@ -309,6 +349,6 @@ final class MetalNormalizationSupport {
     }
     private static void require(boolean condition) { if (!condition) throw malformed(); }
     private static IllegalArgumentException malformed() {
-        return new IllegalArgumentException("unsupported or malformed Metal FLOAT32 normalization/loss occurrence");
+        return new IllegalArgumentException("unsupported or malformed Metal numeric normalization/loss occurrence");
     }
 }

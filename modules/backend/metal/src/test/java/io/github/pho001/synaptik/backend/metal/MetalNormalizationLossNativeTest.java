@@ -10,6 +10,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.normalization.SoftmaxAttrs;
@@ -31,6 +33,90 @@ class MetalNormalizationLossNativeTest {
     private static final MetalMpsGraphProgram.AttributeKind AXIS = MetalMpsGraphProgram.AttributeKind.AXIS;
     private static final MetalMpsGraphProgram.AttributeKind NORMALIZED =
             MetalMpsGraphProgram.AttributeKind.NORMALIZED_SHAPE_EPSILON;
+
+    @Test
+    void originalLowNormsAndLossesExecuteWithIndependentFinalNarrowingExpectations() {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            for (var kind : List.of(MetalMpsGraphProgram.NodeKind.SOFTMAX, MetalMpsGraphProgram.NodeKind.LOG_SOFTMAX,
+                    MetalMpsGraphProgram.NodeKind.LAYER_NORM, MetalMpsGraphProgram.NodeKind.RMS_NORM)) {
+                boolean soft = kind == MetalMpsGraphProgram.NodeKind.SOFTMAX || kind == MetalMpsGraphProgram.NodeKind.LOG_SOFTMAX;
+                var n = node(kind, new int[] {0}, new int[] {1}, soft ? AXIS : NORMALIZED,
+                        soft ? new long[] {1} : new long[] {1, 2, scalarType(type), numericBits(type, 1)});
+                float[] actual = execute(List.of(typed(type, 1, 2), typed(type, 1, 2)), n, 1,
+                        new byte[][] {numeric(type, soft ? new float[] {0, 0} : new float[] {1, 3})}).getFirst();
+                float root = (float) Math.sqrt(kind == MetalMpsGraphProgram.NodeKind.RMS_NORM ? 6 : 2);
+                float[] expected = kind == MetalMpsGraphProgram.NodeKind.SOFTMAX ? new float[] {0.5f, 0.5f}
+                        : kind == MetalMpsGraphProgram.NodeKind.LOG_SOFTMAX ? new float[] {-(float) Math.log(2), -(float) Math.log(2)}
+                        : kind == MetalMpsGraphProgram.NodeKind.LAYER_NORM ? new float[] {-1/root, 1/root}
+                        : new float[] {1/root, 3/root};
+                assertNumeric(type, expected, actual);
+            }
+            var mse = node(MetalMpsGraphProgram.NodeKind.MEAN_SQUARED_ERROR, new int[] {0, 1}, new int[] {2},
+                    MetalMpsGraphProgram.AttributeKind.MSE, new long[] {3});
+            assertNumeric(type, new float[] {2.5f}, execute(
+                    List.of(typed(type, 2), typed(type, 2), typed(type)), mse, 2,
+                    new byte[][] {numeric(type, 1, 3), numeric(type, 0, 1)}).getFirst());
+            for (boolean index : List.of(false, true)) {
+                var ce = node(index ? MetalMpsGraphProgram.NodeKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS
+                                : MetalMpsGraphProgram.NodeKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
+                        new int[] {0, 1}, new int[] {2}, index ? MetalMpsGraphProgram.AttributeKind.INDEX_CROSS_ENTROPY
+                                : MetalMpsGraphProgram.AttributeKind.DENSE_CROSS_ENTROPY,
+                        index ? new long[] {1, 3, 0} : new long[] {1, 3});
+                assertNumeric(type, new float[] {(index ? 1 : 2) * (float) Math.log(2)}, execute(
+                        List.of(typed(type, 1, 2), index ? new MetalMpsGraphProgram.ValueDescriptor(DataType.INT64,
+                                new long[] {1}, false) : typed(type, 1, 2), typed(type)), ce, 2,
+                        new byte[][] {numeric(type, 0, 0), index ? indices(DataType.INT64, 1) : numeric(type, 2, 0)}).getFirst());
+            }
+        }
+    }
+
+    @Test
+    void originalLowBatchTrainingPublishesAllFiveRoundedSiblingsAndInferenceUsesOriginalState() {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            for (boolean training : List.of(false, true)) {
+                var n = node(training ? MetalMpsGraphProgram.NodeKind.BATCH_NORM_TRAINING
+                                : MetalMpsGraphProgram.NodeKind.BATCH_NORM_INFERENCE,
+                        new int[] {0, 1, 2, 3, 4}, training ? new int[] {5, 6, 7, 8, 9} : new int[] {5},
+                        training ? MetalMpsGraphProgram.AttributeKind.BATCH_NORM_TRAINING
+                                : MetalMpsGraphProgram.AttributeKind.BATCH_NORM_INFERENCE,
+                        training ? new long[] {1, scalarType(type), numericBits(type, 0.5f), scalarType(type), numericBits(type, 1)}
+                                : new long[] {1, scalarType(type), numericBits(type, 1)});
+                var values = new ArrayList<>(List.of(typed(type, 2, 2), typed(type, 2), typed(type, 2),
+                        typed(type, 2), typed(type, 2), typed(type, 2, 2)));
+                if (training) for (int i = 0; i < 4; i++) values.add(typed(type, 2));
+                var actual = execute(values, n, 5, new byte[][] {numeric(type, 1, 2, 3, 4), numeric(type, 1, 1),
+                        numeric(type, 0, 0), training ? numeric(type, 0, 0) : numeric(type, 2, 3), numeric(type, 1, 1)});
+                float inverse = 1/(float) Math.sqrt(2);
+                assertNumeric(type, new float[] {-inverse, -inverse, inverse, inverse}, actual.getFirst());
+                if (training) {
+                    assertNumeric(type, new float[] {1, 1.5f}, actual.get(1));
+                    assertNumeric(type, new float[] {1.5f, 1.5f}, actual.get(2));
+                    assertNumeric(type, new float[] {2, 3}, actual.get(3));
+                    assertNumeric(type, new float[] {inverse, inverse}, actual.get(4));
+                }
+            }
+        }
+    }
+
+    private static MetalMpsGraphProgram.ValueDescriptor typed(DataType type, long... dims) {
+        return new MetalMpsGraphProgram.ValueDescriptor(type, dims, false);
+    }
+    private static long scalarType(DataType type) { return type == DataType.BFLOAT16 ? 5 : 1; }
+    private static long numericBits(DataType type, float value) {
+        return type == DataType.BFLOAT16 ? Short.toUnsignedLong(BFloat16Bits.fromFloat(value)) : bits(value);
+    }
+    private static byte[] numeric(DataType type, float... values) {
+        if (type == DataType.FLOAT32) return floats(values);
+        ByteBuffer bytes = ByteBuffer.allocate(values.length * type.byteWidth()).order(ByteOrder.nativeOrder());
+        for (float value : values) bytes.putShort(type == DataType.BFLOAT16 ? BFloat16Bits.fromFloat(value) : Float16Bits.fromFloat(value));
+        return bytes.array();
+    }
+    private static void assertNumeric(DataType type, float[] expected, float[] actual) {
+        float[] rounded = expected.clone();
+        for (int i = 0; i < rounded.length; i++) rounded[i] = type == DataType.BFLOAT16
+                ? BFloat16Bits.toFloat(BFloat16Bits.fromFloat(rounded[i])) : Float16Bits.toFloat(Float16Bits.fromFloat(rounded[i]));
+        assertArrayEquals(rounded, actual, 0);
+    }
 
     @Test
     void genuineEmptyNormalizationDomainsRetainZeroExtentsAndCanonicalPorts() {
@@ -125,7 +211,7 @@ class MetalNormalizationLossNativeTest {
     }
 
     @Test
-    void rawPreflightChecksEveryBatchGradientRoleAndRejectsLowAndMalformedScalars() {
+    void rawPreflightChecksEveryBatchGradientRoleAndRejectsMalformedScalars() {
         var node = node(MetalMpsGraphProgram.NodeKind.BATCH_NORM_TRAINING,
                 new int[] {0, 1, 2, 3, 4}, new int[] {5, 6, 7, 8, 9},
                 MetalMpsGraphProgram.AttributeKind.BATCH_NORM_TRAINING,
@@ -146,9 +232,10 @@ class MetalNormalizationLossNativeTest {
             }
         }
         var soft = node(MetalMpsGraphProgram.NodeKind.SOFTMAX, new int[] {0}, new int[] {1}, AXIS, new long[] {0});
-        assertThrows(IllegalArgumentException.class, () -> MetalNormalizationSupport.validate(soft, List.of(
-                new MetalMpsGraphProgram.ValueDescriptor(DataType.BFLOAT16, new long[] {2}, false),
-                new MetalMpsGraphProgram.ValueDescriptor(DataType.BFLOAT16, new long[] {2}, false))));
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16))
+            MetalNormalizationSupport.validate(soft, List.of(
+                    new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2}, true),
+                    new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2}, true)));
         var invalidEpsilon = node(MetalMpsGraphProgram.NodeKind.LAYER_NORM, new int[] {0}, new int[] {1},
                 NORMALIZED, normalized(2, -1));
         assertThrows(IllegalArgumentException.class, () -> MetalNormalizationSupport.validate(
@@ -442,7 +529,11 @@ class MetalNormalizationLossNativeTest {
                     api.download(buffers.get(id), 0, target, values.get(id).byteCount());
                     ByteBuffer bytes = ByteBuffer.wrap(target.toArray(JAVA_BYTE)).order(ByteOrder.nativeOrder());
                     float[] decoded = new float[count];
-                    for (int j = 0; j < count; j++) decoded[j] = bytes.getFloat();
+                    for (int j = 0; j < count; j++) decoded[j] = switch (values.get(id).dataType()) {
+                        case BFLOAT16 -> BFloat16Bits.toFloat(bytes.getShort());
+                        case FLOAT16 -> Float16Bits.toFloat(bytes.getShort());
+                        default -> bytes.getFloat();
+                    };
                     if (expectRejection) for (float value : decoded)
                         assertEquals(0x2a2a2a2a, Float.floatToRawIntBits(value), "preflight must precede every loss write");
                     result.add(decoded);
