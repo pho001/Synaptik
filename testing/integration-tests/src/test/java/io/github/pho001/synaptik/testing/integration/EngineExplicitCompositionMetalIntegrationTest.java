@@ -1638,6 +1638,298 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
+    void seventeenthWholeTensorAloneCarriesConcatAndStackGradientsFromAffineInputs() {
+        Path library = configuredMetalLibrary();
+        try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
+            builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
+            try (Engine engine = builder.build()) {
+                for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                    int[] widths = new int[17];
+                    java.util.Arrays.fill(widths, 2);
+                    Tensor[] inputs = variadicMatrixInputs(type, arena, widths);
+                    float[] expected = variadicConcatExpected(widths);
+                    int[] lastPositions = {32, 33, 66, 67};
+                    assertVariadicExecution(engine, arena, type, inputs,
+                            Tensor.concat(-1, inputs), Shape.of(2, 34), expected, lastPositions);
+                    assertVariadicExecution(engine, arena, type, inputs,
+                            Tensor.stack(1, inputs), Shape.of(2, 17, 2), expected, lastPositions);
+                }
+            }
+        }
+    }
+
+    @Test
+    void thirtyThreeWholeOperandsPreserveEmptyConcatSlotsAndOffsetRankZeroStack() {
+        Path library = configuredMetalLibrary();
+        try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
+            builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
+            try (Engine engine = builder.build()) {
+                for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                    // Empty operands straddle the old boundary; first and last remain nonempty.
+                    int[] widths = new int[33];
+                    for (int index = 0; index < widths.length; index++) {
+                        widths[index] = index % 3 == 1 ? 0 : index % 3 == 0 ? 1 : 2;
+                    }
+                    Tensor[] matrices = variadicMatrixInputs(type, arena, widths);
+                    float[] expected = variadicConcatExpected(widths);
+                    int rowWidth = expected.length / 2;
+                    assertVariadicExecution(engine, arena, type, matrices,
+                            Tensor.concat(1, matrices), Shape.of(2, rowWidth), expected,
+                            new int[] {rowWidth - 2, rowWidth - 1,
+                                    2 * rowWidth - 2, 2 * rowWidth - 1});
+
+                    Tensor[] scalars = new Tensor[33];
+                    float[] stacked = new float[33];
+                    for (int index = 0; index < scalars.length; index++) {
+                        stacked[index] = variadicOperandValue(index, 0, 0);
+                        scalars[index] = variadicView(type, Shape.scalar(), new long[0], 2,
+                                index == scalars.length - 1, arena, -99, -99, stacked[index], -99);
+                    }
+                    assertVariadicExecution(engine, arena, type, scalars,
+                            Tensor.stack(-1, scalars), Shape.of(33), stacked, new int[] {32});
+                }
+            }
+        }
+    }
+
+    @Test
+    void twoHundredFiftySevenWholeOperandsPreserveLastTensorAndTrailingStackAxis() {
+        Path library = configuredMetalLibrary();
+        try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
+            builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
+            try (Engine engine = builder.build()) {
+                for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                    int[] widths = new int[257];
+                    java.util.Arrays.fill(widths, 2);
+                    Tensor[] inputs = variadicMatrixInputs(type, arena, widths);
+                    assertVariadicExecution(engine, arena, type, inputs,
+                            Tensor.concat(1, inputs), Shape.of(2, 514),
+                            variadicConcatExpected(widths), new int[] {512, 513, 1026, 1027});
+                    float[] expected = new float[4 * inputs.length];
+                    int position = 0;
+                    for (int row = 0; row < 2; row++) {
+                        for (int column = 0; column < 2; column++) {
+                            for (int operand = 0; operand < inputs.length; operand++) {
+                                expected[position++] = variadicOperandValue(operand, row, column);
+                            }
+                        }
+                    }
+                    assertVariadicExecution(engine, arena, type, inputs,
+                            Tensor.stack(-1, inputs), Shape.of(2, 2, 257), expected,
+                            new int[] {256, 513, 770, 1027});
+                }
+            }
+        }
+    }
+
+    @Test
+    void variadicEmptyOutputsPreserveShapesAndEmptyLastOperandCotangents() {
+        Path library = configuredMetalLibrary();
+        try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
+            builder.takeOwnership(MetalBackendIntegration.open(new MetalBackendConfiguration(library)));
+            try (Engine engine = builder.build()) {
+                for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                    Tensor[] inputs = variadicMatrixInputs(type, arena, new int[17]);
+                    assertVariadicExecution(engine, arena, type, inputs,
+                            Tensor.concat(1, inputs), Shape.of(2, 0), new float[0], new int[0]);
+                    assertVariadicExecution(engine, arena, type, inputs,
+                            Tensor.stack(1, inputs), Shape.of(2, 17, 0), new float[0], new int[0]);
+                }
+            }
+        }
+    }
+
+    @Test
+    void variadicValidationStillChecksTheLastOperandAndRejectsInvalidAxes() {
+        try (Arena arena = Arena.ofShared()) {
+            for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                int[] widths = new int[17];
+                java.util.Arrays.fill(widths, 2);
+                Tensor[] inputs = variadicMatrixInputs(type, arena, widths);
+                Tensor[] wrongShape = inputs.clone();
+                wrongShape[16] = variadicView(type, Shape.of(1, 2), new long[] {2, 1},
+                        0, true, arena, 1, 2);
+                assertThrows(IllegalArgumentException.class, () -> Tensor.concat(1, wrongShape));
+                assertThrows(IllegalArgumentException.class, () -> Tensor.stack(1, wrongShape));
+                Tensor[] wrongType = inputs.clone();
+                wrongType[16] = variadicView(type == DataType.FLOAT32 ? DataType.BFLOAT16 : DataType.FLOAT32,
+                        Shape.of(2, 2), new long[] {2, 1}, 0, true, arena, 1, 2, 3, 4);
+                assertThrows(IllegalArgumentException.class, () -> Tensor.concat(1, wrongType));
+                assertThrows(IllegalArgumentException.class, () -> Tensor.stack(1, wrongType));
+                assertThrows(IndexOutOfBoundsException.class, () -> Tensor.concat(2, inputs));
+                assertThrows(IndexOutOfBoundsException.class, () -> Tensor.stack(3, inputs));
+            }
+        }
+    }
+
+    /**
+     * Builds independent caller leaves with a nonzero origin, column gaps and row padding.
+     * Only the final whole operand requests gradients, including when its extent is zero.
+     *
+     * @param type exact floating carrier shared by all leaves
+     * @param arena live owner of borrowed input storage
+     * @param widths ordered column extents in the inclusive range zero through two
+     * @return distinct direct value inputs with exact logical values given by the fixture oracle
+     */
+    private static Tensor[] variadicMatrixInputs(DataType type, Arena arena, int[] widths) {
+        Tensor[] inputs = new Tensor[widths.length];
+        for (int operand = 0; operand < inputs.length; operand++) {
+            float[] storage = widths[operand] == 0 ? new float[0] : new float[11];
+            java.util.Arrays.fill(storage, -99);
+            for (int row = 0; row < 2; row++) {
+                for (int column = 0; column < widths[operand]; column++) {
+                    storage[1 + 7 * row + 2 * column] = variadicOperandValue(operand, row, column);
+                }
+            }
+            inputs[operand] = variadicView(type, Shape.of(2, widths[operand]),
+                    new long[] {7, 2}, 1, operand == inputs.length - 1, arena, storage);
+        }
+        return inputs;
+    }
+
+    /**
+     * Supplies finite, exactly represented values with distinct row, column and operand roles.
+     *
+     * @param operand zero-based whole tensor position
+     * @param row logical row, zero or one
+     * @param column logical column, zero or one
+     * @return exactly representable FLOAT32, BFLOAT16 and FLOAT16 fixture value
+     */
+    private static float variadicOperandValue(int operand, int row, int column) {
+        return operand % 31 - 15 + 32 * row + 0.5f * column;
+    }
+
+    /**
+     * Enumerates the two expected CONCAT rows without reading a Tensor or backend result.
+     *
+     * @param widths ordered zero-to-two column extents
+     * @return exact expected dense row-major values, including zero-sized operands
+     */
+    private static float[] variadicConcatExpected(int[] widths) {
+        int columns = java.util.Arrays.stream(widths).sum();
+        float[] expected = new float[2 * columns];
+        int position = 0;
+        for (int row = 0; row < 2; row++) {
+            for (int operand = 0; operand < widths.length; operand++) {
+                for (int column = 0; column < widths[operand]; column++) {
+                    expected[position++] = variadicOperandValue(operand, row, column);
+                }
+            }
+        }
+        return expected;
+    }
+
+    /**
+     * Executes ordinary compilation and actual Compiler AD with an explicit nonuniform seed.
+     * The only gradient target is the last whole operand, never one of the first sixteen.
+     *
+     * @param engine live Metal-only public engine
+     * @param arena owner of caller and seed storage
+     * @param type exact fixture carrier
+     * @param inputs ordered distinct direct caller leaves, only the last gradient eligible
+     * @param output actual public CONCAT or STACK expression
+     * @param expectedShape independent expected output shape
+     * @param expected exact dense forward oracle
+     * @param lastPositions output ordinals corresponding to the last operand's logical elements
+     */
+    private static void assertVariadicExecution(
+            Engine engine, Arena arena, DataType type, Tensor[] inputs, Tensor output,
+            Shape expectedShape, float[] expected, int[] lastPositions) {
+        for (int index = 0; index < inputs.length; index++) {
+            assertEquals(index == inputs.length - 1, inputs[index].descriptor().requiresGrad());
+        }
+        assertEquals(expectedShape, output.descriptor().shape());
+        assertTrue(output.descriptor().requiresGrad(), "the last operand must participate in gradient OR");
+        var forward = engine.compile(List.of(output));
+        try (var prepared = engine.prepare(forward);
+                var result = engine.run(prepared, List.of(inputs))) {
+            assertEquals(1, result.resultCount());
+            assertEquals(expectedShape, result.publications().getFirst().descriptor().shape());
+            assertVariadicPublication(result, 0, type, expected);
+        }
+
+        float[] seedValues = new float[expected.length];
+        for (int index = 0; index < seedValues.length; index++) {
+            seedValues[index] = index % 29 - 14 + (index % 2) * 0.25f;
+        }
+        Tensor seed = variadicView(type, expectedShape,
+                LayoutDescriptor.contiguous(expectedShape).strides(), 0, false, arena, seedValues);
+        Tensor target = inputs[inputs.length - 1];
+        var gradients = engine.compile(List.of(output), List.of(seed), List.of(target));
+        List<Tensor> feeds = new ArrayList<>(List.of(inputs));
+        feeds.add(seed);
+        try (var prepared = engine.prepare(gradients);
+                var result = engine.run(prepared, feeds)) {
+            assertEquals(2, result.resultCount());
+            assertVariadicPublication(result, 0, type, expected);
+            assertEquals(target.descriptor().shape(), result.publications().get(1).descriptor().shape());
+            float[] expectedGradient = new float[lastPositions.length];
+            for (int index = 0; index < lastPositions.length; index++) {
+                expectedGradient[index] = seedValues[lastPositions[index]];
+            }
+            assertVariadicPublication(result, 1, type, expectedGradient);
+        }
+    }
+
+    /**
+     * Creates a direct value leaf whose actual storage contains the supplied represented values.
+     *
+     * @param type exact supported floating carrier
+     * @param shape fully static logical shape
+     * @param strides nonnegative element strides matching the logical rank
+     * @param offset nonnegative element origin within the represented span
+     * @param requiresGrad whether this original caller requests gradients
+     * @param arena live owner of the borrowed native storage
+     * @param values complete physical storage, including padding or an empty span
+     * @return direct Tensor with legitimate affine view metadata and matching native host storage
+     */
+    private static Tensor variadicView(
+            DataType type, Shape shape, long[] strides, long offset,
+            boolean requiresGrad, Arena arena, float... values) {
+        TensorDescriptor descriptor = new TensorDescriptor(type, shape,
+                Optional.of(LayoutDescriptor.of(shape, strides, offset, true)), requiresGrad);
+        MemorySegment segment = arena.allocate((long) values.length * type.byteWidth(), type.byteWidth());
+        for (int index = 0; index < values.length; index++) {
+            switch (type) {
+                case FLOAT32 -> segment.setAtIndex(ValueLayout.JAVA_FLOAT, index, values[index]);
+                case BFLOAT16 -> segment.setAtIndex(ValueLayout.JAVA_SHORT, index,
+                        io.github.pho001.synaptik.model.datatype.BFloat16Bits.fromFloat(values[index]));
+                case FLOAT16 -> segment.setAtIndex(ValueLayout.JAVA_SHORT, index,
+                        Float.floatToFloat16(values[index]));
+                default -> throw new IllegalArgumentException("unsupported fixture carrier: " + type);
+            }
+        }
+        return TensorFactory.create(descriptor, Optional.empty(),
+                Optional.of(new MemorySegmentStorage(type, values.length, segment)));
+    }
+
+    /**
+     * Compares every materialized representation, including exact zero-byte publications.
+     *
+     * @param result live public Engine result
+     * @param publication zero-based forward or gradient occurrence
+     * @param type expected original floating carrier
+     * @param expected independent expected logical values
+     */
+    private static void assertVariadicPublication(
+            io.github.pho001.synaptik.engine.RunResult result,
+            int publication, DataType type, float[] expected) {
+        var selected = result.publications().get(publication);
+        assertEquals(type, selected.descriptor().dataType());
+        ByteBuffer bytes = result.materialize(selected, (long) expected.length * type.byteWidth()).bytes();
+        assertEquals(expected.length * type.byteWidth(), bytes.remaining());
+        for (float value : expected) {
+            switch (type) {
+                case FLOAT32 -> assertEquals(Float.floatToRawIntBits(value), bytes.getInt());
+                case BFLOAT16 -> assertEquals(
+                        io.github.pho001.synaptik.model.datatype.BFloat16Bits.fromFloat(value), bytes.getShort());
+                case FLOAT16 -> assertEquals(Float.floatToFloat16(value), bytes.getShort());
+                default -> throw new IllegalArgumentException("unsupported fixture carrier: " + type);
+            }
+        }
+    }
+
+    @Test
     void publicGatherFailuresRetainBoundsExceptionTypesForBothIndexWidths() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared();
