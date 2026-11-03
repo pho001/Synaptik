@@ -1436,11 +1436,6 @@ final class MetalMpsGraphProgram {
                 available[output] = true;
                 produced[output] = true;
             }
-            if (node.kind == NodeKind.TOP_K || node.kind == NodeKind.DROPOUT) {
-                for (int output : node.outputs) {
-                    consumed[output] = true;
-                }
-            }
         }
         boolean[] targeted = new boolean[valueCount];
         for (int target : targets) {
@@ -1450,6 +1445,14 @@ final class MetalMpsGraphProgram {
             }
             targeted[target] = true;
             consumed[target] = true;
+        }
+        // A live multi-output instruction owns every canonical sibling port, even when the
+        // caller observes only one. Whole dead instructions and unused feeds still fail below.
+        for (Node node : nodes) {
+            if (node.outputs.length <= 1) continue;
+            boolean live = false;
+            for (int output : node.outputs) live |= consumed[output];
+            if (live) for (int output : node.outputs) consumed[output] = true;
         }
         for (int value = 0; value < valueCount; value++) {
             if (!available[value] || !consumed[value]) {
