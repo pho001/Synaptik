@@ -12,14 +12,14 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * Cold qualification and ordinary-wire lowering for canonical FLOAT32 fixed recurrence.
+ * Cold qualification and ordinary-wire lowering for canonical FLOAT32/BFLOAT16/FLOAT16 recurrence.
  *
- * <p>This owner admits the forward operation, including lawful gradient-bearing primal metadata;
- * it does not provide or claim the Compiler's independently deferred fixed-family BPTT. Runtime
- * signed INT64 length values remain invocation-preflight inputs, never specialization facts.
- * Zero time/batch extents are admitted only in their semantic recurrent roles. All floating roles
- * are original FLOAT32 descriptors: no low-carrier projection, arithmetic fallback, or software
- * FLOAT64 is involved. Encoded validation is independent of provider answers and selected routes.
+ * <p>This owner admits the original floating gradient flags and canonical sibling gradient OR.
+ * Runtime signed INT64 length values remain invocation-preflight inputs, never specialization
+ * facts. Zero time/batch extents are admitted only in their semantic recurrent roles. All
+ * floating roles have one common original carrier; projections and gates work in FLOAT32,
+ * while hidden and cell state narrow at every step. No arithmetic fallback or software FLOAT64
+ * is involved. Encoded validation is independent of provider answers and selected routes.
  */
 final class MetalRecurrentSupport {
     private static final long UINT32_MAX = 0xffff_ffffL;
@@ -40,7 +40,7 @@ final class MetalRecurrentSupport {
      * @param operation fixed recurrent kind and direction
      * @param inputs ordered original descriptors, including the INT64 length role
      * @param outputs complete canonical sibling descriptors
-     * @return whether the original FLOAT32 occurrence satisfies every static native precondition
+     * @return whether the original floating occurrence satisfies every static native precondition
      */
     static boolean supports(Operation operation, List<TensorDescriptor> inputs,
             List<TensorDescriptor> outputs) {
@@ -143,27 +143,31 @@ final class MetalRecurrentSupport {
                 || hiddenSize <= 0L || hiddenSize > UINT32_MAX) throw malformed();
         long packed = Math.multiplyExact(gates, hiddenSize);
         if (packed > UINT32_MAX) throw malformed();
-        check(input, DataType.FLOAT32, time, batch, inputSize);
+        DataType type = input.dataType();
+        if (type != DataType.FLOAT32 && type != DataType.BFLOAT16 && type != DataType.FLOAT16) {
+            throw malformed();
+        }
+        check(input, type, time, batch, inputSize);
         check(values.get(reads[1]), DataType.INT64, batch);
         if (values.get(reads[1]).requiresGrad()) throw malformed();
-        check(initialHidden, DataType.FLOAT32, batch, hiddenSize);
+        check(initialHidden, type, batch, hiddenSize);
         int weightRole = 3;
         if (gates == 4) {
-            check(values.get(reads[3]), DataType.FLOAT32, batch, hiddenSize);
+            check(values.get(reads[3]), type, batch, hiddenSize);
             weightRole = 4;
         }
-        check(values.get(reads[weightRole]), DataType.FLOAT32, packed, inputSize);
-        check(values.get(reads[weightRole + 1]), DataType.FLOAT32, packed, hiddenSize);
+        check(values.get(reads[weightRole]), type, packed, inputSize);
+        check(values.get(reads[weightRole + 1]), type, packed, hiddenSize);
         if (reads.length == baseReads + 1) {
-            check(values.get(reads[weightRole + 2]), DataType.FLOAT32, packed);
+            check(values.get(reads[weightRole + 2]), type, packed);
         }
         boolean grad = false;
         for (int i = 0; i < reads.length; i++) {
             if (i != 1) grad |= values.get(reads[i]).requiresGrad();
         }
-        check(values.get(writes[0]), DataType.FLOAT32, time, batch, hiddenSize);
-        check(values.get(writes[1]), DataType.FLOAT32, batch, hiddenSize);
-        if (gates == 4) check(values.get(writes[2]), DataType.FLOAT32, batch, hiddenSize);
+        check(values.get(writes[0]), type, time, batch, hiddenSize);
+        check(values.get(writes[1]), type, batch, hiddenSize);
+        if (gates == 4) check(values.get(writes[2]), type, batch, hiddenSize);
         for (int output : writes) if (values.get(output).requiresGrad() != grad) throw malformed();
     }
 

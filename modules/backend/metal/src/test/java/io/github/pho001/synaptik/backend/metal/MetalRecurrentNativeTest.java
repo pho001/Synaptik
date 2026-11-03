@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
@@ -19,7 +21,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * Actual fixed-recurrent native execution against independent sequential FLOAT32 equations.
+ * Actual fixed-recurrent native execution against independent sequential FLOAT32 working equations.
  * Prior-hidden contractions use a snapshot, so a feature-wise in-place hidden update cannot
  * accidentally satisfy the oracle. No CPU backend evaluator or recurrent kernel is called.
  */
@@ -32,10 +34,10 @@ class MetalRecurrentNativeTest {
 
     @Test
     void everyFamilyBiasAndDirectionMatchesAllLengthsAndReusesItsExecutable() {
-        for (var kind : KINDS) {
+        for (var kind : KINDS) for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
             for (boolean reverse : List.of(false, true)) {
                 for (boolean biased : List.of(false, true)) {
-                    try (var fixture = new Fixture(kind, reverse, biased, 3, 4, -1)) {
+                    try (var fixture = new Fixture(kind, reverse, biased, 3, 4, -1, 2, 3, type)) {
                         fixture.assertRun(new long[] {0, 1, 2, 3});
                         fixture.assertRun(new long[] {3, 2, 1, 0});
                         fixture.assertRun(new long[] {1, 3, 0, 2});
@@ -46,11 +48,11 @@ class MetalRecurrentNativeTest {
     }
 
     @Test
-    void singletonContractionsPreserveSignedZeroThroughEveryPublicSibling() {
-        for (var kind : KINDS) {
+    void singletonContractionsRetainEachCarriersSignedZeroSeedSemantics() {
+        for (var kind : KINDS) for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
             for (boolean reverse : List.of(false, true)) {
                 for (boolean biased : List.of(false, true)) {
-                    try (var fixture = new Fixture(kind, reverse, biased, 1, 1, -1, 1, 1)) {
+                    try (var fixture = new Fixture(kind, reverse, biased, 1, 1, -1, 1, 1, type)) {
                         Arrays.fill(fixture.w, 1.0f);
                         Arrays.fill(fixture.u, 1.0f);
                         for (float zero : new float[] {0.0f, -0.0f}) {
@@ -62,10 +64,11 @@ class MetalRecurrentNativeTest {
                             if (kind == MetalMpsGraphProgram.NodeKind.RNN_TANH) {
                                 List<byte[]> actual = fixture.snapshot();
                                 for (int target : fixture.targets) {
-                                    assertEquals(Float.floatToRawIntBits(zero),
-                                            ByteBuffer.wrap(actual.get(target))
-                                                    .order(ByteOrder.nativeOrder()).getInt(),
-                                            "RNN singleton signed zero at public target " + target);
+                                    ByteBuffer bytes = ByteBuffer.wrap(actual.get(target)).order(ByteOrder.nativeOrder());
+                                    int word = type == DataType.FLOAT32 ? bytes.getInt()
+                                            : Short.toUnsignedInt(bytes.getShort());
+                                    assertEquals(type == DataType.FLOAT32 ? Float.floatToRawIntBits(zero) : 0,
+                                            word, type + " RNN singleton zero at public target " + target);
                                 }
                             }
                         }
@@ -77,9 +80,9 @@ class MetalRecurrentNativeTest {
 
     @Test
     void inactiveRowsPreserveRawInitialStatesAndNeverReadPaddedNanInputs() {
-        for (var kind : KINDS) {
+        for (var kind : KINDS) for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
             for (boolean reverse : List.of(false, true)) {
-                try (var fixture = new Fixture(kind, reverse, true, 3, 2, -1)) {
+                try (var fixture = new Fixture(kind, reverse, true, 3, 2, -1, 2, 3, type)) {
                     fixture.h0[0] = -0.0f;
                     fixture.h0[1] = Float.intBitsToFloat(0x7fc1_2345);
                     fixture.h0[2] = Float.NEGATIVE_INFINITY;
@@ -94,9 +97,9 @@ class MetalRecurrentNativeTest {
 
     @Test
     void saturatedAndNonfiniteActiveGatesUseTheNamedSigmoidAndTanhSemantics() {
-        for (var kind : KINDS) {
+        for (var kind : KINDS) for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
             for (boolean reverse : List.of(false, true)) {
-                try (var fixture = new Fixture(kind, reverse, true, 3, 2, -1)) {
+                try (var fixture = new Fixture(kind, reverse, true, 3, 2, -1, 2, 3, type)) {
                     Arrays.fill(fixture.w, 0.0f);
                     Arrays.fill(fixture.u, 0.0f);
                     for (int gate = 0; gate < fixture.gates; gate++) {
@@ -176,9 +179,58 @@ class MetalRecurrentNativeTest {
         }
     }
 
+    @Test
+    void lowCarriersPreserveRawInactiveStatePayloadsAndEmptyDomains() {
+        for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) for (var kind : KINDS) {
+            for (boolean reverse : List.of(false, true)) for (boolean biased : List.of(false, true)) {
+                for (int[] shape : List.of(new int[] {0, 2}, new int[] {3, 2}, new int[] {3, 0},
+                        new int[] {0, 0})) {
+                    try (var fixture = new Fixture(kind, reverse, biased, shape[0], shape[1], -1,
+                            2, 3, type)) {
+                        fixture.prepare(new long[shape[1]]);
+                        ByteBuffer raw = ByteBuffer.allocate(shape[1] * 3 * Short.BYTES)
+                                .order(ByteOrder.nativeOrder());
+                        short[] payloads = {(short) 0x8000, (short) 0x7fa5, (short) 0xff91,
+                                (short) 0x0001, (short) 0xfc00, (short) 0x7e53};
+                        for (int i = 0; i < shape[1] * 3; i++) raw.putShort(payloads[i % payloads.length]);
+                        fixture.upload(fixture.buffers.get(2), raw.array());
+                        if (fixture.gates == 4) fixture.upload(fixture.buffers.get(3), raw.array());
+                        fixture.invoke();
+                        var actual = fixture.snapshot();
+                        assertArrayEquals(new byte[shape[0] * shape[1] * 3 * Short.BYTES],
+                                actual.get(fixture.readCount));
+                        assertArrayEquals(raw.array(), actual.get(fixture.readCount + 1));
+                        if (fixture.gates == 4) {
+                            assertArrayEquals(raw.array(), actual.get(fixture.readCount + 2));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    void lowLengthPreflightRejectsBeforeWritesAndAllowsReuse() {
+        for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) for (var kind : KINDS) {
+            try (var fixture = new Fixture(kind, true, true, 3, 2, -1, 2, 3, type)) {
+                for (long invalid : new long[] {-1, 4, Long.MIN_VALUE, Long.MAX_VALUE}) {
+                    fixture.prepare(new long[] {3, invalid});
+                    var before = fixture.snapshot();
+                    assertThrows(RuntimeException.class, fixture::invoke);
+                    var after = fixture.snapshot();
+                    for (int value = 0; value < before.size(); value++) {
+                        assertArrayEquals(before.get(value), after.get(value));
+                    }
+                }
+                fixture.assertRun(new long[] {3, 1});
+            }
+        }
+    }
+
     /** Owns one reusable native executable and independent buffers for every canonical role. */
     private static final class Fixture implements AutoCloseable {
         final MetalMpsGraphProgram.NodeKind kind;
+        final DataType type;
         final boolean reverse, biased;
         final int time, batch, input, hidden, gates, readCount;
         final float[] x, h0, c0, w, u, bias;
@@ -195,10 +247,16 @@ class MetalRecurrentNativeTest {
 
         Fixture(MetalMpsGraphProgram.NodeKind kind, boolean reverse, boolean biased,
                 int time, int batch, int selectedOutput, int input, int hidden) {
+            this(kind, reverse, biased, time, batch, selectedOutput, input, hidden, DataType.FLOAT32);
+        }
+
+        Fixture(MetalMpsGraphProgram.NodeKind kind, boolean reverse, boolean biased,
+                int time, int batch, int selectedOutput, int input, int hidden, DataType type) {
             String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
             assumeTrue(configured != null && !configured.isBlank(),
                     "SYNAPTIK_METAL_TEST_LIBRARY is not set");
             this.kind = kind;
+            this.type = type;
             this.reverse = reverse;
             this.biased = biased;
             this.time = time;
@@ -213,17 +271,17 @@ class MetalRecurrentNativeTest {
             w = pattern(gates * hidden * input, 0.11f);
             u = pattern(gates * hidden * hidden, -0.08f);
             bias = pattern(gates * hidden, 0.05f);
-            values.add(typed(DataType.FLOAT32, time, batch, input));
+            values.add(typed(type, time, batch, input));
             values.add(typed(DataType.INT64, batch));
-            values.add(typed(DataType.FLOAT32, batch, hidden));
-            if (gates == 4) values.add(typed(DataType.FLOAT32, batch, hidden));
-            values.add(typed(DataType.FLOAT32, gates * hidden, input));
-            values.add(typed(DataType.FLOAT32, gates * hidden, hidden));
-            if (biased) values.add(typed(DataType.FLOAT32, gates * hidden));
+            values.add(typed(type, batch, hidden));
+            if (gates == 4) values.add(typed(type, batch, hidden));
+            values.add(typed(type, gates * hidden, input));
+            values.add(typed(type, gates * hidden, hidden));
+            if (biased) values.add(typed(type, gates * hidden));
             readCount = values.size();
-            values.add(typed(DataType.FLOAT32, time, batch, hidden));
-            values.add(typed(DataType.FLOAT32, batch, hidden));
-            if (gates == 4) values.add(typed(DataType.FLOAT32, batch, hidden));
+            values.add(typed(type, time, batch, hidden));
+            values.add(typed(type, batch, hidden));
+            if (gates == 4) values.add(typed(type, batch, hidden));
             int[] feeds = new int[readCount];
             for (int i = 0; i < feeds.length; i++) feeds[i] = i;
             int[] outputs = new int[gates == 4 ? 3 : 2];
@@ -254,13 +312,13 @@ class MetalRecurrentNativeTest {
                 }
             }
             var reads = new ArrayList<byte[]>();
-            reads.add(words(padded));
+            reads.add(words(padded, type));
             reads.add(longs(lengths));
-            reads.add(words(h0));
-            if (gates == 4) reads.add(words(c0));
-            reads.add(words(w));
-            reads.add(words(u));
-            if (biased) reads.add(words(bias));
+            reads.add(words(h0, type));
+            if (gates == 4) reads.add(words(c0, type));
+            reads.add(words(w, type));
+            reads.add(words(u, type));
+            if (biased) reads.add(words(bias, type));
             for (int i = 0; i < reads.size(); i++) upload(buffers.get(i), reads.get(i));
             for (int i = readCount; i < buffers.size(); i++) {
                 byte[] poison = new byte[Math.toIntExact(values.get(i).byteCount())];
@@ -334,7 +392,9 @@ class MetalRecurrentNativeTest {
     /** Separate projected vectors and hidden snapshots preserve the clean sequential equations. */
     private static float[][] oracle(Fixture f, long[] lengths) {
         float[] y = new float[f.time * f.batch * f.hidden];
-        float[] h = f.h0.clone(), c = f.c0.clone();
+        float[] h = stored(f.h0, f.type), c = stored(f.c0, f.type);
+        float[] x = stored(f.x, f.type), w = stored(f.w, f.type), u = stored(f.u, f.type);
+        float[] bias = stored(f.bias, f.type);
         for (int row = 0; row < f.batch; row++) {
             for (int visit = 0; visit < lengths[row]; visit++) {
                 int time = f.reverse ? (int) lengths[row] - 1 - visit : visit;
@@ -343,16 +403,16 @@ class MetalRecurrentNativeTest {
                 float[] b = new float[a.length];
                 for (int gate = 0; gate < a.length; gate++) {
                     int inputBase = (time * f.batch + row) * f.input;
-                    a[gate] = f.x[inputBase] * f.w[gate * f.input];
-                    for (int k = 1; k < f.input; k++) {
-                        a[gate] += f.x[(time * f.batch + row) * f.input + k]
-                                * f.w[gate * f.input + k];
+                    int start = f.type == DataType.FLOAT32 ? 1 : 0;
+                    if (start != 0) a[gate] = x[inputBase] * w[gate * f.input];
+                    for (int k = start; k < f.input; k++) {
+                        a[gate] += x[inputBase + k] * w[gate * f.input + k];
                     }
-                    b[gate] = previous[0] * f.u[gate * f.hidden];
-                    for (int k = 1; k < f.hidden; k++) {
-                        b[gate] += previous[k] * f.u[gate * f.hidden + k];
+                    if (start != 0) b[gate] = previous[0] * u[gate * f.hidden];
+                    for (int k = start; k < f.hidden; k++) {
+                        b[gate] += previous[k] * u[gate * f.hidden + k];
                     }
-                    if (f.biased) a[gate] += f.bias[gate];
+                    if (f.biased) a[gate] += bias[gate];
                 }
                 for (int j = 0; j < f.hidden; j++) {
                     int state = row * f.hidden + j;
@@ -369,12 +429,12 @@ class MetalRecurrentNativeTest {
                         } else {
                             float candidate = tanh(a[candidateIndex] + b[candidateIndex]);
                             float output = sigmoid(a[3 * f.hidden + j] + b[3 * f.hidden + j]);
-                            c[state] = gate1 * c[state] + gate0 * candidate;
+                            c[state] = stored(gate1 * c[state] + gate0 * candidate, f.type);
                             next = output * tanh(c[state]);
                         }
                     }
-                    h[state] = next;
-                    y[(time * f.batch + row) * f.hidden + j] = next;
+                    h[state] = stored(next, f.type);
+                    y[(time * f.batch + row) * f.hidden + j] = h[state];
                 }
             }
         }
@@ -384,15 +444,17 @@ class MetalRecurrentNativeTest {
     private static void assertResult(float[] expected, byte[] bytes, Fixture f,
             long[] lengths, int output) {
         ByteBuffer actual = ByteBuffer.wrap(bytes).order(ByteOrder.nativeOrder());
-        assertEquals(expected.length * Float.BYTES, bytes.length);
+        assertEquals(expected.length * f.type.byteWidth(), bytes.length);
         for (int i = 0; i < expected.length; i++) {
-            int word = actual.getInt();
+            int word = f.type == DataType.FLOAT32 ? actual.getInt() : Short.toUnsignedInt(actual.getShort());
             boolean exact = output == 0
                     ? i / (f.batch * f.hidden) >= lengths[(i / f.hidden) % f.batch]
                     : lengths[i / f.hidden] == 0;
-            String site = f.kind + " reverse=" + f.reverse + " bias=" + f.biased
+            String site = f.type + " " + f.kind + " reverse=" + f.reverse + " bias=" + f.biased
                     + " output=" + output + " element=" + i;
-            if (exact || expected[i] == 0.0f) {
+            if (f.type != DataType.FLOAT32) {
+                assertEquals(Short.toUnsignedInt(lowBits(expected[i], f.type)), word, site);
+            } else if (exact || expected[i] == 0.0f) {
                 assertEquals(Float.floatToRawIntBits(expected[i]), word, site);
             } else {
                 assertEquals(expected[i], Float.intBitsToFloat(word), 8.0e-6f, site);
@@ -420,9 +482,28 @@ class MetalRecurrentNativeTest {
         return (float) StrictMath.tanh(value);
     }
 
-    private static byte[] words(float[] values) {
-        ByteBuffer bytes = ByteBuffer.allocate(values.length * Float.BYTES).order(ByteOrder.nativeOrder());
-        for (float value : values) bytes.putInt(Float.floatToRawIntBits(value));
+    private static short lowBits(float value, DataType type) {
+        return type == DataType.BFLOAT16 ? BFloat16Bits.fromFloat(value) : Float16Bits.fromFloat(value);
+    }
+
+    private static float stored(float value, DataType type) {
+        if (type == DataType.FLOAT32) return value;
+        short bits = lowBits(value, type);
+        return type == DataType.BFLOAT16 ? BFloat16Bits.toFloat(bits) : Float16Bits.toFloat(bits);
+    }
+
+    private static float[] stored(float[] values, DataType type) {
+        float[] result = values.clone();
+        for (int i = 0; i < result.length; i++) result[i] = stored(result[i], type);
+        return result;
+    }
+
+    private static byte[] words(float[] values, DataType type) {
+        ByteBuffer bytes = ByteBuffer.allocate(values.length * type.byteWidth()).order(ByteOrder.nativeOrder());
+        for (float value : values) {
+            if (type == DataType.FLOAT32) bytes.putInt(Float.floatToRawIntBits(value));
+            else bytes.putShort(lowBits(value, type));
+        }
         return bytes.array();
     }
 

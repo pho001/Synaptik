@@ -6,10 +6,10 @@
 #include <stddef.h>
 #include <string.h>
 
-/* Canonical FLOAT32 fixed recurrence only; lengths are canonical signed INT64.
+/* Canonical FLOAT32/BFLOAT16/FLOAT16 fixed recurrence; lengths are signed INT64.
  * The native owner checks all shape products/buffer extents and nonaliasing of
  * writes before execution. kind is the existing ordinary wire id 103/104/105;
- * reverse and hasBias are Boolean, reserved is zero, I/H are positive.
+ * reverse and hasBias are Boolean, valueType is 1/5/7, I/H are positive.
  */
 typedef struct {
     uint32_t kind;
@@ -19,10 +19,10 @@ typedef struct {
     uint32_t hiddenSize;
     uint32_t reverse;
     uint32_t hasBias;
-    uint32_t reserved;
+    uint32_t valueType;
 } SynaptikRecurrentMeta;
 _Static_assert(sizeof(SynaptikRecurrentMeta) == 32, "recurrent metadata size");
-_Static_assert(offsetof(SynaptikRecurrentMeta, reserved) == 28, "recurrent metadata packing");
+_Static_assert(offsetof(SynaptikRecurrentMeta, valueType) == 28, "recurrent metadata packing");
 
 /* Invocation preflight, not a per-row guard: call for every recurrence before
  * encoding ANY target writes. bytes must be the authenticated CPU-readable
@@ -51,11 +51,13 @@ static inline bool SynaptikValidateRecurrentLengths(
     return true;
 }
 
-/* Assemble after SynaptikFloat32MathKernelSource. Shared dependencies are
- * synaptik_f32_sigmoid(float) and synaptik_f32_tanh(float). Disable fast math
- * and contraction, as for the other FLOAT32 named-working-site components.
+/* Assemble after SynaptikNumericCodecSource and SynaptikFloat32MathKernelSource.
+ * Shared working dependencies are synaptik_f32_sigmoid(float) and
+ * synaptik_f32_tanh(float). Disable fast math and contraction. Projections and
+ * gates stay FLOAT32; hidden/cell publications narrow once per step. LSTM hidden
+ * consumes the narrowed cell. Initial state movement preserves raw payloads.
  *
- * synaptik_recurrent_f32 dispatch: exactly B workitems (one row each), any
+ * synaptik_recurrent_numeric dispatch: exactly B workitems (one row each), any
  * ordinary one-dimensional threadgroup width; B=0 needs no dispatch. Bindings:
  *  0 X[T,B,I], 1 lengths[B], 2 H0[B,H], 3 C0[B,H],
  *  4 W[G*H,I], 5 U[G*H,H], 6 bias[G*H],
@@ -71,70 +73,75 @@ static inline bool SynaptikValidateRecurrentLengths(
 static NSString *const SynaptikRecurrentKernelSource =
 @"\n"
 "struct SynaptikRecurrentMeta {\n"
-"    uint kind, time, batch, inputSize, hiddenSize, reverse, hasBias, reserved;\n"
+"    uint kind, time, batch, inputSize, hiddenSize, reverse, hasBias, valueType;\n"
 "};\n"
 "inline float2 synaptik_recurrent_projection(\n"
-"        device const float *x, device const float *previous,\n"
-"        device const float *w, device const float *u, device const float *bias,\n"
+"        device const uchar *x, device const uchar *previous,\n"
+"        device const uchar *w, device const uchar *u, device const uchar *bias,\n"
 "        ulong inputBase, ulong hiddenBase, ulong gateRow,\n"
 "        constant SynaptikRecurrentMeta &m) {\n"
-"    // I/H are positive: seed each contraction from its first actual product.\n"
+"    // Preserve the retained CPU low +0 seed and the F32 first-product seed.\n"
 "    ulong weightBase = gateRow * ulong(m.inputSize);\n"
-"    float inputSum = x[inputBase] * w[weightBase];\n"
-"    for (uint k = 1; k < m.inputSize; ++k) {\n"
-"        float product = x[inputBase + k] * w[weightBase + k];\n"
+"    uint start = m.valueType == 1u ? 1u : 0u;\n"
+"    float inputSum = 0.0f;\n"
+"    if (start != 0u) inputSum = synaptik_load_numeric(x, inputBase, m.valueType)\n"
+"            * synaptik_load_numeric(w, weightBase, m.valueType);\n"
+"    for (uint k = start; k < m.inputSize; ++k) {\n"
+"        float product = synaptik_load_numeric(x, inputBase + k, m.valueType)\n"
+"                * synaptik_load_numeric(w, weightBase + k, m.valueType);\n"
 "        inputSum = inputSum + product;\n"
 "    }\n"
 "    ulong recurrentBase = gateRow * ulong(m.hiddenSize);\n"
-"    float hiddenSum = previous[hiddenBase] * u[recurrentBase];\n"
-"    for (uint k = 1; k < m.hiddenSize; ++k) {\n"
-"        float product = previous[hiddenBase + k] * u[recurrentBase + k];\n"
+"    float hiddenSum = 0.0f;\n"
+"    if (start != 0u) hiddenSum = synaptik_load_numeric(previous, hiddenBase, m.valueType)\n"
+"            * synaptik_load_numeric(u, recurrentBase, m.valueType);\n"
+"    for (uint k = start; k < m.hiddenSize; ++k) {\n"
+"        float product = synaptik_load_numeric(previous, hiddenBase + k, m.valueType)\n"
+"                * synaptik_load_numeric(u, recurrentBase + k, m.valueType);\n"
 "        hiddenSum = hiddenSum + product;\n"
 "    }\n"
-"    if (m.hasBias != 0u) inputSum = inputSum + bias[gateRow];\n"
+"    if (m.hasBias != 0u) inputSum = inputSum + synaptik_load_numeric(bias, gateRow, m.valueType);\n"
 "    return float2(inputSum, hiddenSum);\n"
 "}\n"
-"kernel void synaptik_recurrent_f32(\n"
-"        device const float *x [[buffer(0)]],\n"
+"kernel void synaptik_recurrent_numeric(\n"
+"        device const uchar *x [[buffer(0)]],\n"
 "        device const long *lengths [[buffer(1)]],\n"
-"        device const float *h0 [[buffer(2)]],\n"
-"        device const float *c0 [[buffer(3)]],\n"
-"        device const float *w [[buffer(4)]],\n"
-"        device const float *u [[buffer(5)]],\n"
-"        device const float *bias [[buffer(6)]],\n"
-"        device float *y [[buffer(7)]],\n"
-"        device float *finalH [[buffer(8)]],\n"
-"        device float *finalC [[buffer(9)]],\n"
+"        device const uchar *h0 [[buffer(2)]],\n"
+"        device const uchar *c0 [[buffer(3)]],\n"
+"        device const uchar *w [[buffer(4)]],\n"
+"        device const uchar *u [[buffer(5)]],\n"
+"        device const uchar *bias [[buffer(6)]],\n"
+"        device uchar *y [[buffer(7)]],\n"
+"        device uchar *finalH [[buffer(8)]],\n"
+"        device uchar *finalC [[buffer(9)]],\n"
 "        constant SynaptikRecurrentMeta &m [[buffer(10)]],\n"
 "        uint row [[thread_position_in_grid]]) {\n"
 "    if (row >= m.batch) return;\n"
 "    // Global preflight has already validated every signed length before writes.\n"
 "    uint count = uint(lengths[row]);\n"
 "    ulong stateBase = ulong(row) * m.hiddenSize;\n"
+"    uint width = lp_width(m.valueType);\n"
 "    for (uint t = count; t < m.time; ++t) {\n"
 "        ulong base = (ulong(t) * m.batch + row) * m.hiddenSize;\n"
-"        for (uint j = 0; j < m.hiddenSize; ++j) y[base + j] = 0.0f;\n"
+"        for (uint j = 0; j < m.hiddenSize; ++j) store_word(y, base + j, width, 0ul);\n"
 "    }\n"
 "    if (count == 0u) {\n"
 "        for (uint j = 0; j < m.hiddenSize; ++j) {\n"
 "            ulong state = stateBase + j;\n"
-"            reinterpret_cast<device uint *>(finalH)[state] =\n"
-"                    reinterpret_cast<device const uint *>(h0)[state];\n"
-"            if (m.kind == 105u) reinterpret_cast<device uint *>(finalC)[state] =\n"
-"                    reinterpret_cast<device const uint *>(c0)[state];\n"
+"            copy_word(h0, state, finalH, state, width);\n"
+"            if (m.kind == 105u) copy_word(c0, state, finalC, state, width);\n"
 "        }\n"
 "        return;\n"
 "    }\n"
 "    if (m.kind == 105u) {\n"
 "        for (uint j = 0; j < m.hiddenSize; ++j)\n"
-"            reinterpret_cast<device uint *>(finalC)[stateBase + j] =\n"
-"                    reinterpret_cast<device const uint *>(c0)[stateBase + j];\n"
+"            copy_word(c0, stateBase + j, finalC, stateBase + j, width);\n"
 "    }\n"
 "    for (uint visit = 0; visit < count; ++visit) {\n"
 "        uint t = m.reverse != 0u ? count - 1u - visit : visit;\n"
 "        ulong inputBase = (ulong(t) * m.batch + row) * m.inputSize;\n"
 "        ulong outputBase = (ulong(t) * m.batch + row) * m.hiddenSize;\n"
-"        device const float *previous = visit == 0u ? h0 : y;\n"
+"        device const uchar *previous = visit == 0u ? h0 : y;\n"
 "        uint previousTime = m.reverse != 0u ? t + 1u : t - 1u;\n"
 "        ulong previousBase = visit == 0u ? stateBase :\n"
 "                (ulong(previousTime) * m.batch + row) * m.hiddenSize;\n"
@@ -154,7 +161,7 @@ static NSString *const SynaptikRecurrentKernelSource =
 "                if (m.kind == 104u) {\n"
 "                    float resetHidden = gate0 * third.y;\n"
 "                    float candidate = synaptik_f32_tanh(third.x + resetHidden);\n"
-"                    float difference = previous[previousBase + j] - candidate;\n"
+"                    float difference = synaptik_load_numeric(previous, previousBase + j, m.valueType) - candidate;\n"
 "                    float update = gate1 * difference;\n"
 "                    next = candidate + update;\n"
 "                } else {\n"
@@ -162,15 +169,18 @@ static NSString *const SynaptikRecurrentKernelSource =
 "                            inputBase, previousBase, 3ul * m.hiddenSize + j, m);\n"
 "                    float candidate = synaptik_f32_tanh(third.x + third.y);\n"
 "                    float outputGate = synaptik_f32_sigmoid(fourth.x + fourth.y);\n"
-"                    float retained = gate1 * finalC[stateBase + j];\n"
+"                    float retained = gate1 * synaptik_load_numeric(finalC, stateBase + j, m.valueType);\n"
 "                    float admitted = gate0 * candidate;\n"
 "                    float cell = retained + admitted;\n"
-"                    finalC[stateBase + j] = cell;\n"
-"                    next = outputGate * synaptik_f32_tanh(cell);\n"
+"                    ulong storedCellBits = lp_narrow(cell, m.valueType);\n"
+"                    store_word(finalC, stateBase + j, width, storedCellBits);\n"
+"                    float storedCell = lp_widen(storedCellBits, m.valueType);\n"
+"                    next = outputGate * synaptik_f32_tanh(storedCell);\n"
 "                }\n"
 "            }\n"
-"            y[outputBase + j] = next;\n"
-"            if (visit == count - 1u) finalH[stateBase + j] = next;\n"
+"            ulong storedHidden = lp_narrow(next, m.valueType);\n"
+"            store_word(y, outputBase + j, width, storedHidden);\n"
+"            if (visit == count - 1u) store_word(finalH, stateBase + j, width, storedHidden);\n"
 "        }\n"
 "    }\n"
 "}\n";

@@ -24,8 +24,9 @@ class MetalRecurrentSupportTest {
     void everyFixedSignatureDirectionAndFloatingGradientRoleLowersWithCanonicalSiblings() {
         for (var kind : RecurrentScanKind.values()) {
             for (var direction : RecurrentDirection.values()) {
-                for (boolean biased : List.of(false, true)) {
-                    Case base = occurrence(kind, direction, biased, 3, 2, DataType.FLOAT32);
+                for (boolean biased : List.of(false, true))
+                        for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                    Case base = occurrence(kind, direction, biased, 3, 2, type);
                     assertQualified(base);
                     for (int role = 0; role < base.inputs.size(); role++) {
                         if (role == 1) continue;
@@ -43,8 +44,9 @@ class MetalRecurrentSupportTest {
     void zeroTimeAndBatchAreAllowedOnlyWithTheExactRecurrentRoleShapes() {
         for (var kind : RecurrentScanKind.values()) {
             for (var direction : RecurrentDirection.values()) {
-                for (int[] shape : List.of(new int[] {0, 2}, new int[] {3, 0}, new int[] {0, 0})) {
-                    assertQualified(occurrence(kind, direction, false, shape[0], shape[1], DataType.FLOAT32));
+                for (int[] shape : List.of(new int[] {0, 2}, new int[] {3, 0}, new int[] {0, 0}))
+                        for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                    assertQualified(occurrence(kind, direction, false, shape[0], shape[1], type));
                 }
             }
         }
@@ -59,13 +61,33 @@ class MetalRecurrentSupportTest {
     }
 
     @Test
-    void noLowOrFloat64CarrierCanInheritTheNewFloat32Predicate() {
+    void float64AndNonfloatingCarriersCannotInheritTheNumericPredicate() {
         for (var kind : RecurrentScanKind.values()) {
-            for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT64)) {
+            for (var type : List.of(DataType.FLOAT64, DataType.INT32, DataType.INT64, DataType.BOOL)) {
                 Case invalid = occurrence(kind, RecurrentDirection.REVERSE, true, 3, 2, type);
                 assertFalse(MetalRecurrentSupport.supports(invalid.operation, invalid.inputs, invalid.outputs));
                 assertThrows(IllegalArgumentException.class,
                         () -> MetalRecurrentSupport.validate(node(invalid), values(invalid)));
+            }
+        }
+    }
+
+    @Test
+    void mixedOriginalFloatingRolesCannotInheritTheCommonCarrier() {
+        for (var type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            Case base = occurrence(RecurrentScanKind.LSTM, RecurrentDirection.REVERSE, true, 3, 2, type);
+            var valid = values(base);
+            for (int role = 0; role < valid.size(); role++) {
+                if (role == 1) continue;
+                for (var other : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                    if (other == type) continue;
+                    var mixed = new ArrayList<>(valid);
+                    var original = valid.get(role);
+                    mixed.set(role, new MetalMpsGraphProgram.ValueDescriptor(
+                            other, original.dimensions(), original.requiresGrad()));
+                    assertThrows(IllegalArgumentException.class,
+                            () -> MetalRecurrentSupport.validate(node(base), mixed));
+                }
             }
         }
     }

@@ -35,7 +35,8 @@ static BOOL synaptik_recurrent_native_value(
         if (extent != 0U && elements > (uint64_t)INT64_MAX / extent) return NO;
         elements *= extent;
     }
-    uint64_t width = type == SYNAPTIK_METAL_TYPE_INT64 ? 8U : 4U;
+    uint64_t width = type == SYNAPTIK_METAL_TYPE_INT64 ? 8U
+            : type == SYNAPTIK_METAL_TYPE_FLOAT32 ? 4U : 2U;
     if (elements > (uint64_t)INT64_MAX / width) return NO;
     /* The shared physical helper's positive-extent domain is intentionally
      * unchanged. Empty recurrence still requires exact canonical stored strides,
@@ -102,6 +103,10 @@ static BOOL synaptik_recurrent_metadata(
     if (time > UINT32_MAX || batch > UINT32_MAX || input == 0U || input > UINT32_MAX
             || hidden == 0U || hidden > UINT32_MAX / gates) return NO;
     uint64_t packed = hidden * gates;
+    uint8_t valueType = types[node.inputs[0]];
+    if (valueType != SYNAPTIK_METAL_TYPE_FLOAT32
+            && valueType != SYNAPTIK_METAL_TYPE_BFLOAT16
+            && valueType != SYNAPTIK_METAL_TYPE_FLOAT16) return NO;
     uint64_t inputShape[3] = {time, batch, input};
     uint64_t lengthShape[1] = {batch};
     uint64_t stateShape[2] = {batch, hidden};
@@ -110,35 +115,35 @@ static BOOL synaptik_recurrent_metadata(
     uint64_t biasShape[1] = {packed};
     uint64_t outputShape[3] = {time, batch, hidden};
     if (!synaptik_recurrent_native_value(node.inputs[0], shapes, types, strides, offsets, states,
-                SYNAPTIK_METAL_TYPE_FLOAT32, 3U, inputShape)
+                valueType, 3U, inputShape)
             || !synaptik_recurrent_native_value(node.inputs[1], shapes, types, strides, offsets, states,
                 SYNAPTIK_METAL_TYPE_INT64, 1U, lengthShape)
             || !synaptik_recurrent_native_value(node.inputs[2], shapes, types, strides, offsets, states,
-                SYNAPTIK_METAL_TYPE_FLOAT32, 2U, stateShape)) return NO;
+                valueType, 2U, stateShape)) return NO;
     uint32_t weightRole = 3U;
     if (gates == 4U) {
         if (!synaptik_recurrent_native_value(node.inputs[3], shapes, types, strides, offsets, states,
-                    SYNAPTIK_METAL_TYPE_FLOAT32, 2U, stateShape)) return NO;
+                    valueType, 2U, stateShape)) return NO;
         weightRole = 4U;
     }
     if (!synaptik_recurrent_native_value(node.inputs[weightRole], shapes, types, strides, offsets, states,
-                SYNAPTIK_METAL_TYPE_FLOAT32, 2U, weightShape)
+                valueType, 2U, weightShape)
             || !synaptik_recurrent_native_value(node.inputs[weightRole + 1U], shapes, types, strides, offsets, states,
-                SYNAPTIK_METAL_TYPE_FLOAT32, 2U, hiddenWeightShape)) return NO;
+                valueType, 2U, hiddenWeightShape)) return NO;
     if (node.input_count == baseReads + 1U
             && !synaptik_recurrent_native_value(node.inputs[weightRole + 2U], shapes, types, strides, offsets, states,
-                    SYNAPTIK_METAL_TYPE_FLOAT32, 1U, biasShape)) return NO;
+                    valueType, 1U, biasShape)) return NO;
     if (!synaptik_recurrent_native_value(node.outputs[0], shapes, types, strides, offsets, states,
-                SYNAPTIK_METAL_TYPE_FLOAT32, 3U, outputShape)
+                valueType, 3U, outputShape)
             || !synaptik_recurrent_native_value(node.outputs[1], shapes, types, strides, offsets, states,
-                SYNAPTIK_METAL_TYPE_FLOAT32, 2U, stateShape)) return NO;
+                valueType, 2U, stateShape)) return NO;
     if (gates == 4U && !synaptik_recurrent_native_value(node.outputs[2], shapes, types, strides, offsets, states,
-                SYNAPTIK_METAL_TYPE_FLOAT32, 2U, stateShape)) return NO;
+                valueType, 2U, stateShape)) return NO;
     SynaptikRecurrentMeta result = {
         .kind = node.operation, .time = (uint32_t)time, .batch = (uint32_t)batch,
         .inputSize = (uint32_t)input, .hiddenSize = (uint32_t)hidden,
         .reverse = node.attribute_values[0] == 2U ? 1U : 0U,
-        .hasBias = node.input_count == baseReads + 1U ? 1U : 0U, .reserved = 0U
+        .hasBias = node.input_count == baseReads + 1U ? 1U : 0U, .valueType = valueType
     };
     *meta = result;
     *grid = MTLSizeMake((NSUInteger)batch, 1U, 1U);
