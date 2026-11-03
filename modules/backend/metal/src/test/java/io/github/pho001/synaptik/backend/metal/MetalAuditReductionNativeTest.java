@@ -29,16 +29,13 @@ class MetalAuditReductionNativeTest {
         var node = reduction(MetalMpsGraphProgram.NodeKind.SUM, 0, 1, List.of(2), false);
         var program = new MetalMpsGraphProgram(List.of(node));
         var output = value(DataType.FLOAT32, 2, 2);
-        for (int fixture = 0; fixture < 2; fixture++) {
-            LayoutDescriptor layout = LayoutDescriptor.of(shape,
-                    fixture == 0 ? new long[] {0, 1, 1} : new long[] {0, 2, 1},
-                    0, fixture == 0);
-            var input = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32,
-                    shape.toLongArray(), Optional.of(layout), false, false);
-            assertThrows(IllegalArgumentException.class, () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                    List.of(input, output), program, new int[] {0}, new int[] {1},
-                    MetalPreparedRoute.CUSTOM_PROGRAM));
-        }
+        LayoutDescriptor aliased = LayoutDescriptor.of(
+                shape, new long[] {0, 1, 1}, 0, true);
+        var aliasedInput = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32,
+                shape.toLongArray(), Optional.of(aliased), false, false);
+        assertThrows(IllegalArgumentException.class, () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                List.of(aliasedInput, output), program, new int[] {0}, new int[] {1},
+                MetalPreparedRoute.CUSTOM_PROGRAM));
         var input = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, shape.toLongArray(),
                 Optional.of(LayoutDescriptor.of(shape, new long[] {0, 2, 1}, 0, true)), false, false);
         assertArrayEquals(new float[] {3, 7, 3, 7}, floats(execute(List.of(input, output),
@@ -78,9 +75,9 @@ class MetalAuditReductionNativeTest {
                 reduction(MetalMpsGraphProgram.NodeKind.SUM, 1, 2, List.of(1), true),
                 reduction(MetalMpsGraphProgram.NodeKind.MEAN, 1, 3, List.of(1), true));
         assertArrayEquals(new float[] {3, 3}, floats(execute(values, nodes,
-                new int[] {0}, new byte[][] {f32(1)}, 2)));
+                new int[] {0}, new byte[][] {f32(1)}, 2, 3)));
         assertArrayEquals(new float[] {1, 1}, floats(execute(values, nodes,
-                new int[] {0}, new byte[][] {f32(1)}, 3)));
+                new int[] {0}, new byte[][] {f32(1)}, 3, 2)));
     }
 
     @Test
@@ -91,11 +88,11 @@ class MetalAuditReductionNativeTest {
                 masked(MetalMpsGraphProgram.NodeKind.MEAN, 0, 1, 3, 1));
         byte[][] inputs = {f32(Float.NaN, 4, Float.POSITIVE_INFINITY, 2, 8, Float.NEGATIVE_INFINITY),
                 new byte[] {0, 1, 0, 1, 1, 0}};
-        assertArrayEquals(new float[] {4, 10}, floats(execute(values, nodes, new int[] {0, 1}, inputs, 2)));
-        assertArrayEquals(new float[] {4, 5}, floats(execute(values, nodes, new int[] {0, 1}, inputs, 3)));
+        assertArrayEquals(new float[] {4, 10}, floats(execute(values, nodes, new int[] {0, 1}, inputs, 2, 3)));
+        assertArrayEquals(new float[] {4, 5}, floats(execute(values, nodes, new int[] {0, 1}, inputs, 3, 2)));
         inputs[1] = new byte[6];
-        assertArrayEquals(new byte[8], execute(values, nodes, new int[] {0, 1}, inputs, 2));
-        for (float result : floats(execute(values, nodes, new int[] {0, 1}, inputs, 3)))
+        assertArrayEquals(new byte[8], execute(values, nodes, new int[] {0, 1}, inputs, 2, 3));
+        for (float result : floats(execute(values, nodes, new int[] {0, 1}, inputs, 3, 2)))
             assertTrue(Float.isNaN(result));
 
         var broadcastValues = List.of(value(DataType.FLOAT32, 2, 3), value(DataType.BOOL, 3),
@@ -297,7 +294,8 @@ class MetalAuditReductionNativeTest {
     }
 
     private static byte[] execute(List<MetalMpsGraphProgram.ValueDescriptor> values,
-            List<MetalMpsGraphProgram.Node> nodes, int[] feeds, byte[][] initial, int target) {
+            List<MetalMpsGraphProgram.Node> nodes, int[] feeds, byte[][] initial,
+            int target, int... siblingTargets) {
         String library = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
         assumeTrue(library != null && !library.isBlank(), "SYNAPTIK_METAL_TEST_LIBRARY is not set");
         MetalNativeApi api = MetalNativeApi.open(Path.of(library).toAbsolutePath().normalize());
@@ -305,8 +303,11 @@ class MetalAuditReductionNativeTest {
         var buffers = new ArrayList<MetalNativeApi.Handle>();
         try (Arena arena = Arena.ofConfined()) {
             context = api.createContext();
+            int[] targetIndices = new int[siblingTargets.length + 1];
+            targetIndices[0] = target;
+            System.arraycopy(siblingTargets, 0, targetIndices, 1, siblingTargets.length);
             executable = api.createProgramExecutable(context, values, new MetalMpsGraphProgram(nodes),
-                    feeds, new int[] {target}, MetalPreparedRoute.CUSTOM_PROGRAM);
+                    feeds, targetIndices, MetalPreparedRoute.CUSTOM_PROGRAM);
             MemorySegment all = arena.allocate(ADDRESS, values.size());
             for (int index = 0; index < values.size(); index++) {
                 var buffer = api.createBuffer(context, values.get(index).byteCount());
@@ -317,9 +318,11 @@ class MetalAuditReductionNativeTest {
                 MemorySegment.copy(initial[index], 0, source, JAVA_BYTE, 0, initial[index].length);
                 api.upload(buffers.get(feeds[index]), 0, source, source.byteSize());
             }
-            MemorySegment targets = arena.allocate(ADDRESS);
-            targets.set(ADDRESS, 0, buffers.get(target).carrier());
-            api.runExecutable(executable, buffers.size(), all, 1, targets);
+            MemorySegment targets = arena.allocate(ADDRESS, targetIndices.length);
+            for (int index = 0; index < targetIndices.length; index++) {
+                targets.setAtIndex(ADDRESS, index, buffers.get(targetIndices[index]).carrier());
+            }
+            api.runExecutable(executable, buffers.size(), all, targetIndices.length, targets);
             MemorySegment result = arena.allocate(values.get(target).byteCount(), 1);
             api.download(buffers.get(target), 0, result, result.byteSize());
             for (int index = 0; index < feeds.length; index++) {

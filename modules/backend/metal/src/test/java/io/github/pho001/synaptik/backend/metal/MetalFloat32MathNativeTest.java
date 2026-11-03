@@ -5,6 +5,7 @@ import static java.lang.foreign.ValueLayout.JAVA_FLOAT;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -16,6 +17,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -83,18 +85,53 @@ final class MetalFloat32MathNativeTest {
     }
 
     @Test
-    void tensorPowerConsumesTheDeclaredStridedExponentLayout() {
+    void binaryPowerAndExtremaConsumeTheDeclaredStridedRightLayout() {
         Shape shape = Shape.of(2);
-        var exponent = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32,
+        var right = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32,
                 new long[] {2}, Optional.of(LayoutDescriptor.of(
                         shape, new long[] {2}, 0, true)), false, false);
-        var node = MetalMpsGraphProgram.Node.generic(
-                MetalMpsGraphProgram.NodeKind.TENSOR_POW, new int[] {0, 1}, new int[] {2},
-                MetalMpsGraphProgram.AttributeKind.NONE, new long[0]);
-        float[] actual = execute(node, List.of(value(2), exponent, value(2)),
-                new int[] {0, 1}, 2, List.of(
-                        new float[] {2, 3}, new float[] {3, Float.NaN, 2}));
-        assertArrayEquals(new float[] {8, 9}, actual, 0.00001f);
+        var kinds = List.of(MetalMpsGraphProgram.NodeKind.TENSOR_POW,
+                MetalMpsGraphProgram.NodeKind.TENSOR_MIN, MetalMpsGraphProgram.NodeKind.TENSOR_MAX);
+        float[][] expected = {{8, 9}, {2, 2}, {3, 3}};
+        for (int index = 0; index < kinds.size(); index++) {
+            var node = MetalMpsGraphProgram.Node.generic(kinds.get(index),
+                    new int[] {0, 1}, new int[] {2},
+                    MetalMpsGraphProgram.AttributeKind.NONE, new long[0]);
+            float[] actual = execute(node, List.of(value(2), right, value(2)),
+                    new int[] {0, 1}, 2, List.of(
+                            new float[] {2, 3}, new float[] {3, Float.NaN, 2}));
+            assertArrayEquals(expected[index], actual, 0.00001f);
+        }
+    }
+
+    @Test
+    void scalarDivisionReadsTheMaterializedExpandedValueRatherThanItsLogicalSpan() {
+        Shape shape = Shape.of(3);
+        var expanded = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32,
+                new long[] {3}, Optional.of(LayoutDescriptor.of(
+                        shape, new long[] {0}, 0, true)), false, true);
+        var nodes = List.of(MetalMpsGraphProgram.Node.targetShape(
+                        MetalMpsGraphProgram.NodeKind.EXPAND, 0, 1, new long[] {3}),
+                MetalMpsGraphProgram.Node.scalarValue(
+                        MetalMpsGraphProgram.NodeKind.SCALAR_DIV, 1, 2, DataType.FLOAT32, 0x40000000L));
+        assertArrayEquals(new float[] {4, 4, 4}, execute(nodes,
+                List.of(value(), expanded, value(3)), new int[] {0}, 2,
+                List.of(new float[] {8})), 0f);
+    }
+
+    @Test
+    void linearPointKernelsRejectStridedFeedsThatHaveNoDenseProducerRepresentation() {
+        Shape shape = Shape.of(3);
+        var input = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32,
+                new long[] {3}, Optional.of(LayoutDescriptor.of(
+                        shape, new long[] {2}, 0, true)), false, false);
+        var node = MetalMpsGraphProgram.Node.scalarValue(
+                MetalMpsGraphProgram.NodeKind.SCALAR_MUL, 0, 1, DataType.FLOAT32, 0x40000000L);
+        var values = List.of(input, value(3));
+        var route = MetalPointwiseFusionPlanner.fixedCustom(node, values)
+                ? MetalPreparedRoute.CUSTOM_PROGRAM : MetalPreparedRoute.MPSGRAPH;
+        assertThrows(IllegalArgumentException.class, () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                values, new MetalMpsGraphProgram(List.of(node)), new int[] {0}, new int[] {1}, route));
     }
 
     @Test
@@ -224,8 +261,14 @@ final class MetalFloat32MathNativeTest {
         return new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, dimensions, false);
     }
 
-    /** Executes only the production custom route; no structural fixture or host repair. */
+    /** Executes the production fixed route without host numeric repair. */
     private static float[] execute(MetalMpsGraphProgram.Node node,
+            List<MetalMpsGraphProgram.ValueDescriptor> values,
+            int[] feeds, int target, List<float[]> inputs) {
+        return execute(List.of(node), values, feeds, target, inputs);
+    }
+
+    private static float[] execute(List<MetalMpsGraphProgram.Node> nodes,
             List<MetalMpsGraphProgram.ValueDescriptor> values,
             int[] feeds, int target, List<float[]> inputs) {
         String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
@@ -236,14 +279,17 @@ final class MetalFloat32MathNativeTest {
             MetalNativeApi.Handle executable = null;
             var buffers = new ArrayList<MetalNativeApi.Handle>();
             try {
-                var program = new MetalMpsGraphProgram(List.of(node));
+                var program = new MetalMpsGraphProgram(nodes);
                 int[] targets = {target};
-                var fusion = MetalPointwiseFusionPlanner.plan(program, values, feeds, targets,
-                        MetalPreparedRoute.CUSTOM_PROGRAM);
-                executable = api.createProgramExecutable(context, values, program, feeds, targets,
-                        MetalPreparedRoute.CUSTOM_PROGRAM, fusion);
-                int[] slots = fusion.programToMaterializedSlot();
-                for (int value : fusion.materializedProgramValueIndices()) {
+                var route = nodes.stream().anyMatch(node -> MetalPointwiseFusionPlanner.fixedCustom(node, values))
+                        ? MetalPreparedRoute.CUSTOM_PROGRAM : MetalPreparedRoute.MPSGRAPH;
+                var fusion = route == MetalPreparedRoute.CUSTOM_PROGRAM
+                        ? MetalPointwiseFusionPlanner.plan(program, values, feeds, targets, route) : null;
+                executable = api.createProgramExecutable(context, values, program, feeds, targets, route, fusion);
+                int[] slots = fusion == null
+                        ? IntStream.range(0, values.size()).toArray() : fusion.programToMaterializedSlot();
+                int[] materialized = fusion == null ? slots : fusion.materializedProgramValueIndices();
+                for (int value : materialized) {
                     buffers.add(api.createBuffer(context, values.get(value).byteCount()));
                 }
                 try (Arena arena = Arena.ofConfined()) {
@@ -253,13 +299,15 @@ final class MetalFloat32MathNativeTest {
                         MemorySegment.copy(input, 0, source, JAVA_FLOAT, 0, input.length);
                         api.upload(buffers.get(slots[feeds[index]]), 0, source, source.byteSize());
                     }
-                    MemorySegment addresses = arena.allocate(ADDRESS, buffers.size());
-                    for (int index = 0; index < buffers.size(); index++) {
-                        addresses.setAtIndex(ADDRESS, index, buffers.get(index).carrier());
+                    int inputCount = route == MetalPreparedRoute.CUSTOM_PROGRAM ? buffers.size() : feeds.length;
+                    MemorySegment addresses = arena.allocate(ADDRESS, inputCount);
+                    for (int index = 0; index < inputCount; index++) {
+                        int slot = route == MetalPreparedRoute.CUSTOM_PROGRAM ? index : slots[feeds[index]];
+                        addresses.setAtIndex(ADDRESS, index, buffers.get(slot).carrier());
                     }
                     MemorySegment outputs = arena.allocate(ADDRESS, 1);
                     outputs.setAtIndex(ADDRESS, 0, buffers.get(slots[target]).carrier());
-                    api.runExecutable(executable, buffers.size(), addresses, 1, outputs);
+                    api.runExecutable(executable, inputCount, addresses, 1, outputs);
                     MemorySegment result = arena.allocate(values.get(target).byteCount(), 4);
                     api.download(buffers.get(slots[target]), 0, result, result.byteSize());
                     return result.toArray(JAVA_FLOAT);

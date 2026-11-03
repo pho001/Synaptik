@@ -79,7 +79,8 @@ final class MetalScatterSupport {
         var descriptors = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>(4);
         for (var input : inputDescriptors) descriptors.add(descriptor(input));
         descriptors.add(descriptor(outputDescriptors.getFirst()));
-        validate(node(operation, new int[] {0, 1, 2}, new int[] {3}), descriptors, true);
+        var local = node(operation, new int[] {0, 1, 2}, new int[] {3});
+        if (handles(local, descriptors)) validate(local, descriptors);
         if (inputs.length != 3 || outputs.length != 1) throw invalid();
         for (int input : inputs) if (input < 0 || input == outputs[0]) throw invalid();
         if (outputs[0] < 0) throw invalid();
@@ -128,11 +129,6 @@ final class MetalScatterSupport {
      * @throws IllegalArgumentException if grammar, physical storage or occurrence semantics fail
      */
     static void validate(MetalMpsGraphProgram.Node node, List<MetalMpsGraphProgram.ValueDescriptor> values) {
-        validate(node, values, false);
-    }
-
-    private static void validate(MetalMpsGraphProgram.Node node,
-            List<MetalMpsGraphProgram.ValueDescriptor> values, boolean allowLegacyReplacement) {
         try {
             if (!handles(node)) throw invalid();
             int[] inputs = node.inputs(), outputs = node.outputs();
@@ -157,16 +153,13 @@ final class MetalScatterSupport {
             DataType type = base.dataType();
             boolean integer = type == DataType.INT32 || type == DataType.INT64;
             boolean floating = type == DataType.FLOAT32 || type == DataType.FLOAT64;
-            boolean low = type == DataType.BFLOAT16 || type == DataType.FLOAT16;
-            boolean replacement = allowLegacyReplacement && reduction == 1;
-            if (type != DataType.FLOAT32 && !integer && type != DataType.FLOAT64
-                    && !(replacement && (low || type == DataType.BOOL))) throw invalid();
-            if (type != DataType.FLOAT32 && !replacement && !handles(node, values)) throw invalid();
+            if (type != DataType.FLOAT32 && !integer && type != DataType.FLOAT64) throw invalid();
+            if (type != DataType.FLOAT32 && !handles(node, values)) throw invalid();
             if (type == DataType.FLOAT64 && (reduction == 2 || reduction == 3)) throw invalid();
             if (update.dataType() != type || output.dataType() != type) throw invalid();
             if (index.dataType() != DataType.INT32 && index.dataType() != DataType.INT64) throw invalid();
             if (index.requiresGrad() || output.requiresGrad() != (base.requiresGrad() || update.requiresGrad())) throw invalid();
-            if (!floating && !low && (base.requiresGrad() || update.requiresGrad() || output.requiresGrad())) throw invalid();
+            if (!floating && (base.requiresGrad() || update.requiresGrad() || output.requiresGrad())) throw invalid();
             if (type == DataType.FLOAT64 && (base.requiresGrad() || update.requiresGrad() || output.requiresGrad())) throw invalid();
             readLayout(base); readLayout(index); readLayout(update); readLayout(output);
             if (!output.layout().orElseThrow().equals(LayoutDescriptor.contiguous(Shape.of(output.dimensions())))) throw invalid();

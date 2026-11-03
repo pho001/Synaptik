@@ -328,6 +328,14 @@ final class MetalMpsGraphProgram {
                     || wireIdentity >= 65 && wireIdentity <= 68;
         }
 
+        /** PointMeta has no strides; logical views require independently proved dense storage. */
+        boolean requiresDenseFloat32Input() {
+            return this == NEG || this == ABS
+                    || wireIdentity >= 28 && wireIdentity <= 30
+                    || wireIdentity >= 46 && wireIdentity <= 50
+                    || wireIdentity >= 52 && wireIdentity <= 68;
+        }
+
         boolean isCustomProgramOperation() {
             if (this == GENERAL_SCAN) return true;
             if (wireIdentity == 36
@@ -397,7 +405,8 @@ final class MetalMpsGraphProgram {
                     || wireIdentity >= 26 && wireIdentity <= 32
                     || wireIdentity >= 60 && wireIdentity <= 63
                     || this == ADD || this == SUB || this == MUL
-                    || this == SCALAR_ADD || this == SCALAR_SUB || this == SCALAR_MUL;
+                    || this == SCALAR_ADD || this == SCALAR_SUB
+                    || this == SCALAR_MUL || this == SCALAR_DIV;
             return accepts(inputState)
                     || physicalRead && originalCarrier && extension
                     || this == MATMUL
@@ -505,7 +514,12 @@ final class MetalMpsGraphProgram {
 
         /** Checks represented storage separately from the truthful logical layout. */
         boolean matmulDense(LayoutDescriptor resolved) {
-            if (rank() < 1 || resolved.rank() != rank() || resolved.storageOffset() != 0L) {
+            return rank() >= 1 && denseStorage(resolved);
+        }
+
+        /** Rank-zero-capable linear storage proof, independent of logical view flags. */
+        boolean denseStorage(LayoutDescriptor resolved) {
+            if (resolved == null || resolved.rank() != rank() || resolved.storageOffset() != 0L) {
                 return false;
             }
             long[] strides = resolved.strides();

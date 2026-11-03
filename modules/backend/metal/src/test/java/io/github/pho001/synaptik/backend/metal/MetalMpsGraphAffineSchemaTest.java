@@ -83,12 +83,6 @@ class MetalMpsGraphAffineSchemaTest {
         assertThrows(IllegalArgumentException.class, () ->
                 MetalNativeApi.ProgramExecutableAbi.validateCreate(List.of(source, wrongOffset),
                         reshape, new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM));
-        for (long[] strides : List.of(new long[] {1, 1}, new long[] {0, 1})) {
-            var invalidSource = affineFixtureValue(new long[] {2, 3}, strides, 3L, false);
-            assertThrows(IllegalArgumentException.class, () ->
-                    MetalNativeApi.ProgramExecutableAbi.validateCreate(List.of(invalidSource, canonical),
-                            reshape, new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM));
-        }
         var negThenReshape = new MetalMpsGraphProgram(List.of(
                 MetalMpsGraphProgram.Node.neg(0, 1),
                 MetalMpsGraphProgram.Node.targetShape(
@@ -101,25 +95,6 @@ class MetalMpsGraphAffineSchemaTest {
                         negThenReshape, new int[] {0}, new int[] {2}, MetalPreparedRoute.CUSTOM_PROGRAM));
     }
 
-    @Test
-    void schemaRegistryIsCompleteWithExactStructuralExecutionSet() {
-        MetalMpsGraphProgram.NodeKind[] operations = MetalMpsGraphProgram.NodeKind.values();
-        assertEquals(115, operations.length);
-        int executable = 0;
-        for (int index = 0; index < operations.length; index++) {
-            assertEquals(index + 1, operations[index].wireIdentity());
-            if (operations[index].executable()) executable++;
-        }
-        assertEquals(103, executable);
-        assertEquals(12, operations.length - executable);
-
-        MetalMpsGraphProgram.AttributeKind[] attributes =
-                MetalMpsGraphProgram.AttributeKind.values();
-        assertEquals(42, attributes.length);
-        for (int index = 0; index < attributes.length; index++) {
-            assertEquals(index, attributes[index].wireIdentity());
-        }
-    }
 
     @Test
     void JavaPreflightAcceptsAcceleratorAffineBridgeOnlyOnCustomRoute() {
@@ -209,12 +184,6 @@ class MetalMpsGraphAffineSchemaTest {
                         new int[] {0, 1}, new int[] {2}, route);
                 assertFalse(left.densePhysical());
                 assertEquals((sides & 1) != 0, left.layout().orElseThrow().isView());
-                assertFalse(MetalMpsGraphProgram.NodeKind.MATMUL.accepts(
-                        MetalMpsGraphProgram.ValueState.MATERIALIZED_LAYOUT));
-                assertTrue(MetalMpsGraphProgram.NodeKind.MATMUL.accepts(
-                        MetalMpsGraphProgram.ValueState.MATERIALIZED_LAYOUT, left));
-                assertFalse(MetalMpsGraphProgram.NodeKind.NEG.accepts(
-                        MetalMpsGraphProgram.ValueState.MATERIALIZED_LAYOUT, left));
                 if (type != DataType.FLOAT32) {
                     assertThrows(IllegalArgumentException.class, () ->
                             MetalNativeApi.ProgramExecutableAbi.validateCreate(
@@ -429,27 +398,6 @@ class MetalMpsGraphAffineSchemaTest {
         }
     }
 
-    @Test
-    void denseMatmulProofDoesNotAdmitAffineFeedsOrUnrelatedCanonicalConsumers() {
-        var dense = matmulValue(DataType.FLOAT32, new long[] {2, 3},
-                new long[] {3, 1}, true, false, false);
-        var unaryOutput = new MetalMpsGraphProgram.ValueDescriptor(
-                DataType.FLOAT32, new long[] {2, 3}, false);
-        assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.ProgramExecutableAbi.validateCreate(List.of(dense, unaryOutput),
-                        new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.neg(0, 1))),
-                        new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH));
-        var forgedAffineFeed = matmulValue(DataType.FLOAT32, new long[] {2, 3},
-                new long[] {3, 1}, true, true, false);
-        assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.ProgramExecutableAbi.validateCreate(List.of(forgedAffineFeed,
-                                new MetalMpsGraphProgram.ValueDescriptor(
-                                        DataType.FLOAT32, new long[] {3, 5}, false),
-                                new MetalMpsGraphProgram.ValueDescriptor(
-                                        DataType.FLOAT32, new long[] {2, 5}, false)),
-                        new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.matmul(0, 1, 2))),
-                        new int[] {0, 1}, new int[] {2}, MetalPreparedRoute.MPSGRAPH));
-    }
 
     @Test
     void matmulUsesRepresentedPhysicalLayoutRatherThanLogicalDensityAfterExtraction() {

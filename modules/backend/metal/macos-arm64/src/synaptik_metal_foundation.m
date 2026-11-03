@@ -417,7 +417,7 @@ static NSString *synaptik_authenticated_fixed_source(void) {
         { SynaptikTask0065RngDropoutKernelSource, 1301U, "8217948f0c28d3df56c5f2edb5408306b588bf2c5e0b1f90a23463e295ac6b99" },
         { SynaptikTask0066DtypeLayoutKernelSource, 31846U, "9fab12b3d4238efb9b652adc67ad217bcad2bcc8e783981810b78fa2dee68d9d" },
         { SynaptikTask0071AnchorEpilogueKernelSource, 7097U, "e165612540f551ce547c145dde4fa48e46ff06e652b4729272b8bfabc75f0663" },
-        { SynaptikExactTypedKernelSource, 8592U, "bde88f8f36953e63c2bd5a3753d7c37d3d9b6fa4b2babb73ffd0da42247a234f" },
+        { SynaptikExactTypedKernelSource, 9775U, "d69047c24edf8b17506bd0b143f368838f1d73714a23e28a5dce54d09e6a50f5" },
         { SynaptikFloat32OrdinaryKernelSource, 4942U, "ce395e35da0a2570a8abd40ac62bcb5669fe5477198cf0d49d5d87b7bab2537d" },
         { SynaptikAuditReductionKernelSource, 11000U, "e8dd1c221d83832e9e2135ea629b190cd3e44ab4e29426781eebf1fb78fabc24" },
         { SynaptikControlledMatmulKernelSource, 4394U, "5a0c0311dfd504244e7233f9d93affbbc112edaa1e8b991f12ff65199585a79a" },
@@ -425,7 +425,7 @@ static NSString *synaptik_authenticated_fixed_source(void) {
         { SynaptikNormalizationLossKernelSource, 11641U, "9534f2b6259814f80bf5b7d8a5244efc34555ab3a4ca38a96bc9e856f5902c60" },
         { SynaptikAttentionKernelSource, 8110U, "3f564ebabc2531613ab8ebbf8850cc5d89b17b05ab859359c436528b4d093301" },
         { SynaptikRecurrentKernelSource, 5213U, "60e7d9c2d6a51607dce87d969822ed1e0d967b0524429a3c974277a9d13eda4c" },
-        { SynaptikExactControlledKernelSource, 5302U, "8e1deb20d2b1922392be5b84b698c0b137b41eb263dc3d670f5e473a684e0641" },
+        { SynaptikExactControlledKernelSource, 7463U, "bdaf3eefb6b3871f861474a7e9ebd0983bcf12852b50f6421720b49c097ebec1" },
         { SynaptikGeneralScanBindingKernelSource, 1389U, "ed6b3ab635795333b9f8f579ad97bbd82119577386067ae798fd65b1ffefeb69" },
     };
     NSMutableString *fixed = [NSMutableString stringWithCapacity:SYNAPTIK_POINTWISE_FIXED_CORPUS_BYTES];
@@ -437,7 +437,7 @@ static NSString *synaptik_authenticated_fixed_source(void) {
     }
     return [fixed lengthOfBytesUsingEncoding:NSUTF8StringEncoding] == SYNAPTIK_POINTWISE_FIXED_CORPUS_BYTES
             && synaptik_source_digest_matches(fixed,
-                    "4aac4d2a4a6ea3ee7ccb9e2ce5639377d81eadaef6437ea0fd4dfaf3e9fc1ec5")
+                    "45fb698cc9b60bbdc4a2f35019d48a9c7173782b41feef5ad89b0b87e309ca1c")
             ? fixed : nil;
 }
 
@@ -2045,6 +2045,17 @@ static BOOL synaptik_matmul_dense_layout(
     return ranks != NULL && offsets != NULL && ranks[value] >= 1U
             && offsets[value] == 0U
             && synaptik_row_major_layout(value, ranks, dimensions, strides, offsets, spans);
+}
+
+/* PointMeta routes have no source strides, unlike BinaryMeta and DataMeta routes. */
+static BOOL node_requires_dense_float32_input(
+        SynaptikMetalDecodedNode node, const uint8_t *types) {
+    if (node.input_count != 1U || types[node.first_input] != SYNAPTIK_METAL_TYPE_FLOAT32) return NO;
+    uint32_t operation = node.operation;
+    return operation == SYNAPTIK_METAL_MPSGRAPH_NEG || operation == SYNAPTIK_METAL_MPSGRAPH_ABS
+            || (operation >= SYNAPTIK_METAL_CUSTOM_SCALAR_MIN && operation <= SYNAPTIK_METAL_CUSTOM_CLAMP)
+            || (operation >= SYNAPTIK_METAL_MPSGRAPH_SCALAR_ADD && operation <= SYNAPTIK_METAL_MPSGRAPH_SCALAR_POW)
+            || (operation >= SYNAPTIK_METAL_MPSGRAPH_RECIPROCAL && operation <= SYNAPTIK_METAL_MPSGRAPH_SILU);
 }
 
 /* Logical alias geometry is derived from the actual immediate producer input. */
@@ -5822,7 +5833,8 @@ static int32_t synaptik_metal_create_decoded(
                 case SYNAPTIK_METAL_MPSGRAPH_SCALAR_MUL:
                 case SYNAPTIK_METAL_MPSGRAPH_SCALAR_DIV:
                 case SYNAPTIK_METAL_MPSGRAPH_SCALAR_POW:
-                    if (states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
+                    if ((states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
+                                    && declared_types[node.first_input] != SYNAPTIK_METAL_TYPE_FLOAT32)
                             || node.second_input != UINT32_MAX
                             || node.attribute_kind != SYNAPTIK_METAL_CUSTOM_ATTR_SCALAR_VALUE
                             || node.attribute_count != 1U
@@ -5834,7 +5846,8 @@ static int32_t synaptik_metal_create_decoded(
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     break;
                 case SYNAPTIK_METAL_CUSTOM_CLAMP:
-                    if (states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
+                    if ((states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
+                                    && declared_types[node.first_input] != SYNAPTIK_METAL_TYPE_FLOAT32)
                             || node.second_input != UINT32_MAX
                             || node.attribute_kind != SYNAPTIK_METAL_CUSTOM_ATTR_CLAMP_RANGE
                             || node.attribute_count != 2U
@@ -6941,6 +6954,13 @@ static int32_t synaptik_metal_create_decoded(
                         nodes[node_index], value_ranks, value_dimensions,
                         physical_value_strides, physical_layout_offsets,
                         physical_layout_spans))
+                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            if (node_requires_dense_float32_input(node, declared_types)
+                    && (physical_layout_offsets[node.first_input] != 0U
+                            || !synaptik_row_major_layout(
+                                    node.first_input, value_ranks, value_dimensions,
+                                    physical_value_strides, physical_layout_offsets,
+                                    physical_layout_spans)))
                 return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
             if (node.operation == SYNAPTIK_METAL_MPSGRAPH_MATMUL) {
                 for (uint32_t operand = 0U; operand < 2U; operand++) {

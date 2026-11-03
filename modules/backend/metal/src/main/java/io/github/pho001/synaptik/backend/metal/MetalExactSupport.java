@@ -218,9 +218,11 @@ final class MetalExactSupport {
         return left.isIntegral() && right.isIntegral() && promoted.isIntegral();
     }
     private static boolean allowedScalar(MetalMpsGraphProgram.NodeKind kind, DataType type) {
-        return scalar(kind) && (type.isIntegral() || type == DataType.FLOAT64
+        return scalar(kind) && (type.isIntegral() && kind != MetalMpsGraphProgram.NodeKind.CLAMP
+                || type == DataType.FLOAT64
                 && (kind == MetalMpsGraphProgram.NodeKind.SCALAR_MIN
-                        || kind == MetalMpsGraphProgram.NodeKind.SCALAR_MAX || kind == MetalMpsGraphProgram.NodeKind.CLAMP));
+                        || kind == MetalMpsGraphProgram.NodeKind.SCALAR_MAX
+                        || kind == MetalMpsGraphProgram.NodeKind.CLAMP));
     }
     private static boolean unary(MetalMpsGraphProgram.NodeKind kind) {
         return switch (kind) { case NEG, ABS, FLOOR, CEIL, SIGN, RELU -> true; default -> false; };

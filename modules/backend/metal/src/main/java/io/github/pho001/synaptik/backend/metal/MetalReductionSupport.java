@@ -2,19 +2,17 @@ package io.github.pho001.synaptik.backend.metal;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
-import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind;
-import io.github.pho001.synaptik.model.operation.reduction.AxisReductionAttrs;
-import io.github.pho001.synaptik.model.operation.reduction.MultiAxisReductionAttrs;
-import io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
 
 /**
- * Owns exact-carrier reduction admission and independent encoded ordinary-reduction validation.
+ * Owns original-carrier numerical reduction admission and independent encoded validation.
  *
  * <p>Only stored-value extrema use FLOAT64: no FLOAT64 arithmetic or low arithmetic extension is
  * inferred from a FLOAT32 numerical reduction. Validation is cold and precedes resource creation.
@@ -25,45 +23,46 @@ final class MetalReductionSupport {
     /** Prevents construction of the cold, stateless reduction proof owner. */
     private MetalReductionSupport() {}
 
+    /** Classifies numerical reductions without intercepting arg-extrema or logical reducers. */
+    static boolean handles(Operation operation) {
+        return operation.kind() instanceof AggregateReductionKind kind && switch (kind) {
+            case SUM, MEAN, PROD, MIN, MAX, LOG_SUM_EXP, VARIANCE,
+                    STANDARD_DEVIATION, L1_NORM, L2_NORM -> true;
+            default -> false;
+        };
+    }
+
     /**
-     * Proves only the audit's additional exact-carrier Model occurrences.
+     * Proves original-carrier reduction occurrences through the same encoded geometry owner.
      *
-     * @param operation typed ordinary operation whose attributes determine contributor membership
-     * @param inputs ordered input descriptors, exactly one for these unmasked forms
-     * @param outputs output descriptors, exactly one canonical same-carrier result
-     * @return whether integral SUM or integral/FLOAT64 MIN/MAX has a complete static physical proof
+     * <p>The ordinary lowerer preserves actual attributes; this method does not maintain a
+     * second mask, correction, axis, byte-bound or storage-injectivity predicate.
+     *
+     * @param operation typed ordinary reduction
+     * @param inputs ordered data and optional BOOL membership descriptors
+     * @param outputs one canonical same-carrier result descriptor
+     * @return whether the complete encoded occurrence belongs to this owner's supported domain
      */
     static boolean supports(Operation operation, List<TensorDescriptor> inputs,
             List<TensorDescriptor> outputs) {
-        if (inputs.size() != 1 || outputs.size() != 1
-                || !(operation.kind() instanceof AggregateReductionKind kind)) return false;
-        var input = inputs.getFirst(); var output = outputs.getFirst();
-        DataType type = input.dataType();
-        boolean integral = type == DataType.INT32 || type == DataType.INT64;
-        if (input.dataType() != output.dataType() || input.requiresGrad() || output.requiresGrad()
-                || !((kind == AggregateReductionKind.SUM && integral)
-                        || ((kind == AggregateReductionKind.MIN || kind == AggregateReductionKind.MAX)
-                                && (integral || type == DataType.FLOAT64)))) return false;
-        if (!input.shape().isFullyStatic() || !output.shape().isFullyStatic()) return false;
-        long[] source = input.shape().toLongArray(), target = output.shape().toLongArray();
+        if (inputs.isEmpty() || outputs.size() != 1 || !handles(operation)) return false;
         try {
-            if (!physical(input.layout().orElse(null), source, type)
-                    || !physical(output.layout().orElse(null), target, type)
-                    || !canonical(output.layout().orElse(null), target)) return false;
-            if (operation.attrs() instanceof SumToShapeAttrs attrs) {
-                return kind == AggregateReductionKind.SUM && attrs.targetShape().equals(output.shape())
-                        && sumTarget(source, target);
+            var values = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>(inputs.size() + 1);
+            for (TensorDescriptor input : inputs) {
+                if (!input.shape().isFullyStatic()) return false;
+                values.add(MetalMpsGraphProgram.ValueDescriptor.from(input));
             }
-            boolean[] axes = new boolean[source.length]; boolean keep = false;
-            if (operation.attrs() == NoOperationAttrs.INSTANCE) Arrays.fill(axes, true);
-            else if (operation.attrs() instanceof AxisReductionAttrs attrs) {
-                select(axes, attrs.axis()); keep = attrs.keepDimensions();
-            } else if (operation.attrs() instanceof MultiAxisReductionAttrs attrs) {
-                for (int axis : attrs.axes()) select(axes, axis);
-                keep = attrs.keepDimensions();
-            } else return false;
-            return Arrays.equals(reduced(source, axes, keep), target);
-        } catch (IllegalArgumentException | ArithmeticException invalid) { return false; }
+            if (!outputs.getFirst().shape().isFullyStatic()) return false;
+            values.add(MetalMpsGraphProgram.ValueDescriptor.from(outputs.getFirst()));
+            var node = MetalNegPartitionPreparer.lowerScanBody(operation,
+                    IntStream.range(0, inputs.size()).toArray(), new int[] {inputs.size()},
+                    inputs, outputs);
+            if (!handles(node, values)) return false;
+            validate(node, values);
+            return true;
+        } catch (IllegalArgumentException | ArithmeticException invalid) {
+            return false;
+        }
     }
 
     /**

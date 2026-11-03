@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.backend.metal;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -52,6 +53,23 @@ class MetalNormalizationLossNativeTest {
                 training, 5, new byte[][] {floats(), floats(), floats(), floats(), floats()});
         assertEquals(5, results.size());
         for (float[] result : results) assertEquals(0, result.length);
+    }
+
+    @Test
+    void observingOnePublicTrainingPortKeepsTheOtherCanonicalSiblingsInternal() {
+        var training = node(MetalMpsGraphProgram.NodeKind.BATCH_NORM_TRAINING,
+                new int[] {0, 1, 2, 3, 4}, new int[] {5, 6, 7, 8, 9},
+                MetalMpsGraphProgram.AttributeKind.BATCH_NORM_TRAINING,
+                new long[] {1, 1, bits(0.5f), 1, bits(1)});
+        var values = List.of(value(2, 2), value(2), value(2), value(2), value(2),
+                value(2, 2), value(2), value(2), value(2), value(2));
+        byte[][] inputs = {floats(1, 2, 3, 4), floats(1, 1), floats(0, 0),
+                floats(0, 0), floats(1, 1)};
+        float scale = (float) (1.0 / Math.sqrt(2.0));
+        assertArrayEquals(new float[] {-scale, -scale, scale, scale},
+                execute(values, training, 5, inputs, false, 5).getFirst(), 1e-6f);
+        assertArrayEquals(new float[] {1, 1.5f},
+                execute(values, training, 5, inputs, false, 6).getFirst(), 0f);
     }
 
     @Test
@@ -379,7 +397,8 @@ class MetalNormalizationLossNativeTest {
     }
 
     private static List<float[]> execute(List<MetalMpsGraphProgram.ValueDescriptor> values,
-            MetalMpsGraphProgram.Node node, int inputCount, byte[][] inputs, boolean expectRejection) {
+            MetalMpsGraphProgram.Node node, int inputCount, byte[][] inputs,
+            boolean expectRejection, int... requestedTargets) {
         String configured = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
         assumeTrue(configured != null && !configured.isBlank(), "SYNAPTIK_METAL_TEST_LIBRARY is not set");
         MetalNativeApi api = MetalNativeApi.open(Path.of(configured).toAbsolutePath().normalize());
@@ -388,9 +407,11 @@ class MetalNormalizationLossNativeTest {
         try {
             context = api.createContext();
             int[] feedIds = new int[inputCount];
-            int[] targetIds = new int[values.size() - inputCount];
+            int[] targetIds = requestedTargets.length == 0
+                    ? new int[values.size() - inputCount] : requestedTargets.clone();
             for (int i = 0; i < feedIds.length; i++) feedIds[i] = i;
-            for (int i = 0; i < targetIds.length; i++) targetIds[i] = inputCount + i;
+            if (requestedTargets.length == 0)
+                for (int i = 0; i < targetIds.length; i++) targetIds[i] = inputCount + i;
             executable = api.createProgramExecutable(context, values, new MetalMpsGraphProgram(List.of(node)),
                     feedIds, targetIds, MetalPreparedRoute.CUSTOM_PROGRAM);
             for (var value : values) buffers.add(api.createBuffer(context, Math.max(1, value.byteCount())));

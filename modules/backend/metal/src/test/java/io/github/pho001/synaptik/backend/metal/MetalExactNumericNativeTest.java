@@ -220,12 +220,11 @@ class MetalExactNumericNativeTest {
                         MetalMpsGraphProgram.Node.scalarValue(MetalMpsGraphProgram.NodeKind.SCALAR_SUB, 0, 2, type, negativeOneBits),
                         MetalMpsGraphProgram.Node.scalarValue(MetalMpsGraphProgram.NodeKind.SCALAR_MUL, 0, 3, type, negativeOneBits),
                         MetalMpsGraphProgram.Node.scalarValue(MetalMpsGraphProgram.NodeKind.SCALAR_MIN, 0, 4, type, lowerBits),
-                        MetalMpsGraphProgram.Node.scalarValue(MetalMpsGraphProgram.NodeKind.SCALAR_MAX, 0, 5, type, lowerBits),
-                        MetalMpsGraphProgram.Node.clamp(0, 6, type, lowerBits, upper)));
+                        MetalMpsGraphProgram.Node.scalarValue(MetalMpsGraphProgram.NodeKind.SCALAR_MAX, 0, 5, type, lowerBits)));
                 var values = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>();
-                for (int i = 0; i < 7; i++) values.add(typed(type, shape));
-                var outputs = execute(program, values, new int[] {0}, new int[] {1, 2, 3, 4, 5, 6}, raw(type, upper));
-                long[] expected = {upper + 1, upper + 1, -upper, lower, upper, upper};
+                for (int i = 0; i < 6; i++) values.add(typed(type, shape));
+                var outputs = execute(program, values, new int[] {0}, new int[] {1, 2, 3, 4, 5}, raw(type, upper));
+                long[] expected = {upper + 1, upper + 1, -upper, lower, upper};
                 for (int i = 0; i < expected.length; i++) assertArrayEquals(raw(type, expected[i]), outputs.get(i));
             }
         }

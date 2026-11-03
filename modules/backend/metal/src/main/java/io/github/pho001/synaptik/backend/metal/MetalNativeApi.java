@@ -801,6 +801,11 @@ abstract class MetalNativeApi implements AutoCloseable {
                         throw new IllegalArgumentException(
                                 "Metal Scan requires authenticated dense represented input storage");
                     }
+                    if (types[input] == ValueType.FLOAT32 && node.kind().requiresDenseFloat32Input()
+                            && !values.get(input).denseStorage(physicalLayouts[input])) {
+                        throw new IllegalArgumentException(
+                                "FLOAT32 point kernels require authenticated dense represented input storage");
+                    }
                     used[input] = true;
                 }
                 if (node.kind() != MetalMpsGraphProgram.NodeKind.GENERAL_SCAN
