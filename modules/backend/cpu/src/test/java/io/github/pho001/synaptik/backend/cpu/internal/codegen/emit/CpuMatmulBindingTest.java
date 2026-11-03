@@ -37,29 +37,30 @@ final class CpuMatmulBindingTest {
                 var lookup = MethodHandles.lookup().defineHiddenClass(bytes,true);
                 var primitive = type == DataType.FLOAT64 ? double.class : float.class;
                 var array = type == DataType.FLOAT64 ? double[].class : float[].class;
-                var entry = lookup.findStatic(lookup.lookupClass(),"dot",MethodType.methodType(primitive,array,array,int.class,boolean.class));
+                var entry = lookup.findStatic(lookup.lookupClass(),"dot",MethodType.methodType(primitive,array,array,int.class,int.class));
                 Object left = type == DataType.FLOAT64 ? new double[]{2,Double.NaN,3} : new float[]{2,Float.NaN,3};
                 Object right = type == DataType.FLOAT64 ? new double[]{5,Double.POSITIVE_INFINITY,7} : new float[]{5,Float.POSITIVE_INFINITY,7};
-                Number active = (Number)entry.invokeWithArguments(left,right,3,true);
-                Number all = (Number)entry.invokeWithArguments(left,right,3,false);
-                Number empty = (Number)entry.invokeWithArguments(null,null,0,true);
+                Number active = (Number)entry.invokeWithArguments(left,right,3,1);
+                Number all = (Number)entry.invokeWithArguments(left,right,3,-1);
+                Number empty = (Number)entry.invokeWithArguments(null,null,0,0);
                 assertEquals(31,active.doubleValue(),0); assertTrue(Double.isNaN(all.doubleValue()));
                 assertEquals(0,Double.doubleToRawLongBits(empty.doubleValue()),"K=0 typed +0 without either load");
                 if (type == DataType.FLOAT64) assertEquals(cleanDouble((double[])left,(double[])right,3,true),active.doubleValue(),0);
                 else assertEquals(cleanFloat((float[])left,(float[])right,3,true),active.floatValue(),0);
-                var code = ClassFile.of().parse(bytes).methods().getFirst().code().orElseThrow();
-                var instructions = code.elementStream().filter(Instruction.class::isInstance).map(Instruction.class::cast).toList();
-                assertEquals(1,instructions.stream().filter(i -> i.opcode() == (type == DataType.FLOAT64 ? Opcode.DMUL : Opcode.FMUL)).count());
-                assertEquals(1,instructions.stream().filter(i -> i.opcode() == (type == DataType.FLOAT64 ? Opcode.DADD : Opcode.FADD)).count());
-                assertTrue(instructions.stream().noneMatch(i -> i instanceof InvokeInstruction || i instanceof NewObjectInstruction
-                        || i instanceof NewPrimitiveArrayInstruction || i instanceof NewReferenceArrayInstruction));
-                // Both loads occur after the active-coordinate branch and before its forward join.
-                int loads = 0;
-                for (int i = 0; i < instructions.size(); i++) if (instructions.get(i).opcode() == (type == DataType.FLOAT64 ? Opcode.DALOAD : Opcode.FALOAD)) {
-                    loads++;
-                    assertTrue(instructions.subList(0,i).stream().anyMatch(x -> x.opcode() == (kKind == TypeKind.INT ? Opcode.IF_ICMPEQ : Opcode.IFEQ)));
+                for (boolean underflow : List.of(false,true)) {
+                    Object singleLeft = type == DataType.FLOAT64 ? new double[]{underflow ? -Double.MIN_VALUE : -0d}
+                            : new float[]{underflow ? -Float.MIN_VALUE : -0f};
+                    Object singleRight = type == DataType.FLOAT64 ? new double[]{underflow ? .25d : 1d}
+                            : new float[]{underflow ? .25f : 1f};
+                    Number product = (Number)entry.invokeWithArguments(singleLeft,singleRight,1,-1);
+                    assertEquals(Long.MIN_VALUE,Double.doubleToRawLongBits(product.doubleValue()),"one typed product preserves negative zero");
                 }
-                assertEquals(2,loads);
+                Number inactive = (Number)entry.invokeWithArguments(null,null,1,0);
+                assertEquals(0L,Double.doubleToRawLongBits(inactive.doubleValue()),"inactive singleton performs neither load");
+                Object inactiveFirstLeft = type == DataType.FLOAT64 ? new double[]{Double.NaN,-0d} : new float[]{Float.NaN,-0f};
+                Object inactiveFirstRight = type == DataType.FLOAT64 ? new double[]{Double.POSITIVE_INFINITY,1d} : new float[]{Float.POSITIVE_INFINITY,1f};
+                Number later = (Number)entry.invokeWithArguments(inactiveFirstLeft,inactiveFirstRight,2,0);
+                assertEquals(0L,Double.doubleToRawLongBits(later.doubleValue()),"K>1 retains its original identity and inactive physical coordinate");
             }
     }
 
@@ -75,7 +76,7 @@ final class CpuMatmulBindingTest {
         var primitive = type == DataType.FLOAT64 ? ConstantDescs.CD_double : ConstantDescs.CD_float;
         var array = primitive.arrayType(); var valueKind = type == DataType.FLOAT64 ? TypeKind.DOUBLE : TypeKind.FLOAT;
         return ClassFile.of().build(ClassDesc.of(CpuMatmulBindingTest.class.getPackageName()+".BoundDot"),builder -> builder
-                .withMethod("dot",MethodTypeDesc.of(primitive,array,array,ConstantDescs.CD_int,ConstantDescs.CD_boolean),AccessFlag.STATIC.mask(),method -> method.withCode(code -> {
+                .withMethod("dot",MethodTypeDesc.of(primitive,array,array,ConstantDescs.CD_int,ConstantDescs.CD_int),AccessFlag.STATIC.mask(),method -> method.withCode(code -> {
                     int k = code.allocateLocal(kKind), sum = code.allocateLocal(valueKind);
                     int left = code.allocateLocal(valueKind), right = code.allocateLocal(valueKind);
                     if (type == DataType.FLOAT64) code.loadConstant(0d); else code.loadConstant(0f);
@@ -84,11 +85,11 @@ final class CpuMatmulBindingTest {
                     java.util.function.IntConsumer leftAt = coordinate -> { code.aload(0).loadLocal(kKind,coordinate); if (kKind == TypeKind.LONG) code.l2i(); if (type == DataType.FLOAT64) code.daload(); else code.faload(); };
                     java.util.function.IntConsumer rightAt = coordinate -> { code.aload(1).loadLocal(kKind,coordinate); if (kKind == TypeKind.LONG) code.l2i(); if (type == DataType.FLOAT64) code.daload(); else code.faload(); };
                     Consumer<Runnable> gate = body -> {
-                        var unguarded = code.newLabel(); var inactive = code.newLabel();
-                        code.iload(3).branch(Opcode.IFEQ,unguarded).loadLocal(kKind,k);
-                        if (kKind == TypeKind.INT) code.loadConstant(1).branch(Opcode.IF_ICMPEQ,inactive);
-                        else code.loadConstant(1L).lcmp().branch(Opcode.IFEQ,inactive);
-                        code.labelBinding(unguarded); body.run(); code.labelBinding(inactive);
+                        var inactive = code.newLabel();
+                        code.loadLocal(kKind,k).iload(3);
+                        if (kKind == TypeKind.INT) code.branch(Opcode.IF_ICMPEQ,inactive);
+                        else code.i2l().lcmp().branch(Opcode.IFEQ,inactive);
+                        body.run(); code.labelBinding(inactive);
                     };
                     if (indexed) CpuMatmulEmitter.emitIndexedContraction(code,type,k,sum,bound,leftAt,rightAt,gate);
                     else CpuMatmulEmitter.emitCursorContraction(code,type,kKind,k,sum,left,right,bound,
@@ -107,7 +108,9 @@ final class CpuMatmulBindingTest {
      * @return represented F32 ordered sum, positive zero for an empty domain
      */
     private static float cleanFloat(float[] left,float[] right,int bound,boolean gate) {
-        float sum = 0f; for (int k = 0; k < bound; k++) if (!gate || k != 1) sum += left[k]*right[k]; return sum;
+        float sum = 0f;
+        if (bound == 1) return left[0]*right[0];
+        for (int k = 0; k < bound; k++) if (!gate || k != 1) sum += left[k]*right[k]; return sum;
     }
 
     /**
@@ -119,6 +122,8 @@ final class CpuMatmulBindingTest {
      * @return represented F64 ordered sum, positive zero for an empty domain
      */
     private static double cleanDouble(double[] left,double[] right,int bound,boolean gate) {
-        double sum = 0d; for (int k = 0; k < bound; k++) if (!gate || k != 1) sum += left[k]*right[k]; return sum;
+        double sum = 0d;
+        if (bound == 1) return left[0]*right[0];
+        for (int k = 0; k < bound; k++) if (!gate || k != 1) sum += left[k]*right[k]; return sum;
     }
 }

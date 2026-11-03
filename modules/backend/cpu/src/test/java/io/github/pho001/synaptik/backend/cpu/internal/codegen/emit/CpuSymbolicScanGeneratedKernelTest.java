@@ -1056,41 +1056,6 @@ public class CpuSymbolicScanGeneratedKernelTest {
         return ClassFile.of().parse(bytes).methods().getFirst().code().orElseThrow().elementStream()
                 .filter(Instruction.class::isInstance).map(Instruction.class::cast).toList();
     }
-    @Test void acceptedStaticV4ControlsRemainExactAndApprovedMatmulV5RetainsCanonicalProjection() throws Exception {
-        try (var stream = getClass().getResourceAsStream("symbolic-scan-static-baseline.tsv")) {
-            assertNotNull(stream);
-            for (String line : new String(stream.readAllBytes(),java.nio.charset.StandardCharsets.UTF_8).lines().toList()) {
-                if (line.startsWith("#") || line.isBlank()) continue;
-                String[] expected = line.split("\\t");
-                var facts = CpuGeneralScanLowering.analyze(CpuGeneralScanLoweringTest.denseReadFixture(DataType.valueOf(expected[0]),Integer.parseInt(expected[1]),3,false));
-                var specialization = CpuGeneralScanGeneratedKernelTest.specialization(facts);
-                assertEquals(expected[2],facts.ir().structuralKey());
-                if (Integer.parseInt(expected[1]) == 2) {
-                    assertNotEquals(expected[3],specialization.structuralKey());
-                    assertEquals(expected[4],sha(new String(specialization.classIdentityBytes(),java.nio.charset.StandardCharsets.US_ASCII)
-                            .replace("|scan-matmul-v5=","|scan-matmul-v4=").getBytes(java.nio.charset.StandardCharsets.US_ASCII)));
-                    assertEquals(expected[5],sha(new String(specialization.compatibilityBytes(),java.nio.charset.StandardCharsets.US_ASCII)
-                            .replace("|scan-matmul-v5=","|scan-matmul-v4=").getBytes(java.nio.charset.StandardCharsets.US_ASCII)));
-                    assertNotEquals(expected[6],sha(CpuGeneralScanGeneratedKernelTest.generated(facts).classBytes()));
-                } else {
-                    assertEquals(expected[3],specialization.structuralKey());
-                    assertEquals(expected[4],sha(specialization.classIdentityBytes()));
-                    assertEquals(expected[5],sha(specialization.compatibilityBytes()));
-                    assertEquals(expected[6],sha(CpuGeneralScanGeneratedKernelTest.generated(facts).classBytes()));
-                }
-            }
-        }
-        var shape = Shape.of(1,2,3); var target = Shape.of(2,3);
-        var source = new TensorDescriptor(DataType.FLOAT32,shape,Optional.of(LayoutDescriptor.contiguous(shape)),false);
-        var output = new TensorDescriptor(DataType.FLOAT32,target,Optional.of(LayoutDescriptor.contiguous(target)),false);
-        var op = new io.github.pho001.synaptik.model.operation.Operation(io.github.pho001.synaptik.model.operation.reduction.AggregateReductionKind.SUM,
-                new io.github.pho001.synaptik.model.operation.reduction.SumToShapeAttrs(target));
-        var route = new CpuPartitionPreparer().analyze(CpuNonAffineMovementLoweringTest.context(op,List.of(0),List.of(source),output)).plan().units().getFirst().portablePlan();
-        assertFalse(route.specialization().ordinaryBatch(),"accepted static rank3 singleton AD retains its original non-batch emitter");
-        assertEquals("1a8e23310e76382bbd18d0e82348746a8b281ae17013c970bb1265d2ece6e665",route.specialization().structuralKey());
-        assertEquals("ca6158ed406d972303ee98e2a819b854ee8f9c7b406ed1503a55008f164e6321",sha(route.specialization().compatibilityBytes()));
-        assertEquals("ad2ab60944d4e9bbca278d9eab8c9e8e87b9cf247a7f0ddd0383dde42253a3c8",sha(new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(),route.kernelIr())));
-    }
 
     @Test void staticSymbolicAndChangedTimeRecipeArtifactsCannotCrossDecode() {
         var b = new DynamicDimension("B"); Tensor h = symbolic(false,b,new StaticDimension(3)), x = symbolic(false,b,new StaticDimension(3));

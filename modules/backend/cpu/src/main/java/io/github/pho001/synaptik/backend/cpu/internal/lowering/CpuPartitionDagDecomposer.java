@@ -388,7 +388,7 @@ public final class CpuPartitionDagDecomposer {
         validate(context);
         PartitionDag dag = context.partitionDag();
         var ordinals = ordinals(dag);
-        var working = seeds(context, lowering, ordinals);
+        var working = seeds(context, lowering, ordinals, false);
         if (dag.nodes().size() > MAX_NODES) {
             // The complete-candidate search is bounded to eight nodes. A long partition instead
             // examines each local opportunity, including the tail, without a partition-wide cap.
@@ -454,6 +454,41 @@ public final class CpuPartitionDagDecomposer {
     }
 
     /**
+     * Exposes ordinary contraction boundaries for a native realization candidate. The common
+     * lowerers still own every operation and privacy barrier; this alternative never relabels a
+     * selected row-region arithmetic realization as vendor arithmetic.
+     *
+     * <p>The result is an independent cold alternative, not permission to replace an already
+     * selected topology. It retains required saved/public stores and declares no native handles,
+     * buffers or workspaces; qualification, cost comparison and resource assignment follow later.</p>
+     *
+     * @param context non-null complete CPU partition projection with exact topology, uses,
+     *     publication barriers and source-only constant facts; borrowed without mutation
+     * @param lowering non-null common family-lowering owner used for ordinary unit legality
+     * @return non-null immutable units in stable topological order, including longer partitions;
+     *     no native capability or executable ownership is implied
+     * @throws NullPointerException if either argument is null
+     * @throws IllegalArgumentException if the context, topology, ownership or seed lowering is invalid
+     * @throws ArithmeticException if exact lowering geometry overflows
+     */
+    public List<Unit> decomposeContractions(PrepareContext<CpuPartitionAnalysisInputs> context,
+            CpuPartitionLowering lowering) {
+        Objects.requireNonNull(context, "context");
+        Objects.requireNonNull(lowering, "lowering");
+        validate(context);
+        PartitionDag dag = context.partitionDag();
+        var ordinals = ordinals(dag);
+        return finish(seeds(context, lowering, ordinals, true), ordinals, dag);
+    }
+
+    private static boolean isContraction(CompiledNode node) {
+        var kind = node.operation().kind();
+        return kind == io.github.pho001.synaptik.model.operation.linalg.MatmulKind.MATMUL
+                || kind == io.github.pho001.synaptik.model.operation.convolution.Conv2dKind.CONV2D
+                || kind == io.github.pho001.synaptik.model.operation.convolution.Conv3dKind.CONV3D;
+    }
+
+    /**
      * Projects one selected unit without inventing graph values or changing the outer owner.
      * Membership and outside-consumer facts are filtered from the source partition DAG, and the
      * returned context contains exactly the selected nodes in their original stable order.
@@ -508,7 +543,8 @@ public final class CpuPartitionDagDecomposer {
      * @throws IllegalArgumentException if an independently unsupported node has no legal seed
      */
     private static List<MutableUnit> seeds(PrepareContext<CpuPartitionAnalysisInputs> context,
-            CpuPartitionLowering lowering, Map<CompiledNode, Integer> ordinals) {
+            CpuPartitionLowering lowering, Map<CompiledNode, Integer> ordinals,
+            boolean preserveContractions) {
         var result = new ArrayList<MutableUnit>();
         List<CompiledNode> partitionNodes = context.partitionDag().nodes();
         // Follow producers, not adjacency: unrelated topologically interleaved nodes are not
@@ -595,7 +631,8 @@ public final class CpuPartitionDagDecomposer {
             IllegalArgumentException lastFailure = null;
             // Row candidates have their own bounded attempts and do not inherit the old
             // eight-node pointwise cap. Full-DAG proof precedes every selected resource plan.
-            for (int end = Math.min(partitionNodes.size(),index+64); selected == null && end > index+1; end--) {
+            for (int end = Math.min(partitionNodes.size(),index+64);
+                    !preserveContractions && selected == null && end > index+1; end--) {
                 var nodes = partitionNodes.subList(index,end);
                 if (nodes.stream().anyMatch(n -> claimed.contains(n) || reserved.contains(n))) continue;
                 if (nodes.stream().noneMatch(n -> n.operation().kind()
@@ -632,6 +669,10 @@ public final class CpuPartitionDagDecomposer {
                 List<CompiledNode> nodes = partitionNodes.subList(index, end);
                 if (nodes.stream().anyMatch(n -> claimed.contains(n) || reserved.contains(n))) continue;
                 if (nodes.size() > 1 && !establishedMultiNodeCandidate(nodes)) continue;
+                if (preserveContractions && nodes.size() > 1
+                        && nodes.stream().anyMatch(CpuPartitionDagDecomposer::isContraction)
+                        && nodes.getLast().operation().kind()
+                            != io.github.pho001.synaptik.model.operation.linalg.MatmulKind.MATMUL) continue;
                 try {
                     var lowered = lowering.lower(project(context, nodes,
                             context.backendInputs()));
@@ -936,13 +977,13 @@ public final class CpuPartitionDagDecomposer {
             PrepareContext<CpuPartitionAnalysisInputs> context, CpuPartitionLowering lowering,
             Map<CompiledNode, Integer> ordinals, List<Unit> baseline,
             Set<Integer> lockedBaselineUnits) {
-        if (lockedBaselineUnits.isEmpty()) return seeds(context, lowering, ordinals);
+        if (lockedBaselineUnits.isEmpty()) return seeds(context, lowering, ordinals, false);
         var lockedByFirst = new HashMap<Integer, Unit>();
         for (int index : lockedBaselineUnits) {
             Unit unit = baseline.get(index);
             lockedByFirst.put(unit.memberNodeOrdinals().getFirst(), unit);
         }
-        List<MutableUnit> ordinary = seeds(context, lowering, ordinals);
+        List<MutableUnit> ordinary = seeds(context, lowering, ordinals, false);
         var ordinaryByFirst = new HashMap<Integer, MutableUnit>();
         ordinary.forEach(unit -> ordinaryByFirst.put(ordinals.get(unit.nodes.getFirst()), unit));
         var result = new ArrayList<MutableUnit>();

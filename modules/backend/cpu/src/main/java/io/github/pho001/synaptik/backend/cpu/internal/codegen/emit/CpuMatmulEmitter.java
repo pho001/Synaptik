@@ -47,17 +47,18 @@ public final class CpuMatmulEmitter {
     }
 
     /**
-     * Emits the existing ordered multiply then add producing sites, never an FMA.
-     * Both loaders must be enclosed by the caller's contributor activity gate.
+     * Emits one typed product, assigning it for a singleton contraction or adding it otherwise.
+     * No FMA is introduced. Both loaders must be enclosed by the caller's activity gate.
      * @param code nonnull generation builder
      * @param dataType represented working dtype
      * @param accumulator initialized typed accumulator slot, updated here
+     * @param directProduct whether the complete logical contraction has exactly one contributor
      * @param left generation action leaving the ordered left typed operand on stack
      * @param right generation action leaving the ordered right typed operand on stack
      * @throws IllegalArgumentException if the dtype is not supported by this scalar seam
      */
     static void emitContributorStep(CodeBuilder code, DataType dataType, int accumulator,
-            Runnable left, Runnable right) {
+            boolean directProduct, Runnable left, Runnable right) {
         var kind = switch (dataType) {
             case FLOAT64 -> TypeKind.DOUBLE;
             case FLOAT32, BFLOAT16, FLOAT16 -> TypeKind.FLOAT;
@@ -65,12 +66,13 @@ public final class CpuMatmulEmitter {
             case INT64 -> TypeKind.LONG;
             case BOOL -> throw new IllegalArgumentException("BOOL contraction");
         };
-        code.loadLocal(kind,accumulator); left.run(); right.run();
+        if (!directProduct) code.loadLocal(kind,accumulator);
+        left.run(); right.run();
         switch (kind) {
-            case DOUBLE -> code.dmul().dadd();
-            case FLOAT -> code.fmul().fadd();
-            case INT -> code.imul().iadd();
-            case LONG -> code.lmul().ladd();
+            case DOUBLE -> { code.dmul(); if (!directProduct) code.dadd(); }
+            case FLOAT -> { code.fmul(); if (!directProduct) code.fadd(); }
+            case INT -> { code.imul(); if (!directProduct) code.iadd(); }
+            case LONG -> { code.lmul(); if (!directProduct) code.ladd(); }
             default -> throw new AssertionError(kind);
         }
         code.storeLocal(kind,accumulator);
@@ -103,23 +105,26 @@ public final class CpuMatmulEmitter {
     }
 
     /**
-     * Emits separate lane-wise MUL and ADD sites in contributor order, never FMA or horizontal
-     * reduction. The caller's activity gate must dominate both operand loaders.
+     * Emits a lane-wise product, assigning it for a singleton or adding it otherwise, never FMA
+     * or horizontal reduction. The caller's activity gate must dominate both operand loaders.
      * @param code builder owning the initialized reference local
      * @param type homogeneous FLOAT32 or FLOAT64 lane type
      * @param accumulator initialized matching preferred-species vector local, replaced here
+     * @param directProduct whether the complete logical contraction has exactly one contributor
      * @param left generation-only loader leaving a matching left vector
      * @param right generation-only loader leaving a matching right vector
      * @throws IllegalArgumentException if the dtype is unsupported
      */
     static void emitVectorContributorStep(CodeBuilder code, DataType type, int accumulator,
-            Runnable left, Runnable right) {
+            boolean directProduct, Runnable left, Runnable right) {
         if (type != DataType.FLOAT32 && type != DataType.FLOAT64)
             throw new IllegalArgumentException("row vector requires FLOAT32 or FLOAT64");
         ClassDesc vector = vectorClass(type), operand = ClassDesc.of("jdk.incubator.vector.Vector");
-        code.aload(accumulator); left.run(); right.run();
-        code.invokevirtual(vector,"mul",MethodTypeDesc.of(vector,operand))
-                .invokevirtual(vector,"add",MethodTypeDesc.of(vector,operand)).astore(accumulator);
+        if (!directProduct) code.aload(accumulator);
+        left.run(); right.run();
+        code.invokevirtual(vector,"mul",MethodTypeDesc.of(vector,operand));
+        if (!directProduct) code.invokevirtual(vector,"add",MethodTypeDesc.of(vector,operand));
+        code.astore(accumulator);
     }
 
     /**
@@ -158,18 +163,11 @@ public final class CpuMatmulEmitter {
             int k, int sum, int leftValue, int rightValue, Runnable loadKBound,
             Runnable loadLeft, Runnable loadRight, Runnable advanceOperands,
             Consumer<Runnable> activeContributor) {
-        boolean ints = contractionKind(kKind);
-        zeroIndex(code,k,ints);
-        var loop = code.newLabel(); var done = code.newLabel();
-        code.labelBinding(loop).loadLocal(kKind,k); loadKBound.run();
-        if (ints) code.branch(Opcode.IF_ICMPGE,done);
-        else code.lcmp().branch(Opcode.IFGE,done);
-        activeContributor.accept(() -> {
-            loadLeft.run(); loadRight.run();
-            accumulate(code,type,sum,leftValue,rightValue);
-        });
-        advanceOperands.run(); incrementIndex(code,k,ints);
-        code.branch(Opcode.GOTO,loop).labelBinding(done);
+        emitBoundContraction(code,k,kKind,loadKBound,directProduct ->
+                activeContributor.accept(() -> {
+                    loadLeft.run(); loadRight.run();
+                    accumulate(code,type,sum,leftValue,rightValue,directProduct);
+                }),advanceOperands);
     }
 
     /**
@@ -188,14 +186,59 @@ public final class CpuMatmulEmitter {
     static void emitIndexedContraction(CodeBuilder code, DataType type, int k, int sum,
             Runnable loadKBound, IntConsumer loadLeftAtK, IntConsumer loadRightAtK,
             Consumer<Runnable> activeContributor) {
-        var kind = type == DataType.FLOAT64 ? TypeKind.DOUBLE : TypeKind.FLOAT;
-        var loop = code.newLabel(); var done = code.newLabel();
-        code.loadConstant(0).istore(k).labelBinding(loop).iload(k);
-        loadKBound.run(); code.branch(Opcode.IF_ICMPGE,done);
-        activeContributor.accept(() -> {
-            emitContributorStep(code,type,sum,() -> loadLeftAtK.accept(k),() -> loadRightAtK.accept(k));
+        emitBoundContraction(code,k,TypeKind.INT,loadKBound,directProduct ->
+                activeContributor.accept(() -> emitContributorStep(code,type,sum,directProduct,
+                        () -> loadLeftAtK.accept(k),() -> loadRightAtK.accept(k))),() -> {});
+    }
+
+    /**
+     * Emits geometry-only singleton selection before contraction traversal. Each branch owns
+     * its generation state; callers must rebuild mutable load caches before emitting a branch.
+     * @param code builder owning the branch labels
+     * @param kind INT or LONG bound representation
+     * @param bound generation action leaving the complete logical contraction extent
+     * @param body emits the singleton assignment body or the unchanged ordinary body
+     */
+    static void emitSingletonChoice(CodeBuilder code, TypeKind kind, Runnable bound,
+            Consumer<Boolean> body) {
+        boolean ints = contractionKind(kind);
+        var ordinary = code.newLabel(); var done = code.newLabel();
+        bound.run();
+        if (ints) code.loadConstant(1).branch(Opcode.IF_ICMPNE,ordinary);
+        else code.loadConstant(1L).lcmp().branch(Opcode.IFNE,ordinary);
+        body.accept(true);
+        code.branch(Opcode.GOTO,done).labelBinding(ordinary);
+        body.accept(false);
+        code.labelBinding(done);
+    }
+
+    /**
+     * Binds singleton selection and full increasing-K control without a per-contributor mode
+     * branch. Empty contractions execute neither operand loader; cursor advances remain
+     * unconditional after every physical contributor, including inactive singleton lanes.
+     * @param code builder owning locals and labels
+     * @param k allocated induction local, initialized here
+     * @param kind INT or LONG induction and bound representation
+     * @param bound generation action leaving the complete logical K extent
+     * @param contributor emits typed product assignment or ordered MUL then ADD
+     * @param advance generation action advancing both operand cursors unconditionally
+     */
+    private static void emitBoundContraction(CodeBuilder code, int k, TypeKind kind,
+            Runnable bound, Consumer<Boolean> contributor, Runnable advance) {
+        boolean ints = contractionKind(kind);
+        zeroIndex(code,k,ints);
+        emitSingletonChoice(code,kind,bound,directProduct -> {
+            if (directProduct) {
+                contributor.accept(true); advance.run(); incrementIndex(code,k,ints);
+            } else {
+                var loop = code.newLabel(); var done = code.newLabel();
+                code.labelBinding(loop).loadLocal(kind,k); bound.run();
+                if (ints) code.branch(Opcode.IF_ICMPGE,done);
+                else code.lcmp().branch(Opcode.IFGE,done);
+                contributor.accept(false); advance.run(); incrementIndex(code,k,ints);
+                code.branch(Opcode.GOTO,loop).labelBinding(done);
+            }
         });
-        code.iinc(k,1).branch(Opcode.GOTO,loop).labelBinding(done);
     }
 
     /**
@@ -555,24 +598,24 @@ public final class CpuMatmulEmitter {
         loadIndexAsLong(code,b0,intAddress);geometry(code,geometry,10).ladd();
         storeIndex(code,b1,intAddress);
         for(int sum:sums)zero(code,type,sum);
-        zero(code,type,lv1);zero(code,type,rv1);zeroIndex(code,k,intAddress);
-        var contract=code.newLabel();var contracted=code.newLabel();
-        code.labelBinding(contract);branchIndexGreaterOrEqual(code,k,kExtent,intAddress,contracted);
+        zero(code,type,lv1);zero(code,type,rv1);
+        emitBoundContraction(code,k,intAddress ? TypeKind.INT : TypeKind.LONG,
+                () -> code.loadLocal(intAddress ? TypeKind.INT : TypeKind.LONG,kExtent),directProduct -> {
         load(code,carriers,specialization,ir.leftType(),type,0,a0,lr0,lv0,intAddress);
         load(code,carriers,specialization,ir.rightType(),type,1,b0,rr0,rv0,intAddress);
-        accumulate(code,type,sums[0],lv0,rv0);
+        accumulate(code,type,sums[0],lv0,rv0,directProduct);
         var skipN=code.newLabel();code.iload(n1).branch(Opcode.IFEQ,skipN);
         load(code,carriers,specialization,ir.rightType(),type,1,b1,rr1,rv1,intAddress);
-        accumulate(code,type,sums[1],lv0,rv1);code.labelBinding(skipN);
+        accumulate(code,type,sums[1],lv0,rv1,directProduct);code.labelBinding(skipN);
         var skipM=code.newLabel();code.iload(m1).branch(Opcode.IFEQ,skipM);
         load(code,carriers,specialization,ir.leftType(),type,0,a1,lr1,lv1,intAddress);
-        accumulate(code,type,sums[2],lv1,rv0);
+        accumulate(code,type,sums[2],lv1,rv0,directProduct);
         var skipBoth=code.newLabel();code.iload(n1).branch(Opcode.IFEQ,skipBoth);
-        accumulate(code,type,sums[3],lv1,rv1);code.labelBinding(skipBoth).labelBinding(skipM);
+        accumulate(code,type,sums[3],lv1,rv1,directProduct);code.labelBinding(skipBoth).labelBinding(skipM);
+        },() -> {
         addIndex(code,a0,leftKStride,intAddress);addIndex(code,a1,leftKStride,intAddress);
         addIndex(code,b0,rightKStride,intAddress);addIndex(code,b1,rightKStride,intAddress);
-        incrementIndex(code,k,intAddress);code.branch(Opcode.GOTO,contract)
-                .labelBinding(contracted);
+        });
         int nextN=code.allocateLocal(TypeKind.LONG),nextM=code.allocateLocal(TypeKind.LONG);
         code.lload(n0).loadConstant(1L).ladd().lstore(nextN);
         code.lload(m0).loadConstant(1L).ladd().lstore(nextM);
@@ -701,21 +744,20 @@ public final class CpuMatmulEmitter {
         code.getstatic(vector,"SPECIES_PREFERRED",ClassDesc.of("jdk.incubator.vector.VectorSpecies"));
         code.invokestatic(vector,"zero",MethodTypeDesc.of(vector,
                 ClassDesc.of("jdk.incubator.vector.VectorSpecies"))).astore(accumulator);
-        zeroIndex(code,k,intAddress);
-        var contract=code.newLabel();var contractDone=code.newLabel();
-        code.labelBinding(contract);branchIndexGreaterOrEqual(code,k,kExtent,intAddress,contractDone);
+        emitBoundContraction(code,k,intAddress ? TypeKind.INT : TypeKind.LONG,
+                () -> code.loadLocal(intAddress ? TypeKind.INT : TypeKind.LONG,kExtent),directProduct -> {
         loadSameTypeScalar(code,carriers,specialization,type,0,leftAddress,leftScalar,intAddress);
-        code.aload(accumulator);
+        if (!directProduct) code.aload(accumulator);
         carriers.vectorLoad(type,specialization.carrierPattern().get(1),1,rightAddress,false,intAddress);
         loadPrimitive(code,type,leftScalar);
-        code.invokevirtual(vector,"mul",MethodTypeDesc.of(vector,primitive(type)))
-                .invokevirtual(vector,"add",
-                        MethodTypeDesc.of(vector,ClassDesc.of("jdk.incubator.vector.Vector")))
-                .astore(accumulator);
+        code.invokevirtual(vector,"mul",MethodTypeDesc.of(vector,primitive(type)));
+        if (!directProduct) code.invokevirtual(vector,"add",
+                MethodTypeDesc.of(vector,ClassDesc.of("jdk.incubator.vector.Vector")));
+        code.astore(accumulator);
+        },() -> {
         addIndex(code,leftAddress,leftKStride,intAddress);
         addIndex(code,rightAddress,rightKStride,intAddress);
-        incrementIndex(code,k,intAddress);code.branch(Opcode.GOTO,contract)
-                .labelBinding(contractDone);
+        });
         int epilogueN=n;
         if(ir.epilogue().hasBias()&&intAddress){epilogueN=code.allocateLocal(TypeKind.LONG);
             code.iload(n).i2l().lstore(epilogueN);}
@@ -834,28 +876,28 @@ public final class CpuMatmulEmitter {
                 ClassDesc.of("jdk.incubator.vector.VectorSpecies"))).astore(sums[0]);
         for(int index=1;index<sums.length;index++)code.aload(sums[0]).astore(sums[index]);
         zero(code,type,left1);code.aload(sums[0]).astore(right0);code.aload(sums[0]).astore(right1);
-        zeroIndex(code,k,intAddress);var contract=code.newLabel();var contracted=code.newLabel();
-        code.labelBinding(contract);branchIndexGreaterOrEqual(code,k,kExtent,intAddress,contracted);
+        emitBoundContraction(code,k,intAddress ? TypeKind.INT : TypeKind.LONG,
+                () -> code.loadLocal(intAddress ? TypeKind.INT : TypeKind.LONG,kExtent),directProduct -> {
         loadSameTypeScalar(code,carriers,specialization,type,0,a0,left0,intAddress);
         var skipLeft1=code.newLabel();code.iload(row1).branch(Opcode.IFEQ,skipLeft1);
         loadSameTypeScalar(code,carriers,specialization,type,0,a1,left1,intAddress);
         code.labelBinding(skipLeft1);
         var skipFirst=code.newLabel();code.iload(full0).branch(Opcode.IFEQ,skipFirst);
         carriers.vectorLoad(type,specialization.carrierPattern().get(1),1,b0,false,intAddress);
-        code.astore(right0);vectorScalarAccumulate(code,vector,type,sums[0],right0,left0);
+        code.astore(right0);vectorScalarAccumulate(code,vector,type,sums[0],right0,left0,directProduct);
         var skipFirstRow1=code.newLabel();code.iload(row1).branch(Opcode.IFEQ,skipFirstRow1);
-        vectorScalarAccumulate(code,vector,type,sums[2],right0,left1);code.labelBinding(skipFirstRow1)
+        vectorScalarAccumulate(code,vector,type,sums[2],right0,left1,directProduct);code.labelBinding(skipFirstRow1)
                 .labelBinding(skipFirst);
         var skipSecond=code.newLabel();code.iload(full1).branch(Opcode.IFEQ,skipSecond);
         carriers.vectorLoad(type,specialization.carrierPattern().get(1),1,b1,false,intAddress);
-        code.astore(right1);vectorScalarAccumulate(code,vector,type,sums[1],right1,left0);
+        code.astore(right1);vectorScalarAccumulate(code,vector,type,sums[1],right1,left0,directProduct);
         var skipSecondRow1=code.newLabel();code.iload(row1).branch(Opcode.IFEQ,skipSecondRow1);
-        vectorScalarAccumulate(code,vector,type,sums[3],right1,left1);code.labelBinding(skipSecondRow1)
+        vectorScalarAccumulate(code,vector,type,sums[3],right1,left1,directProduct);code.labelBinding(skipSecondRow1)
                 .labelBinding(skipSecond);
+        },() -> {
         addIndex(code,a0,leftKStride,intAddress);addIndex(code,a1,leftKStride,intAddress);
         addIndex(code,b0,rightKStride,intAddress);addIndex(code,b1,rightKStride,intAddress);
-        incrementIndex(code,k,intAddress);code.branch(Opcode.GOTO,contract)
-                .labelBinding(contracted);
+        });
         var noFirstStore=code.newLabel();code.iload(full0).branch(Opcode.IFEQ,noFirstStore);
         storeVectorTile(code,carriers,specialization,ir,geometry,outputBase,n0,sums[0],intAddress);
         var noFirstRow1Store=code.newLabel();code.iload(row1).branch(Opcode.IFEQ,noFirstRow1Store);
@@ -910,12 +952,14 @@ public final class CpuMatmulEmitter {
     }
 
     private static void vectorScalarAccumulate(CodeBuilder code,ClassDesc vector,DataType type,
-            int sum,int right,int scalar) {
-        code.aload(sum).aload(right);
+            int sum,int right,int scalar,boolean directProduct) {
+        if (!directProduct) code.aload(sum);
+        code.aload(right);
         loadPrimitive(code,type,scalar);
-        code.invokevirtual(vector,"mul",MethodTypeDesc.of(vector,primitive(type)))
-                .invokevirtual(vector,"add",MethodTypeDesc.of(vector,
-                        ClassDesc.of("jdk.incubator.vector.Vector"))).astore(sum);
+        code.invokevirtual(vector,"mul",MethodTypeDesc.of(vector,primitive(type)));
+        if (!directProduct) code.invokevirtual(vector,"add",MethodTypeDesc.of(vector,
+                ClassDesc.of("jdk.incubator.vector.Vector")));
+        code.astore(sum);
     }
 
     private static void storeVectorTile(CodeBuilder code,CpuCarrierEmitter carriers,
@@ -990,15 +1034,14 @@ public final class CpuMatmulEmitter {
                 .istore(rightAddress);
         code.lload(outputBase).l2i().iload(n).iload(outputNStride).imul().iadd()
                 .istore(outputAddress);
-        zero(code,type,sum);code.loadConstant(0).istore(k);
-        var contract=code.newLabel();var contracted=code.newLabel();
-        code.labelBinding(contract).iload(k).iload(kExtent).branch(Opcode.IF_ICMPGE,contracted);
-        load(code,carriers,specialization,type,type,0,leftAddress,left,left,true);
-        load(code,carriers,specialization,type,type,1,rightAddress,right,right,true);
-        accumulate(code,type,sum,left,right);
-        code.iload(leftAddress).iload(leftKStride).iadd().istore(leftAddress);
-        code.iload(rightAddress).iload(rightKStride).iadd().istore(rightAddress);
-        code.iinc(k,1).branch(Opcode.GOTO,contract).labelBinding(contracted);
+        zero(code,type,sum);
+        emitCursorContraction(code,type,TypeKind.INT,k,sum,left,right,() -> code.iload(kExtent),
+                () -> load(code,carriers,specialization,type,type,0,leftAddress,left,left,true),
+                () -> load(code,carriers,specialization,type,type,1,rightAddress,right,right,true),
+                () -> {
+                    code.iload(leftAddress).iload(leftKStride).iadd().istore(leftAddress);
+                    code.iload(rightAddress).iload(rightKStride).iadd().istore(rightAddress);
+                },Runnable::run);
         int epilogueN=code.allocateLocal(TypeKind.LONG);code.iload(n).i2l().lstore(epilogueN);
         applyScalarEpilogue(code,carriers,specialization,ir,geometry,epilogueN,sum);
         int outputBoundary=specialization.carrierPattern().size()-1;
@@ -1031,17 +1074,14 @@ public final class CpuMatmulEmitter {
         code.lload(leftBase).lstore(leftAddress);
         code.lload(rightBase).lload(n);geometry(code,geometry,10).lmul().ladd().lstore(rightAddress);
         code.lload(outputBase).lload(n);geometry(code,geometry,12).lmul().ladd().lstore(outputAddress);
-        zero(code,type,sum);code.loadConstant(0L).lstore(k);
-        var contract=code.newLabel();var contracted=code.newLabel();
-        code.labelBinding(contract).lload(k);geometry(code,geometry,5).lcmp()
-                .branch(Opcode.IFGE,contracted);
-        load(code,carriers,specialization,type,type,0,leftAddress,left,left);
-        load(code,carriers,specialization,type,type,1,rightAddress,right,right);
-        accumulate(code,type,sum,left,right);
-        code.lload(leftAddress);geometry(code,geometry,8).ladd().lstore(leftAddress);
-        code.lload(rightAddress);geometry(code,geometry,9).ladd().lstore(rightAddress);
-        code.lload(k).loadConstant(1L).ladd().lstore(k).branch(Opcode.GOTO,contract)
-                .labelBinding(contracted);
+        zero(code,type,sum);
+        emitCursorContraction(code,type,TypeKind.LONG,k,sum,left,right,() -> geometry(code,geometry,5),
+                () -> load(code,carriers,specialization,type,type,0,leftAddress,left,left),
+                () -> load(code,carriers,specialization,type,type,1,rightAddress,right,right),
+                () -> {
+                    code.lload(leftAddress);geometry(code,geometry,8).ladd().lstore(leftAddress);
+                    code.lload(rightAddress);geometry(code,geometry,9).ladd().lstore(rightAddress);
+                },Runnable::run);
         applyScalarEpilogue(code,carriers,specialization,ir,geometry,n,sum);
         int outputBoundary=specialization.carrierPattern().size()-1;
         if (type == DataType.INT32 || type == DataType.INT64)
@@ -1270,9 +1310,11 @@ public final class CpuMatmulEmitter {
      * @param sum accumulator local, updated with one represented product
      * @param left represented left value local
      * @param right represented right value local
+     * @param directProduct whether to assign the sole logical product without an identity ADD
      * @throws IllegalArgumentException if the accumulator dtype is unsupported
      */
-    static void accumulate(CodeBuilder code, DataType type, int sum, int left, int right) {
+    static void accumulate(CodeBuilder code, DataType type, int sum, int left, int right,
+            boolean directProduct) {
         var workingKind = switch (type) {
             case FLOAT64 -> TypeKind.DOUBLE;
             case FLOAT32, BFLOAT16, FLOAT16 -> TypeKind.FLOAT;
@@ -1280,7 +1322,7 @@ public final class CpuMatmulEmitter {
             case INT64 -> TypeKind.LONG;
             case BOOL -> throw new AssertionError();
         };
-        emitContributorStep(code,type,sum,() -> code.loadLocal(workingKind,left),
+        emitContributorStep(code,type,sum,directProduct,() -> code.loadLocal(workingKind,left),
                 () -> code.loadLocal(workingKind,right));
     }
 

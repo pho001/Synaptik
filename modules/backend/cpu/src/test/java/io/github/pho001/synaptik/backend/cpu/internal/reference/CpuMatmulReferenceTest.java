@@ -15,6 +15,24 @@ import org.junit.jupiter.api.Test;
 final class CpuMatmulReferenceTest {
     private final CpuMatmulLowering lowering = new CpuMatmulLowering();
 
+    /** Qualifies singleton typed products independently of the permitted multi-term FMA form. */
+    @Test void singletonProductsNeverAddAnIdentityOrFuseWithZero() {
+        for (var type : java.util.List.of(DataType.FLOAT32,DataType.FLOAT64))
+            for (var form : NumericalForm.values()) for (boolean underflow : java.util.List.of(false,true)) {
+                var geometry = lowering.lower(d(type,1,1),d(type,1,1),d(type,1,1));
+                Object left = type == DataType.FLOAT64 ? new double[]{underflow ? -Double.MIN_VALUE : -0d}
+                        : new float[]{underflow ? -Float.MIN_VALUE : -0f};
+                Object right = type == DataType.FLOAT64 ? new double[]{underflow ? .25d : 1d}
+                        : new float[]{underflow ? .25f : 1f};
+                Object output = type == DataType.FLOAT64 ? new double[1] : new float[1];
+                CpuMatmulReferenceKernel.evaluate(geometry,form,left,right,output);
+                assertEquals(Long.MIN_VALUE,Double.doubleToRawLongBits(value(type,output)));
+                var empty = lowering.lower(d(type,1,0),d(type,0,1),d(type,1,1));
+                CpuMatmulReferenceKernel.evaluate(empty,form,left,right,output);
+                assertEquals(0L,Double.doubleToRawLongBits(value(type,output)));
+            }
+    }
+
     @Test void evaluatesFloatingMixedBfloatAndEmptyK() {
         for (var type : java.util.List.of(DataType.BFLOAT16, DataType.FLOAT16))
             assertThrows(IllegalArgumentException.class,

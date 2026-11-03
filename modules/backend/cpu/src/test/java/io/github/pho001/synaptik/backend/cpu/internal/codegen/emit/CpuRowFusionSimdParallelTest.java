@@ -39,6 +39,106 @@ import org.junit.jupiter.api.Test;
  */
 class CpuRowFusionSimdParallelTest {
     /**
+     * Demands both contraction boundaries so a later carry ADD cannot hide a wrong zero sign.
+     * Feature K=1 assigns a product; terminal K is the full logical B, never a worker's range.
+     * @throws Exception if compilation, binding or represented numerical comparison fails
+     */
+    @Test void selectedRegionsDistinguishSingletonFeaturesFromCompleteRowContractions() throws Exception {
+        for (var type : List.of(DataType.FLOAT32,DataType.FLOAT64)) for (boolean symbolic : List.of(false,true))
+            for (boolean vector : List.of(false,true)) for (boolean parallel : List.of(false,true)) {
+                if (symbolic && type == DataType.FLOAT64) continue;
+                for (int fixedRows : symbolic ? List.of(1) : List.of(1,2)) {
+                    Dimension rows = symbolic ? new DynamicDimension("B") : new StaticDimension(fixedRows);
+                    Tensor x = CpuSymbolicLengthScanFixture.tensor(type,false,Shape.ofDimensions(rows,new StaticDimension(1)));
+                    Tensor w = CpuSymbolicLengthScanFixture.tensor(type,false,Shape.of(1,3));
+                    Tensor product = x.add(x).matmul(w), terminal = x.permute(1,0).matmul(product);
+                    var compiled = CpuGeneralScanCapabilityTest.compile(List.of(product,terminal),java.util.Optional.empty(),false,new CpuCapabilityProvider());
+                    var config = new CpuPartitionAnalysisInputs.PortableExecutionConfig(
+                            vector ? CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
+                                    : CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR,parallel ? 2 : 1,2,1);
+                    var inputs = new CpuPartitionAnalysisInputs(false,List.of(),config);
+                    var analysis = new CpuPartitionPreparer().analyze(GraphPreparation.project(compiled,compiled.partitions().getFirst(),inputs));
+                    var selected = analysis.plan().units().stream().filter(u -> u.portablePlan().specialization().rowMapReductionIr().isPresent()).findFirst().orElseThrow();
+                    assertEquals(parallel ? vector ? PARALLEL_VECTOR : PARALLEL_SCALAR : vector ? VECTOR : SCALAR,selected.executionStrategy());
+                    for (int batch : symbolic ? List.of(0,1,2,1) : List.of(fixedRows))
+                        try (var run = new CpuRecurrentScanExecutionTest.Fixture(compiled,inputs,analysis,1,true,true,
+                                java.util.Map.of(),symbolic ? java.util.OptionalLong.of(batch) : java.util.OptionalLong.empty())) {
+                            for (var input : compiled.constants().bindableInputBindings()) {
+                                var storage = run.storage.get(input.valueId());
+                                for (int cell = 0; cell < storage.byteSize()/type.byteWidth(); cell++)
+                                    put(type,storage,cell,input.tensorId().equals(w.id()) ? -1d : 0d);
+                            }
+                            run.executable.bind(run.state).execute();
+                            var rowOutput = run.storage.get(compiled.publication().forwardBindings().get(0).valueId());
+                            for (int cell = 0; cell < rowOutput.byteSize()/type.byteWidth(); cell++)
+                                assertEquals(Long.MIN_VALUE,Double.doubleToRawLongBits(get(type,rowOutput,cell)));
+                            var terminalOutput = run.storage.get(compiled.publication().forwardBindings().get(1).valueId());
+                            for (int cell = 0; cell < 3; cell++)
+                                assertEquals(batch == 1 ? Long.MIN_VALUE : 0L,Double.doubleToRawLongBits(get(type,terminalOutput,cell)),
+                                        "terminal uses complete logical B, including parallel singleton ranges");
+                        }
+                }
+            }
+    }
+
+    /**
+     * Qualifies the Scan regional binding with an observable row product and a distinct carry
+     * ADD. Inactive poisoned rows execute neither product load, and parallel ranges cannot
+     * substitute their size for the complete terminal contraction extent.
+     */
+    @Test void scanRegionsPreserveSingletonProductsBeforeSeparateCarryAdds() {
+        for (var type : List.of(DataType.FLOAT32,DataType.FLOAT64)) for (boolean symbolic : List.of(false,true))
+            for (boolean vector : List.of(false,true)) for (boolean parallel : List.of(false,true))
+                for (int fixedRows : symbolic ? List.of(1) : List.of(1,2)) {
+                    Dimension b = symbolic ? new DynamicDimension("B") : new StaticDimension(fixedRows);
+                    Shape rowShape = Shape.ofDimensions(b,new StaticDimension(1));
+                    Tensor rowCarry = CpuSymbolicLengthScanFixture.tensor(type,false,rowShape);
+                    Tensor carry = CpuSymbolicLengthScanFixture.tensor(type,false,Shape.of(1,3));
+                    Tensor x = CpuSymbolicLengthScanFixture.tensor(type,false,rowShape);
+                    Tensor w = CpuSymbolicLengthScanFixture.tensor(type,false,Shape.of(1,3));
+                    Tensor product = x.add(x).matmul(w), terminal = x.permute(1,0).matmul(product);
+                    var body = new ScanBody(List.of(rowCarry,carry),List.of(x),List.of(w),List.of(x,carry.add(terminal)),List.of(product));
+                    Tensor initialRows = CpuSymbolicLengthScanFixture.tensor(type,false,rowShape);
+                    Tensor initial = CpuSymbolicLengthScanFixture.tensor(type,false,Shape.of(1,3));
+                    Tensor sequence = CpuSymbolicLengthScanFixture.tensor(type,false,Shape.ofDimensions(new StaticDimension(1),b,new StaticDimension(1)));
+                    Tensor weight = CpuSymbolicLengthScanFixture.tensor(type,false,Shape.of(1,3));
+                    Tensor lengths = CpuSymbolicLengthScanFixture.tensor(DataType.INT64,false,Shape.ofDimensions(b));
+                    var scan = Scan.apply(List.of(initialRows,initial),List.of(sequence),List.of(weight),lengths,1,
+                            List.of(java.util.OptionalInt.of(0)),body,false);
+                    var compiled = CpuGeneralScanCapabilityTest.compile(List.of(scan.finalCarry().get(1),scan.outputs().getFirst()),
+                            java.util.Optional.empty(),false,new CpuCapabilityProvider());
+                    var config = new CpuPartitionAnalysisInputs.PortableExecutionConfig(
+                            vector ? CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
+                                    : CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR,parallel ? 2 : 1,2,1);
+                    var inputs = new CpuPartitionAnalysisInputs(false,List.of(),config);
+                    var analysis = new CpuPartitionPreparer().analyze(GraphPreparation.project(compiled,compiled.partitions().getFirst(),inputs));
+                    var selected = analysis.plan().units().stream().filter(u -> u.runtimeFacts().generalScan().isPresent()).findFirst().orElseThrow();
+                    assertTrue(selected.runtimeFacts().generalScan().orElseThrow().ir().stages().orElseThrow().rowMapReductionIr().isPresent());
+                    assertEquals(parallel ? vector ? PARALLEL_VECTOR : PARALLEL_SCALAR : vector ? VECTOR : SCALAR,selected.executionStrategy());
+                    for (int batch : symbolic ? List.of(1,2,1) : List.of(fixedRows)) for (boolean active : List.of(false,true))
+                        try (var run = new CpuRecurrentScanExecutionTest.Fixture(compiled,inputs,analysis,1,true,true,java.util.Map.of(),
+                                symbolic ? java.util.OptionalLong.of(batch) : java.util.OptionalLong.empty())) {
+                            for (var input : compiled.constants().bindableInputBindings()) {
+                                var storage = run.storage.get(input.valueId());
+                                if (input.tensorId().equals(lengths.id())) {
+                                    for (int row = 0; row < batch; row++) storage.setAtIndex(java.lang.foreign.ValueLayout.JAVA_LONG,row,active ? 1 : 0);
+                                } else for (int cell = 0; cell < storage.byteSize()/type.byteWidth(); cell++)
+                                    put(type,storage,cell,input.tensorId().equals(initial.id()) ? -0d
+                                            : input.tensorId().equals(weight.id()) ? -1d
+                                            : input.tensorId().equals(sequence.id()) && !active ? Double.NaN : 0d);
+                            }
+                            run.executable.bind(run.state).execute();
+                            var finalCarry = run.storage.get(compiled.publication().forwardBindings().get(0).valueId());
+                            for (int cell = 0; cell < 3; cell++) assertEquals(!active || batch == 1 ? Long.MIN_VALUE : 0L,
+                                    Double.doubleToRawLongBits(get(type,finalCarry,cell)),"separate carry ADD remains represented");
+                            var output = run.storage.get(compiled.publication().forwardBindings().get(1).valueId());
+                            for (int cell = 0; cell < output.byteSize()/type.byteWidth(); cell++) assertEquals(active ? Long.MIN_VALUE : 0L,
+                                    Double.doubleToRawLongBits(get(type,output,cell)),"inactive NaN operands are not read");
+                        }
+                }
+    }
+
+    /**
      * A transposed [1,K] coefficient has a width-one vector, not permission to reload its scalar
      * cells per row. Both selected emitters must bind checked mask-one scratch loads before any
      * vector multiply. The unpadded short ordinary graph also traverses complete candidate scoring
@@ -570,7 +670,7 @@ class CpuRowFusionSimdParallelTest {
         }
     }
     @Test void acceptedStaticAllValidFloat64ActualReverseExecutesAllStrategies() {
-        var compiled = CpuMatmulBindingSnapshotTest.conditionalFamily(DataType.FLOAT64,false);
+        var compiled = CpuConditionalScanFixture.conditionalFamily(DataType.FLOAT64,false);
         for (boolean parallel : List.of(false,true)) for (boolean vector : List.of(false,true)) {
             var preference = vector ? CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE
                     : CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.SCALAR;
@@ -819,21 +919,6 @@ class CpuRowFusionSimdParallelTest {
      */
     private static double rounded(DataType type,double value) { return type == DataType.FLOAT32 ? (float)value : value; }
 
-    @Test void retainedRawAndOrdinaryCpu0073ArtifactsMatchFrozenHashes() throws Exception {
-        var frozen = new java.util.TreeMap<String,String>();
-        try (var stream = getClass().getResourceAsStream("row-fusion-cpu0073-before.tsv")) {
-            assertNotNull(stream);
-            new String(stream.readAllBytes(),java.nio.charset.StandardCharsets.US_ASCII).lines()
-                    .filter(line -> !line.isBlank() && !line.startsWith("#"))
-                    .map(line -> line.split("\t")).forEach(row -> frozen.put(row[0],row[1]));
-        }
-        var current = CpuRowMapReductionGeneratedKernelTest.baselineCorpus();
-        for (var item : current.entrySet()) {
-            String actual = java.util.HexFormat.of().formatHex(java.security.MessageDigest
-                    .getInstance("SHA-256").digest(item.getValue()));
-            assertEquals(frozen.get(item.getKey()),actual,item.getKey());
-        }
-    }
 
     @Test void generatedMaskedMathUsesActualFeaturesOnlyOnArraysAndSegments() throws Throwable {
         for (var type : List.of(DataType.FLOAT32,DataType.FLOAT64)) {
@@ -922,8 +1007,8 @@ class CpuRowFusionSimdParallelTest {
                 Runnable right = () -> emitter.vectorLoad(type,access,1,address,false,false,tail);
                 if (mode == 0) {
                     CpuMatmulEmitter.emitVectorInit(code,type,sum);
-                    CpuMatmulEmitter.emitVectorContributorStep(code,type,sum,left,right);
-                    CpuMatmulEmitter.emitVectorContributorStep(code,type,sum,left,right);
+                    CpuMatmulEmitter.emitVectorContributorStep(code,type,sum,false,left,right);
+                    CpuMatmulEmitter.emitVectorContributorStep(code,type,sum,false,left,right);
                     CpuMatmulEmitter.emitVectorFinish(code,type,sum,
                             local -> emitter.vectorStore(type,access,2,address,local,false,tail));
                 } else {

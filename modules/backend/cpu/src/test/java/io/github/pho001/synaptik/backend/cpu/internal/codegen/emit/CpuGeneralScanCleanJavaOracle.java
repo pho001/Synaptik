@@ -271,7 +271,8 @@ public final class CpuGeneralScanCleanJavaOracle {
             for (int row = 0; row < rows; row++) for (int column = 0; column < columns; column++) {
                 double sum = 0;
                 long a = t*inputFrame+row*(long)contraction*8, b = column*8L;
-                for (int k = 0; k < contraction; k++) {
+                if (contraction == 1) sum = sequence.get(layout,a)*weight.get(layout,b);
+                else for (int k = 0; k < contraction; k++) {
                     double left = sequence.get(layout,a), right = weight.get(layout,b);
                     sum = sum+left*right; a += 8; b += columns*8L;
                 }
@@ -321,7 +322,8 @@ public final class CpuGeneralScanCleanJavaOracle {
             }
             for (int k = 0; k < contraction; k++) for (int n = 0; n < columns; n++) {
                 double sum = 0; long a = t*inputFrame+k*8L, b = next+n*8L;
-                for (int row = 0; row < rows; row++) {
+                if (rows == 1) sum = sequence.get(layout,a)*scratch.get(layout,b);
+                else for (int row = 0; row < rows; row++) {
                     double left = sequence.get(layout,a), right = scratch.get(layout,b);
                     sum = sum+left*right; a += contraction*8L; b += columns*8L;
                 }
@@ -331,7 +333,8 @@ public final class CpuGeneralScanCleanJavaOracle {
             }
             for (int row = 0; row < rows; row++) for (int k = 0; k < contraction; k++) {
                 double sum = 0; long a = next+row*(long)columns*8, b = k*(long)columns*8;
-                for (int n = 0; n < columns; n++) {
+                if (columns == 1) sum = scratch.get(layout,a)*weight.get(layout,b);
+                else for (int n = 0; n < columns; n++) {
                     double left = scratch.get(layout,a), right = weight.get(layout,b);
                     sum = sum+left*right; a += 8; b += 8;
                 }
@@ -514,7 +517,8 @@ public final class CpuGeneralScanCleanJavaOracle {
             for (int row = 0; row < rows; row++) for (int column = 0; column < columns; column++) {
                 float sum = 0;
                 long a = t*inputFrame+row*(long)contraction*4, b = column*4L;
-                for (int k = 0; k < contraction; k++) {
+                if (contraction == 1) sum = sequence.get(layout,a)*weight.get(layout,b);
+                else for (int k = 0; k < contraction; k++) {
                     float left = sequence.get(layout,a), right = weight.get(layout,b);
                     sum = sum+left*right; a += 4; b += columns*4L;
                 }
@@ -564,7 +568,8 @@ public final class CpuGeneralScanCleanJavaOracle {
             }
             for (int k = 0; k < contraction; k++) for (int n = 0; n < columns; n++) {
                 float sum = 0; long a = t*inputFrame+k*4L, b = next+n*4L;
-                for (int row = 0; row < rows; row++) {
+                if (rows == 1) sum = sequence.get(layout,a)*scratch.get(layout,b);
+                else for (int row = 0; row < rows; row++) {
                     float left = sequence.get(layout,a), right = scratch.get(layout,b);
                     sum = sum+left*right; a += contraction*4L; b += columns*4L;
                 }
@@ -574,7 +579,8 @@ public final class CpuGeneralScanCleanJavaOracle {
             }
             for (int row = 0; row < rows; row++) for (int k = 0; k < contraction; k++) {
                 float sum = 0; long a = next+row*(long)columns*4, b = k*(long)columns*4;
-                for (int n = 0; n < columns; n++) {
+                if (columns == 1) sum = scratch.get(layout,a)*weight.get(layout,b);
+                else for (int n = 0; n < columns; n++) {
                     float left = scratch.get(layout,a), right = weight.get(layout,b);
                     sum = sum+left*right; a += 4; b += 4;
                 }

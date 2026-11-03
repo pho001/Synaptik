@@ -2,8 +2,8 @@
 
 ## Purpose and scope
 
-This file records notices for third-party material incorporated into Synaptik. It does not select
-or describe a project-wide license.
+This file records notices for third-party material incorporated into Synaptik and identifies
+separately supplied native runtime dependencies. It does not select or describe a project-wide license.
 
 The Cephes notice below applies only to the error-function (ERF) coefficient tables and
 piecewise rational approximation in:
@@ -87,9 +87,24 @@ outputs, or exported oracle/evidence sources, require accompanying notice materi
 generated-code cache is not a standalone redistribution policy; its binary schema is unchanged.
 
 Current native Metal ERF/GELU use Apple's MPSGraph implementation, not the retained CPU Cephes
-approximation. The native package does not bundle Apple frameworks, an OpenBLAS implementation or
-a JDK. Their installed runtime distributions have their own applicable terms. This distinction
+approximation. The native package does not bundle Apple frameworks, an OpenBLAS implementation,
+oneDNN or a JDK. Their installed runtime distributions have their own applicable terms. This distinction
 does not supply a project-wide license for Synaptik's own Java/native/shader material.
+
+## External oneDNN runtime
+
+The opt-in CPU integration binds the public C interfaces of externally supplied oneDNN 3.14.0
+through the JDK Foreign Function and Memory (FFM) API. No oneDNN source or binary is bundled
+in Synaptik artifacts. The upstream pinned [`v3.14` license](https://github.com/uxlfoundation/oneDNN/blob/v3.14/LICENSE)
+is Apache License 2.0 and identifies additional component terms in
+[`THIRD-PARTY-PROGRAMS`](https://github.com/uxlfoundation/oneDNN/blob/v3.14/THIRD-PARTY-PROGRAMS).
+Deployers or redistributors supplying that library must retain the license, applicable attribution/
+notice material and component terms required by their exact oneDNN distribution. This entry
+does not replace those materials or license Synaptik itself.
+
+The [CPU integration guide](docs/backend-guide/cpu-backend.md#external-binary-and-loading-requirements)
+records the exact source/build pin and required sequential CPU configuration. A CI download/build
+of upstream oneDNN is separate from bundling a native runtime in published application artifacts.
 
 ## Gradle wrapper
 

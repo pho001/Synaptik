@@ -45,16 +45,18 @@ import java.util.zip.CRC32;
  *
  * <p>Batch, candidate, and decision values are immutable, own no closeable resource, and borrow
  * the exact owning integration, projected context, and partition association. Compatibility and
- * identity wrappers own defensive canonical bytes; current compatibility is session-scoped. Association
+ * identity wrappers own defensive canonical bytes; current compatibility is session-scoped and
+ * binds the integration's immutable oneDNN library session, API preference and qualified policy.
+ * Association
  * checks prevent accidental value mixing, while the checksum detects accidental byte corruption;
  * neither mechanism is a hostile-input security boundary.</p>
  */
 public final class CpuCompletePlanTuning {
-    private static final int VALUE_SCHEMA = 3;
+    private static final int VALUE_SCHEMA = 4;
     private static final int DECISION_MAGIC = 0x53435032;
     private static final int MAXIMUM_DECISION_BYTES = 2_048;
     private static final int CPU_BACKEND_TAG = 0x435055;
-    private static final int CANDIDATE_SCHEMA = 3;
+    private static final int CANDIDATE_SCHEMA = 4;
 
     private final CpuBackendComposition composition;
     private final CpuLocalWorkloadTuning localWorkloadTuning;
@@ -353,7 +355,8 @@ public final class CpuCompletePlanTuning {
     private Compatibility compatibility(Association association) {
         CanonicalSink sink = new CanonicalSink();
         sink.integer(VALUE_SCHEMA).integer(CANDIDATE_SCHEMA).integer(CPU_BACKEND_TAG)
-                .bytes(sessionNonce).integer(association.identities.size());
+                .bytes(sessionNonce).text(composition.oneDnnPolicyFingerprint())
+                .integer(association.identities.size());
         encodeProjection(sink, association.context, association.partition);
         association.identities.forEach(identity -> encodeVariant(sink, identity));
         encodeEnumerationDefaults(sink);

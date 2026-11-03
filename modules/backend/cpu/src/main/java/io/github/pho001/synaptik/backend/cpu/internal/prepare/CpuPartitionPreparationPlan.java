@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.prepare;
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasRoutePlan;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasTuningBatch;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnRoutePlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuSpecializedSubgraph;
@@ -162,6 +163,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLowering
  *     only from the projected DAG and unfused baseline and bound to these selected unit objects;
  *     includes virtualized outputs, is absent before recognition, and enters no generated or
  *     tuning identity
+ * @param oneDnnPlan non-null optional closed native assignment over retained common units;
+ *     present exactly when {@code route} is {@link Route#ONEDNN}
  */
 public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route route,
         ExecutionStrategy executionStrategy,
@@ -200,7 +203,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         Optional<CpuOpenBlasRoutePlan> openBlasPlan,
         Optional<CpuOpenBlasTuningBatch> openBlasTuningBatch,
         Optional<CpuOpenBlasTuningBatch.CandidateIdentity> selectedOpenBlasTuningCandidate,
-        Optional<RetainedBaselineBinding> retainedBaselineBinding)
+        Optional<RetainedBaselineBinding> retainedBaselineBinding,
+        Optional<CpuOneDnnRoutePlan> oneDnnPlan)
         implements BackendPreparationPlan {
 
     /**
@@ -462,7 +466,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 specializedSubgraphs, fusionDecisions, publicationBoundaryPositions,
                 materializations, representationUnits, representationDecisions,
                 partialReductionRecipe, openBlasPlan, openBlasTuningBatch,
-                selectedOpenBlasTuningCandidate, Optional.empty());
+                selectedOpenBlasTuningCandidate, Optional.empty(), Optional.empty());
     }
 
     /**
@@ -2061,7 +2065,8 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
     /** Route selected after common lowering. */
     public enum Route {
         /** Java 26 Class-File portable route selected after common lowering. */ PORTABLE,
-        /** Narrow borrowed-provider OpenBLAS SGEMM or DGEMM route. */ OPENBLAS
+        /** Narrow borrowed-provider OpenBLAS SGEMM or DGEMM route. */ OPENBLAS,
+        /** Selected oneDNN realizations with generated common-unit remainder. */ ONEDNN
     }
     /**
      * Orthogonal compute/orchestration vocabulary.
@@ -2164,6 +2169,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
      *     present exactly when {@code openBlasTuningBatch} is present and naming one of its members
      * @param retainedBaselineBinding non-null optional graph-derived unfused boundary binding;
      *     required with recognized decisions and accepted only for its original selected units
+     * @param oneDnnPlan non-null optional closed native assignment over retained common units
      * @throws NullPointerException if a required component is {@code null}
      * @throws IllegalArgumentException if the plan lacks valid CPU units with
      *     matching route, boundary, dependency, strategy, range, materialization, workspace,
@@ -2221,6 +2227,7 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 selectedOpenBlasTuningCandidate, "selectedOpenBlasTuningCandidate");
         retainedBaselineBinding = Objects.requireNonNull(retainedBaselineBinding,
                 "retainedBaselineBinding");
+        oneDnnPlan = Objects.requireNonNull(oneDnnPlan, "oneDnnPlan");
         if (retainedBaselineBinding.isPresent()
                 && !retainedBaselineBinding.orElseThrow().binds(units)) throw
                 new IllegalArgumentException("retained recognition binding belongs to another plan");
@@ -2271,6 +2278,16 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
         }
         if ((route == Route.OPENBLAS) != openBlasPlan.isPresent()) {
             throw new IllegalArgumentException("CPU route and OpenBLAS plan must agree");
+        }
+        if ((route == Route.ONEDNN) != oneDnnPlan.isPresent()) {
+            throw new IllegalArgumentException("CPU route and oneDNN plan must agree");
+        }
+        if (oneDnnPlan.isPresent() && (openBlasPlan.isPresent()
+                || openBlasTuningBatch.isPresent() || selectedOpenBlasTuningCandidate.isPresent()
+                || ordinaryBatch || materialization.isPresent() || !materializations.isEmpty()
+                || !representationUnits.isEmpty() || partialReductionRecipe.isPresent()
+                || units.stream().anyMatch(unit -> unit.runtimeFacts().materialization().isPresent()))) {
+            throw new IllegalArgumentException("CPU oneDNN route cannot share another native or representation choice");
         }
         if (openBlasTuningBatch.isPresent() != selectedOpenBlasTuningCandidate.isPresent()
                 || openBlasTuningBatch.isPresent()
@@ -2343,6 +2360,55 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                 || boundaryValues.stream().distinct().count() != boundaryValues.size()) {
             throw new IllegalArgumentException(
                     "CPU declarations and distinct boundary identities must agree");
+        }
+        if (oneDnnPlan.isPresent()) {
+            var nativePlan = oneDnnPlan.orElseThrow();
+            nativePlan.validate(units);
+            var workspaceIds = new java.util.HashSet<Long>();
+            workspaceDeclaration.ifPresent(workspace -> workspaceIds.add(workspace.requirementId()));
+            for (var unit : units) {
+                unit.runtimeFacts().workspaceDeclaration().ifPresent(
+                        workspace -> workspaceIds.add(workspace.requirementId()));
+            }
+            materialization.ifPresent(copy -> workspaceIds.add((long) copy.workspaceRequirementId()));
+            for (var copy : materializations) workspaceIds.add((long) copy.workspaceRequirementId());
+            for (var workspace : nativePlan.workspaceRequirements()) {
+                if (!workspaceIds.add(workspace.requirementId())) {
+                    throw new IllegalArgumentException("oneDNN workspace IDs collide with common resources");
+                }
+            }
+            for (var selectedUnit : nativePlan.units()) {
+                var unit = units.get(selectedUnit.unitPosition());
+                var projection = selectedUnit.projection();
+                ValueId output = unit.boundaryValues().get(projection.outputBoundaryPosition());
+                for (int position : projection.inputBoundaryPositions()) {
+                    if (unit.boundaryValues().get(position).equals(output)) {
+                        throw new IllegalArgumentException("oneDNN input and output bindings must be distinct");
+                    }
+                }
+                for (int position = 0; position < projection.byteOffsets().size(); position++) {
+                    int boundaryPosition = position < projection.spec().inputs().size()
+                            ? projection.inputBoundaryPositions().get(position)
+                            : projection.outputBoundaryPosition();
+                    int declarationPosition = boundaryValues.indexOf(
+                            unit.boundaryValues().get(boundaryPosition));
+                    if (declarationPosition < 0) {
+                        throw new IllegalArgumentException("oneDNN boundary has no common declaration");
+                    }
+                    var declaration = bufferDeclarations.get(declarationPosition);
+                    long offset = projection.byteOffsets().get(position);
+                    long byteSize = position < projection.spec().inputs().size()
+                            ? projection.spec().inputs().get(position).byteSize()
+                            : projection.spec().output().byteSize();
+                    if (declaration.byteAlignment() < Float.BYTES || offset % Float.BYTES != 0
+                            || declaration.size().fixedByteSize().isEmpty()
+                            || Math.addExact(offset, byteSize) > declaration.byteSize()
+                            || unit.carrierPattern().get(boundaryPosition)
+                                != carrierPattern.get(declarationPosition)) {
+                        throw new IllegalArgumentException("oneDNN boundary storage is unaligned or ambiguous");
+                    }
+                }
+            }
         }
         int completeBoundaryCount = boundaryValues.size();
         if (!publicationBoundaryPositions.stream().sorted().toList()
@@ -2775,6 +2841,35 @@ public record CpuPartitionPreparationPlan(List<ExecutionUnitPlan> units, Route r
                         "recognition has no trusted baseline binding")));
         validateFusionDecisions(units, boundaryValues, bufferDeclarations,
                 publicationBoundaryPositions, fusionDecisions, representationDecisions);
+    }
+
+    /**
+     * Attaches a closed native assignment without rebuilding common units or their provenance.
+     *
+     * @param nativePlan non-null selected oneDNN units and exact additional workspace facts
+     * @return validated native plan retaining every common lowering and decision fact
+     * @throws IllegalArgumentException if this plan already carries native or tuning state, or
+     *     the assignment disagrees with the common units and resources
+     */
+    public CpuPartitionPreparationPlan withOneDnn(CpuOneDnnRoutePlan nativePlan) {
+        Objects.requireNonNull(nativePlan, "nativePlan");
+        if (route != Route.PORTABLE || openBlasPlan.isPresent() || oneDnnPlan.isPresent()
+                || openBlasTuningBatch.isPresent() || selectedOpenBlasTuningCandidate.isPresent()) {
+            throw new IllegalArgumentException("oneDNN requires an untuned portable common plan");
+        }
+        return new CpuPartitionPreparationPlan(units, Route.ONEDNN, executionStrategy,
+                bufferDeclarations, boundaryValues, accessBindings, carrierPattern,
+                generatedCarrierPattern, extents, elementCount, affineAddressPairs,
+                selectedRangeCount, minimumElementsPerWorker, vectorSpeciesBitSize,
+                loweringManifest, materialization, workspaceDeclaration, workspaceUse,
+                specializationBudget, movementGeometry, indexingGeometry, scatterGeometry,
+                foldGeometry, orderingGeometry, randomGeometry, scanGeometry, aggregateGeometry,
+                argExtremaGeometry, maskedReductionGeometry, advancedReductionGeometry,
+                softmaxGeometry, trailingNormalizationGeometry, batchNormInferenceGeometry,
+                batchNormTrainingGeometry, conv2dGeometry, specializedSubgraphs, fusionDecisions,
+                publicationBoundaryPositions, materializations, representationUnits,
+                representationDecisions, partialReductionRecipe, openBlasPlan, openBlasTuningBatch,
+                selectedOpenBlasTuningCandidate, retainedBaselineBinding, Optional.of(nativePlan));
     }
 
     /**

@@ -41,7 +41,8 @@ final class CpuOrdinaryDynamicBatchCleanJavaOracle {
         for (int row = 0; row < 4; row++) for (int col = 0; col < 3; col++) {
             int leftAddress = row, rightAddress = col;
             float sum = 0;
-            for (int term = 0; term < b; term++) {
+            if (b == 1) sum = x.get(JAVA_FLOAT_UNALIGNED,4L*leftAddress)*dy.get(JAVA_FLOAT_UNALIGNED,4L*rightAddress);
+            else for (int term = 0; term < b; term++) {
                 sum += x.get(JAVA_FLOAT_UNALIGNED, 4L * leftAddress)
                         * dy.get(JAVA_FLOAT_UNALIGNED, 4L * rightAddress);
                 leftAddress += 4; rightAddress += 3;
@@ -80,7 +81,8 @@ final class CpuOrdinaryDynamicBatchCleanJavaOracle {
         for (int row = 0; row < 128; row++) for (int col = 0; col < 128; col++) {
             int leftAddress = row, rightAddress = col;
             float sum = 0;
-            for (int term = 0; term < b; term++) {
+            if (b == 1) sum = x.get(JAVA_FLOAT_UNALIGNED,4L*leftAddress)*dy.get(JAVA_FLOAT_UNALIGNED,4L*rightAddress);
+            else for (int term = 0; term < b; term++) {
                 sum += x.get(JAVA_FLOAT_UNALIGNED, 4L * leftAddress)
                         * dy.get(JAVA_FLOAT_UNALIGNED, 4L * rightAddress);
                 leftAddress += 128; rightAddress += 128;

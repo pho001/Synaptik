@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.prepare;
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes;
+import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuWorkspaceRecipeProvider;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
@@ -218,8 +219,7 @@ public final class CpuPreparedScheduleAssembler
             }
             workspaces.add(new PreparedScheduleContribution.Workspace(
                     assignment,
-                    CpuRepresentationRecipes.workspace(
-                            context.memoryPlan().workspaces().get(assignment.planIndex()))));
+                    workspaceCreator(context, assignment)));
         }
         return new PreparedScheduleContribution(
                 CpuCapabilityProvider.CPU_BACKEND_ID, buffers, workspaces);
@@ -280,9 +280,8 @@ public final class CpuPreparedScheduleAssembler
             }
         }
 
-        var workspaceCreators = context.memoryPlan().workspaces().stream()
-                .map(CpuRepresentationRecipes::workspace)
-                .toList();
+        var workspaceCreators = context.workspaceAssignments().stream()
+                .map(assignment -> workspaceCreator(context, assignment)).toList();
         var representationPlan = new PreparedRepresentationPlan(context.memoryPlan(),
                 bufferPreparations, workspaceCreators);
 
@@ -306,6 +305,28 @@ public final class CpuPreparedScheduleAssembler
                     context.memoryPlan(), assignment.planIndex(), 0, resultIndex)));
         }
         return new PreparedSchedule(context.memoryPlan(), steps);
+    }
+
+    /** Resolves finalized CPU recipes only during cold assembly, never during run execution. */
+    private static PreparedRepresentationPlan.WorkspaceCreator workspaceCreator(
+            PreparedScheduleContext context, PreparedWorkspaceAssignment assignment) {
+        PreparedRepresentationPlan.WorkspaceCreator selected = null;
+        for (var partition : context.partitions()) {
+            if (!partition.partition().owner().equals(CpuCapabilityProvider.CPU_BACKEND_ID)) continue;
+            var executable = partition.executable();
+            if (executable.memoryPlan() != context.memoryPlan()) throw new IllegalArgumentException(
+                    "CPU workspace executable does not retain the exact shared memory plan");
+            if (!(executable instanceof CpuWorkspaceRecipeProvider provider)) continue;
+            var candidate = provider.workspaceCreator(assignment.planIndex());
+            if (candidate.isEmpty()) continue;
+            if (partition.partition() != assignment.partition()) throw new IllegalArgumentException(
+                    "CPU workspace recipe is claimed by a different partition");
+            if (selected != null) throw new IllegalArgumentException(
+                    "CPU workspace is claimed by multiple finalized executables");
+            selected = candidate.orElseThrow();
+        }
+        return selected != null ? selected : CpuRepresentationRecipes.workspace(
+                context.memoryPlan().workspaces().get(assignment.planIndex()));
     }
 
     /**

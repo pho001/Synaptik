@@ -29,6 +29,37 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 final class CpuOpenBlasRouteSelectorTest {
+    /** Empty and singleton contractions are excluded before cost or native tuning decisions. */
+    @Test void emptyAndSingletonContractionsRemainPortableForBothFloatingTypes() {
+        for (var type : List.of(DataType.FLOAT32,DataType.FLOAT64)) for (int k : new int[]{0,1,2}) {
+            var plan = new CpuPartitionPreparer().analyze(context(type,dense(Shape.of(2,k)),
+                    dense(Shape.of(k,4)),dense(Shape.of(2,4)),qualified(type,false,1))).plan();
+            assertEquals(k > 1 ? CpuPartitionPreparationPlan.Route.OPENBLAS : CpuPartitionPreparationPlan.Route.PORTABLE,plan.route());
+            if (k <= 1) {
+                assertTrue(plan.openBlasPlan().isEmpty());
+                assertTrue(plan.openBlasTuningBatch().isEmpty());
+            }
+        }
+    }
+
+    /** An explicit native decision cannot bypass singleton semantic admission. */
+    @Test void nativeDecisionCannotReenableASingletonContraction() {
+        for (var type : List.of(DataType.FLOAT32,DataType.FLOAT64)) {
+            var base = qualified(type,false,1);
+            var batch = new CpuPartitionPreparer().analyze(context(type,dense(Shape.of(2,2)),
+                    dense(Shape.of(2,4)),dense(Shape.of(2,4)),base)).plan().openBlasTuningBatch().orElseThrow();
+            var nativeCandidate = batch.candidates().stream().filter(c -> c.openBlasPlan().isPresent()).findFirst().orElseThrow();
+            var decision = new CpuOpenBlasTuningDecision(batch.schemaVersion(),batch.workload(),nativeCandidate.identity());
+            var inputs = new CpuPartitionAnalysisInputs(base.loweringManifestEnabled(),base.carrierPattern(),base.portableExecution(),
+                    base.materializationPolicy(),base.conv2dMaterializedSuffixUnit(),base.partialReductionEvidence(),base.boundaryStorageFacts(),
+                    base.openBlasRoute(),base.cpuHardwareIdentity(),base.workloadCohort(),Optional.of(decision));
+            var plan = new CpuPartitionPreparer().analyze(context(type,dense(Shape.of(2,1)),
+                    dense(Shape.of(1,4)),dense(Shape.of(2,4)),inputs)).plan();
+            assertEquals(CpuPartitionPreparationPlan.Route.PORTABLE,plan.route());
+            assertTrue(plan.openBlasTuningBatch().isEmpty()); assertTrue(plan.openBlasPlan().isEmpty());
+        }
+    }
+
     @Test void absorbedTransposeInputsRetainOnlyTheNativeCanonicalizationCopies() {
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
             for (boolean left : List.of(false, true)) for (boolean right : List.of(false, true)) {

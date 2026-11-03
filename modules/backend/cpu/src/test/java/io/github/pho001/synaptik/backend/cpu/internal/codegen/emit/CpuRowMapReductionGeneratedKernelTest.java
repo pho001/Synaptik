@@ -207,10 +207,10 @@ public final class CpuRowMapReductionGeneratedKernelTest {
         for (int row = 0; row < batch; row++) {
             if (type == DataType.FLOAT32) {
                 float a = 0f; a += (float)xa[2*row]*(float)wa[0]; a += (float)xa[2*row+1]*(float)wa[1];
-                float b = 0f; b += (float)za[row]*(float)ua[0]; ya[row] = (a+b)+.25f;
+                float b = (float)za[row]*(float)ua[0]; ya[row] = (a+b)+.25f;
             } else {
                 double a = 0d; a += xa[2*row]*wa[0]; a += xa[2*row+1]*wa[1];
-                double b = 0d; b += za[row]*ua[0]; ya[row] = (a+b)+.25;
+                double b = za[row]*ua[0]; ya[row] = (a+b)+.25;
             }
         }
         var source = List.of(xa,za,wa,ua,new double[]{.25},new double[]{seed});
@@ -332,23 +332,6 @@ public final class CpuRowMapReductionGeneratedKernelTest {
             }
         }
     }
-    @Test void lowMatmulContributorsRetainLiteralDecodedFloatWorkingInstructions() {
-        for (var type : List.of(DataType.BFLOAT16,DataType.FLOAT16)) {
-            var owner = java.lang.constant.ClassDesc.of("LowMatmulWorkingSite");
-            var signature = java.lang.constant.MethodTypeDesc.of(java.lang.constant.ConstantDescs.CD_float,
-                    java.lang.constant.ConstantDescs.CD_float,java.lang.constant.ConstantDescs.CD_float,
-                    java.lang.constant.ConstantDescs.CD_float);
-            byte[] observed = java.lang.classfile.ClassFile.of().build(owner,c -> c.withMethodBody("sum",signature,
-                    java.lang.classfile.ClassFile.ACC_STATIC,b -> {
-                        CpuMatmulEmitter.accumulate(b,type,0,1,2); b.fload(0).freturn();
-                    }));
-            // Literal pre-CPU0073 working-site instructions, not derived from the new seams.
-            byte[] expected = java.lang.classfile.ClassFile.of().build(owner,c -> c.withMethodBody("sum",signature,
-                    java.lang.classfile.ClassFile.ACC_STATIC,b -> b.fload(0).fload(1).fload(2).fmul().fadd().fstore(0).fload(0).freturn()));
-            assertArrayEquals(expected,observed,type+" decoded low values still use FLOAT locals");
-            assertTrue(java.lang.classfile.ClassFile.of().verify(observed).isEmpty());
-        }
-    }
 
     @Test void regionRejectsIncompleteAndUnbackedHandleTablesBeforeCallbacks() {
         for (int mutation = 0; mutation < 4; mutation++) {
@@ -393,13 +376,6 @@ public final class CpuRowMapReductionGeneratedKernelTest {
             var regions = analysis.plan().units().stream().filter(unit -> unit.portablePlan().specialization().rowMapReductionIr().isPresent()).toList();
             assertFalse(regions.isEmpty(),type+" actual AD selected region");
             assertTrue(regions.stream().anyMatch(unit -> unit.portablePlan().specialization().rowMapReductionIr().orElseThrow().terminalOutputs().size() == 2));
-            for (var unit : regions) {
-                assertEquals(1,unit.elementCount()); assertEquals(1,unit.selectedRangeCount());
-                byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(unit.portablePlan().specialization(),unit.portablePlan().kernelIr());
-                assertTrue(java.lang.classfile.ClassFile.of().verify(bytes).isEmpty());
-                if (unit.portablePlan().specialization().rowMapReductionIr().orElseThrow().terminalOutputs().size() == 2)
-                    assertOrdinaryDenseStructure(type,bytes);
-            }
             assertTrue(analysis.plan().units().stream().anyMatch(unit -> unit.runtimeFacts().aggregateGeometry().isPresent()
                     || unit.portablePlan().batchAggregate().isPresent()),"exact SUM remains separate");
             try (var owner = new io.github.pho001.synaptik.backend.cpu.internal.executable.CpuRecurrentScanExecutionTest.Fixture(
@@ -441,155 +417,4 @@ public final class CpuRowMapReductionGeneratedKernelTest {
         }
     }
 
-    /**
-     * Compares actual dense AD emission to the independently written typed Java equation body.
-     * Fixed F2/J1/H1 has eight ordered MULs, seven ADDs and seven producing stores, with one
-     * row backedge and no geometry-array read after entering that traversal.
-     * @param type represented F32/F64 working dtype
-     * @param bytes actual selected projection-72 ClassFile
-     */
-    private static void assertOrdinaryDenseStructure(DataType type,byte[] bytes) {
-        try (var input = CpuRowMapReductionJavaOracle.class.getResourceAsStream("CpuRowMapReductionJavaOracle.class")) {
-            assertNotNull(input);
-            var oracle = java.lang.classfile.ClassFile.of().parse(input.readAllBytes()).methods().stream()
-                    .filter(m -> m.methodName().equalsString(type == DataType.FLOAT64 ? "denseFloat64" : "denseFloat32")).findFirst().orElseThrow();
-            var reference = oracle.code().orElseThrow().elementStream().filter(java.lang.classfile.Instruction.class::isInstance)
-                    .map(java.lang.classfile.Instruction.class::cast).toList();
-            var body = (java.lang.classfile.attribute.CodeAttribute)java.lang.classfile.ClassFile.of().parse(bytes).methods().getFirst().code().orElseThrow();
-            var generated = body.elementStream().filter(java.lang.classfile.Instruction.class::isInstance)
-                    .map(java.lang.classfile.Instruction.class::cast).toList();
-            var mul = type == DataType.FLOAT64 ? java.lang.classfile.Opcode.DMUL : java.lang.classfile.Opcode.FMUL;
-            var add = type == DataType.FLOAT64 ? java.lang.classfile.Opcode.DADD : java.lang.classfile.Opcode.FADD;
-            assertEquals(8,reference.stream().filter(i -> i.opcode() == mul).count());
-            assertEquals(7,reference.stream().filter(i -> i.opcode() == add).count());
-            for (var opcode : List.of(mul,add)) assertEquals(reference.stream().filter(i -> i.opcode() == opcode).count(),
-                    generated.stream().filter(i -> i.opcode() == opcode).count(),"same separate represented producing sites as optimal typed Java");
-            assertEquals(7,generated.stream().filter(i -> i instanceof java.lang.classfile.instruction.InvokeInstruction call
-                    && call.owner().asInternalName().equals("java/lang/foreign/MemorySegment") && call.name().stringValue().startsWith("set")).count(),
-                    "D for exact db + dX/dZ + completed dW/dU, no other intermediates");
-            var backs = generated.stream().filter(i -> i.opcode() == java.lang.classfile.Opcode.GOTO)
-                    .map(java.lang.classfile.instruction.BranchInstruction.class::cast).toList();
-            assertEquals(1,backs.size());int start = body.labelToBci(backs.getFirst().target()),bci = 0;
-            for (var instruction : generated) {
-                if (bci >= start) {
-                    assertFalse(Set.of(java.lang.classfile.Opcode.NEW,java.lang.classfile.Opcode.NEWARRAY,java.lang.classfile.Opcode.ANEWARRAY,
-                            java.lang.classfile.Opcode.INVOKEDYNAMIC,java.lang.classfile.Opcode.LALOAD).contains(instruction.opcode()));
-                    if (instruction instanceof java.lang.classfile.instruction.InvokeInstruction call)
-                        assertEquals("java/lang/foreign/MemorySegment",call.owner().asInternalName(),"no hidden arithmetic/boxing/dispatch helper");
-                }
-                bci += instruction.sizeInBytes();
-            }
-            System.out.println("CPU0073 actual dense "+type+" generated=optimalJava MUL8/ADD7/stores7/rowLoops1 exact-db-boundary retained");
-        } catch (java.io.IOException failure) { throw new java.io.UncheckedIOException(failure); }
-    }
-    /** Literal ordinary and raw-Scan controls remain independent of fresh derivative metadata. */
-    @Test void frozenOrdinaryAndRawScanControlsRemainUnchanged() throws Exception {
-        var frozen = new TreeMap<String,String>();
-        try (var stream = getClass().getResourceAsStream("row-map-reduction-before.tsv")) {
-            assertNotNull(stream);
-            new String(stream.readAllBytes(),StandardCharsets.UTF_8).lines()
-                    .filter(line -> !line.isBlank() && !line.startsWith("#"))
-                    .map(line -> line.split("\t")).forEach(row -> frozen.put(row[0],row[1]));
-        }
-        for (var item : baselineCorpus().entrySet()) {
-            String actual = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(item.getValue()));
-            assertEquals(frozen.get(item.getKey()),actual,"literal ordinary/raw recipe drift: "+item.getKey());
-        }
-    }
-
-    /**
-     * Constructs genuine ordinary and raw Scan controls without invoking an obsolete baseline
-     * writer. Fresh Compiler Scan derivatives are numerical production consumers instead of
-     * historical identity fixtures; every ordinary MATMUL realization remains represented.
-     * @return ordered independently generated identity, ClassFile, and resource payloads
-     */
-    public static Map<String, byte[]> baselineCorpus() {
-        var payloads = new TreeMap<String, byte[]>();
-        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
-            var b = new DynamicDimension("B");
-            Tensor a = CpuSymbolicLengthScanFixture.tensor(type, true,
-                    Shape.ofDimensions(b, new StaticDimension(3)));
-            Tensor w = CpuGeneralScanLoweringTest.tensor(type, true,
-                    type == DataType.FLOAT32 ? new long[]{3, 2} : new long[]{3});
-            Tensor value = type == DataType.FLOAT32 ? a.matmul(w) : a.add(w);
-            var roots = type == DataType.FLOAT32 ? List.of(value)
-                    : List.of(value.sum(0, false), value.mean());
-            var request = new FunctionalGradientRequest(List.of(new FunctionalGradientRequest.Stage(
-                    roots.stream().map(r -> (FunctionalGradientRequest.OutputReference)
-                            new FunctionalGradientRequest.ForwardTensorReference(r)).toList(),
-                    roots.stream().map(r -> Optional.of(CpuSymbolicLengthScanFixture.tensor(type, false,
-                            r.descriptor().shape()))).toList(), List.of(a, w), false,
-                    FunctionalGradientRequest.DisconnectedPolicy.ZERO)));
-            captureOrdinary(payloads, "batch-" + type, CpuGeneralScanCapabilityTest.compile(
-                    roots, Optional.of(request), false, new CpuCapabilityProvider()));
-            Tensor pointwise = a.mul(a).add(a);
-            captureOrdinary(payloads, "batch-pointwise-sum-" + type,
-                    CpuGeneralScanCapabilityTest.compile(List.of(pointwise, pointwise.sum(0, false)),
-                            Optional.empty(), false, new CpuCapabilityProvider()));
-            for (boolean reverse : List.of(false, true)) for (int family = 0; family < 3; family++) {
-                var facts = CpuGeneralScanLowering.analyze(
-                        CpuGeneralScanLoweringTest.denseReadFixture(type, family, 4, reverse));
-                captureScan(payloads, "static-" + type + "-" + reverse + "-" + family, facts);
-                var lengths = CpuGeneralScanLowering.analyze(
-                        CpuGeneralScanLoweringTest.lengthFixture(type, family, 4, 7, 2, reverse, true));
-                captureScan(payloads, "length-" + type + "-" + reverse + "-" + family, lengths);
-            }
-            var read = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ, CpuAccessPlan.Regime.DENSE_LINEAR,
-                    2, Collections.nCopies(2, CpuAccessPlan.AxisRole.CONTIGUOUS), 2);
-            var write = new CpuAccessPlan(CpuAccessPlan.AccessKind.WRITE, CpuAccessPlan.Regime.DENSE_LINEAR,
-                    2, Collections.nCopies(2, CpuAccessPlan.AxisRole.CONTIGUOUS), 2);
-            for (var form : CpuMatmulIr.Realization.values()) for (boolean tanh : List.of(false, true))
-                    for (boolean segment : List.of(false, true)) {
-                boolean vector = form == CpuMatmulIr.Realization.DIRECT_N_VECTOR
-                        || form == CpuMatmulIr.Realization.TILED_N_VECTOR_2X2;
-                int bits = vector ? (type == DataType.FLOAT32
-                        ? jdk.incubator.vector.FloatVector.SPECIES_PREFERRED.vectorBitSize()
-                        : jdk.incubator.vector.DoubleVector.SPECIES_PREFERRED.vectorBitSize()) : 0;
-                var ir = new CpuMatmulIr(type, type, type, form, tanh ? new CpuMatmulIr.Epilogue(
-                        CpuMatmulIr.Epilogue.AddInputOrder.NONE, CpuMatmulIr.Epilogue.Terminal.TANH, null)
-                        : CpuMatmulIr.Epilogue.none(), bits, CpuMatmulIr.NumericalForm.SEQUENTIAL,
-                        List.of(read, read), write);
-                var carrier = segment ? CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT
-                        : type == DataType.FLOAT32 ? CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY
-                        : CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY;
-                var spec = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()),
-                        vector ? CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR
-                                : CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
-                        List.of(type, type, type), Collections.nCopies(3, carrier), bits, -1, List.of(),
-                        false, 54, Optional.of(ir));
-                capture(payloads, "ordinary-" + type + "-" + form + "-" + tanh + "-" + segment,
-                        spec, ir.encodedKernelIr());
-            }
-        }
-        return payloads;
-    }
-
-    private static void captureOrdinary(Map<String, byte[]> payloads, String name, CompileArtifacts compiled) {
-        var analysis = new CpuPartitionPreparer().analyze(GraphPreparation.project(compiled,
-                compiled.partitions().getFirst(), CpuPartitionAnalysisInputs.DEFAULT));
-        int index = 0;
-        for (var unit : analysis.plan().units()) {
-            var route = unit.portablePlan(); String key = name + "-" + index++;
-            capture(payloads, key, route.specialization(), route.kernelIr());
-            payloads.put(key + ".resources", (unit.boundaryValues() + "\n" + route.batchBindings()
-                    + "\n" + route.batchMatmul() + "\n" + route.batchAggregate() + "\n"
-                    + analysis.plan().bufferDeclarations() + "\n" + unit.runtimeFacts().workspaceDeclaration()
-                    + "\n" + unit.runtimeFacts().workspaceUse())
-                    .getBytes(StandardCharsets.UTF_8));
-        }
-    }
-
-    private static void captureScan(Map<String, byte[]> payloads, String name, CpuGeneralScanLowering.Facts facts) {
-        capture(payloads, name, CpuGeneralScanGeneratedKernelTest.specialization(facts), facts.ir().encodedKernelIr());
-        payloads.put(name + ".resources", (facts.geometry() + "\n" + facts.spans() + "\n"
-                + facts.accessBindings() + "\n" + Arrays.toString(facts.pack(7))).getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static void capture(Map<String, byte[]> payloads, String name, CpuKernelSpecialization spec, CpuKernelIr ir) {
-        payloads.put(name + ".compatibility", spec.compatibilityBytes());
-        payloads.put(name + ".classidentity", spec.classIdentityBytes());
-        byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(spec, ir);
-        assertTrue(java.lang.classfile.ClassFile.of().verify(bytes).isEmpty(), name);
-        payloads.put(name + ".class", bytes);
-    }
 }

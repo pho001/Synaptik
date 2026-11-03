@@ -18,6 +18,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRepresentationDecisi
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasRoutePlan;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasRouteSelector;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnSelector;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis;
@@ -68,7 +69,7 @@ import jdk.incubator.vector.ByteVector;
  * failed proof retain scalar or parallel-scalar compute. Conv1d composition remains scalar. Only
  * the admitted convolution vector realization uses class-identity schema 63; scalar Conv2d/Conv3d
  * artifacts retain their historical schema-52 class projection.
- * Analysis measures nothing and performs no artifact or persistence access. Static affine
+ * Portable/OpenBLAS analysis measures nothing and performs no artifact or persistence access. Static affine
  * chains instead retain scalar compute,
  * compose one exact distinct-write address domain, declare only source and final result buffers,
  * and use deterministic scalar fallback when vector compute was preferred.
@@ -93,6 +94,13 @@ import jdk.incubator.vector.ByteVector;
  * strictly cheaper bare rank-two FLOAT32/FLOAT64 MATMUL may select the narrow OpenBLAS route.
  * That post-lowering decision uses only immutable storage, thread-configuration, and cost facts;
  * it retains the complete portable realization and performs no provider query or allocation.
+ * An explicitly supplied oneDNN selector may instead compare a complete common contraction
+ * decomposition with that selected portable/OpenBLAS peer. Only qualified homogeneous FLOAT32
+ * MATMUL with K greater than one is eligible; convolution and external epilogues remain ordinary
+ * common units. This cold comparison queries native descriptors and exact scratch requirements;
+ * the Graph API may compile and close a temporary native kernel. No native handle escapes analysis,
+ * no measurement occurs, and all selected native workspaces precede shared assignment. An explicit
+ * OpenBLAS tuning decision freezes Phase-1 route selection and prevents this native comparison.
  * Portable MATMUL realization and generated compute strategy follow the same cold preference;
  * a scalar preference retains direct or threshold-eligible tiled scalar work even when the
  * descriptor would also qualify for a vector candidate.
@@ -108,6 +116,7 @@ import jdk.incubator.vector.ByteVector;
 public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         CpuPartitionAnalysisInputs, CpuPartitionPreparationPlan> {
     private final CpuPartitionLowering lowering;
+    private final Optional<CpuOneDnnSelector> oneDnnSelector;
     private final CpuPartitionDagDecomposer decomposer = new CpuPartitionDagDecomposer();
     private final CpuSpecializedSubgraphRecognizer recognizer =
             new CpuSpecializedSubgraphRecognizer();
@@ -119,16 +128,32 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     private final CpuPartialReductionLowering partialReductionLowering =
             new CpuPartialReductionLowering();
 
-    /** Creates a preparer with the permanent common lowering owner. */
-    public CpuPartitionPreparer() { this(new CpuPartitionLowering()); }
+    /** Creates a preparer with common lowering and oneDNN routing disabled. */
+    public CpuPartitionPreparer() { this(new CpuPartitionLowering(), Optional.empty()); }
 
     /**
-     * Creates a preparer with an explicit lowering collaborator.
+     * Creates a preparer with an explicit lowering collaborator and oneDNN routing disabled.
      * @param lowering non-null whole-partition lowering retained by the preparer
      * @throws NullPointerException if {@code lowering} is {@code null}
      */
     public CpuPartitionPreparer(CpuPartitionLowering lowering) {
+        this(lowering, Optional.empty());
+    }
+
+    /**
+     * Creates a preparer with common lowering and an optional borrowed cold native selector.
+     * The selector and its native library remain owned by the enclosing CPU composition; this
+     * preparer neither closes them nor retains native handles produced by analysis.
+     *
+     * @param lowering non-null whole-partition lowering retained by the preparer
+     * @param oneDnnSelector non-null optional borrowed selector; empty preserves portable/OpenBLAS
+     *     analysis without any oneDNN provider query
+     * @throws NullPointerException if either argument is {@code null}
+     */
+    public CpuPartitionPreparer(CpuPartitionLowering lowering,
+            Optional<CpuOneDnnSelector> oneDnnSelector) {
         this.lowering = Objects.requireNonNull(lowering, "lowering");
+        this.oneDnnSelector = Objects.requireNonNull(oneDnnSelector, "oneDnnSelector");
     }
 
     /**
@@ -160,10 +185,16 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      *     An eligible exact MATMUL additionally retains one complete portable-first tuning batch;
      *     a compatible decision or the safe heuristic may select one OpenBLAS plan with up to
      *     three exact native copy-workspace declarations after the portable plan is complete.
+     *     When explicitly configured and not frozen by an OpenBLAS tuning decision, oneDNN may
+     *     compare a complete common contraction decomposition even on the direct or constant-write
+     *     paths. Its cold descriptor/scratch queries may temporarily compile Graph resources;
+     *     only immutable selected facts and every exact workspace declaration are returned.
      * @throws NullPointerException if {@code context} is {@code null}
      * @throws IllegalArgumentException if complete-partition lowering rejects the occurrence or
      *     declared resource geometry is invalid
      * @throws ArithmeticException if exact byte geometry overflows {@code long}
+     * @throws IllegalStateException if an enabled native comparison finds a closed borrowed
+     *     library or an unexpected native query failure; no runtime fallback is installed
      */
     @Override public BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyze(
             PrepareContext<CpuPartitionAnalysisInputs> context) {
@@ -171,13 +202,20 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         requirePermittedSource(context);
         if (context.requiresBatchSize()) return analyzeOrdinaryBatch(context);
         var units = decomposer.decompose(context, lowering);
-        if (!context.constants().isEmpty()) {
-            if (units.stream().anyMatch(u -> u.lowering().portableKernelIr()
-                    instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConstantWriteIr))
-                return withMetadata(context, analyzeTopology(context, units, null), List.of(), List.of(), null);
+        if (!context.constants().isEmpty()
+                && units.stream().anyMatch(u -> u.lowering().portableKernelIr()
+                    instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConstantWriteIr)) {
+            var portable = withMetadata(context, analyzeTopology(context, units, null, true),
+                    List.of(), List.of(), null);
+            return finishOneDnn(context, portable, portable, portable.plan().boundaryValues());
         }
-        if (directPartition(context, units)) return analyzeDirectPartition(context, units);
-        return finishOpenBlas(context, selectPlan(context, Optional.empty(), units).analysis());
+        if (directPartition(context, units)) {
+            var portable = analyzeDirectPartition(context, units);
+            return finishOneDnn(context, portable, portable, portable.plan().boundaryValues());
+        }
+        var selected = selectPlan(context, Optional.empty(), units);
+        return finishOneDnn(context, finishOpenBlas(context, selected.analysis()),
+                selected.analysis(), selected.carrierReferenceValues());
     }
 
     /**
@@ -391,7 +429,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     private BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeDirectPartition(
             PrepareContext<CpuPartitionAnalysisInputs> context,
             List<CpuPartitionDagDecomposer.Unit> units) {
-        var analysis = analyzeTopology(context, units, null);
+        var analysis = analyzeTopology(context, units, null, true);
         return withMetadata(context, analysis, List.of(), List.of(), null);
     }
 
@@ -437,8 +475,9 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      * Freshly selects one exact retained complete plan and performs current route evaluation.
      *
      * <p>The selected identity bypasses ordinary topology/representation ranking but does not
-     * grant legality. Current route evaluation must preserve the already authenticated Phase-1
-     * state carried by {@code context}.</p>
+     * grant legality. Route evaluation preserves its exact common unit objects and retained
+     * baseline binding; oneDNN never substitutes a different decomposition here. An authenticated
+     * Phase-1 OpenBLAS decision prevents new oneDNN API/provider queries or route ranking.</p>
      *
      * @param context non-null complete CPU analysis context; inspected but not mutated
      * @param selectedPlan non-null exact authenticated selected-plan input; retained only in the
@@ -449,6 +488,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      * @throws IllegalArgumentException if the selected identity is no longer retained or the
      *     complete partition is outside bounded topology/resource discovery
      * @throws ArithmeticException if exact plan or resource arithmetic overflows
+     * @throws IllegalStateException if an enabled native comparison finds a closed borrowed
+     *     library or an unexpected native query failure
      */
     public BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeSelected(
             PrepareContext<CpuPartitionAnalysisInputs> context,
@@ -459,7 +500,10 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         var units = decomposer.decompose(context, lowering);
         if (directPartition(context, units)) throw new IllegalArgumentException(
                 "complete CPU plan selection is unavailable outside bounded topology/resource discovery");
-        return finishOpenBlas(context, selectPlan(context, Optional.of(selectedPlan), units).analysis());
+        var portable = selectPlan(context, Optional.of(selectedPlan), units).analysis();
+        var peer = finishOpenBlas(context, portable);
+        return nativeComparisonEnabled(context)
+                ? oneDnnSelector.orElseThrow().select(context, peer, portable) : peer;
     }
 
     private BackendPartitionAnalysis<CpuPartitionPreparationPlan> finishOpenBlas(
@@ -469,12 +513,102 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 .map(result -> withOpenBlasEvaluation(portable, result)).orElse(portable);
     }
 
+    /**
+     * Compares one complete unmaterialized common contraction plan with the already selected peer.
+     * Common lowering owns all operation membership, protected stores and access geometry; no
+     * row-region IR is relabeled as native arithmetic. Native descriptor/scratch queries are cold,
+     * and the selector returns complete declarations without retaining its temporary handles.
+     *
+     * @param context non-null complete static CPU context, borrowed
+     * @param peer non-null already selected complete portable/OpenBLAS analysis, preserved on loss
+     * @param portable non-null ordinary common analysis before OpenBLAS route decoration
+     * @param carrierReferenceValues non-null exact ordinary-baseline declaration order used by the
+     *     caller's carrier pattern, borrowed and never rebound to a selected fused boundary order
+     * @return one complete immutable selected analysis with every native workspace declared
+     * @throws IllegalArgumentException if the common candidate or native query facts are invalid
+     * @throws ArithmeticException if exact common resource geometry overflows
+     * @throws IllegalStateException if the borrowed native library is closed or a native query
+     *     fails unexpectedly
+     */
+    private BackendPartitionAnalysis<CpuPartitionPreparationPlan> finishOneDnn(
+            PrepareContext<CpuPartitionAnalysisInputs> context,
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> peer,
+            BackendPartitionAnalysis<CpuPartitionPreparationPlan> portable,
+            List<ValueId> carrierReferenceValues) {
+        if (!nativeComparisonEnabled(context)) return peer;
+        var contractions = decomposer.decomposeContractions(context, lowering);
+        var candidate = sameCommonPlan(portable.plan(), contractions) ? portable
+                : withMetadata(context,
+                        analyzeTopology(context, contractions, carrierReferenceValues, false),
+                        List.of(), List.of(), null);
+        return oneDnnSelector.orElseThrow().select(context, peer, candidate);
+    }
+
+    /**
+     * Screens explicit configuration and static F32 MATMUL occurrences before any native query.
+     * Actual unit, layout and numerical qualification remains the selector's responsibility.
+     * Symbolic projections and frozen Phase-1 choices cannot enter native comparison.
+     *
+     * @param context non-null complete CPU analysis context, borrowed
+     * @return whether common contraction analysis may be considered without changing a frozen choice
+     */
+    private boolean nativeComparisonEnabled(PrepareContext<CpuPartitionAnalysisInputs> context) {
+        if (oneDnnSelector.isEmpty() || context.requiresBatchSize()
+                || context.backendInputs().openBlasTuningDecision().isPresent()) return false;
+        var descriptors = new LinkedHashMap<ValueId,
+                io.github.pho001.synaptik.model.tensor.TensorDescriptor>();
+        for (var value : context.values()) {
+            if (!value.descriptor().shape().isFullyStatic()) return false;
+            descriptors.put(value.id(), value.descriptor());
+        }
+        for (var node : context.nodes()) {
+            if (node.operation().kind()
+                    != io.github.pho001.synaptik.model.operation.linalg.MatmulKind.MATMUL
+                    || node.inputs().size() != 2 || node.outputs().size() != 1) continue;
+            var left = descriptors.get(node.inputs().getFirst());
+            var right = descriptors.get(node.inputs().get(1));
+            var result = descriptors.get(node.outputs().getFirst());
+            if (left.dataType() != DataType.FLOAT32 || right.dataType() != DataType.FLOAT32
+                    || result.dataType() != DataType.FLOAT32) continue;
+            long[] extents = left.shape().toLongArray();
+            if (extents.length > 0 && extents[extents.length - 1] > 1) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Recognizes an already analyzed identical common decomposition without replacing its unit
+     * objects or provenance binding. Representation-adjusted and tuned plans are never reused as
+     * an unmaterialized contraction candidate.
+     *
+     * @param plan non-null ordinary common plan before native decoration
+     * @param topology non-null explicit common contraction decomposition
+     * @return whether the existing plan can be borrowed unchanged for native comparison
+     */
+    private static boolean sameCommonPlan(CpuPartitionPreparationPlan plan,
+            List<CpuPartitionDagDecomposer.Unit> topology) {
+        if (plan.route() != CpuPartitionPreparationPlan.Route.PORTABLE
+                || plan.materialization().isPresent() || !plan.materializations().isEmpty()
+                || plan.openBlasTuningBatch().isPresent() || plan.partialReductionRecipe().isPresent()
+                || plan.units().size() != topology.size()) return false;
+        for (int index = 0; index < topology.size(); index++) {
+            var unit = plan.units().get(index);
+            var candidate = topology.get(index);
+            if (unit.portablePlan() == null
+                    || !unit.memberNodeOrdinals().equals(candidate.memberNodeOrdinals())
+                    || !unit.dependencies().equals(candidate.dependencies())
+                    || !unit.portablePlan().portableKernelIr().structuralKey()
+                        .equals(candidate.lowering().portableKernelIr().structuralKey())) return false;
+        }
+        return true;
+    }
+
     private SelectionAnalysis selectPlan(PrepareContext<CpuPartitionAnalysisInputs> context,
             Optional<SelectedCompletePlan> explicitSelection,
             List<CpuPartitionDagDecomposer.Unit> baseline) {
         Objects.requireNonNull(context, "context");
         BackendPartitionAnalysis<CpuPartitionPreparationPlan> baselineAnalysis =
-                analyzeTopology(context, baseline, null);
+                analyzeTopology(context, baseline, null, true);
         List<CpuSpecializedSubgraph> recognition = recognizer.recognize(context,
                 baselineAnalysis.plan().units());
         CpuPartitionDagDecomposer.Enumeration enumeration = decomposer.enumerate(context,
@@ -485,7 +619,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
             BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis =
                     sameTopology(topology, baseline) ? baselineAnalysis
                             : analyzeTopology(context, topology,
-                                    baselineAnalysis.plan().boundaryValues());
+                                    baselineAnalysis.plan().boundaryValues(), true);
             analyses.add(analysis);
             candidates.add(new CpuFusionProfitabilitySelector.Candidate(topology, analysis.plan()));
         }
@@ -501,7 +635,7 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 analyses.get(representation.candidateIndex()), representation);
         BackendPartitionAnalysis<CpuPartitionPreparationPlan> portable = withMetadata(
                 context, represented, recognition, selected.decisions(), baselineAnalysis.plan());
-        return new SelectionAnalysis(portable, representation);
+        return new SelectionAnalysis(portable, representation, baselineAnalysis.plan().boundaryValues());
     }
 
     /**
@@ -556,7 +690,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
 
     private record SelectionAnalysis(
             BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis,
-            CpuRepresentationPlanner.Result representation) { }
+            CpuRepresentationPlanner.Result representation,
+            List<ValueId> carrierReferenceValues) { }
 
     private static BackendPartitionAnalysis<CpuPartitionPreparationPlan> withOpenBlasEvaluation(
             BackendPartitionAnalysis<CpuPartitionPreparationPlan> analysis,
@@ -583,7 +718,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 plan.publicationBoundaryPositions(), plan.materializations(),
                 plan.representationUnits(), plan.representationDecisions(),
                 plan.partialReductionRecipe(), nativePlan, Optional.of(result.batch()),
-                Optional.of(result.selected().identity()), plan.retainedBaselineBinding());
+                Optional.of(result.selected().identity()), plan.retainedBaselineBinding(),
+                plan.oneDnnPlan());
         var requirements = new ArrayList<PreparationResourceRequirement>(analysis.requirements());
         nativePlan.ifPresent(value -> requirements.addAll(value.workspaceRequirements()));
         return new BackendPartitionAnalysis<>(analysis.partition(), selected, requirements);
@@ -659,7 +795,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 representation.materializations().isEmpty() ? List.of() : representedUnits,
                 representation.decisions(), plan.partialReductionRecipe(),
                 plan.openBlasPlan(), plan.openBlasTuningBatch(),
-                plan.selectedOpenBlasTuningCandidate(), plan.retainedBaselineBinding());
+                plan.selectedOpenBlasTuningCandidate(), plan.retainedBaselineBinding(),
+                plan.oneDnnPlan());
         return new BackendPartitionAnalysis<>(analysis.partition(), representedPlan, requirements);
     }
 
@@ -671,13 +808,16 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
      * @param units non-null selected disjoint units in stable topological order, borrowed
      * @param carrierReferenceValues original carrier-order value IDs, or {@code null} to derive
      *     carrier order from this partition's declarations
+     * @param allowMaterialization whether the one-unit path may retain ordinary external-read
+     *     materialization policy; false for a native contraction candidate
      * @return non-null immutable analysis with declarations selected before shared slot assignment
      * @throws IllegalArgumentException if unit or requested carrier facts cannot be analyzed
      * @throws ArithmeticException if checked resource geometry overflows
      */
     private BackendPartitionAnalysis<CpuPartitionPreparationPlan> analyzeTopology(
             PrepareContext<CpuPartitionAnalysisInputs> context,
-            List<CpuPartitionDagDecomposer.Unit> units, List<ValueId> carrierReferenceValues) {
+            List<CpuPartitionDagDecomposer.Unit> units, List<ValueId> carrierReferenceValues,
+            boolean allowMaterialization) {
         if (units.size() != 1 || units.getFirst().lowering().recurrentScan().isPresent()
                 || units.getFirst().lowering().generalScan().isPresent()
                 || units.getFirst().lowering().portableKernelIr()
@@ -687,10 +827,10 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
         PrepareContext<CpuPartitionAnalysisInputs> unitContext = context;
         if (carrierReferenceValues != null && !context.backendInputs().carrierPattern().isEmpty()) {
             var inputs = candidateInputs(context, unit.lowering().boundaryValues(),
-                    carrierReferenceValues, true);
+                    carrierReferenceValues, allowMaterialization);
             unitContext = decomposer.unitContext(context, unit.nodes(), inputs);
         }
-        return annotateSingle(analyzeUnit(unitContext, unit.lowering(), 0, true), unit);
+        return annotateSingle(analyzeUnit(unitContext, unit.lowering(), 0, allowMaterialization), unit);
     }
 
     private static CpuPartitionAnalysisInputs candidateInputs(
@@ -761,7 +901,8 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
                 plan.selectedOpenBlasTuningCandidate(),
                 baseline == null ? Optional.empty() : Optional.of(
                         CpuPartitionPreparationPlan.RetainedBaselineBinding.capture(
-                                context.partitionDag(), baseline, plan.units(), publications)));
+                                context.partitionDag(), baseline, plan.units(), publications)),
+                plan.oneDnnPlan());
         return new BackendPartitionAnalysis<>(analysis.partition(), enriched,
                 analysis.requirements());
     }

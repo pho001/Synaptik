@@ -252,7 +252,8 @@ public final class CpuMatmulTanhEpilogueTest {
             double sum = 0;
             for (int inner = 0; inner < k; inner++) {
                 double product = get(a, 1 + row * k + inner) * get(b, 1 + inner * n + col);
-                sum = type == DataType.FLOAT32 ? (float) ((float) sum + (float) product) : sum + product;
+                if (k == 1) sum = type == DataType.FLOAT32 ? (float) product : product;
+                else sum = type == DataType.FLOAT32 ? (float) ((float) sum + (float) product) : sum + product;
             }
             if (order != Epilogue.AddInputOrder.NONE) {
                 double x = get(bias, 1 + col);

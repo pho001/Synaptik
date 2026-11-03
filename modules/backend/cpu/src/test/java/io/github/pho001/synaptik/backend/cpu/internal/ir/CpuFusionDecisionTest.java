@@ -324,7 +324,7 @@ class CpuFusionDecisionTest {
                 plan.representationUnits(), plan.representationDecisions(),
                 plan.partialReductionRecipe(), plan.openBlasPlan(),
                 plan.openBlasTuningBatch(), plan.selectedOpenBlasTuningCandidate(),
-                plan.retainedBaselineBinding());
+                plan.retainedBaselineBinding(), plan.oneDnnPlan());
     }
 
     private static CpuFusionDecision.CandidateIdentity atResourceCeilings(

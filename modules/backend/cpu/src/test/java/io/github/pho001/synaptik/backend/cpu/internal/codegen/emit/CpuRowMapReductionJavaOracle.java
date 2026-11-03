@@ -36,8 +36,9 @@ final class CpuRowMapReductionJavaOracle {
         for (int r = 0; r < y.length; r++) {
             float left = seed*y[r], right = seed*y[r], delta = left+right;
             d[r] = delta;
-            dx[2*r] = 0f+delta*w[0]; dx[2*r+1] = 0f+delta*w[1]; dz[r] = 0f+delta*u[0];
-            a += x[2*r]*delta; b += x[2*r+1]*delta; c += z[r]*delta;
+            dx[2*r] = delta*w[0]; dx[2*r+1] = delta*w[1]; dz[r] = delta*u[0];
+            if (y.length == 1) { a=x[2*r]*delta; b=x[2*r+1]*delta; c=z[r]*delta; }
+            else { a += x[2*r]*delta; b += x[2*r+1]*delta; c += z[r]*delta; }
         }
         dw[0] = a; dw[1] = b; du[0] = c;
     }
@@ -62,8 +63,9 @@ final class CpuRowMapReductionJavaOracle {
         for (int r = 0; r < y.length; r++) {
             double left = seed*y[r], right = seed*y[r], delta = left+right;
             d[r] = delta;
-            dx[2*r] = 0d+delta*w[0]; dx[2*r+1] = 0d+delta*w[1]; dz[r] = 0d+delta*u[0];
-            a += x[2*r]*delta; b += x[2*r+1]*delta; c += z[r]*delta;
+            dx[2*r] = delta*w[0]; dx[2*r+1] = delta*w[1]; dz[r] = delta*u[0];
+            if (y.length == 1) { a=x[2*r]*delta; b=x[2*r+1]*delta; c=z[r]*delta; }
+            else { a += x[2*r]*delta; b += x[2*r+1]*delta; c += z[r]*delta; }
         }
         dw[0] = a; dw[1] = b; du[0] = c;
     }
@@ -113,8 +115,13 @@ final class CpuRowMapReductionJavaOracle {
                 dx.setAtIndex(JAVA_FLOAT,q+2,(0f+d0*w.getAtIndex(JAVA_FLOAT,4))+d1*w.getAtIndex(JAVA_FLOAT,5));
                 dh.setAtIndex(JAVA_FLOAT,h,(0f+d0*u.getAtIndex(JAVA_FLOAT,0))+d1*u.getAtIndex(JAVA_FLOAT,1));
                 dh.setAtIndex(JAVA_FLOAT,h+1,(0f+d0*u.getAtIndex(JAVA_FLOAT,2))+d1*u.getAtIndex(JAVA_FLOAT,3));
-                w00+=x0*d0;w01+=x0*d1;w10+=x1*d0;w11+=x1*d1;w20+=x2*d0;w21+=x2*d1;
-                u00+=h0*d0;u01+=h0*d1;u10+=h1*d0;u11+=h1*d1;
+                if (batch == 1) {
+                    w00=x0*d0;w01=x0*d1;w10=x1*d0;w11=x1*d1;w20=x2*d0;w21=x2*d1;
+                    u00=h0*d0;u01=h0*d1;u10=h1*d0;u11=h1*d1;
+                } else {
+                    w00+=x0*d0;w01+=x0*d1;w10+=x1*d0;w11+=x1*d1;w20+=x2*d0;w21+=x2*d1;
+                    u00+=h0*d0;u01+=h0*d1;u10+=h1*d0;u11+=h1*d1;
+                }
                 if (batch == 1) { b0=d0;b1=d1; } else { b0+=d0;b1+=d1; }
             }
             dw.setAtIndex(JAVA_FLOAT,0,dw.getAtIndex(JAVA_FLOAT,0)+w00);dw.setAtIndex(JAVA_FLOAT,1,dw.getAtIndex(JAVA_FLOAT,1)+w01);
@@ -169,8 +176,13 @@ final class CpuRowMapReductionJavaOracle {
                 dx.setAtIndex(JAVA_DOUBLE,q+2,(0d+d0*w.getAtIndex(JAVA_DOUBLE,4))+d1*w.getAtIndex(JAVA_DOUBLE,5));
                 dh.setAtIndex(JAVA_DOUBLE,h,(0d+d0*u.getAtIndex(JAVA_DOUBLE,0))+d1*u.getAtIndex(JAVA_DOUBLE,1));
                 dh.setAtIndex(JAVA_DOUBLE,h+1,(0d+d0*u.getAtIndex(JAVA_DOUBLE,2))+d1*u.getAtIndex(JAVA_DOUBLE,3));
-                w00+=x0*d0;w01+=x0*d1;w10+=x1*d0;w11+=x1*d1;w20+=x2*d0;w21+=x2*d1;
-                u00+=h0*d0;u01+=h0*d1;u10+=h1*d0;u11+=h1*d1;
+                if (batch == 1) {
+                    w00=x0*d0;w01=x0*d1;w10=x1*d0;w11=x1*d1;w20=x2*d0;w21=x2*d1;
+                    u00=h0*d0;u01=h0*d1;u10=h1*d0;u11=h1*d1;
+                } else {
+                    w00+=x0*d0;w01+=x0*d1;w10+=x1*d0;w11+=x1*d1;w20+=x2*d0;w21+=x2*d1;
+                    u00+=h0*d0;u01+=h0*d1;u10+=h1*d0;u11+=h1*d1;
+                }
                 if (batch == 1) { b0=d0;b1=d1; } else { b0+=d0;b1+=d1; }
             }
             dw.setAtIndex(JAVA_DOUBLE,0,dw.getAtIndex(JAVA_DOUBLE,0)+w00);dw.setAtIndex(JAVA_DOUBLE,1,dw.getAtIndex(JAVA_DOUBLE,1)+w01);

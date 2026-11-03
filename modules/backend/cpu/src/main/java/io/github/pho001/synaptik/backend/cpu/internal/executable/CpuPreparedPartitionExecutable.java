@@ -3,6 +3,8 @@ package io.github.pho001.synaptik.backend.cpu.internal.executable;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferArgument;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferRepresentation;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace;
+import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuWorkspaceRecipeProvider;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnWorkspace;
 import io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuGeneratedKernel;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan;
 import io.github.pho001.synaptik.runtime.execution.BoundInvocation;
@@ -10,11 +12,13 @@ import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation;
+import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
 import io.github.pho001.synaptik.runtime.run.RunState;
 import java.lang.foreign.MemorySegment;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 
@@ -30,14 +34,17 @@ import java.lang.invoke.MethodHandles;
  * compatible repeated and cross-unit uses share the completed workspace. A segment-form copy
  * source binds the exact selected segment even when its primitive heap carrier is observable;
  * explicit array-form copies keep their classified carrier. A child may be the
- * narrow native MATMUL recipe when the already-selected route uses one copy. Runtime owns the
- * surrounding atomic validity transition and each run's resources and never selects a candidate.
+ * narrow native MATMUL recipe or a oneDNN child with run-owned native invocation workspaces.
+ * Native scratch participates in the same alias checks; generated copy targets remain ordinary
+ * contiguous workspaces. Runtime owns the surrounding atomic validity transition and each run's
+ * resources and never selects a candidate.
  * Complete batch mode authenticates each selection against the exact run geometry. Fixed child
  * units retain their own fixed declarations; nonfixed boundaries must select an actual child
  * binding, whose genuine dynamic route is checked before the composite invocation is returned.
  * Fixed generated copy units retain their original affine and workspace facts.
  */
-public final class CpuPreparedPartitionExecutable extends PreparedExecutable {
+public final class CpuPreparedPartitionExecutable extends PreparedExecutable
+        implements CpuWorkspaceRecipeProvider {
     private final List<PreparedExecutable> children;
     private final List<List<Integer>> dependencies;
     private final List<CopyUnit> copies;
@@ -110,6 +117,20 @@ public final class CpuPreparedPartitionExecutable extends PreparedExecutable {
         }
         if (this.copies.size() > 2) throw new IllegalArgumentException(
                 "CPU partition permits at most two copy units");
+    }
+
+    /** Resolves one cold child recipe, rejecting ambiguous native workspace ownership. */
+    @Override public Optional<PreparedRepresentationPlan.WorkspaceCreator> workspaceCreator(int workspaceIndex) {
+        PreparedRepresentationPlan.WorkspaceCreator selected = null;
+        for (PreparedExecutable child : children) {
+            if (!(child instanceof CpuWorkspaceRecipeProvider provider)) continue;
+            var candidate = provider.workspaceCreator(workspaceIndex);
+            if (candidate.isEmpty()) continue;
+            if (selected != null) throw new IllegalArgumentException(
+                    "CPU partition children claim the same workspace");
+            selected = candidate.orElseThrow();
+        }
+        return Optional.ofNullable(selected);
     }
 
     /**
@@ -194,10 +215,19 @@ public final class CpuPreparedPartitionExecutable extends PreparedExecutable {
         if (!state.memoryPlan().requiresBatchSize()) return super.acceptsWorkspaceRepresentation(state, index, representation);
         if (!acceptsWorkspaceRepresentation(index, representation)
                 || state.memoryPlan() != memoryPlan() || state.geometry().memoryPlan() != memoryPlan()) return false;
-        var cpu = (CpuContiguousWorkspace) representation;
         int position = selectedWorkspaces.get(index).workspaceIndex();
         var declaration = memoryPlan().workspaces().get(position);
         var fixed = declaration.size().fixedByteSize();
+        if (representation instanceof CpuOneDnnWorkspace nativeWorkspace) {
+            if (fixed.isEmpty() || fixed.getAsLong() != nativeWorkspace.byteSize()
+                    || state.geometry().workspaceByteSize(position) != nativeWorkspace.byteSize()
+                    || declaration.byteAlignment() > 64) return false;
+            try {
+                var segment = nativeWorkspace.writableSegment();
+                return !segment.isReadOnly() && segment.address() % declaration.byteAlignment() == 0;
+            } catch (IllegalArgumentException | IllegalStateException incompatible) { return false; }
+        }
+        var cpu = (CpuContiguousWorkspace) representation;
         if (fixed.isPresent()) return CpuBufferRepresentation.acceptsFixedWorkspaceGeometry(
                 state, memoryPlan(), position, fixed.getAsLong(), cpu);
         if (!hasDynamicWorkspaceSelection(selectedWorkspaces.get(index))) return false;
@@ -253,8 +283,11 @@ public final class CpuPreparedPartitionExecutable extends PreparedExecutable {
 
     @Override protected boolean acceptsWorkspaceRepresentation(int index,
             WorkspaceRepresentation representation) {
-        return representation instanceof CpuContiguousWorkspace workspace
-                && workspace.isAccessible();
+        if (representation instanceof CpuOneDnnWorkspace workspace) {
+            for (CopyUnit copy : copies) if (copy.workspacePosition() == index) return false;
+            return workspace.isAccessible();
+        }
+        return representation instanceof CpuContiguousWorkspace workspace && workspace.isAccessible();
     }
 
     @Override protected BoundInvocation bindCompatible(RunState state,
@@ -273,20 +306,17 @@ public final class CpuPreparedPartitionExecutable extends PreparedExecutable {
             }
         }
         for (int workspace = 0; workspace < workspaces.length; workspace++) {
-            MemorySegment segment = ((CpuContiguousWorkspace) workspaces[workspace])
-                    .writableSegment();
+            MemorySegment segment = workspaceSegment(workspaces[workspace]);
             for (CpuBufferArgument argument : arguments)
                 if (segment.asOverlappingSlice(segment(argument)).isPresent())
                     throw new IllegalArgumentException(
                             "CPU partition workspace must not overlap a buffer");
             for (int other = workspace + 1; other < workspaces.length; other++)
-                if (segment.asOverlappingSlice(((CpuContiguousWorkspace) workspaces[other])
-                        .writableSegment()).isPresent()) throw new IllegalArgumentException(
-                                "CPU partition workspaces must be distinct and disjoint");
+                if (workspaces[workspace] == workspaces[other]
+                        || segment.asOverlappingSlice(workspaceSegment(workspaces[other])).isPresent())
+                    throw new IllegalArgumentException(
+                            "CPU partition workspaces must be distinct and disjoint");
         }
-        var bound = new ArrayList<BoundInvocation>(children.size());
-        for (PreparedExecutable child : children) bound.add(child.bind(state));
-        List<BoundInvocation> invocations = List.copyOf(bound);
         var copyCalls = new ArrayList<GeneratedCopyCall>(copies.size());
         for (CopyUnit copy : copies) {
             CpuBufferRepresentation sourceBuffer = (CpuBufferRepresentation)
@@ -318,6 +348,9 @@ public final class CpuPreparedPartitionExecutable extends PreparedExecutable {
             copyCalls.add(copyCall(copy, source, segment, geometry));
         }
         List<GeneratedCopyCall> generatedCopies = List.copyOf(copyCalls);
+        var bound = new ArrayList<BoundInvocation>(children.size());
+        for (PreparedExecutable child : children) bound.add(child.bind(state));
+        List<BoundInvocation> invocations = List.copyOf(bound);
         return new BoundInvocation(state) {
             @Override protected void executeBound() {
                 try {
@@ -327,6 +360,14 @@ public final class CpuPreparedPartitionExecutable extends PreparedExecutable {
                 catch (Throwable failure) { throw new IllegalStateException(
                         "generated CPU copy invocation failed", failure); }
             }
+        };
+    }
+
+    private static MemorySegment workspaceSegment(WorkspaceRepresentation representation) {
+        return switch (representation) {
+            case CpuContiguousWorkspace workspace -> workspace.writableSegment();
+            case CpuOneDnnWorkspace workspace -> workspace.writableSegment();
+            default -> throw new IllegalArgumentException("CPU partition workspace is incompatible");
         };
     }
 

@@ -858,9 +858,45 @@ public final class CpuClassFileKernelGenerator {
      * @param phase zero for full unit, one for a private row range, two for caller-side merge
      */
     private static void emitRowRegion(java.lang.classfile.CodeBuilder code,CpuKernelSpecialization specialization,int phase) {
+        if (phase == 0) {
+            int geometry = specialization.carrierPattern().size()+(specialization.scratchParameter() ? 1 : 0);
+            int start = geometry+1, end = start+2;
+            var invalid = code.newLabel(); var empty = code.newLabel(); var valid = code.newLabel();
+            code.lload(start).loadConstant(0L).lcmp().branch(java.lang.classfile.Opcode.IFNE,invalid);
+            code.lload(end).loadConstant(0L).lcmp().branch(java.lang.classfile.Opcode.IFEQ,empty);
+            code.lload(end).loadConstant(1L).lcmp().branch(java.lang.classfile.Opcode.IFEQ,valid);
+            code.labelBinding(invalid).new_(ClassDesc.of(IllegalArgumentException.class.getName())).dup()
+                    .invokespecial(ClassDesc.of(IllegalArgumentException.class.getName()),"<init>",MethodTypeDesc.of(ConstantDescs.CD_void)).athrow();
+            code.labelBinding(empty).return_().labelBinding(valid);
+        }
+        var ir = specialization.rowMapReductionIr().orElseThrow();
+        boolean terminalProduct = ir.contractions().stream().anyMatch(c -> ir.terminalOutputs().contains(c.output()));
+        if (phase == 2 || !terminalProduct) {
+            emitRowRegionBody(code,specialization,phase,false);
+        } else if (!specialization.ordinaryBatch()) {
+            int anchor = ir.rowSites().getFirst();
+            emitRowRegionBody(code,specialization,phase,
+                    ir.accesses().get(anchor).extentConstants().get(ir.rowAxes().get(anchor)) == 1);
+        } else {
+            int geometry = specialization.carrierPattern().size()+(specialization.scratchParameter() ? 1 : 0);
+            CpuMatmulEmitter.emitSingletonChoice(code,TypeKind.INT,
+                    () -> code.aload(geometry).loadConstant(0).laload().l2i(),
+                    directProduct -> emitRowRegionBody(code,specialization,phase,directProduct));
+        }
+    }
+
+    /**
+     * Emits one selected numerical body with fresh generation-local load caches.
+     * @param code method builder owning all branch-local slots
+     * @param specialization checked ordinary region
+     * @param phase full unit, private range, or merge phase
+     * @param directProduct whether the complete logical row contraction is singleton
+     */
+    private static void emitRowRegionBody(java.lang.classfile.CodeBuilder code,
+            CpuKernelSpecialization specialization,int phase,boolean directProduct) {
         if (specialization.executionStrategy().compute()
                 == io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.VECTOR) {
-            if (phase == 2) emitVectorRowMerge(code,specialization); else emitVectorRowRegion(code,specialization,phase);
+            if (phase == 2) emitVectorRowMerge(code,specialization); else emitVectorRowRegion(code,specialization,phase,directProduct);
             return;
         }
         var ir = specialization.rowMapReductionIr().orElseThrow();
@@ -868,7 +904,7 @@ public final class CpuClassFileKernelGenerator {
         var kind = type == DataType.FLOAT64 ? java.lang.classfile.TypeKind.DOUBLE : java.lang.classfile.TypeKind.FLOAT;
         var carriers = new CpuCarrierEmitter(code); var scalar = new CpuScalarEmitter(code);
         int count = specialization.carrierPattern().size(), geometry = count+(specialization.scratchParameter() ? 1 : 0), start = geometry+1, end = start+2;
-        if (phase != 1) {
+        if (phase == 2) {
         var invalid = code.newLabel(); var empty = code.newLabel(); var valid = code.newLabel();
         code.lload(start).loadConstant(0L).lcmp().branch(java.lang.classfile.Opcode.IFNE,invalid);
         code.lload(end).loadConstant(0L).lcmp().branch(java.lang.classfile.Opcode.IFEQ,empty);
@@ -1027,7 +1063,7 @@ public final class CpuClassFileKernelGenerator {
                             int k = Math.toIntExact(ir.accesses().get(c.left()).extentConstants().get(1));
                             for (int feature = 0; feature < k; feature++) {
                                 int f = feature;
-                                CpuMatmulEmitter.emitContributorStep(code,type,target,
+                                CpuMatmulEmitter.emitContributorStep(code,type,target,k == 1,
                                         () -> load.accept(c.left(),new int[]{-1,f}),
                                         () -> load.accept(c.right(),new int[]{f,coordinates[1]}));
                             }
@@ -1055,7 +1091,7 @@ public final class CpuClassFileKernelGenerator {
                     var c = products.get(out); int t = ir.terminalOutputs().indexOf(out);
                     for (int cell = 0; cell < sums[t].length; cell++) {
                         int[] coordinates = regionCoordinates(ir,out,cell,false);
-                        CpuMatmulEmitter.emitContributorStep(code,type,sums[t][cell],
+                        CpuMatmulEmitter.emitContributorStep(code,type,sums[t][cell],directProduct,
                                 () -> load.accept(c.left(),new int[]{coordinates[0],-1}),
                                 () -> load.accept(c.right(),new int[]{-1,coordinates[1]}));
                     }
@@ -1090,23 +1126,15 @@ public final class CpuClassFileKernelGenerator {
      * @param code builder owning all handles
      * @param specialization cold-proved ordinary vector region and exact staged layout
      * @param phase zero for a complete inline unit, one for a private bounded range
+     * @param directProduct whether the complete logical row contraction is singleton
      */
-    private static void emitVectorRowRegion(java.lang.classfile.CodeBuilder code,CpuKernelSpecialization specialization,int phase) {
+    private static void emitVectorRowRegion(java.lang.classfile.CodeBuilder code,CpuKernelSpecialization specialization,int phase,boolean directProduct) {
         var ir = specialization.rowMapReductionIr().orElseThrow(); var type = ir.arithmetic().values().getFirst().dataType();
         var kind = type == DataType.FLOAT64 ? TypeKind.DOUBLE : TypeKind.FLOAT;
         var vector = ClassDesc.of("jdk.incubator.vector."+(type == DataType.FLOAT64 ? "DoubleVector" : "FloatVector"));
         var species = ClassDesc.of("jdk.incubator.vector.VectorSpecies");
         int lanes = specialization.vectorSpeciesBitSize()/type.bitWidth();
         int count = specialization.carrierPattern().size(), geometry = count+1, start = geometry+1, end = start+2;
-        if (phase == 0) {
-            var invalid = code.newLabel(); var empty = code.newLabel(); var valid = code.newLabel();
-            code.lload(start).loadConstant(0L).lcmp().branch(java.lang.classfile.Opcode.IFNE,invalid)
-                    .lload(end).loadConstant(0L).lcmp().branch(java.lang.classfile.Opcode.IFEQ,empty)
-                    .lload(end).loadConstant(1L).lcmp().branch(java.lang.classfile.Opcode.IFEQ,valid)
-                    .labelBinding(invalid).new_(ClassDesc.of(IllegalArgumentException.class.getName())).dup()
-                    .invokespecial(ClassDesc.of(IllegalArgumentException.class.getName()),"<init>",MethodTypeDesc.of(ConstantDescs.CD_void)).athrow()
-                    .labelBinding(empty).return_().labelBinding(valid);
-        }
         int row = code.allocateLocal(TypeKind.INT), limit = code.allocateLocal(TypeKind.INT);
         int begin = code.allocateLocal(TypeKind.INT), finish = code.allocateLocal(TypeKind.INT);
         int anchor = ir.rowSites().getFirst();
@@ -1308,7 +1336,7 @@ public final class CpuClassFileKernelGenerator {
                     int k = Math.toIntExact(ir.accesses().get(c.left()).extentConstants().get(1));
                     for (int f = 0; f < k; f++) {
                         int feature = f;
-                        CpuMatmulEmitter.emitVectorContributorStep(code,type,result,() -> {
+                        CpuMatmulEmitter.emitVectorContributorStep(code,type,result,k == 1,() -> {
                             code.getstatic(vector,"SPECIES_PREFERRED",species); scalarLoad.accept(c.left(),new int[]{-1,feature});
                             code.invokestatic(vector,"broadcast",MethodTypeDesc.of(vector,species,kind.upperBound()));
                         },() -> vectorLoad.accept(c.right(),new int[]{feature,logical[1]}));
@@ -1331,7 +1359,7 @@ public final class CpuClassFileKernelGenerator {
             var c = products.get(out); int t = ir.terminalOutputs().indexOf(out);
             for (int block = 0; block < sums[t].length; block++) {
                 int[] logical = regionVectorCoordinates(ir,out,block,false,lanes);
-                CpuMatmulEmitter.emitVectorContributorStep(code,type,sums[t][block],() -> {
+                CpuMatmulEmitter.emitVectorContributorStep(code,type,sums[t][block],directProduct,() -> {
                     code.getstatic(vector,"SPECIES_PREFERRED",species); scalarLoad.accept(c.left(),new int[]{logical[0],-1});
                     code.invokestatic(vector,"broadcast",MethodTypeDesc.of(vector,species,kind.upperBound()));
                 },() -> vectorLoad.accept(c.right(),new int[]{-1,logical[1]}));

@@ -3,6 +3,7 @@ package io.github.pho001.synaptik.backend.cpu;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBufferRepresentation;
 import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuBackendComposition;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnRoutePlan;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
@@ -13,20 +14,36 @@ import io.github.pho001.synaptik.prepare.PreparedScheduleContributor;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import java.util.Objects;
 import java.lang.foreign.MemorySegment;
+import java.nio.file.Path;
 
 /**
  * Supported CPU service-provider integration boundary for lifecycle composition.
  *
  * <p>The adapter is intended for Engine and other module-integration code, not as an ordinary
- * application facade. One instance owns optional automatically discovered OpenBLAS state and
- * must remain open while preparing or running recipes obtained from it. Portable CPU preparation
- * remains available when the bounded optional-provider discovery or qualification attempt fails.
+ * application facade. One instance owns optional automatically discovered OpenBLAS state and,
+ * when explicitly configured, one required exact oneDNN library. Required oneDNN loading errors
+ * are never converted into portable execution. Unsupported operations remain ordinary portable
+ * CPU units selected during preparation. The adapter must remain open for new preparation and
+ * run admission; native resources retain leases for already-admitted runs after owner closure.
  * The adapter and its returned immutable collaborators may be used concurrently; each Runtime
  * invocation still owns an isolated run state and fresh run-owned representations. Preparation
  * retains only immutable recipes, including initializer recipes for eligible source-only
  * published constants; it never retains a run-owned physical representation.</p>
  */
 public final class CpuBackendIntegration implements AutoCloseable {
+    /**
+     * Freezes the oneDNN API policy before CPU analysis, not provider selection.
+     * Portable/OpenBLAS may still win whole-plan comparison; no policy changes during execution.
+     */
+    public enum OneDnnApi {
+        /** Lets cold analysis compare the qualified primitive and Graph implementations. */
+        AUTO,
+        /** Requires the oneDNN primitive API for selected native units. */
+        PRIMITIVES,
+        /** Requires the oneDNN Graph API for selected native units. */
+        GRAPH
+    }
+
     private final CpuCapabilityProvider capabilityProvider = new CpuCapabilityProvider();
     private final CpuBackendComposition composition;
     private final CpuLocalWorkloadTuning localWorkloadTuning;
@@ -57,7 +74,67 @@ public final class CpuBackendIntegration implements AutoCloseable {
      * @throws Error if construction or cleanup reports a fatal error
      */
     public static CpuBackendIntegration open() {
-        return new CpuBackendIntegration(CpuBackendComposition.openAutomatic());
+        return takeComposition(CpuBackendComposition.openAutomatic());
+    }
+
+    /**
+     * Opens CPU with an explicitly required exact oneDNN library and automatic API selection.
+     *
+     * @param absolutePath non-null absolute path to a oneDNN 3.14.0 LP64 SEQ shared library
+     * @return new CPU integration owning the library; ordinary unsupported units remain portable
+     * @throws NullPointerException if {@code absolutePath} is null
+     * @throws IllegalArgumentException if the path, ABI, version, runtime, or symbols are invalid
+     * @throws RuntimeException if required native loading or composition construction fails
+     * @throws Error if construction or cleanup reports an error
+     */
+    public static CpuBackendIntegration openOneDnn(Path absolutePath) {
+        return openOneDnn(absolutePath, OneDnnApi.AUTO);
+    }
+
+    /**
+     * Opens CPU with one required exact oneDNN library and an immutable API preference.
+     *
+     * <p>The library path is never discovered or substituted. Failure to load or authenticate
+     * oneDNN fails this call; independent optional OpenBLAS discovery cannot mask that failure.
+     * Only qualified bare homogeneous FLOAT32 MATMUL with K greater than one is native-eligible.
+     * Convolution, external bias, activation and other unsupported units retain the existing CPU
+     * lowering and automatic-differentiation path. Native selection and all resource requirements
+     * are fixed before execution, with no late fallback or retry.</p>
+     *
+     * <p>Both APIs consume common CPU lowering and canonical external buffers; Graph is not
+     * automatic differentiation and is not forced by node count. The preference restricts native
+     * API candidates but does not force a native provider to win. The exact binary must target
+     * little-endian LP64, with Graph support and sequential CPU runtime (SEQ, code 1). No binary
+     * is bundled. Classpath deployments require {@code --enable-native-access=ALL-UNNAMED}
+     * for the JDK Foreign Function and Memory API.</p>
+     *
+     * @param absolutePath non-null absolute path to a oneDNN 3.14.0 LP64 SEQ shared library
+     * @param api non-null API preference frozen for this integration's lifetime
+     * @return new CPU integration owning the exact native library and optional OpenBLAS provider
+     * @throws NullPointerException if an argument is null
+     * @throws IllegalArgumentException if the path, ABI, version, runtime, or symbols are invalid
+     * @throws RuntimeException if required native loading or composition construction fails
+     * @throws Error if construction or cleanup reports an error
+     */
+    public static CpuBackendIntegration openOneDnn(Path absolutePath, OneDnnApi api) {
+        Objects.requireNonNull(api, "api");
+        CpuOneDnnRoutePlan.Api internalApi = switch (api) {
+            case AUTO -> CpuOneDnnRoutePlan.Api.AUTO;
+            case PRIMITIVES -> CpuOneDnnRoutePlan.Api.PRIMITIVE;
+            case GRAPH -> CpuOneDnnRoutePlan.Api.GRAPH;
+        };
+        return takeComposition(CpuBackendComposition.openOneDnn(absolutePath, internalApi));
+    }
+
+    private static CpuBackendIntegration takeComposition(CpuBackendComposition composition) {
+        try {
+            return new CpuBackendIntegration(composition);
+        } catch (RuntimeException | Error failure) {
+            try { composition.close(); } catch (RuntimeException | Error cleanup) {
+                if (cleanup != failure) failure.addSuppressed(cleanup);
+            }
+            throw failure;
+        }
     }
 
     /**
@@ -74,7 +151,7 @@ public final class CpuBackendIntegration implements AutoCloseable {
      * Returns the fixed portable CPU availability fact without performing discovery.
      *
      * @return the retained immutable snapshot containing exactly the {@code cpu/host} CPU device;
-     *     it is independent of optional OpenBLAS eligibility
+     *     it is independent of optional OpenBLAS and explicit oneDNN route eligibility
      */
     public BackendAvailabilitySnapshot availabilitySnapshot() {
         return composition.availabilitySnapshot();

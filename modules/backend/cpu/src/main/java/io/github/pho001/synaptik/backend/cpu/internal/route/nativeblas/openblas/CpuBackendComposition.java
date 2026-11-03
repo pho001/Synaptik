@@ -11,6 +11,10 @@ import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalys
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionFinalizer;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPreparedScheduleAssembler;
+import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnLibrary;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnRoutePlan;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnSelector;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.prepare.PartitionPreparation;
@@ -18,6 +22,7 @@ import io.github.pho001.synaptik.prepare.PreparedScheduleAssembler;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -25,13 +30,14 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Owns the CPU-private exact/default preparation collaborators and optional OpenBLAS lifetime.
+ * Owns CPU preparation collaborators, optional OpenBLAS, and explicitly required oneDNN state.
  *
  * <p>One composition always describes the fixed {@code cpu/host} device and retains the portable
  * scalar, single-thread compatibility route. Bounded automatic discovery and qualification may
  * add one eligible single-thread OpenBLAS candidate; provider presence neither changes backend
  * identity nor guarantees native selection. The owner is safe for concurrent collaborator access
- * and idempotent close, but recipes and runs must not outlive it.</p>
+ * and idempotent close. Leased native resources keep already-admitted Runtime runs alive after
+ * this owner closes; new preparation still requires this owner to remain open.</p>
  */
 public final class CpuBackendComposition implements AutoCloseable {
     private static final BackendAvailabilitySnapshot AVAILABILITY =
@@ -42,7 +48,10 @@ public final class CpuBackendComposition implements AutoCloseable {
     private final CpuConcurrencyBudget budget;
     private final Optional<CpuOpenBlasCoordinator> coordinator;
     private final Optional<CpuOpenBlasQualification> qualification;
-    private final CpuPartitionPreparer preparer = new CpuPartitionPreparer();
+    private final Optional<CpuOneDnnLibrary> oneDnnLibrary;
+    private final CpuOneDnnRoutePlan.Api oneDnnApi;
+    private final String oneDnnPolicyFingerprint;
+    private final CpuPartitionPreparer preparer;
     private final CpuPartitionFinalizer finalizer;
     private final CpuPreparedScheduleAssembler assembler;
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -53,16 +62,27 @@ public final class CpuBackendComposition implements AutoCloseable {
      * @param budget the non-null shared CPU concurrency budget retained by collaborators
      * @param coordinator the non-null optional coordinator whose lifetime this owner assumes
      * @param qualification the non-null optional qualification associated with the coordinator
+     * @param oneDnnLibrary non-null optional required native owner transferred to this composition
+     * @param oneDnnApi non-null immutable API preference
      * @throws NullPointerException if an argument is {@code null}
      */
     private CpuBackendComposition(CpuConcurrencyBudget budget,
             Optional<CpuOpenBlasCoordinator> coordinator,
-            Optional<CpuOpenBlasQualification> qualification) {
+            Optional<CpuOpenBlasQualification> qualification,
+            Optional<CpuOneDnnLibrary> oneDnnLibrary, CpuOneDnnRoutePlan.Api oneDnnApi) {
         this.budget = Objects.requireNonNull(budget, "budget");
         this.coordinator = Objects.requireNonNull(coordinator, "coordinator");
         this.qualification = Objects.requireNonNull(qualification, "qualification");
+        this.oneDnnLibrary = Objects.requireNonNull(oneDnnLibrary, "oneDnnLibrary");
+        this.oneDnnApi = Objects.requireNonNull(oneDnnApi, "oneDnnApi");
+        this.oneDnnPolicyFingerprint = oneDnnLibrary.map(library ->
+                "onednn-policy-v1:bare-homogeneous-f32-matmul-k>1:3.14.0-lp64-seq:"
+                        + library.sessionIdentity() + ":" + oneDnnApi.name())
+                .orElse("onednn-policy-v1:disabled");
+        this.preparer = new CpuPartitionPreparer(new CpuPartitionLowering(),
+                oneDnnLibrary.map(library -> new CpuOneDnnSelector(library, oneDnnApi)));
         this.finalizer = new CpuPartitionFinalizer(Optional.empty(), Optional.empty(), budget,
-                coordinator);
+                coordinator, oneDnnLibrary);
         this.assembler = new CpuPreparedScheduleAssembler(() -> !closed.get());
     }
 
@@ -74,11 +94,44 @@ public final class CpuBackendComposition implements AutoCloseable {
      * @throws Error if automatic discovery reports a fatal error
      */
     public static CpuBackendComposition openAutomatic() {
+        return openAutomatic(Optional.empty(), CpuOneDnnRoutePlan.Api.AUTO);
+    }
+
+    /**
+     * Opens an explicitly required exact oneDNN 3.14.0 LP64 SEQ library.
+     * Optional OpenBLAS discovery is independent and cannot mask a required oneDNN failure.
+     *
+     * @param absolutePath non-null absolute library path; discovery is never used for oneDNN
+     * @param api non-null frozen native API preference
+     * @return new composition owning the exact library and optional qualified OpenBLAS provider
+     * @throws NullPointerException if an argument is null
+     * @throws IllegalArgumentException if the path, ABI, version, or threading runtime is invalid
+     * @throws RuntimeException if required native loading or composition construction fails
+     * @throws Error if native loading, construction, or cleanup reports an error
+     */
+    public static CpuBackendComposition openOneDnn(Path absolutePath, CpuOneDnnRoutePlan.Api api) {
+        Objects.requireNonNull(api, "api");
+        CpuOneDnnLibrary library = CpuOneDnnLibrary.open(absolutePath);
         try {
-            return open(CpuOpenBlasDiscovery.discover(CpuOpenBlasDiscoveryRequest.automatic()));
-        } catch (RuntimeException optionalFailure) {
-            return portable();
+            return openAutomatic(Optional.of(library), api);
+        } catch (RuntimeException | Error failure) {
+            try { library.close(); } catch (RuntimeException | Error cleanup) {
+                if (cleanup != failure) failure.addSuppressed(cleanup);
+            }
+            throw failure;
         }
+    }
+
+    private static CpuBackendComposition openAutomatic(Optional<CpuOneDnnLibrary> library,
+            CpuOneDnnRoutePlan.Api api) {
+        CpuOpenBlasDiscoverySession session;
+        try {
+            session = CpuOpenBlasDiscovery.discover(CpuOpenBlasDiscoveryRequest.automatic());
+        } catch (RuntimeException optionalFailure) {
+            return create(new CpuConcurrencyBudget(1), Optional.empty(), Optional.empty(),
+                    library, api);
+        }
+        return open(session, library, api);
     }
 
     /**
@@ -91,38 +144,54 @@ public final class CpuBackendComposition implements AutoCloseable {
      * @throws Error if setup or cleanup reports a fatal error
      */
     static CpuBackendComposition open(CpuOpenBlasDiscoverySession session) {
-        Objects.requireNonNull(session, "session");
-        CpuConcurrencyBudget budget = new CpuConcurrencyBudget(1);
-        CpuOpenBlasCoordinator coordinator = null;
+        return open(Objects.requireNonNull(session, "session"), Optional.empty(),
+                CpuOneDnnRoutePlan.Api.AUTO);
+    }
+
+    private static CpuBackendComposition open(CpuOpenBlasDiscoverySession session,
+            Optional<CpuOneDnnLibrary> library, CpuOneDnnRoutePlan.Api api) {
+        CpuConcurrencyBudget budget;
         try {
-            if (session.invocation().isEmpty()) {
-                session.close();
-                return new CpuBackendComposition(budget, Optional.empty(), Optional.empty());
+            budget = new CpuConcurrencyBudget(1);
+        } catch (RuntimeException | Error failure) {
+            closeAfterFailure(null, session, failure);
+            throw failure;
+        }
+        CpuOpenBlasCoordinator coordinator = null;
+        CpuOpenBlasQualification qualification = null;
+        try {
+            if (session.invocation().isPresent()) {
+                coordinator = session.transferToCoordinator(budget);
+                qualification = CpuOpenBlasQualifier.qualify(session.result(), coordinator);
             }
-            coordinator = session.transferToCoordinator(budget);
-            CpuOpenBlasQualification qualification =
-                    CpuOpenBlasQualifier.qualify(session.result(), coordinator);
             session.close();
-            return new CpuBackendComposition(budget, Optional.of(coordinator),
-                    Optional.of(qualification));
         } catch (RuntimeException optionalFailure) {
             closeAfterFailure(coordinator, session, optionalFailure);
-            return new CpuBackendComposition(budget, Optional.empty(), Optional.empty());
+            return create(budget, Optional.empty(), Optional.empty(), library, api);
         } catch (Error fatalFailure) {
             closeAfterFailure(coordinator, session, fatalFailure);
             throw fatalFailure;
         }
+        return create(budget, Optional.ofNullable(coordinator), Optional.ofNullable(qualification),
+                library, api);
     }
 
-    /**
-     * Creates one independent portable-only exact/default composition.
-     *
-     * @return a new non-null open portable composition with capacity-one concurrency
-     */
-    private static CpuBackendComposition portable() {
-        return new CpuBackendComposition(new CpuConcurrencyBudget(1), Optional.empty(),
-                Optional.empty());
+    private static CpuBackendComposition create(CpuConcurrencyBudget budget,
+            Optional<CpuOpenBlasCoordinator> coordinator,
+            Optional<CpuOpenBlasQualification> qualification, Optional<CpuOneDnnLibrary> library,
+            CpuOneDnnRoutePlan.Api api) {
+        try {
+            return new CpuBackendComposition(budget, coordinator, qualification, library, api);
+        } catch (RuntimeException | Error failure) {
+            coordinator.ifPresent(value -> {
+                try { value.close(); } catch (RuntimeException | Error cleanup) {
+                    if (cleanup != failure) failure.addSuppressed(cleanup);
+                }
+            });
+            throw failure;
+        }
     }
+
 
     /**
      * Returns the fixed host CPU availability fact without provider discovery.
@@ -217,7 +286,7 @@ public final class CpuBackendComposition implements AutoCloseable {
         Objects.requireNonNull(context, "context");
         Objects.requireNonNull(phaseOneDecision, "phaseOneDecision");
         Objects.requireNonNull(selectedPlan, "selectedPlan");
-        if (selectedPlan.schemaVersion() != 3) {
+        if (selectedPlan.schemaVersion() != 4) {
             throw new IllegalArgumentException("CPU complete-plan schema is unsupported");
         }
         validatePhaseOne(context, phaseOneDecision);
@@ -443,6 +512,17 @@ public final class CpuBackendComposition implements AutoCloseable {
     }
 
     /**
+     * Returns the immutable complete-plan identity of this owner's oneDNN admission policy.
+     *
+     * @return stable disabled identity, or the exact library session, API and qualified policy
+     * @throws IllegalStateException if this composition is closed
+     */
+    public String oneDnnPolicyFingerprint() {
+        requireOpen();
+        return oneDnnPolicyFingerprint;
+    }
+
+    /**
      * Attempts deterministic cleanup of partially transferred optional provider ownership.
      *
      * @param coordinator the possibly null transferred coordinator to close first
@@ -467,8 +547,8 @@ public final class CpuBackendComposition implements AutoCloseable {
     }
 
     /**
-     * Publishes closed state, then quiesces and closes the optional provider owner exactly once.
-     * Repeated and concurrent calls are idempotent.
+     * Publishes closed state, then attempts every owned provider close once in reverse order.
+     * Native owner close preserves already-acquired kernel and run-workspace leases.
      *
      * @throws RuntimeException if provider thread restoration or cleanup reports an unchecked
      *     failure
@@ -476,8 +556,20 @@ public final class CpuBackendComposition implements AutoCloseable {
      */
     @Override
     public void close() {
-        if (closed.compareAndSet(false, true) && coordinator.isPresent()) {
-            coordinator.orElseThrow().close();
+        if (!closed.compareAndSet(false, true)) return;
+        Throwable failure = null;
+        try {
+            coordinator.ifPresent(CpuOpenBlasCoordinator::close);
+        } catch (RuntimeException | Error cleanup) {
+            failure = cleanup;
         }
+        try {
+            oneDnnLibrary.ifPresent(CpuOneDnnLibrary::close);
+        } catch (RuntimeException | Error cleanup) {
+            if (failure == null) failure = cleanup;
+            else if (cleanup != failure) failure.addSuppressed(cleanup);
+        }
+        if (failure instanceof RuntimeException unchecked) throw unchecked;
+        if (failure instanceof Error fatal) throw fatal;
     }
 }

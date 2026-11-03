@@ -1149,6 +1149,7 @@ modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/memory/CpuHostSnapshotExporter.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/memory/CpuNativeBuffer.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/memory/CpuRepresentationRecipes.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/memory/CpuWorkspaceRecipeProvider.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/memory/package-info.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/package-info.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/CpuPartitionAnalysisInputs.java
@@ -1188,6 +1189,18 @@ modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasTuningBatch.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasTuningDecision.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/package-info.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnCompiler.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnGraph.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnKernel.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnKernelMetadata.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnKernelSpec.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnLibrary.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnPreparedExecutable.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnPrimitives.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnProjection.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnRoutePlan.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnSelector.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnWorkspace.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/portable/CpuPortableRoutePlan.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/portable/CpuRecurrentScanBFloat16Kernel.java
 modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/portable/CpuRecurrentScanFloat16Kernel.java
@@ -1238,6 +1251,7 @@ modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuCastPerformanceTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuClassFileKernelGeneratorTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuConcatStackPerformanceTest.java
+modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuConditionalScanFixture.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuConstantWriteGeneratedKernelTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuConv2dEvidenceTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuConv2dGeneratedKernelTest.java
@@ -1281,7 +1295,6 @@ modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuMatmulBindingCleanJavaOracle.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuMatmulBindingFixture.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuMatmulBindingPerformance.java
-modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuMatmulBindingSnapshotTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuMatmulBindingTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuMatmulGeneratedKernelTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuMatmulPerformanceTest.java
@@ -1304,7 +1317,6 @@ modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuPointwiseMaskEvidenceTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuPointwiseMaskPerformanceTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuPointwiseSemanticClosureManifestTest.java
-modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuPointwiseSumCompositionSnapshotTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuPool1dCompositionSemanticClosureTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuPool2d3dSemanticClosureTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuPool2dGeneratedKernelTest.java
@@ -1476,6 +1488,7 @@ modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasQualifierTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasRouteSelectorTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuOpenBlasTuningBatchTest.java
+modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnNativeContractTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/portable/CpuRecurrentScanCleanJavaOracle.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/portable/CpuRecurrentScanScalarTimingTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/spi/CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest.java

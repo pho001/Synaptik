@@ -182,7 +182,7 @@ class CpuGeneratedKernelArtifactStoreTest {
             }
             assertEquals(type==DataType.FLOAT32?"486a51c6a415bf5a48b084dc8b5ffad030a070c1851e7aa18d1ef5ed1d0072d8":"e3a46f8a7b886a3ac2bd6d92565bdf2dcf7b0082ee32b56951ffc4bddb26a715",
                     java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(before)));
-            var compiled=io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuMatmulBindingSnapshotTest.conditionalFamily(type,true);
+            var compiled=io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuConditionalScanFixture.conditionalFamily(type,true);
             var analysis=new CpuPartitionPreparer().analyze(io.github.pho001.synaptik.prepare.GraphPreparation.project(
                     compiled,compiled.partitions().getFirst(),CpuPartitionAnalysisInputs.DEFAULT));
             var route=analysis.plan().units().stream().filter(unit -> unit.runtimeFacts().generalScan().isPresent()).toList().getLast().portablePlan();
@@ -225,7 +225,7 @@ class CpuGeneratedKernelArtifactStoreTest {
                     }
                 }
             }
-            var compiled=io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuMatmulBindingSnapshotTest.conditionalFamily(type,true);
+            var compiled=io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuConditionalScanFixture.conditionalFamily(type,true);
             var analysis=new CpuPartitionPreparer().analyze(io.github.pho001.synaptik.prepare.GraphPreparation.project(
                     compiled,compiled.partitions().getFirst(),CpuPartitionAnalysisInputs.DEFAULT));
             var route=analysis.plan().units().stream().filter(unit -> unit.runtimeFacts().generalScan().isPresent()).toList().getLast().portablePlan();
@@ -896,14 +896,14 @@ class CpuGeneratedKernelArtifactStoreTest {
      */
     @Test void cpu0071StaticMatmulCutoverRejectsOldClassesAndReusesCurrentArtifacts() throws Exception {
         var captured = new java.util.HashMap<String,String[]>();
-        try (var stream = io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuMatmulBindingSnapshotTest.class
+        try (var stream = io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuConditionalScanFixture.class
                 .getResourceAsStream("matmul-binding-before.tsv")) {
             assertNotNull(stream);
             new String(stream.readAllBytes(),StandardCharsets.UTF_8).lines().filter(l -> !l.startsWith("#") && !l.isBlank())
                     .map(l -> l.split("\t")).forEach(row -> captured.put(row[0],row));
         }
         for (DataType type : List.of(DataType.FLOAT32,DataType.FLOAT64)) for (boolean length : List.of(false,true)) {
-            var compiled = io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuMatmulBindingSnapshotTest.conditionalFamily(type,length);
+            var compiled = io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuConditionalScanFixture.conditionalFamily(type,length);
             var analysis = new CpuPartitionPreparer().analyze(io.github.pho001.synaptik.prepare.GraphPreparation.project(
                     compiled,compiled.partitions().getFirst(),CpuPartitionAnalysisInputs.DEFAULT));
             int phase = 0;
@@ -912,7 +912,7 @@ class CpuGeneratedKernelArtifactStoreTest {
                 var route = unit.portablePlan(); var spec = route.specialization(); var ir = route.kernelIr();
                 String name = "conditional-"+type+"-"+length+"-"+phase++;
                 byte[] oldBytes;
-                try (var input = io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuMatmulBindingSnapshotTest.class
+                try (var input = io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuConditionalScanFixture.class
                         .getResourceAsStream("matmul-binding-before-"+name+".class.gz.b64")) {
                     assertNotNull(input);
                     try (var gzip = new java.util.zip.GZIPInputStream(new java.io.ByteArrayInputStream(java.util.Base64.getMimeDecoder().decode(input.readAllBytes())))) { oldBytes = gzip.readAllBytes(); }

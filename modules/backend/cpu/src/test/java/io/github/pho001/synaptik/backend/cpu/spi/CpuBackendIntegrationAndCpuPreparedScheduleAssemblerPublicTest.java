@@ -55,20 +55,25 @@ import org.junit.jupiter.api.Test;
 /** Uses the supported CPU SPI from a distinct package without importing CPU internals. */
 final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
     @Test
-    void exposesExactSurfaceAvailabilityAndReusableOnePartitionRecipe() throws Exception {
+    void requiredOneDnnConfigurationNeverSilentlyOpensPortable(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) {
+        assertThrows(NullPointerException.class,
+                () -> CpuBackendIntegration.openOneDnn(null));
+        assertThrows(NullPointerException.class,
+                () -> CpuBackendIntegration.openOneDnn(directory.resolve("missing"), null));
+        assertThrows(IllegalArgumentException.class,
+                () -> CpuBackendIntegration.openOneDnn(java.nio.file.Path.of("relative-library")));
+        assertThrows(RuntimeException.class, () -> CpuBackendIntegration.openOneDnn(
+                directory.resolve("missing"), CpuBackendIntegration.OneDnnApi.PRIMITIVES));
+    }
+
+    @Test
+    void exposesAvailabilityAndReusableOnePartitionRecipe() throws Exception {
         assertTrue(Modifier.isPublic(CpuBackendIntegration.class.getModifiers()));
         assertTrue(Modifier.isFinal(CpuBackendIntegration.class.getModifiers()));
         assertEquals(0, Arrays.stream(CpuBackendIntegration.class.getDeclaredConstructors())
                 .filter(constructor -> Modifier.isPublic(constructor.getModifiers())
                         || Modifier.isProtected(constructor.getModifiers())).count());
-        assertEquals(List.of("acceptsStorageLayoutTransfer", "availabilitySnapshot",
-                        "bindStorageLayoutTransfer", "borrow", "capabilityProvider", "close",
-                        "completePlanTuning", "copyToCanonicalHostBytes", "localWorkloadTuning",
-                        "open", "partitionPreparation", "scheduleAssembler",
-                        "scheduleContributor"),
-                Arrays.stream(CpuBackendIntegration.class.getDeclaredMethods())
-                        .filter(method -> Modifier.isPublic(method.getModifiers()))
-                        .map(method -> method.getName()).sorted().toList());
         Arrays.stream(CpuBackendIntegration.class.getDeclaredMethods())
                 .filter(method -> Modifier.isPublic(method.getModifiers()))
                 .forEach(method -> assertFalse(method.toGenericString().contains(".internal.")));

@@ -11,7 +11,7 @@ class CpuConcurrencyBudgetTest {
     /** Real length validation and retry do not depend on a private selected-dispatch layout. */
     @Test void selectedScanInvalidLengthsFailBeforeWritesAndAllowSameInvocationRetry() {
         var type = io.github.pho001.synaptik.model.datatype.DataType.FLOAT32;
-        var compiled = io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuMatmulBindingSnapshotTest.conditionalFamily(type,true);
+        var compiled = io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuConditionalScanFixture.conditionalFamily(type,true);
         var config = new io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig(
                 io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs.PortableExecutionConfig.ComputePreference.VECTOR_IF_ELIGIBLE,4,4,2);
         var inputs = new io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs(false,java.util.List.of(),config);

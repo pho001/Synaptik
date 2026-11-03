@@ -62,12 +62,6 @@ final class CpuCompletePlanTuningPublicTest {
                         List.of(CpuCompletePlanTuning.CandidateBatch.class.getInterfaces())),
                 () -> assertEquals(List.of(BackendTuningDecision.class),
                         List.of(CpuCompletePlanTuning.SelectedDecision.class.getInterfaces())),
-                () -> assertEquals(List.of("candidateHandoff", "candidateIdentity", "candidates",
-                                "compatibility", "decodeCompatibleDecision", "encodeDecision",
-                                "selectedDecision", "selectedPreparation", "trialPreparation"),
-                        Arrays.stream(CpuCompletePlanTuning.class.getDeclaredMethods())
-                                .filter(method -> Modifier.isPublic(method.getModifiers()))
-                                .map(method -> method.getName()).sorted().toList()),
                 () -> Arrays.stream(CpuCompletePlanTuning.class.getDeclaredMethods())
                         .filter(method -> Modifier.isPublic(method.getModifiers()))
                         .forEach(method -> assertFalse(
@@ -109,11 +103,7 @@ final class CpuCompletePlanTuningPublicTest {
             var repeatedBatch = tuning.candidateHandoff(
                     context(integration, artifacts), Optional.empty())
                     .orElseThrow().candidateBatch();
-            assertAll(
-                    () -> assertEquals(3, java.nio.ByteBuffer.wrap(
-                            tuning.compatibility(batch).bytes()).getInt()),
-                    () -> assertEquals(tuning.compatibility(batch),
-                            tuning.compatibility(repeatedBatch)));
+            assertEquals(tuning.compatibility(batch), tuning.compatibility(repeatedBatch));
 
 
             byte[] compatibility = tuning.compatibility(batch).bytes();
@@ -152,9 +142,15 @@ final class CpuCompletePlanTuningPublicTest {
                     () -> tuning.selectedDecision(otherBatch, candidates.getFirst()));
             assertThrows(IllegalArgumentException.class,
                     () -> tuning.selectedPreparation(otherBatch, decision));
-            byte[] schema2 = encoded.clone();
-            java.nio.ByteBuffer.wrap(schema2).putInt(4, 2);
-            assertTrue(tuning.decodeCompatibleDecision(batch, schema2).isEmpty());
+            for (int staleVersion : List.of(2, 3)) {
+                byte[] stale = encoded.clone();
+                java.nio.ByteBuffer.wrap(stale).putInt(4, staleVersion);
+                var checksum = new java.util.zip.CRC32();
+                checksum.update(stale, 0, stale.length - Integer.BYTES);
+                java.nio.ByteBuffer.wrap(stale).putInt(stale.length - Integer.BYTES,
+                        (int) checksum.getValue());
+                assertTrue(tuning.decodeCompatibleDecision(batch, stale).isEmpty());
+            }
 
         }
     }

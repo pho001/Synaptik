@@ -174,7 +174,8 @@ class CpuMatmulSemanticClosureTest {
                 for (long inner = 0; inner < g.k(); inner++) {
                     double product = narrow(g.resultType(), left.get(leftBase + row * g.leftMStride() + inner * g.leftKStride()))
                             * narrow(g.resultType(), right.get(rightBase + inner * g.rightKStride() + column * g.rightNStride()));
-                    sum = narrow(g.resultType(), sum + narrow(g.resultType(), product));
+                    sum = g.k() == 1 ? narrow(g.resultType(),product)
+                            : narrow(g.resultType(),sum+narrow(g.resultType(),product));
                 }
                 expected[(int) (outputBase + row * g.resultMStride() + column * g.resultNStride())] = sum;
             }

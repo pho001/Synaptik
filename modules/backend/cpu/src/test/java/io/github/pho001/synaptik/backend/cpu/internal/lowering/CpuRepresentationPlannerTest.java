@@ -142,7 +142,8 @@ class CpuRepresentationPlannerTest {
                 p.trailingNormalizationGeometry(), p.batchNormInferenceGeometry(), p.batchNormTrainingGeometry(),
                 p.conv2dGeometry(), p.specializedSubgraphs(), p.fusionDecisions(), p.publicationBoundaryPositions(),
                 p.materializations(), represented, p.representationDecisions(), p.partialReductionRecipe(), p.openBlasPlan(),
-                p.openBlasTuningBatch(), p.selectedOpenBlasTuningCandidate(), p.retainedBaselineBinding());
+                p.openBlasTuningBatch(), p.selectedOpenBlasTuningCandidate(), p.retainedBaselineBinding(),
+                p.oneDnnPlan());
     }
 
     @Test void exactCeilingsAdmitEightSourcesAndSixtyFourByThirtySevenFacts() {

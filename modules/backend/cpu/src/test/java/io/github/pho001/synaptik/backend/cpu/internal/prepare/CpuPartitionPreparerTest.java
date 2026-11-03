@@ -349,7 +349,7 @@ public class CpuPartitionPreparerTest {
                 plan.representationUnits(), plan.representationDecisions(),
                 plan.partialReductionRecipe(), plan.openBlasPlan(),
                 plan.openBlasTuningBatch(), plan.selectedOpenBlasTuningCandidate(),
-                binding);
+                binding, plan.oneDnnPlan());
     }
 
     private static PrepareContext<CpuPartitionAnalysisInputs> matmulChainContext(

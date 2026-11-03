@@ -354,10 +354,12 @@ final class CpuBackendCompositionTest {
                 new Class<?>[] {
                     io.github.pho001.synaptik.backend.cpu.internal.executable
                             .CpuConcurrencyBudget.class,
-                    Optional.class, Optional.class},
+                    Optional.class, Optional.class, Optional.class,
+                    io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnRoutePlan.Api.class},
                 new io.github.pho001.synaptik.backend.cpu.internal.executable
                         .CpuConcurrencyBudget(1),
-                Optional.empty(), Optional.of(qualification));
+                Optional.empty(), Optional.of(qualification), Optional.empty(),
+                io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnRoutePlan.Api.AUTO);
     }
 
     private static CpuLocalWorkloadTuning tuning(CpuBackendComposition composition) {

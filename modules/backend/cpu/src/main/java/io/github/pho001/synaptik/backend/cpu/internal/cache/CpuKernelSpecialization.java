@@ -829,6 +829,8 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      * even without exec-v1 metadata; unaffected SIMD and nonregional identities remain literal.
      * CPU0076 appends its separate staging selection only when the pure shared query proves
      * actual scalar placement changes, with identical source scopes and typed phase bounds.
+     * MATMUL-bearing bodies append the singleton-product semantic discriminator; composed Scan
+     * helpers propagate it through their nested specialization keys. Other bodies retain identity.
      * @return a new deterministic schema byte array */
     public byte[] compatibilityBytes() {
         return (CpuGeneratorSchema.CURRENT_VERSION + "|" + loweringFingerprint.hex() + "|"
@@ -841,7 +843,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
                 + rowMapReductionIr.map(r -> "|ordinary-row-map-multi-reduction-v1="+r.bakedSpecializationIdentity()).orElse("")
                 + aggregateFusionIr.map(f -> "|ordinary-aggregate-fusion-v1="+f.bakedSpecializationIdentity()).orElse("")
                 + softmaxBackwardIr.map(f -> "|ordinary-softmax-backward-v1="+f.bakedSpecializationIdentity()).orElse("")
-                + compositionIdentity()
+                + compositionIdentity() + matmulSingletonIdentity()
                 + rowExecutionIdentity() + scalarRowReuseIdentity() + invariantRowStagingIdentity()
                 + (classIdentitySchema == DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA
                     ? "|affine-dense-array-empty-range-v1" : "")
@@ -881,6 +883,8 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
      * load/address-reuse marker in both streams, including bodies without exec-v1 metadata.
      * CPU0076 appends the same affected-only staging selection as compatibility metadata;
      * no-stage, SIMD and nonregional classes retain their literal identities.</p>
+     * <p>MATMUL-bearing classes bind the same singleton-product semantic discriminator as
+     * compatibility metadata, without changing the global envelope or family projections.</p>
      *
      * @return a new deterministic generator- and family-schema identity byte array
      */
@@ -895,13 +899,28 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
                 + rowMapReductionIr.map(r -> "|ordinary-row-map-multi-reduction-v1="+r.bakedSpecializationIdentity()).orElse("")
                 + aggregateFusionIr.map(f -> "|ordinary-aggregate-fusion-v1="+f.bakedSpecializationIdentity()).orElse("")
                 + softmaxBackwardIr.map(f -> "|ordinary-softmax-backward-v1="+f.bakedSpecializationIdentity()).orElse("")
-                + compositionIdentity()
+                + compositionIdentity() + matmulSingletonIdentity()
                 + rowExecutionIdentity() + scalarRowReuseIdentity() + invariantRowStagingIdentity()
                 + (classIdentitySchema == DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA
                     ? "|affine-dense-array-empty-range-v1" : "")
                 + (classIdentitySchema == ATTENTION_LITERAL_EXP_SCHEMA
                     ? "|attention-literal-working-sites-v1" : ""))
                 .getBytes(StandardCharsets.US_ASCII);
+    }
+
+    /**
+     * Separates changed contraction emission from pre-fix cached classes without versioning
+     * unrelated families. Integral standalone emission shares the same geometry-only control.
+     * @return semantic suffix for standalone, retained Scan, or regional MATMUL, otherwise empty
+     */
+    private String matmulSingletonIdentity() {
+        boolean affected = matmulIr.isPresent()
+                || rowMapReductionIr.map(r -> !r.contractions().isEmpty()).orElse(false)
+                || generalScanIr.flatMap(io.github.pho001.synaptik.backend.cpu.internal.ir.CpuGeneralScanIr::stages)
+                    .map(st -> st.order().stream().anyMatch(s -> s.right() >= 0)
+                            || st.rowMapReductionIr().map(r -> !r.contractions().isEmpty()).orElse(false))
+                    .orElse(false);
+        return affected ? "|matmul-single-product-v1" : "";
     }
 
     /**

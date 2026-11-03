@@ -14,6 +14,86 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 final class CpuMatmulGeneratedKernelTest {
+    /**
+     * Exercises actual scalar/vector/tiled entries, both address widths, M/N edge tiles and
+     * scalar remainders. Singleton expectations are independent typed products; K>1 retains
+     * its original positive-zero-seeded recurrence.
+     * @throws Throwable if class linkage or an exact represented result differs
+     */
+    @Test void singletonProductsPreserveZeroAndUnderflowSignsAcrossEveryRealization() throws Throwable {
+        for (var type : List.of(DataType.FLOAT32,DataType.FLOAT64))
+            for (var form : CpuMatmulIr.Realization.values()) for (boolean foreign : List.of(false,true)) {
+                boolean vector = form == CpuMatmulIr.Realization.DIRECT_N_VECTOR
+                        || form == CpuMatmulIr.Realization.TILED_N_VECTOR_2X2;
+                int bits = vector ? (type == DataType.FLOAT64
+                        ? jdk.incubator.vector.DoubleVector.SPECIES_PREFERRED.vectorBitSize()
+                        : jdk.incubator.vector.FloatVector.SPECIES_PREFERRED.vectorBitSize()) : 0;
+                int lanes = vector ? bits/type.bitWidth() : 2;
+                var read = plan(CpuAccessPlan.AccessKind.READ); var write = plan(CpuAccessPlan.AccessKind.WRITE);
+                var ir = new CpuMatmulIr(type,type,type,form,CpuMatmulIr.Epilogue.none(),bits,
+                        CpuMatmulIr.NumericalForm.SEQUENTIAL,List.of(read,read),write);
+                var access = foreign ? CarrierAccess.MEMORY_SEGMENT : carrier(type);
+                var spec = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()),
+                        vector ? CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR : CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
+                        List.of(type,type,type),List.of(access,access,access),bits,-1,List.of(),false,54,java.util.Optional.of(ir));
+                var generator = new CpuClassFileKernelGenerator();
+                var generated = generator.defineClassBytes(spec,ir.encodedKernelIr(),generator.generateClassBytes(spec,ir.encodedKernelIr()));
+                for (int n : new int[]{1,2*lanes+1}) for (int k : new int[]{0,1,2}) {
+                    int m = 3;
+                    Object left = type == DataType.FLOAT64 ? new double[m*k] : new float[m*k];
+                    Object right = type == DataType.FLOAT64 ? new double[k*n] : new float[k*n];
+                    Object output = type == DataType.FLOAT64 ? new double[m*n] : new float[m*n];
+                    for (int row = 0; row < m; row++) for (int inner = 0; inner < k; inner++) {
+                        if (type == DataType.FLOAT64) ((double[])left)[row*k+inner] = row == 0 ? -0d : row == 1 ? -Double.MIN_VALUE : 0d;
+                        else ((float[])left)[row*k+inner] = row == 0 ? -0f : row == 1 ? -Float.MIN_VALUE : 0f;
+                    }
+                    for (int inner = 0; inner < k; inner++) for (int column = 0; column < n; column++) {
+                        double value = switch (column%4) { case 0 -> 1d; case 1 -> .25d; case 2 -> -1d; default -> Double.POSITIVE_INFINITY; };
+                        if (type == DataType.FLOAT64) ((double[])right)[inner*n+column] = value;
+                        else ((float[])right)[inner*n+column] = (float)value;
+                    }
+                    long work = switch (form) {
+                        case DIRECT_SCALAR -> (long)m*n;
+                        case DIRECT_N_VECTOR -> m;
+                        case TILED_SCALAR_2X2 -> ((m+1L)/2)*((n+1L)/2);
+                        case TILED_N_VECTOR_2X2 -> ((m+1L)/2)*((n+2L*lanes-1)/(2L*lanes));
+                    };
+                    long[] geometry = {0,0,0,1,m,k,n,k,1,n,1,n,1,0,0,0,(long)m*n,1};
+                    Object a = foreign ? floatingSegment(left) : left, b = foreign ? floatingSegment(right) : right;
+                    Object out = foreign ? floatingSegment(output) : output;
+                    generated.entryPoint().invokeWithArguments(a,b,out,geometry,work/2,work);
+                    generated.entryPoint().invokeWithArguments(a,b,out,geometry,0L,work/2);
+                    for (int row = 0; row < m; row++) for (int column = 0; column < n; column++) {
+                        if (type == DataType.FLOAT64) {
+                            double expected = 0d;
+                            if (k == 1) expected = ((double[])left)[row]*((double[])right)[column];
+                            else for (int inner = 0; inner < k; inner++) expected += ((double[])left)[row*k+inner]*((double[])right)[inner*n+column];
+                            double actual = ((double[])output)[row*n+column];
+                            if (Double.isNaN(expected)) assertTrue(Double.isNaN(actual));
+                            else assertEquals(Double.doubleToRawLongBits(expected),Double.doubleToRawLongBits(actual),type+" "+form+" K="+k);
+                        } else {
+                            float expected = 0f;
+                            if (k == 1) expected = ((float[])left)[row]*((float[])right)[column];
+                            else for (int inner = 0; inner < k; inner++) expected += ((float[])left)[row*k+inner]*((float[])right)[inner*n+column];
+                            float actual = ((float[])output)[row*n+column];
+                            if (Float.isNaN(expected)) assertTrue(Float.isNaN(actual));
+                            else assertEquals(Float.floatToRawIntBits(expected),Float.floatToRawIntBits(actual),type+" "+form+" K="+k);
+                        }
+                    }
+                }
+            }
+    }
+
+    /**
+     * Borrows a typed heap carrier through the foreign-memory entry ABI.
+     * @param array F32 or F64 primitive storage
+     * @return segment sharing that array's represented bits
+     */
+    private static java.lang.foreign.MemorySegment floatingSegment(Object array) {
+        return array instanceof double[] values ? java.lang.foreign.MemorySegment.ofArray(values)
+                : java.lang.foreign.MemorySegment.ofArray((float[])array);
+    }
+
     @Test void generatedScalarBodyExecutesFullKForFloatingAndIntegralRows() throws Throwable {
         run(DataType.FLOAT32, new float[] {1,2,3,4,5,6}, new float[] {7,8,9,10,11,12},
                 new float[4], new float[] {58,64,139,154});

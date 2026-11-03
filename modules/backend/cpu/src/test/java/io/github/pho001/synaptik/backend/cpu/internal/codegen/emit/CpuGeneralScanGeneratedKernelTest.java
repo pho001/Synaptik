@@ -28,14 +28,13 @@ import org.junit.jupiter.api.Test;
 /** Actual Class-File loop execution, not a Java scan fallback. */
 public class CpuGeneralScanGeneratedKernelTest {
     /**
-     * Source-snapshot compatibility witness, not a performance probe. Baseline classes
-     * are captured before implementation into evidenceRoot/baseline-classes; no legacy
-     * branch source or historical task narrative is used. Isolated loading keeps both versions
-     * in one JVM while shared Model/query types authenticate identical occurrences.
-     * @throws Exception if an isolated baseline cannot be loaded or comparison fails
+     * Rejects actual obsolete MATMUL-bearing and length-Scan ClassFiles before execution.
+     * Isolated baseline loading keeps shared Model/query types identical to the current consumer.
+     * @throws Exception if the explicitly supplied old-source corpus cannot be loaded or a stale
+     *     executable is accepted
      */
     @Test @org.junit.jupiter.api.condition.EnabledIfSystemProperty(named="synaptik.cpu.generalScan.evidenceRoot",matches=".+")
-    void retainedSnapshotBothIdentityStreamsAndGeneratedBytesAreExactAcrossStaticAndSymbolicModes() throws Exception {
+    void obsoleteSourceMatmulAndLengthScanClassFilesRejectBeforeExecution() throws Exception {
         var root = java.nio.file.Path.of(System.getProperty("synaptik.cpu.generalScan.evidenceRoot"));
         var directory = root.resolve("baseline-classes");
         assertTrue(java.nio.file.Files.isDirectory(directory),"an explicit evidence root requires a complete baseline, never a skipped comparison");
@@ -82,13 +81,13 @@ public class CpuGeneralScanGeneratedKernelTest {
                 Object fp = oldFingerprint.getMethod("fromHex",String.class).invoke(null,key);
                 Object oldSpec = constructor.newInstance(fp,oldStrategy,Collections.nCopies(boundaries,current.ir().dataType()),Collections.nCopies(boundaries,oldCarrier),
                         0,-1,List.of(),scratch,71,Optional.empty(),Optional.of(oldIr));
-                byte[] compatibility = (byte[])oldSpecClass.getMethod("compatibilityBytes").invoke(oldSpec);
-                byte[] identity = (byte[])oldSpecClass.getMethod("classIdentityBytes").invoke(oldSpec);
                 byte[] bytes = (byte[])generatorClass.getMethod("generateClassBytes",oldSpecClass,encoded.getClass()).invoke(generator,oldSpec,encoded);
-                assertEquals(key,current.ir().structuralKey()); assertArrayEquals(compatibility,currentSpec.compatibilityBytes());
-                assertArrayEquals(identity,currentSpec.classIdentityBytes()); assertArrayEquals(bytes,generated(current).classBytes());
-                report.append(index++).append(' ').append(current.ir().dataType()).append(" symbolic=").append(current.ir().symbolic())
-                        .append(" compatibility=").append(sha256(compatibility)).append(" identity=").append(sha256(identity)).append(" class=").append(sha256(bytes)).append('\n');
+                if (current.ir().stages().map(s -> s.order().stream().anyMatch(stage -> stage.right() >= 0)).orElse(false)) {
+                    assertThrows(IllegalArgumentException.class,() -> new CpuClassFileKernelGenerator()
+                            .defineClassBytes(currentSpec,current.ir().encodedKernelIr(),bytes));
+                }
+                report.append(index++).append(' ').append(current.ir().dataType())
+                        .append(" rejected-class=").append(sha256(bytes)).append('\n');
             }
             java.nio.file.Files.writeString(root.resolve("retained-snapshot-compatibility.txt"),report);
             // Actual old executable bytes, not just rewritten envelope text, must reject at v7.
@@ -97,7 +96,6 @@ public class CpuGeneralScanGeneratedKernelTest {
                 var current = CpuGeneralScanLowering.analyze(q); var currentSpec = specialization(current);
                 Object oldFacts = oldLowering.getMethod("analyze",OperationCapabilityQuery.class).invoke(null,q);
                 Object oldIr = oldFacts.getClass().getMethod("ir").invoke(oldFacts);
-                assertTrue(oldIr.getClass().getMethod("bakedSpecializationIdentity").invoke(oldIr).toString().startsWith("|scan-symbolic-length-v6="));
                 Object encoded = oldIr.getClass().getMethod("encodedKernelIr").invoke(oldIr);
                 Object fp = oldFingerprint.getMethod("fromHex",String.class).invoke(null,current.ir().structuralKey());
                 int boundaries = current.ir().boundaryAccesses().size();
@@ -753,7 +751,7 @@ public class CpuGeneralScanGeneratedKernelTest {
      */
     public static byte[] v1Identity(byte[] bytes) {
         return new String(bytes,java.nio.charset.StandardCharsets.US_ASCII).replace("|scan-shaped-v4=","|scan-shaped-v1=")
-                .replace("|scan-matmul-v5=","|scan-matmul-v1=").getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+                .replace("|scan-matmul-v5=","|scan-matmul-v1=").replace("|matmul-single-product-v1","").getBytes(java.nio.charset.StandardCharsets.US_ASCII);
     }
 
     /**
@@ -763,7 +761,7 @@ public class CpuGeneralScanGeneratedKernelTest {
      */
     public static byte[] v2Identity(byte[] bytes) {
         return new String(bytes,java.nio.charset.StandardCharsets.US_ASCII).replace("|scan-shaped-v4=","|scan-shaped-v2=")
-                .replace("|scan-matmul-v5=","|scan-matmul-v2=").getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+                .replace("|scan-matmul-v5=","|scan-matmul-v2=").replace("|matmul-single-product-v1","").getBytes(java.nio.charset.StandardCharsets.US_ASCII);
     }
 
     /**
@@ -773,7 +771,7 @@ public class CpuGeneralScanGeneratedKernelTest {
      */
     public static byte[] v3Identity(byte[] bytes) {
         return new String(bytes,java.nio.charset.StandardCharsets.US_ASCII).replace("|scan-shaped-v4=","|scan-shaped-v3=")
-                .replace("|scan-matmul-v5=","|scan-matmul-v3=").getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+                .replace("|scan-matmul-v5=","|scan-matmul-v3=").replace("|matmul-single-product-v1","").getBytes(java.nio.charset.StandardCharsets.US_ASCII);
     }
 
     /**

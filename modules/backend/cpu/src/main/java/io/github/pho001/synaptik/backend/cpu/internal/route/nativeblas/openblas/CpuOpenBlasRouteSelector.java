@@ -66,7 +66,7 @@ public final class CpuOpenBlasRouteSelector {
     }
 
     /**
-     * Produces all valid candidates and applies one compatible decision or the safe heuristic.
+     * Produces valid K&gt;1 candidates and applies one compatible decision or the safe heuristic.
      * @param context non-null complete CPU analysis projection
      * @param portablePlan non-null already-selected portable plan
      * @param representationPlanner non-null existing representation owner
@@ -131,7 +131,7 @@ public final class CpuOpenBlasRouteSelector {
                 || type != DataType.FLOAT32 && type != DataType.FLOAT64
                 || geometry.batchExtents().length != 0 || geometry.batchCount() != 1
                 || geometry.removedM() || geometry.removedN() || geometry.m() <= 0
-                || geometry.n() <= 0 || geometry.k() <= 0 || geometry.m() > Integer.MAX_VALUE
+                || geometry.n() <= 0 || geometry.k() <= 1 || geometry.m() > Integer.MAX_VALUE
                 || geometry.n() > Integer.MAX_VALUE || geometry.k() > Integer.MAX_VALUE) {
             return Optional.empty();
         }

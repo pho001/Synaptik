@@ -2823,6 +2823,7 @@ final class CpuGeneralScanEmitter {
             var sums = new HashMap<Integer,io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr.Sum>();
             region.contractions().forEach(c -> products.put(c.output(),c)); region.sums().forEach(s -> sums.put(s.output(),s));
             int valid = rangeHelper ? code.allocateLocal(TypeKind.LONG) : -1;
+            java.util.function.Consumer<Boolean> emitRows = directProduct -> {
             regionalRemaining = new HashMap<>(); scalarRowEpoch = 0;
             regionalScalarTrace(region).forEach(k -> regionalRemaining.merge(k,1,Integer::sum));
             regionalCached = new HashMap<>(); regionalFree = new java.util.ArrayDeque<>();
@@ -2857,7 +2858,7 @@ final class CpuGeneralScanEmitter {
                                 int features = Math.toIntExact(region.accesses().get(product.left()).extentConstants().get(1));
                                 for (int k = 0; k < features; k++) {
                                     int feature = k;
-                                    CpuMatmulEmitter.emitContributorStep(code,type,result,
+                                    CpuMatmulEmitter.emitContributorStep(code,type,result,features == 1,
                                             () -> regionalLoad(region,rowValues,product.left(),new int[]{-1,feature},row),
                                             () -> regionalLoad(region,rowValues,product.right(),new int[]{feature,logical[1]},row));
                                 }
@@ -2883,7 +2884,7 @@ final class CpuGeneralScanEmitter {
                             int sum = accumulators[t][cell]; int[] logical = regionalCoordinates(region,out,cell,false);
                             if (products.containsKey(out)) {
                                 var product = products.get(out);
-                                CpuMatmulEmitter.emitContributorStep(code,type,sum,
+                                CpuMatmulEmitter.emitContributorStep(code,type,sum,directProduct,
                                         () -> regionalLoad(region,rowValues,product.left(),new int[]{logical[0],-1},row),
                                         () -> regionalLoad(region,rowValues,product.right(),new int[]{-1,logical[1]},row));
                             } else {
@@ -2944,6 +2945,11 @@ final class CpuGeneralScanEmitter {
                             }
                         }
                     });
+            };
+            boolean terminalProduct = region.contractions().stream().anyMatch(c -> region.terminalOutputs().contains(c.output()));
+            if (!terminalProduct) emitRows.accept(false);
+            else if (!ir.symbolic()) emitRows.accept(plan.views().get(anchor).shape().get(rowAxis) == 1);
+            else CpuMatmulEmitter.emitSingletonChoice(code,TypeKind.INT,() -> code.iload(limit),emitRows);
             return true;
         }
 
@@ -3570,6 +3576,9 @@ final class CpuGeneralScanEmitter {
                 }
             }
             code.labelBinding(noInvariantReads);
+            var dominatingInputs = new HashMap<>(retainedInputs);
+            java.util.function.Consumer<Boolean> emitRows = directProduct -> {
+            extracted.clear(); retainedInputs.clear(); retainedInputs.putAll(dominatingInputs);
             CpuRowMapReductionEmitter.emitRangeBound(code,region,row,begin,end,values,sums,() -> {
                 for (var terminal : sums) for (int sum : terminal) CpuMatmulEmitter.emitVectorInit(code,type,sum);
                 if (rangeHelper) { code.loadConstant(0L).lstore(valid); carrier.storeBytes(DataType.INT64,scratch,6,valid); }
@@ -3580,7 +3589,8 @@ final class CpuGeneralScanEmitter {
                         var c = products.get(out); CpuMatmulEmitter.emitVectorInit(code,type,result);
                         for (int k = 0; k < region.accesses().get(c.left()).extentConstants().get(1); k++) {
                             int feature = k;
-                            CpuMatmulEmitter.emitVectorContributorStep(code,type,result,() -> {
+                            CpuMatmulEmitter.emitVectorContributorStep(code,type,result,
+                                    region.accesses().get(c.left()).extentConstants().get(1) == 1,() -> {
                                 code.getstatic(vector,"SPECIES_PREFERRED",species); scalarLoad.accept(c.left(),new int[]{-1,feature});
                                 code.invokestatic(vector,"broadcast",MethodTypeDesc.of(vector,species,kind.upperBound()));
                             },() -> vectorLoad.accept(c.right(),new int[]{feature,logical[1]}));
@@ -3601,7 +3611,7 @@ final class CpuGeneralScanEmitter {
                     int[] logical = vectorCoordinates(region,out,block,false,lanes);
                     if (products.containsKey(out)) {
                         var c = products.get(out);
-                        CpuMatmulEmitter.emitVectorContributorStep(code,type,sums[t][block],() -> {
+                        CpuMatmulEmitter.emitVectorContributorStep(code,type,sums[t][block],directProduct,() -> {
                             code.getstatic(vector,"SPECIES_PREFERRED",species); scalarLoad.accept(c.left(),new int[]{logical[0],-1});
                             code.invokestatic(vector,"broadcast",MethodTypeDesc.of(vector,species,kind.upperBound()));
                         },() -> vectorLoad.accept(c.right(),new int[]{-1,logical[1]}));
@@ -3652,6 +3662,13 @@ final class CpuGeneralScanEmitter {
                 else if (vectorEpilogue(stage)) finishVectorRegion(stage,values,vectorLoad,lanes,masks);
                 else finishRegion(stage,scalarValues);
             });
+            };
+            boolean terminalProduct = region.contractions().stream().anyMatch(c -> region.terminalOutputs().contains(c.output()));
+            if (!terminalProduct) emitRows.accept(false);
+            else if (!ir.symbolic()) {
+                int anchor = region.rowSites().getFirst();
+                emitRows.accept(plan.views().get(anchor).shape().get(region.rowAxes().get(anchor)) == 1);
+            } else CpuMatmulEmitter.emitSingletonChoice(code,TypeKind.INT,() -> code.iload(rowLimit),emitRows);
         }
 
         /** Emits only fixed masks actually used by the selected features, outside time/rows. */

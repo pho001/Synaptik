@@ -2,6 +2,7 @@ package io.github.pho001.synaptik.backend.cpu.internal.executable;
 
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Objects;
 
 /**
  * Explicit fair permit budget shared by coordinated CPU execution resources.
@@ -44,12 +45,31 @@ public final class CpuConcurrencyBudget {
      * @throws CpuCoordinationException if interrupted while waiting; interrupt status is restored
      */
     public Lease acquire(int demand) {
+        acquirePermits(demand);
+        return new Lease(permits, demand);
+    }
+
+    /**
+     * Runs synchronous fixed-demand work without allocating a lease. The caller may retain its
+     * task during cold binding; every admitted body releases its exact demand, even on failure.
+     *
+     * @param demand permit count in {@code [1, capacity]}
+     * @param task non-null synchronous work, completed before the reservation is released
+     * @throws CpuCoordinationException if interrupted before admission; interrupt status is restored
+     */
+    public void execute(int demand, Runnable task) {
+        Objects.requireNonNull(task, "task");
+        acquirePermits(demand);
+        try { task.run(); }
+        finally { permits.release(demand); }
+    }
+
+    private void acquirePermits(int demand) {
         if (demand <= 0 || demand > capacity) {
             throw new IllegalArgumentException("CPU permit demand must be within budget capacity");
         }
         try {
             permits.acquire(demand);
-            return new Lease(permits, demand);
         } catch (InterruptedException failure) {
             Thread.currentThread().interrupt();
             throw new CpuCoordinationException("CPU permit acquisition interrupted", failure);

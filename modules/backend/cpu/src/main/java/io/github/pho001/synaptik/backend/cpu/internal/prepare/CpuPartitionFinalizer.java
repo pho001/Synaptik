@@ -12,11 +12,16 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasInvocation;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasCoordinator;
 import io.github.pho001.synaptik.backend.cpu.internal.route.nativeblas.openblas.CpuOpenBlasPreparedExecutable;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnCompiler;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnLibrary;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnPreparedExecutable;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnRoutePlan;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalization;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalizationResult;
 import io.github.pho001.synaptik.prepare.BackendPartitionFinalizer;
 import io.github.pho001.synaptik.prepare.PreparationResourceAssignment;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
+import io.github.pho001.synaptik.runtime.resource.PreparedResource;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -47,6 +52,13 @@ import java.util.LinkedHashMap;
  * select among retained candidates. For a selected direct loss unit, finalization passes only its
  * already-proved cold loss geometry to the prepared recipe; it does not interpret targets or add
  * the separate future pre-write index-validation lifecycle.</p>
+ *
+ * <p>Selected oneDNN units reuse the same composite topology, even for one unit. After every
+ * assignment is validated, finalization authenticates the retained library session and compiles
+ * only the exact selected API and descriptor. Scratch size and implementation must match analysis.
+ * Native units never enter the generated artifact store. Acquired kernels transfer to Runtime in
+ * acquisition order; any failure rolls back that call's resources in reverse order, with no
+ * route retry, reranking, or portable fallback.</p>
  */
 public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<CpuPartitionPreparationPlan> {
     private final CpuGeneratedKernelArtifactStore artifactStore;
@@ -56,6 +68,7 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
     private final Optional<CpuOpenBlasInvocation> openBlasInvocation;
     private final Optional<CpuConcurrencyBudget> concurrencyBudget;
     private final Optional<CpuOpenBlasCoordinator> openBlasCoordinator;
+    private final Optional<CpuOneDnnLibrary> oneDnnLibrary;
 
     /** Creates the default in-memory-only finalizer for single-thread plans. */
     public CpuPartitionFinalizer() { this(Optional.empty(), Optional.empty(), Optional.empty()); }
@@ -103,6 +116,7 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 "openBlasInvocation");
         concurrencyBudget = Optional.empty();
         openBlasCoordinator = Optional.empty();
+        oneDnnLibrary = Optional.empty();
     }
 
     /**
@@ -119,11 +133,30 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
     public CpuPartitionFinalizer(Optional<Path> trustedArtifactRoot,
             Optional<CpuWorkerGroup> workerGroup, CpuConcurrencyBudget budget,
             Optional<CpuOpenBlasCoordinator> coordinator) {
+        this(trustedArtifactRoot, workerGroup, budget, coordinator, Optional.empty());
+    }
+
+    /**
+     * Creates a finalizer borrowing exact coordinated CPU and optional oneDNN owners.
+     *
+     * @param trustedArtifactRoot non-null optional trusted artifact root
+     * @param workerGroup non-null optional group borrowing the exact {@code budget}
+     * @param budget non-null shared budget matching analysis capacity
+     * @param coordinator non-null optional OpenBLAS coordinator borrowing {@code budget}
+     * @param oneDnnLibrary non-null optional exact oneDNN owner; not closed by this finalizer
+     * @throws NullPointerException if a required reference is null
+     * @throws IllegalArgumentException if execution resources do not share the exact budget
+     */
+    public CpuPartitionFinalizer(Optional<Path> trustedArtifactRoot,
+            Optional<CpuWorkerGroup> workerGroup, CpuConcurrencyBudget budget,
+            Optional<CpuOpenBlasCoordinator> coordinator,
+            Optional<CpuOneDnnLibrary> oneDnnLibrary) {
         artifactStore = new CpuGeneratedKernelArtifactStore(trustedArtifactRoot);
         this.workerGroup = Objects.requireNonNull(workerGroup, "workerGroup");
         this.concurrencyBudget = Optional.of(Objects.requireNonNull(budget, "budget"));
         this.openBlasCoordinator = Objects.requireNonNull(coordinator, "coordinator");
         this.openBlasInvocation = Optional.empty();
+        this.oneDnnLibrary = Objects.requireNonNull(oneDnnLibrary, "oneDnnLibrary");
         if (workerGroup.isPresent() && workerGroup.orElseThrow().concurrencyBudget() != budget) {
             throw new IllegalArgumentException("CPU worker group must share finalizer budget");
         }
@@ -139,20 +172,31 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
      * Verifies exact assignments and realizes generated units or direct recurrent children without
      * changing analysis.
      * @param finalization non-null complete shared post-assignment handoff
-     * @return a non-null resource-free result retaining the exact existing direct or composite
-     *     partition executable; its immutable resource list is empty because generated artifacts,
-     *     worker groups, and native invocations remain existing cached or borrowed state
+     * @return a non-null result retaining the exact direct or composite executable and the
+     *     acquisition-ordered persistent native kernels whose ownership transfers to Runtime;
+     *     portable and OpenBLAS results retain no newly owned persistent resources
      * @throws NullPointerException if {@code finalization} is {@code null}
      * @throws IllegalArgumentException if current CPU numerical admission rejects semantic or
      *     represented units, or ownership, assignments, specialization or realization disagree
-     * @throws IllegalStateException if the required OpenBLAS coordinator is not open, or
-     *     coordinated configuration, verification, or restoration fails
+     * @throws IllegalStateException if a required native owner is not open, native compilation
+     *     fails, or coordinated configuration, verification, or restoration fails
      * @throws CpuConcurrencyBudget.CpuCoordinationException if interrupted while waiting for a
      *     coordinated configuration transition; interrupt status is restored
      */
     @Override public BackendPartitionFinalizationResult finalizePartition(
             BackendPartitionFinalization<CpuPartitionPreparationPlan> finalization) {
-        return new BackendPartitionFinalizationResult(finalizeExecutable(finalization));
+        var resources = new ArrayList<PreparedResource>();
+        try {
+            PreparedExecutable executable = finalizeExecutable(finalization, resources);
+            return new BackendPartitionFinalizationResult(executable, resources);
+        } catch (RuntimeException | Error failure) {
+            for (int index = resources.size() - 1; index >= 0; index--) {
+                try { resources.get(index).close(); } catch (RuntimeException | Error cleanup) {
+                    if (cleanup != failure) failure.addSuppressed(cleanup);
+                }
+            }
+            throw failure;
+        }
     }
 
     /**
@@ -165,7 +209,8 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
      * @throws IllegalArgumentException if owner, assignments or selected executable facts disagree
      */
     private PreparedExecutable finalizeExecutable(
-            BackendPartitionFinalization<CpuPartitionPreparationPlan> finalization) {
+            BackendPartitionFinalization<CpuPartitionPreparationPlan> finalization,
+            List<PreparedResource> resources) {
         Objects.requireNonNull(finalization, "finalization");
         var plan = finalization.analysis().plan();
         for (var unit : plan.units()) {
@@ -243,16 +288,35 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
         if (assignedWorkspaces != workspaceDeclarations.size()) {
             throw new IllegalArgumentException("CPU finalization requires the exact workspace set");
         }
+        if (plan.route() == CpuPartitionPreparationPlan.Route.ONEDNN) {
+            var nativeRoute = plan.oneDnnPlan().orElseThrow();
+            var library = oneDnnLibrary.orElseThrow(() -> new IllegalArgumentException(
+                    "selected oneDNN route requires its exact library owner"));
+            library.requireOpen();
+            if (!library.sessionIdentity().equals(nativeRoute.sessionIdentity())) {
+                throw new IllegalArgumentException("oneDNN plan belongs to another library session");
+            }
+            nativeRoute.validate(plan.units());
+            for (var requirement : nativeRoute.workspaceRequirements()) {
+                if (workspaceDeclarations.stream().noneMatch(value -> value == requirement)
+                        || workspaceSelections.get(requirement) == null) {
+                    throw new IllegalArgumentException("selected oneDNN workspace assignment is absent");
+                }
+            }
+            concurrencyBudget.orElseThrow(() -> new IllegalArgumentException(
+                    "selected oneDNN route requires its shared CPU budget"));
+        }
         if (plan.route() == CpuPartitionPreparationPlan.Route.OPENBLAS) {
             return finalizeOpenBlas(finalization, selections, workspaceSelections);
         }
-        if (plan.units().size() > 1 || !plan.materializations().isEmpty()
+        if (plan.route() == CpuPartitionPreparationPlan.Route.ONEDNN
+                || plan.units().size() > 1 || !plan.materializations().isEmpty()
                 || plan.units().getFirst().portablePlan() != null && plan.units().getFirst().portablePlan().portableKernelIr()
                     instanceof io.github.pho001.synaptik.backend.cpu.internal.ir.CpuConstantWriteIr
                 || plan.units().getFirst().portablePlan() != null && plan.units().getFirst().portablePlan().specialization().ordinaryBatch()
                 || plan.units().getFirst().runtimeFacts().recurrentScan().isPresent()
                 || plan.units().getFirst().runtimeFacts().generalScan().isPresent()) {
-            return finalizeComposite(finalization, selections, workspaceSelections);
+            return finalizeComposite(finalization, selections, workspaceSelections, resources);
         }
         var unit = plan.units().getFirst();
         CpuWorkerGroup selectedWorkers = null;
@@ -354,6 +418,7 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
      * @param finalization non-null immutable analyzed topology and assigned resources, borrowed
      * @param outerSelections non-null partition buffer coordinates in declaration order, borrowed
      * @param workspaceSelections non-null exact declaration-to-workspace coordinate map, borrowed
+     * @param resources non-null call-local acquisition-ordered persistent-resource accumulator
      * @return non-null immutable composite with stable child order and dependency metadata
      * @throws IllegalArgumentException if a unit boundary or declared workspace has no selection
      */
@@ -361,7 +426,8 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
             BackendPartitionFinalization<CpuPartitionPreparationPlan> finalization,
             List<PreparedExecutable.BufferSelection> outerSelections,
             java.util.Map<io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement.Workspace,
-                    PreparedExecutable.WorkspaceSelection> workspaceSelections) {
+                    PreparedExecutable.WorkspaceSelection> workspaceSelections,
+            List<PreparedResource> resources) {
         var plan = finalization.analysis().plan();
         var selectionByValue = new LinkedHashMap<io.github.pho001.synaptik.model.graph.ValueId,
                 PreparedExecutable.BufferSelection>();
@@ -376,6 +442,23 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 throw new IllegalArgumentException("unit boundary has no assigned selection");
             localSelections.add(local);
             selectedWorkers.add(workers(unit));
+        }
+        var nativeUnits = new LinkedHashMap<Integer, CpuOneDnnRoutePlan.Unit>();
+        if (plan.oneDnnPlan().isPresent()) {
+            for (var nativeUnit : plan.oneDnnPlan().orElseThrow().units()) {
+                nativeUnits.put(nativeUnit.unitPosition(), nativeUnit);
+                var buffers = localSelections.get(nativeUnit.unitPosition());
+                var projection = nativeUnit.projection();
+                for (int input = 0; input < projection.spec().inputs().size(); input++) {
+                    validateNativeBuffer(finalization, buffers.get(
+                            projection.inputBoundaryPositions().get(input)),
+                            Math.addExact(projection.byteOffsets().get(input),
+                                    projection.spec().inputs().get(input).byteSize()));
+                }
+                validateNativeBuffer(finalization, buffers.get(projection.outputBoundaryPosition()),
+                        Math.addExact(projection.byteOffsets().getLast(),
+                                projection.spec().output().byteSize()));
+            }
         }
         var children = new ArrayList<PreparedExecutable>();
         var copyUnits = new ArrayList<CpuPreparedPartitionExecutable.CopyUnit>();
@@ -393,6 +476,28 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
         for (int index = 0; index < plan.units().size(); index++) {
             int unitIndex = index;
             var unit = plan.units().get(index);
+            var nativeUnit = nativeUnits.get(index);
+            if (nativeUnit != null) {
+                var kernel = CpuOneDnnCompiler.compile(oneDnnLibrary.orElseThrow(),
+                        nativeUnit.projection().spec(), nativeUnit.api());
+                try { resources.add(kernel); } catch (RuntimeException | Error failure) {
+                    try { kernel.close(); } catch (RuntimeException | Error cleanup) {
+                        if (cleanup != failure) failure.addSuppressed(cleanup);
+                    }
+                    throw failure;
+                }
+                if (!kernel.spec().equals(nativeUnit.projection().spec())
+                        || kernel.scratchpadBytes() != nativeUnit.scratchpadBytes()
+                        || !kernel.implementation().equals(nativeUnit.implementation())) {
+                    throw new IllegalArgumentException(
+                            "oneDNN compilation differs from retained analysis metadata");
+                }
+                children.add(new CpuOneDnnPreparedExecutable(finalization.memoryPlan(),
+                        localSelections.get(index), nativeUnit.workspaceRequirements().stream()
+                                .map(workspaceSelections::get).toList(),
+                        nativeUnit, kernel, concurrencyBudget.orElseThrow()));
+                continue;
+            }
             if (unit.runtimeFacts().recurrentScan().isPresent()) {
                 children.add(new io.github.pho001.synaptik.backend.cpu.internal.executable.CpuRecurrentScanPreparedExecutable(
                         finalization.memoryPlan(), localSelections.get(index),
@@ -432,6 +537,17 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
                 List.copyOf(workspaceSelections.values()), accesses, copyUnits, children,
                 plan.units().stream().map(CpuPartitionPreparationPlan.ExecutionUnitPlan::dependencies)
                     .toList());
+    }
+
+    private static void validateNativeBuffer(
+            BackendPartitionFinalization<CpuPartitionPreparationPlan> finalization,
+            PreparedExecutable.BufferSelection selection, long requiredBytes) {
+        var fixed = finalization.memoryPlan().buffers().get(selection.bufferIndex())
+                .size().fixedByteSize();
+        if (fixed.isEmpty() || fixed.getAsLong() < requiredBytes) {
+            throw new IllegalArgumentException(
+                    "oneDNN boundary requires a sufficient fixed buffer declaration");
+        }
     }
 
     private CpuWorkerGroup workers(CpuPartitionPreparationPlan.ExecutionUnitPlan unit) {

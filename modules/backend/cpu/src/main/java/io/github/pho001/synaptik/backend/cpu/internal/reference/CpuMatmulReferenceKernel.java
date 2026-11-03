@@ -16,8 +16,9 @@ public final class CpuMatmulReferenceKernel {
      *
      * <p>Each output is initialized once, traverses increasing logical K exactly once, and is
      * stored once. The method performs no K blocking, splitting, partial-result allocation, or
-     * worker-dependent reduction. Input and output layouts may be arbitrary non-negative strides.
-     * Integral operations use Java wrapping at the promoted result width.</p>
+     * worker-dependent reduction. A singleton floating contraction is exactly one typed product,
+     * without an identity ADD or FMA. Empty contractions retain positive zero. Input and output
+     * layouts may be arbitrary non-negative strides. Integral operations wrap at the result width.</p>
      *
      * @param geometry checked non-null normalized geometry
      * @param numericalForm exact floating multiply-add decision shared with generated code
@@ -52,7 +53,10 @@ public final class CpuMatmulReferenceKernel {
                 switch (geometry.resultType()) {
                     case FLOAT64 -> {
                         double sum = 0.0;
-                        for (long k = 0; k < geometry.k(); k++) {
+                        if (geometry.k() == 1) {
+                            sum = floating(geometry.leftType(), left, a)
+                                    * floating(geometry.rightType(), right, b);
+                        } else for (long k = 0; k < geometry.k(); k++) {
                             double x = floating(geometry.leftType(), left, a);
                             double y = floating(geometry.rightType(), right, b);
                             sum = numericalForm == CpuMatmulIr.NumericalForm.FUSED_MULTIPLY_ADD
@@ -64,7 +68,10 @@ public final class CpuMatmulReferenceKernel {
                     }
                     case BFLOAT16, FLOAT16, FLOAT32 -> {
                         float sum = 0.0f;
-                        for (long k = 0; k < geometry.k(); k++) {
+                        if (geometry.k() == 1) {
+                            sum = (float) floating(geometry.leftType(), left, a)
+                                    * (float) floating(geometry.rightType(), right, b);
+                        } else for (long k = 0; k < geometry.k(); k++) {
                             float x = (float) floating(geometry.leftType(), left, a);
                             float y = (float) floating(geometry.rightType(), right, b);
                             sum = numericalForm == CpuMatmulIr.NumericalForm.FUSED_MULTIPLY_ADD
