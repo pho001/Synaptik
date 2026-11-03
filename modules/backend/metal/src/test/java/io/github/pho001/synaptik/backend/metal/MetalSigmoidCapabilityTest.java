@@ -23,12 +23,14 @@ final class MetalSigmoidCapabilityTest {
             UnaryElementwiseKind.SIGMOID, NoOperationAttrs.INSTANCE);
 
     @Test
-    void admitsCanonicalFloat32GradientsAndRetainsFrozenLowBounds() {
+    void admitsOriginalFloatingCarriersWithMatchingGradientMetadata() {
         for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16,
                 DataType.FLOAT16)) {
             for (Shape shape : List.of(Shape.of(1), Shape.of(2, 3), rank(16))) {
-                TensorDescriptor value = canonical(type, shape, false);
-                assertTrue(supports(value, value), type + " " + shape);
+                for (boolean gradient : List.of(false, true)) {
+                    TensorDescriptor value = canonical(type, shape, gradient);
+                    assertTrue(supports(value, value), type + " " + shape + " grad=" + gradient);
+                }
             }
         }
         Shape shape = Shape.of(2, 3);
@@ -64,8 +66,6 @@ final class MetalSigmoidCapabilityTest {
             assertFalse(supports(admitted, value));
             assertFalse(supports(canonical(low, shape, true), admitted));
             assertFalse(supports(admitted, canonical(low, shape, true)));
-            assertFalse(supports(canonical(low, Shape.scalar(), false),
-                    canonical(low, Shape.scalar(), false)));
             assertFalse(supports(canonical(low, rank(17), false),
                     canonical(low, rank(17), false)));
             TensorDescriptor lowView = new TensorDescriptor(low, shape,

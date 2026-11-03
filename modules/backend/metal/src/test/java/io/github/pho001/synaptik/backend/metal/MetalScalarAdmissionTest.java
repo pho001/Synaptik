@@ -59,15 +59,7 @@ final class MetalScalarAdmissionTest {
                 MetalMpsGraphProgram.NodeKind.EXP, MetalMpsGraphProgram.NodeKind.SIGMOID,
                 MetalMpsGraphProgram.NodeKind.SCALAR_ADD, MetalMpsGraphProgram.NodeKind.SCALAR_SUB,
                 MetalMpsGraphProgram.NodeKind.SCALAR_DIV, MetalMpsGraphProgram.NodeKind.RECIPROCAL)) {
-            var scalar = value(type, Shape.scalar(), false);
-            var program = new MetalMpsGraphProgram(List.of(node(type, kind)));
-            if (type == DataType.FLOAT32) {
-                validate(List.of(scalar, scalar), program,
-                        kind.isCustomProgramOperation() ? MetalPreparedRoute.CUSTOM_PROGRAM : MetalPreparedRoute.MPSGRAPH);
-            } else {
-                assertThrows(IllegalArgumentException.class, () -> validate(
-                        List.of(scalar, scalar), program, MetalPreparedRoute.CUSTOM_PROGRAM), kind.name());
-            }
+            check(type, false, kind, Shape.scalar());
         }
     }
 
@@ -75,8 +67,11 @@ final class MetalScalarAdmissionTest {
             MetalMpsGraphProgram.NodeKind kind, Shape shape) {
         ScalarValue two = scalar(type, 2.0f);
         Operation operation = switch (kind) {
-            case RELU -> new Operation(UnaryElementwiseKind.RELU, NoOperationAttrs.INSTANCE);
-            case SCALAR_MUL -> new Operation(ScalarElementwiseKind.MUL, new ScalarValueAttrs(two));
+            case RELU, FLOOR, CEIL, SIGN, EXP, SIGMOID, RECIPROCAL -> new Operation(
+                    UnaryElementwiseKind.valueOf(kind.name()), NoOperationAttrs.INSTANCE);
+            case SCALAR_ADD, SCALAR_SUB, SCALAR_MUL, SCALAR_DIV -> new Operation(
+                    ScalarElementwiseKind.valueOf(kind.name().substring("SCALAR_".length())),
+                    new ScalarValueAttrs(two));
             case CLAMP -> new Operation(ScalarElementwiseKind.CLAMP,
                     new ClampRangeAttrs(scalar(type, -2.0f), two));
             default -> throw new AssertionError(kind);
@@ -126,7 +121,7 @@ final class MetalScalarAdmissionTest {
     }
 
     private static MetalPreparedRoute route(DataType type, MetalMpsGraphProgram.NodeKind kind) {
-        return type == DataType.FLOAT32 && kind == MetalMpsGraphProgram.NodeKind.SCALAR_MUL
+        return type == DataType.FLOAT32 && !kind.isCustomProgramOperation()
                 ? MetalPreparedRoute.MPSGRAPH : MetalPreparedRoute.CUSTOM_PROGRAM;
     }
 

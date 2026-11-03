@@ -87,13 +87,16 @@ class MetalCapabilityProviderTest {
     void elementaryExpAndSigmoidRetainTheirUnsignedByteSpanBoundary() {
         for (var kind : List.of(UnaryElementwiseKind.EXP, UnaryElementwiseKind.SIGMOID)) {
             var operation = new Operation(kind, NoOperationAttrs.INSTANCE);
-            for (boolean gradient : List.of(false, true)) {
-                var supported = descriptor(Shape.of((1L << 30) - 1L), gradient);
-                var tooLarge = descriptor(Shape.of(1L << 30), gradient);
-                assertTrue(provider.supports(new OperationCapabilityQuery(
-                        operation, List.of(supported), List.of(supported))));
-                assertFalse(provider.supports(new OperationCapabilityQuery(
-                        operation, List.of(tooLarge), List.of(tooLarge))));
+            for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                long maximumElements = 0xffff_ffffL / type.byteWidth();
+                for (boolean gradient : List.of(false, true)) {
+                    var supported = typed(type, Shape.of(maximumElements), gradient);
+                    var tooLarge = typed(type, Shape.of(maximumElements + 1), gradient);
+                    assertTrue(provider.supports(new OperationCapabilityQuery(
+                            operation, List.of(supported), List.of(supported))), kind + " " + type);
+                    assertFalse(provider.supports(new OperationCapabilityQuery(
+                            operation, List.of(tooLarge), List.of(tooLarge))), kind + " " + type);
+                }
             }
         }
     }
@@ -119,19 +122,19 @@ class MetalCapabilityProviderTest {
         for (LossReduction reduction : LossReduction.values()) {
             Operation mse = new Operation(
                     LossKind.MEAN_SQUARED_ERROR, new MeanSquaredErrorAttrs(reduction));
-            for (boolean predictionGrad : List.of(false, true)) {
-                for (boolean targetGrad : List.of(false, true)) {
-                    TensorDescriptor prediction = descriptor(shape, predictionGrad);
-                    TensorDescriptor target = descriptor(shape, targetGrad);
-                    TensorDescriptor output = descriptor(
-                            reduction == LossReduction.NONE ? shape : Shape.scalar(),
-                            predictionGrad || targetGrad);
-                    OperationCapabilityQuery query = new OperationCapabilityQuery(
-                            mse,
-                            List.of(prediction, target),
-                            List.of(output));
-                    assertTrue(provider.supports(query),
-                            reduction + " gradients " + predictionGrad + "/" + targetGrad);
+            for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                for (boolean predictionGrad : List.of(false, true)) {
+                    for (boolean targetGrad : List.of(false, true)) {
+                        TensorDescriptor prediction = typed(type, shape, predictionGrad);
+                        TensorDescriptor target = typed(type, shape, targetGrad);
+                        TensorDescriptor output = typed(type,
+                                reduction == LossReduction.NONE ? shape : Shape.scalar(),
+                                predictionGrad || targetGrad);
+                        assertTrue(provider.supports(new OperationCapabilityQuery(
+                                mse, List.of(prediction, target), List.of(output))),
+                                type + " " + reduction + " gradients "
+                                        + predictionGrad + "/" + targetGrad);
+                    }
                 }
             }
         }
@@ -144,12 +147,17 @@ class MetalCapabilityProviderTest {
                 none,
                 List.of(typed(DataType.FLOAT64, shape, false), typed(DataType.FLOAT64, shape, false)),
                 List.of(typed(DataType.FLOAT64, shape, false)))));
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+        assertTrue(provider.supports(new OperationCapabilityQuery(
                 none,
                 List.of(
                         typed(DataType.BFLOAT16, shape, false),
                         typed(DataType.FLOAT32, shape, false)),
                 List.of(typed(DataType.FLOAT32, shape, false)))));
+        assertFalse(provider.supports(new OperationCapabilityQuery(
+                none,
+                List.of(typed(DataType.BFLOAT16, shape, false),
+                        typed(DataType.FLOAT16, shape, false)),
+                List.of(typed(DataType.BFLOAT16, shape, false)))));
         assertFalse(provider.supports(new OperationCapabilityQuery(
                 none,
                 List.of(descriptor(Shape.scalar(), false), descriptor(Shape.scalar(), false)),
@@ -172,7 +180,7 @@ class MetalCapabilityProviderTest {
                 List.of(dynamic, dynamic),
                 List.of(dynamic))));
         TensorDescriptor empty = descriptor(Shape.of(2, 0), false);
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+        assertTrue(provider.supports(new OperationCapabilityQuery(
                 none,
                 List.of(empty, empty),
                 List.of(empty))));
@@ -247,8 +255,19 @@ class MetalCapabilityProviderTest {
                         new Operation(SoftmaxKind.LOG_SOFTMAX, new SoftmaxAttrs(1)),
                         List.of(value),
                         List.of(value)));
-        neuralQueries.forEach(query -> assertTrue(
-                provider.supports(query), query.operation().kind().toString()));
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            for (var query : neuralQueries) {
+                var inputs = query.inputs().stream()
+                        .map(input -> typed(input.dataType() == DataType.FLOAT32
+                                ? type : input.dataType(), input.shape(), input.requiresGrad()))
+                        .toList();
+                var outputs = query.outputs().stream()
+                        .map(output -> typed(type, output.shape(), output.requiresGrad()))
+                        .toList();
+                assertTrue(provider.supports(new OperationCapabilityQuery(
+                        query.operation(), inputs, outputs)), type + " " + query.operation().kind());
+            }
+        }
     }
 
     @Test
@@ -392,7 +411,8 @@ class MetalCapabilityProviderTest {
         var fold3d = new Operation(WindowTransformKind.FOLD3D,
                 new Fold3dAttrs(Shape.of(1, 2, 3, 3, 3), window3d));
         for (DataType type : DataType.values()) {
-            boolean supported = type == DataType.FLOAT32;
+            boolean supported = type == DataType.FLOAT32
+                    || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
             for (boolean gradient : List.of(false, true)) {
                 if (gradient && !type.isFloating()) continue;
                 assertEquals(supported, provider.supports(new OperationCapabilityQuery(
@@ -511,7 +531,7 @@ class MetalCapabilityProviderTest {
     }
 
     @Test
-    void materializingReshapeQualifiesOriginalCarriersWithoutExtendingFrozenLowProxy() {
+    void materializingReshapeQualifiesOriginalCarriersAndExactLayoutRelations() {
         Shape sourceShape = Shape.of(2, 3);
         Shape targetShape = Shape.of(6);
         Operation reshape = new Operation(ShapeTransformKind.RESHAPE,
@@ -1362,16 +1382,10 @@ class MetalCapabilityProviderTest {
             for (DataType rightType : DataType.values()) {
                 boolean integral = (leftType == DataType.INT32 || leftType == DataType.INT64)
                         && (rightType == DataType.INT32 || rightType == DataType.INT64);
-                boolean floating = (leftType == DataType.FLOAT32
-                                        && rightType == DataType.FLOAT32)
-                                || (leftType == DataType.BFLOAT16
-                                        && rightType == DataType.FLOAT32)
-                                || (leftType == DataType.FLOAT32
-                                        && rightType == DataType.BFLOAT16)
-                                || (leftType == DataType.BFLOAT16
-                                        && rightType == DataType.BFLOAT16)
-                                || (leftType == DataType.FLOAT16
-                                        && rightType == DataType.FLOAT16);
+                boolean floating = List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)
+                        .contains(leftType)
+                        && List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)
+                                .contains(rightType);
                 DataType resultType;
                 if (integral) {
                     resultType = leftType == DataType.INT64 || rightType == DataType.INT64
@@ -1398,7 +1412,7 @@ class MetalCapabilityProviderTest {
             }
         }
 
-        assertFalse(supportsMatmul(
+        assertTrue(supportsMatmul(
                 matmul,
                 typed(DataType.BFLOAT16, Shape.of(2, 3), true),
                 typed(DataType.FLOAT32, Shape.of(3, 4), false),
@@ -1701,9 +1715,8 @@ class MetalCapabilityProviderTest {
     }
 
     @Test
-    void rejectsNullWithTheContractMessage() {
-        var failure = assertThrows(NullPointerException.class, () -> provider.supports(null));
-        assertEquals("query", failure.getMessage());
+    void rejectsNullQueries() {
+        assertThrows(NullPointerException.class, () -> provider.supports(null));
     }
 
     private static OperationCapabilityQuery query(

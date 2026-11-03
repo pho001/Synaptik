@@ -28,7 +28,7 @@ class MetalConvolutionPoolingCapabilityTest {
     private final MetalCapabilityProvider provider = new MetalCapabilityProvider();
 
     @Test
-    void convolutionIsAcceleratorOnlyWithExactCarrierAndGradientRows() {
+    void convolutionPreservesOriginalCarrierPromotionAndExactGradientRows() {
         Operation conv2d = new Operation(Conv2dKind.CONV2D, Conv2dAttrs.defaults());
         TensorDescriptor input = descriptor(DataType.FLOAT32, Shape.of(1, 2, 3, 4), true);
         TensorDescriptor weight = descriptor(DataType.FLOAT32, Shape.of(4, 2, 1, 1), false);
@@ -43,13 +43,23 @@ class MetalConvolutionPoolingCapabilityTest {
         assertTrue(supports(conv2d,
                 List.of(mixedInput, withGradient(weight, false)),
                 withGradient(output, false)));
-        assertFalse(supports(conv2d,
+        assertTrue(supports(conv2d,
                 List.of(withGradient(mixedInput, true), withGradient(weight, false)),
                 withGradient(output, true)));
         assertFalse(supports(conv2d,
                 List.of(mixedInput,
                         descriptor(DataType.BFLOAT16, weight.shape(), false)),
                 withGradient(output, false)));
+        assertTrue(supports(conv2d,
+                List.of(withGradient(mixedInput, true),
+                        descriptor(DataType.FLOAT16, weight.shape(), true)), output));
+        assertFalse(supports(conv2d,
+                List.of(withGradient(mixedInput, true),
+                        descriptor(DataType.FLOAT16, weight.shape(), true)),
+                descriptor(DataType.BFLOAT16, output.shape(), true)));
+        assertFalse(supports(conv2d,
+                List.of(descriptor(DataType.FLOAT64, input.shape(), true), weight),
+                descriptor(DataType.FLOAT64, output.shape(), true)));
     }
 
     @Test
@@ -78,7 +88,7 @@ class MetalConvolutionPoolingCapabilityTest {
     }
 
     @Test
-    void groupedConv3dAdmitsEverySelectedFloat32GradientAndChecksTheExactFlagUnion() {
+    void groupedConv3dAdmitsOriginalFloatingGradientsAndChecksTheExactFlagUnion() {
         Operation convolution = new Operation(Conv3dKind.CONV3D, Conv3dAttrs.defaults());
         for (boolean biased : List.of(false, true)) {
             int inputCount = biased ? 3 : 2;
@@ -97,12 +107,11 @@ class MetalConvolutionPoolingCapabilityTest {
         Operation grouped = new Operation(
                 Conv3dKind.CONV3D, new Conv3dAttrs(1, 1, 1, 0, 0, 0, 1, 1, 1, 2));
         for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
-            boolean float32 = type == DataType.FLOAT32;
             assertTrue(supports(grouped,
                     List.of(descriptor(type, Shape.of(1, 4, 3, 3, 3), false),
                             descriptor(type, Shape.of(6, 2, 2, 2, 2), false)),
                     descriptor(type, Shape.of(1, 6, 2, 2, 2), false)));
-            org.junit.jupiter.api.Assertions.assertEquals(float32, supports(grouped,
+            assertTrue(supports(grouped,
                     List.of(descriptor(type, Shape.of(1, 4, 3, 3, 3), true),
                             descriptor(type, Shape.of(6, 2, 2, 2, 2), true)),
                     descriptor(type, Shape.of(1, 6, 2, 2, 2), true)));
@@ -117,7 +126,7 @@ class MetalConvolutionPoolingCapabilityTest {
         Shape outputShape = Shape.of(1, 2, 3, 3);
         for (DataType type :
                 List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
-            assertEquals(type == DataType.FLOAT32, supports(max2d,
+            assertEquals(type != DataType.FLOAT64, supports(max2d,
                     List.of(descriptor(type, inputShape, true)),
                     descriptor(type, outputShape, true)), "overlap " + type);
         }
@@ -154,7 +163,7 @@ class MetalConvolutionPoolingCapabilityTest {
     }
 
     @Test
-    void poolingGradientOverlapUsesTheSameFloat32ImageFoldBoundaryInBothRanks() {
+    void poolingGradientOverlapAdmitsNumericalCarriersAndKeepsFloat64ArithmeticClosed() {
         for (int spatial : List.of(2, 3)) {
             for (boolean maximum : List.of(false, true)) {
                 for (boolean overlap : List.of(false, true)) {
@@ -179,7 +188,7 @@ class MetalConvolutionPoolingCapabilityTest {
                             DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16)) {
                         for (boolean gradient : List.of(false, true)) {
                             boolean expected = (maximum || type != DataType.FLOAT64)
-                                    && (!gradient || !overlap || type == DataType.FLOAT32);
+                                    && (!gradient || !overlap || type != DataType.FLOAT64);
                             TensorDescriptor input = descriptor(type, source, gradient);
                             TensorDescriptor output = descriptor(type, target, gradient);
                             assertEquals(expected, supports(pool, List.of(input), output),

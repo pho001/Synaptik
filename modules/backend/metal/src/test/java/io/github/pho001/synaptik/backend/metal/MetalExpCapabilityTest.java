@@ -79,11 +79,14 @@ final class MetalExpCapabilityTest {
     }
 
     @Test
-    void lowExpHasIndependentSameTypeCanonicalNoGradientPredicates() {
+    void lowExpPreservesOriginalTypeAndMatchingGradientMetadata() {
         for (DataType low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
             for (Shape shape : List.of(Shape.of(1), Shape.of(2, 3), rank(16))) {
-                TensorDescriptor value = canonical(low, shape, false);
-                assertTrue(supports(EXP, List.of(value), List.of(value)), low + " " + shape);
+                for (boolean gradient : List.of(false, true)) {
+                    TensorDescriptor value = canonical(low, shape, gradient);
+                    assertTrue(supports(EXP, List.of(value), List.of(value)),
+                            low + " " + shape + " grad=" + gradient);
+                }
             }
             Shape shape = Shape.of(2, 3);
             TensorDescriptor value = canonical(low, shape, false);
@@ -101,8 +104,6 @@ final class MetalExpCapabilityTest {
                     List.of(canonical(low, Shape.of(3, 2), false))));
             assertFalse(supports(EXP, List.of(value),
                     List.of(canonical(low, Shape.of(3), false))));
-            TensorDescriptor scalar = canonical(low, Shape.scalar(), false);
-            assertFalse(supports(EXP, List.of(scalar), List.of(scalar)));
             TensorDescriptor rank17 = canonical(low, rank(17), false);
             assertFalse(supports(EXP, List.of(rank17), List.of(rank17)));
             TensorDescriptor noLayout = new TensorDescriptor(

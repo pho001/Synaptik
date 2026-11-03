@@ -122,8 +122,6 @@ final class MetalExpNativeTest {
                     List.of(value(low, shape, true), value),
                     List.of(value, value(low, shape, true)),
                     List.of(value, value(low, Shape.of(8), false)),
-                    List.of(value(low, Shape.scalar(), false),
-                            value(low, Shape.scalar(), false)),
                     List.of(new MetalMpsGraphProgram.ValueDescriptor(low,
                             shape.toLongArray(), Optional.empty(), false, false), value))) {
                 assertThrows(IllegalArgumentException.class,
@@ -163,7 +161,7 @@ final class MetalExpNativeTest {
                                     -1.0f, 1.0f});
                     boundary[4] = (short) (low == DataType.BFLOAT16
                             ? 0x7fc1 : 0x7e01);
-                    runLowCase(api, context, low, boundary);
+                    runLowCase(api, context, low, Shape.of(boundary.length), boundary, true);
                     runLowCase(api, context, low, new short[] {1, (short) 0x8001});
                     short[] ordinary = new short[8191];
                     for (int index = 0; index < ordinary.length; index++) {
@@ -209,8 +207,13 @@ final class MetalExpNativeTest {
 
     private static void runLowCase(MetalNativeApi api, MetalNativeApi.Handle context,
             DataType low, Shape shape, short[] samples) {
+        runLowCase(api, context, low, shape, samples, false);
+    }
+
+    private static void runLowCase(MetalNativeApi api, MetalNativeApi.Handle context,
+            DataType low, Shape shape, short[] samples, boolean requiresGrad) {
         MetalNativeApi.Handle executable = api.createProgramExecutable(context,
-                List.of(value(low, shape, false), value(low, shape, false)),
+                List.of(value(low, shape, requiresGrad), value(low, shape, requiresGrad)),
                 program(), new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM);
         long bytes = Math.multiplyExact((long) samples.length, Short.BYTES);
         MetalNativeApi.Handle input = api.createBuffer(context, bytes);

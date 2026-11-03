@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
-/** Source-matched real-device qualification of F32 and separately typed low SIGMOID routes. */
+/** Real-device numerical qualification of F32 and original low SIGMOID routes. */
 final class MetalSigmoidNativeTest {
     private static final double MAX_RELATIVE_ERROR = 2e-6;
     private static final double SUBNORMAL_ABSOLUTE_FLOOR = 4.0 * Float.MIN_VALUE;
@@ -96,7 +96,7 @@ final class MetalSigmoidNativeTest {
     }
 
     @Test
-    void lowPreflightRequiresSameTypeCanonicalNoGradientCustomRoute() {
+    void lowPreflightRequiresSameTypeCanonicalMatchingGradientCustomRoute() {
         Shape shape = Shape.of(7);
         for (DataType low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
             var value = value(low, shape, false);
@@ -113,8 +113,6 @@ final class MetalSigmoidNativeTest {
                     List.of(value(low, shape, true), value),
                     List.of(value, value(low, shape, true)),
                     List.of(value, value(low, Shape.of(8), false)),
-                    List.of(value(low, Shape.scalar(), false),
-                            value(low, Shape.scalar(), false)),
                     List.of(new MetalMpsGraphProgram.ValueDescriptor(low,
                             shape.toLongArray(), Optional.empty(), false, false), value))) {
                 assertThrows(IllegalArgumentException.class,
@@ -180,7 +178,7 @@ final class MetalSigmoidNativeTest {
                     }
                     samples[boundary.length] = 1;
                     samples[boundary.length + 1] = (short) 0x8001;
-                    runLowCase(api, context, low, Shape.of(samples.length), samples);
+                    runLowCase(api, context, low, Shape.of(samples.length), samples, true);
                     short[] ordinary = new short[8191];
                     for (int index = 0; index < ordinary.length; index++) {
                         ordinary[index] = narrow(low,
@@ -202,8 +200,13 @@ final class MetalSigmoidNativeTest {
 
     private static void runLowCase(MetalNativeApi api, MetalNativeApi.Handle context,
             DataType low, Shape shape, short[] samples) {
+        runLowCase(api, context, low, shape, samples, false);
+    }
+
+    private static void runLowCase(MetalNativeApi api, MetalNativeApi.Handle context,
+            DataType low, Shape shape, short[] samples, boolean requiresGrad) {
         MetalNativeApi.Handle executable = api.createProgramExecutable(context,
-                List.of(value(low, shape, false), value(low, shape, false)),
+                List.of(value(low, shape, requiresGrad), value(low, shape, requiresGrad)),
                 program(), new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM);
         long bytes = Math.multiplyExact((long) samples.length, Short.BYTES);
         MetalNativeApi.Handle input = api.createBuffer(context, bytes);
