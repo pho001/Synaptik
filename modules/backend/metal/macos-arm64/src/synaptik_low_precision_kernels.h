@@ -1,7 +1,8 @@
 #ifndef SYNAPTIK_LOW_PRECISION_KERNELS_H
 #define SYNAPTIK_LOW_PRECISION_KERNELS_H
 
-static NSString *const SynaptikLowPrecisionKernelSource =
+/* Bit-exact storage conversion is shared by every numerical family. */
+static NSString *const SynaptikNumericCodecSource =
 @"\n"
 @"inline uint lp_width(uint type){return type==3u?1u:(type==5u||type==7u)?2u:(type==1u||type==2u)?4u:8u;}\n"
 @"inline bool lp_float_type(uint type){return type==1u||type==4u||type==5u||type==7u;}\n"
@@ -30,6 +31,11 @@ static NSString *const SynaptikLowPrecisionKernelSource =
 @"inline ulong lp_ceil_word(ulong word,uint type){uint f=lp_frac_bits(type),e=lp_exp_bits(type),signBit=f+e;ulong magnitude=word&((1ul<<signBit)-1ul),exponentBits=magnitude>>f;if(exponentBits==((1ul<<e)-1ul)||magnitude==0ul)return word;int exponent=int(exponentBits)-lp_bias(type);if(exponent<0)return(word&(1ul<<signBit))!=0ul?(1ul<<signBit):lp_bool_word(true,type);if(exponent>=int(f))return word;ulong unit=1ul<<uint(int(f)-exponent),mask=unit-1ul;if((word&mask)==0ul)return word;ulong truncated=word&~mask;return(word&(1ul<<signBit))!=0ul?truncated:truncated+unit;}\n"
 @"inline ulong lp_sign_word(ulong word,uint type){if(lp_nan(word,type)||lp_zero(word,type))return word;uint sign=lp_frac_bits(type)+lp_exp_bits(type);return lp_bool_word(true,type)|(word&(1ul<<sign));}\n"
 @"inline ulong lp_relu_word(ulong word,uint type){if(lp_nan(word,type))return word;uint sign=lp_frac_bits(type)+lp_exp_bits(type);return(word&(1ul<<sign))!=0ul?0ul:word;}\n"
+@"inline float synaptik_load_numeric(device const uchar *input, ulong offset, uint type) { return lp_widen(load_word(input, offset, lp_width(type)), type); }\n"
+@"inline void synaptik_store_numeric(device uchar *output, ulong offset, uint type, float value) { store_word(output, offset, lp_width(type), lp_narrow(value, type)); }\n";
+
+static NSString *const SynaptikLowPrecisionKernelSource =
+@"\n"
 @"inline void lp_binary_offsets(ulong linear,constant BinaryMeta &m,thread ulong &leftOffset,thread ulong &rightOffset){binary_offsets(linear,m,leftOffset,rightOffset);}\n"
 @"inline void lp_binary_arithmetic(device const uchar *left,device const uchar *right,device uchar *output,constant BinaryMeta &m,uint3 gid,uint operation,uint type){ulong linear=linear_id(gid,m.gridWidth,m.gridHeight);if(linear>=m.elementCount)return;ulong lo,ro;lp_binary_offsets(linear,m,lo,ro);float l=lp_widen(load_word(left,lo,2u),type),r=lp_widen(load_word(right,ro,2u),type);float v=operation==0u?l+r:operation==1u?l-r:operation==2u?l*r:l/r;store_word(output,linear,2u,lp_narrow(v,type));}\n"
 @"inline void lp_binary_extreme(device const uchar *left,device const uchar *right,device uchar *output,constant BinaryMeta &m,uint3 gid,bool maximum,uint type){ulong linear=linear_id(gid,m.gridWidth,m.gridHeight);if(linear>=m.elementCount)return;ulong lo,ro;lp_binary_offsets(linear,m,lo,ro);store_word(output,linear,2u,lp_extreme(load_word(left,lo,2u),load_word(right,ro,2u),type,maximum));}\n"
