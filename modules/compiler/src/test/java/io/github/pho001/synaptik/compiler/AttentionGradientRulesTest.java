@@ -99,6 +99,25 @@ final class AttentionGradientRulesTest {
         assertCompiles(objective, query);
     }
 
+    @Test
+    void originalLowScaleMetadataSupportsJointOutputCotangents() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+            Tensor query = tensor(type, Shape.of(2, 2), true);
+            Tensor key = tensor(type, Shape.of(3, 2), true);
+            Tensor value = tensor(type, Shape.of(3, 4), true);
+            ScalarValue scale = type == DataType.BFLOAT16 ? ScalarValue.bfloat16(0.5f) : ScalarValue.float32(0.5f);
+            var attention = query.scaledDotProductAttentionWithWeights(key, value,
+                    new ScaledDotProductAttentionAttrs(Optional.of(scale), false));
+            Tensor objective = attention.output().sum().add(attention.weights().sum());
+            for (Tensor target : List.of(query, key, value)) {
+                Tensor actual = gradient(objective, target);
+                assertEquals(target.descriptor().shape(), actual.descriptor().shape());
+                assertEquals(type, actual.descriptor().dataType());
+                assertCompiles(objective, target);
+            }
+        }
+    }
+
     private static Tensor gradient(Tensor objective, Tensor target) {
         return FirstOrderAutograd.expand(
                         preflight(objective, target),

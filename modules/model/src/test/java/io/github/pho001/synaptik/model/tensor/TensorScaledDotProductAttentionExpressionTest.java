@@ -126,6 +126,26 @@ public final class TensorScaledDotProductAttentionExpressionTest {
     }
 
     @Test
+    void float16ResultRetainsExactFloat32ScaleForBothOutputForms() {
+        Tensor query = tensor(DataType.FLOAT16, Shape.of(2, 3), true);
+        Tensor key = tensor(DataType.FLOAT16, Shape.of(4, 3), false);
+        Tensor value = tensor(DataType.FLOAT16, Shape.of(4, 5), false);
+        ScalarValue scale = ScalarValue.float32(0.5f);
+        var attrs = new ScaledDotProductAttentionAttrs(Optional.of(scale), true);
+        Tensor output = query.scaledDotProductAttention(key, value, attrs);
+        var siblings = query.scaledDotProductAttentionWithWeights(key, value, attrs);
+        for (Tensor port : List.of(output, siblings.output(), siblings.weights())) {
+            assertEquals(DataType.FLOAT16, port.descriptor().dataType());
+            assertTrue(port.descriptor().requiresGrad());
+            assertSame(attrs, port.provenance().orElseThrow().operation().attrs());
+            assertSame(scale, ((ScaledDotProductAttentionAttrs) port.provenance().orElseThrow()
+                    .operation().attrs()).scale().orElseThrow());
+        }
+        assertThrows(IllegalArgumentException.class, () -> query.scaledDotProductAttention(key, value,
+                new ScaledDotProductAttentionAttrs(Optional.of(ScalarValue.bfloat16(0.5f)), false)));
+    }
+
+    @Test
     void createsExactOutputAndWeightsDescriptorsFromOneSharedProducer() {
         Dimension batch = new StaticDimension(2);
         Dimension queryLength = new DynamicDimension("L");

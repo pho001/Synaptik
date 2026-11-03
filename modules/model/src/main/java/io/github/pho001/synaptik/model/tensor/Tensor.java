@@ -1408,7 +1408,7 @@ public final class Tensor {
      * @param key non-null floating key shaped {@code [..., S, E]}
      * @param value non-null floating value shaped {@code [..., S, Ev]}
      * @param attrs non-null scale/causal semantics retained by exact reference; a present scale
-     *     must exactly match the promoted attention data type
+     *     must match the promoted attention data type, except FLOAT16 uses FLOAT32 scalar metadata
      * @return non-null fresh storage-free attention output shaped {@code [..., L, Ev]}, with
      *     promoted type, exact selected Dimension references, unresolved layout, and provenance
      * @throws NullPointerException if an argument is null, checked in declaration order
@@ -1535,7 +1535,7 @@ public final class Tensor {
      * @param key non-null floating key shaped {@code [..., S, E]}
      * @param value non-null floating value shaped {@code [..., S, Ev]}
      * @param attrs non-null exact scale/causal attributes retained by reference; present scale must
-     *     have the promoted attention data type
+     *     have the promoted attention data type, except FLOAT16 uses FLOAT32 scalar metadata
      * @return non-null result containing output slot zero and normalized weights slot one from one
      *     exact shared producer
      * @throws NullPointerException if an argument is null, checked in declaration order

@@ -268,10 +268,11 @@ final class TensorScaledDotProductAttentionExpressions {
             validateMask(mask, scoreShape);
         }
         Optional<ScalarValue> scale = attrs.scale();
-        if (scale.isPresent() && scale.orElseThrow().dataType() != resultType) {
+        DataType scaleType = resultType == DataType.FLOAT16 ? DataType.FLOAT32 : resultType;
+        if (scale.isPresent() && scale.orElseThrow().dataType() != scaleType) {
             throw new IllegalArgumentException(
-                    "scale data type must match promoted attention data type: scale="
-                            + scale.orElseThrow().dataType() + ", promoted=" + resultType);
+                    "scale data type must match attention scalar metadata type: scale="
+                            + scale.orElseThrow().dataType() + ", expected=" + scaleType);
         }
 
         TensorDescriptor outputDescriptor = new TensorDescriptor(

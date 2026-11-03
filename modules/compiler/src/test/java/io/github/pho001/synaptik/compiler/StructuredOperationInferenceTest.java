@@ -62,6 +62,28 @@ final class StructuredOperationInferenceTest {
     }
 
     @Test
+    void float16AttentionUsesFloat32ScaleInPublicAndIndependentCapturedInference() {
+        Tensor query = typed(DataType.FLOAT16, Shape.of(2, 3), true);
+        Tensor key = typed(DataType.FLOAT16, Shape.of(4, 3), true);
+        Tensor value = typed(DataType.FLOAT16, Shape.of(4, 5), false);
+        var attrs = new ScaledDotProductAttentionAttrs(Optional.of(ScalarValue.float32(0.5f)), false);
+        Tensor output = query.scaledDotProductAttention(key, value, attrs);
+        var siblings = query.scaledDotProductAttentionWithWeights(key, value, attrs);
+        for (Tensor port : List.of(output, siblings.output(), siblings.weights())) {
+            assertEquals(DataType.FLOAT16, port.descriptor().dataType());
+            assertTrue(port.descriptor().requiresGrad());
+            assertDoesNotThrow(() -> CapturedGraphInference.inferAndValidate(GraphCapture.capture(List.of(port))));
+        }
+        assertSame(attrs, output.provenance().orElseThrow().operation().attrs());
+        assertThrows(IllegalArgumentException.class, () -> query.scaledDotProductAttention(key, value,
+                new ScaledDotProductAttentionAttrs(Optional.of(ScalarValue.bfloat16(0.5f)), false)));
+        assertInvalid(new Operation(ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION,
+                        new ScaledDotProductAttentionAttrs(Optional.of(ScalarValue.float64(0.5)), false)),
+                List.of(query.descriptor(), key.descriptor(), value.descriptor()),
+                List.of(output.descriptor()), "scale data type mismatch");
+    }
+
+    @Test
     void rejectsManuallyConstructedInvalidMatrixAndAttentionRuleCategories() {
         TensorDescriptor left = descriptor(DataType.FLOAT32, Shape.of(2, 3), true);
         TensorDescriptor right = descriptor(DataType.FLOAT32, Shape.of(4, 5), true);
