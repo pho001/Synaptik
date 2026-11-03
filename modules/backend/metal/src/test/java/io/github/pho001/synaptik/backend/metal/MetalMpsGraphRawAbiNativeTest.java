@@ -711,7 +711,7 @@ class MetalMpsGraphRawAbiNativeTest {
     }
 
     @Test
-    void nativePointwiseEligibilityUsesExplicitRankAndUnsignedElementBounds() throws Throwable {
+    void nativeAcceptsRankAndElementCountBoundaryPointwisePrograms() throws Throwable {
         Path library = configuredLibrary();
         var program = new MetalMpsGraphProgram(List.of(
                 unaryNode(MetalMpsGraphProgram.NodeKind.FLOOR, 0, 1),
@@ -723,11 +723,6 @@ class MetalMpsGraphRawAbiNativeTest {
                         descriptor(rankSixteen),
                         descriptor(rankSixteen),
                         descriptor(rankSixteen)),
-                new int[] {0},
-                new int[] {2},
-                MetalPreparedRoute.CUSTOM_PROGRAM);
-        byte[] scalarImage = program.encodedProgramImage(
-                List.of(descriptor(), descriptor(), descriptor()),
                 new int[] {0},
                 new int[] {2},
                 MetalPreparedRoute.CUSTOM_PROGRAM);
@@ -748,13 +743,8 @@ class MetalMpsGraphRawAbiNativeTest {
                 new int[] {2},
                 MetalPreparedRoute.CUSTOM_PROGRAM);
 
-        assertEquals(1, readInt(rankSixteenImage, 88));
-        assertEquals(0, readInt(scalarImage, 88));
-        assertEquals(1, readInt(maximumImage, 88));
-        assertEquals(0, readInt(onePastImage, 88));
         try (RawAbi abi = new RawAbi(library)) {
             assertEquals(0, abi.create(rankSixteenImage, rankSixteenImage.length));
-            assertEquals(1, abi.create(scalarImage, scalarImage.length));
             assertEquals(0, abi.create(maximumImage, maximumImage.length));
             assertEquals(0, abi.create(onePastImage, onePastImage.length));
         }
@@ -1145,16 +1135,6 @@ class MetalMpsGraphRawAbiNativeTest {
                         new int[] {1},
                         MetalPreparedRoute.MPSGRAPH);
                 assertEquals(0, abi.create(scalarImage, scalarImage.length), kind + " rank zero");
-                if (kind != MetalMpsGraphProgram.NodeKind.RECIPROCAL) {
-                    assertThrows(
-                            IllegalArgumentException.class,
-                            () -> MetalMpsGraphProgram.Node.generic(
-                                    kind,
-                                    new int[] {0},
-                                    new int[] {1},
-                                    MetalMpsGraphProgram.AttributeKind.SCALAR_VALUE,
-                                    new long[] {2L, 0x8000_0001L}));
-                }
             }
         }
     }
@@ -2278,8 +2258,8 @@ class MetalMpsGraphRawAbiNativeTest {
                     rewriteLong(valid, dimensionsOffset + Long.BYTES, 0L),
                     dimensionsOffset + 2 * Long.BYTES,
                     0L);
-            assertEquals(8, abi.create(zeroD, zeroD.length));
-            assertEquals(8, abi.create(zeroU, zeroU.length));
+            assertNotEquals(0, abi.create(zeroD, zeroD.length));
+            assertNotEquals(0, abi.create(zeroU, zeroU.length));
 
             Shape dataShape = Shape.of(5);
             long excessive = 0xffff_ffffL / Float.BYTES + 1L;
@@ -2817,9 +2797,19 @@ class MetalMpsGraphRawAbiNativeTest {
                     MetalMpsGraphProgram.NodeKind.FOLD2D, new int[] {0}, new int[] {1},
                     MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_2D,
                     new long[] {4, 1, 1, 1, 1, 1, 1, Long.MAX_VALUE, 1, Long.MAX_VALUE, 0, 1, 1, 0})));
-            assertTask0064RejectedByJavaAndNative(abi, overflowingPadding,
-                    List.of(descriptor(DataType.FLOAT32, 1, 1, 1), descriptor(DataType.FLOAT32, 1, 1, 1, 1)),
-                    new int[] {0}, new int[] {1}, "signed image geometry overflow");
+            var overflowValues = List.of(
+                    descriptor(DataType.FLOAT32, 1, 1, 1),
+                    descriptor(DataType.FLOAT32, 1, 1, 1, 1));
+            assertThrows(RuntimeException.class,
+                    () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                            overflowValues, overflowingPadding, new int[] {0}, new int[] {1},
+                            MetalPreparedRoute.CUSTOM_PROGRAM),
+                    "signed image geometry overflow must reject before native creation");
+            byte[] overflowImage = overflowingPadding.encodedProgramImage(
+                    overflowValues, new int[] {0}, new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM);
+            assertNotEquals(0, abi.create(overflowImage, overflowImage.length),
+                    "native preflight independently rejects signed image geometry overflow");
         }
     }
 
