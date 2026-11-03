@@ -3479,6 +3479,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         private static long elementCount(int value, int[] ranks, long[] dimensions) {
             long elements = 1L;
             int row = value * MAX_RANK;
+            for (int axis = 0; axis < ranks[value]; axis++) if (dimensions[row + axis] == 0) return 0;
             for (int axis = 0; axis < ranks[value]; axis++) {
                 elements = Math.multiplyExact(elements, dimensions[row + axis]);
             }
