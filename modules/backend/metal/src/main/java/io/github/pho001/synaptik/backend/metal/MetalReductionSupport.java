@@ -134,8 +134,8 @@ final class MetalReductionSupport {
         if (node.inputs().length != (masked ? 2 : 1) || output.dataType() != type
                 || input.requiresGrad() != output.requiresGrad()
                 || (type != DataType.FLOAT32 && (input.requiresGrad() || output.requiresGrad()))
-                || !physical(input.layout().orElse(null), source, type, allowEmpty)
-                || !physical(output.layout().orElse(null), target, type, allowEmpty)
+                || !physical(input, allowEmpty)
+                || !physical(output, allowEmpty)
                 || !canonical(output.layout().orElse(null), target)) throw invalid();
         boolean[] axes = new boolean[source.length]; boolean keep = false;
         long correction = 0; long[] words = node.attributeWords();
@@ -146,7 +146,7 @@ final class MetalReductionSupport {
             select(axes, Math.toIntExact(words[0]));
             var mask = values.get(node.secondInputIndex());
             if (mask.dataType() != DataType.BOOL || mask.requiresGrad()
-                    || !physical(mask.layout().orElse(null), mask.dimensions(), DataType.BOOL, allowEmpty)
+                    || !physical(mask, allowEmpty)
                     || !broadcastMask(source, mask.dimensions())) throw invalid();
         } else if (node.attributeKind() == MetalMpsGraphProgram.AttributeKind.STATISTICAL_REDUCTION) {
             if ((node.kind() != MetalMpsGraphProgram.NodeKind.VARIANCE
@@ -192,48 +192,39 @@ final class MetalReductionSupport {
     }
 
     /**
-     * Extends the ordinary physical proof only for explicitly authorized canonical empty locals.
+     * Reuses the common broadcast-aware stored-read proof without allocating a second descriptor.
      *
-     * @param layout optional concrete local layout
-     * @param shape actual resolved extents, with no negative dimensions
-     * @param type original carrier, FLOAT32 or BOOL for the empty-local case
-     * @param allowEmpty whether the caller has established the Scan-local reduction exception
-     * @return whether the ordinary span is valid or the exact canonical local storage is empty
-     * @throws ArithmeticException if a nonempty physical span overflows
+     * <p>Nonbroadcast axes must be injective and zero strides require a truthful view descriptor.
+     * Canonical empty values are admitted only by the explicit Scan-local caller flag.
+     *
+     * @param value encoded descriptor whose original carrier and layout remain authoritative
+     * @param allowEmpty whether this caller has established the Scan-local empty exception
+     * @return whether the common physical proof and existing custom byte bound both hold
+     * @throws ArithmeticException if a descriptor byte extent overflows
      */
-    private static boolean physical(LayoutDescriptor layout, long[] shape, DataType type,
-            boolean allowEmpty) {
-        boolean empty = false;
-        for (long extent : shape) {
-            if (extent < 0) return false;
-            empty |= extent == 0;
+    private static boolean physical(MetalMpsGraphProgram.ValueDescriptor value, boolean allowEmpty) {
+        if (value.elementCount() == 0) {
+            return allowEmpty && value.rank() <= 16
+                    && (value.dataType() == DataType.FLOAT32 || value.dataType() == DataType.BOOL)
+                    && canonical(value.layout().orElse(null), value.dimensions())
+                    && value.byteCount() == 0;
         }
-        if (!empty) return physical(layout, shape, type);
-        return allowEmpty && shape.length <= 16
-                && (type == DataType.FLOAT32 || type == DataType.BOOL)
-                && canonical(layout, shape) && layout.referencedElementSpan() == 0;
+        return value.supportsStorageLayout(0) && value.byteCount() <= MAX_BUFFER_BYTES;
     }
 
     /**
-     * Checks a resolved nonnegative affine span, including internal broadcast reads.
+     * Adapts typed provider descriptors to the same common raw physical proof.
      *
-     * @param layout optional concrete layout, rejected when absent
+     * @param layout optional concrete storage layout
      * @param shape positive static logical extents
-     * @param type original storage carrier, determining the native byte bound
-     * @return whether the exact referenced span fits the existing custom-buffer bound
-     * @throws ArithmeticException if a derived span or byte extent overflows
+     * @param type original storage carrier
+     * @return whether the same broadcast-aware proof used by raw validation succeeds
+     * @throws ArithmeticException if a derived descriptor byte extent overflows
+     * @throws IllegalArgumentException if the descriptor geometry is invalid
      */
     private static boolean physical(LayoutDescriptor layout, long[] shape, DataType type) {
-        if (shape.length > 16 || layout == null || layout.rank() != shape.length
-                || layout.storageOffset() < 0) return false;
-        long span = Math.addExact(layout.storageOffset(), 1);
-        long[] strides = layout.strides();
-        for (int axis = 0; axis < shape.length; axis++) {
-            if (shape[axis] <= 0 || strides[axis] < 0) return false;
-            span = Math.addExact(span, Math.multiplyExact(shape[axis] - 1, strides[axis]));
-        }
-        return span == layout.referencedElementSpan()
-                && Math.multiplyExact(span, type.byteWidth()) <= MAX_BUFFER_BYTES;
+        return physical(new MetalMpsGraphProgram.ValueDescriptor(type, shape,
+                java.util.Optional.ofNullable(layout), false, false), false);
     }
 
     /**

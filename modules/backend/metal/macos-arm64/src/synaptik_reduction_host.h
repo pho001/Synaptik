@@ -3,9 +3,11 @@
 
 /* Host-only cold construction. Include after decoded node/DataMeta types, existing
  * node_reduction_axes/node_statistical_axes, custom_grid and custom_physical_layout.
- * The raw envelope owner has already authenticated references, flags, declared spans
- * and BOOL storage. This owner independently checks numerical grammar and its actual
- * affine walks before metadata/resource creation; no shader-source authentication entry.
+ * The raw envelope's common storage-layout owner has already authenticated references,
+ * original view flags (including zero-stride => view), nonbroadcast-axis injectivity,
+ * declared spans and BOOL storage. This owner independently checks numerical grammar
+ * and actual affine byte bounds before metadata creation; it must not infer an original
+ * view flag from a derived physical state or duplicate the shared layout validator.
  */
 static BOOL synaptik_reduction_handles(SynaptikMetalDecodedNode node, const uint8_t *types) {
     if (types == NULL || node.input_count == 0U || node.first_input == UINT32_MAX) return NO;

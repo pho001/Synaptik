@@ -130,6 +130,30 @@ class MetalReductionSupportTest {
         }
     }
 
+    @Test
+    void broadcastReadsRequireTruthfulViewAndInjectiveNonbroadcastAxes() {
+        Shape shape = Shape.of(2, 2, 2);
+        var operation = new Operation(AggregateReductionKind.SUM,
+                new MultiAxisReductionAttrs(List.of(2), false));
+        var raw = MetalMpsGraphProgram.Node.reduction(MetalMpsGraphProgram.NodeKind.SUM, 0, 1,
+                MetalMpsGraphProgram.ReductionForm.MULTI_AXIS, List.of(2), false);
+        var output = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, new long[] {2, 2}, false);
+        for (int fixture = 0; fixture < 3; fixture++) {
+            long[] strides = fixture == 0 ? new long[] {0, 1, 1} : new long[] {0, 2, 1};
+            boolean view = fixture != 1;
+            LayoutDescriptor layout = LayoutDescriptor.of(shape, strides, 0, view);
+            boolean valid = fixture == 2;
+            var input = new TensorDescriptor(DataType.INT64, shape, Optional.of(layout), false);
+            assertTrue(valid == MetalReductionSupport.supports(operation, List.of(input),
+                    List.of(descriptor(DataType.INT64, 2, 2))));
+            var encoded = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32,
+                    shape.toLongArray(), Optional.of(layout), false, false);
+            if (valid) MetalReductionSupport.validate(raw, List.of(encoded, output));
+            else assertThrows(IllegalArgumentException.class,
+                    () -> MetalReductionSupport.validate(raw, List.of(encoded, output)));
+        }
+    }
+
     private static TensorDescriptor descriptor(DataType type, long... dimensions) {
         Shape shape = Shape.of(dimensions);
         return new TensorDescriptor(type, shape, Optional.of(LayoutDescriptor.contiguous(shape)), false);

@@ -24,6 +24,28 @@ import org.junit.jupiter.api.Test;
 /** Device regressions for ordinary, masked, affine and stored-value reductions. */
 class MetalAuditReductionNativeTest {
     @Test
+    void actualBroadcastReductionRequiresAnInjectiveRepresentedSubspace() {
+        Shape shape = Shape.of(2, 2, 2);
+        var node = reduction(MetalMpsGraphProgram.NodeKind.SUM, 0, 1, List.of(2), false);
+        var program = new MetalMpsGraphProgram(List.of(node));
+        var output = value(DataType.FLOAT32, 2, 2);
+        for (int fixture = 0; fixture < 2; fixture++) {
+            LayoutDescriptor layout = LayoutDescriptor.of(shape,
+                    fixture == 0 ? new long[] {0, 1, 1} : new long[] {0, 2, 1},
+                    0, fixture == 0);
+            var input = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32,
+                    shape.toLongArray(), Optional.of(layout), false, false);
+            assertThrows(IllegalArgumentException.class, () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                    List.of(input, output), program, new int[] {0}, new int[] {1},
+                    MetalPreparedRoute.CUSTOM_PROGRAM));
+        }
+        var input = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32, shape.toLongArray(),
+                Optional.of(LayoutDescriptor.of(shape, new long[] {0, 2, 1}, 0, true)), false, false);
+        assertArrayEquals(new float[] {3, 7, 3, 7}, floats(execute(List.of(input, output),
+                List.of(node), new int[] {0}, new byte[][] {f32(1, 2, 3, 4)}, 1)));
+    }
+
+    @Test
     void scalarSumPreservesStoredPointAndAffineSumUsesLogicalContributors() {
         var scalar = reduction(MetalMpsGraphProgram.NodeKind.SUM, 0, 1, List.of(), false);
         int signalingNan = 0x7f800123;
