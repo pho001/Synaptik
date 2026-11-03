@@ -206,6 +206,7 @@ public final class CpuOneDnnLibrary implements AutoCloseable {
 
     /** Native status failure retaining the exact C status for cold eligibility classification. */
     public static final class NativeStatusException extends IllegalStateException {
+        /** Exact failing C status, kept separately from the diagnostic message. */
         private final int status;
         /**
          * Captures one failed native operation without retrying or translating its status.

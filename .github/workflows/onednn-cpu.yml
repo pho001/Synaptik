@@ -75,14 +75,20 @@ jobs:
       run:
         shell: bash
     env:
-      ONEDNN_PREFIX: ${{ runner.temp }}/onednn-3.14.0
-      ONEDNN_SOURCE: ${{ runner.temp }}/onednn-source
-      ONEDNN_BUILD: ${{ runner.temp }}/onednn-build
-      EVIDENCE_DIR: ${{ runner.temp }}/onednn-evidence
-      SYNAPTIK_ONEDNN_LIBRARY: ${{ runner.temp }}/onednn-3.14.0/lib/libdnnl.so.3.14
       JAVA_TOOL_OPTIONS: --enable-native-access=ALL-UNNAMED
       ONEDNN_VERBOSE: '1'
     steps:
+      - name: Initialize paths on the allocated runner
+        run: |
+          set -euo pipefail
+          {
+            printf 'ONEDNN_PREFIX=%s/onednn-3.14.0\n' "$RUNNER_TEMP"
+            printf 'ONEDNN_SOURCE=%s/onednn-source\n' "$RUNNER_TEMP"
+            printf 'ONEDNN_BUILD=%s/onednn-build\n' "$RUNNER_TEMP"
+            printf 'EVIDENCE_DIR=%s/onednn-evidence\n' "$RUNNER_TEMP"
+            printf 'SYNAPTIK_ONEDNN_LIBRARY=%s/onednn-3.14.0/lib/libdnnl.so.3.14\n' "$RUNNER_TEMP"
+          } >> "$GITHUB_ENV"
+
       - name: Record runner and toolchain facts
         run: |
           set -euo pipefail
