@@ -553,8 +553,17 @@ retained publications, exact F32/F64 singleton signs, empty contractions and sep
 Public PRIMITIVES, GRAPH and AUTO CLI training also exercised actual `ONEDNN_VERBOSE` execution
 records, changed inputs/weights, saved MLP preactivations, rank-four broadcast AD, grouped
 anisotropic Conv2d/Conv3d finite differences, signed-zero preservation and owned MLP/CNN
-SGD/save/load/fresh-training workflows. These correctness/lifetime observations do not establish
-Linux x86 qualification.
+SGD/save/load/fresh-training workflows.
+
+The independent [Linux x86-64 run](https://github.com/pho001/Synaptik/actions/runs/41663584505)
+passed all 1,601 CPU cases plus twelve public Engine cases: 51 optional skips, no failures or
+errors. All ten native-contract and twelve public oneDNN cases executed without skips, with
+actual primitive and Graph execution records. Its target was AMD EPYC 7763 with four exposed
+vCPUs and AVX2, Ubuntu 24.04.5 LTS, Temurin `26.0.2.1+1`; the authenticated upstream build
+produced oneDNN 3.14.0 SEQ+Graph SHA-256
+`5dd9bef428deed4902bf071bf26470716ca9a108121c903b399f84f71c4925bc`.
+The earlier EPYC 9V45/AVX512 run passed the 22 oneDNN cases but failed legacy full-suite
+portability assertions; a passing complete AVX512 gate is not claimed.
 
 Run the public whole-plan benchmark separately, with native verbose output disabled:
 
@@ -583,7 +592,17 @@ forward and actual dX/dW, not a native-kernel microbenchmark.
 | ONEDNN_GRAPH | 3.541 | 7.444 |
 | ONEDNN_AUTO | 3.117 | 7.534 |
 
-This single-host, single-fork observation is not a statistical winner claim or a calibration of
+The Linux target above passed the same report-only baseline and independent forward/gradient
+checks, with the same units, seven measurement batches and fixed single-JVM configuration order:
+
+| Requested configuration | Linear-MSE training | Grouped Conv3d training |
+|---|---:|---:|
+| CPU_DEFAULT | 8.471 | 13.119 |
+| ONEDNN_PRIMITIVES | 7.635 | 7.655 |
+| ONEDNN_GRAPH | 7.468 | 9.605 |
+| ONEDNN_AUTO | 4.395 | 6.428 |
+
+Each target's single-fork observation is not a statistical winner claim or a calibration of
 the selector's dimensionless heuristic. Native configuration can be slower for a complete graph;
 the default CPU composition therefore remains unchanged. `CPU_DEFAULT` is not a forced-portable
 or forced-OpenBLAS row. Full training partitions are ineligible for the existing whole-partition

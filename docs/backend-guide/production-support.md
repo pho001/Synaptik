@@ -252,10 +252,10 @@ FLOAT32 working arithmetic and per-output typed publication, no atomics, scratch
 fallback/repair or software FLOAT64. FLOAT64/integral folds retain qualified non-overlap limits.
 Signed SLICE materializes canonical storage for all seven carriers; it does not authorize
 negative physical strides. These shared owners close the qualified selected movement adjoints.
-The current coordinated identity is 42, program schema22/`SM22`/header124, native ABI7/thirteen
+The current coordinated identity is 43, program schema22/`SM22`/header124, native ABI7/thirteen
 exports, operation wires1..116 and attribute wires0..42. Shared native source has 23 authenticated
-components, 187,750 UTF-8 bytes and 165 compiled functions, SHA-256
-`f1f2429fdbb7a87c3bacd5358564f4abffca3aac2fc4d3e1e86429c5ca6dff35`.
+components and 188,490 UTF-8 bytes, SHA-256
+`9d0d08724f5deac665bb4e09c08af3b0fad08efff050dad2d8ae265f39a030d4`.
 The genuine M3 Max package builds with `-Wall -Wextra -Werror`, signs and packages; this is
 component evidence, not a new sealed release or installation acceptance.
 
@@ -317,9 +317,9 @@ own code. Final candidate acceptance is recorded separately against its actual f
 ## oneDNN and exact singleton root qualification
 
 The integrated macOS arm64/M3 Max source passed unfiltered `test build --continue` plus CPU
-and Metal Javadocs on JDK 26.0.1. The final command reported 159 actionable tasks: two executed
-and 157 up-to-date. The complete retained inventory contains 796 JUnit suite reports:
-5,936 tests, 64 skips, zero failures and zero errors. This accepts retained successful reports;
+and Metal Javadocs on JDK 26.0.1. The final command reported 159 actionable tasks: one executed
+and 158 up-to-date. The complete retained inventory contains 793 JUnit suite reports:
+5,920 tests, 64 skips, zero failures and zero errors. This accepts retained successful reports;
 it does not claim every test was freshly executed in the last command.
 
 Ten real oneDNN native-contract cases and twelve public Engine cases passed, including
@@ -334,6 +334,44 @@ publication, ordinary/vector/batched/transposed and controlled Scan numerical ch
 library SHA-256 is `f9f18b2378403b65629de1900b21235b3a44e4e06b709bac81263e9904bf6334`;
 semantic identity is 43, with ABI7/schema22 unchanged.
 
+### Linux x86-64 qualification
+
+The independent [Actions run](https://github.com/pho001/Synaptik/actions/runs/41663584505)
+at `5b6a10af` authenticated and built upstream oneDNN 3.14.0 SEQ+Graph, then passed the complete
+CPU suite and public Engine oneDNN qualification: 247 suites, 1,613 tests, 51 optional skips,
+zero failures and zero errors. The ten native-contract and twelve public oneDNN cases all
+executed without skips. The report-only whole-plan baseline also passed its independent
+forward/AD checks; exact target, library identity and timings are in the
+[CPU guide](cpu-backend.md#evidence-and-report-only-benchmarking).
+
+The passing full-suite target is EPYC 7763/AVX2. Earlier EPYC 9V45/AVX512 evidence proves the
+22 oneDNN cases, not a passing complete CPU gate. Original failed runs and their recovery remain
+in the qualification receipt; arithmetic NaN payloads, generated-code hashes, default vector
+widths and host-specific output paths are not numerical contracts.
+
+### oneDNN installed-source and artifact replay
+
+The eighteen-product 0.1.0 distribution was checksum-verified and extracted outside any checkout.
+A fresh Maven consumer declaring only `nn:0.1.0` resolved sixteen runtime JARs in an isolated
+cache; every JAR matched its installed repository bytes. A separate standard Gradle consumer
+compiled and ran the documented oneDNN example, producing `64.0` without checkout classes.
+
+The extracted NoGit source built all eighteen products with the build cache disabled and all
+eighteen classes tasks executed. The final exact-path inventory selects 2,603 source files after
+the portability cleanup; `source-provenance.json` binds their individual hashes.
+Its independently rebuilt, locally signed and verified Metal image is byte-identical to the
+installed binary image with the current `f9f18b...` SHA-256 recorded above.
+
+Both installations passed the same twelve public programs: all three oneDNN API-policy
+MLP/CNN forward/AD/SGD/save/load/fresh-training workflows, both primitive/Graph special-value
+workflows, the canonical example, exact three-carrier Metal point products, fixed recurrent
+all-role AD, original-carrier owned models, length-aware GeneralScan, normalization and dropout.
+Their native execution records and independent numerical checks are retained under `qualification/`.
+Neither classpath contains checkout classes, previous product JARs or test fixtures.
+This installed replay is bounded local technical acceptance, separate from the Linux gate above:
+not a universal geometry claim, performance SLA, CPU low-arithmetic unlock or registry/signing authorization.
+
+
 ## Prior shared typed Metal root qualification
 
 This prior receipt and its source/artifacts are preserved unchanged under
@@ -341,7 +379,7 @@ This prior receipt and its source/artifacts are preserved unchanged under
 describe the later oneDNN/singleton cutover.
 
 The source checkpoint through `583b6495` passed unfiltered `test build --continue` on the
-actual M3 Max with the authenticated current native package. The final gate reported 159
+actual M3 Max with that checkpoint's authenticated native package. The final gate reported 159
 actionable tasks: two executed and 157 up-to-date; the preceding repaired full gate also passed
 with nine executed and 150 up-to-date. This accepts retained successful reports, not a claim
 that every test was freshly executed in the final command. Earlier failed commands remain
@@ -373,7 +411,9 @@ mask/state/reuse/VJP (eighteen configurations). Independent numerical oracles ar
 The extracted source tree independently rebuilt, locally signed and verified its native package
 before actual GPU replay. Its library is byte-identical to the installed binary library:
 SHA-256 `03df3cc3196295a22329c2bfb48780818641a6c118f7db30d4f4e8eb3b3c6ed9`.
-The shared shader source authentication, ABI and common bounds remain those recorded above.
+That preserved package uses semantic identity42 and source SHA-256
+`f1f2429fdbb7a87c3bacd5358564f4abffca3aac2fc4d3e1e86429c5ca6dff35`, not the later
+singleton-correction corpus; its ABI7/schema22 are unchanged.
 
 The final documentation-only freeze retains the qualified non-documentation and binary bytes.
 `source-provenance.json`, `SHA256SUMS`, `verification.json` and `qualification/` bind the final

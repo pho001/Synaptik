@@ -13,8 +13,8 @@
   existing CPU units to preserve Model numerics. Common-IR whole-plan heuristic comparison,
   declared ingress/scratch, per-run current-weight refresh and leased native resources preserve
   saved/public stores and existing AD; Phase-2 schema 4 rejects stale policy/session decisions.
-  macOS arm64 native/public correctness and training evidence does not establish x86 support or
-  speedup. See the [configuration, exact binary pin and report-only benchmark](docs/backend-guide/cpu-backend.md#explicit-onednn-composition).
+  Actual macOS arm64 and Linux x86-64 native/public qualification and report-only training
+  baselines are recorded in the [configuration and exact binary pins](docs/backend-guide/cpu-backend.md#explicit-onednn-composition).
 
 - Qualified shared Metal FLOAT32/BFLOAT16/FLOAT16 elementary, scalar/tensor power,
   masked/statistical reduction and cumulative execution, including rank-zero values, affine
