@@ -5582,8 +5582,9 @@ static int32_t synaptik_metal_create_decoded(
                     if (states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
                             || node.second_input != UINT32_MAX
                             || !node_has_no_attributes(node)
-                            || shapes[node.first_input].count == 0U
-                            || shapes[node.output].count == 0U
+                            || (value_types[node.first_input] != SYNAPTIK_METAL_TYPE_FLOAT32
+                                    && (shapes[node.first_input].count == 0U
+                                            || shapes[node.output].count == 0U))
                             || ![shapes[node.first_input] isEqualToArray:shapes[node.output]])
                         return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
                     break;
@@ -7844,14 +7845,6 @@ static int32_t synaptik_metal_create_decoded(
                         case SYNAPTIK_METAL_MPSGRAPH_SCALAR_MUL:
                             output = [graph multiplicationWithPrimaryTensor:first
                                     secondaryTensor:scalar name:nil];
-                            // The exact literal remains [1]; restore only the admitted scalar
-                            // result after broadcast, without changing multiplication or bits.
-                            if (output != nil
-                                    && shapes[node.output].count == 0U
-                                    && [output.shape isEqualToArray:@[@1]]) {
-                                output = [graph reshapeTensor:output
-                                        withShape:shapes[node.output] name:nil];
-                            }
                             break;
                         case SYNAPTIK_METAL_MPSGRAPH_SCALAR_DIV:
                             output = [graph divisionWithPrimaryTensor:first
@@ -7863,6 +7856,14 @@ static int32_t synaptik_metal_create_decoded(
                             break;
                         default:
                             break;
+                    }
+                    // Exact literals retain shape [1]; restore the declared scalar rank after
+                    // broadcast for every scalar arithmetic kind, without changing its sites.
+                    if (output != nil
+                            && shapes[node.output].count == 0U
+                            && [output.shape isEqualToArray:@[@1]]) {
+                        output = [graph reshapeTensor:output
+                                withShape:shapes[node.output] name:nil];
                     }
                     break;
                 }
