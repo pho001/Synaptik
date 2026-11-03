@@ -26,11 +26,12 @@ import org.junit.jupiter.api.Test;
  * Composite references expose the Model's FLOAT32 working boundaries explicitly.
  */
 final class MetalFloat32MathNativeTest {
-    private static final List<MetalMpsGraphProgram.NodeKind> UNARY = List.of(
+    // EXP and SIGMOID retain their dedicated production-route and underflow qualification suites.
+    private static final List<MetalMpsGraphProgram.NodeKind> CUSTOM_UNARY = List.of(
             MetalMpsGraphProgram.NodeKind.LOG, MetalMpsGraphProgram.NodeKind.LOG1P,
-            MetalMpsGraphProgram.NodeKind.EXP, MetalMpsGraphProgram.NodeKind.EXPM1,
+            MetalMpsGraphProgram.NodeKind.EXPM1,
             MetalMpsGraphProgram.NodeKind.ERF, MetalMpsGraphProgram.NodeKind.SQRT,
-            MetalMpsGraphProgram.NodeKind.RSQRT, MetalMpsGraphProgram.NodeKind.SIGMOID,
+            MetalMpsGraphProgram.NodeKind.RSQRT,
             MetalMpsGraphProgram.NodeKind.TANH, MetalMpsGraphProgram.NodeKind.GELU,
             MetalMpsGraphProgram.NodeKind.GELU_TANH_APPROXIMATION,
             MetalMpsGraphProgram.NodeKind.SILU);
@@ -41,13 +42,12 @@ final class MetalFloat32MathNativeTest {
                 Math.nextUp(-1f), -0.5f, -0.125f, -0.0f, 0.0f, 0.125f, 0.5f,
                 1f, 2f, 4f, 8f, 32f, 88f, 100f, Float.MAX_VALUE,
                 Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY, Float.NaN};
-        for (var kind : UNARY) {
+        for (var kind : CUSTOM_UNARY) {
             float[] actual = execute(unary(kind),
                     List.of(value(input.length), value(input.length)),
                     new int[] {0}, 1, List.of(input));
             for (int index = 0; index < input.length; index++) {
-                assertValue(reference(kind, input[index]), actual[index],
-                        kind + "(" + input[index] + ")", activation(kind));
+                assertUnaryValue(kind, input[index], actual[index], kind + "(" + input[index] + ")");
             }
         }
     }
@@ -73,13 +73,12 @@ final class MetalFloat32MathNativeTest {
     void ordinaryFiniteSweepQualifiesElementaryAndCompositeAccuracy() {
         float[] input = new float[257];
         for (int index = 0; index < input.length; index++) input[index] = (index - 128) / 32f;
-        for (var kind : UNARY) {
+        for (var kind : CUSTOM_UNARY) {
             float[] actual = execute(unary(kind),
                     List.of(value(input.length), value(input.length)),
                     new int[] {0}, 1, List.of(input));
             for (int index = 0; index < input.length; index++) {
-                assertValue(reference(kind, input[index]), actual[index],
-                        kind + " sweep " + input[index], activation(kind));
+                assertUnaryValue(kind, input[index], actual[index], kind + " sweep " + input[index]);
             }
         }
     }
@@ -182,16 +181,11 @@ final class MetalFloat32MathNativeTest {
         return switch (kind) {
             case LOG -> (float) StrictMath.log(x);
             case LOG1P -> (float) StrictMath.log1p(x);
-            case EXP -> (float) StrictMath.exp(x);
             case EXPM1 -> (float) StrictMath.expm1(x);
             case ERF -> (float) integratedErf(x);
             case SQRT -> (float) StrictMath.sqrt(x);
             case RSQRT -> 1f / (float) StrictMath.sqrt(x);
             case TANH -> (float) StrictMath.tanh(x);
-            case SIGMOID -> {
-                float e = (float) StrictMath.exp(x >= 0f ? -x : x);
-                yield x >= 0f ? 1f / (1f + e) : e / (1f + e);
-            }
             case GELU -> {
                 if (x == Float.NEGATIVE_INFINITY) yield -0f;
                 float argument = x / (float) StrictMath.sqrt(2f);
@@ -231,6 +225,17 @@ final class MetalFloat32MathNativeTest {
             sum += (index % 2 == 0 ? 2d : 4d) * StrictMath.exp(-t * t);
         }
         return StrictMath.copySign((2d / StrictMath.sqrt(StrictMath.PI)) * step * sum / 3d, x);
+    }
+
+    /** SiLU's negative-branch MUL may consume its subnormal EXP operand as positive zero. */
+    private static void assertUnaryValue(
+            MetalMpsGraphProgram.NodeKind kind, float input, float actual, String label) {
+        if (kind == MetalMpsGraphProgram.NodeKind.SILU && Float.isFinite(input) && input < 0f) {
+            float exponential = (float) StrictMath.exp(input);
+            if (exponential > 0f && exponential < Float.MIN_NORMAL
+                    && Float.floatToRawIntBits(actual) == 0x80000000) return;
+        }
+        assertValue(reference(kind, input), actual, label, activation(kind));
     }
 
     /** Checks classes/signs separately; finite error uses a route-local test tolerance. */
