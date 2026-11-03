@@ -1327,6 +1327,9 @@ class MetalNegRouteCandidateGeneratorTest {
                 assertTrue(codec.decodeDecision(
                         rewriteInt(first, staleOffset, 37), current.batch()).isEmpty(),
                         "identity 37 must be rejected with a valid checksum at byte " + staleOffset);
+                assertTrue(codec.decodeDecision(
+                        rewriteInt(first, staleOffset, 40), current.batch()).isEmpty(),
+                        "pre-Scan decisions must fail closed even with a valid checksum");
             }
             assertTrue(codec.decodeDecision(
                     rewriteInt(first, candidateOffset + Integer.BYTES, 30),

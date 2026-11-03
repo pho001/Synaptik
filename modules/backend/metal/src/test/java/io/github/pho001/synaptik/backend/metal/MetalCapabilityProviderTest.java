@@ -85,7 +85,22 @@ class MetalCapabilityProviderTest {
     private final MetalCapabilityProvider provider = new MetalCapabilityProvider();
 
     @Test
-    void acceleratorMseIsTheOnlyNormalizationOrLossCapability() {
+    void mixedExactComparisonCarriersReachTheirImplementedOriginalTypedDomain() {
+        Shape shape = Shape.of(2);
+        for (var pair : List.of(List.of(DataType.FLOAT64, DataType.FLOAT32),
+                List.of(DataType.FLOAT32, DataType.FLOAT64),
+                List.of(DataType.INT32, DataType.INT64), List.of(DataType.INT64, DataType.INT32))) {
+            for (var kind : BinaryComparisonKind.values()) {
+                assertTrue(provider.supports(new OperationCapabilityQuery(
+                        new Operation(kind, NoOperationAttrs.INSTANCE),
+                        List.of(typed(pair.get(0), shape, false), typed(pair.get(1), shape, false)),
+                        List.of(typed(DataType.BOOL, shape, false)))), kind + " " + pair);
+            }
+        }
+    }
+
+    @Test
+    void normalizationAndLossCapabilitiesPreserveExactOriginalMetadata() {
         Shape shape = Shape.of(2, 3);
         for (LossReduction reduction : LossReduction.values()) {
             Operation mse = new Operation(
@@ -158,7 +173,7 @@ class MetalCapabilityProviderTest {
         TensorDescriptor sample = descriptor(Shape.of(2), false);
         TensorDescriptor indexTarget = typed(DataType.INT32, Shape.of(2), false);
         List<TensorDescriptor> batchInputs = List.of(value, channel, channel, channel, channel);
-        List<OperationCapabilityQuery> blockedQueries = List.of(
+        List<OperationCapabilityQuery> neuralQueries = List.of(
                 new OperationCapabilityQuery(
                         new Operation(
                                 LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
@@ -218,7 +233,7 @@ class MetalCapabilityProviderTest {
                         new Operation(SoftmaxKind.LOG_SOFTMAX, new SoftmaxAttrs(1)),
                         List.of(value),
                         List.of(value)));
-        blockedQueries.forEach(query -> assertFalse(
+        neuralQueries.forEach(query -> assertTrue(
                 provider.supports(query), query.operation().kind().toString()));
     }
 
@@ -499,7 +514,7 @@ class MetalCapabilityProviderTest {
                     List.of(typed(DataType.BOOL, Shape.of(2, 3), false)),
                     List.of(typed(DataType.BOOL, Shape.of(2, 3), false)))));
         }
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+        assertTrue(provider.supports(new OperationCapabilityQuery(
                 new Operation(AggregateReductionKind.PROD, NoOperationAttrs.INSTANCE),
                 List.of(typed(DataType.FLOAT32, Shape.of(2), false)),
                 List.of(typed(DataType.FLOAT32, Shape.scalar(), false)))));
@@ -558,16 +573,8 @@ class MetalCapabilityProviderTest {
                 descriptor(rank16, true))));
 
         for (BinaryArithmeticKind kind : BinaryArithmeticKind.values()) {
-            boolean supported = kind == BinaryArithmeticKind.ADD
-                    || kind == BinaryArithmeticKind.SUB
-                    || kind == BinaryArithmeticKind.MUL
-                    || kind == BinaryArithmeticKind.DIV
-                    || kind == BinaryArithmeticKind.MIN
-                    || kind == BinaryArithmeticKind.MAX;
-            assertEquals(supported, provider.supports(binaryQuery(
-                    kind, matrix, row, matrix)));
-            assertEquals(supported, provider.supports(binaryQuery(
-                    kind, row, matrix, matrix)));
+            assertTrue(provider.supports(binaryQuery(kind, matrix, row, matrix)), kind.name());
+            assertTrue(provider.supports(binaryQuery(kind, row, matrix, matrix)), kind.name());
         }
         TensorDescriptor scalarSeed = descriptor(Shape.scalar(), false);
         TensorDescriptor gradientVector = descriptor(Shape.of(3), true);
@@ -598,13 +605,7 @@ class MetalCapabilityProviderTest {
                 row,
                 gradientMatrix)));
         for (UnaryElementwiseKind kind : UnaryElementwiseKind.values()) {
-            assertEquals(
-                    exactRawUnary(kind) || kind == UnaryElementwiseKind.RECIPROCAL
-                            || kind == UnaryElementwiseKind.EXP
-                            || kind == UnaryElementwiseKind.SIGMOID,
-                    provider.supports(unaryQuery(
-                            kind, matrix, matrix)),
-                    "selected capability " + kind);
+            assertTrue(provider.supports(unaryQuery(kind, matrix, matrix)), kind.name());
         }
         TensorDescriptor reshapedView = new TensorDescriptor(
                 DataType.FLOAT32,
@@ -798,7 +799,7 @@ class MetalCapabilityProviderTest {
         Operation scalarPow = new Operation(
                 ScalarElementwiseKind.POW,
                 new ScalarValueAttrs(ScalarValue.float32(2.0f)));
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+        assertTrue(provider.supports(new OperationCapabilityQuery(
                 scalarPow,
                 List.of(noGrad),
                 List.of(noGrad))));
@@ -816,7 +817,7 @@ class MetalCapabilityProviderTest {
                         new ScalarValueAttrs(ScalarValue.float64(1.0))),
                 List.of(typed(DataType.FLOAT64)),
                 List.of(typed(DataType.FLOAT64)))));
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+        assertTrue(provider.supports(new OperationCapabilityQuery(
                 new Operation(
                         ScalarElementwiseKind.ADD,
                         new ScalarValueAttrs(ScalarValue.float32(1.0f))),
@@ -842,7 +843,7 @@ class MetalCapabilityProviderTest {
         TensorDescriptor foldOutput = descriptor(Shape.of(2, 6), true);
         assertFalse(provider.supports(new OperationCapabilityQuery(
                 fold, List.of(foldInput), List.of(foldOutput))),
-                "rejects FOLD_AXIS solely by kind");
+                "overlapping FOLD_AXIS remains outside the exact-placement domain");
 
 
         TensorDescriptor capInput = descriptor(Shape.of(2, 17), true);
@@ -996,7 +997,7 @@ class MetalCapabilityProviderTest {
                 encode,
                 List.of(oneHotIndices),
                 List.of(typed(DataType.BOOL, Shape.of(2, 3, 5), false)))));
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+        assertTrue(provider.supports(new OperationCapabilityQuery(
                 new Operation(AxisScatterKind.SCATTER_ELEMENTS,
                         new ScatterElementsAttrs(1, ScatterReduction.ADD)),
                 List.of(scatterData, scatterIndices, scatterUpdates),
@@ -1055,7 +1056,7 @@ class MetalCapabilityProviderTest {
             assertTrue(provider.supports(unaryQuery(kind, valid, valid)));
             TensorDescriptor grad = descriptor(Shape.of(2, 3), true);
             assertTrue(provider.supports(unaryQuery(kind, grad, grad)));
-            assertFalse(provider.supports(unaryQuery(
+            assertTrue(provider.supports(unaryQuery(
                     kind, typed(DataType.FLOAT64), typed(DataType.FLOAT64))));
             assertFalse(provider.supports(unaryQuery(
                     kind, valid, descriptor(Shape.of(3, 2), false))));
@@ -1065,8 +1066,7 @@ class MetalCapabilityProviderTest {
             assertFalse(provider.supports(unaryQuery(kind, offset, offset)));
             assertFalse(provider.supports(unaryQuery(kind, view, valid)));
             assertFalse(provider.supports(unaryQuery(kind, strided, strided)));
-            assertEquals(
-                    kind == UnaryElementwiseKind.RELU,
+            assertTrue(
                     provider.supports(unaryQuery(
                             kind,
                             descriptor(Shape.of(), false),
@@ -1076,7 +1076,7 @@ class MetalCapabilityProviderTest {
         }
 
         assertFalse(provider.supports(new OperationCapabilityQuery(new Operation(BinaryComparisonKind.GREATER_THAN, NoOperationAttrs.INSTANCE), List.of(valid, valid), List.of(valid))));
-        assertFalse(provider.supports(query(
+        assertTrue(provider.supports(query(
                 typed(DataType.FLOAT64), typed(DataType.FLOAT64))));
         assertFalse(provider.supports(query(
                 valid, descriptor(Shape.of(3, 2), false))));
@@ -1085,7 +1085,7 @@ class MetalCapabilityProviderTest {
         assertFalse(provider.supports(query(
                 new TensorDescriptor(DataType.FLOAT32, dynamic, Optional.empty(), false),
                 new TensorDescriptor(DataType.FLOAT32, dynamic, Optional.empty(), false))));
-        assertFalse(provider.supports(query(
+        assertTrue(provider.supports(query(
                 descriptor(Shape.of(), false), descriptor(Shape.of(), false))));
         assertFalse(provider.supports(query(
                 descriptor(Shape.of(2, 0), false), descriptor(Shape.of(2, 0), false))));
@@ -1170,6 +1170,10 @@ class MetalCapabilityProviderTest {
                 new Operation(AggregateReductionKind.SUM, new MaskedReductionAttrs(1)),
                 List.of(input, mask),
                 List.of(descriptor(Shape.of(2, 4), false)))));
+        assertTrue(provider.supports(new OperationCapabilityQuery(
+                new Operation(AggregateReductionKind.SUM, new MaskedReductionAttrs(1)),
+                List.of(input, typed(DataType.BOOL, Shape.of(1, 3, 1), false)),
+                List.of(descriptor(Shape.of(2, 4), false)))));
         assertFalse(provider.supports(reductionQuery(
                 AggregateReductionKind.SUM,
                 new AxisReductionAttrs(3, false),
@@ -1180,12 +1184,12 @@ class MetalCapabilityProviderTest {
                 new SumToShapeAttrs(Shape.of(2, 2)),
                 input,
                 descriptor(Shape.of(2, 2), false))));
-        assertFalse(provider.supports(reductionQuery(
+        assertTrue(provider.supports(reductionQuery(
                 AggregateReductionKind.SUM,
                 NoOperationAttrs.INSTANCE,
                 view,
                 scalar)));
-        assertFalse(provider.supports(reductionQuery(
+        assertTrue(provider.supports(reductionQuery(
                 AggregateReductionKind.SUM,
                 NoOperationAttrs.INSTANCE,
                 scalar,
@@ -1193,7 +1197,7 @@ class MetalCapabilityProviderTest {
     }
 
     @Test
-    void task0069ScatterAddAdmitsOnlyTheExactAcceleratorRankOneDomain() {
+    void scatterAddAdmitsAffineReadsAndRejectsInvalidAxisShapeGradientAndSpan() {
         Operation scatter = new Operation(
                 AxisScatterKind.SCATTER_ADD, new IndexAxisAttrs(0));
         TensorDescriptor data = typed(DataType.FLOAT32, Shape.of(4), false);
@@ -1214,7 +1218,7 @@ class MetalCapabilityProviderTest {
                 Optional.of(LayoutDescriptor.of(
                         Shape.of(3), new long[] {2L}, 1L, true)),
                 false);
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+        assertTrue(provider.supports(new OperationCapabilityQuery(
                 scatter,
                 List.of(data, gappedIndices, updates),
                 List.of(output))));
@@ -1230,7 +1234,7 @@ class MetalCapabilityProviderTest {
                 scatter,
                 List.of(typed(DataType.FLOAT32, Shape.of(4), true), indices, updates),
                 List.of(output))));
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+        assertTrue(provider.supports(new OperationCapabilityQuery(
                 scatter,
                 List.of(
                         new TensorDescriptor(
@@ -1253,7 +1257,7 @@ class MetalCapabilityProviderTest {
     }
 
     @Test
-    void task0069L1NormAdmitsOnlyTheExactBinary32LeftFoldDomain() {
+    void l1NormAdmitsShapedAffineReadsAndRetainsCarrierAndGradientChecks() {
         Operation l1 = new Operation(
                 AggregateReductionKind.L1_NORM,
                 new MultiAxisReductionAttrs(List.of(0), false));
@@ -1267,12 +1271,12 @@ class MetalCapabilityProviderTest {
                 descriptor(Shape.of(1), false),
                 descriptor(Shape.of(1), false))));
 
-        assertFalse(provider.supports(reductionQuery(
+        assertTrue(provider.supports(reductionQuery(
                 AggregateReductionKind.L1_NORM,
                 new MultiAxisReductionAttrs(List.of(), false),
                 input,
                 input)));
-        assertFalse(provider.supports(reductionQuery(
+        assertTrue(provider.supports(reductionQuery(
                 AggregateReductionKind.L1_NORM,
                 new MultiAxisReductionAttrs(List.of(1), false),
                 descriptor(Shape.of(2, 2), false),
@@ -1302,7 +1306,7 @@ class MetalCapabilityProviderTest {
                 false);
         TensorDescriptor tooWide = descriptor(
                 Shape.of(0xffff_ffffL / Float.BYTES + 1L), false);
-        assertFalse(provider.supports(new OperationCapabilityQuery(
+        assertTrue(provider.supports(new OperationCapabilityQuery(
                 l1,
                 List.of(noncanonicalInput),
                 List.of(scalar))));
@@ -1317,7 +1321,7 @@ class MetalCapabilityProviderTest {
     }
 
     @Test
-    void task0069VarianceAdmitsOnlyTheExactSingletonAcceleratorDomain() {
+    void varianceAdmitsShapedAffineStatisticsAndRetainsDenominatorAndMetadataChecks() {
         TensorDescriptor singleton = descriptor(Shape.of(1), false);
         TensorDescriptor scalar = descriptor(Shape.scalar(), false);
         Operation variance = new Operation(
@@ -1343,12 +1347,12 @@ class MetalCapabilityProviderTest {
                     singleton,
                     scalar)));
         }
-        assertFalse(provider.supports(reductionQuery(
+        assertTrue(provider.supports(reductionQuery(
                 AggregateReductionKind.VARIANCE,
                 new StatisticalReductionAttrs(List.of(0), false, 0),
                 descriptor(Shape.of(2), false),
                 scalar)));
-        assertFalse(provider.supports(reductionQuery(
+        assertTrue(provider.supports(reductionQuery(
                 AggregateReductionKind.VARIANCE,
                 new StatisticalReductionAttrs(List.of(0), false, 0),
                 descriptor(Shape.of(1, 1), false),
@@ -1368,7 +1372,7 @@ class MetalCapabilityProviderTest {
                 new StatisticalReductionAttrs(List.of(0), false, 0),
                 typed(DataType.FLOAT64, Shape.of(1), false),
                 scalar)));
-        assertFalse(provider.supports(reductionQuery(
+        assertTrue(provider.supports(reductionQuery(
                 AggregateReductionKind.VARIANCE,
                 new StatisticalReductionAttrs(List.of(0), false, 0),
                 new TensorDescriptor(
@@ -1859,14 +1863,6 @@ class MetalCapabilityProviderTest {
                 List.of(output));
     }
 
-    private static boolean exactRawUnary(UnaryElementwiseKind kind) {
-        return kind == UnaryElementwiseKind.NEG
-                || kind == UnaryElementwiseKind.ABS
-                || kind == UnaryElementwiseKind.FLOOR
-                || kind == UnaryElementwiseKind.CEIL
-                || kind == UnaryElementwiseKind.SIGN
-                || kind == UnaryElementwiseKind.RELU;
-    }
 
     private static Operation neg() {
         return new Operation(UnaryElementwiseKind.NEG, NoOperationAttrs.INSTANCE);

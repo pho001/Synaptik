@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
 
 class MetalMpsGraphRawAbiNativeTest {
     @Test
-    void nativeAbiSevenAcceptsSchemaTwentyOneAndRejectsStaleNineteenBeforeCreation()
+    void nativeAbiSevenAcceptsCurrentSchemaAndRejectsStaleImagesBeforeCreation()
             throws Throwable {
         Path library = configuredLibrary();
         try (RawAbi abi = new RawAbi(library)) {
@@ -38,9 +38,9 @@ class MetalMpsGraphRawAbiNativeTest {
             assertEquals(0, abi.create(valid, valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 0, 0), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 0, 0x38314d53), valid.length));
-            for (int schema = 12; schema <= 19; schema++)
+            for (int schema = 12; schema <= 20; schema++)
                 assertEquals(1, abi.create(rewriteInt(valid, 4, schema), valid.length));
-            assertEquals(1, abi.create(rewriteInt(valid, 4, 21), valid.length));
+            assertEquals(1, abi.create(rewriteInt(valid, 4, 22), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 8, 0), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 8, 64), valid.length));
             assertEquals(1, abi.create(rewriteInt(valid, 8, 132), valid.length));
@@ -123,8 +123,8 @@ class MetalMpsGraphRawAbiNativeTest {
         malformed.add(digestForgery);
         malformed.add(rewriteManifest(
                 valid,
-                "fixed-corpus-bytes 87929\n",
-                "fixed-corpus-bytes 87930\n"));
+                "fixed-corpus-bytes " + MetalPointwiseFusionPlan.FIXED_CORPUS_UTF8_BYTES + "\n",
+                "fixed-corpus-bytes " + (MetalPointwiseFusionPlan.FIXED_CORPUS_UTF8_BYTES + 1) + "\n"));
 
         try (RawAbi abi = new RawAbi(library)) {
             assertEquals(0, abi.create(valid, valid.length));
@@ -858,20 +858,11 @@ class MetalMpsGraphRawAbiNativeTest {
                 var program = new MetalMpsGraphProgram(List.of(node));
                 List<MetalMpsGraphProgram.ValueDescriptor> rankZero =
                         List.of(scalarDescriptor(DataType.FLOAT32), scalarDescriptor(DataType.FLOAT32));
-                for (MetalPreparedRoute route :
-                        List.of(MetalPreparedRoute.CUSTOM_PROGRAM, MetalPreparedRoute.MPSGRAPH)) {
-                    assertThrows(
-                            IllegalArgumentException.class,
-                            () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                                    rankZero,
-                                    program,
-                                    new int[] {0},
-                                    new int[] {1},
-                                    route));
-                    byte[] image = program.encodedProgramImage(
-                            rankZero, new int[] {0}, new int[] {1}, route);
-                    assertEquals(1, abi.create(image, image.length), kind + " rank zero " + route);
-                }
+                MetalNativeApi.ProgramExecutableAbi.validateCreate(rankZero, program,
+                        new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM);
+                byte[] scalarImage = program.encodedProgramImage(rankZero,
+                        new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM);
+                assertEquals(0, abi.create(scalarImage, scalarImage.length), kind.name());
 
                 List<MetalMpsGraphProgram.ValueDescriptor> wrongType = List.of(
                         new MetalMpsGraphProgram.ValueDescriptor(
@@ -1146,25 +1137,14 @@ class MetalMpsGraphRawAbiNativeTest {
 
                 List<MetalMpsGraphProgram.ValueDescriptor> rankZero =
                         List.of(scalarDescriptor(DataType.FLOAT32), scalarDescriptor(DataType.FLOAT32));
-                if (kind == MetalMpsGraphProgram.NodeKind.SCALAR_MUL) {
-                    MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                            rankZero, program, new int[] {0}, new int[] {1},
-                            MetalPreparedRoute.MPSGRAPH);
-                } else assertThrows(
-                        IllegalArgumentException.class,
-                        () -> MetalNativeApi.ProgramExecutableAbi.validateCreate(
-                                rankZero,
-                                program,
-                                new int[] {0},
-                                new int[] {1},
-                                MetalPreparedRoute.MPSGRAPH));
+                MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                        rankZero, program, new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH);
                 byte[] scalarImage = program.encodedProgramImage(
                         rankZero,
                         new int[] {0},
                         new int[] {1},
                         MetalPreparedRoute.MPSGRAPH);
-                assertEquals(kind == MetalMpsGraphProgram.NodeKind.SCALAR_MUL ? 0 : 8,
-                        abi.create(scalarImage, scalarImage.length), kind + " rank zero");
+                assertEquals(0, abi.create(scalarImage, scalarImage.length), kind + " rank zero");
                 if (kind != MetalMpsGraphProgram.NodeKind.RECIPROCAL) {
                     assertThrows(
                             IllegalArgumentException.class,
@@ -3472,7 +3452,7 @@ class MetalMpsGraphRawAbiNativeTest {
     /**
      * Replaces one manifest fragment and rebuilds its SHA-256 digest and image length.
      *
-     * @param image schema-20 custom-program image with a canonical manifest
+     * @param image schema-21 custom-program image with a canonical manifest
      * @param expected fragment required to occur exactly once
      * @param replacement ASCII replacement fragment
      * @return a new image with the replacement manifest and matching digest
@@ -3518,7 +3498,7 @@ class MetalMpsGraphRawAbiNativeTest {
     /**
      * Locates the manifest after all counted custom-program extension records.
      *
-     * @param image schema-20 custom-program image with complete extension counts
+     * @param image schema-21 custom-program image with complete extension counts
      * @return byte offset of the manifest in {@code image}
      */
     private static int extensionManifestOffset(byte[] image) {

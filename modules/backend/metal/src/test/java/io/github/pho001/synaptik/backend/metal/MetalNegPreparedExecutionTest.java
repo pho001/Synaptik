@@ -1978,7 +1978,7 @@ class MetalNegPreparedExecutionTest {
 
             BackendPartitionAnalysis<MetalNegPreparationPlan> analysis =
                     analyze(fixture, context);
-            MetalNegPreparationPlan plan = analysis.plan();assertEquals(MetalPreparedRoute.MPSGRAPH, plan.route());
+            MetalNegPreparationPlan plan = analysis.plan();assertEquals(MetalPreparedRoute.CUSTOM_PROGRAM, plan.route());
             assertEquals(List.of(
                     MetalMpsGraphProgram.NodeKind.MEAN,
                     MetalMpsGraphProgram.NodeKind.ABS,

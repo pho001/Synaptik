@@ -31,7 +31,7 @@ class MetalL1NormNativeTest {
     }
 
     @Test
-    void customAbiRejectsEveryAlternateReductionFormGradientTypeAndGeometry() {
+    void customAbiRetainsIndependentRouteGradientTypeAndGeometryValidation() {
         var valid = program(4, false, MetalMpsGraphProgram.ReductionForm.MULTI_AXIS, List.of(0));
         MetalNativeApi.ProgramExecutableAbi.validateCreate(
                 values(4, false, false, DataType.FLOAT32),
@@ -49,8 +49,10 @@ class MetalL1NormNativeTest {
                         new int[] {1},
                         MetalPreparedRoute.MPSGRAPH));
 
-        for (var malformed : List.of(
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(values(4, false, false, DataType.FLOAT32),
                 program(4, false, MetalMpsGraphProgram.ReductionForm.SINGLE_AXIS, List.of(0)),
+                new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM);
+        for (var malformed : List.of(
                 program(4, false, MetalMpsGraphProgram.ReductionForm.MULTI_AXIS, List.of()))) {
             assertThrows(
                     IllegalArgumentException.class,

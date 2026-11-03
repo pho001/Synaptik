@@ -7,7 +7,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-/** Cold, deterministic recognizer for the bounded schema-20 Metal anchor-epilogue domain. */
+/** Cold, deterministic recognizer for the bounded schema-21 Metal anchor-epilogue domain. */
 final class MetalAnchorEpilogueRecognizer {
     private MetalAnchorEpilogueRecognizer() {}
 

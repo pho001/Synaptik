@@ -559,9 +559,9 @@ abstract class MetalNativeApi implements AutoCloseable {
      * shape, layout, gradient, and byte-span gates. Low EXP and SIGMOID are custom only. FLOAT32 EXP or
      * SIGMOID in a custom partition remains an internal MPSGraph boundary step, and SIGMOID's
      * stable sign-guarded formula is fixed by the authenticated native source.
-     * Already-admitted RELU, scalar MUL, and CLAMP accept matching rank-zero values independently
-     * of anchor membership. This does not make other positive-rank-only operations scalar-capable
-     * or relax native authentication of actual fused execution records.
+     * FLOAT32 scalar occurrences use their independently admitted rank-zero domains; low carriers
+     * retain their original scalar restrictions. Neither changes generated-fusion eligibility or
+     * relaxes native authentication of actual fused execution records.
      * MATMUL checks original typed roles, exact logical provenance, and independently projected
      * represented storage. Logical density after SELECT/SLICE does not imply physical density.
      * Affine producers retain their exact source offsets/strides. RESHAPE independently selects
@@ -579,7 +579,7 @@ abstract class MetalNativeApi implements AutoCloseable {
         /**
          * Rejects a schema-twenty-one program before native creation if its fixed route, graph
          * geometry, types, or occurrence metadata disagrees. In particular, wire-64 SIGMOID
-         * requires canonical no-gradient FLOAT32 for a composed MPSGraph step or homogeneous
+         * requires canonical FLOAT32 with matching gradient metadata or homogeneous no-gradient
          * BFLOAT16/FLOAT16 for a typed custom step. A standalone FLOAT32 SIGMOID cannot invent
          * a custom partition route.
          *

@@ -22,7 +22,7 @@ import java.util.Optional;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
-/** Aligns preflight with independently queried scalar occurrences, without widening capability. */
+/** Aligns independently queried scalar occurrences with their exact typed preflight domains. */
 final class MetalScalarAdmissionTest {
     @ParameterizedTest
     @EnumSource(value = DataType.class, names = {"FLOAT32", "BFLOAT16", "FLOAT16"})
@@ -61,8 +61,13 @@ final class MetalScalarAdmissionTest {
                 MetalMpsGraphProgram.NodeKind.SCALAR_DIV, MetalMpsGraphProgram.NodeKind.RECIPROCAL)) {
             var scalar = value(type, Shape.scalar(), false);
             var program = new MetalMpsGraphProgram(List.of(node(type, kind)));
-            assertThrows(IllegalArgumentException.class, () -> validate(
-                    List.of(scalar, scalar), program, MetalPreparedRoute.CUSTOM_PROGRAM), kind.name());
+            if (type == DataType.FLOAT32) {
+                validate(List.of(scalar, scalar), program,
+                        kind.isCustomProgramOperation() ? MetalPreparedRoute.CUSTOM_PROGRAM : MetalPreparedRoute.MPSGRAPH);
+            } else {
+                assertThrows(IllegalArgumentException.class, () -> validate(
+                        List.of(scalar, scalar), program, MetalPreparedRoute.CUSTOM_PROGRAM), kind.name());
+            }
         }
     }
 

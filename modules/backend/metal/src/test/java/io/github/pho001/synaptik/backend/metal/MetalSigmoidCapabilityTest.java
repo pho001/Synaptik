@@ -23,7 +23,7 @@ final class MetalSigmoidCapabilityTest {
             UnaryElementwiseKind.SIGMOID, NoOperationAttrs.INSTANCE);
 
     @Test
-    void admitsOnlyCanonicalPositiveStaticSameTypeWithoutGradients() {
+    void admitsCanonicalFloat32GradientsAndRetainsFrozenLowBounds() {
         for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16,
                 DataType.FLOAT16)) {
             for (Shape shape : List.of(Shape.of(1), Shape.of(2, 3), rank(16))) {
@@ -39,11 +39,13 @@ final class MetalSigmoidCapabilityTest {
             assertFalse(supports(rejected, rejected), wrong.name());
             assertFalse(supports(value, rejected), wrong.name());
         }
+        var gradient = canonical(DataType.FLOAT32, shape, true);
+        assertTrue(supports(gradient, gradient));
         assertFalse(supports(canonical(DataType.FLOAT32, shape, true), value));
         assertFalse(supports(value, canonical(DataType.FLOAT32, shape, true)));
         assertFalse(supports(value, canonical(DataType.FLOAT32, Shape.of(3, 2), false)));
         assertFalse(supports(value, canonical(DataType.FLOAT32, Shape.of(3), false)));
-        assertFalse(supports(canonical(DataType.FLOAT32, Shape.scalar(), false),
+        assertTrue(supports(canonical(DataType.FLOAT32, Shape.scalar(), false),
                 canonical(DataType.FLOAT32, Shape.scalar(), false)));
         assertFalse(supports(canonical(DataType.FLOAT32, rank(17), false),
                 canonical(DataType.FLOAT32, rank(17), false)));

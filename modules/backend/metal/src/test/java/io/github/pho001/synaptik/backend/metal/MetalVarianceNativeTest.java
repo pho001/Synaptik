@@ -71,8 +71,9 @@ class MetalVarianceNativeTest {
                 program(false, List.of(), 0L), MetalPreparedRoute.CUSTOM_PROGRAM);
         assertRejected(values(new long[] {1L, 1L}, false, false, false, DataType.FLOAT32),
                 program(false, List.of(0), 0L), MetalPreparedRoute.CUSTOM_PROGRAM);
-        assertRejected(values(new long[] {2L}, false, false, false, DataType.FLOAT32),
-                program(false, List.of(0), 0L), MetalPreparedRoute.CUSTOM_PROGRAM);
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                values(new long[] {2L}, false, false, false, DataType.FLOAT32),
+                program(false, List.of(0), 0L), new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM);
         assertRejected(values,
                 program(false, List.of(0), 1L), MetalPreparedRoute.CUSTOM_PROGRAM);
         assertRejected(values(new long[] {1L}, false, false, false, DataType.FLOAT32),

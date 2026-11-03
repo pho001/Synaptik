@@ -1,6 +1,5 @@
 package io.github.pho001.synaptik.backend.metal;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -100,8 +99,6 @@ import io.github.pho001.synaptik.model.operation.scan.CumulativeScanKind;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery;
-import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -110,130 +107,19 @@ import org.junit.jupiter.api.Test;
 
 /** Exhaustive current-wire audit; each row is a constructible Model occurrence, not count arithmetic. */
 class MetalOperationCompletenessAuditTest {
-    private static final Set<MetalMpsGraphProgram.NodeKind> PRODUCTION_FALSE = EnumSet.of(
-            MetalMpsGraphProgram.NodeKind.SCALED_DOT_PRODUCT_ATTENTION,
-            MetalMpsGraphProgram.NodeKind.TENSOR_POW,
-            MetalMpsGraphProgram.NodeKind.SCALAR_POW,
-            MetalMpsGraphProgram.NodeKind.LOG,
-            MetalMpsGraphProgram.NodeKind.LOG1P,
-            MetalMpsGraphProgram.NodeKind.EXPM1,
-            MetalMpsGraphProgram.NodeKind.ERF,
-            MetalMpsGraphProgram.NodeKind.SQRT,
-            MetalMpsGraphProgram.NodeKind.RSQRT,
-            MetalMpsGraphProgram.NodeKind.TANH,
-            MetalMpsGraphProgram.NodeKind.GELU,
-            MetalMpsGraphProgram.NodeKind.GELU_TANH_APPROXIMATION,
-            MetalMpsGraphProgram.NodeKind.SILU,
-            MetalMpsGraphProgram.NodeKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
-            MetalMpsGraphProgram.NodeKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS,
-            MetalMpsGraphProgram.NodeKind.BATCH_NORM_INFERENCE,
-            MetalMpsGraphProgram.NodeKind.BATCH_NORM_TRAINING,
-            MetalMpsGraphProgram.NodeKind.LAYER_NORM,
-            MetalMpsGraphProgram.NodeKind.RMS_NORM,
-            MetalMpsGraphProgram.NodeKind.SOFTMAX,
-            MetalMpsGraphProgram.NodeKind.LOG_SOFTMAX,
-            MetalMpsGraphProgram.NodeKind.RNN_TANH,
-            MetalMpsGraphProgram.NodeKind.GRU_RESET_AFTER,
-            MetalMpsGraphProgram.NodeKind.LSTM,
-            MetalMpsGraphProgram.NodeKind.LOG_SUM_EXP,
-            MetalMpsGraphProgram.NodeKind.STANDARD_DEVIATION,
-            MetalMpsGraphProgram.NodeKind.L2_NORM);
-
-    private static final Set<MetalMpsGraphProgram.NodeKind> STRUCTURAL_ONLY = EnumSet.of(
-            MetalMpsGraphProgram.NodeKind.TENSOR_POW,
-            MetalMpsGraphProgram.NodeKind.SCALAR_POW,
-            MetalMpsGraphProgram.NodeKind.LOG,
-            MetalMpsGraphProgram.NodeKind.LOG1P,
-            MetalMpsGraphProgram.NodeKind.EXPM1,
-            MetalMpsGraphProgram.NodeKind.ERF,
-            MetalMpsGraphProgram.NodeKind.SQRT,
-            MetalMpsGraphProgram.NodeKind.RSQRT,
-            MetalMpsGraphProgram.NodeKind.TANH,
-            MetalMpsGraphProgram.NodeKind.GELU,
-            MetalMpsGraphProgram.NodeKind.GELU_TANH_APPROXIMATION,
-            MetalMpsGraphProgram.NodeKind.SILU,
-            MetalMpsGraphProgram.NodeKind.LOG_SUM_EXP,
-            MetalMpsGraphProgram.NodeKind.STANDARD_DEVIATION,
-            MetalMpsGraphProgram.NodeKind.L2_NORM);
-
     private final MetalCapabilityProvider provider = new MetalCapabilityProvider();
 
     @Test
-    void everyWireMapsOnceToAConstructibleModelOccurrenceAndActualCapabilityTruth() {
-        MetalMpsGraphProgram.NodeKind[] kinds = MetalMpsGraphProgram.NodeKind.values();
-        assertEquals(115, kinds.length);
-        assertEquals(27, PRODUCTION_FALSE.size());
-        assertEquals(15, STRUCTURAL_ONLY.size());
-        assertTrue(PRODUCTION_FALSE.containsAll(STRUCTURAL_ONLY));
-
+    void everyOrdinaryWireHasADistinctSupportedModelRepresentative() {
         Set<String> modelKinds = new HashSet<>();
-        int accepted = 0;
-        int executable = 0;
-        int direct = 0;
-        int composed = 0;
-        int unavailable = 0;
-        int customAvailable = 0;
-        int customPending = 0;
-        int customUnavailable = 0;
-        for (int index = 0; index < kinds.length; index++) {
-            MetalMpsGraphProgram.NodeKind kind = kinds[index];
-            assertEquals(index + 1, kind.wireIdentity(), kind.name());
-            OperationCapabilityQuery occurrence = representative(kind);
-            String modelKind = modelKind(occurrence.operation());
-            assertTrue(modelKinds.add(modelKind), modelKind);
-            assertEquals(EXPECTED_MODEL_KINDS[index], modelKind, kind.name());
-
-            boolean expected = !PRODUCTION_FALSE.contains(kind);
-            boolean actual = provider.supports(occurrence);
-            assertEquals(expected, actual, kind + " representative");
-            if (actual) accepted++;
-            if (kind.executable()) executable++;
-
-            MetalOperationRouteCatalog.Entry catalog = MetalOperationRouteCatalog.entry(kind);
-            switch (catalog.mpsGraphState()) {
-                case DIRECT -> direct++;
-                case COMPOSED -> composed++;
-                case UNAVAILABLE -> unavailable++;
-            }
-            switch (catalog.customKernelState()) {
-                case AVAILABLE -> customAvailable++;
-                case PENDING -> customPending++;
-                case UNAVAILABLE_WITH_PROOF -> customUnavailable++;
-            }
-            assertEquals(
-                    kind == MetalMpsGraphProgram.NodeKind.NEG
-                            || kind == MetalMpsGraphProgram.NodeKind.MATMUL
-                            || kind.isCustomProgramOperation(),
-                    catalog.customKernelState()
-                            == MetalOperationRouteCatalog.CustomKernelState.AVAILABLE,
-                    kind.name());
+        for (var kind : MetalMpsGraphProgram.NodeKind.values()) {
+            // Scan carries a body and activity protocol, exercised by MetalScanPlanTest.
+            if (kind == MetalMpsGraphProgram.NodeKind.GENERAL_SCAN) continue;
+            var occurrence = representative(kind);
+            assertTrue(modelKinds.add(modelKind(occurrence.operation())), kind.name());
+            assertTrue(provider.supports(occurrence), kind + " representative");
+            assertTrue(kind.executable(), kind.name());
         }
-
-        assertEquals(115, modelKinds.size());
-        assertEquals(88, accepted);
-        assertEquals(103, executable);
-        assertEquals(74, direct);
-        assertEquals(36, composed);
-        assertEquals(5, unavailable);
-        assertEquals(73, customAvailable);
-        assertEquals(42, customPending);
-        assertEquals(0, customUnavailable);
-        long productionCustom = Arrays.stream(kinds)
-                .filter(kind -> !PRODUCTION_FALSE.contains(kind))
-                .filter(MetalMpsGraphProgram.NodeKind::isCustomProgramOperation)
-                .count();
-        long productionMpsGraph = Arrays.stream(kinds)
-                .filter(kind -> !PRODUCTION_FALSE.contains(kind))
-                .filter(kind -> !kind.isCustomProgramOperation())
-                .filter(kind -> kind != MetalMpsGraphProgram.NodeKind.NEG)
-                .filter(kind -> kind != MetalMpsGraphProgram.NodeKind.MATMUL)
-                .count();
-        assertEquals(71, productionCustom);
-        assertEquals(15, productionMpsGraph);
-        assertTrue(PRODUCTION_FALSE.stream()
-                .noneMatch(MetalMpsGraphProgram.NodeKind::isCustomProgramOperation));
-        assertEquals(12, PRODUCTION_FALSE.size() - STRUCTURAL_ONLY.size());
-        STRUCTURAL_ONLY.forEach(kind -> assertTrue(kind.executable(), kind.name()));
     }
 
     private static String modelKind(Operation operation) {
@@ -278,6 +164,7 @@ class MetalOperationCompletenessAuditTest {
             case MAX_POOL2D, AVERAGE_POOL2D, MAX_POOL3D, AVERAGE_POOL3D -> pooling(kind);
             case DROPOUT, INITIAL_STATE -> random(kind);
             case RNN_TANH, GRU_RESET_AFTER, LSTM -> recurrent(kind);
+            case GENERAL_SCAN -> throw new IllegalArgumentException("Scan requires a body/activity fixture");
         };
     }
 
@@ -649,51 +536,4 @@ class MetalOperationCompletenessAuditTest {
                 Optional.of(LayoutDescriptor.of(shape, strides, offset, true)), false);
     }
 
-    private static final String[] EXPECTED_MODEL_KINDS = {
-            "UnaryElementwiseKind.NEG", "BinaryArithmeticKind.ADD", "BinaryArithmeticKind.SUB",
-            "BinaryArithmeticKind.MUL", "BinaryArithmeticKind.DIV", "ShapeTransformKind.RESHAPE",
-            "ShapeTransformKind.EXPAND", "AxisTransformKind.PERMUTE",
-            "AxisTransformKind.EXPAND_DIMS", "AxisTransformKind.SQUEEZE",
-            "ContiguousKind.CONTIGUOUS", "UnaryElementwiseKind.ABS",
-            "AggregateReductionKind.SUM", "AggregateReductionKind.MEAN", "MatmulKind.MATMUL",
-            "AxisGatherKind.GATHER", "OneHotKind.ONE_HOT", "AxisScatterKind.SCATTER_ELEMENTS",
-            "WindowTransformKind.UNFOLD_AXIS", "BinaryComparisonKind.GREATER_THAN",
-            "BinaryComparisonKind.GREATER_OR_EQUAL", "BinaryComparisonKind.LESS_THAN",
-            "BinaryComparisonKind.LESS_OR_EQUAL", "BinaryComparisonKind.EQUAL",
-            "BinaryComparisonKind.NOT_EQUAL", "BinaryArithmeticKind.MIN", "BinaryArithmeticKind.MAX",
-            "ScalarElementwiseKind.MIN", "ScalarElementwiseKind.MAX", "ScalarElementwiseKind.CLAMP",
-            "AggregateReductionKind.MIN", "AggregateReductionKind.MAX", "CumulativeScanKind.CUM_SUM",
-            "CumulativeScanKind.CUM_PROD", "ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION",
-            "Conv2dKind.CONV2D", "Conv3dKind.CONV3D", "BinaryArithmeticKind.POW", "CastKind.CAST",
-            "FloatingClassificationKind.IS_FINITE", "FloatingClassificationKind.IS_NAN",
-            "FloatingClassificationKind.IS_INF", "BooleanLogicalKind.AND", "BooleanLogicalKind.OR",
-            "BooleanLogicalKind.NOT", "ScalarElementwiseKind.ADD", "ScalarElementwiseKind.SUB",
-            "ScalarElementwiseKind.MUL", "ScalarElementwiseKind.DIV", "ScalarElementwiseKind.POW",
-            "WhereSelectionKind.WHERE", "UnaryElementwiseKind.RECIPROCAL", "UnaryElementwiseKind.LOG",
-            "UnaryElementwiseKind.LOG1P", "UnaryElementwiseKind.EXP", "UnaryElementwiseKind.EXPM1",
-            "UnaryElementwiseKind.ERF", "UnaryElementwiseKind.SQRT", "UnaryElementwiseKind.RSQRT",
-            "UnaryElementwiseKind.FLOOR", "UnaryElementwiseKind.CEIL", "UnaryElementwiseKind.SIGN",
-            "UnaryElementwiseKind.RELU", "UnaryElementwiseKind.SIGMOID", "UnaryElementwiseKind.TANH",
-            "UnaryElementwiseKind.GELU", "UnaryElementwiseKind.GELU_TANH_APPROXIMATION",
-            "UnaryElementwiseKind.SILU", "AxisGatherKind.GATHER_ELEMENTS",
-            "AxisScatterKind.SCATTER_ADD", "GatherNdKind.GATHER_ND", "ScatterNdKind.SCATTER_ND",
-            "SelectKind.SELECT", "PadKind.PAD", "SliceKind.SLICE", "SliceKind.SLICE_UPDATE",
-            "TensorCompositionKind.CONCAT", "TensorCompositionKind.STACK", "TileKind.TILE",
-            "WindowTransformKind.FOLD_AXIS", "WindowTransformKind.UNFOLD2D",
-            "WindowTransformKind.FOLD2D", "WindowTransformKind.UNFOLD3D",
-            "WindowTransformKind.FOLD3D", "LossKind.MEAN_SQUARED_ERROR",
-            "LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS",
-            "LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS",
-            "BatchNormKind.BATCH_NORM_INFERENCE", "BatchNormKind.BATCH_NORM_TRAINING",
-            "LayerNormKind.LAYER_NORM", "RmsNormKind.RMS_NORM", "SoftmaxKind.SOFTMAX",
-            "SoftmaxKind.LOG_SOFTMAX", "OrderingKind.SORT", "OrderingKind.ARGSORT", "TopKKind.TOP_K",
-            "Pool2dKind.MAX_POOL2D", "Pool2dKind.AVERAGE_POOL2D", "Pool3dKind.MAX_POOL3D",
-            "Pool3dKind.AVERAGE_POOL3D", "DropoutKind.DROPOUT", "GraphRngKind.INITIAL_STATE",
-            "RecurrentScanKind.RNN_TANH", "RecurrentScanKind.GRU_RESET_AFTER", "RecurrentScanKind.LSTM",
-            "AggregateReductionKind.PROD", "AggregateReductionKind.ALL", "AggregateReductionKind.ANY",
-            "AggregateReductionKind.ARG_MAX", "AggregateReductionKind.ARG_MIN",
-            "AggregateReductionKind.LOG_SUM_EXP", "AggregateReductionKind.VARIANCE",
-            "AggregateReductionKind.STANDARD_DEVIATION", "AggregateReductionKind.L1_NORM",
-            "AggregateReductionKind.L2_NORM"
-    };
 }

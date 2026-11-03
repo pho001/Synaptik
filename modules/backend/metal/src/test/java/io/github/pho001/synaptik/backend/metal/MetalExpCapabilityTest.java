@@ -26,11 +26,13 @@ final class MetalExpCapabilityTest {
             UnaryElementwiseKind.EXP, NoOperationAttrs.INSTANCE);
 
     @Test
-    void admitsOnlyPositiveStaticCanonicalFloat32WithoutGradients() {
+    void admitsStaticCanonicalFloat32WithMatchingGradientMetadata() {
         for (Shape shape : List.of(Shape.of(1), Shape.of(2, 3), rank(16))) {
             TensorDescriptor value = canonical(DataType.FLOAT32, shape, false);
             assertTrue(supports(EXP, List.of(value), List.of(value)), shape.toString());
         }
+        var gradient = canonical(DataType.FLOAT32, Shape.of(2, 3), true);
+        assertTrue(supports(EXP, List.of(gradient), List.of(gradient)));
         Shape shape = Shape.of(2, 3);
         TensorDescriptor value = canonical(DataType.FLOAT32, shape, false);
         for (DataType type : List.of(
@@ -59,7 +61,7 @@ final class MetalExpCapabilityTest {
                                 new ScalarValueAttrs(ScalarValue.float32(1.0f))),
                         List.of(value), List.of(value)));
         TensorDescriptor scalar = canonical(DataType.FLOAT32, Shape.scalar(), false);
-        assertFalse(supports(EXP, List.of(scalar), List.of(scalar)));
+        assertTrue(supports(EXP, List.of(scalar), List.of(scalar)));
         Shape rank17 = rank(17);
         assertFalse(supports(EXP,
                 List.of(canonical(DataType.FLOAT32, rank17, false)),

@@ -28,7 +28,7 @@ final class MetalSigmoidNativeTest {
     private static final double F16_MAX_RELATIVE_ERROR = 0.00055;
 
     @Test
-    void preflightAdmitsOnlyCanonicalNoGradientFloat32OnFixedRoutes() {
+    void preflightAdmitsCanonicalMatchingFloat32GradientsOnFixedRoutes() {
         Shape shape = Shape.of(7);
         var valid = List.of(value(DataType.FLOAT32, shape, false),
                 value(DataType.FLOAT32, shape, false));
@@ -39,6 +39,12 @@ final class MetalSigmoidNativeTest {
         for (MetalPreparedRoute route : List.of(MetalPreparedRoute.MPSGRAPH)) {
             MetalNativeApi.ProgramExecutableAbi.validateCreate(valid, program(),
                     new int[] {0}, new int[] {1}, route);
+            MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                    List.of(value(DataType.FLOAT32, shape, true), value(DataType.FLOAT32, shape, true)),
+                    program(), new int[] {0}, new int[] {1}, route);
+            MetalNativeApi.ProgramExecutableAbi.validateCreate(
+                    List.of(value(DataType.FLOAT32, Shape.scalar(), false), value(DataType.FLOAT32, Shape.scalar(), false)),
+                    program(), new int[] {0}, new int[] {1}, route);
             for (DataType wrong : List.of(DataType.BFLOAT16, DataType.FLOAT16,
                     DataType.FLOAT64)) {
                 assertThrows(IllegalArgumentException.class,
@@ -51,8 +57,6 @@ final class MetalSigmoidNativeTest {
                     List.of(value(DataType.FLOAT32, shape, true), valid.get(1)),
                     List.of(valid.get(0), value(DataType.FLOAT32, shape, true)),
                     List.of(valid.get(0), value(DataType.FLOAT32, Shape.of(8), false)),
-                    List.of(value(DataType.FLOAT32, Shape.scalar(), false),
-                            value(DataType.FLOAT32, Shape.scalar(), false)),
                     List.of(new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32,
                             shape.toLongArray(), Optional.empty(), false, false), valid.get(1)))) {
                 assertThrows(IllegalArgumentException.class,
@@ -334,6 +338,7 @@ final class MetalSigmoidNativeTest {
             MetalNativeApi.Handle context = api.createContext();
             try {
                 runCase(api, context, new float[] {0.25f});
+                runCase(api, context, new float[] {-100.0f, -1.0f, -0.0f, 0.0f, 1.0f, 80.0f}, true);
                 runCase(api, context, new float[] {
                         -Float.MAX_VALUE, -110.0f, -104.0f, -103.3f, -103.0f,
                         -100.0f, -90.0f, -87.4f, -87.3f,
@@ -354,12 +359,16 @@ final class MetalSigmoidNativeTest {
         }
     }
 
+    private static void runCase(MetalNativeApi api, MetalNativeApi.Handle context, float[] samples) {
+        runCase(api, context, samples, false);
+    }
+
     private static void runCase(MetalNativeApi api, MetalNativeApi.Handle context,
-            float[] samples) {
+            float[] samples, boolean requiresGrad) {
         Shape shape = Shape.of(samples.length);
         MetalNativeApi.Handle executable = api.createProgramExecutable(context,
-                List.of(value(DataType.FLOAT32, shape, false),
-                        value(DataType.FLOAT32, shape, false)),
+                List.of(value(DataType.FLOAT32, shape, requiresGrad),
+                        value(DataType.FLOAT32, shape, requiresGrad)),
                 program(), new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH);
         long bytes = Math.multiplyExact((long) samples.length, Float.BYTES);
         MetalNativeApi.Handle input = api.createBuffer(context, bytes);

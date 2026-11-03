@@ -115,12 +115,12 @@ import java.util.Optional;
  * and lowered to a fixed custom implementation. That closure includes arithmetic, reductions and
  * scans, MSE, MATMUL, convolution/pooling, ordering, dropout, L1, ScatterAdd, and singleton
  * variance. The low-precision capability is the selected occurrence-scoped predicate; arithmetic
- * may flush only at the named arithmetic sites. Scatter requires canonical
- * base/index/update/output representations; the compiler inserts explicit {@code CONTIGUOUS}
- * between its generated zero-base {@code EXPAND} and Scatter. Its INT32/INT64 indices must remain a
- * materialized partition feed. Random lowering preserves initializer key/counter words, dropout's
- * raw binary64 probability, and all ordered value, mask, and state edges; recurrent nodes remain
- * rejected. MATMUL alone admits exact dense logical views without changing their view flags. A
+ * may flush only at the named arithmetic sites. FLOAT32 arithmetic scatter binds its original
+ * affine reads and canonical result, including materialized produced indices; replacement
+ * uniqueness remains separate from additive contributors. Random lowering preserves initializer
+ * key/counter words, dropout's raw binary64 probability and all value/mask/state edges. Fixed
+ * recurrent forward and authenticated Scan retain their complete canonical output/resource roles.
+ * MATMUL admits exact dense logical views without changing their view flags. A
  * non-dense affine operand requires the exact earlier local last-two-axis {@code PERMUTE} rooted
  * in an authenticated dense value; materialized affine buffers retain represented addressing.
  * RESHAPE resolves its state from the actual source/result descriptors: exact inferred views

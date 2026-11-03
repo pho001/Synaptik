@@ -596,79 +596,84 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         }
 
         private RuntimeException reproduceIndexFailure() {
-            List<MetalMpsGraphProgram.Node> nodes = preparationPlan.graphProgram().nodes();
-            for (MetalMpsGraphProgram.Node node : nodes) {
-                int indexValue;
-                String family;
-                if (node.kind() == MetalMpsGraphProgram.NodeKind.GATHER) {
-                    family = "GATHER";
-                    indexValue = node.secondInputIndex();
-                } else if (node.kind() == MetalMpsGraphProgram.NodeKind.GATHER_ELEMENTS) {
-                    family = "GATHER_ELEMENTS";
-                    indexValue = node.secondInputIndex();
-                } else if (node.kind() == MetalMpsGraphProgram.NodeKind.GATHER_ND) {
-                    family = "GATHER_ND";
-                    indexValue = node.secondInputIndex();
-                } else if (node.kind() == MetalMpsGraphProgram.NodeKind.ONE_HOT) {
-                    family = "ONE_HOT";
-                    indexValue = node.firstInputIndex();
-                } else if (node.kind()
-                        == MetalMpsGraphProgram.NodeKind.SCATTER_ELEMENTS) {
-                    family = "SCATTER_ELEMENTS";
-                    indexValue = node.secondInputIndex();
-                } else {
-                    continue;
-                }
-                var indexDescriptor = preparationPlan.descriptors().get(indexValue);
-                DataType indexType = indexDescriptor.dataType();
-                int width = indexType.byteWidth();
-                long[] indexShape = indexDescriptor.shape().toLongArray();
-                long elements = indexDescriptor.shape().knownElementCount().orElseThrow();
-                long bytes = Math.multiplyExact(elements, width);
-                MetalBufferRepresentation indexBuffer = inputBuffers[indexValue];
-                if (indexBuffer == null) {
-                    throw new IllegalStateException(
-                            "Metal index value has no stable executable buffer");
-                }
-                long[] dataShape = preparationPlan.descriptors()
-                        .get(node.firstInputIndex()).shape().toLongArray();
-                int batch = family.equals("GATHER_ND")
-                        ? Math.toIntExact(node.attributeWords()[0]) : 0;
-                long tuple = family.equals("GATHER_ND")
-                        ? indexShape[indexShape.length - 1] : 0L;
-                try (Arena arena = Arena.ofConfined()) {
-                    MemorySegment indices = arena.allocate(bytes, width);
-                    indexBuffer.download(0L, indices, 0L, bytes);
-                    for (long ordinal = 0L; ordinal < elements; ordinal++) {
-                        long value = readIndex(indices, ordinal, indexType);
-                        int selectedAxis = family.equals("GATHER_ND")
-                                ? Math.addExact(batch, Math.toIntExact(ordinal % tuple))
-                                : node.axis();
-                        long bound = family.equals("ONE_HOT")
-                                ? node.attributeValues()[0] : dataShape[selectedAxis];
-                        if (value < 0L || value >= bound) {
-                            String message = family.equals("ONE_HOT")
-                                    ? "ONE_HOT index at logical position " + ordinal
-                                            + " is out of bounds: value=" + value
-                                            + ", depth=" + bound
-                                    : family + " index at logical position " + ordinal
-                                            + " for data axis " + selectedAxis
-                                            + " is out of bounds: value=" + value
-                                            + ", extent=" + bound;
-                            return new IndexOutOfBoundsException(message);
+            var descriptors = preparationPlan.descriptors();
+            boolean[] feeds = new boolean[descriptors.size()];
+            for (int feed : preparationPlan.feedValueIndices()) feeds[feed] = true;
+            // Native checks boundary controls before any producer runs. Only after those pass
+            // may a produced control be inspected; later producer buffers can be uninitialized.
+            for (int pass = 0; pass < 2; pass++) {
+                for (var node : preparationPlan.graphProgram().nodes()) {
+                    int indexValue;
+                    boolean length = false, nd = false, classIndex = false;
+                    long time = 0L;
+                    long[] words = node.attributeWords();
+                    switch (node.kind()) {
+                        case GATHER, GATHER_ELEMENTS, SCATTER_ELEMENTS, SCATTER_ADD -> indexValue = node.secondInputIndex();
+                        case GATHER_ND, SCATTER_ND -> { indexValue = node.secondInputIndex(); nd = true; }
+                        case ONE_HOT -> indexValue = node.firstInputIndex();
+                        case INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS -> {
+                            indexValue = node.secondInputIndex(); classIndex = true;
                         }
+                        case RNN_TANH, GRU_RESET_AFTER, LSTM -> {
+                            indexValue = node.inputs()[1]; length = true;
+                            time = descriptors.get(node.firstInputIndex()).shape().toLongArray()[0];
+                        }
+                        case GENERAL_SCAN -> {
+                            if ((words[4] & 2L) == 0L) continue;
+                            indexValue = node.inputs()[node.inputCount() - 1]; length = true; time = words[3];
+                        }
+                        default -> { continue; }
                     }
-                    if (node.kind()
-                            == MetalMpsGraphProgram.NodeKind.SCATTER_ELEMENTS) {
-                        for (long later = 1L; later < elements; later++) {
-                            for (long first = 0L; first < later; first++) {
-                                if (sameScatterTarget(
-                                        indices, later, first, indexShape, node.axis())) {
-                                    return new IllegalArgumentException(
-                                            "SCATTER_ELEMENTS duplicate target at logical"
-                                                    + " update position " + later
-                                                    + "; first addressed at logical update"
-                                                    + " position " + first);
+                    if (feeds[indexValue] != (pass == 0)) continue;
+                    var indexDescriptor = descriptors.get(indexValue);
+                    long elements = indexDescriptor.shape().knownElementCount().orElseThrow();
+                    if (elements == 0L) continue;
+                    DataType indexType = indexDescriptor.dataType();
+                    int width = indexType.byteWidth();
+                    long[] indexShape = indexDescriptor.shape().toLongArray();
+                    var layout = indexDescriptor.layout().orElseGet(
+                            () -> io.github.pho001.synaptik.model.layout.LayoutDescriptor.contiguous(indexDescriptor.shape()));
+                    long[] strides = layout.strides();
+                    long offset = layout.storageOffset();
+                    long bytes = Math.multiplyExact(layout.referencedElementSpan(), width);
+                    var indexBuffer = inputBuffers[indexValue];
+                    if (indexBuffer == null) throw new IllegalStateException("Metal control has no stable executable buffer");
+                    long[] dataShape = descriptors.get(node.firstInputIndex()).shape().toLongArray();
+                    int batch = nd ? Math.toIntExact(words[0]) : 0;
+                    long tuple = nd ? indexShape[indexShape.length - 1] : 0L;
+                    String family = node.kind().name();
+                    try (Arena arena = Arena.ofConfined()) {
+                        MemorySegment indices = arena.allocate(bytes, width);
+                        indexBuffer.download(0L, indices, 0L, bytes);
+                        for (long ordinal = 0L; ordinal < elements; ordinal++) {
+                            long value = readLogicalIndex(indices, ordinal, indexType, indexShape, strides, offset);
+                            if (classIndex && words[2] != 0L
+                                    && value == (indexType == DataType.INT32 ? (int)words[4] : words[4])) continue;
+                            int axis = nd ? Math.addExact(batch, Math.toIntExact(ordinal % tuple))
+                                    : length ? 0 : classIndex ? Math.toIntExact(words[0]) : node.axis();
+                            long bound = length ? time : node.kind() == MetalMpsGraphProgram.NodeKind.ONE_HOT
+                                    ? node.attributeValues()[0] : dataShape[axis];
+                            if (value < 0L || (length ? value > bound : value >= bound)) {
+                                if (length) return new IllegalArgumentException(family + " length at batch "
+                                        + ordinal + " must be in [0," + bound + "]: " + value);
+                                return new IndexOutOfBoundsException(family + " index at logical position "
+                                        + ordinal + " for axis " + axis + " is out of bounds: value="
+                                        + value + ", extent=" + bound);
+                            }
+                        }
+                        boolean replacement = node.kind() == MetalMpsGraphProgram.NodeKind.SCATTER_ELEMENTS
+                                && (node.attributeKind() == MetalMpsGraphProgram.AttributeKind.AXIS || words[1] == 1L)
+                                || node.kind() == MetalMpsGraphProgram.NodeKind.SCATTER_ND && words[1] == 1L;
+                        if (replacement) {
+                            long updates = nd ? elements / tuple : elements;
+                            for (long later = 1L; later < updates; later++) {
+                                for (long first = 0L; first < later; first++) {
+                                    boolean same = nd ? sameNdTarget(indices, later, first, indexShape, tuple,
+                                            batch, indexType, strides, offset)
+                                            : sameScatterTarget(indices, later, first, indexShape, node.axis(),
+                                                    indexType, strides, offset);
+                                    if (same) return new IllegalArgumentException(family + " duplicate target at logical update "
+                                            + later + "; first addressed at " + first);
                                 }
                             }
                         }
@@ -688,17 +693,37 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             };
         }
 
+        private static long readLogicalIndex(MemorySegment indices, long ordinal, DataType type,
+                long[] shape, long[] strides, long offset) {
+            long physical = offset;
+            for (int axis = shape.length; axis-- > 0;) {
+                physical = Math.addExact(physical, Math.multiplyExact(ordinal % shape[axis], strides[axis]));
+                ordinal /= shape[axis];
+            }
+            return readIndex(indices, physical, type);
+        }
+
+        private static boolean sameNdTarget(MemorySegment indices, long left, long right,
+                long[] shape, long tuple, int batch, DataType type, long[] strides, long offset) {
+            for (int axis = 0; axis < batch; axis++)
+                if (coordinate(left * tuple, shape, axis) != coordinate(right * tuple, shape, axis)) return false;
+            for (long component = 0; component < tuple; component++)
+                if (readLogicalIndex(indices, left * tuple + component, type, shape, strides, offset)
+                        != readLogicalIndex(indices, right * tuple + component, type, shape, strides, offset)) return false;
+            return true;
+        }
+
 
         private static boolean sameScatterTarget(
                 MemorySegment indices,
                 long left,
                 long right,
                 long[] shape,
-                int selectedAxis) {
+                int selectedAxis, DataType type, long[] strides, long offset) {
             for (int axis = 0; axis < shape.length; axis++) {
                 if (axis == selectedAxis) {
-                    if (indices.getAtIndex(NATIVE_INT, left)
-                            != indices.getAtIndex(NATIVE_INT, right)) {
+                    if (readLogicalIndex(indices, left, type, shape, strides, offset)
+                            != readLogicalIndex(indices, right, type, shape, strides, offset)) {
                         return false;
                     }
                 } else if (coordinate(left, shape, axis)

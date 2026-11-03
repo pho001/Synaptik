@@ -12,8 +12,8 @@ import java.util.Optional;
  * <p>The stable candidate order begins with the current safe heuristic. The value owns no
  * measurement, cache location, native handle, executable, physical allocation, or Runtime state.
  * Shared Prepare can transport it only through the method-free {@link BackendTuningCandidateBatch}
- * role. Version 40 binds FLOAT32 Pool2d/Pool3d overlapping cotangents through shared image folds;
- * version 39 and earlier decisions are stale even for the same partition topology.
+ * role. Version 41 binds complete typed native operation programs, resource declarations and
+ * authenticated Scan body/activity semantics. All predecessor decisions are stale.
  */
 final class MetalNegTuningBatch implements BackendTuningCandidateBatch {
     /** Current candidate and decision meaning. */

@@ -29,9 +29,10 @@ class MetalMpsGraphReductionNativeTest {
                 false)));
         int[] ranks = {2, 0};
         long[] dimensions = dimensions(new long[][] {{2, 2}, {}});
-        MetalNativeApi.ProgramExecutableAbi.validateCreate(MetalTestProgram.descriptors(ranks, dimensions, full), full, new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH);
-        assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.ProgramExecutableAbi.validateCreate(MetalTestProgram.descriptors(new int[] {0, 0}, dimensions(new long[][] {{}, {}}), full), full, new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH));
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(MetalTestProgram.descriptors(ranks, dimensions, full), full, new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM);
+        MetalNativeApi.ProgramExecutableAbi.validateCreate(MetalTestProgram.descriptors(
+                new int[] {0, 0}, dimensions(new long[][] {{}, {}}), full), full,
+                new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM);
 
         var wrongShape = new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.reduction(
                 MetalMpsGraphProgram.NodeKind.SUM,
@@ -41,7 +42,7 @@ class MetalMpsGraphReductionNativeTest {
                 List.of(1),
                 false)));
         assertThrows(IllegalArgumentException.class, () ->
-                MetalNativeApi.ProgramExecutableAbi.validateCreate(MetalTestProgram.descriptors(new int[] {2, 1}, dimensions(new long[][] {{2, 2}, {1}}), wrongShape), wrongShape, new int[] {0}, new int[] {1}, MetalPreparedRoute.MPSGRAPH));
+                MetalNativeApi.ProgramExecutableAbi.validateCreate(MetalTestProgram.descriptors(new int[] {2, 1}, dimensions(new long[][] {{2, 2}, {1}}), wrongShape), wrongShape, new int[] {0}, new int[] {1}, MetalPreparedRoute.CUSTOM_PROGRAM));
         assertThrows(IllegalArgumentException.class, () ->
                 MetalMpsGraphProgram.Node.reduction(
                         MetalMpsGraphProgram.NodeKind.MEAN,
@@ -92,7 +93,7 @@ class MetalMpsGraphReductionNativeTest {
             long[] dimensions = dimensions(new long[][] {
                 {2, 2}, {}, {2, 1}, {2, 2}, {1, 2}
             });
-            executable = api.createProgramExecutable(context, MetalTestProgram.descriptors(ranks, dimensions, program), program, new int[] {0}, new int[] {4, 1, 3, 2}, MetalPreparedRoute.MPSGRAPH);
+            executable = api.createProgramExecutable(context, MetalTestProgram.descriptors(ranks, dimensions, program), program, new int[] {0}, new int[] {4, 1, 3, 2}, MetalPreparedRoute.CUSTOM_PROGRAM);
             int[][] initial = {
                 bits(1.0f, 2.0f, 3.0f, 4.0f),
                 new int[2],
@@ -151,7 +152,7 @@ class MetalMpsGraphReductionNativeTest {
                             List.of(),
                             false),
                     MetalMpsGraphProgram.Node.sumToShape(0, 2, new long[] {1})));
-            executable = api.createProgramExecutable(context, MetalTestProgram.descriptors(new int[] {1, 0, 1}, dimensions(new long[][] {{1}, {}, {1}}), program), program, new int[] {0}, new int[] {1, 2}, MetalPreparedRoute.MPSGRAPH);
+            executable = api.createProgramExecutable(context, MetalTestProgram.descriptors(new int[] {1, 0, 1}, dimensions(new long[][] {{1}, {}, {1}}), program), program, new int[] {0}, new int[] {1, 2}, MetalPreparedRoute.CUSTOM_PROGRAM);
             int signalingNaN = 0x7f800123;
             for (int count : new int[] {1, 1, 1}) {
                 buffers.add(api.createBuffer(context, (long) count * Integer.BYTES));

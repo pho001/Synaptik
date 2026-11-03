@@ -101,20 +101,19 @@ import java.util.Objects;
 /**
  * Reports the exact operation-occurrence capability of the current Metal backend.
  *
- * <p>The current capability ledger calls this predicate over a stable representative basis and
- * snapshots true and false answers. The historical pre-cutover ledger remains frozen; the only
- * added EXP answers are the separately qualified bounded no-gradient FLOAT32, BFLOAT16, and
- * FLOAT16 occurrences. SIGMOID has separately qualified FLOAT32, BFLOAT16, and FLOAT16 answers.
- * The ledger contains no route, runtime, device, certificate, or generated-backward fact.</p>
+ * <p>Admission uses original descriptors and focused domain predicates for FLOAT32 math,
+ * reductions, scatter, neural operations and native Scan, alongside the established exact domains.
+ * Each checks its actual carrier, attribute, shape, physical-read and gradient relationships.
+ * The descriptive route catalog and historical representative counts are never admission inputs.
+ * Executable ingress independently validates the resulting program; a provider answer is not a
+ * native certificate or a claim about unsupported generated differentiation.</p>
  *
- * <p>This provider is immutable and performs no native loading, device discovery, allocation,
- * registration, or caching. The provider admits the exact seven-carrier movement, affine,
- * canonicalization, indexing, replacement, selection, ordering, state, predicate, cast, and
- * window occurrences declared below. Reads may use authenticated static affine or
- * transferred materialized layouts; outputs use the operation's exact logical view or canonical
- * materialization. FLOAT32 image folds accumulate overlapping contributors with one output writer;
- * FLOAT64/low image folds and FOLD_AXIS retain exact non-overlapping placement. External
- * unsafe aliases, negative strides, storage overlap, and empty or dynamic geometry remain false.</p>
+ * <p>This provider is immutable and performs no native loading, device discovery, registration,
+ * caching or Runtime execution. Cold metadata construction is local to qualification. Reads may
+ * use authenticated static affine/broadcast storage; outputs retain exact view or canonical
+ * materialization semantics. Empty execution is operation-specific, not a blanket exception to
+ * shape equations or denominator bounds. Unsafe aliases, negative strides, overlapping
+ * nonbroadcast axes, unresolved and over-limit geometry remain excluded.</p>
  *
  * <p>For homogeneous BFLOAT16 and FLOAT16 occurrences, this predicate first checks the original
  * descriptors, then tests an exact FLOAT32 descriptor/attribute proxy against the baseline
@@ -154,13 +153,13 @@ import java.util.Objects;
  * accept the six numeric carriers. Convolution and pooling require fully static positive geometry,
  * exact layouts and result Shape, unsigned-32-bit bounds, and the pooling-kernel cap. FLOAT32
  * Conv2d/Conv3d input cotangents may use overlapping image folds. Low convolution and pooling
- * input cotangents still require non-overlapping effective windows. Attention, recurrent
- * execution, and convolution transpose remain unsupported.</p>
+ * input cotangents still require non-overlapping effective windows. Attention and fixed recurrent
+ * forward use their original FLOAT32 domain owners; convolution transpose remains unsupported.</p>
  *
  * <p>INITIAL_STATE is no-gradient. DROPOUT preserves value
- * differentiability and publishes no-gradient mask/state roles. L1, ScatterAdd, and singleton
- * VARIANCE retain their narrow no-gradient predicates. LOG_SUM_EXP,
- * STANDARD_DEVIATION, L2_NORM, and every unlisted occurrence remain production-false.</p>
+ * differentiability and publishes no-gradient mask/state roles. FLOAT32 L1, arithmetic scatter,
+ * shaped variance/std/L2/log-sum-exp and masked reductions have their focused native domains;
+ * the homogeneous low proxy retains its historical bounds. Unlisted occurrences remain false.</p>
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     private static final long UINT32_MAX = 0xffff_ffffL;
@@ -234,6 +233,10 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         Objects.requireNonNull(operation, "operation");
         Objects.requireNonNull(inputs, "inputs");
         Objects.requireNonNull(outputs, "outputs");
+        // Exact mixed-carrier promotion is checked on original carriers before the frozen
+        // same-carrier fallback. FLOAT64 here means represented-value comparison, not arithmetic.
+        if (MetalExactSupport.handles(operation, inputs, outputs))
+            return MetalExactSupport.supports(operation, inputs, outputs);
         if (operation.kind() instanceof BinaryComparisonKind
                 && (inputs.size() != 2 || inputs.get(0).dataType() != inputs.get(1).dataType()))
             return false;
@@ -288,7 +291,6 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
             if (MetalNormalizationSupport.supports(operation, inputs, outputs)
                     || MetalAttentionSupport.supports(operation, inputs, outputs)
                     || MetalRecurrentSupport.supports(operation, inputs, outputs)
-                    || MetalExactSupport.supports(operation, inputs, outputs)
                     || MetalScatterSupport.supports(operation, inputs, outputs)
                     || MetalReductionSupport.supports(operation, inputs, outputs)) return true;
             if (outputs.size() == 1 && (supportsFloat32Elementary(

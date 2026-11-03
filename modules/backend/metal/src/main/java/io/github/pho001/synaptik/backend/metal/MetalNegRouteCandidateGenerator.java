@@ -25,9 +25,9 @@ import java.util.Optional;
  * and the scalar-composition source wire, exact raw constant, rank-one {@code [1]} shape, operand
  * order, and primitive opcode. Graph-local identities, partition object identity, native handles,
  * measurements, and cache state are excluded. Generation is cold, thread-safe, deterministic, and
- * performs no native work. Version 40 binds FLOAT32 Pool2d/Pool3d overlapping cotangents
- * through the shared image-fold capability, retaining Conv3d training, materializing RESHAPE and dense-view
- * MATMUL composition. Older compatibility is rejected without changing the program schema or routes.
+ * performs no native work. Version 41 authenticates the complete typed operation/resource program
+ * and native Scan body/activity grammar. Predecessor compatibility is rejected without aliases;
+ * the established candidate wires and exact singleton-NEG tuning policy remain unchanged.
  */
 final class MetalNegRouteCandidateGenerator {
     private static final long UINT32_MAX = 0xffff_ffffL;
