@@ -46,6 +46,41 @@ class MetalGeneralScanNativeTest {
         }
     }
 
+    @Test void integralCarryAndHistoryUseControlledOrdinaryModularArithmetic() {
+        for (var type : List.of(DataType.INT32, DataType.INT64))
+                for (boolean reverse : List.of(false, true)) for (boolean lengths : List.of(false, true)) {
+            var query = MetalScanPlanTest.additiveQuery(type, 3, 2, lengths, reverse);
+            long high = type == DataType.INT32 ? Integer.MAX_VALUE : Long.MAX_VALUE;
+            long low = type == DataType.INT32 ? Integer.MIN_VALUE : Long.MIN_VALUE;
+            long[] original = {high, low}, sequence = {1, 2, 3, 4, 5, 6};
+            long[] valid = {3, lengths ? 1 : 3};
+            long[] carry = original.clone(), history = new long[6], previous = new long[6];
+            for (int iteration = 0; iteration < 3; iteration++) {
+                int time = reverse ? 2 - iteration : iteration;
+                for (int row = 0; row < 2; row++) if (time < valid[row]) {
+                    previous[time * 2 + row] = carry[row];
+                    long next = carry[row] + sequence[time * 2 + row];
+                    carry[row] = type == DataType.INT32 ? (int) next : next;
+                    history[time * 2 + row] = carry[row];
+                }
+            }
+            try (var run = new RawScan(query, null)) {
+                run.bytes(0, integers(type, original)); run.bytes(1, integers(type, sequence));
+                if (lengths) run.longs(2, valid);
+                run.execute();
+                assertArrayEquals(integers(type, carry), run.outputBytes(0));
+                assertArrayEquals(integers(type, history), run.outputBytes(1));
+                assertArrayEquals(integers(type, previous), run.outputBytes(2));
+                if (lengths) {
+                    run.longs(2, 0, 0); run.execute();
+                    assertArrayEquals(integers(type, original), run.outputBytes(0));
+                    assertArrayEquals(integers(type, new long[6]), run.outputBytes(1));
+                    assertArrayEquals(integers(type, new long[6]), run.outputBytes(2));
+                }
+            }
+        }
+    }
+
     @Test void invalidLastLengthPrecedesEveryOutputWriteIncludingZeroTimeAndAllowsRetry() {
         for (long time : new long[] {0, 3}) try (var run = new RawScan(MetalScanPlanTest.additiveQuery(time, 2, true, false), null)) {
             run.floats(0, -0.0f, 5);
@@ -409,6 +444,14 @@ class MetalGeneralScanNativeTest {
         var descriptor = MetalScanPlanTest.descriptor(DataType.FLOAT32, shape);
         return TensorFactory.create(new TensorDescriptor(descriptor.dataType(), descriptor.shape(), descriptor.layout(), grad));
     }
+    private static byte[] integers(DataType type, long... values) {
+        var bytes = ByteBuffer.allocate(values.length * type.byteWidth()).order(ByteOrder.nativeOrder());
+        for (long value : values) {
+            if (type == DataType.INT32) bytes.putInt((int) value); else bytes.putLong(value);
+        }
+        return bytes.array();
+    }
+
     private static byte[] floats(float... values) { var bytes = ByteBuffer.allocate(values.length * 4).order(ByteOrder.nativeOrder()); for (float value : values) bytes.putInt(Float.floatToRawIntBits(value)); return bytes.array(); }
     private static byte[] longs(long... values) { var bytes = ByteBuffer.allocate(values.length * 8).order(ByteOrder.nativeOrder()); for (long value : values) bytes.putLong(value); return bytes.array(); }
     private static void assertRaw(float[] expected, int[] actual) { int[] bits = new int[expected.length]; for (int i = 0; i < bits.length; i++) bits[i] = Float.floatToRawIntBits(expected[i]); assertArrayEquals(bits, actual); }

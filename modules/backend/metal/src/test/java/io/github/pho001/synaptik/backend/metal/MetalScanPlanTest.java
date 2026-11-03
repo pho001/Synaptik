@@ -214,7 +214,11 @@ class MetalScanPlanTest {
     }
 
     static OperationCapabilityQuery additiveQuery(long time, long batch, boolean lengths, boolean reverse) {
-        var step = descriptor(DataType.FLOAT32, batch, 1);
+        return additiveQuery(DataType.FLOAT32, time, batch, lengths, reverse);
+    }
+
+    static OperationCapabilityQuery additiveQuery(DataType type, long time, long batch, boolean lengths, boolean reverse) {
+        var step = descriptor(type, batch, 1);
         var h = new ValueId(0); var x = new ValueId(1); var next = new ValueId(2);
         var add = new CompiledNode(new NodeId(0), new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE), List.of(h, x), List.of(next));
         var graph = new CompiledGraphModel(List.of(new GraphValue(h, step), new GraphValue(x, step), new GraphValue(next, step)),
@@ -222,10 +226,10 @@ class MetalScanPlanTest {
         var body = new CompiledScanBody(graph, List.of(next), List.of(next), List.of(h), List.of(0, 1, 2));
         var attrs = lengths ? new ScanAttrs(time, 1, 1, 0, 1, 1, reverse, true, 1, List.of(OptionalInt.of(0)))
                 : new ScanAttrs(time, 1, 1, 0, 1, 1, reverse);
-        var inputs = new java.util.ArrayList<>(List.of(step, descriptor(DataType.FLOAT32, time, batch, 1)));
+        var inputs = new java.util.ArrayList<>(List.of(step, descriptor(type, time, batch, 1)));
         if (lengths) inputs.add(descriptor(DataType.INT64, batch));
         return new OperationCapabilityQuery(new Operation(ScanKind.SCAN, attrs), inputs,
-                List.of(step, descriptor(DataType.FLOAT32, time, batch, 1), descriptor(DataType.FLOAT32, time, batch, 1)),
+                List.of(step, descriptor(type, time, batch, 1), descriptor(type, time, batch, 1)),
                 Optional.of(body), Optional.empty());
     }
 
