@@ -436,6 +436,16 @@ final class AutogradPreflight {
     }
 
     /**
+     * Checks a compiler-owned recipe before binding its generated cotangents. Like a Scan body,
+     * these roots are internal flow, not new public explicit-seed declarations. The enclosing
+     * public request has already checked eligibility; actual seeds bind only during expansion.
+     */
+    static StagePlan preflightRecipe(List<Tensor> roots, List<Tensor> targets) {
+        return preflightStage(0, roots, Collections.nCopies(roots.size(), Optional.empty()),
+                targets, FunctionalGradientRequest.DisconnectedPolicy.ZERO, inventory(roots), true);
+    }
+
+    /**
      * Selects existing rules for a public stage or a closed internal body flow.
      * @param stageIndex zero-based derivative stage
      * @param outputs ordered cotangent roots, repeated roles permitted only internally

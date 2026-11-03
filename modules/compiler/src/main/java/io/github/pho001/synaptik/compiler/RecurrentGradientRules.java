@@ -1,6 +1,5 @@
 package io.github.pho001.synaptik.compiler;
 
-import io.github.pho001.synaptik.config.compile.CompileMode;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection;
@@ -55,11 +54,6 @@ final class RecurrentGradientRules {
         Tensor previous = working(carries.getFirst(), work);
         Tensor inputProjection = working(step, work).linear(working(invariants.get(0), work));
         Tensor hiddenProjection = previous.linear(working(invariants.get(1), work));
-        if (storage != work) {
-            // The retained low fixed owner seeds each projection with positive F32 zero.
-            inputProjection = inputProjection.add(0f);
-            hiddenProjection = hiddenProjection.add(0f);
-        }
         if (invariants.size() == 3) inputProjection = inputProjection.add(working(invariants.get(2), work));
         long hidden = ((io.github.pho001.synaptik.model.shape.StaticDimension)
                 carries.getFirst().descriptor().shape().dimension(1)).size();
@@ -99,13 +93,7 @@ final class RecurrentGradientRules {
         }
         var targets = new ArrayList<Tensor>();
         for (int i = 0; i < selected.length; i++) if (selected[i]) targets.add(actuals.get(i));
-        var request = new FunctionalGradientRequest.Stage(roots.stream()
-                .map(t -> (FunctionalGradientRequest.OutputReference)
-                        new FunctionalGradientRequest.ForwardTensorReference(t)).toList(),
-                rootSeeds.stream().map(Optional::of).toList(), targets, false,
-                FunctionalGradientRequest.DisconnectedPolicy.ZERO);
-        var plan = AutogradPreflight.preflight(CompileMode.FORWARD_AND_BACKWARD, roots, request,
-                CompileTimeConstantGraph.Ingress.empty());
+        var plan = AutogradPreflight.preflightRecipe(roots, targets);
         List<Tensor> gradients = FirstOrderAutograd.expandRecipe(plan, rootSeeds, constants);
         Tensor[] result = new Tensor[selected.length];
         for (int i = 0, target = 0; i < selected.length; i++) if (selected[i]) result[i] = gradients.get(target++);
