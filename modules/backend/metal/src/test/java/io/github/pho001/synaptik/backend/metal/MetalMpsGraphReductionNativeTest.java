@@ -96,8 +96,8 @@ class MetalMpsGraphReductionNativeTest {
             executable = api.createProgramExecutable(context, MetalTestProgram.descriptors(ranks, dimensions, program), program, new int[] {0}, new int[] {4, 1, 3, 2}, MetalPreparedRoute.CUSTOM_PROGRAM);
             int[][] initial = {
                 bits(1.0f, 2.0f, 3.0f, 4.0f),
-                new int[2],
                 new int[1],
+                new int[2],
                 new int[4],
                 new int[2]
             };
@@ -108,19 +108,20 @@ class MetalMpsGraphReductionNativeTest {
                 upload(api, buffer, values);
             }
             try (Arena arena = Arena.ofConfined()) {
-                MemorySegment inputs = arena.allocate(ADDRESS, 1);
-                inputs.setAtIndex(ADDRESS, 0, buffers.get(0).carrier());
+                MemorySegment inputs = arena.allocate(ADDRESS, buffers.size());
+                for (int value = 0; value < buffers.size(); value++)
+                    inputs.setAtIndex(ADDRESS, value, buffers.get(value).carrier());
                 MemorySegment outputs = arena.allocate(ADDRESS, 4);
-                outputs.setAtIndex(ADDRESS, 0, buffers.get(1).carrier());
-                outputs.setAtIndex(ADDRESS, 1, buffers.get(2).carrier());
+                outputs.setAtIndex(ADDRESS, 0, buffers.get(4).carrier());
+                outputs.setAtIndex(ADDRESS, 1, buffers.get(1).carrier());
                 outputs.setAtIndex(ADDRESS, 2, buffers.get(3).carrier());
-                outputs.setAtIndex(ADDRESS, 3, buffers.get(4).carrier());
+                outputs.setAtIndex(ADDRESS, 3, buffers.get(2).carrier());
                 for (int repetition = 0; repetition < 2; repetition++) {
-                    api.runExecutable(executable, 1, inputs, 4, outputs);
-                    assertArrayEquals(bits(4.0f, 6.0f), download(api, buffers.get(1), 2));
-                    assertArrayEquals(bits(10.0f), download(api, buffers.get(2), 1));
+                    api.runExecutable(executable, buffers.size(), inputs, 4, outputs);
+                    assertArrayEquals(bits(4.0f, 6.0f), download(api, buffers.get(4), 2));
+                    assertArrayEquals(bits(10.0f), download(api, buffers.get(1), 1));
                     assertArrayEquals(initial[0], download(api, buffers.get(3), 4));
-                    assertArrayEquals(bits(1.5f, 3.5f), download(api, buffers.get(4), 2));
+                    assertArrayEquals(bits(1.5f, 3.5f), download(api, buffers.get(2), 2));
                     assertArrayEquals(initial[0], download(api, buffers.get(0), 4));
                 }
             }
@@ -159,12 +160,13 @@ class MetalMpsGraphReductionNativeTest {
             }
             upload(api, buffers.get(0), new int[] {signalingNaN});
             try (Arena arena = Arena.ofConfined()) {
-                MemorySegment inputs = arena.allocate(ADDRESS, 1);
-                inputs.setAtIndex(ADDRESS, 0, buffers.get(0).carrier());
+                MemorySegment inputs = arena.allocate(ADDRESS, buffers.size());
+                for (int value = 0; value < buffers.size(); value++)
+                    inputs.setAtIndex(ADDRESS, value, buffers.get(value).carrier());
                 MemorySegment outputs = arena.allocate(ADDRESS, 2);
                 outputs.setAtIndex(ADDRESS, 0, buffers.get(1).carrier());
                 outputs.setAtIndex(ADDRESS, 1, buffers.get(2).carrier());
-                api.runExecutable(executable, 1, inputs, 2, outputs);
+                api.runExecutable(executable, buffers.size(), inputs, 2, outputs);
             }
             assertArrayEquals(new int[] {signalingNaN}, download(api, buffers.get(1), 1));
             assertArrayEquals(new int[] {signalingNaN}, download(api, buffers.get(2), 1));

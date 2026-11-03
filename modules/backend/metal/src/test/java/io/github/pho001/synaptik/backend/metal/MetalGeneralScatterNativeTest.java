@@ -131,7 +131,7 @@ class MetalGeneralScatterNativeTest {
                 e.upload(2, floats(2, 3));
                 byte[] sentinel = words(0x5a5a5a5a, 0x5a5a5a5a, 0x5a5a5a5a);
                 e.upload(3, sentinel);
-                assertThrows(IndexOutOfBoundsException.class, e::run);
+                assertThrows(MetalNativeApi.NativeFailure.class, e::run);
                 assertArrayEquals(sentinel, e.output());
                 assertArrayEquals(floats(10, 20, 30), e.download(0));
                 e.upload(1, indices(DataType.INT64, 1, 1));
@@ -153,10 +153,10 @@ class MetalGeneralScatterNativeTest {
                 byte[] sentinel = words(0x5a5a5a5a, 0x5a5a5a5a, 0x5a5a5a5a);
                 e.upload(3, sentinel);
                 e.upload(1, indices(DataType.INT32, 1, 3));
-                assertThrows(IndexOutOfBoundsException.class, e::run);
+                assertThrows(MetalNativeApi.NativeFailure.class, e::run);
                 assertArrayEquals(sentinel, e.output());
                 e.upload(1, indices(DataType.INT32, 1, 1));
-                assertThrows(IllegalArgumentException.class, e::run);
+                assertThrows(MetalNativeApi.NativeFailure.class, e::run);
                 assertArrayEquals(sentinel, e.output());
                 assertArrayEquals(floats(10, 20, 30), e.download(0));
                 e.upload(1, indices(DataType.INT32, 2, 0));
@@ -264,11 +264,11 @@ class MetalGeneralScatterNativeTest {
     void broadcastBaseReadsRemainLegalWhenNonbroadcastAxesAreInjective() {
         try (Execution e = new Execution(List.of(
                 view(DataType.FLOAT32, new long[] {2, 2, 2}, new long[] {0, 2, 1}, 0),
-                value(DataType.INT32, 1), value(DataType.FLOAT32, 1, 2, 2),
+                value(DataType.INT32, 1, 2, 2), value(DataType.FLOAT32, 1, 2, 2),
                 value(DataType.FLOAT32, 2, 2, 2)),
-                List.of(MetalMpsGraphProgram.Node.scatterAdd(0, 1, 2, 3, 0)))) {
+                List.of(elements(0, 2, 1)))) {
             e.upload(0, floats(10, 20, 30, 40));
-            e.upload(1, indices(DataType.INT32, 0));
+            e.upload(1, indices(DataType.INT32, 0, 0, 0, 0));
             e.upload(2, floats(1, 2, 3, 4));
             e.run();
             assertArrayEquals(floats(11, 22, 33, 44, 10, 20, 30, 40), e.output());

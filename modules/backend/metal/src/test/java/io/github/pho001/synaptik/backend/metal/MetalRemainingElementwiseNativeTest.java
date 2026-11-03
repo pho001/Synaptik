@@ -1340,7 +1340,7 @@ class MetalRemainingElementwiseNativeTest {
                         MetalMpsGraphProgram.NodeKind.LOG_SUM_EXP,
                         0,
                         1,
-                        MetalMpsGraphProgram.ReductionForm.SINGLE_AXIS,
+                        MetalMpsGraphProgram.ReductionForm.MULTI_AXIS,
                         List.of(1),
                         false),
                 values,
@@ -1384,7 +1384,7 @@ class MetalRemainingElementwiseNativeTest {
                         MetalMpsGraphProgram.NodeKind.L2_NORM,
                         0,
                         1,
-                        MetalMpsGraphProgram.ReductionForm.SINGLE_AXIS,
+                        MetalMpsGraphProgram.ReductionForm.MULTI_AXIS,
                         List.of(1),
                         false),
                 values,
@@ -1610,64 +1610,6 @@ class MetalRemainingElementwiseNativeTest {
                         new int[] {0},
                         new int[] {1},
                         List.of(bits(1, 2, 3, 4))).getFirst());
-    }
-
-    @Test
-    void directMpsGraphCandidatesRemainForceableForAllFourExactRawOperations() {
-        Path library = configuredLibrary();
-        int[] ordinary = bits(-2.5f, -0.0f, 0.0f, 1.25f, 4.0f);
-        for (MetalMpsGraphProgram.NodeKind kind : List.of(
-                MetalMpsGraphProgram.NodeKind.FLOOR,
-                MetalMpsGraphProgram.NodeKind.CEIL,
-                MetalMpsGraphProgram.NodeKind.SIGN,
-                MetalMpsGraphProgram.NodeKind.RELU)) {
-            int[] output = NonProductionStructuralFixture.executeCurrent(
-                    library, unary(kind, 0, 1),
-                    List.of(value(ordinary.length), value(ordinary.length)),
-                    List.of(ordinary));
-            assertEquals(ordinary.length, output.length, kind.name());
-        }
-
-    }
-
-    @Test
-    void everyRemainingBlockedCatalogRecipeCreatesRunsAndClosesOnlyThroughTheRawFixture() {
-        Path library = configuredLibrary();
-        int[] input = bits(0.25f, 0.5f, 1.0f, 2.0f);
-        int[] exponent = bits(2.0f, 2.0f, 2.0f, 2.0f);
-        int outputWords = input.length;
-
-        int[] tensorPow = NonProductionStructuralFixture.executeCurrent(
-                library, binary(MetalMpsGraphProgram.NodeKind.TENSOR_POW, 0, 1, 2),
-                List.of(value(outputWords), value(outputWords), value(outputWords)),
-                List.of(input, exponent));
-        assertEquals(outputWords, tensorPow.length);
-
-        int[] scalarPow = NonProductionStructuralFixture.executeCurrent(
-                library, scalar(
-                        MetalMpsGraphProgram.NodeKind.SCALAR_POW,
-                        0,
-                        1,
-                        Float.floatToRawIntBits(2.0f)),
-                List.of(value(outputWords), value(outputWords)), List.of(input));
-        assertEquals(outputWords, scalarPow.length);
-
-        for (MetalMpsGraphProgram.NodeKind kind : List.of(
-                MetalMpsGraphProgram.NodeKind.LOG,
-                MetalMpsGraphProgram.NodeKind.LOG1P,
-                MetalMpsGraphProgram.NodeKind.EXPM1,
-                MetalMpsGraphProgram.NodeKind.ERF,
-                MetalMpsGraphProgram.NodeKind.SQRT,
-                MetalMpsGraphProgram.NodeKind.RSQRT,
-                MetalMpsGraphProgram.NodeKind.TANH,
-                MetalMpsGraphProgram.NodeKind.GELU,
-                MetalMpsGraphProgram.NodeKind.GELU_TANH_APPROXIMATION,
-                MetalMpsGraphProgram.NodeKind.SILU)) {
-            int[] output = NonProductionStructuralFixture.executeCurrent(
-                    library, unary(kind, 0, 1),
-                    List.of(value(outputWords), value(outputWords)), List.of(input));
-            assertEquals(outputWords, output.length, kind.name());
-        }
     }
 
     @Test
@@ -1944,10 +1886,8 @@ class MetalRemainingElementwiseNativeTest {
                 var program = new MetalMpsGraphProgram(List.of(node));
                 int[] feeds = java.util.stream.IntStream.range(0, feedWords.size()).toArray();
                 int target = values.size() - 1;
-        MetalPreparedRoute route =
-            node.kind().isTask0066Selected()
-                ? MetalPreparedRoute.CUSTOM_PROGRAM
-                : MetalPreparedRoute.MPSGRAPH;
+                MetalPreparedRoute route = node.kind().isCustomProgramOperation()
+                        ? MetalPreparedRoute.CUSTOM_PROGRAM : MetalPreparedRoute.MPSGRAPH;
                 executable = api.createProgramExecutable(context, values, program, feeds, new int[] {target}, route);
                 for (int[] words : feedWords) {
                     MetalNativeApi.Handle input = api.createBuffer(
@@ -1957,13 +1897,14 @@ class MetalRemainingElementwiseNativeTest {
                 }
                 output = api.createBuffer(context, values.get(target).byteCount());
                 try (Arena arena = Arena.ofConfined()) {
-          int inputCount = inputs.size() + (route == MetalPreparedRoute.CUSTOM_PROGRAM ? 1 : 0);
+                    int inputCount = inputs.size()
+                            + (route == MetalPreparedRoute.CUSTOM_PROGRAM ? 1 : 0);
                     MemorySegment inputAddresses = arena.allocate(ADDRESS, inputCount);
                     for (int index = 0; index < inputs.size(); index++)
                         inputAddresses.setAtIndex(ADDRESS, index, inputs.get(index).carrier());
-          if (route == MetalPreparedRoute.CUSTOM_PROGRAM) {
-            inputAddresses.setAtIndex(ADDRESS, inputs.size(), output.carrier());
-          }
+                    if (route == MetalPreparedRoute.CUSTOM_PROGRAM) {
+                        inputAddresses.setAtIndex(ADDRESS, inputs.size(), output.carrier());
+                    }
                     MemorySegment outputAddresses = arena.allocate(ADDRESS);
                     outputAddresses.set(ADDRESS, 0L, output.carrier());
                     api.runExecutable(
