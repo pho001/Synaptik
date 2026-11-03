@@ -1432,6 +1432,50 @@ class MetalRemainingElementwiseNativeTest {
     }
 
     @Test
+    void singleContributorFoldSitesKeepRawLowNanPayloadsAndNegativeZero() {
+        Path library = configuredLibrary();
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            int nan = type == DataType.BFLOAT16 ? 0xffc1 : 0xfe21;
+            var axis = MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.FOLD_AXIS,
+                    new int[] {0}, new int[] {1}, MetalMpsGraphProgram.AttributeKind.WINDOW_AXIS,
+                    new long[] {0, 2, 1});
+            assertArrayEquals(bytes16(nan, 0x8000),
+                    executeCustomBytes(library, new MetalMpsGraphProgram(List.of(axis)),
+                            List.of(typed(type, 1, 2), typed(type, 2)), new int[] {0}, new int[] {1},
+                            List.of(bytes16(nan, 0x8000))).getFirst(), type + " singleton axis window");
+            assertArrayEquals(bytes16(nan, 0, 0x8000),
+                    executeCustomBytes(library, new MetalMpsGraphProgram(List.of(axis)),
+                            List.of(typed(type, 2, 2), typed(type, 3)), new int[] {0}, new int[] {1},
+                            List.of(bytes16(nan, 0, 0, 0x8000))).getFirst(), type + " axis boundary sites");
+            for (int spatial : List.of(2, 3)) {
+                int volume = 1 << spatial;
+                int[] columns = new int[volume * volume];
+                columns[0] = nan;
+                columns[columns.length - 1] = 0x8000;
+                long[] image = new long[spatial + 2];
+                Arrays.fill(image, 3);
+                image[0] = image[1] = 1;
+                int[] expected = new int[spatial == 2 ? 9 : 27];
+                expected[0] = nan;
+                expected[expected.length - 1] = 0x8000;
+                long[] attrs = spatial == 2
+                        ? new long[] {4, 1, 1, 3, 3, 2, 2, 1, 1, 0, 0, 1, 1, 0}
+                        : new long[] {5, 1, 1, 3, 3, 3, 2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0};
+                var fold = MetalMpsGraphProgram.Node.generic(
+                        spatial == 2 ? MetalMpsGraphProgram.NodeKind.FOLD2D : MetalMpsGraphProgram.NodeKind.FOLD3D,
+                        new int[] {0}, new int[] {1},
+                        spatial == 2 ? MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_2D : MetalMpsGraphProgram.AttributeKind.FOLD_WINDOW_3D,
+                        attrs);
+                assertArrayEquals(bytes16(expected),
+                        executeCustomBytes(library, new MetalMpsGraphProgram(List.of(fold)),
+                                List.of(typed(type, 1, volume, volume), typed(type, image)),
+                                new int[] {0}, new int[] {1}, List.of(bytes16(columns))).getFirst(),
+                        type + " image corners with overlapping interior");
+            }
+        }
+    }
+
+    @Test
     void overlappingAxisAndImageFoldsUseFloatWorkingSitesAndOneFinalNarrow() {
         Path library = configuredLibrary();
         for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
