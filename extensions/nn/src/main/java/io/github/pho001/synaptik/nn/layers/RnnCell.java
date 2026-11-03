@@ -29,9 +29,11 @@ import java.util.random.RandomGeneratorFactory;
  * as the sole result. The cell never retains, initializes, updates, or registers hidden state.</p>
  *
  * <p>Forward construction is fixed to
- * {@code tanh((input @ inputWeight^T + bias?) + (hidden @ hiddenWeight^T))}. Leading input and
- * hidden Dimensions are ordinary right-broadcastable batch metadata; none is interpreted or
- * traversed as time. This two-input contract makes the cell a direct {@link Module}, not a
+ * {@code tanh((input @ inputWeight^T + bias?) + (hidden @ hiddenWeight^T))}.
+ * Each ordinary operation result keeps its promoted carrier and observable rounding, including
+ * BFLOAT16/FLOAT16; this is not the fixed recurrent low-storage FLOAT32 working-site recipe.
+ * Leading input and hidden Dimensions are ordinary right-broadcastable batch metadata; none
+ * is interpreted or traversed as time. This two-input contract makes the cell a direct {@link Module}, not a
  * {@link io.github.pho001.synaptik.nn.module.UnaryTensorModule}, so it cannot participate in
  * {@link io.github.pho001.synaptik.nn.module.Sequential}.</p>
  *

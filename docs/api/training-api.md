@@ -1088,13 +1088,19 @@ Each scan reads current bindings once in declaration order and rechecks their ex
 replacement affects later occurrences and remains caller-coordinated.
 
 RNN additionally exposes `forwardGeneralScan` with the same explicit arguments/result carrier,
-limited to configured homogeneous FLOAT32/FLOAT64. It shares ordinary cell mathematics and the
+for configured homogeneous FLOAT32/FLOAT64/BFLOAT16/FLOAT16. It shares ordinary cell mathematics and the
 existing initialization gate, but preflights canonical formals, emission and actual latent
 histories before initialization/body IDs, including overflowing empty-domain stride geometry.
 Its dense emission is general port 1, final carry port 0; fixed ordering stays 0/1.
 Both directions, bias modes and zero T/B are supported construction domains. Qualified CPU
 first-order forward/backward and v5 persistence are accepted under NN0033; execution still
 requires the actual general-Scan binder/read domain. No hidden state or downstream loss mask is added.
+Low general bodies preserve ordinary low operation-result rounding, unlike fixed low RNN's
+FLOAT32 working projections/aggregate/tanh and next-state narrowing. The builder keeps that
+distinct fixed low program; it is not a type-support fallback. Low cold acquisition/rebind and
+v5 persistence preserve carriers without CPU execution. Actual Metal training requires its
+complete first-order closure, with an explicit FLOAT32/FLOAT64 scalar objective cast; CPU low
+arithmetic and the objective policy are unchanged.
 
 
 One call returns the canonical ports of one producer regardless of time extent. Produced inputs,

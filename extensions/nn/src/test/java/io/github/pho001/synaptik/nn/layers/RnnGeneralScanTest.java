@@ -33,7 +33,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 /** Direct additive composition and the existing cell's initialization/publication contract. */
 @Execution(ExecutionMode.SAME_THREAD)
 final class RnnGeneralScanTest {
-    @ParameterizedTest @EnumSource(value = DataType.class, names = {"FLOAT32", "FLOAT64"})
+    @ParameterizedTest @EnumSource(value = DataType.class, names = {"FLOAT32", "FLOAT64", "BFLOAT16", "FLOAT16"})
     void suppliedEagerAutomaticAndStrictLoadedBindingsKeepRolesAndSnapshots(DataType type) {
         for (boolean biased : List.of(false, true)) for (String binding : List.of("supplied", "eager", "automatic", "loaded"))
             for (RecurrentDirection direction : RecurrentDirection.values()) {
@@ -108,13 +108,16 @@ final class RnnGeneralScanTest {
         for (DataType low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
             var lowSequence = sequence(low, true, "automatic");
             Tensor lowX = formal(low, Shape.of(3, 2, 3), false), lowH = formal(low, Shape.of(2, 2), false);
+            Tensor wrongType = formal(DataType.FLOAT32, Shape.of(3, 2, 3), false);
             long lowBefore = ids().get();
-            assertThrows(IllegalArgumentException.class, () -> lowSequence.forwardGeneralScan(lowX, l, lowH, RecurrentDirection.FORWARD));
+            assertThrows(IllegalArgumentException.class, () -> lowSequence.forwardGeneralScan(wrongType, l, lowH, RecurrentDirection.FORWARD));
             assertEquals(lowBefore, ids().get()); assertThrows(IllegalStateException.class, lowSequence::stateDictionary);
+            var admitted = lowSequence.forwardGeneralScan(lowX, l, lowH, RecurrentDirection.FORWARD);
+            assertEquals(low, admitted.outputs().descriptor().dataType());
         }
     }
 
-    @ParameterizedTest @EnumSource(value = DataType.class, names = {"FLOAT32", "FLOAT64"})
+    @ParameterizedTest @EnumSource(value = DataType.class, names = {"FLOAT32", "FLOAT64", "BFLOAT16", "FLOAT16"})
     void emptyDescriptorsInitializeWithTheSameSeedBytesAndBoundCellIsReusable(DataType type) {
         for (long[] geometry : List.of(new long[]{0, 2}, new long[]{3, 0}, new long[]{0, 0})) {
             var sequence = sequence(type, true, "automatic");
@@ -129,6 +132,33 @@ final class RnnGeneralScanTest {
             sequence.cell().forward(formal(type, Shape.of(1, 3), false), formal(type, Shape.of(1, 2), false));
             assertEquals(wrappers, sequence.cell().parameters());
         }
+    }
+
+    @ParameterizedTest @EnumSource(value = DataType.class, names = {"BFLOAT16", "FLOAT16"})
+    void lowGeneralBodyKeepsOrdinaryCellRoundingRatherThanFixedWorkingSites(DataType type) {
+        for (boolean biased : List.of(false, true)) for (RecurrentDirection direction : RecurrentDirection.values()) {
+            var sequence = sequence(type, biased, "supplied");
+            var result = sequence.forwardGeneralScan(formal(type, Shape.of(3, 2, 3), true),
+                    formal(DataType.INT64, Shape.of(2), false), formal(type, Shape.of(2, 2), true), direction);
+            var body = result.outputs().provenance().orElseThrow().producer().scanBody().orElseThrow();
+            var weights = body.invariants();
+            var ordinaryCell = biased ? new RnnCell(weights.get(0), weights.get(1), weights.get(2))
+                    : new RnnCell(weights.get(0), weights.get(1));
+            Tensor ordinary = ordinaryCell.forward(body.step().getFirst(), body.carry().getFirst());
+            assertSameEquation(ordinary, body.nextCarry().getFirst(), type);
+        }
+    }
+
+    private static void assertSameEquation(Tensor ordinary, Tensor general, DataType type) {
+        assertEquals(ordinary.descriptor(), general.descriptor());
+        assertEquals(type, general.descriptor().dataType());
+        assertEquals(ordinary.provenance().isPresent(), general.provenance().isPresent());
+        if (ordinary.provenance().isEmpty()) return;
+        var a = ordinary.provenance().orElseThrow().producer();
+        var b = general.provenance().orElseThrow().producer();
+        assertEquals(a.operation(), b.operation());
+        assertEquals(a.inputs().size(), b.inputs().size());
+        for (int i = 0; i < a.inputs().size(); i++) assertSameEquation(a.inputs().get(i), b.inputs().get(i), type);
     }
 
     @Test void sharedParameterActualsRemainDistinctInvariantPositions() {
@@ -175,7 +205,7 @@ final class RnnGeneralScanTest {
         assertEquals(before, ids().get()); assertThrows(IllegalStateException.class, sequence::stateDictionary);
     }
 
-    @ParameterizedTest @EnumSource(value = DataType.class, names = {"FLOAT32", "FLOAT64"})
+    @ParameterizedTest @EnumSource(value = DataType.class, names = {"FLOAT32", "FLOAT64", "BFLOAT16", "FLOAT16"})
     void resultAndActualLatentPortOverflowPrecedeInitializationAndPermitDifferentWidthRetry(DataType type) throws Exception {
         // Emission overflow, then independent input/hidden transpose-history overflow.
         for (long[] geometry : List.of(

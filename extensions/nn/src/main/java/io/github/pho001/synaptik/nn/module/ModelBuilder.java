@@ -56,8 +56,10 @@ import java.util.random.RandomGeneratorFactory;
  * {@link #buildWithLengths()}; {@link #build()} remains single-input and static. FLOAT32/FLOAT64
  * rnnScan composes general Scan with canonical outputs, first-order training and v5 persistence
  * in their qualified domains. General CPU actual reads require dense zero-offset layouts (including
- * dense views) or the existing proved scalar broadcast case. Retained low RNN and all GRU/LSTM
- * recipes remain fixed inference-only scans with their broader resolved read domain. Any fixed
+ * dense views) or the existing proved scalar broadcast case. Low RNN keeps its fixed FLOAT32
+ * working projections/aggregate/tanh and next-state narrowing, unlike explicit general Scan's
+ * ordinary low operation-result rounding. It is not an unsupported-type fallback. All GRU/LSTM
+ * recipes also remain fixed inference-only scans with their broader resolved read domain. Any fixed
  * occurrence, including mixed fixed/general stacks, rejects training before setup. No implicit
  * conversion, layout copy or backend fallback widens these occurrence-specific qualifications.
  * {@link #finalHidden()} selects the
@@ -705,7 +707,9 @@ public final class ModelBuilder {
             this.sequence = child("sequence", sequence); this.hiddenSize = hiddenSize;
         }
         /**
-         * Composes general F32/F64 or retained low fixed scan from zero state; reads no lengths.
+         * Composes general F32/F64 or fixed low working-site semantics from zero state; reads no lengths.
+         * Low fixed transitions narrow only the next state, not the projections/ADD/TANH sites
+         * of the ordinary-cell general recipe, so replacing this branch changes represented values.
          * @param input positive TBF expression
          * @param lengths shared canonical INT64[B] expression
          * @return dense canonical scan outputs, retaining the finalHidden sibling

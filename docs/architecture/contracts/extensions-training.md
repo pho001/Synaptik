@@ -320,11 +320,16 @@ The production program authorizes this additive `RnnSequence` composition:
 public RecurrentScanResult forwardGeneralScan(
         Tensor input, Tensor validLengths, Tensor initialHidden, RecurrentDirection direction);
 ```
-It accepts configured homogeneous FLOAT32/FLOAT64, static input [T,B,F], initial hidden [B,H],
+It accepts configured homogeneous FLOAT32/FLOAT64/BFLOAT16/FLOAT16, static input [T,B,F], initial hidden [B,H],
 non-gradient INT64[B] lengths, T/B >= 0, F/H > 0, bias on/off and both directions. Unsupported
 dtype/geometry rejects before initialization or body construction. Reuse the existing descriptor-only
 atomic cell initialization and the same cell equation as ordinary forward, preserving its
 prevalidation and bias/ADD order. Read no actual storage/length values and retain no runtime state.
+BFLOAT16/FLOAT16 retain ordinary cell operation-result rounding (including both projections and
+the ordered bias/ADD/TANH sites), not fixed recurrent FLOAT32 working-site semantics. Low graph
+acquisition/rebind and existing v5 storage preserve the original carriers; numerical execution
+still requires complete backend forward/actual-adjoint qualification. CPU low arithmetic stays
+locked. An owned low-output training objective must explicitly cast to FLOAT32/FLOAT64.
 Snapshot current weights once; bind them as ordered outer invariants to canonical storage-free
 carry, step and parameter formals. One ordinary next state is both next carry and emission;
 Scan.apply uses rowCarryCount=1 and sequenceRowAxes=[ROW(0)] with the selected traversal.
@@ -332,7 +337,9 @@ Scan.apply uses rowCarryCount=1 and sequenceRowAxes=[ROW(0)] with the selected t
 RecurrentScanResult names semantic components, not universal producer indices: fixed RNN/GRU
 keeps outputs/finalHidden slots 0/1; this single-carry general RNN uses emission/carry slots 1/0.
 The F32/F64 `rnnScan` recipe selects this general composition and its canonical result layouts;
-retained low RNN, GRU/LSTM and direct fixed forwardScan remain fixed. Final-hidden selection
+low RNN stays fixed because its FLOAT32 contractions/aggregate/tanh and final state narrowing
+are observably different from the ordinary low cell program, not because general Scan rejects
+the dtype. GRU/LSTM and direct fixed forwardScan also remain fixed. Final-hidden selection
 must follow the actual producer's declared roles. Do not insert copies or erase view metadata to
 imitate old fixed result layouts. General backend/layout qualification remains independent.
 NN0033 is implemented and MAIN accepted after independent reviews, affected gates and public

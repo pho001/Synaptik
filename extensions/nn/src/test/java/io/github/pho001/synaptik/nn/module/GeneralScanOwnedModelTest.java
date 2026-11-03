@@ -10,10 +10,15 @@ import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.HostTensorValue;
 import io.github.pho001.synaptik.engine.PreparedExecution;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
+import io.github.pho001.synaptik.model.datatype.Float16Bits;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
+import io.github.pho001.synaptik.model.operation.recurrent.RecurrentDirection;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import io.github.pho001.synaptik.model.tensor.*;
+import io.github.pho001.synaptik.nn.layers.RnnCell;
+import io.github.pho001.synaptik.nn.layers.RnnSequence;
 import io.github.pho001.synaptik.training.Sgd;
 import io.github.pho001.synaptik.training.TrainingSession;
 import io.github.pho001.synaptik.training.TrainingStep;
@@ -93,6 +98,56 @@ final class GeneralScanOwnedModelTest {
                 }
                 assertSame(oldStore, weight.hostStorage().orElseThrow()); assertArrayEquals(before, bits(weight));
             }
+    }
+
+    @ParameterizedTest @EnumSource(value = DataType.class, names = {"FLOAT32", "FLOAT64", "BFLOAT16", "FLOAT16"})
+    void explicitRnnLengthScanAcquiresRebindsAndPersistsOriginalCarriersWithoutExecution(DataType type) throws Exception {
+        for (RecurrentDirection direction : RecurrentDirection.values()) for (boolean biased : List.of(false, true)) {
+            Tensor input = TensorFactory.create(descriptor(type, true, 3, 2, 3));
+            Tensor initial = TensorFactory.create(descriptor(type, true, 2, 2));
+            Tensor lengths = TensorFactory.create(descriptor(DataType.INT64, false, 2));
+            Tensor w = stored(descriptor(type, true, 2, 3), .3, -.7, .11, .2, .4, -.6);
+            Tensor u = stored(descriptor(type, true, 2, 2), -.2, .5, .7, -.1);
+            Tensor b = stored(descriptor(type, true, 2), .13, -.17);
+            var cell = biased ? new RnnCell(w, u, b) : new RnnCell(w, u);
+            var sequence = new RnnSequence(cell);
+            var scan = sequence.forwardGeneralScan(input, lengths, initial, direction);
+            var parameters = new ArrayList<>(List.of(parameter("cell.inputWeight", w), parameter("cell.hiddenWeight", u)));
+            if (biased) parameters.add(parameter("cell.bias", b));
+            var outputs = List.of(scan.outputs(), scan.finalHidden());
+            Path artifact = directory.resolve("explicit-rnn-" + type + "-" + direction + "-" + biased);
+            try (var model = Model.graph(List.of(input, lengths, initial), outputs, parameters)) {
+                assertNull(field(field(model, "execution"), "engine"));
+                model.save(artifact);
+                try (var loaded = Model.loadGraph(artifact)) {
+                    assertNull(field(field(loaded, "execution"), "engine"));
+                    for (var parameter : parameters) {
+                        Tensor adopted = loaded.stateDictionary().entries().stream()
+                                .filter(entry -> entry.path().equals(parameter.name())).findFirst().orElseThrow().value();
+                        assertEquals(type, adopted.descriptor().dataType());
+                        assertArrayEquals(bits(parameter.tensor()), bits(adopted));
+                        assertNotSame(parameter.tensor(), adopted);
+                    }
+                    // Descriptor-only rebind accepts produced inputs and never reads lengths.
+                    Tensor freshInput = TensorFactory.create(input.descriptor()).neg();
+                    Tensor freshInitial = TensorFactory.create(initial.descriptor()).neg();
+                    Tensor freshLengths = TensorFactory.create(lengths.descriptor());
+                    var rebound = loaded.forward(List.of(freshInput, freshLengths, freshInitial));
+                    for (int i = 0; i < outputs.size(); i++) assertEquals(outputs.get(i).descriptor(), rebound.get(i).descriptor());
+                    var producer = scanProducer(rebound.getFirst());
+                    assertSame(freshInitial, producer.inputs().getFirst());
+                    assertSame(freshInput, producer.inputs().get(1));
+                    assertSame(freshLengths, producer.inputs().getLast());
+                    assertEquals(type, producer.scanBody().orElseThrow().nextCarry().getFirst().descriptor().dataType());
+                    // A fresh Training objective is built after acquisition, never persisted.
+                    Tensor objective = rebound.getLast().cast(DataType.FLOAT32).sum();
+                    assertEquals(DataType.FLOAT32, objective.descriptor().dataType());
+                    assertTrue(objective.descriptor().requiresGrad());
+                    assertNull(field(field(loaded, "execution"), "engine"));
+                }
+                assertNull(field(field(model, "execution"), "engine"));
+            }
+        }
     }
 
     @Test void definitionSnapshotsOnceInstallsPrivateWrappersAndDiscoversConstants() throws Exception {
@@ -687,7 +742,7 @@ final class GeneralScanOwnedModelTest {
      * Creates independent heap storage for a declared signature.
      *
      * @param descriptor exact geometry
-     * @param lanes numeric values (low tests use raw zero bytes)
+     * @param lanes numeric values, narrowed to the exact original floating carrier
      * @return fresh stored heap value
      */
     private static Tensor stored(TensorDescriptor descriptor, double... lanes) {
@@ -697,7 +752,12 @@ final class GeneralScanOwnedModelTest {
         else if (descriptor.dataType() == DataType.FLOAT32) {
             float[] values = new float[count]; for (int i = 0; i < count; i++) values[i] = (float) lanes[i];
             memory = MemorySegment.ofArray(values);
-        } else memory = MemorySegment.ofArray(new short[count]);
+        } else {
+            short[] values = new short[count];
+            for (int i = 0; i < count; i++) values[i] = descriptor.dataType() == DataType.BFLOAT16
+                    ? BFloat16Bits.fromFloat((float) lanes[i]) : Float16Bits.fromFloat((float) lanes[i]);
+            memory = MemorySegment.ofArray(values);
+        }
         return TensorFactory.create(descriptor, Optional.empty(), Optional.of(new MemorySegmentStorage(descriptor.dataType(), count, memory)));
     }
 

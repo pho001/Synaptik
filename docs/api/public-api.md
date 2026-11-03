@@ -1434,13 +1434,19 @@ The BF16/FP16 fixed implementation and source constructors remain retained, but 
 execution follows the [temporary low lock](../backend-guide/production-support.md#temporary-java-low-computation-lock).
 
 `RnnSequence.forwardGeneralScan(input, validLengths, initialHidden, direction)` separately composes
-ordinary general Scan for homogeneous configured FLOAT32/FLOAT64. It reuses the same cell
+ordinary general Scan for homogeneous configured FLOAT32/FLOAT64/BFLOAT16/FLOAT16. It reuses the same cell
 initialization and equation, including bias order, with static T/B >= 0 and positive I/H.
 Complete actual/formal/emission/latent geometry checks precede parameter publication or body IDs.
 Canonical general outputs are emission port 1 and final hidden carry port 0; the result carrier's
 component names are semantic, not universal producer indices. Fixed `forwardScan` is unchanged.
 Qualified CPU reads use dense zero-offset geometry or existing proved scalar-broadcast exceptions,
 not every fixed-scan read layout. No copy, conversion or fallback repairs unsupported actuals.
+BFLOAT16/FLOAT16 preserve ordinary low rounding at each projection, bias/ADD and TANH result.
+That is a different represented program from fixed low RNN's FLOAT32 working sites followed
+by state narrowing; low builder `rnnScan` therefore deliberately keeps its fixed semantics.
+Low source acquisition/rebind/save/load does not execute CPU low arithmetic. Metal execution
+and actual first-order closure remain backend-qualified; the scalar Training objective still
+requires an explicit FLOAT32/FLOAT64 cast when derived from low outputs.
 NN0033 qualifies first-order compute/train and v5 save/close/load/new training, with fresh lengths;
 see the [complete RNN journey](../user-guide/running-models.md#train-a-runtime-length-rnn).
 

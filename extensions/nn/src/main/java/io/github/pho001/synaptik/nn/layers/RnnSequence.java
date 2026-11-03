@@ -242,14 +242,17 @@ public final class RnnSequence extends Module {
     }
 
     /**
-     * Composes a homogeneous FLOAT32/FLOAT64 runtime-length RNN through ordinary general Scan.
+     * Composes a homogeneous floating runtime-length RNN through ordinary general Scan.
      *
      * <p>Descriptor and exact canonical formal/output/latent-history geometry validation precede
      * the existing cell-local initialization gate and body construction, including for zero time
      * or batch. Eager, supplied and strict-loaded cells
      * are reused without initialization. Current weights are snapshotted once in declaration
      * order; replacement affects later occurrences only and requires caller coordination.
-     * The body shares ordinary forward's exact projection, bias, ADD and TANH equation.
+     * The body shares ordinary forward's exact projection, bias, ADD and TANH equation,
+     * including observable BFLOAT16/FLOAT16 rounding at each ordinary operation result.
+     * This differs from fixed low scans, which retain FLOAT32 working projections and narrow
+     * only the next state; this explicit method does not redirect those fixed recipes.
      * Storage-free canonical formals preserve actual dtype and gradient flags. No actual
      * storage or length value is inspected, and produced actuals retain their provenance.</p>
      *
@@ -261,9 +264,11 @@ public final class RnnSequence extends Module {
      * use their existing owners and independently qualified domains; this method creates no Engine.
      * General CPU reads require canonical dense zero-offset geometry (dense views and proved
      * scalar broadcasts have their existing exceptions), not fixed scan's broader read layouts.
-     * No conversion, copy or backend fallback is inserted.</p>
+     * No implicit conversion, copy or backend fallback is inserted. CPU BFLOAT16/FLOAT16
+     * arithmetic remains unavailable. Low-output training objectives must explicitly cast to
+     * FLOAT32 (or FLOAT64) under the existing Training objective contract.</p>
      *
-     * @param input non-null configured FLOAT32/FLOAT64 static {@code [T,B,F]}, with T/B
+     * @param input non-null configured floating static {@code [T,B,F]}, with T/B
      *     nonnegative and F positive; borrowed without mutation or detachment
      * @param validLengths non-null non-gradient INT64 {@code [B]}, with runtime values in
      *     {@code [0,T]}; values are not read during composition
@@ -285,10 +290,6 @@ public final class RnnSequence extends Module {
         Objects.requireNonNull(validLengths, "validLengths");
         Objects.requireNonNull(initialHidden, "initialHidden");
         Objects.requireNonNull(direction, "direction");
-        DataType type = cell.configuredDataType();
-        if (type != DataType.FLOAT32 && type != DataType.FLOAT64) {
-            throw new IllegalArgumentException("general RNN scan requires configured FLOAT32 or FLOAT64");
-        }
         validateGeneralScanGeometry(input, validLengths, initialHidden);
         cell.initializeForScanIfNeeded(input, validLengths, initialHidden, direction);
         Tensor inputWeight = cell.inputWeight().value();
