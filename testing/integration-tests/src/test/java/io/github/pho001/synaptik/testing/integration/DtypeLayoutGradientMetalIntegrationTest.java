@@ -807,18 +807,18 @@ final class DtypeLayoutGradientMetalIntegrationTest {
             new long[] {1, 8, 3, 9, 5},
             new long[] {10, 0, 30, 0, 50});
 
-        Tensor updateBase = tensor(arena, DataType.FLOAT32, false, 1, 2, 3, 4, 5);
-        Tensor updateTarget = tensor(arena, DataType.FLOAT32, true, 9, 8);
-        Tensor updateSeed = tensor(arena, DataType.FLOAT32, false, 10, 20, 30, 40, 50);
+        Tensor negativeUpdateBase = tensor(arena, DataType.FLOAT32, false, 1, 2, 3, 4, 5);
+        Tensor negativeUpdateTarget = tensor(arena, DataType.FLOAT32, true, 9, 8);
+        Tensor negativeUpdateSeed = tensor(arena, DataType.FLOAT32, false, 10, 20, 30, 40, 50);
         Tensor updateOutput =
-            updateBase.sliceUpdate(
-                updateTarget, new long[] {3}, new int[] {0}, new long[] {-2});
+            negativeUpdateBase.sliceUpdate(
+                negativeUpdateTarget, new long[] {3}, new int[] {0}, new long[] {-2});
         assertGradientCase(
             engine,
             updateOutput,
-            updateSeed,
-            updateTarget,
-            List.of(updateBase, updateTarget, updateSeed),
+            negativeUpdateSeed,
+            negativeUpdateTarget,
+            List.of(negativeUpdateBase, negativeUpdateTarget, negativeUpdateSeed),
             new long[] {1, 8, 3, 9, 5},
             new long[] {40, 20});
       }
