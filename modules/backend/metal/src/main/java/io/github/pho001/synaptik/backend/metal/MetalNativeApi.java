@@ -762,6 +762,7 @@ abstract class MetalNativeApi implements AutoCloseable {
                                     || task0069CustomOnly(
                                             node, valueRanks, valueDimensions)
                                     || usesCustomMatmul(node, types, valueRanks)
+                                    || MetalPointwiseFusionPlanner.float32BinaryRequiresPhysicalLayout(node, values)
                                     || usesLowPrecisionCustom(node, types))) {
                 throw new IllegalArgumentException(
                         "custom-only operations have no approved direct MPSGraph route");

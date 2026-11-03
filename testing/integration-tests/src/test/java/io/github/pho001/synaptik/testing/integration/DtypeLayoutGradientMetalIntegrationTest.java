@@ -986,7 +986,15 @@ final class DtypeLayoutGradientMetalIntegrationTest {
         assertEquals(
             List.of("metal"),
             EngineMixedOwnerTestAccess.partitionOwners(externalBroadcastCompiled));
-        assertThrows(RuntimeException.class, () -> engine.prepare(externalBroadcastCompiled));
+        try (var session = engine.prepare(externalBroadcastCompiled)) {
+          assertResults(
+              engine.run(session, List.of(externalBroadcast)),
+              List.of(canonical(DataType.FLOAT32, new long[] {7, 7, 7})));
+          broadcastStorage.set(ValueLayout.JAVA_FLOAT, 0L, -3.0f);
+          assertResults(
+              engine.run(session, List.of(externalBroadcast)),
+              List.of(canonical(DataType.FLOAT32, new long[] {-3, -3, -3})));
+        }
 
         assertThrows(
                 IllegalArgumentException.class,

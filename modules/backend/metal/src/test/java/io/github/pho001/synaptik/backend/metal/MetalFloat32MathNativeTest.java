@@ -84,22 +84,29 @@ final class MetalFloat32MathNativeTest {
     }
 
     @Test
-    void binaryPowerAndExtremaConsumeTheDeclaredStridedRightLayout() {
+    void binaryArithmeticConsumesBothDeclaredStridedOperandLayouts() {
         Shape shape = Shape.of(2);
         var right = new MetalMpsGraphProgram.ValueDescriptor(DataType.FLOAT32,
                 new long[] {2}, Optional.of(LayoutDescriptor.of(
-                        shape, new long[] {2}, 0, true)), false, false);
-        var kinds = List.of(MetalMpsGraphProgram.NodeKind.TENSOR_POW,
+                        shape, new long[] {2}, 1, true)), false, false);
+        var kinds = List.of(MetalMpsGraphProgram.NodeKind.ADD, MetalMpsGraphProgram.NodeKind.SUB,
+                MetalMpsGraphProgram.NodeKind.MUL, MetalMpsGraphProgram.NodeKind.DIV,
+                MetalMpsGraphProgram.NodeKind.TENSOR_POW,
                 MetalMpsGraphProgram.NodeKind.TENSOR_MIN, MetalMpsGraphProgram.NodeKind.TENSOR_MAX);
-        float[][] expected = {{8, 9}, {2, 2}, {3, 3}};
+        float[][] expected = {{5, 5}, {-1, 1}, {6, 6}, {2f / 3f, 1.5f}, {8, 9}, {2, 2}, {3, 3}};
+        float[][] reversed = {{5, 5}, {1, -1}, {6, 6}, {1.5f, 2f / 3f}, {9, 8}, {2, 2}, {3, 3}};
         for (int index = 0; index < kinds.size(); index++) {
             var node = MetalMpsGraphProgram.Node.generic(kinds.get(index),
                     new int[] {0, 1}, new int[] {2},
                     MetalMpsGraphProgram.AttributeKind.NONE, new long[0]);
             float[] actual = execute(node, List.of(value(2), right, value(2)),
                     new int[] {0, 1}, 2, List.of(
-                            new float[] {2, 3}, new float[] {3, Float.NaN, 2}));
+                            new float[] {2, 3}, new float[] {Float.NaN, 3, Float.NaN, 2}));
             assertArrayEquals(expected[index], actual, 0.00001f);
+            float[] swapped = execute(node, List.of(right, value(2), value(2)),
+                    new int[] {0, 1}, 2, List.of(
+                            new float[] {Float.NaN, 3, Float.NaN, 2}, new float[] {2, 3}));
+            assertArrayEquals(reversed[index], swapped, 0.00001f);
         }
     }
 

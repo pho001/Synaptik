@@ -409,6 +409,7 @@ final class MetalMpsGraphProgram {
                     || wireIdentity >= 26 && wireIdentity <= 32
                     || wireIdentity >= 60 && wireIdentity <= 63
                     || this == ADD || this == SUB || this == MUL
+                    || this == DIV && descriptor.dataType() == DataType.FLOAT32
                     || this == SCALAR_ADD || this == SCALAR_SUB
                     || this == SCALAR_MUL || this == SCALAR_DIV;
             return accepts(inputState)

@@ -3429,15 +3429,29 @@ static NSString *low_precision_custom_function(
 
 
 
+/* MPSGraph's packed feed binding does not carry physical strides or offsets. */
+static BOOL float32_binary_requires_physical_layout(
+        SynaptikMetalDecodedNode node, const uint8_t *types, const uint8_t *states) {
+    return node.operation >= SYNAPTIK_METAL_MPSGRAPH_ADD
+            && node.operation <= SYNAPTIK_METAL_MPSGRAPH_DIV
+            && node.input_count == 2U && node.output_count == 1U
+            && types[node.first_input] == SYNAPTIK_METAL_TYPE_FLOAT32
+            && types[node.second_input] == SYNAPTIK_METAL_TYPE_FLOAT32
+            && types[node.output] == SYNAPTIK_METAL_TYPE_FLOAT32
+            && (states[node.first_input] != SYNAPTIK_METAL_VALUE_CANONICAL
+                    || states[node.second_input] != SYNAPTIK_METAL_VALUE_CANONICAL);
+}
+
 static BOOL node_uses_custom_kernel(
         SynaptikMetalDecodedNode node,
         NSArray<MPSShape *> *shapes,
-        const uint8_t *value_types) {
+        const uint8_t *value_types, const uint8_t *value_states) {
     if (node.operation == 116U) return YES;
     return (node.operation == SYNAPTIK_METAL_MPSGRAPH_VARIANCE
                     ? variance_uses_task0069_custom_kernel(node, shapes, value_types)
                     : operation_uses_custom_kernel(node.operation))
             || matmul_uses_custom_kernel(node, shapes, value_types)
+            || float32_binary_requires_physical_layout(node, value_types, value_states)
             || synaptik_exact_handles(node, value_types)
             || synaptik_reduction_handles(node, value_types)
             || synaptik_scatter_handles(node, value_types)
@@ -5412,7 +5426,7 @@ static int32_t synaptik_metal_create_decoded(
                         && !task0064_two_dimensional_consumer)
                     local_singleton_height[value] = 3U;
             }
-            BOOL custom_node = node_uses_custom_kernel(node, shapes, value_types)
+            BOOL custom_node = node_uses_custom_kernel(node, shapes, value_types, states)
                     || (route == SYNAPTIK_METAL_ROUTE_CUSTOM_PROGRAM
                             && node.operation == SYNAPTIK_METAL_MPSGRAPH_MATMUL
                             && (local_transpose[node.first_input] != 0U
@@ -5440,6 +5454,7 @@ static int32_t synaptik_metal_create_decoded(
             if (route == SYNAPTIK_METAL_ROUTE_MPSGRAPH
                     && (!operation_has_direct_mpsgraph(node.operation)
                             || low_precision_custom_function(node, value_types) != nil
+                            || float32_binary_requires_physical_layout(node, value_types, states)
                             || operation_is_task0066_selected(node.operation)
                             || node.operation == SYNAPTIK_METAL_CUSTOM_SCATTER_ADD
                             || node.operation == SYNAPTIK_METAL_MPSGRAPH_L1_NORM
@@ -7221,7 +7236,7 @@ static int32_t synaptik_metal_create_decoded(
                 }
                 if (local_transpose[node.output] == 2U
                         || local_singleton_height[node.output] == 2U) continue;
-                BOOL custom_step = node_uses_custom_kernel(node, shapes, value_types)
+                BOOL custom_step = node_uses_custom_kernel(node, shapes, value_types, states)
                         || (node.operation == SYNAPTIK_METAL_MPSGRAPH_MATMUL
                                 && (local_transpose[node.first_input] != 0U
                                         || local_transpose[node.second_input] != 0U));

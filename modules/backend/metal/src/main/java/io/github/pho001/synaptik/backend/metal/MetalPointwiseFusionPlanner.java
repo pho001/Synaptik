@@ -413,10 +413,28 @@ final class MetalPointwiseFusionPlanner {
                 && Arrays.equals(layout.strides(), expectedStrides)).isPresent();
     }
 
+    /** Packed MPSGraph feeds cannot represent logical operand views or storage offsets. */
+    static boolean float32BinaryRequiresPhysicalLayout(
+            MetalMpsGraphProgram.Node node,
+            List<MetalMpsGraphProgram.ValueDescriptor> values) {
+        if (node.kind() != MetalMpsGraphProgram.NodeKind.ADD
+                && node.kind() != MetalMpsGraphProgram.NodeKind.SUB
+                && node.kind() != MetalMpsGraphProgram.NodeKind.MUL
+                && node.kind() != MetalMpsGraphProgram.NodeKind.DIV) return false;
+        int left = node.firstInputIndex(), right = node.secondInputIndex(), output = node.outputIndex();
+        if (left < 0 || left >= values.size() || right < 0 || right >= values.size()
+                || output < 0 || output >= values.size()) return false;
+        return values.get(left).dataType() == DataType.FLOAT32
+                && values.get(right).dataType() == DataType.FLOAT32
+                && values.get(output).dataType() == DataType.FLOAT32
+                && (!canonicalStorage(values.get(left)) || !canonicalStorage(values.get(right)));
+    }
+
     static boolean fixedCustom(
             MetalMpsGraphProgram.Node node,
             List<MetalMpsGraphProgram.ValueDescriptor> values) {
         if (node.kind() == MetalMpsGraphProgram.NodeKind.GENERAL_SCAN) return true;
+        if (float32BinaryRequiresPhysicalLayout(node, values)) return true;
         if (lowPrecisionCustom(node, values)) return true;
         if (MetalExactSupport.handles(node, values)
                 || MetalReductionSupport.handles(node, values)) return true;
