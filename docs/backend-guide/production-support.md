@@ -2,10 +2,10 @@
 
 ## Status and interpretation
 
-Reviewed scope freeze, 2026-11-01; current component evidence updated 2026-11-03 for the shared
-Metal F32/BF16/F16 cutover. This is the declared target and evidence ledger, not acceptance of
-the current source as a released candidate. Fresh complete CPU/Metal operation catalogs are
-qualified; final root and new release/install/push receipts are recorded separately below.
+Reviewed scope freeze, 2026-11-01; current acceptance updated 2026-11-03 for the shared
+Metal F32/BF16/F16 cutover. The bounded private/internal 0.1.0 matrix has operation-catalog,
+root and isolated source/artifact/installed-consumer qualification recorded below. This is not
+a claim about every Model geometry, public registry publication or a trusted native prebuilt.
 Earlier sealed candidate receipts below apply only to their frozen source and artifacts.
 General Scan and the bounded CPU/Metal neural journeys have component evidence. The
 [product goal](../planning/production-release-goal.md) and
@@ -321,7 +321,40 @@ above is distinct from the ten optional native dispatch-observer skips. CPU low 
 general Metal F64 arithmetic, arbitrary geometry/higher-order closure and trusted public
 prebuilt publication remain outside this acceptance.
 
+The complete retained inventory contains 796 JUnit suite reports: 5,916 tests, 65 skips,
+zero failures and zero errors. Metal contributes 580 tests with ten optional observer skips.
+
+### Isolated versioned distribution acceptance
+
+The eighteen-product 0.1.0 Maven/binary/exact-source distribution was rebuilt from the qualified
+source, checksum-verified and extracted outside the checkout. A new Maven consumer declaring
+only `nn:0.1.0` resolved sixteen runtime JARs in an isolated cache; every JAR matched its published
+bytes. A separate extracted NoGit source tree built all eighteen products with build cache
+disabled and all eighteen classes tasks executed. Neither runtime classpath contains checkout
+classes or previous product JARs.
+
+Both installations passed the same original-carrier F32/BF16/F16 public qualifications:
+fixed RNN/GRU/LSTM all-role AD (36 configurations), owned MLP/Conv3d-overlapping-Pool3d
+forward/AD/SGD/cold reload (nine models), explicit NN GeneralScan lengths/training/cold replay
+(twelve configurations), normalization (36 forward/114 selected-AD routes) and Dropout
+mask/state/reuse/VJP (eighteen configurations). Independent numerical oracles are described above.
+
+The extracted source tree independently rebuilt, locally signed and verified its native package
+before actual GPU replay. Its library is byte-identical to the installed binary library:
+SHA-256 `03df3cc3196295a22329c2bfb48780818641a6c118f7db30d4f4e8eb3b3c6ed9`.
+The shared shader source authentication, ABI and common bounds remain those recorded above.
+
+The final documentation-only freeze retains the qualified non-documentation and binary bytes.
+`source-provenance.json`, `SHA256SUMS`, `verification.json` and `qualification/` bind the final
+archive source, artifact identities, commands, retained reports, failure/recovery history and
+installed replay. This is local technical acceptance, not a performance SLA, CPU low unlock,
+general Metal F64 arithmetic, public registry upload or official native signing claim.
+
 ## Accepted local candidate: Pool3d and operation-audit closure
+
+This earlier candidate and its original receipts were preserved unchanged under
+`build/release/0.1.0-before-metal-parity-20261103T112058Z/`. The paths and counts below describe
+that archived checkpoint, not the current typed candidate.
 
 The private/internal 0.1.0 candidate passed the joined `test build releaseDistribution` gate
 on 2026-11-03. The gate reported 220 actionable tasks: 106 executed, five from cache and 109

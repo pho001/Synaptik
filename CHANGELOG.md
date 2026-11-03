@@ -83,8 +83,9 @@
 - Versioned local Maven, binary and exact-source distributions for eighteen implemented products,
   with source/Javadoc JARs, real public dependency closure, third-party notices, explicit source
   provenance and reproducible source archives. External Maven/Gradle CPU/Metal model consumers
-  run without checkout JARs. The owner selected private/internal distribution; final technical
-  qualification remains pending and no public project licence or registry upload is selected.
+  run without checkout JARs. The bounded private/internal 0.1.0 matrix is technically qualified
+  through the root gate, isolated Maven replay and clean eighteen-product NoGit/source-native
+  rebuilds. Public project licensing, registry upload and trusted native-prebuilt signing are separate.
 - Shared per-output ordinary Scan coordinate metadata, including canonical BatchNorm/attention
   dependencies, completely proved nonleading intermediate rows and terminal contributor routing.
   Model/raw forward validation reuse one seam; retained AD/header/physical/cold/wire boundaries
