@@ -46,10 +46,13 @@ import org.junit.jupiter.api.Test;
 class MetalNativeBoundaryRepairTest {
     @Test void publicScanBodyBoundsAndDuplicateFailuresRetainTimeUnitOperandAndNativeCause() {
         for (boolean scatter : List.of(false, true)) {
-            Tensor formalData = external(DataType.FLOAT32, Shape.of(2), new long[] {1}, 0, false);
-            Tensor formalIndices = external(DataType.INT64, Shape.of(2), new long[] {1}, 0, false);
+            Tensor formalData = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32, Shape.of(2),
+                    Optional.of(LayoutDescriptor.contiguous(Shape.of(2))), false));
+            Tensor formalIndices = TensorFactory.create(new TensorDescriptor(DataType.INT64, Shape.of(2),
+                    Optional.of(LayoutDescriptor.contiguous(Shape.of(2))), false));
             Tensor data = external(DataType.FLOAT32, Shape.of(2, 2), new long[] {2, 1}, 0, false);
-            Tensor indices = external(DataType.INT64, Shape.of(2, 2), new long[] {2, 1}, 0, false);
+            Tensor indices = TensorFactory.create(new TensorDescriptor(DataType.INT64, Shape.of(2, 2),
+                    Optional.of(LayoutDescriptor.contiguous(Shape.of(2, 2))), false));
             Tensor selected = scatter ? formalData.scatterElements(formalIndices, formalData, 0)
                     : formalData.gatherElements(formalIndices, 0);
             var body = new io.github.pho001.synaptik.model.tensor.ScanBody(
@@ -73,9 +76,12 @@ class MetalNativeBoundaryRepairTest {
     }
 
     @Test void publicSourceOnlyBoolScanRejectsActiveByteAndSkipsInactivePoison() {
-        Tensor formal = external(DataType.BOOL, Shape.of(2, 1), new long[] {1, 1}, 0, false);
-        Tensor sequence = external(DataType.BOOL, Shape.of(2, 2, 1), new long[] {2, 1, 1}, 0, false);
-        Tensor lengths = external(DataType.INT64, Shape.of(2), new long[] {1}, 0, false);
+        Tensor formal = TensorFactory.create(new TensorDescriptor(DataType.BOOL, Shape.of(2, 1),
+                Optional.of(LayoutDescriptor.contiguous(Shape.of(2, 1))), false));
+        Tensor sequence = TensorFactory.create(new TensorDescriptor(DataType.BOOL, Shape.of(2, 2, 1),
+                Optional.of(LayoutDescriptor.contiguous(Shape.of(2, 2, 1))), false));
+        Tensor lengths = TensorFactory.create(new TensorDescriptor(DataType.INT64, Shape.of(2),
+                Optional.of(LayoutDescriptor.contiguous(Shape.of(2))), false));
         var body = new io.github.pho001.synaptik.model.tensor.ScanBody(
                 List.of(), List.of(formal), List.of(), List.of(), List.of(formal));
         Tensor output = io.github.pho001.synaptik.model.tensor.Scan.apply(List.of(), List.of(sequence),

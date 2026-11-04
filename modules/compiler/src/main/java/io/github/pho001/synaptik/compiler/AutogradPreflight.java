@@ -439,6 +439,10 @@ final class AutogradPreflight {
      * Checks a compiler-owned recipe before binding its generated cotangents. Like a Scan body,
      * these roots are internal flow, not new public explicit-seed declarations. The enclosing
      * public request has already checked eligibility; actual seeds bind only during expansion.
+     * @param roots ordered internal recipe outputs, including repeated semantic roles
+     * @param targets ordered original recipe inputs whose contributions are requested
+     * @return validated rule plan with typed zero contributions for disconnected targets
+     * @throws IllegalArgumentException if the closed recipe violates an existing rule boundary
      */
     static StagePlan preflightRecipe(List<Tensor> roots, List<Tensor> targets) {
         return preflightStage(0, roots, Collections.nCopies(roots.size(), Optional.empty()),

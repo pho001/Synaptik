@@ -21,6 +21,11 @@ final class RecurrentGradientRules {
      * actual roles separate until the enclosing contribution owner performs its ordered merge.
      * BFLOAT16, FLOAT16 and OFP8 storage have F32 projections/gates, explicit state narrowing,
      * and a narrowed LSTM cell read before hidden publication, exactly as the fixed forward sites.
+     * @param producer selected fixed RNN, GRU or LSTM occurrence
+     * @param seeds actual cotangents aligned with the occurrence's canonical output ports
+     * @param selected input-position mask of requested differentiable roles
+     * @param constants enclosing request's scalar-splat and activity owner
+     * @return input-position-aligned contributions, with null in unselected positions
      */
     static Tensor[] apply(TensorProducer producer, List<Tensor> seeds, boolean[] selected,
             FirstOrderAutograd.DerivativeConstants constants) {

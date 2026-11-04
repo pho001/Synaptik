@@ -146,7 +146,13 @@ final class FirstOrderAutograd {
                 OrdinaryConstruction.real(constants, null), normalize, null);
     }
 
-    /** Expands a fixed-cell Scan recipe using the enclosing request's constant/activity owner. */
+    /**
+     * Expands a fixed-cell Scan recipe using the enclosing request's constant/activity owner.
+     * @param plan validated internal recipe plan
+     * @param seeds actual cotangents aligned with the recipe's ordered output roles
+     * @param constants enclosing request's scalar-splat and activity owner
+     * @return cotangents aligned with the plan's original target roles
+     */
     static List<Tensor> expandRecipe(AutogradPreflight.StagePlan plan, List<Tensor> seeds,
             DerivativeConstants constants) {
         return expandContributions(plan, seeds, IDENTITY, IDENTITY,

@@ -182,3 +182,43 @@ F64 specialization guard; the coordinator corrects those small integration joins
 R8 cold empty-header restriction is withdrawn: implemented graph-model v4/v5 explicitly admit
 carry-free/zero-ROW sources in `extensions-training`, superseding the historical positive-ROW
 baseline. Existing consumer round-trip tests remain; no constructor domain is narrowed.
+
+## Finding disposition and coverage
+
+The audit covered all seven assigned source areas, plus shared build, distribution and Trace
+ownership. Source review is bounded evidence, not an exhaustive proof of every legal Model
+geometry or floating-point result. Existing numerical acceptance and current artifact acceptance
+are separate from operation-catalog execution counts.
+
+| Area | Finding and disposition | Preserved boundary |
+|---|---|---|
+| Model / Compiler | R7 fixes categorical-loss AD's shifted formulas and exact target guards; R8 makes valid deep Scan traversal iterative and retains scoped binding subjects and actual B. | Ordinary softmax's distinct infinity rules, contribution order, Model IDs and constructor domains remain unchanged. |
+| CPU arithmetic | R5 preserves declared binary32 working sites and overflowing squares; L2 point domains retain exact absolute values. R6 divides by exact integer contributor counts. | F64 stays F64; low values narrow only at declared publication sites; no runtime numerical repair or blanket compatibility bump. |
+| CPU/native diagnostics | R9 adds opt-in correlated cold selection/finalization facts and retains enqueue failure as primary when wait also fails. | No per-run observer instrumentation, no numerical/route policy in Trace, no diagnostic payload retention of live objects. |
+| Metal | R10 orders products before bias; R11 fixes active BOOL/control, FP8/storage and empty-context boundaries, plus bounded native Scan failure context. R13 closes direct and nested mixed-low WHERE admission. | Native ABI17/schema22 remain; Scan attribute v2 and coordinated identity45 reject stale plans. Explicit casts and qualified floating pairs remain supported. |
+| Engine / Prepare / Runtime | R4 slices valid excess-capacity caller storage to its referenced prefix and closes acquired identities on bookkeeping failure, without terminal shutdown snapshots. R12 observes actual tuning fallback/rejection. | Caller ownership, reentrant/concurrent close, exact primary/cause/suppression behavior and empty-evidence fallback remain. Allocation-failure rollback has source/focused-test evidence, not a claim of induced process OOM. |
+| Training / NN | R1 rejects unequal F32/F64 logical/master restore bytes before mutation. R2/R14 preserve source invalidation with bounded sanitized displayed paths. | Low-precision master state remains independent; rejected restore is transactional; canonical names and saved bytes are not sanitized or truncated. |
+| Checkpoint | R2 removes quadratic namespace validation/amplification, preserves canonical order and adds corrupt-state context. | Wire selection, aliases, legal names/depth, bounded readers and atomic publication remain. Zero-carry/zero-ROW v4/v5 sources remain admitted. |
+| Tuning / other extensions | R3 avoids all persistent-cache access for session-only compatibility and authenticates decisions against every exact batch. Data/Text had no confirmed release-critical source defect; CUDA/ONNX/CLI remain non-publication placeholders. | No new discovery, executor, persistent Metal cache, tokenizer/model inference, runtime fallback or public support inferred from a module name. |
+
+Independent source reviews approved the lifecycle, restore/namespace, tuning/Scan, numerical/count,
+diagnostic and Metal corrections. Review findings caused additional repairs: L2 point-domain
+identity, bounded source-path display, native observer suppression, genuine authenticated nested
+WHERE regression and the Scan-v2 coarse guard. The incorrect proposed cold-header exclusion was
+withdrawn against the implemented owning v4/v5 contract; positive consumer regressions were kept.
+R15/R16 migrate independent test references to the retained Model sites without relaxing checks.
+
+### Verification policy and remaining release conditions
+
+The coordinator reproduces public failures, runs the joined native-enabled `test build` and
+affected Javadoc gate, and separately compiles/runs consumers. A rebuilt local Maven repository,
+source archive and ad-hoc-signed native package are then extracted into a fresh directory and
+consumed without checkout classes or a manual transitive dependency list. Qualification uses
+`0.1.0-public-audit.20261104`, preserving the earlier sealed `0.1.0` receipts.
+
+Public publication remains blocked by the owner's licence/redistribution decision. No upload,
+trusted Developer-ID signature, notarization, x86 low-precision qualification, native FP8 result
+on this Arm machine, universal numerical envelope or performance SLA is claimed.
+The [didactic documentation redesign](documentation-redesign.md) is queued as the separately
+requested next work, including the whole-framework explanation, package atlas and complete
+commented executable examples; it is not reported as implemented by this audit.

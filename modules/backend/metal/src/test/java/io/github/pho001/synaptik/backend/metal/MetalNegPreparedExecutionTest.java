@@ -666,7 +666,7 @@ class MetalNegPreparedExecutionTest {
             assertEquals(TracePhase.PREPARE, event.phase());
             assertEquals(TraceLevel.ERROR, event.level());
             assertEquals(TraceOutcomeStatus.FAILED, outcome.status());
-            assertTrue(outcome.nativeStatus().isEmpty());
+            assertEquals(12, outcome.nativeStatus().orElseThrow().code());
             assertEquals(1, api.pipelineCreates.get());
             assertEquals(1, api.pipelineReleases.get());
         } finally {

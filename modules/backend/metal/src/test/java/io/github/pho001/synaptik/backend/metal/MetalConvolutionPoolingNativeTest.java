@@ -578,6 +578,8 @@ class MetalConvolutionPoolingNativeTest {
         assumeTrue(configured != null && !configured.isBlank(),
                 "SYNAPTIK_METAL_TEST_LIBRARY is not set");
         assertEquals(feeds.length, inputs.size());
+        int[] materialized = MetalPointwiseFusionPlanner.plan(program, values, feeds, targets,
+                MetalPreparedRoute.CUSTOM_PROGRAM).materializedProgramValueIndices();
         Path library = Path.of(configured).toAbsolutePath().normalize();
         MetalNativeApi api = MetalNativeApi.open(library);
         MetalNativeApi.Handle context = null;
@@ -592,15 +594,15 @@ class MetalConvolutionPoolingNativeTest {
                 upload(api, buffers.get(feeds[index]), inputs.get(index));
             }
             try (Arena arena = Arena.ofConfined()) {
-                MemorySegment addresses = arena.allocate(ADDRESS, buffers.size());
-                for (int index = 0; index < buffers.size(); index++) {
-                    addresses.setAtIndex(ADDRESS, index, buffers.get(index).carrier());
+                MemorySegment addresses = arena.allocate(ADDRESS, materialized.length);
+                for (int index = 0; index < materialized.length; index++) {
+                    addresses.setAtIndex(ADDRESS, index, buffers.get(materialized[index]).carrier());
                 }
                 MemorySegment outputs = arena.allocate(ADDRESS, targets.length);
                 for (int index = 0; index < targets.length; index++) {
                     outputs.setAtIndex(ADDRESS, index, buffers.get(targets[index]).carrier());
                 }
-                api.runExecutable(executable, buffers.size(), addresses, targets.length, outputs);
+                api.runExecutable(executable, materialized.length, addresses, targets.length, outputs);
                 var result = new ArrayList<byte[]>(targets.length);
                 for (int target : targets) {
                     result.add(download(api, buffers.get(target), values.get(target).byteCount()));
