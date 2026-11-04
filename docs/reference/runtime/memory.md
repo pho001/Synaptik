@@ -1,11 +1,20 @@
 # Slots and prepared-memory geometry
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
 A **[buffer slot](../../glossary.md#buffer-slot--bufferslot)** names a planned place for a logical value, while a **[workspace slot](../../glossary.md#workspace-slot--workspaceslot)** names
 scratch storage used while computing. Neither slot is a physical memory address. **Byte geometry**
 specifies storage size and [alignment](../../glossary.md#term-alignment); a dense index is merely an entry's zero-based list position,
 not the [opaque](../../glossary.md#term-opaque) number stored inside the slot identifier.
+
+## Who creates this plan, and who allocates from it?
+
+Shared Prepare assigns slots from backend analysis requirements and constructs the memory plan.
+The example directly calls the public constructors to isolate that description; it does not
+allocate a 24-byte buffer or a 64-byte workspace. During a later run, Runtime invokes backend
+creators to obtain concrete representations for those positions. The plan copies list membership
+and retains immutable entries, but owns no bytes to free. See [Prepare assignment](orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization)
+for the source-to-slot relationship and [creation](creation.md) for the first per-run allocations.
 
 <a id="current-slot-identities"></a>
 ## Current slot [identities](../../glossary.md#term-identity-meanings)
@@ -53,6 +62,7 @@ Describe one 24-byte reusable [buffer](../../glossary.md#term-buffer) position a
 order is already the final deterministic plan order.
 
 ```java
+// These constructors describe byte geometry only; backend creators allocate storage during a later run.
 import io.github.pho001.synaptik.runtime.memory.BufferSlot;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
 import io.github.pho001.synaptik.runtime.memory.WorkspaceSlot;

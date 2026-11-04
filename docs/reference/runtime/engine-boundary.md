@@ -1,11 +1,22 @@
 # Public [Engine](../../glossary.md#term-engine) [binding](../../glossary.md#term-binding) and results
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
 Input **binding** connects supplied values to the compiled computation. [Identity](../../glossary.md#term-identity-meanings)-based binding
 matches the original [Tensor](../../glossary.md#tensor) identifiers; positional binding follows final compiled input order.
 A successful [synchronous](../../glossary.md#term-synchronous) [run](../../glossary.md#term-run) has finished computing, but its **result [lease](../../glossary.md#term-lease)** keeps resources
 alive until close. **[Materialization](../../glossary.md#materialization)** explicitly copies a selected result into [detached](../../glossary.md#detached-model-results) [host](../../glossary.md#term-host) bytes.
+
+## Which objects carry descriptions, and which carry values?
+
+The application gives output **expressions** to `Engine.compile`; the resulting graph handle
+contains input identities/descriptors, not the original arrays. At `run` or `runValues`, the
+application supplies **current stored inputs**. Engine snapshots storage associations and borrows
+the selected storage; it does not pin an Arena or copy every input. Keep those bytes usable and
+unmodified until the result closes. Engine's result owns the run resources, while `materialize`
+creates a separate immutable host value with no close protocol. Compare
+[Training's shorter external-batch borrow](../training/sessions.md#session-construction-and-input-mapping),
+where Training closes its internal Engine result before the synchronous call returns.
 
 <a id="current-ordinary-engine-boundary"></a>
 ## Current ordinary [Engine](../../glossary.md#term-engine) boundary
@@ -33,6 +44,8 @@ The handle borrows the Engine's composition [lifetime](../../glossary.md#term-li
 unique [run](../../glossary.md#term-run)-[lease](../../glossary.md#term-lease) protocol. Failed preparation, wrapper construction or [publication](../../glossary.md#term-publication) rolls back
 acquired resources while preserving the primary failure and suppressed cleanup failures.
 
+### Bind current stored inputs
+
 `run(prepared, inputs)` matches every compiled TensorId exactly once in arbitrary order and checks
 the complete descriptor. `runValues(prepared, values)` instead binds by final compiled input order,
 with no ID requirement. It requires exact count and fully static exact descriptors: [dtype](../../glossary.md#data-type--datatype), [shape](../../glossary.md#shape),
@@ -54,6 +67,8 @@ direct-run diagnostic precedence: closed preparation wins null/malformed/dead in
 input-list errors. Closed Engine still reports `advanced engine is closed` before all [arguments](../../glossary.md#term-argument).
 A later close [race](../../glossary.md#term-race) is decided only by Runtime's unique nonwaiting lease; no outward monitor is
 held through execution.
+
+### Keep results alive separately from completion
 
 A successful run is a [synchronous](../../glossary.md#term-synchronous) completion barrier, not a future or in-flight command.
 [`RunResult`](../../glossary.md#run-result--runresult) owns completed run-state resources and the [borrowed](../../glossary.md#ownership-borrowing-and-lease) input wrappers. Its immutable
@@ -89,17 +104,20 @@ does not replay failure, while the outward Engine result preserves its exact fai
 [`TrainingSession`](../../glossary.md#training-session--trainingsession) and the advanced lifecycle remain; this is not a Training [API](../../glossary.md#term-application-programming-interface-api) redesign.
 See the [fresh-value example](../../user-guide/running-models.md#run-fresh-values-in-compiled-order).
 
-The current fixed CPU path requires fully static Shapes and resolved compatible layouts. Ordinary
-builder composition may prepare multiple CPU/[Metal](../../glossary.md#term-metal) partitions and transfers only fully static
-canonical [contiguous](../../glossary.md#term-contiguous) [`FLOAT32`](../../glossary.md#term-float32) values between them. Zero-[node](../../glossary.md#node) pass-through remains rejected. In
-particular, public `ADD` currently has an unresolved result layout; applying `contiguous()`
-afterward resolves only the new CONTIGUOUS occurrence and does not make the preceding ADD
-executable. Compile success is therefore not a prepare or run guarantee.
+The fixed CPU path requires fully static Shapes and resolved compatible final layouts; qualified
+named-batch execution has its own [metadata-binding boundary](../compiler/batch-binding.md).
+Compiler's [final static-result closure](../compiler/optimization.md) can resolve materializing
+results such as ADD before capability planning. The public expression's initially unresolved
+layout is therefore not by itself a current CPU rejection. Unknown/unproved layouts and
+unsupported occurrences still fail; appending `contiguous()` is not a general repair. Mixed-owner
+transfers retain their separately qualified type/layout domain, and zero-node pass-through
+remains rejected. Compile success is not a prepare or run guarantee.
 
 The following complete setup creates exact-size, resolved `FLOAT32` input [leaves](../../glossary.md#term-leaf) backed by a
 caller-owned shared [arena](../../glossary.md#term-arena):
 
 ```java
+// The Arena owns these bytes; the Tensor describes and borrows their storage association.
 import io.github.pho001.synaptik.engine.CompiledGraph;
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.HostTensorValue;
@@ -137,6 +155,7 @@ A forward-only run uses two supported CONTIGUOUS occurrences, deliberately suppl
 reverse of final binding order, and materializes one exact publication object:
 
 ```java
+// Keep the Arena open through result close; materialization copies only the selected publication.
 HostTensorValue retained;
 try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
     Tensor left = input(arena, false);
@@ -174,6 +193,7 @@ An explicitly seeded first-order run reuses one produced [seed](../../glossary.m
 two identity-distinct gradient-target occurrences:
 
 ```java
+// A repeated seed expression still contributes to two ordered gradient-publication roles.
 try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
     Tensor left = input(arena, true);
     Tensor right = input(arena, true);
@@ -204,8 +224,9 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
 
 The compiled inputs are `left`, `right`, and `seedLeaf`; the seed expression itself is produced
 inside the graph. The four occurrences expose metadata until the caller explicitly selects one
-for materialization; this example proves neither [optimizer](../../glossary.md#term-optimizer) integration nor training. A shared seed leaf without `contiguous()` would be a zero-node pass-through
-publication with no current [prepared buffer assignment](../../glossary.md#prepared-buffer-assignment--preparedbufferassignment).
+for materialization; this example proves neither [optimizer](../../glossary.md#term-optimizer) integration nor training.
+A shared seed leaf without `contiguous()` is a source-only publication, handled separately from
+the required nonempty executable partition; it does not grant pure zero-node execution.
 
 Host materialization is current for fully static resolved publications and uses the exact CPU or
 Metal adapter captured for each publication during cold preparation. The four ordinary

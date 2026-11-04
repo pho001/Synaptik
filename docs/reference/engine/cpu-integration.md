@@ -1,6 +1,6 @@
 # [CPU](../../glossary.md#term-cpu) integration and native [ownership](../../glossary.md#term-ownership-meanings)
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/engine/src/main/java/io/github/pho001/synaptik/engine/Engine.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/engine/src/main/java/io/github/pho001/synaptik/engine/Engine.java)
 
 An integration is the CPU [backend](../../glossary.md#backend)'s [lifecycle](../../glossary.md#lifecycle) connection to [Engine](../../glossary.md#term-engine): capability answers,
 preparation collaborators, input [borrowing](../../glossary.md#term-borrowing) and output copying. A **route** is an implementation
@@ -75,13 +75,15 @@ non-negative [element](../../glossary.md#term-element) offset and positive or ze
 element. A Shape with any zero [extent](../../glossary.md#term-extent) returns a fresh empty array without source-element access.
 Repeated physical addresses from a zero stride are valid and produce repeated logical values.
 
-Segment-backed source elements are interpreted using the CPU's native-order unaligned primitive
-access, but the [detached](../../glossary.md#detached-model-results) output format is always [big-endian](../../glossary.md#text-encoding-and-file-boundaries). [`FLOAT64`](../../glossary.md#term-float64) and [`FLOAT32`](../../glossary.md#term-float32) preserve raw
-[NaN](../../glossary.md#term-nan) payloads and signed zeros; [`BFLOAT16`](../../glossary.md#term-bfloat16) preserves its exact stored 16 bits; [`INT64`](../../glossary.md#data-type--datatype) and [`INT32`](../../glossary.md#data-type--datatype)
-preserve their [two's-complement](../../glossary.md#arithmetic-rearrangement-and-finite-difference-checks) bit patterns; and [`BOOL`](../../glossary.md#data-type--datatype) accepts only the exact stored byte `0` or
-`1`. No data-type conversion or BOOL [normalization](../../glossary.md#term-normalization) occurs. The checked logical byte count must
-not exceed either `maximumBytes` or `Integer.MAX_VALUE`; arithmetic [overflow](../../glossary.md#term-overflow) and a genuine JVM
-allocation failure remain distinct failures.
+Segment-backed source elements use CPU native-order unaligned access, but detached output is
+big-endian in logical row-major order. FLOAT64, FLOAT32, BFLOAT16 and FLOAT16 preserve represented
+bits, including NaN payloads and signed zero; both FP8 formats copy their raw byte lanes. INT64
+and INT32 preserve two's-complement bits; BOOL accepts only stored byte `0` or `1`. These are
+all nine current storage types, as described by
+[`CpuBackendIntegration.copyToCanonicalHostBytes`](../../../modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/CpuBackendIntegration.java).
+No conversion or BOOL normalization occurs. The checked logical byte count must fit both
+`maximumBytes` and `Integer.MAX_VALUE`; arithmetic overflow and JVM allocation failure remain
+distinct failures.
 
 The backend-local CPU complete-assembler entry remains deliberately exact. A pure zero-node
 constant or pass-through graph is rejected because it requires one non-empty maximal CPU
@@ -122,3 +124,14 @@ qualified restrictions and has no [FP8](../../glossary.md#term-fp8) capability.
 ---
 
 [Previous topic](../compiler/artifact-values.md) · [Next topic](../runtime/contracts.md)
+## Engine is the integration's caller
+
+Ordinary application code normally calls Engine, not `copyToCanonicalHostBytes` directly.
+Engine calls the CPU integration with an inward Runtime representation and the corresponding
+final descriptor while its result lease is open. CPU performs the physical host copy; Engine
+then packages detached bytes for the application. Conversely, CPU input borrowing only wraps
+storage supplied by Engine: it neither copies all inputs nor takes ownership of their Arena.
+Closing Engine releases its owned integration, not application memory. See
+[ordinary materialization](../runtime/engine-boundary.md) for the supported application boundary
+and [explicit integration transfer](composition.md) when configuring native routes.
+

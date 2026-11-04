@@ -1,6 +1,6 @@
 # Declarative [compilation](../../glossary.md#compiler-engine-and-execution-stage-names) and tuning values
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
 These configuration values express requests rather than perform work. A **hard requirement**
 excludes unacceptable [backend](../../glossary.md#backend) choices; a **soft preference** ranks choices that already qualify.
@@ -13,7 +13,7 @@ The implemented `modules:config` surface contains four standalone [compile](../.
 - [`CompileMode`](../../glossary.md#compile-mode--compilemode) records the requested compile-time [graph](../../glossary.md#graph) [scope](../../glossary.md#term-scope);
 - [`GraphOptimizationConfig`](../../glossary.md#graph-optimization-configuration--graphoptimizationconfig) permits or suppresses optional semantics-preserving [compiler](../../glossary.md#term-compiler) work;
 - [`PartitionScoringConfig`](../../glossary.md#partition-scoring-configuration--partitionscoringconfig) records an optional soft [`DeviceClass`](../../glossary.md#device-class--deviceclass) preference for later ranking of
-  already eligible ownership candidates.<span data-glossary-navigation="true"> ([ranking glossary](../../glossary.md#term-ranking))</span>
+  already eligible ownership candidates.
 
 [Model](../../glossary.md#term-model) owns one family/[dtype](../../glossary.md#data-type--datatype) numerical contract; these configuration values contain no numerical
 selector. [Metal](../../glossary.md#term-metal) uses [occurrence](../../glossary.md#term-occurrence)-specific provider capability and its fixed custom program for
@@ -23,6 +23,7 @@ admitted [BFLOAT16](../../glossary.md#term-bfloat16)/[FLOAT16](../../glossary.md
 They are [immutable](../../glossary.md#term-immutable) requests, not a runnable compiler configuration aggregate. For example:
 
 ```java
+// Constructing policy records performs no compilation, discovery or allocation of tensor storage.
 import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.backend.contract.BackendIdRequirement;
 import io.github.pho001.synaptik.backend.contract.DeviceClass;
@@ -92,18 +93,19 @@ ordered inputs are:
 - Phase-1 positive cache-miss and per-miss candidate maxima plus non-negative warmup and positive
   odd timed-sample counts;
 - one caller-defined, schema-versioned representative-profile identity whose opaque bytes are
-  snapshotted on construction and access;<span data-glossary-navigation="true"> ([schema glossary](../../glossary.md#term-schema); [representative-profile identity glossary](../../glossary.md#representative-profile-identity); [opaque glossary](../../glossary.md#term-opaque))</span>
+  snapshotted on construction and access;
 - either `REQUIRE_TUNED_RESULT` or `ALLOW_SAFE_HEURISTIC`; and
 - one explicit workload-cache `Path`, retained exactly without [normalization](../../glossary.md#term-normalization) or I/O;
 - one independent Phase-2 `CompletePlanBudget` containing a positive complete-plan candidate
   maximum, non-negative warmup count, positive odd timed-sample count, positive whole-transaction
-  execution ceiling, and non-negative aggregate correctness ceiling in bytes; and<span data-glossary-navigation="true"> ([complete-plan candidate glossary](../../glossary.md#complete-plan-candidate); [transaction glossary](../../glossary.md#term-transaction))</span>
+  execution ceiling, and non-negative aggregate correctness ceiling in bytes; and
 - one explicit non-empty-string model-plan-cache `Path`, retained exactly without normalization or
   I/O.
 
 For example, this current code constructs request data only:
 
 ```java
+// Paths and profile identity label a tuning request; construction does not read caches or run trials.
 import io.github.pho001.synaptik.config.tuning.ModelAutotuningConfig;
 import java.nio.file.Path;
 
@@ -120,16 +122,16 @@ ModelAutotuningConfig request =
                 Path.of("cache", "model-plan.bin"));
 ```
 
-The concrete inputs permit at most eight distinct workload-cache misses, at most sixteen complete
-candidates for each Phase-1 miss, two Phase-1 untimed [warmup](../../glossary.md#term-warmup) executions, and five Phase-1 timed
-executions per candidate. Independently, Phase 2 permits at most four actual complete-plan
-candidates, one warmup and three timed [samples](../../glossary.md#term-sample-machine-learning-and-hyperparameters) per candidate, at most twenty total executions, and
-at most 1,048,576 aggregate canonical-publication correctness bytes. Later Phase-2 [preflight](../../glossary.md#term-preflight) uses
-the actual candidate count `N` and checks `N * (1 + W + S)` against the total-execution ceiling.
-The profile bytes identify the caller's representative profile; they are not representative input
-values. Construction validates and retains policy data but does not inspect either path, run
-tuning, read or write a cache, enumerate candidates, perform correctness execution, prepare an
-executable, or perform Engine or Runtime work.
+The concrete inputs permit at most eight distinct Phase-1 workload-cache misses, sixteen
+candidates per miss, two untimed warmups and five timed samples per candidate. Independently,
+Phase 2 permits four complete-plan candidates, one warmup and three timed samples per candidate,
+twenty total executions, and 1,048,576 aggregate correctness bytes. Let $N$ be the actual
+candidate count, $W$ the warmups per candidate and $S$ the timed samples per candidate, all
+non-negative integers (with $S$ positive and odd). The execution count is
+$E=N(1+W+S)$: one correctness run plus warmups and samples for each candidate. At
+$N=4$, $W=1$, $S=3$, $E=4(1+1+3)=20$, exactly the example's ceiling. Profile identity bytes
+label the caller's representative workload, not input values. Constructing the request neither
+reads paths nor performs tuning, cache I/O, correctness execution or preparation.
 
 Current `Engine.prepareTuned(...)` maps both budgets and the objective one-for-one, supplies the
 request's caller-defined model and representative-profile [identities](../../glossary.md#term-identity-meanings), binds its live
@@ -157,3 +159,13 @@ broader Compiler/Planning plan alternatives remain planned.
 ---
 
 [Previous topic](../backend-identities.md) · [Next topic](planning-values.md)
+## Which caller interprets this data?
+
+The application or integration author constructs request values; Engine forwards compile requests
+to Compiler/Planning and tuned-preparation requests to the tuning collaboration. Constructors
+validate and snapshot configuration, not representative tensor contents. In particular, profile
+identity bytes label the application's representative workload; they are not a numerical-policy
+profile or stored sample inputs. Tuning needs separately live values under
+[Engine's tuned-preparation lifetime](../engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle).
+Read [compile configuration](configuration.md) for the ordinary/advanced policy distinction.
+

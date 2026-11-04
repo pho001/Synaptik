@@ -1,7 +1,7 @@
 <a id="public-api-status"></a>
 # Public [API](../glossary.md#term-application-programming-interface-api) status and compatibility
 
-[Reference goals](index.md) · [Javadoc and exact signatures](javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../glossary.md#term-javadoc); [signatures glossary](../glossary.md#term-signature))</span>
+[Reference goals](index.md) · [Javadoc and exact signatures](javadoc.md)
 
 Here **public** means Java callers can name an API; **supported** also depends on the documented
 workflow and constraints. **Compatibility** asks whether callers or stored data keep working across

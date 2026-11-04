@@ -1,11 +1,24 @@
 # Ordinary [Engine](../../glossary.md#term-engine) [compile](../../glossary.md#compile), [prepare](../../glossary.md#prepare) and [run](../../glossary.md#term-run) [lifecycle](../../glossary.md#lifecycle)
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/engine/src/main/java/io/github/pho001/synaptik/engine/Engine.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/engine/src/main/java/io/github/pho001/synaptik/engine/Engine.java)
 
 The three lifecycle stages have different jobs: **compile** creates a logical recipe,
 **prepare** arranges [backend](../../glossary.md#backend) executable resources, and **run** executes with supplied values.
 The returned result is a resource **[lease](../../glossary.md#term-lease)**, not an [asynchronous](../../glossary.md#term-asynchronous) promise. Explicit
 **[materialization](../../glossary.md#materialization)** makes a [detached](../../glossary.md#detached-model-results) [host](../../glossary.md#term-host) copy that can survive closing that result.
+
+## The application's resource responsibilities
+
+The application calls Engine with output descriptions at compile time and stored inputs at run
+time. Engine calls Compiler, shared Prepare and Runtime on its behalf. A compiled handle owns
+no input bytes; a prepared handle owns reusable backend resources; a result owns one completed
+run's resources. Native input memory remains the application's responsibility and must stay
+usable through result close, even though `run` has already finished. A one-shot `compute` or
+`backward` closes its temporary result and preparation before returning detached host bytes, so
+its borrow ends at synchronous return. Read [binding details](../runtime/engine-boundary.md)
+when choosing identity-based `run` versus ordered fresh-value `runValues`, and
+[Model acquisition](../nn/owned-model.md#who-owns-the-inputs-state-and-results) before assuming
+supplied weights are always borrowed.
 
 <a id="current-ordinary-explicit-composition-and-advanced-lifecycle"></a>
 ## Current ordinary, explicit-composition, and advanced [lifecycle](../../glossary.md#lifecycle)
@@ -42,6 +55,8 @@ the complete descriptor. `runValues(prepared, values)` instead binds by final co
 with no ID requirement. It requires exact count and fully static exact descriptors: [dtype](../../glossary.md#data-type--datatype), [shape](../../glossary.md#shape),
 [layout](../../glossary.md#layout) presence/geometry and requiresGrad. One fresh [Tensor](../../glossary.md#tensor) may fill distinct matching slots.
 There is no shape [specialization](../../glossary.md#term-specialization): [64,784] rejects a compiled [32,784] slot.
+
+### Reuse one named-batch template
 
 The qualified CPU-only exception is an explicitly symbolic ordinary or bounded all-valid [Scan](../../glossary.md#term-cumulative-scan) graph, not a static graph
 silently specialized at run time. [Compile](../../glossary.md#compile)/[prepare](../../glossary.md#prepare) once with [FLOAT32](../../glossary.md#term-float32) X `[B,F]` and fixed W `[F,H]`;
@@ -108,12 +123,15 @@ caller storage.
 [`TrainingSession`](../../glossary.md#training-session--trainingsession) and the advanced lifecycle remain; this is not a Training [API](../../glossary.md#term-application-programming-interface-api) redesign.
 See the [fresh-value example](../../user-guide/running-models.md#run-fresh-values-in-compiled-order).
 
+### Supply representative values for bounded tuning
+
 Optional `prepareTuned(...)` is a [cache](../../glossary.md#term-cache)-first preparation path for eligible single-owner CPU plans
 and exact [singleton](../../glossary.md#term-singleton)-NEG Metal plans. This CPU example uses a [`CONTIGUOUS`](../../glossary.md#term-contiguous) expression, which has no
 eligible local tuning [handoff](../../glossary.md#term-handoff) in the current standard composition, so the allowed policy
 deterministically demonstrates explicit safe fallback:
 
 ```java
+// CONTIGUOUS has no eligible tuning handoff here; allowed fallback stays with the selected CPU owner.
 import io.github.pho001.synaptik.config.tuning.ModelAutotuningConfig;
 import io.github.pho001.synaptik.engine.CompiledGraph;
 import io.github.pho001.synaptik.engine.Engine;
@@ -192,9 +210,12 @@ key](../../glossary.md#term-cache-key). Current scope excludes multiple
 workloads or occurrences, Compiler graph alternatives, [Planning](../../glossary.md#term-planning) owner or [partition](../../glossary.md#partition) alternatives,
 multiple partitions, and mixed backends.
 
+### Get detached values with one-shot compute
+
 The current one-shot forms are exactly:
 
 ```java
+// Each compute freshly compiles/prepares and closes temporary results before returning detached values.
 HostTensorValue value = engine.compute(output);
 HostTensorValue boundedValue = engine.compute(output, maximumTotalBytes);
 List<HostTensorValue> values = engine.compute(outputs);
@@ -226,9 +247,12 @@ synchronous call completes; unselected discovered storage is not inspected. The 
 forms create no compile/prepared/result/value/Tensor-inventory cache or reuse and add no backward,
 implicit target/[seed](../../glossary.md#term-seed) behavior, tuning, cross-backend transfer, or Tensor execution method.
 
+### Get objective and gradients without updating state
+
 The current one-shot backward form is:
 
 ```java
+// Backward returns objective/gradients; it does not mutate a parameter or apply an optimizer.
 ScalarObjectiveBackwardResult result =
         engine.backward(objective, targets, maximumTotalBytes);
 ```
@@ -261,6 +285,7 @@ surface.
 This complete supported example uses only the current CPU static/resolved `CONTIGUOUS` path:
 
 ```java
+// Input bytes stay in the caller Arena until compute returns; retained results are independent copies.
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.HostTensorValue;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -297,6 +322,7 @@ List<HostTensorValue> retained;
 try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
     Tensor left = input(arena, 1.5f, -2.25f);
     Tensor right = input(arena, 3.25f, 4.5f);
+    // This synchronous call closes its internal result before these input bytes can be freed.
     retained = engine.compute(
             List.of(left.contiguous(), right.contiguous()),
             4L * Float.BYTES);
@@ -321,6 +347,7 @@ CPU path. Its input storage remains caller-owned, while the two returned values 
 after both the Engine and storage arena close:
 
 ```java
+// The forward CONTIGUOUS gives a nonempty partition; Compiler supplies the scalar positive-one seed.
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.ScalarObjectiveBackwardResult;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -353,6 +380,7 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
             Optional.of(new MemorySegmentStorage(DataType.FLOAT32, 1, storage)));
     Tensor objective = input.contiguous();
 
+    // The returned gradient is detached; no update to input storage is performed.
     retainedBackward = engine.backward(
             objective,
             List.of(input),
@@ -375,6 +403,7 @@ composition](../../glossary.md#backend-composition), broader operation support, 
 For a single already-constructed Tensor expression, the complete one-shot execution shape is:
 
 ```java
+// The expression already exists; compute evaluates it and returns a copy that outlives this Engine.
 try (Engine engine = Engine.standard()) {
     HostTensorValue result = engine.compute(output);
 }
@@ -383,11 +412,14 @@ try (Engine engine = Engine.standard()) {
 Here `output` already retains the Model expression provenance leading to its leaves. The returned
 value is detached; closing the Engine does not invalidate it.
 
+### Execute an ordinary NN forward expression
+
 An old generic/custom/declarative [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) `Model` follows the same boundary. This conceptual example intentionally assumes only the
 existing `model`, `input`, and `Tensor` contracts and invents no construction or initialization
 API:
 
 ```java
+// forward constructs dependencies only; the following compute performs numerical execution.
 Tensor output = model.forward(input);
 try (Engine engine = Engine.standard()) {
     HostTensorValue result = engine.compute(output);

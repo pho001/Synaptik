@@ -1,12 +1,23 @@
 <a id="checkpoint-artifact-file-api"></a>
 # [Opaque](../../glossary.md#term-opaque) [checkpoint](../../glossary.md#term-checkpoint) [artifact](../../glossary.md#term-artifact) files
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
 
 An **opaque [payload](../../glossary.md#artifact-envelope-and-atomic-publication)** is a byte sequence whose meaning this [API](../../glossary.md#term-application-programming-interface-api) deliberately does not know.
 The **envelope** groups named payloads; the **[manifest](../../glossary.md#term-manifest)** describes their names, sizes and digests.
 A higher-level **[schema](../../glossary.md#term-schema)** says how those bytes represent a [graph](../../glossary.md#graph) or [model](../../glossary.md#term-model). File [integrity](../../glossary.md#term-integrity) checks
 can detect bytes that do not match their recorded digests, but do not prove who created the file.
+
+## What crosses the file boundary?
+
+The application calls `ArtifactEnvelope.Entry` with a byte array; the entry copies those bytes,
+so later source-array mutation cannot change the envelope. The application then calls
+`ArtifactFile.save(path, envelope, limits)`; ArtifactFile owns the temporary file it creates, not
+the application's directory or final path. A later `read` returns a validated detached image
+with no open-file lease. The payload remains opaque: neither call knows whether it encodes a
+Tensor, a layer definition or something else. [GraphCheckpoint](graph.md) and
+[NN values-only recovery](values.md) supply those higher-level meanings. Successful atomic
+visibility is not a promise that a rename survives power loss.
 
 <a id="purpose-and-mental-model"></a>
 ## Purpose and [mental model](../../glossary.md#term-mental-model)
@@ -14,10 +25,10 @@ can detect bytes that do not match their recorded digests, but do not prove who 
 The [artifact](../../glossary.md#term-artifact) [API](../../glossary.md#term-application-programming-interface-api) stores named [opaque](../../glossary.md#term-opaque) byte payloads, not a [model](../../glossary.md#term-model) or [training session](../../glossary.md#training-session--trainingsession). An
 `ArtifactEnvelope` is an [immutable](../../glossary.md#term-immutable) in-memory image; `ArtifactFile` validates or publishes its
 version-one file form. The [extensions contract](../../architecture/contracts/extensions-training.md#extensionscheckpoint)
-owns the boundary, and [ADR 0032](../../design/decisions/0032-checkpoint-artifact-envelope.md)<span data-glossary-navigation="true"> ([ADR glossary](../../glossary.md#term-architecture-decision-record-adr))</span>
+owns the boundary, and [ADR 0032](../../design/decisions/0032-checkpoint-artifact-envelope.md)
 explains the format and [publication](../../glossary.md#term-publication) choice.
 
-[NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) retains a public [model checkpoint API](models.md)<span data-glossary-navigation="true"> ([checkpoint glossary](../../glossary.md#term-checkpoint))</span>, now in `nn.checkpoint`, that maps state to
+[NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) retains a public [model checkpoint API](models.md), now in `nn.checkpoint`, that maps state to
 opaque entries via public [Engine](../../glossary.md#term-engine) [materialization](../../glossary.md#materialization). It is separate from this opaque artifact API:
 the artifact package still assigns no meaning to payloads. Its old model [schema](../../glossary.md#term-schema) is described by the
 [owning NN contract](../../architecture/contracts/extensions-training.md#retained-nn-checkpoint-apis) and
@@ -73,6 +84,7 @@ The example creates a local temporary directory as its trusted parent. The input
 [payload](../../glossary.md#artifact-envelope-and-atomic-publication) under [`weights`](../../glossary.md#term-weight):
 
 ```java
+// The entry copies its source bytes; save owns only its staging file, not this directory.
 import io.github.pho001.synaptik.checkpoint.artifact.ArtifactEnvelope;
 import io.github.pho001.synaptik.checkpoint.artifact.ArtifactFile;
 import io.github.pho001.synaptik.checkpoint.artifact.ArtifactLimits;
@@ -106,16 +118,16 @@ adversarial [authentication](../../glossary.md#term-authentication), a remote-fi
 <a id="related-api-and-architecture"></a>
 ## Related [API](../../glossary.md#term-application-programming-interface-api) and architecture
 
-- [Checkpoint module boundary](../../architecture/module-boundaries.md#extensionscheckpoint)<span data-glossary-navigation="true"> ([Checkpoint glossary](../../glossary.md#term-checkpoint); [module glossary](../../glossary.md#term-module))</span>
-- [Public model checkpoint API](models.md)<span data-glossary-navigation="true"> ([model glossary](../../glossary.md#term-model))</span>
-- [Checkpoint lifecycle explanation](../../architecture/lifecycle.md#public-training-lifecycle)<span data-glossary-navigation="true"> ([lifecycle glossary](../../glossary.md#lifecycle))</span>
+- [Checkpoint module boundary](../../architecture/module-boundaries.md#extensionscheckpoint)
+- [Public model checkpoint API](models.md)
+- [Checkpoint lifecycle explanation](../../architecture/lifecycle.md#public-training-lifecycle)
 
 The [artifact](../../glossary.md#term-artifact) package and `:extensions:checkpoint` project ID are unchanged; sources now live in
 `modules/checkpoint`. Its separate [generic graph API](graph.md) stores cold [Tensor](../../glossary.md#tensor)
 sources and [host](../../glossary.md#term-host) values without [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) or [Engine](../../glossary.md#term-engine). Existing [opaque](../../glossary.md#term-opaque) file bytes/[publication](../../glossary.md#term-publication) are unchanged.
-The [graph](../../glossary.md#graph) [codec](../../glossary.md#term-codec) now selects `graph-model.v1` through `graph-model.v6`; v6 adds maximum/average
-[Pool3d](../../glossary.md#pool3d--ncdhw-pooling) (`SYNGRF06`, opcodes 34/35), including otherwise-qualified inline bodies. This is a
-graph-[schema](../../glossary.md#term-schema) extension, not a change to opaque ArtifactFile v1 [framing](../../glossary.md#term-framing), bounds or publication.
-Unchanged graph sources keep their smallest byte-identical v1–v5 format. See the
-[graph API's v6 record](graph-formats.md#complete-pool3d-geometry-in-v6) for geometry and
-[metadata](../../glossary.md#term-metadata)-[preflight](../../glossary.md#term-preflight) details. No [optimizer](../../glossary.md#term-optimizer) or session state is stored.
+The graph codec selects the smallest sufficient `graph-model.v1` through `graph-model.v7`.
+V6 adds maximum/average Pool3d (`SYNGRF06`, opcodes 34/35); FP8 anywhere in the supported
+source selects v7. These graph-schema extensions do not change opaque ArtifactFile v1 framing,
+bounds or publication. Old sources retain their smallest sufficient byte-identical format.
+See [v6 Pool3d metadata](graph-formats.md#complete-pool3d-geometry-in-v6) and
+[v7 FP8 metadata](graph-formats.md#fp8-graph-persistence); neither stores optimizer/session state.

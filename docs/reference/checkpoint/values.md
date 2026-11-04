@@ -1,11 +1,23 @@
 # Values-only [checkpoint](../../glossary.md#term-checkpoint) contracts
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
 
 Values-only recovery replaces a compatible [target](../../glossary.md#term-target)'s named [parameter](../../glossary.md#term-parameter) and [buffer](../../glossary.md#term-buffer) [bindings](../../glossary.md#term-binding); it
 does not reconstruct arbitrary [model](../../glossary.md#term-model)-building code. An **[alias](../../glossary.md#aliasing-and-arena) group** contains paths referring
 to the same exact [Tensor](../../glossary.md#tensor), not merely equal numbers. A configuration [digest](../../glossary.md#term-digest) identifies the caller's
 chosen model configuration, while the [schema](../../glossary.md#term-schema) describes each stored state entry.
+
+## Detached bytes versus live bindings
+
+The application lends a quiescent Module and Engine to ModelCheckpoint capture/save. NN exports
+current parameter/buffer references; Checkpoint calls Engine to obtain admitted values and
+copies their canonical bytes into an envelope. The returned envelope owns no live Module,
+Engine or Arena resource. Load performs the reverse value installation into the application's
+compatible target, but creates fresh heap Tensors instead of retaining source storage. Existing
+expressions keep their earlier Tensor dependencies, so do not replace bindings underneath an
+open Training session. [The examples](values-examples.md) demonstrate source closure and exact
+raw-bit comparison; [recovery coordination](../training/recovery.md) explains why a private tree
+is safer than mutating the active session's tree.
 
 <a id="values-only-recovery"></a>
 ## Values-only recovery
@@ -29,11 +41,11 @@ The file-free operations use existing public `ArtifactEnvelope`, `ArtifactLimits
 `ModelCheckpointInspection` types:
 
 - `capture(Module, Engine, configDigest, inputDigest, ArtifactLimits)` returns a fully detached,
-  semantically validated <span data-glossary-navigation="true"> ([detached glossary](../../glossary.md#detached-model-results))</span>`model.v1` or [FP8](../../glossary.md#term-fp8) `model.v2` envelope without changing source [bindings](../../glossary.md#term-binding).
+  semantically validated `model.v1` or [FP8](../../glossary.md#term-fp8) `model.v2` envelope without changing source [bindings](../../glossary.md#term-binding).
 - `inspect(ArtifactEnvelope, ArtifactLimits)` returns ordered descriptors and defensive digests,
-  not value bytes or a trusted-validation credential.<span data-glossary-navigation="true"> ([validation glossary](../../glossary.md#term-validation))</span>
+  not value bytes or a trusted-validation credential.
 - `canonicalStateBytes(ArtifactEnvelope, ArtifactLimits)` returns every parameter and buffer's
-  raw logical bytes under its exact Unicode NN path in metadata order, not lexical path order.<span data-glossary-navigation="true"> ([Unicode glossary](../../glossary.md#term-unicode); [metadata glossary](../../glossary.md#term-metadata))</span>
+  raw logical bytes under its exact Unicode NN path in metadata order, not lexical path order.
 - `load(ArtifactEnvelope, Module, expectedConfigDigest, expectedInputDigest, ArtifactLimits)`
   validates and reconstructs the complete candidate before one NN strict installation attempt.
 

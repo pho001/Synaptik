@@ -14,6 +14,7 @@ archive file, so the supplied documentation must be extracted before a browser c
 Prerequisites: [JDK](../glossary.md#term-java-development-kit-jdk) 26's `jar` tool, the existing private [release](../glossary.md#term-release) repository under `build/release/0.1.0-public-audit.20261104/repository`, and a writable temporary directory. [Run](../glossary.md#term-run) from the repository root. This extracts only the 18 existing [Javadoc](../glossary.md#term-javadoc) archives into a new local temporary directory; it does not write into the supplied repository or replace candidate [artifacts](../glossary.md#term-artifact).
 
 ```sh
+# Extract the exact supplied archives into a new temporary tree rather than modifying candidate artifacts.
 version=0.1.0-public-audit.20261104
 repository="$PWD/build/release/$version/repository/io/github/pho001/synaptik"
 output=$(mktemp -d "${TMPDIR:-/tmp}/synaptik-javadoc.XXXXXX")
@@ -33,6 +34,7 @@ Open `index.html` inside the desired artifact directory printed by the command. 
 Prerequisites: the repository's supported [JDK](../glossary.md#term-java-development-kit-jdk) 26/[Gradle](../glossary.md#term-gradle) environment and any ordinary [dependency](../glossary.md#term-dependency) access required by its build. From the repository root, request only the [modules](../glossary.md#term-module) you need, for example:
 
 ```sh
+# Generate only the requested source-checkout documentation; this does not reproduce sealed candidate evidence.
 ./gradlew :modules:model:javadoc :modules:engine:javadoc :extensions:nn:javadoc :extensions:training:javadoc :extensions:checkpoint:javadoc
 ```
 
@@ -67,11 +69,11 @@ Expected output: each requested module's `build/docs/javadoc/index.html` and pac
 
 These links are also **build-required**, using the checkout's generated locations rather than the temporary extraction directory:
 
-- [Tensor](../../modules/model/build/docs/javadoc/io/github/pho001/synaptik/model/tensor/Tensor.html)<span data-glossary-navigation="true"> ([Tensor glossary](../glossary.md#tensor))</span>: logical [identity](../glossary.md#term-identity-meanings), [descriptors](../glossary.md#term-descriptor) and expression construction.
-- [Engine](../../modules/engine/build/docs/javadoc/io/github/pho001/synaptik/engine/Engine.html)<span data-glossary-navigation="true"> ([Engine glossary](../glossary.md#term-engine))</span>: [compile](../glossary.md#compile)/[prepare](../glossary.md#prepare)/[run](../glossary.md#term-run) and explicit [backend ownership](../glossary.md#backend-ownership).
-- [Model](../../extensions/nn/build/docs/javadoc/io/github/pho001/synaptik/nn/module/Model.html)<span data-glossary-navigation="true"> ([Model glossary](../glossary.md#term-model))</span>: owned compute, training and [persistence](../glossary.md#term-persistence) convenience.
+- [Tensor](../../modules/model/build/docs/javadoc/io/github/pho001/synaptik/model/tensor/Tensor.html): logical [identity](../glossary.md#term-identity-meanings), [descriptors](../glossary.md#term-descriptor) and expression construction.
+- [Engine](../../modules/engine/build/docs/javadoc/io/github/pho001/synaptik/engine/Engine.html): [compile](../glossary.md#compile)/[prepare](../glossary.md#prepare)/[run](../glossary.md#term-run) and explicit [backend ownership](../glossary.md#backend-ownership).
+- [Model](../../extensions/nn/build/docs/javadoc/io/github/pho001/synaptik/nn/module/Model.html): owned compute, training and [persistence](../glossary.md#term-persistence) convenience.
 - [ModelBuilder](../../extensions/nn/build/docs/javadoc/io/github/pho001/synaptik/nn/module/ModelBuilder.html): closed fixed-[signature](../glossary.md#term-signature) recipes and supplied-state acquisition.
-- [TrainingSession](../../modules/training/build/docs/javadoc/io/github/pho001/synaptik/training/TrainingSession.html)<span data-glossary-navigation="true"> ([TrainingSession glossary](../glossary.md#training-session--trainingsession))</span>: live [parameter](../glossary.md#term-parameter) [admission](../glossary.md#term-admission) and update transactions.
+- [TrainingSession](../../modules/training/build/docs/javadoc/io/github/pho001/synaptik/training/TrainingSession.html): live [parameter](../glossary.md#term-parameter) [admission](../glossary.md#term-admission) and update transactions.
 - [GraphCheckpoint](../../modules/checkpoint/build/docs/javadoc/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.html): cold source copying, rebinding and bounded wire persistence.
 
 A Java-public class inside an internal package is not automatically supported application [API](../glossary.md#term-application-programming-interface-api). Use the [package atlas](../explanation/packages/index.md) and topic boundaries to distinguish application facades from inward service-provider collaborations.

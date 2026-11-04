@@ -1,11 +1,21 @@
 # Cold [graph](../../glossary.md#graph) [persistence](../../glossary.md#term-persistence) example and failures
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
 
 **Cold** means that this workflow rebuilds the description of a computation without running it.
 A stored input [prototype](../../glossary.md#term-prototype) specifies what a future input must look like, not an earlier [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters)'s
 values. Rebinding substitutes a compatible new [Tensor](../../glossary.md#tensor) into that description; numerical execution
 is a later, explicit step.
+
+## Read the example's ownership changes
+
+The method's caller owns `file` and its trusted parent directory. Inside the method,
+`GraphCheckpoint.copy` is the callee that acquires independent weight bytes; the original weight
+is not transferred. Save records that private state plus the input descriptor. Load creates
+another independent heap state, and rebind attaches the fresh input expression to it without
+executing multiplication. The returned Tensor is a computation description, not a detached
+number. [Engine one-shot computation](../engine/lifecycle.md) is a separate caller-chosen step;
+[graph versions](graph-formats.md) determine which source descriptions the file can encode.
 
 <a id="complete-cold-example"></a>
 ## Complete cold example
@@ -16,6 +26,7 @@ output is `input * weight`. It copies state, saves before any execution, loads, 
 fresh scalar `3`. The returned [Tensor](../../glossary.md#tensor) represents `3 * 2`; it has not been evaluated.
 
 ```java
+// Copy the stored weight once; save/load/rebind only describe work and do not multiply values.
 import io.github.pho001.synaptik.checkpoint.artifact.ArtifactLimits;
 import io.github.pho001.synaptik.checkpoint.graph.GraphCheckpoint;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -34,6 +45,7 @@ Tensor roundtrip(Path file) throws IOException {
     Tensor weight = TensorFactory.scalar(2.0f, Optional.empty(), true);
     var source = new GraphCheckpoint.Source(List.of(input), List.of(input.mul(weight)), List.of(
             new GraphCheckpoint.Leaf("weight", GraphCheckpoint.Role.PARAMETER, weight)));
+    // The Source borrowed weight; copy acquires independent state before any execution.
     var acquired = GraphCheckpoint.copy(source);
     var limits = new ArtifactLimits(100_000, 10_000, 10, 32, 10_000, 90_000);
     GraphCheckpoint.save(file, acquired, limits);
@@ -42,6 +54,7 @@ Tensor roundtrip(Path file) throws IOException {
     Tensor fresh = TensorFactory.create(descriptor);
     fresh.replaceHostStorage(TensorFactory.scalar(3.0f, Optional.empty(), true)
             .hostStorage().orElseThrow());
+    // Rebind retains fresh as a dependency; the returned product still has not been evaluated.
     return GraphCheckpoint.rebind(loaded, List.of(fresh)).getFirst();
 }
 ```
@@ -77,11 +90,22 @@ complete result/image, then file [publication](../../glossary.md#term-publicatio
 [atomic](../../glossary.md#resource-transaction-and-rollback)-move policy, not [authentication](../../glossary.md#term-authentication) or portable power-[loss](../../glossary.md#loss) [durability](../../glossary.md#term-durability). A failed move can have
 provider-dependent [target](../../glossary.md#term-target) state; inspect the target. No partial source result is returned.
 
-Save/load require explicit `ArtifactLimits`, with no defaults. All six limits and individual
-[payload](../../glossary.md#artifact-envelope-and-atomic-publication) ceilings apply before encoding or bulk copies. For [schema](../../glossary.md#term-schema) bytes D, unique state bytes B
-and [identity](../../glossary.md#term-identity-meanings) count S: [manifest](../../glossary.md#term-manifest) M=72+58*S, aggregate D+B, file 48+M+D+B, entries 1+S; kind/key
-ceiling must be at least 14. These are encoded bounds, not peak-heap promises. Copy/[rebind](../../glossary.md#capture-graph-ports-and-reconstruction) have
-no file ceiling; copy still preflights each payload against `Integer.MAX_VALUE - 8`.
+Save/load require explicit `ArtifactLimits`, with no defaults. Let $D$ be encoded schema bytes,
+$B$ the total payload bytes across unique stored-state Tensor identities, and $S$ their count.
+These are non-negative integers; all sums/products must fit the checked sizing arithmetic.
+For this graph schema's fixed ASCII keys, manifest bytes $M$, aggregate payload bytes $A$,
+complete file bytes $F$, and entry count $E$ are
+
+$$
+M=72+58S,\qquad A=D+B,\qquad F=48+M+D+B,\qquad E=1+S.
+$$
+
+For $D=100$, $B=4$, $S=1$, this gives $M=130$, $A=104$, $F=282$ bytes and $E=2$ entries:
+one schema entry and one state entry. These illustrative byte counts are not measurements of
+the example file. The kind/key ceiling must also be at least 14 bytes. All six limits and each
+payload ceiling apply before encoding or bulk copying; these are encoded-size bounds, not
+peak-heap promises. Copy/rebind have no file ceiling; copy still preflights each payload against
+`Integer.MAX_VALUE - 8`.
 
 Nulls fail in declaration/list order. Invalid source, unsupported geometry, BOOL or bounds raise
 `IllegalArgumentException`; checked sizing [overflow](../../glossary.md#term-overflow) raises `ArithmeticException`, retaining existing
@@ -95,10 +119,10 @@ exhaustion and VM failures propagate.
 <a id="related-api"></a>
 ## Related [API](../../glossary.md#term-application-programming-interface-api)
 
-- [Opaque artifact file API and publication](artifacts.md)<span data-glossary-navigation="true"> ([Opaque glossary](../../glossary.md#term-opaque); [artifact glossary](../../glossary.md#term-artifact); [publication glossary](../../glossary.md#term-publication))</span>
-- [Retained NN model checkpoint API](models.md)<span data-glossary-navigation="true"> ([NN model glossary](../../glossary.md#model-module-buffer-and-scan-distinctions); [checkpoint glossary](../../glossary.md#term-checkpoint))</span>
+- [Opaque artifact file API and publication](artifacts.md)
+- [Retained NN model checkpoint API](models.md)
 - [Generic graph checkpoint source glossary](../../glossary.md#generic-graph-checkpoint-source)
-- [Accepted ownership and migration decision](../../design/decisions/0039-portable-graph-model-persistence.md)<span data-glossary-navigation="true"> ([ownership glossary](../../glossary.md#term-ownership-meanings))</span>
+- [Accepted ownership and migration decision](../../design/decisions/0039-portable-graph-model-persistence.md)
 
 ---
 

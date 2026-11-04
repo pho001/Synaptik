@@ -1,6 +1,6 @@
 # Public [compile](../../glossary.md#compile) output values
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
 These values are [compilation](../../glossary.md#compiler-engine-and-execution-stage-names) results for other [modules](../../glossary.md#term-module) to read. An **[artifact](../../glossary.md#term-artifact)** here is an
 [immutable](../../glossary.md#term-immutable) description of the final computation and its plans, not a generated [binary](../../glossary.md#term-binary-descriptor-and-metadata) or saved
@@ -10,16 +10,16 @@ service-provider interface, an integration contract rather than the usual applic
 The public `modules:compiler` contract surface now contains:
 
 - `GraphCompilationPort`, the narrow constant-free cross-module compile SPI used by Engine
-  composition, not an ordinary-user lifecycle facade;<span data-glossary-navigation="true"> ([lifecycle glossary](../../glossary.md#lifecycle); [facade glossary](../../glossary.md#term-facade))</span>
+  composition, not an ordinary-user lifecycle facade;
 - `FunctionalGradientRequest`, the immutable one/two-stage reverse-mode input with aligned
-  cotangent seeds and an explicit disconnected-target policy;<span data-glossary-navigation="true"> ([reverse-mode glossary](../../glossary.md#primal-adjoint-and-differentiation-seed); [cotangent glossary](../../glossary.md#cotangent); [seeds glossary](../../glossary.md#commit-release-distribution-log-and-seed-meanings); [target glossary](../../glossary.md#term-target))</span>
+  cotangent seeds and an explicit disconnected-target policy;
 - `GradientPublicationBinding`, the derivative-order and stage-local
-  target-to-gradient-publication association;<span data-glossary-navigation="true"> ([gradient glossary](../../glossary.md#term-gradient); [publication glossary](../../glossary.md#term-publication))</span>
+  target-to-gradient-publication association;
 - `DerivativeGraphMetadata`, the exact [graph](../../glossary.md#graph)-adjacent per-[node](../../glossary.md#node) [derivative](../../glossary.md#term-derivative)-order sidecar, including
   `scanActivityByNode()` associations from containing [Scan](../../glossary.md#term-cumulative-scan) IDs to exact local activity plans;
 - `CompileArtifacts`, the exact eight-component immutable recipe containing mode, final graph,
   maximal partitions, logical memory, publication, constants, diagnostics, and derivative
-  metadata;<span data-glossary-navigation="true"> ([metadata glossary](../../glossary.md#term-metadata))</span>
+  metadata;
 - `PublicationPlan`, an output-only exact-graph context exposing separate immutable ordered
   `forwardBindings()` of `ForwardPublicationBinding` values and `gradientBindings()` of
   `GradientPublicationBinding` values;
@@ -53,3 +53,12 @@ language, [trace](../../glossary.md#trace) [schema](../../glossary.md#term-schem
 ---
 
 [Previous topic](planning-values.md) · [Next topic](../engine/cpu-integration.md)
+## Read these as shared immutable descriptions
+
+Engine calls the compilation port and wraps its returned artifact; shared Prepare later consumes
+that exact graph and its plans. Collections snapshot membership, not numeric payloads, and the
+artifact does not keep an application's native storage alive. A bindable `TensorId` names which
+input the application must supply later, not an address from which Compiler already read a value.
+[The complete artifact walkthrough](artifacts.md) explains those associations;
+[Prepare's handoff](../runtime/prepare.md) explains the later resource owner.
+

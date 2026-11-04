@@ -1,11 +1,29 @@
 # Owned [tensor](../../glossary.md#tensor) [Model](../../glossary.md#term-model) execution
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
 
 **Owned** means this Model acquires private named state and coordinates the lifetimes needed
 for its high-level execution methods. It does not mean every generic Model supports those methods.
 A **cold forward** constructs output expressions without running them; compute evaluates through
 [Engine](../../glossary.md#term-engine). [Graph](../../glossary.md#graph) load restores supported source and values, not a prepared plan or [optimizer history](../../glossary.md#term-optimizer-history).
+
+## Who owns the inputs, state and results?
+
+The application calls `Model.builder().build()`, `defineTensor(...)` or `graph(...)` to acquire
+an owned Model. Supplied named parameter Tensors are **leaves** when they have no producing
+expression; being a leaf alone does not mean storage is present. Acquisition requires supported
+stored state and copies it into private Model storage, once per exact Tensor identity. The
+application still owns the original state and its storage lifetime; later changes to it do not
+update the acquired Model. This differs from ordinary [Module binding replacement](state.md#current-nn-parameter-update-contract),
+which installs a reference without copying its bytes.
+
+For `compute`, the application supplies current stored input values, not another network recipe.
+The Model calls Engine using its retained source and cached preparation, borrowing each batch
+only for the synchronous call. It closes the temporary result before returning independent host
+bytes. Close the Model to release its preparations and private resources. A selected external
+Engine is borrowed and must outlive its use; the Model closes only an Engine it opened itself.
+Use [graph persistence](../checkpoint/graph.md#owned-nn-model-consumer) to recover source and
+current state, or [Training recovery](../training/recovery.md) when the next optimizer step matters.
 
 <a id="owned-tensor-model-capability"></a>
 ### Owned [tensor](../../glossary.md#tensor) [Model](../../glossary.md#term-model) capability
@@ -19,6 +37,8 @@ return `Model<List<Tensor>,List<Tensor>>`. Definition/[graph](../../glossary.md#
 overloads (load forms take path, limits, Engine); built Models select it through `withEngine`.
 Old generic factories and flexible v1 readers remain separate.
 
+#### Select the Engine before execution setup
+
 `withEngine(engine)` returns the same receiver and must precede the first valid compute/configure
 setup attempt, including failed setup. Without a selection, execution lazily opens a model-owned
 [CPU](../../glossary.md#term-cpu)-only standard Engine. Construction/load/save/cold forward open none. List compute additionally
@@ -26,6 +46,8 @@ accepts `maximumTotalBytes`; all publications are checked before [materializatio
 closes before [detached](../../glossary.md#detached-model-results) values return. Configuration takes a [target](../../glossary.md#term-target) [descriptor](../../glossary.md#term-descriptor) and [scalar objective](../../glossary.md#loss)
 builder, or target [prototypes](../../glossary.md#term-prototype) and a list builder, plus an [Optimizer](../../glossary.md#term-optimizer). It succeeds once; train delegates
 `RESET_AND_STEP`. Every declared input/target requires the exact static descriptor even if unused.
+
+#### Bind the declared input positions
 
 `compute(firstInput, secondInput)` returns the sole detached output of any [owned Model](../../glossary.md#model-module-buffer-and-scan-distinctions) with exactly
 two declared inputs and one output, including ordinary graphs and loaded Models. It binds positions,
@@ -59,7 +81,7 @@ source/current raw values, not [objective](../../glossary.md#term-objective)/[op
 See the
 [complete general-scan workflow](../../user-guide/running-models.md#train-an-all-valid-general-scan).
 
-Model's separate [length-aware Scan source API](../tensor/general-scan.md#length-aware-source-only-construction)<span data-glossary-navigation="true"> ([API glossary](../../glossary.md#term-application-programming-interface-api))</span>
+Model's separate [length-aware Scan source API](../tensor/general-scan.md#length-aware-source-only-construction)
 constructs bounded source [metadata](../../glossary.md#term-metadata) and structural [IR](../../glossary.md#term-intermediate-representation-ir) only. Its final [INT64](../../glossary.md#data-type--datatype) lengths actual has no
 body formal. Compiler independently supports length-mode [inference](../../glossary.md#term-inference), bounded first-order reverse
 construction and final role/demand queries; original-source AD requires every [carry](../../glossary.md#term-carry) and every
@@ -73,6 +95,8 @@ values/lengths workflow. This does not grant symbolic owned-Model acquisition or
 arbitrary PURE-body copying, or a new [backend route](../../glossary.md#backend-route). The [runtime-length workflow](recurrent.md)
 describes the independently qualified static composition.
 
+#### Handle unsupported sources and close
+
 Unsupported generic/custom/declarative tensor methods throw `UnsupportedOperationException` before
 file/Engine work; their close is a no-op. Owned operations reject busy before inspecting arguments.
 Source mutation invalidates the capability without recapture; close waits and attempts all [owner](../../glossary.md#term-owner)
@@ -81,7 +105,7 @@ cleanup with retained failure replay, never closing a borrowed Engine. See the c
 [owning contract](../../architecture/contracts/extensions-training.md#owned-tensor-models).
 
 Graph-model v3 uses these same methods and no new public type. The
-[exact source slice](../../architecture/contracts/compiler-autograd.md#compile-lifecycle)<span data-glossary-navigation="true"> ([slice glossary](../../glossary.md#slice))</span> admits
+[exact source slice](../../architecture/contracts/compiler-autograd.md#compile-lifecycle) admits
 selected narrow transforms/indexing, biased default convolutions, builder [pooling](../../glossary.md#term-pooling) and fixed
 RNN_TANH/GRU_RESET_AFTER/[LSTM](../../glossary.md#term-long-short-term-memory-lstm) scans. It is not all-family [serialization](../../glossary.md#term-serialization). Advanced `graph`/`loadGraph`
 may declare sequence, non-gradient INT64 [runtime](../../glossary.md#term-runtime) lengths and initial states as ordered external

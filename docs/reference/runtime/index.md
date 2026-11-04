@@ -1,7 +1,7 @@
 <a id="runtime-api"></a>
 # [Runtime](../../glossary.md#term-runtime) purpose and [mental model](../../glossary.md#term-mental-model)
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
 Think of Runtime as following an already prepared work list, not interpreting a [Tensor](../../glossary.md#tensor) [graph](../../glossary.md#graph).
 A **schedule** gives the order of actions, **slots** name planned storage roles, and
@@ -102,15 +102,15 @@ discovery or [graph](../../glossary.md#graph) interpretation.
 
 ## Topic navigation
 
-- [Runtime public contract relationships](contracts.md)<span data-glossary-navigation="true"> ([Runtime glossary](../../glossary.md#term-runtime))</span>
-- [Prepare declarations, assignment and finalization](prepare.md)<span data-glossary-navigation="true"> ([Prepare glossary](../../glossary.md#prepare))</span>
-- [Public Engine binding and results](engine-boundary.md)<span data-glossary-navigation="true"> ([Engine glossary](../../glossary.md#term-engine); [binding glossary](../../glossary.md#term-binding))</span>
-- [Advanced Engine and prepared execution](prepared-execution.md)<span data-glossary-navigation="true"> ([prepared execution glossary](../../glossary.md#prepared-execution--preparedexecution))</span>
+- [Runtime public contract relationships](contracts.md)
+- [Prepare declarations, assignment and finalization](prepare.md)
+- [Public Engine binding and results](engine-boundary.md)
+- [Advanced Engine and prepared execution](prepared-execution.md)
 - [Slots and prepared-memory geometry](memory.md)
-- [Per-run representations and validity](representations.md)<span data-glossary-navigation="true"> ([run glossary](../../glossary.md#term-run))</span>
+- [Per-run representations and validity](representations.md)
 - [Representation creation, run-state closure and failures](creation.md)
 - [Prepared executables and cold invocation binding](executables.md)
-- [Prepared buffer transfers](transfers.md)<span data-glossary-navigation="true"> ([buffer glossary](../../glossary.md#term-buffer))</span>
+- [Prepared buffer transfers](transfers.md)
 - [Ordered prepared schedules](schedules.md)
-- [Prepared publication and result leases](publication.md)<span data-glossary-navigation="true"> ([Prepared publication glossary](../../glossary.md#prepared-publication--preparedpublication); [leases glossary](../../glossary.md#term-lease))</span>
+- [Prepared publication and result leases](publication.md)
 - [Prepare finalization and run orchestration](orchestration.md)

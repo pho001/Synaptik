@@ -1,11 +1,21 @@
 # [Unary](../../glossary.md#term-unary) and declarative composition
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
 
 **Unary** means the complete forward boundary has one [Tensor](../../glossary.md#tensor) input and one Tensor output.
 A Sequential passes that output to the next child. **Declarative** composition records a supported
 layer structure as data rather than arbitrary Java callbacks. Reconstructing that description
 creates the structure and state placeholders, not the trained [parameter](../../glossary.md#term-parameter) values or an executable.
+
+## Description, skeleton and values are three different inputs
+
+The application calls `ModelSpecification.describe(sequence)` to obtain a supported tree's
+configuration and sharing description. It then calls `DeclarativeModel.reconstruct(...)` to make
+new module/parameter objects with descriptors but no stored parameter bytes. Finally, strict
+state loading installs the supplied Tensor references; it does not run an initializer or copy
+those references' storage. Forward construction can then describe work, while execution still
+needs usable storage and an admitted Engine route. [Whole-model loading](../checkpoint/models.md#whole-model-save-and-automatic-load)
+combines supported definition and detached stored values; a specification alone is not that file.
 
 <a id="current-nn-unary-composition-contract"></a>
 ## Current [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [unary](../../glossary.md#term-unary) composition contract
@@ -70,7 +80,10 @@ retains exact references and never initializes. `true` retains automatic exact-t
 positive static [feature](../../glossary.md#term-feature), bound-width and Java-array guards; `false` retains supplied
 [Model](../../glossary.md#term-model) promotion/[contraction](../../glossary.md#contraction-dimension). Existing constructors and [lazy](../../glossary.md#term-lazy-evaluation) first [binding](../../glossary.md#term-binding) are unchanged.
 
-All four floating parameter types are supported. [Embedding](../../glossary.md#embedding) accepts [INT32](../../glossary.md#data-type--datatype)/[INT64](../../glossary.md#data-type--datatype) at
+All six floating parameter types are supported: FLOAT64, FLOAT32, BFLOAT16, FLOAT16,
+FLOAT8_E4M3 and FLOAT8_E5M2. This follows the floating-type guard in
+[`ModelSpecification`](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/ModelSpecification.java);
+it does not by itself establish backend support. [Embedding](../../glossary.md#embedding) accepts [INT32](../../glossary.md#data-type--datatype)/[INT64](../../glossary.md#data-type--datatype) at
 any [rank](../../glossary.md#term-rank) and appends its width. Linear and LayerNorm retain compatible leading
 [Dimensions](../../glossary.md#dimension)/ranks; convolutions retain exact input type, rank-specific channels-first
 geometry and compatible variable [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters)/[spatial](../../glossary.md#term-spatial-axes) Dimensions. LayerNorm retains exact

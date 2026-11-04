@@ -1,11 +1,22 @@
 # [Prepared publication](../../glossary.md#prepared-publication--preparedpublication) and result [leases](../../glossary.md#term-lease)
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
 **[Publication](../../glossary.md#term-publication)** makes one already valid [buffer](../../glossary.md#term-buffer) copy available at an ordered result position;
 it does not compute the value or copy it to the [host](../../glossary.md#term-host). A result **[occurrence](../../glossary.md#term-occurrence)** is one position,
 so two positions may intentionally refer to the same representation. The result lease keeps the
 complete [run state](../../glossary.md#run-state--runstate) alive until close; [detached](../../glossary.md#detached-model-results) host [materialization](../../glossary.md#materialization) is a separate [Engine](../../glossary.md#term-engine) [operation](../../glossary.md#operation).
+
+## Who receives the lease?
+
+Runtime's runner calls `publish()` on each bound publication and constructs a Runtime result
+only after all required occurrences succeed. Engine receives that inward result and wraps it
+for the application. Neither publication call copies tensor values: it selects a valid resource
+already kept alive by the state. An internal Engine materializer may borrow that representation
+while the lease is open, but must not close it independently or retain it after result closure.
+The application instead receives [detached host bytes](engine-boundary.md#current-ordinary-engine-boundary)
+from its Engine result. The two result classes serve different callers and should not be
+interchanged.
 
 <a id="current-prepared-publication-and-result-lease"></a>
 ## Current [prepared publication](../../glossary.md#prepared-publication--preparedpublication) and result [lease](../../glossary.md#term-lease)
@@ -71,6 +82,7 @@ then close the complete state through the result. This current example calls the
 objects directly to isolate publication and result leasing from runner traversal.
 
 ```java
+// Two result positions may share one representation; the result owns state cleanup, not borrowed storage.
 import io.github.pho001.synaptik.runtime.run.BoundPublication;
 import io.github.pho001.synaptik.runtime.run.BufferRepresentationBinding;
 import io.github.pho001.synaptik.runtime.run.PreparedPublication;
@@ -109,6 +121,7 @@ try (RunResult result = new RunResult(
         publicationState, List.of(boundFirst, boundAlias))) {
     assert schedule.publicationCount() == 2;
     assert result.resultCount() == 2;
+    // This inward borrowed reference must not escape the open result lease.
     BufferRepresentation firstRepresentation = result.publicationRepresentation(0);
     assert firstRepresentation == published;
     assert result.publicationRepresentation(1) == firstRepresentation;

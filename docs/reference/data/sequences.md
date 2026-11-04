@@ -1,12 +1,27 @@
 <a id="data-sequence-batching-api"></a>
 # Sequence batching and valid lengths
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../extensions/data/src/main/java/io/github/pho001/synaptik/data/PaddedSequenceBatch.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/data/src/main/java/io/github/pho001/synaptik/data/PaddedSequenceBatch.java)
 
 A sequence [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) puts several ordered sequences into one rectangular [Tensor](../../glossary.md#tensor). **[Padding](../../glossary.md#padding)** fills
 positions needed to make their lengths equal; a **valid count** records how many positions belong
 to each original sequence. Logical **[axis](../../glossary.md#term-axis) order** says whether batch or time comes first. These
 [metadata](../../glossary.md#term-metadata) declarations do not themselves rearrange storage or make a downstream [operation](../../glossary.md#operation) ignore padding.
+
+## Which participant copies values, and which only describes them?
+
+The application calls `PaddedSequenceBatch.builder(values)` with an already-created Tensor.
+Data borrows that exact Tensor and copies only the host length array supplied to the setter;
+it does not read the Tensor's storage or make its lifetime safe. `LongSequenceBatcher.batch`
+is a different boundary: Data copies application long-array sequences into a fresh allocated
+INT64 Tensor and retains no input arrays afterward. Text calls that batcher internally for
+encoded token IDs. Neither object executes a network.
+
+For recurrence, the application explicitly exports a new length Tensor, then supplies both
+values and lengths to [NN's runtime-length API](../nn/recurrent.md) or an Engine run. Export copies
+counts only; execution borrows the stored inputs under its own lifetime rules. Read
+[Text batching](../text/tokenization.md#explicit-batch-configuration) for the integer-ID producer
+and [Engine binding](../runtime/engine-boundary.md) for the later numerical consumer.
 
 <a id="purpose-and-mental-model"></a>
 ## Purpose and [mental model](../../glossary.md#term-mental-model)
@@ -43,6 +58,7 @@ This Java example uses public [Model](../../glossary.md#term-model) factories to
 [Tensor](../../glossary.md#tensor) with Data [metadata](../../glossary.md#term-metadata). It needs Data and its exported Model [API](../../glossary.md#term-application-programming-interface-api), not [Engine](../../glossary.md#term-engine) or a session.
 
 ```java
+// Data borrows values and copies host counts; it never treats numeric zero as the padding rule.
 import io.github.pho001.synaptik.data.PaddedSequenceBatch;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
@@ -89,9 +105,9 @@ The declared prefixes and derived [padding](../../glossary.md#padding) lengths a
 
 | Original row | Valid prefix | Padding length at T = 4 |
 |---|---|---|
-| 0 | `[0, 4, 0]` | `4 - 3 = 1` |
-| 1 | `[7, 0]` | `4 - 2 = 2` |
-| 2 | `[0]` | `4 - 1 = 3` |
+| 0 | `[0, 4, 0]` | $4-3=1$ |
+| 1 | `[7, 0]` | $4-2=2$ |
+| 2 | `[0]` | $4-1=3$ |
 
 Here `99` is caller-chosen padding, not a sentinel checked by Data. Replacing any suffix value
 with zero, [NaN](../../glossary.md#term-nan) or another value does not change metadata [validation](../../glossary.md#term-validation). The wrapper declares valid
@@ -139,6 +155,7 @@ Each successful build creates a fresh record sharing the exact selected [immutab
 [batches](../../glossary.md#term-batch-machine-learning-and-hyperparameters). Continuing the example:
 
 ```java
+// The new batch shares immutable prior counts; later builder choices do not rewrite earlier batches.
 var repeated = builder.build(); // Fresh batch, same immutable lengths as batch.
 builder.validLengths(4, 0, 1);
 var changed = builder.build();  // batch still declares [3, 2, 1].
@@ -155,6 +172,7 @@ caller-coordinated and not [thread-safe](../../glossary.md#term-thread-safe). Im
 Callers that already manage [immutable](../../glossary.md#term-immutable) [metadata](../../glossary.md#term-metadata) can use the public record constructor:
 
 ```java
+// Direct construction declares logical order and side; it does not transpose or pad values.
 import io.github.pho001.synaptik.data.SequenceAxisOrder;
 import io.github.pho001.synaptik.data.PaddingSide;
 import io.github.pho001.synaptik.data.ValidSequenceLengths;
@@ -219,6 +237,8 @@ broader geometry contract remains unchanged, including every Model-valid [dtype]
 [opaque](../../glossary.md#term-opaque) trailing [dimensions](../../glossary.md#dimension), zero extents and `long` time/count values up to `Long.MAX_VALUE`.
 Export success is not execution [admission](../../glossary.md#term-admission).
 
+### Pass exported counts to a numerical consumer
+
 The caller passes ordinary Tensors to existing `model.compute(values, lengths)`. Both must match
 the Model's exact input descriptors and have usable storage free from conflicting mutation for the
 whole [synchronous](../../glossary.md#term-synchronous) call. Heap lengths have ordinary garbage-collected [lifetime](../../glossary.md#term-lifetime): no [Arena](../../glossary.md#term-arena), close
@@ -237,6 +257,7 @@ standard [backend](../../glossary.md#backend)/[runtime](../../glossary.md#term-r
 Save as `ScanExample.java`:
 
 ```java
+// Export counts explicitly; only the later Model call consumes actual values and runtime lengths.
 import io.github.pho001.synaptik.data.PaddedSequenceBatch;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
@@ -258,6 +279,7 @@ public class ScanExample {
                 .validLengths(3, 2).build();
         try (var model = Model.builder().input(DataType.FLOAT32, 3, 2, 1).seed(42)
                 .rnnScan(4).finalHidden().linear(1).buildWithLengths()) {
+            // The NaN suffix is excluded by counts, not by testing whether values equal a sentinel.
             var result = model.compute(batch.values(), batch.toScanLengthsTensor());
             if (!result.shape().equals(Shape.of(2, 1))) throw new AssertionError(result.shape());
             float first = result.bytes().getFloat(0);
@@ -295,7 +317,8 @@ Empty count export does not widen that builder contract; direct zero-T/B scans r
 [F32](../../glossary.md#floating-point-precision-and-rounding) `rnnScan` now composes NN0033's general [RNN](../../glossary.md#term-recurrent-neural-network-rnn), whose source outputs are canonical; retained
 fixed families keep their old source-layout semantics. Gradient flags are not cleared.
 Data only exports values/counts: NN independently qualifies general RNN compute/train/v5
-[persistence](../../glossary.md#term-persistence), and lengths never receive gradients. This does not unlock fixed [GRU](../../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../../glossary.md#term-long-short-term-memory-lstm) [BPTT](../../glossary.md#term-backpropagation-through-time-bptt).
+[persistence](../../glossary.md#term-persistence), and lengths never receive gradients. Export itself does not qualify fixed GRU/LSTM BPTT; their actual first-order
+training uses the independently admitted [Compiler/Training route](../training/sessions.md#owned-model-training-convenience).
 
 Export does not enable a fluent Text IDs → [Embedding](../../glossary.md#embedding) → scan chain. ModelBuilder input is currently
 floating-only, has no Embedding recipe and instantiates recipes with the original input dtype.
@@ -310,6 +333,7 @@ its reusable builder is not [thread-safe](../../glossary.md#term-thread-safe). L
 unchanged. This example requires only Data and its exported [Model](../../glossary.md#term-model) [API](../../glossary.md#term-application-programming-interface-api):
 
 ```java
+// This batcher allocates and pads fresh INT64 values; unlike metadata wrapping, it copies row contents.
 import io.github.pho001.synaptik.data.LongSequenceBatcher;
 import java.lang.foreign.ValueLayout;
 import java.util.Arrays;
@@ -326,8 +350,11 @@ System.out.println(Arrays.toString(padded.values().hostStorage().orElseThrow()
 The output is `[2, 1]` followed by `[2, 3, 0, 1]`: [Shape](../../glossary.md#shape) is `[2,2]` and the
 second row has one left padding position. With `.rightPadded()`, the flat values become
 `[2, 3, 1, 0]` without changing counts. A real zero inside an input row remains valid data.
-For count L at time [extent](../../glossary.md#term-extent) T, LEFT declares `[T-L,T)` and RIGHT declares `[0,L)`.
-The batcher never truncates and preserves both row order and [element](../../glossary.md#term-element) order.
+For a non-negative integer valid count $L$ and time extent $T$ with $0\le L\le T$,
+LEFT declares integer time coordinates $T-L\le t<T$, while RIGHT declares $0\le t<L$.
+At $T=4$, $L=2$, LEFT uses positions $2,3$ and RIGHT uses $0,1$; each leaves two padding
+positions. For $L=0$ the valid set is empty. The batcher never truncates and preserves both
+row order and element order.
 
 B is list size and T is the maximum row length. Empty input yields B=0,T=0; all-empty
 rows yield T=0 in either order and side. The result has [contiguous](../../glossary.md#term-contiguous) offset-zero [rank-two](../../glossary.md#axis-rank-scalar-vector-and-matrix)
@@ -343,7 +370,8 @@ Both list passes use sequential traversal, avoiding quadratic indexed access on 
 Null input throws `NullPointerException("sequences")`; a null row throws
 `NullPointerException` identifying its index. Geometry is checked incrementally before
 [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters)-sized [metadata](../../glossary.md#term-metadata) or output allocation, so a first row proving oversized geometry rejects
-without scanning later rows. Checked B*T must fit `Integer.MAX_VALUE` elements, and the byte
+without scanning later rows. The checked element count $BT$, with $B$ rows and $T$ padded time steps, must fit
+`Integer.MAX_VALUE` elements, and the byte
 span uses checked long arithmetic, not an int byte cap. Invalid geometry throws
 `IllegalArgumentException`; Model allocation failures, including heap exhaustion, propagate.
 
@@ -353,8 +381,8 @@ The explicit count export above does not add [runtime](../../glossary.md#term-ru
 <a id="related-contracts"></a>
 ## Related contracts
 
-- [Public API status](../extensions/overview.md#current-public-contracts)<span data-glossary-navigation="true"> ([API glossary](../../glossary.md#term-application-programming-interface-api))</span>
-- [Tensor construction and storage](../tensor/index.md)<span data-glossary-navigation="true"> ([Tensor glossary](../../glossary.md#tensor))</span>
+- [Public API status](../extensions/overview.md#current-public-contracts)
+- [Tensor construction and storage](../tensor/index.md)
 - [Host sequence metadata terminology](../../glossary.md#host-sequence-metadata)
-- [Data module boundary](../../architecture/module-boundaries.md#extensionsdata)<span data-glossary-navigation="true"> ([module glossary](../../glossary.md#term-module))</span>
+- [Data module boundary](../../architecture/module-boundaries.md#extensionsdata)
 - [Authoritative architecture root](../../../ARCHITECTURE.md#scope-indexed-normative-contracts)

@@ -1,6 +1,6 @@
 # Typed [Model](../../glossary.md#term-model) composition and [parameter](../../glossary.md#term-parameter) initialization
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
 
 A neural-network (**[NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)**) [module](../../glossary.md#term-module) owns named state and child modules. Its **[topology](../../glossary.md#term-topology)** is that
 [ownership](../../glossary.md#term-ownership-meanings) tree, whereas the [Tensor](../../glossary.md#tensor) expression [graph](../../glossary.md#graph) records the computation built by a forward
@@ -21,6 +21,17 @@ flowchart TD
 Solid arrows at the top identify module ownership; the input-to-output arrows identify computation
 flow. Dotted arrows connect the two structures through current state [bindings](../../glossary.md#term-binding). This is a conceptual
 relationship, not a claim that a forward call executes either projection.
+
+## Which call builds expressions, and which call runs them?
+
+The application calls `Model.define`; Model calls the definition callback to collect child
+modules and retain a forward body. Later, the application calls `model.forward(input)`, and that
+body calls the children in Java order. A child reads its current parameter bindings and returns
+Tensor expressions. Those dependencies retain the particular Tensors read at that time; later
+replacement does not rewrite an earlier expression. Ordinary composition does not acquire
+private copies of every argument or extend a borrowed native storage scope. Keep the storage
+needed by execution usable under the [Engine input lifetime](../runtime/engine-boundary.md#current-ordinary-engine-boundary).
+The separately [owned Model capability](owned-model.md) performs its own one-time state acquisition.
 
 <a id="current-nn-typed-model-composition-contract"></a>
 ## Current [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) typed [Model](../../glossary.md#term-model) composition contract
@@ -44,6 +55,7 @@ input-width-inferring [`Linear`](../../glossary.md#term-linear-meanings) layers.
 descriptive names and permanent Model ownership:
 
 ```java
+// The callback registers module ownership; the returned forward body constructs expressions later.
 ModuleFactory modules = ModuleFactory.standard();
 
 var model = Model.define(topology -> {
@@ -64,6 +76,7 @@ var model = Model.define(topology -> {
                     ParameterInitialization.glorotUniform(),
                     42L));
 
+    // The retained body will read current child bindings; it does not evaluate numeric outputs.
     return (Tensor input) -> output.forward(hidden.forward(input).relu());
 });
 ```

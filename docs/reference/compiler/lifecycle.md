@@ -1,6 +1,6 @@
 # Internal [lifecycle](../../glossary.md#lifecycle), failures and interpretation
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
 Read this lifecycle as a sequence of [admission](../../glossary.md#term-admission) checks, not successive attempts to [run](../../glossary.md#term-run) the
 computation. An **[occurrence](../../glossary.md#term-occurrence)** is one particular [operation](../../glossary.md#operation) in the [graph](../../glossary.md#graph), even when another operation
@@ -48,14 +48,14 @@ providers, select [backend ownership](../../glossary.md#backend-ownership), deri
 `Engine.standard()` [facade](../../glossary.md#term-facade) also keeps artifacts opaque while providing its fixed forward-only and
 explicitly seeded first-order [compile](../../glossary.md#compile) overloads; typed [binding](../../glossary.md#term-binding), [publication](../../glossary.md#term-publication) [metadata](../../glossary.md#term-metadata), and explicit
 [detached](../../glossary.md#detached-model-results) [host](../../glossary.md#term-host) [materialization](../../glossary.md#materialization) continue through the
-[Runtime API](../runtime/engine-boundary.md#current-ordinary-engine-boundary)<span data-glossary-navigation="true"> ([Runtime glossary](../../glossary.md#term-runtime); [API glossary](../../glossary.md#term-application-programming-interface-api))</span>.
+[Runtime API](../runtime/engine-boundary.md#current-ordinary-engine-boundary).
 
 <a id="related-contracts"></a>
 ## Related contracts
 
-- [Current Tensor and graph-model API](../tensor/index.md)<span data-glossary-navigation="true"> ([Tensor glossary](../../glossary.md#tensor); [graph glossary](../../glossary.md#graph); [model glossary](../../glossary.md#term-model); [API glossary](../../glossary.md#term-application-programming-interface-api))</span>
-- [Lifecycle](../../architecture/lifecycle.md)<span data-glossary-navigation="true"> ([Lifecycle glossary](../../glossary.md#lifecycle))</span>
-- [Partition scoring](../../architecture/partition-scoring.md)<span data-glossary-navigation="true"> ([Partition glossary](../../glossary.md#partition))</span>
+- [Current Tensor and graph-model API](../tensor/index.md)
+- [Lifecycle](../../architecture/lifecycle.md)
+- [Partition scoring](../../architecture/partition-scoring.md)
 - [Compiling graphs user guide](../../user-guide/compiling-graphs.md)
 - [Roadmap](../../planning/roadmap.md)
 

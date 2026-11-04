@@ -1,11 +1,21 @@
 # Prepared executables and cold invocation [binding](../../glossary.md#term-binding)
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
 A [prepared executable](../../glossary.md#prepared-executable--preparedexecutable) is a reusable recipe; a [bound invocation](../../glossary.md#bound-invocation--boundinvocation) is that recipe connected to one
 [run](../../glossary.md#term-run)'s concrete resources. **Cold binding** performs compatibility checks before the repeated
 execution path, so execution can use direct typed references. Here cold means setup rather than
 numerical work; it is not the separate cold [graph](../../glossary.md#graph)-reconstruction [API](../../glossary.md#term-application-programming-interface-api).
+
+## Follow a single invocation
+
+Runtime's runner calls a backend's `PreparedExecutable.bind(state)` during setup. The backend
+checks the selected representations once and returns a `BoundInvocation` holding direct typed
+references. Later the runner calls `execute()`; the invocation borrows its state and selected
+resources and owns none of them. Execution completion therefore does not free them: the result
+lease, or runner failure cleanup, ends their lifetime. The illustrative classes below count
+calls instead of implementing tensor mathematics. Use [the runner sequence](orchestration.md#current-prepared-runner)
+for production composition and [result publication](publication.md) for cleanup after completion.
 
 <a id="current-prepared-executable-and-bound-invocation"></a>
 ## Current [prepared executable](../../glossary.md#prepared-executable--preparedexecutable) and [bound invocation](../../glossary.md#bound-invocation--boundinvocation)
@@ -59,6 +69,7 @@ direct typed fields, then demonstrate the post-close [guard](../../glossary.md#t
 the extension contract; it is not a production backend or a [Prepare](../../glossary.md#prepare) finalizer.
 
 ```java
+// Compatibility checks belong to binding so the bound action can retain direct typed fields.
 import io.github.pho001.synaptik.runtime.execution.BoundInvocation;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
@@ -126,6 +137,7 @@ final class ExampleExecutable extends PreparedExecutable {
 Given the one-buffer/one-workspace `plan` from the earlier geometry example:
 
 ```java
+// The invocation borrows state-owned resources; close the state after the direct example action.
 ExampleBuffer buffer = new ExampleBuffer();
 ExampleWorkspace workspace = new ExampleWorkspace();
 RunState state =

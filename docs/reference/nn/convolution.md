@@ -1,12 +1,24 @@
 # Channels-first [convolution](../../glossary.md#term-channels-first-convolution-layers) layers and examples
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
 
 A convolution layer learns local filters over one, two or three [spatial](../../glossary.md#term-spatial-axes) [axes](../../glossary.md#term-axis). A **[channel](../../glossary.md#term-channel)** is
 one [feature](../../glossary.md#term-feature) plane at each position; **channels-first** places that axis before the spatial axes.
 The **[kernel](../../glossary.md#kernel)** is the filter's spatial [extent](../../glossary.md#term-extent), **[stride](../../glossary.md#term-stride)** is its movement between positions,
 **[padding](../../glossary.md#padding)** extends the boundary, and **[dilation](../../glossary.md#term-dilation)** spaces filter [samples](../../glossary.md#term-sample-machine-learning-and-hyperparameters) apart. Groups divide
 channels into separate connections rather than mixing every input channel with every output.
+
+## Follow the layer-to-Engine boundary
+
+The application supplies an input Tensor to `layer.forward(input)`; the layer supplies its current
+weight and optional bias Tensors to ordinary Tensor operations. This builds dependencies, not
+output numbers. Initializing a layer creates its parameter values; strict state loading instead
+retains the exact supplied parameter references, with no copy. In the second example those
+references point to application arrays. They must remain usable and unmodified during
+`engine.compute(output)`, which evaluates the expression and returns a detached copy. See
+[state binding rules](state.md#current-nn-state-dictionary-contract) before replacing weights and
+[Engine one-shot execution](../engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+before choosing between repeated preparation and a fresh compile on every call.
 
 <a id="current-nn-channels-first-convolution-contract"></a>
 ## Current [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) channels-first [convolution](../../glossary.md#term-channels-first-convolution-layers) contract
@@ -28,12 +40,21 @@ deferred fact: the positive static input-channel [extent](../../glossary.md#term
 | `Conv2d` | `[N,C_in,H,W]` | `[C_out,C_in/groups,K_h,K_w]` | `[C_out]` | `[N,C_out,H_out,W_out]` |
 | `Conv3d` | `[N,C_in,D,H,W]` | `[C_out,C_in/groups,K_d,K_h,K_w]` | `[C_out]` | `[N,C_out,D_out,H_out,W_out]` |
 
-Both input and output channels must be divisible by `groups`. Fan-based initialization uses the
-actual grouped connectivity: `fanIn = (C_in/groups) * kernelVolume` and
-`fanOut = (C_out/groups) * kernelVolume`. A random policy creates one fresh deterministic
-`L64X128MixRandom` source from the layer seed for each [binding](../../glossary.md#term-binding) attempt. Zero and one policies
-create no source. Optional bias is always a fresh typed-zero parameter and consumes no random
-draw, regardless of the weight policy.
+Both input and output channels must be divisible by the positive integer group count $G$.
+Let $C_{\mathrm{in}}$ and $C_{\mathrm{out}}$ be positive channel counts, and let $K$ be the product
+of the positive kernel extents (the number of spatial samples per channel). Fan-based
+initialization counts connected inputs and outputs as
+
+$$
+\mathrm{fanIn}=\frac{C_{\mathrm{in}}}{G}K,\qquad
+\mathrm{fanOut}=\frac{C_{\mathrm{out}}}{G}K.
+$$
+
+For the grouped example below, $C_{\mathrm{in}}=4$, $C_{\mathrm{out}}=6$, $G=2$ and
+$K=3\cdot3=9$, giving fan-in $18$ and fan-out $27$. These exact integer counts select the
+initializer's distribution; they are not output values. A random policy creates one fresh
+deterministic `L64X128MixRandom` source from the layer seed per binding attempt. Zero/one
+policies create none; optional bias is fresh typed zero and draws no random values.
 
 Weight followed by optional bias is published as one complete layer-local group. Deterministic
 input and Shape [validation](../../glossary.md#term-validation) precedes initializer work. If initialization, allocation, identifier
@@ -58,6 +79,7 @@ by its first compatible input. The example uses two groups, four input channels,
 channels, a `3 x 3` [kernel](../../glossary.md#kernel), unit [stride](../../glossary.md#term-stride) and [dilation](../../glossary.md#term-dilation), one position of symmetric [padding](../../glossary.md#padding), and [bias](../../glossary.md#term-bias).
 
 ```java
+// The first compatible forward binds channel-dependent parameters, then describes output work.
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.Tensor;
@@ -102,6 +124,7 @@ construct its forward expression, and execute that expression through the standa
 small helper creates a resolved [contiguous](../../glossary.md#term-contiguous) [`FLOAT32`](../../glossary.md#term-float32) [leaf](../../glossary.md#term-leaf) backed by the caller's array:
 
 ```java
+// Strict load installs exact supplied references; Engine reads their arrays during the later compute.
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.engine.HostTensorValue;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -152,6 +175,7 @@ Tensor input = floatTensor(
 Tensor weight = floatTensor(Shape.of(1, 1, 2, 2), true, 1, 0, 0, -1);
 Tensor bias = floatTensor(Shape.of(1), true, 0.5f);
 
+// Install supplied Tensors without running the zero initializer or copying their arrays.
 layer.loadStateDictionary(new StateDictionary(List.of(
         new StateEntry("weight", StateKind.PARAMETER, weight),
         new StateEntry("bias", StateKind.PARAMETER, bias))));
@@ -159,6 +183,7 @@ layer.loadStateDictionary(new StateDictionary(List.of(
 Tensor output = layer.forward(input);
 HostTensorValue value;
 try (Engine engine = Engine.standard()) {
+    // Engine discovers stored leaves and returns detached bytes before its temporary owners close.
     value = engine.compute(output);
 }
 
@@ -172,17 +197,20 @@ caller-owned [host storage](../../glossary.md#host-storage). `forward` creates t
 execute it or load state automatically. `Engine.compute` discovers the reachable leaves, then
 compiles, prepares, runs, materializes, and cleans up its temporary result. The [detached](../../glossary.md#detached-model-results)
 [`HostTensorValue`](../../glossary.md#host-tensor-value--hosttensorvalue) owns no closeable resource, so `actual` can be read after the Engine closes; its
-four values are all `-3.5f`. Caller storage is never transferred to the Engine.
+four values are all `-3.5f`. For the top-left window, the real-number calculation is
+$1\cdot1+2\cdot0+4\cdot0+5\cdot(-1)+0.5=-3.5$: the four window values multiply the
+four stored filter values in order, then add the bias. Each shifted window has the same difference;
+these particular values are exactly representable, while general floating convolutions round. Caller storage is never transferred to the Engine.
 
 For repeated execution, selective [publication](../../glossary.md#term-publication) copies, or explicit input ordering, use the
-[reusable compile, session, run, and materialize workflow](../runtime/engine-boundary.md#current-ordinary-engine-boundary)<span data-glossary-navigation="true"> ([run glossary](../../glossary.md#term-run))</span>.
+[reusable compile, session, run, and materialize workflow](../runtime/engine-boundary.md#current-ordinary-engine-boundary).
 
 These [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) layers construct forward expressions; they do not [compile](../../glossary.md#compile), [prepare](../../glossary.md#prepare), select a [backend](../../glossary.md#backend)
 or execute values. [Compiler](../../glossary.md#term-compiler) derives selected input, weight and bias [gradients](../../glossary.md#term-gradient) through the shared
 grouped Conv2d/[Conv3d](../../glossary.md#conv3d--ncdhw) rule and the visible [Conv1d composition](../../glossary.md#conv1d-composition). Static [CPU](../../glossary.md#term-cpu) FLOAT32/[FLOAT64](../../glossary.md#term-float64)
 and [Metal](../../glossary.md#term-metal) FLOAT32 Conv3d training, including overlap and save/load/new training for the existing
 default biased cold source, are qualified in the
-[production support matrix](../../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary)<span data-glossary-navigation="true"> ([support matrix glossary](../../glossary.md#term-review-matrix))</span><span data-glossary-navigation="true"> ([matrix glossary](../../glossary.md#term-review-matrix))</span>.
+[production support matrix](../../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary).
 CPU low arithmetic and [Pool3d](../../glossary.md#pool3d--ncdhw-pooling) use the existing shared [derivative](../../glossary.md#term-derivative) [owners](../../glossary.md#term-owner) under their geometry guards;
 gradient-eligible [parameter](../../glossary.md#term-parameter) flags alone never prove a backend can execute a complete [graph](../../glossary.md#graph).
 `ModuleFactory.standard()` supplies matching stateless `conv1d`, `conv2d`, and `conv3d` recipes,

@@ -1,7 +1,7 @@
 <a id="text-tokenization-and-batching-api"></a>
 # Frozen [tokenization](../../glossary.md#frozen-whitespace-tokenizer) and text batching
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../extensions/text/src/main/java/io/github/pho001/synaptik/text/WhitespaceTokenizer.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/text/src/main/java/io/github/pho001/synaptik/text/WhitespaceTokenizer.java)
 
 **Tokenization** divides text into units and assigns each unit an integer ID from a fixed
 **vocabulary**, the known [token](../../glossary.md#term-token)-to-ID mapping. Here the units are whitespace-delimited strings,
@@ -21,6 +21,18 @@ flowchart TD
 Follow the values branch for numeric features and the counts branch for sequence boundaries.
 Neither branch creates a global [padding mask](../../glossary.md#masks-padding-and-eager-evaluation). This relationship is conceptual: the current fluent
 builder does not provide the integer-input Embedding-to-[scan](../../glossary.md#term-cumulative-scan) chain.
+
+## Follow one row from strings to values
+
+The application constructs the tokenizer with an ordered vocabulary; Text copies that order and
+retains immutable strings. `encode` returns a fresh integer array, not a borrowed view into the
+vocabulary. For a text batch, Text calls Data's `LongSequenceBatcher` with the encoded rows;
+Data allocates and fills a fresh Tensor and copies valid counts. The application then calls
+Embedding with that integer Tensor, and later Engine to evaluate the resulting floating
+expression. In the example the Embedding retains the exact supplied weight Tensor, so its
+native Arena must remain alive through compute. Text owns no native resource or execution
+session. [Data ownership](../data/sequences.md#which-participant-copies-values-and-which-only-describes-them)
+and [NN binding replacement](../nn/state.md) explain those distinct storage boundaries.
 
 <a id="purpose-and-mental-model"></a>
 ## Purpose and [mental model](../../glossary.md#term-mental-model)
@@ -83,7 +95,7 @@ Null tokenizer, list or row throws `NullPointerException` with the [parameter](.
 promised. Inputs are not retained afterward and repeated calls produce independent outputs.
 Data rejects overflowing geometry or more than `Integer.MAX_VALUE` [elements](../../glossary.md#term-element) with
 `IllegalArgumentException`; allocation failures and Model identifier exhaustion propagate.
-There is no [truncation](../../glossary.md#term-truncation-toward-zero) or sequence-limit policy. See the [Data API](../data/sequences.md)<span data-glossary-navigation="true"> ([API glossary](../../glossary.md#term-application-programming-interface-api))</span> for allocation
+There is no [truncation](../../glossary.md#term-truncation-toward-zero) or sequence-limit policy. See the [Data API](../data/sequences.md) for allocation
 and metadata contracts.
 
 <a id="complete-example"></a>
@@ -95,6 +107,7 @@ and [Engine](../../glossary.md#term-engine) with its standard [backend](../../gl
 application, not Text. The [weight](../../glossary.md#term-weight) construction follows the existing numerical [integration test](../../glossary.md#term-integration-test).
 
 ```java
+// PAD is an ordinary table row; the application owns the weight Arena through Engine.compute.
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
@@ -126,6 +139,7 @@ public class TextEmbeddingExample {
                     Optional.of(LayoutDescriptor.contiguous(shape)), true), Optional.empty(),
                     Optional.of(new MemorySegmentStorage(DataType.FLOAT32, table.length, segment)));
             var embedding = new Embedding(weight);
+            // Embedding describes a gather; compute performs it while weight storage is still live.
             var output = engine.compute(embedding.forward(batch.values()));
             float[] values = new float[12];
             output.bytes().asFloatBuffer().get(values);
@@ -158,11 +172,11 @@ export a fresh [INT64](../../glossary.md#data-type--datatype) length [Tensor](..
 [`toScanLengthsTensor()`](../data/sequences.md#explicit-runtime-scan-lengths); Data still does not bind it
 or convert token IDs to floating [features](../../glossary.md#term-feature). The current fluent ModelBuilder accepts only floating
 inputs and has no [Embedding](../../glossary.md#embedding) recipe, so this export does not enable Text IDs → Embedding → [scan](../../glossary.md#term-cumulative-scan)
-in one builder chain. The [numeric inference example](../data/sequences.md#complete-numeric-inference-example)<span data-glossary-navigation="true"> ([inference glossary](../../glossary.md#term-inference))</span>
+in one builder chain. The [numeric inference example](../data/sequences.md#complete-numeric-inference-example)
 starts with [FLOAT32](../../glossary.md#term-float32) features, not integer IDs. Left [padding](../../glossary.md#padding) still does not extend recurrent scans
 beyond their right-valid-prefix contract, and no [backpropagation through time](../../glossary.md#term-backpropagation-through-time-bptt) ([BPTT](../../glossary.md#backpropagation-through-time-and-recurrent-state)) support is added.
 
 The [owning Text contract](../../architecture/contracts/extensions-training.md#extensionstext)
 and [owning Data contract](../../architecture/contracts/extensions-training.md#extensionsdata)
-define the boundaries. [ADR 0043](../../design/decisions/0043-whitespace-text-and-padded-integral-batches.md)<span data-glossary-navigation="true"> ([ADR glossary](../../glossary.md#term-architecture-decision-record-adr))</span>
+define the boundaries. [ADR 0043](../../design/decisions/0043-whitespace-text-and-padded-integral-batches.md)
 explains the decision; the [glossary](../../glossary.md#frozen-whitespace-tokenizer) defines the terms.

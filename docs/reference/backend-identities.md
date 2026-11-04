@@ -1,6 +1,6 @@
 # [Backend](../glossary.md#backend) [identities](../glossary.md#term-identity-meanings) and declarative requirements
 
-[Reference goals](index.md) · [Javadoc and exact signatures](javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../glossary.md#term-javadoc); [signatures glossary](../glossary.md#term-signature))</span>
+[Reference goals](index.md) · [Javadoc and exact signatures](javadoc.md)
 
 A [backend identity](../glossary.md#backend-identity--backendid) names the implementation responsible for computation; a [device](../glossary.md#term-device) [identity](../glossary.md#term-identity-meanings) names
 one reported device within that implementation. Availability says that a device was reported at
@@ -12,7 +12,7 @@ The implemented `modules:backend-contract` surface contains:
 
 - [`BackendId`](../glossary.md#backend-identity--backendid), an [immutable](../glossary.md#term-immutable) open-string identity for a [backend ownership](../glossary.md#backend-ownership) domain; and
 - [`BackendDeviceId`](../glossary.md#backend-device-identity--backenddeviceid), an immutable composite identity for one opaque device token scoped by its
-  owning <span data-glossary-navigation="true"> ([opaque glossary](../glossary.md#term-opaque))</span>`BackendId`; and
+  owning `BackendId`; and
 - [`DeviceClass`](../glossary.md#device-class--deviceclass), a coarse declarative category with exactly [`CPU`](../glossary.md#term-cpu) and [`ACCELERATOR`](../glossary.md#term-accelerator), in that
   declaration order; and
 - [`BackendAvailabilitySnapshot`](../glossary.md#backend-availability-snapshot--backendavailabilitysnapshot), an immutable point-in-time association from one backend's
@@ -44,6 +44,7 @@ diagnostics, not preference, score, priority, capability, or fallback policy.
 For example, the following inputs report one accelerator device for the `"cuda"` backend:
 
 ```java
+// These illustrative availability records report facts; they do not open or register CUDA.
 import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
 import io.github.pho001.synaptik.backend.contract.BackendDeviceId;
 import io.github.pho001.synaptik.backend.contract.BackendId;
@@ -71,6 +72,7 @@ The requirement family records exactly one hard [target](../glossary.md#term-tar
 variants:
 
 ```java
+// Requirements filter later eligibility; constructing them neither chooses nor opens a device.
 import io.github.pho001.synaptik.backend.contract.BackendDeviceIdRequirement;
 import io.github.pho001.synaptik.backend.contract.BackendIdRequirement;
 import io.github.pho001.synaptik.backend.contract.BackendRequirement;
@@ -103,3 +105,14 @@ and a public [graph](../glossary.md#graph)-wide Planning surface remain planned.
 ---
 
 [Previous topic](model-trace.md) · [Next topic](compiler/configuration-values.md)
+## Who supplies availability, and who consumes it?
+
+An opened backend integration supplies Engine with an identity, capability provider and availability
+snapshot. Engine freezes that inventory when built; Compiler later calls Planning with those facts
+for each operation occurrence. The example below constructs illustrative CUDA **data**, not an
+opened CUDA integration or an execution promise. The records copy map/list membership where
+specified and retain immutable identity references; they own no device resource to close.
+Follow [explicit CPU/Metal composition](engine/composition.md) for resource transfer and
+[per-occurrence Planning](compiler/planning.md#current-operation-capability-contracts) for the
+separate question of semantic support.
+

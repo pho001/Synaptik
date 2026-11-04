@@ -1,11 +1,21 @@
 # Prepared [buffer](../../glossary.md#term-buffer) transfers
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
 A transfer copies one logical value between concrete representations already selected during
 preparation. It differs from allocation, which creates storage, and from [binding](../../glossary.md#term-binding), which connects
 a recipe to that storage. A successful transfer makes the destination valid; failed physical work
 must not make a partially written destination appear usable.
+
+## The recipe caller is Runtime, not the application
+
+During a production run, Runtime binds the already prepared transfer to two representations in
+one state and calls its action at the scheduled position. The concrete backend hook performs
+the physical movement; shared Runtime marks the destination valid only on successful return.
+Binding does not copy bytes or acquire their ownership. The direct-call example below isolates
+that protocol with counters, not a real transfer implementation. State ownership still follows
+[representation creation](creation.md), and [the prepared schedule](schedules.md) determines when
+this copy must precede a consumer or publication.
 
 <a id="current-prepared-buffer-transfer"></a>
 ## Current [prepared buffer transfer](../../glossary.md#prepared-buffer-transfer--preparedbuffertransfer)
@@ -35,11 +45,12 @@ classifies that copy as invalid.
 #### Transfer goal and inputs
 
 This current extension pattern binds two concrete [buffers](../../glossary.md#term-buffer) directly. It demonstrates success, the
-resulting destination-valid no-op, and [backend](../../glossary.md#backend) failure. A later runner will bind schedule
-occurrences conceptually; this example calls the current recipe and action directly because no
-runner exists yet.
+resulting destination-valid no-op, and [backend](../../glossary.md#backend) failure. The implemented runner binds schedule
+occurrences during setup; this example calls the recipe and action directly to isolate transfer
+behavior from runner traversal.
 
 ```java
+// The backend hook illustrates physical work with counters; Runtime owns the success-only validity change.
 import io.github.pho001.synaptik.runtime.execution.BoundBufferTransfer;
 import io.github.pho001.synaptik.runtime.execution.PreparedBufferTransfer;
 import io.github.pho001.synaptik.runtime.memory.PreparedMemoryPlan;
@@ -110,6 +121,7 @@ valid [borrowed](../../glossary.md#ownership-borrowing-and-lease) source and inv
 the plan declares one workspace position.
 
 ```java
+// Both selected copies already exist; a second execute skips physical work once the destination is valid.
 TransferBuffer source = new TransferBuffer();
 TransferBuffer destination = new TransferBuffer();
 RunState transferState =
@@ -158,6 +170,10 @@ direct fields for physical work. This proves the current transfer and validity c
 byte-copy correctness, schedule traversal, executable-output invalidation, [publication](../../glossary.md#term-publication), result
 [ownership](../../glossary.md#term-ownership-meanings), or a public [run](../../glossary.md#term-run) [lifecycle](../../glossary.md#lifecycle).
 
+
+In a containing program, close both `transferState` and `failingState` after these observations.
+Each owns its destination and workspace; the application still owns the borrowed sources.
+The direct example deliberately isolates transfer actions from the runner's automatic failure cleanup.
 
 ---
 

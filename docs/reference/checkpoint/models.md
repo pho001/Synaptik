@@ -1,12 +1,24 @@
 <a id="model-checkpoint-api"></a>
 # Whole-[model](../../glossary.md#term-model) [checkpoint](../../glossary.md#term-checkpoint) save and load
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
 
 A **whole-model** file includes a supported layer definition as well as state values. A
 **values-only** file supplies state for a compatible model the caller has already recreated.
 The state [schema](../../glossary.md#term-schema) describes paths, roles, types and [shapes](../../glossary.md#shape); it is not the [parameter](../../glossary.md#term-parameter) values
 themselves. Neither workflow stores the [optimizer](../../glossary.md#term-optimizer)'s memory of earlier updates.
+
+## Who reconstructs the model?
+
+For a whole-model load, the application calls ModelCheckpoint without an existing target; NN
+creates a private supported declarative tree and installs decoded heap-backed values before
+returning it. For values-only load, the application first recreates a compatible fully bound
+tree and lends it to the loader, which replaces its bindings only after validation. Neither
+workflow loads arbitrary Java callbacks, retains file handles, or opens an Engine. A later
+forward constructs expressions from the restored bindings; Engine executes those separately.
+Read [state dictionary semantics](../nn/state.md#current-nn-state-dictionary-contract) for exact-reference
+installation and [private training recovery](../training/recovery.md) for optimizer/cursor state
+that these files deliberately omit.
 
 <a id="purpose-and-mental-model"></a>
 ## Purpose and [mental model](../../glossary.md#term-mental-model)
@@ -15,12 +27,12 @@ themselves. Neither workflow stores the [optimizer](../../glossary.md#term-optim
 load a `DeclarativeModel`, or [capture](../../glossary.md#term-capture-meanings) values and restore them into a caller-recreated fully bound
 neural-network ([NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)) [module](../../glossary.md#term-module). An envelope is an [immutable](../../glossary.md#term-immutable) in-memory collection
 of named byte payloads; [canonical](../../glossary.md#term-canonical-form) bytes encode logical [elements](../../glossary.md#term-element) in [row-major](../../glossary.md#term-row-major) order, [big-endian](../../glossary.md#text-encoding-and-file-boundaries).
-The [architecture contract](../../architecture/contracts/extensions-training.md#retained-nn-checkpoint-apis)<span data-glossary-navigation="true"> ([architecture contract glossary](../../glossary.md#architecture-contract))</span>
+The [architecture contract](../../architecture/contracts/extensions-training.md#retained-nn-checkpoint-apis)
 owns this [NN model](../../glossary.md#model-module-buffer-and-scan-distinctions)-only boundary. Import the three public types from
 `io.github.pho001.synaptik.nn.checkpoint` and declare an explicit `:extensions:nn` [dependency](../../glossary.md#term-dependency);
 [Checkpoint](../../glossary.md#term-checkpoint) alone no longer exports them. [Artifact](../../glossary.md#term-artifact) imports and the `:extensions:checkpoint`
 project [identity](../../glossary.md#term-identity-meanings) are unchanged. This [API](../../glossary.md#term-application-programming-interface-api) retains `model.v1`/`whole-model.v1` readers and flexible
-[batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters)/[rank](../../glossary.md#term-rank) semantics; the separate [generic graph API](graph.md)<span data-glossary-navigation="true"> ([graph glossary](../../glossary.md#graph))</span> has static [signatures](../../glossary.md#term-signature).
+[batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters)/[rank](../../glossary.md#term-rank) semantics; the separate [generic graph API](graph.md) has static [signatures](../../glossary.md#term-signature).
 It does not persist a [Java module](../../glossary.md#model-module-buffer-and-scan-distinctions) class, [optimizer](../../glossary.md#term-optimizer), or training
 continuation.
 
@@ -124,7 +136,7 @@ Malformed, unsupported, incoherent or over-limit stored data and expected-input 
 `ArtifactFormatException`, with [owner](../../glossary.md#term-owner) validation causes retained. [Tensor](../../glossary.md#tensor) identifier exhaustion
 remains `IllegalStateException`. File access/[publication](../../glossary.md#term-publication) failures remain `IOException`. Loading a
 values-only file automatically reports a missing definition and directs callers to [target](../../glossary.md#term-target)-load.
-Failures return no partial [model](../../glossary.md#term-model). Save retains the [artifact atomic-live-publication policy](artifacts.md#lifecycle-and-invariants)<span data-glossary-navigation="true"> ([artifact glossary](../../glossary.md#term-artifact); [atomic glossary](../../glossary.md#resource-transaction-and-rollback))</span>,
+Failures return no partial [model](../../glossary.md#term-model). Save retains the [artifact atomic-live-publication policy](artifacts.md#lifecycle-and-invariants),
 not portable power-[loss](../../glossary.md#loss) [durability](../../glossary.md#term-durability) or a cross-owner transaction.
 
 For the concrete save → source closure → automatic load → fresh-Engine workflow, use the

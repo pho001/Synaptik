@@ -1,11 +1,23 @@
 # File-free and file-backed recovery examples
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
 
 These examples compare **[raw bits](../../glossary.md#storage-mapping-contiguity-and-injectivity)**, the exact stored representation of each [element](../../glossary.md#term-element), rather
 than approximate numeric equality. For example, positive and negative [floating-point](../../glossary.md#term-floating-point) zero are
 numerically equal but have different bits. [Canonical](../../glossary.md#term-canonical-form) bytes use one specified element order and
 [byte order](../../glossary.md#text-encoding-and-file-boundaries) so values from different storage [owners](../../glossary.md#term-owner) can be compared without interpreting [native memory](../../glossary.md#aliasing-and-arena).
+
+## Identify the objects before comparing them
+
+The application owns each source Module and native Arena and calls ModelCheckpoint with a
+borrowed Engine. Capture returns an envelope containing independent bytes, so inspection can
+run after those source owners close. Loading into the recreated target replaces its compatible
+bindings with new heap-backed Tensors; it does not copy into the old target's native address or
+resume a session. Recapture compares the actual stored bytes rather than assuming a prior
+inspection authorized a later call. The file-free example performs no filesystem action;
+“operation” in that context is a [generic action](../../glossary.md#term-generic-operation), not
+a Model `Operation` expression. See [values-only contracts](values.md) for digests and aliases,
+and [Training recovery](../training/recovery.md) for the additional continuation participants.
 
 <a id="complete-example"></a>
 ## Complete example
@@ -22,9 +34,10 @@ and intended sharing. No input [artifact](../../glossary.md#term-artifact) is pr
 
 Save the following class as `ModelEnvelopeExample.java` and [compile](../../glossary.md#compile)/[run](../../glossary.md#term-run) with the project's public
 [Checkpoint](../../glossary.md#term-checkpoint)/[NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)/[Model](../../glossary.md#term-model)/[Engine](../../glossary.md#term-engine) dependencies on the [classpath](../../glossary.md#term-classpath) and `jdk.incubator.vector` enabled.
-No Training [API](../../glossary.md#term-application-programming-interface-api), reflection, model-internal type, or filesystem [operation](../../glossary.md#operation) is used by the example.
+No Training [API](../../glossary.md#term-application-programming-interface-api), reflection, model-internal type, or filesystem [operation](../../glossary.md#term-generic-operation) is used by the example.
 
 ```java
+// Capture must finish before the source Arena closes; the envelope then needs no live Engine.
 import io.github.pho001.synaptik.checkpoint.artifact.ArtifactEnvelope;
 import io.github.pho001.synaptik.checkpoint.artifact.ArtifactLimits;
 import io.github.pho001.synaptik.nn.checkpoint.ModelCheckpoint;
@@ -79,6 +92,7 @@ public final class ModelEnvelopeExample {
                 throw new AssertionError("descriptor or raw bits");
         }
         Tree target = new Tree(TensorFactory.scalar(1.0f, Optional.empty(), true));
+        // A compatible target receives fresh bindings, not a resumed TrainingSession.
         ModelCheckpoint.load(envelope, target, config, null, limits);
         try (Engine engine = Engine.standard()) {
             var restored = ModelCheckpoint.capture(target, engine, config, null, limits);
@@ -126,6 +140,7 @@ path `runningMean` and eight [payload](../../glossary.md#artifact-envelope-and-a
 [materialization](../../glossary.md#materialization) through an explicit [contiguous](../../glossary.md#term-contiguous) expression.
 
 ```java
+// Load creates new heap-backed bindings; keep the original source Arena open through save only.
 import io.github.pho001.synaptik.checkpoint.artifact.ArtifactLimits;
 import io.github.pho001.synaptik.nn.checkpoint.ModelCheckpoint;
 import io.github.pho001.synaptik.engine.Engine;
@@ -235,9 +250,9 @@ movement and existing expression occurrences. No Engine/[Prepare](../../glossary
 <a id="related-api-and-architecture"></a>
 ## Related [API](../../glossary.md#term-application-programming-interface-api) and architecture
 
-- [Opaque artifact file API](artifacts.md)<span data-glossary-navigation="true"> ([Opaque glossary](../../glossary.md#term-opaque); [artifact glossary](../../glossary.md#term-artifact))</span>
-- [Checkpoint boundary explanation](../../architecture/module-boundaries.md#retained-nn-checkpoint-glue)<span data-glossary-navigation="true"> ([Checkpoint glossary](../../glossary.md#term-checkpoint))</span>
-- [Public model checkpoint decision](../../design/decisions/0034-public-model-checkpoint.md)<span data-glossary-navigation="true"> ([model glossary](../../glossary.md#term-model))</span>
+- [Opaque artifact file API](artifacts.md)
+- [Checkpoint boundary explanation](../../architecture/module-boundaries.md#retained-nn-checkpoint-glue)
+- [Public model checkpoint decision](../../design/decisions/0034-public-model-checkpoint.md)
 - [Model-envelope composition decision](../../design/decisions/0036-model-envelope-composition.md)
 
 ---

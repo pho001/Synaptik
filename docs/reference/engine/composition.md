@@ -1,11 +1,22 @@
 # Explicit [CPU](../../glossary.md#term-cpu) and [Metal](../../glossary.md#term-metal) composition
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/engine/src/main/java/io/github/pho001/synaptik/engine/Engine.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/engine/src/main/java/io/github/pho001/synaptik/engine/Engine.java)
 
 Explicit composition means the caller opens [backend](../../glossary.md#backend) integrations and transfers them into one
 [Engine](../../glossary.md#term-engine). A backend **[owner](../../glossary.md#term-owner)** is the implementation assigned a [graph](../../glossary.md#graph) [partition](../../glossary.md#partition), not the owner of
 the caller's input memory. A **cross-owner transfer** moves a value between those implementations;
 it is planned before a [run](../../glossary.md#term-run), not an automatic retry on another backend.
+
+## Resource ownership is different from backend ownership
+
+The application opens an integration, then calls `builder.takeOwnership(integration)`. From
+method entry onward, the builder is responsible for closing it even if registration fails. A
+successful build transfers that responsibility to Engine; the application must no longer close
+the integration separately. Planning may then assign that backend responsibility for an
+operation, but this does not transfer the application's Tensor storage. Inputs remain borrowed
+under the [run/result lifetime](../runtime/engine-boundary.md#current-ordinary-engine-boundary).
+The example's lexical scopes close the result before preparation, Engine, and builder, so no
+live result depends on an integration the application has already released.
 
 <a id="current-explicit-cpu-and-metal-composition"></a>
 ## Current explicit [CPU](../../glossary.md#term-cpu) and [Metal](../../glossary.md#term-metal) composition
@@ -13,9 +24,11 @@ it is planned before a [run](../../glossary.md#term-run), not an automatic retry
 The public composition [shape](../../glossary.md#shape) is:
 
 ```java
+// takeOwnership transfers integration cleanup at entry; do not close integrations separately afterward.
 MetalBackendConfiguration metalConfiguration =
         new MetalBackendConfiguration(nativeLibrary.toAbsolutePath());
 try (Engine.Builder builder = Engine.builder()) {
+    // Builder owns opened integrations even if later registration/build fails.
     builder.takeOwnership(CpuBackendIntegration.open());
     builder.takeOwnership(MetalBackendIntegration.open(metalConfiguration));
     try (Engine engine = builder.build()) {
@@ -125,7 +138,7 @@ overlap-add is FLOAT32-only, deterministic and output-owned, with no atomics, sc
 fallback/repair; [FLOAT64](../../glossary.md#term-float64)/[BFLOAT16](../../glossary.md#term-bfloat16)/[FLOAT16](../../glossary.md#term-float16) image folds and FOLD_AXIS retain non-overlap.
 Pooling gradients close only where every generated [occurrence](../../glossary.md#term-occurrence) is admitted; their low image
 folds remain non-overlapping. Attention and convolution [transpose](../../glossary.md#term-transpose) still reject before preparation.
-See the [production support matrix](../../backend-guide/production-support.md#metal-production-target)<span data-glossary-navigation="true"> ([support matrix glossary](../../glossary.md#term-review-matrix))</span><span data-glossary-navigation="true"> ([matrix glossary](../../glossary.md#term-review-matrix))</span>
+See the [production support matrix](../../backend-guide/production-support.md#metal-production-target)
 for actual [GPU](../../glossary.md#term-gpu) Conv3d all-role and [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) training/[persistence](../../glossary.md#term-persistence) evidence. No implicit seeding,
 Metal [Scan](../../glossary.md#term-cumulative-scan) support, software FLOAT64, or unrestricted training support follows.
 
@@ -145,7 +158,7 @@ multi-backend construction belongs to ordinary `Engine.Builder`.
 
 See the
 [authoritative Engine composition contract](../../architecture/contracts/runtime-prepare-engine.md#public-explicit-composition),
-[ADR 0015](../../design/decisions/0015-explicit-engine-backend-composition.md)<span data-glossary-navigation="true"> ([ADR glossary](../../glossary.md#term-architecture-decision-record-adr))</span>, and
+[ADR 0015](../../design/decisions/0015-explicit-engine-backend-composition.md), and
 [ADR 0016](../../design/decisions/0016-cpu-metal-mixed-owner-schedule.md).
 
 

@@ -1,12 +1,23 @@
 # Verification [inference](../../glossary.md#term-inference) and scoped [Scan](../../glossary.md#term-cumulative-scan)
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
 Verification inference independently derives the [metadata](../../glossary.md#term-metadata) each [operation](../../glossary.md#operation) should produce and
 compares it with the captured description. A **deferred constraint** is a relationship that cannot
 yet be proved and must be checked when actual [dimensions](../../glossary.md#dimension) are supplied. A Scan **body** is the
 repeated step's [graph](../../glossary.md#graph), with its own local identifiers; equal numeric IDs in outer and body graphs
 never establish a connection by themselves.
+
+## What is checked without values?
+
+The compiler pipeline calls verification with captured graph metadata, not current input storage.
+Verification derives expected descriptors and retains relationships that a future descriptor bind
+must resolve. It cannot inspect an index, valid-length count, NaN or actual parameter value.
+For a recurrent Scan, it validates the independently scoped body and its explicit connections
+to outer inputs; body-local numeric IDs alone never identify outer values. The accepted result
+remains a description, with no allocated history or runtime tape. See
+[batch metadata binding](batch-binding.md) for deferred checks and
+[runtime-length NN composition](../nn/recurrent.md) for where actual length values eventually enter.
 
 <a id="current-package-private-verification-inference"></a>
 ### Current package-private verification [inference](../../glossary.md#term-inference)

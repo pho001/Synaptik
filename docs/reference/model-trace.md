@@ -1,6 +1,6 @@
 # [Model](../glossary.md#term-model) and diagnostic public boundaries
 
-[Reference goals](index.md) · [Javadoc and exact signatures](javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../glossary.md#term-javadoc); [signatures glossary](../glossary.md#term-signature))</span>
+[Reference goals](index.md) · [Javadoc and exact signatures](javadoc.md)
 
 Model describes what a [Tensor](../glossary.md#tensor) value means and how expressions depend on one another. [Trace](../glossary.md#trace)
 instead describes observations about work, such as a preparation outcome, without carrying the
@@ -14,13 +14,13 @@ The implemented `modules:model` surface contains:
 - static, named dynamic, and expression [dimensions](../glossary.md#dimension), [immutable](../glossary.md#term-immutable) [Shapes](../glossary.md#shape), and local [broadcasting](../glossary.md#broadcasting);
 - resolved static [layout](../glossary.md#layout) geometry and [host](../glossary.md#term-host)-storage contracts;
 - public [mutable](../glossary.md#term-mutable) `Tensor`, eager leaf factories, explicit-source random construction, and
-  backend-independent expression metadata;<span data-glossary-navigation="true"> ([eager glossary](../glossary.md#term-eager-evaluation); [leaf glossary](../glossary.md#term-leaf))</span>
+  backend-independent expression metadata;
 - typed operation attributes and occurrence signatures, shared multi-output producer provenance,
-  and operation-specific result carriers; and<span data-glossary-navigation="true"> ([operation glossary](../glossary.md#operation); [occurrence glossary](../glossary.md#term-occurrence); [provenance glossary](../glossary.md#provenance))</span>
+  and operation-specific result carriers; and
 - immutable graph values, nodes, compiled graph-model data, forward publication bindings, and
-  distinct tensor/node/value identifiers.<span data-glossary-navigation="true"> ([graph glossary](../glossary.md#graph); [nodes glossary](../glossary.md#node); [compiled graph glossary](../glossary.md#compiled-graph--compiledgraphmodel); [publication glossary](../glossary.md#term-publication); [bindings glossary](../glossary.md#term-binding))</span>
+  distinct tensor/node/value identifiers.
 
-The [Tensor API reference](tensor/index.md)<span data-glossary-navigation="true"> ([API glossary](../glossary.md#term-application-programming-interface-api))</span> documents these current contracts, inputs, results,
+The [Tensor API reference](tensor/index.md) documents these current contracts, inputs, results,
 failures, and examples. The current model surface records meaning and metadata; it does not imply
 [compiler](../glossary.md#term-compiler) [capture](../glossary.md#term-capture-meanings), [backend](../glossary.md#backend) support, [kernels](../glossary.md#kernel), [prepared execution](../glossary.md#prepared-execution--preparedexecution), [runtime](../glossary.md#term-runtime) [residency](../glossary.md#residency), or numerical
 execution.
@@ -34,7 +34,7 @@ The implemented `modules:trace` surface contains:
 - the generic `TraceEvent<T extends TracePayload>` envelope with a producer-supplied monotonic
   nanosecond reading;
 - [nominal](../glossary.md#term-nominal) non-negative [`TraceNodeId`](../glossary.md#trace-node-correlation-identity--tracenodeid), [`TraceValueId`](../glossary.md#trace-value-correlation-identity--tracevalueid), and [`TraceTensorId`](../glossary.md#trace-tensor-correlation-identity--tracetensorid) records for trace-local
-  correlation with producer-owned model identities;<span data-glossary-navigation="true"> ([owned model glossary](../glossary.md#model-module-buffer-and-scan-distinctions))</span>
+  correlation with producer-owned model identities;
 - nominal non-negative [`TraceBackendId`](../glossary.md#trace-backend-correlation-identity--tracebackendid), [`TraceDeviceId`](../glossary.md#trace-device-correlation-identity--tracedeviceid), [`TracePreparedUnitId`](../glossary.md#trace-prepared-unit-correlation-identity--tracepreparedunitid), and
   [`TraceInvocationId`](../glossary.md#trace-invocation-correlation-identity--traceinvocationid) records for producer-stream backend execution correlations;
 - the closed `TraceOutcomeStatus`, `TraceRouteKind`, `TraceCacheStatus`,
@@ -54,3 +54,13 @@ phase.
 ---
 
 [Previous topic](extensions/overview.md) · [Next topic](backend-identities.md)
+## An expression producer is not a diagnostic event producer
+
+A Tensor producer is the ordinary expression object that describes one computation occurrence.
+A trace producer is whichever component emits observations and assigns event IDs. The Metal
+integration, for example, calls the application's observer with bounded outcome data; it does
+not hand over Tensor storage or native-resource ownership. Closing the observer is not Engine's
+cleanup responsibility. Keep [expression capture](compiler/capture.md) separate from
+[Metal observer callbacks](engine/composition.md#current-explicit-cpu-and-metal-composition): the
+first describes requested work, while the second observes preparation/execution outcomes.
+

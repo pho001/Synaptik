@@ -1,6 +1,6 @@
 # [Compiler](../../glossary.md#term-compiler) contracts and boundaries
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
 [Compilation](../../glossary.md#compiler-engine-and-execution-stage-names) turns an expression's meaning into a verified logical recipe. **[Capture](../../glossary.md#term-capture-meanings)** records
 its dependencies, **[inference](../../glossary.md#term-inference)** derives expected [shapes](../../glossary.md#shape) and types, and **[planning](../../glossary.md#term-planning)** assigns [backend](../../glossary.md#backend)
@@ -67,18 +67,18 @@ prepared executables.
 
 ## Topic navigation
 
-- [Named-batch metadata binding](batch-binding.md)<span data-glossary-navigation="true"> ([batch glossary](../../glossary.md#term-batch-machine-learning-and-hyperparameters); [metadata glossary](../../glossary.md#term-metadata); [binding glossary](../../glossary.md#term-binding))</span>
-- [Ordinary and advanced compile entry points](entry-points.md)<span data-glossary-navigation="true"> ([compile glossary](../../glossary.md#compile))</span>
-- [Structural capture and model contracts](capture.md)<span data-glossary-navigation="true"> ([Structural capture glossary](../../glossary.md#term-structural-capture); [model glossary](../../glossary.md#term-model))</span>
+- [Named-batch metadata binding](batch-binding.md)
+- [Ordinary and advanced compile entry points](entry-points.md)
+- [Structural capture and model contracts](capture.md)
 - [Cold source capture and reconstruction](cold-source.md)
-- [Verification inference and scoped Scan](verification-scan.md)<span data-glossary-navigation="true"> ([inference glossary](../../glossary.md#term-inference); [Scan glossary](../../glossary.md#term-cumulative-scan))</span>
-- [Canonicalization and whole-graph optimization](optimization.md)<span data-glossary-navigation="true"> ([Canonicalization glossary](../../glossary.md#occurrence-identity-and-canonical-form); [graph optimization glossary](../../glossary.md#forward-graph-optimization))</span>
-- [Pre-capture autograd and functional gradients](autograd.md)<span data-glossary-navigation="true"> ([capture glossary](../../glossary.md#term-capture-meanings))</span><span data-glossary-navigation="true"> ([autograd glossary](../../glossary.md#autograd); [gradients glossary](../../glossary.md#term-gradient))</span>
-- [Complete artifact compilation and integration port](artifacts.md)<span data-glossary-navigation="true"> ([artifact glossary](../../glossary.md#term-artifact); [compilation glossary](../../glossary.md#compiler-engine-and-execution-stage-names); [integration port glossary](../../glossary.md#term-integration-port))</span>
+- [Verification inference and scoped Scan](verification-scan.md)
+- [Canonicalization and whole-graph optimization](optimization.md)
+- [Pre-capture autograd and functional gradients](autograd.md)
+- [Complete artifact compilation and integration port](artifacts.md)
 - [Compile-configuration inputs](configuration.md)
 - [Capability queries and planned partitions](planning.md)
 - [Logical memory and compile outputs](memory-output.md)
-- [Internal lifecycle, failures and interpretation](lifecycle.md)<span data-glossary-navigation="true"> ([lifecycle glossary](../../glossary.md#lifecycle))</span>
+- [Internal lifecycle, failures and interpretation](lifecycle.md)
 - [Declarative compilation and tuning values](configuration-values.md)
-- [Public capability and planning values](planning-values.md)<span data-glossary-navigation="true"> ([planning glossary](../../glossary.md#term-planning))</span>
+- [Public capability and planning values](planning-values.md)
 - [Public compile output values](artifact-values.md)

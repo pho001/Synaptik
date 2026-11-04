@@ -1,11 +1,22 @@
 # Complete [artifact](../../glossary.md#term-artifact) [compilation](../../glossary.md#compiler-engine-and-execution-stage-names) and [integration port](../../glossary.md#term-integration-port)
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
 Complete compilation packages a verified [graph](../../glossary.md#graph) and its logical plans into one [immutable](../../glossary.md#term-immutable) result.
 The integration **port** is a restricted doorway for other [modules](../../glossary.md#term-module) to request that work. The
 result describes what later preparation must arrange; it contains neither physical [buffers](../../glossary.md#term-buffer) nor
 an executable [ready](../../glossary.md#term-ready) to [run](../../glossary.md#term-run).
+
+## Read the artifact as instructions for another owner
+
+Engine is the caller of the public compilation port; Compiler invokes Planning to select backend
+identities and returns `CompileArtifacts`. Prepare is the later consumer: it projects partitions
+to backends, assigns resource slots and constructs a runnable recipe. The immutable lists copy
+membership, not tensor payloads. None of these compile outputs owns input storage, native buffers
+or a live device. That distinction is why a valid zero-node artifact in the example can still
+fail preparation. Follow [Prepare's resource handoff](../runtime/prepare.md) to see where persistent
+resource ownership first transfers, and [run-state ownership](../runtime/representations.md) for
+per-invocation allocations.
 
 <a id="current-complete-artifact-compilation-and-integration-port"></a>
 ### Current complete [artifact](../../glossary.md#term-artifact) [compilation](../../glossary.md#compiler-engine-and-execution-stage-names) and [integration port](../../glossary.md#term-integration-port)
@@ -35,6 +46,7 @@ For a current runnable boundary case, a [provenance](../../glossary.md#provenanc
 needs no capability provider:
 
 ```java
+// This leaf has no producer, so the artifact needs no operation owner; preparation is still separate.
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.compiler.GraphCompilationPort;
 import io.github.pho001.synaptik.config.compile.BackendIntent;
@@ -130,6 +142,7 @@ no partial artifact and is not converted into a successful diagnostic.
 `CompileArtifacts` is the exact eight-component public immutable record:
 
 ```java
+// The record describes logical plans; none of its components is a per-run physical buffer.
 public record CompileArtifacts(
         CompileMode mode,
         CompiledGraphModel graph,

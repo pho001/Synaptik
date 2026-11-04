@@ -1,11 +1,22 @@
 # Representation creation, [run](../../glossary.md#term-run)-state closure and failures
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
 A creation plan says which representations are [borrowed](../../glossary.md#ownership-borrowing-and-lease) and which a [backend](../../glossary.md#backend) must create for a
 run. A **representation** is a backend's concrete form of a logical [buffer](../../glossary.md#term-buffer) or scratch space.
 **[Rollback](../../glossary.md#term-rollback)** here means closing successfully created owned resources if setup cannot complete,
 not rewinding arbitrary backend effects or closing borrowed inputs.
+
+## The runner is the caller of creators
+
+Engine calls Runtime's runner; the runner's setup calls the concrete backend creators retained
+in `PreparedRepresentationPlan`. The application does not have to create each internal output or
+workspace itself. Caller-input representations are borrowed and remain the lender's cleanup
+responsibility; successful creator results become run-owned only after complete state
+construction. Setup failure closes the successfully created resources but not borrowed input
+storage. The returned result later owns cleanup of that complete state. Read
+[result leasing](publication.md) alongside [per-copy validity](representations.md), because an
+allocated object is not necessarily initialized or publishable.
 
 <a id="current-prepared-representation-creation"></a>
 ## Current prepared representation creation

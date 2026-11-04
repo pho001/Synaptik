@@ -1,11 +1,22 @@
 # Cold source [capture](../../glossary.md#term-structural-capture) and reconstruction
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
 **Cold source** is a computation description that can be inspected and rebuilt without running
 its numeric operations. Reconstruction uses compatible replacement inputs to recreate ordinary
 [Tensor](../../glossary.md#tensor) expressions; it is not loading a compiled executable. The raw source preserves construction
 structure, whereas complete [compilation](../../glossary.md#compiler-engine-and-execution-stage-names) may optimize it and complete logical [layout](../../glossary.md#layout) [metadata](../../glossary.md#term-metadata).
+
+## Which references cross the cold API?
+
+Checkpoint or another integration caller supplies output expressions to `captureSource` and
+receives both immutable graph metadata and borrowed original leaf references. This leaf list is
+not a detached snapshot of bytes. When that caller supplies replacement Tensors to
+`reconstructSource`, Compiler validates their descriptors and builds new producer objects that
+reference them. It copies no stored values, creates no Arena and needs nothing to close. A
+replacement can itself be a produced expression; its dependencies remain attached for later
+compilation. [GraphCheckpoint.copy](../checkpoint/graph.md#inputs-outputs-and-identity), not this
+Compiler constructor, is responsible for acquiring private stored state.
 
 <a id="current-cold-source-capture-and-reconstruction"></a>
 ### Current cold source [capture](../../glossary.md#term-structural-capture) and reconstruction
@@ -91,6 +102,7 @@ partial outputs and do not roll back consumed Tensor IDs.
 For a storage-free symbolic example, start with a [FLOAT32](../../glossary.md#term-float32) scalar `x` and source `x * x`:
 
 ```java
+// The replacement keeps its NEG dependency; reconstruction substitutes expressions, not values.
 import io.github.pho001.synaptik.compiler.GraphCompilationPort;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.shape.Shape;

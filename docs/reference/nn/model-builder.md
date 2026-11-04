@@ -1,11 +1,22 @@
 # Fluent [owned Model](../../glossary.md#model-module-buffer-and-scan-distinctions) builder
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc))</span> · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
 
 A **fluent builder** collects choices through chained method calls before creating the [Model](../../glossary.md#term-model).
 The **input [signature](../../glossary.md#term-signature)** specifies the required [element](../../glossary.md#term-element) type, [shape](../../glossary.md#shape), [layout](../../glossary.md#layout) and [gradient](../../glossary.md#term-gradient) flag;
 it is not an example [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters)'s contents. Building acquires private state and constructs expressions,
 while compute and configured training later use those expressions through [Engine](../../glossary.md#term-engine).
+
+## What does the application hand to the builder?
+
+`input(...)` supplies a description of future batches, while `linear(weight, bias)` supplies
+current stored parameter values. The builder is the callee of these application calls; at build,
+it copies supported supplied state into the returned Model instead of borrowing the application's
+weight storage for future execution. A leaf here means a Tensor with no producing expression,
+not a promise that an arbitrary Tensor contains readable values. Automatic recipes create fresh
+state instead. The examples below return Models, so their callers must eventually close them;
+the builder itself does not execute a batch. Compare [ordinary layer composition](composition.md)
+when exact supplied references, rather than private acquired copies, are needed.
 
 <a id="fluent-model-builder"></a>
 ### [Fluent Model builder](../../glossary.md#fluent-model-builder)
@@ -40,6 +51,7 @@ final state.
 This compilable example constructs an [MLP](../../glossary.md#term-multilayer-perceptron-mlp), CNN and recurrent stack; inputs/results are noted inline:
 
 ```java
+// Each build acquires a new private Model; the caller of these factory methods must close it.
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.nn.module.Model;
@@ -62,8 +74,12 @@ public final class FluentBuilderShapesExample {
 }
 ```
 
-Callers close each returned [Model](../../glossary.md#term-model). CNN [spatial](../../glossary.md#term-spatial-axes) extents are 28→26→13→11→5, so flatten width is
-`64*5*5=1600`; the LSTMs produce `[20,32,128]`, then `[20,32,64]` before explicit selection.
+The application closes each returned Model. In the CNN, each unpadded unit-stride $3\times3$
+convolution reduces both spatial extents by two, while each $2\times2$ pool uses stride two
+and floor geometry. Thus each axis follows $28\to26\to13\to11\to5$ positions. Flatten combines
+$C=64$ channels, height $H=5$ and width $W=5$ into $CHW=64\cdot5\cdot5=1600$ features per
+batch row. These are exact non-negative integer shape counts, not rounded tensor arithmetic.
+The LSTMs instead produce `[20,32,128]`, then `[20,32,64]` before explicit last-time selection.
 See the complete [compute/train/save example](../../user-guide/running-models.md#build-a-fluent-model).
 
 Construction and cold forward create no [Engine](../../glossary.md#term-engine). Compute/configured training consume fixed outputs
@@ -76,6 +92,8 @@ See the [single owning wire contract](../../architecture/contracts/extensions-tr
 Execution still requires actual Engine capability;
 fixed scans retain their separately qualified first-order training support; runtime-length recipes are described below, and no recipe implies streaming state. [Conv3d](../../glossary.md#conv3d--ncdhw) separately uses
 the shared grouped [convolution](../../glossary.md#term-channels-first-convolution-layers) adjoints within its qualified [backend](../../glossary.md#backend) domain.
+
+#### Build a separate values-and-lengths boundary
 
 For runtime lengths, append `rnnScan`, `gruScan` or `lstmScan` with a positive hidden width and end
 with `buildWithLengths()`, returning `Model<List<Tensor>,List<Tensor>>`. The two inputs are
@@ -102,13 +120,15 @@ first-order configured training now uses their existing [Compiler](../../glossar
 history](../../glossary.md#term-optimizer-history). Low execution still requires a supporting backend and explicit FLOAT32/FLOAT64 [objective](../../glossary.md#term-objective).
 
 
+#### Do not infer a global padding mask
+
 There is no model-wide [mask](../../glossary.md#term-boolean-mask): bias and [sigmoid](../../glossary.md#term-sigmoid) may change padded zeros; convolution/[pooling](../../glossary.md#term-pooling) keep
 dense channels-first semantics, flatten preserves axis zero, static recurrence ignores lengths, and
 `lastTimeStep()` still selects `T-1`, not final hidden. Each scan ignores its own suffix, not arbitrary
 ordinary results. Shape-valid construction or save does not guarantee backend execution. General
 [F32](../../glossary.md#floating-point-precision-and-rounding)/[F64](../../glossary.md#floating-point-precision-and-rounding) RNN uses its narrower dense zero-offset [CPU](../../glossary.md#term-cpu) read [qualification](../../glossary.md#term-qualification); fixed recipes retain
 their separately declared read domain. No descriptor is erased and no [layout](../../glossary.md#layout) copy is inserted.
-See the [runtime-length inference example](../../user-guide/running-models.md#run-a-runtime-length-scan-model)<span data-glossary-navigation="true"> ([inference glossary](../../glossary.md#term-inference))</span>
+See the [runtime-length inference example](../../user-guide/running-models.md#run-a-runtime-length-scan-model)
 and [training journey](../../user-guide/running-models.md#train-a-runtime-length-rnn).
 
 

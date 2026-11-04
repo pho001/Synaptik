@@ -1,11 +1,23 @@
 # [Canonicalization](../../glossary.md#occurrence-identity-and-canonical-form) and whole-[graph optimization](../../glossary.md#forward-graph-optimization)
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
 **Canonicalization** gives an equivalent [graph](../../glossary.md#graph) a consistent internal numbering and representation.
 **Optimization** then removes or combines work only where the documented exact rules allow it.
 [Dead-code elimination](../../glossary.md#term-dead-code-elimination-dce) removes work not needed by outputs; [common-subexpression elimination](../../glossary.md#term-common-subexpression-elimination-cse) shares
 equivalent occurrences where permitted. Neither step chooses a [backend](../../glossary.md#backend) [kernel](../../glossary.md#kernel) or reads [Tensor](../../glossary.md#tensor) values.
+
+## A traversal is not a Tensor Scan
+
+In this page, a **scan of the graph** means that the compiler optimizer visits stored nodes in
+topological order. It is not a cumulative Tensor scan or a recurrent `ScanBody`, and “without
+iteration” means no repeated optimizer pass to reach a fixed point. For example, bypassing one
+internal multiply-by-one can expose the next eligible node later in the **same traversal**.
+Only the exact rules and descriptor guards below permit a bypass. An identity over real numbers
+is insufficient: rounded floating evaluation, signed zero and NaN behavior must still satisfy the
+specific rule. See [scoped recurrent Scan](verification-scan.md#current-scoped-scan-capture-and-first-order-ad)
+for the different operation, and [logical output layouts](memory-output.md) for facts completed
+after optimization rather than numeric work executed by it.
 
 <a id="current-package-private-canonicalization-and-whole-graph-optimization"></a>
 ### Current package-private [canonicalization](../../glossary.md#occurrence-identity-and-canonical-form) and whole-[graph optimization](../../glossary.md#forward-graph-optimization)
@@ -28,26 +40,28 @@ guarded exact arithmetic rewriting -> constant folding
                                    -> sidecar-aware whole-graph dead-code elimination cleanup
 ```
 
-The first scan recognizes exactly seven internal one-output [identities](../../glossary.md#term-identity-meanings) in either [graph phase](../../glossary.md#graph-phase):
+The first optimizer traversal recognizes exactly seven internal one-output [identities](../../glossary.md#term-identity-meanings) in either [graph phase](../../glossary.md#graph-phase):
 duplicate-input
-[binary](../../glossary.md#term-binary-descriptor-and-metadata) `MIN` and `MAX`; [scalar](../../glossary.md#term-scalar) `MUL` by exact typed positive one for [`BFLOAT16`](../../glossary.md#term-bfloat16), [`FLOAT32`](../../glossary.md#term-float32),
-[`FLOAT64`](../../glossary.md#term-float64), [`INT32`](../../glossary.md#data-type--datatype), and [`INT64`](../../glossary.md#data-type--datatype); scalar `DIV` and `POW` by exact typed positive one for the three
-floating types; and scalar `ADD` and `SUB` by exact typed zero for `INT32` and `INT64`. Every bypass
+binary `MIN` and `MAX`; scalar `MUL` by exact typed positive one for every current numeric
+type (the six floating types plus INT32 and INT64); scalar `DIV` and `POW` by exact typed positive
+one for all six floating types; and scalar `ADD` and `SUB` by exact typed zero for INT32 and INT64.
+These domains follow [`ForwardExactArithmeticRewriting`](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/ForwardExactArithmeticRewriting.java),
+not an older three-floating-type inventory. Every bypass
 requires complete equality between the input and output `TensorDescriptor`, including [Shape](../../glossary.md#shape),
 [layout](../../glossary.md#layout), [data type](../../glossary.md#data-type--datatype), and `requiresGrad`; the equal descriptor must have `requiresGrad == false`.
 The result must not be a graph output. The [occurrence](../../glossary.md#term-occurrence) phase is preserved. Duplicate [extrema](../../glossary.md#saturation-pole-and-extremum)
 compare already-remapped input IDs, while
 scalar rules require the exact `ScalarValueAttrs` [carrier](../../glossary.md#term-storage-carrier), matching scalar/input/output type, and
 matching typed value. A prior bypass can therefore expose a later eligible occurrence during the
-same [scan](../../glossary.md#model-module-buffer-and-scan-distinctions) without iteration.
+same topological optimizer traversal, without a second pass.
 
 `ScalarValueAttrs` is [immutable](../../glossary.md#term-immutable) [operation](../../glossary.md#operation) [metadata](../../glossary.md#term-metadata) already stored in the graph. Reading its exact
 typed [`ScalarValue`](../../glossary.md#typed-scalar-value--scalarvalue) for an [identity](../../glossary.md#term-identity-meanings) proof is not [Tensor](../../glossary.md#tensor) [constant](../../glossary.md#term-constant) discovery or [host](../../glossary.md#term-host)-storage
-inspection. The scan deliberately does not add floating ADD/SUB-zero, multiplication by
+inspection. The traversal deliberately does not add floating ADD/SUB-zero, multiplication by
 zero, [cancellation](../../glossary.md#term-cancellation), other powers, bounds/clamp identities, broader algebra, or relaxed numerical
 rules. It retains graph-output, [gradient](../../glossary.md#term-gradient)-eligible, and multi-output occurrences.
 
-The following constant-folding scan reads only [logical splat](../../glossary.md#logical-splat) facts already present in the
+The following constant-folding traversal reads only [logical splat](../../glossary.md#logical-splat) facts already present in the
 [compiler](../../glossary.md#term-compiler) sidecar. It folds exactly these current rows:
 
 | Family | Current selected kinds and domains |
@@ -61,8 +75,8 @@ Integral addition, subtraction, and multiplication use the current fixed-width m
 extrema and comparisons use signed order. If either binary operand is `INT64`, an `INT32` operand
 is sign-extended and the result domain is `INT64`. The scalar input remains the left operand, so
 subtraction preserves operand order. A folded splat can feed a later selected occurrence during
-the same topological scan, but the compiler does not seek a fixed point or [run](../../glossary.md#term-run) a second folding
-scan.
+the same topological traversal, but the compiler does not seek a fixed point or [run](../../glossary.md#term-run) a second folding
+traversal.
 
 Each selected fold replaces one internal, one-output, non-gradient occurrence in either phase with
 one

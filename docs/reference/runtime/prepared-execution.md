@@ -1,11 +1,21 @@
 # Advanced [Engine](../../glossary.md#term-engine) and [prepared execution](../../glossary.md#prepared-execution--preparedexecution)
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
 A prepared execution owns reusable recipes and any persistent resources acquired for them.
 A [run state](../../glossary.md#run-state--runstate) instead owns one invocation's [mutable](../../glossary.md#term-mutable) resources. A **[run](../../glossary.md#term-run) [lease](../../glossary.md#term-lease)** temporarily protects
 the preparation needed by an admitted run; it is different from the returned result's lease over
 completed outputs. Closing preparation stops new runs without revoking an already returned result.
+
+## Two closeable owners, two lifetimes
+
+The application calls `AdvancedEngine.prepare`; Engine calls shared preparation and retains the
+returned Runtime owner behind its outward prepared handle. On each run, Engine lends input
+representations to Runtime, which creates a new state and returns a completed-state result lease.
+Closing the preparation prevents new runs; closing a result releases that invocation's resources.
+Neither closes caller input storage. Borrowed storage must remain usable through result close,
+not merely until synchronous execution returns. The [ordinary Engine API](engine-boundary.md)
+adds typed Tensor binding and host copies without replacing these inner ownership rules.
 
 <a id="current-advanced-engine-prepare-and-run-boundary"></a>
 ## Current advanced [Engine](../../glossary.md#term-engine) [prepare](../../glossary.md#prepare) and [run](../../glossary.md#term-run) boundary
@@ -56,6 +66,7 @@ nor a resource count, [lookup](../../glossary.md#term-lookup), or physical value
 different physical resources and are not values.
 
 ```java
+// An empty schedule isolates owner/lease rules; it is not a general Engine zero-node execution promise.
 import io.github.pho001.synaptik.runtime.execution.PreparedExecution;
 import io.github.pho001.synaptik.runtime.schedule.PreparedSchedule;
 import java.util.List;

@@ -1,11 +1,23 @@
 # [Prepare](../../glossary.md#prepare) finalization and [run](../../glossary.md#term-run) orchestration
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
 Orchestration means arranging existing stages in the right order. **Analysis** declares the
 [backend](../../glossary.md#backend)'s resource needs; **assignment** gives those needs stable slots; **finalization** builds
 recipes using the assignments. The runner later binds and executes them for one invocation.
 Preparation failure cleanup [releases](../../glossary.md#commit-release-distribution-log-and-seed-meanings) acquired resources rather than returning a partial [owner](../../glossary.md#term-owner).
+
+## Separate the preparation transaction from one run
+
+Engine calls shared Prepare with artifacts and explicit backend collaborators. Prepare calls
+backend analyzers/finalizers and returns a reusable owner only after schedule validation; on a
+later setup failure it closes persistent resources already handed to it. This is cleanup of
+acquired resources, not reversal of arbitrary backend effects. A later Engine run calls Runtime,
+which invokes creators, binds recipes and executes one isolated state. Closing a result cleans
+that state's owned resources; closing preparation cleans its persistent resources once admitted
+run leases permit it. Read [creation failure cleanup](creation.md) and
+[prepared-owner leases](prepared-execution.md#current-prepared-execution) for the two different
+failure/lifetime boundaries.
 
 <a id="current-prepare-orchestration-assignment-and-backend-finalization"></a>
 ## Current [Prepare](../../glossary.md#prepare) orchestration, assignment, and [backend](../../glossary.md#backend) finalization
@@ -83,7 +95,8 @@ Repeated gradient values and forward/gradient [aliases](../../glossary.md#aliasi
 over the same assigned buffer.
 
 [Graph preparation](../../glossary.md#graph-preparation--graphpreparation) performs no physical allocation, creator invocation, [binding](../../glossary.md#term-binding), execution,
-constant initialization or [materialization](../../glossary.md#materialization), transfer, publication, or cleanup. It contains the
+constant initialization or [materialization](../../glossary.md#materialization), transfer or publication.
+On preparation failure, it closes already-acquired persistent resources as described above. It contains the
 Compiler aggregate only in shared Prepare; [concrete backend](../../glossary.md#concrete-backend)-facing `PrepareContext` values remain
 Compiler-free. The current ordinary [Engine](../../glossary.md#term-engine) maps logical caller inputs and publication roles to
 these Runtime coordinates without exposing them. Prepare 0005 supplies only the shared handoff and
@@ -115,6 +128,7 @@ retained for explicit close or Engine shutdown.
 ## Current prepared runner
 
 ```java
+// Runtime borrows caller representations; the returned result now owns cleanup of completed run state.
 PreparedExecutionRunner runner = new PreparedExecutionRunner();
 RunResult result = runner.run(execution, callerInputs);
 ```
@@ -127,7 +141,7 @@ RunResult result = runner.run(execution, callerInputs);
 - Traversal uses direct bound references and precomputed primitive executable [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix).
 - The current [Runtime](../../glossary.md#term-runtime) [`RunResult`](../../glossary.md#run-result--runresult) leases the whole run state and permits borrowed access to one
   selected nominal representation while that lease is open. It exposes no host or Tensor value;
-  ordinary Engine separately composes the current CPU copy into a detached host value.<span data-glossary-navigation="true"> ([run state glossary](../../glossary.md#run-state--runstate); [nominal glossary](../../glossary.md#term-nominal); [host glossary](../../glossary.md#term-host); [Tensor glossary](../../glossary.md#tensor); [Engine glossary](../../glossary.md#term-engine); [CPU glossary](../../glossary.md#term-cpu); [detached glossary](../../glossary.md#detached-model-results))</span>
+  ordinary Engine separately composes the current CPU copy into a detached host value.
 - A run failure remains primary if deferred persistent-resource cleanup also fails. If execution
   succeeded but lease cleanup fails, the new result is closed and is not returned; any distinct
   result-cleanup failure is suppressed on the persistent-resource failure.
@@ -158,7 +172,7 @@ The runner itself performs no [Trace](../../glossary.md#trace) emission.
 <a id="related-contracts"></a>
 ## Related contracts
 
-- [Runtime, prepare, and backend boundary](../../architecture/runtime-prepare-backend-boundary.md)<span data-glossary-navigation="true"> ([Runtime glossary](../../glossary.md#term-runtime); [prepare glossary](../../glossary.md#prepare); [backend glossary](../../glossary.md#backend))</span>
+- [Runtime, prepare, and backend boundary](../../architecture/runtime-prepare-backend-boundary.md)
 - [Preparing execution](../../user-guide/preparing-execution.md)
 - [Running models](../../user-guide/running-models.md)
 - [Glossary](../../glossary.md)

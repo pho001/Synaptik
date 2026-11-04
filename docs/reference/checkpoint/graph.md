@@ -1,12 +1,24 @@
 <a id="generic-graph-checkpoint-api"></a>
 # [Graph](../../glossary.md#graph) [checkpoint](../../glossary.md#term-checkpoint) sources, copy and [rebind](../../glossary.md#capture-graph-ports-and-reconstruction)
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
 
 A graph source records operations, their dependencies and declared inputs; named state supplies
 the persistent values those operations use. **[Cold reconstruction](../../glossary.md#term-cold-reconstruction)** rebuilds ordinary [Tensor](../../glossary.md#tensor)
 expressions from that description without evaluating them. Copying detaches named state into
 private storage, whereas rebinding changes which input expressions are used without reading storage.
+
+## The copy, rebind and load callers have different needs
+
+The application or NN Model passes `GraphCheckpoint.Source` a description of output expressions,
+ordered input prototypes and named stored state. The Source snapshots lists but borrows the
+Tensors. `copy` reads admitted named-state bytes and creates private copies; `rebind` instead
+builds expressions using supplied replacement references without reading their bytes. `save`
+writes the supported description and named state, not the previous input batches. `load` creates
+fresh ordinary heap state and reconstructed expressions, with no Engine or native Arena to close.
+A **leaf** means no producing expression: only the named-state role requires admitted stored
+values, while input prototypes may be storage-free. Compare [the complete cold example](graph-example.md)
+with [Training recovery](../training/recovery.md) before treating a loaded graph as optimizer continuation.
 
 <a id="purpose-and-mental-model"></a>
 ## Purpose and [mental model](../../glossary.md#term-mental-model)
@@ -22,12 +34,12 @@ adds maximum and average [Pool3d](../../glossary.md#pool3d--ncdhw-pooling) in ou
 body-free. Cold and wire admissions do not imply numerical execution support.
 The [owning contract](../../architecture/contracts/extensions-training.md#generic-graph-source-and-values)
 defines the capability, [original wire](../../architecture/contracts/extensions-training.md#canonical-graph-model-version-1)
-and [selective activation wire](../../architecture/contracts/extensions-training.md#canonical-graph-model-version-2)<span data-glossary-navigation="true"> ([activation glossary](../../glossary.md#term-activation))</span>.
+and [selective activation wire](../../architecture/contracts/extensions-training.md#canonical-graph-model-version-2).
 The [v3 contract](../../architecture/contracts/extensions-training.md#canonical-graph-model-version-3)
 extends the same APIs to selected [convolutional neural network](../../glossary.md#term-convolutional-neural-network-cnn) ([CNN](../../glossary.md#neural-network-families)), static recurrent and fixed
 flat-scan sources. [Persistence](../../glossary.md#term-persistence) adds no execution capability, scan [backpropagation through time](../../glossary.md#term-backpropagation-through-time-bptt)
 ([BPTT](../../glossary.md#backpropagation-through-time-and-recurrent-state)), or [optimizer](../../glossary.md#term-optimizer) [resume](../../glossary.md#schema-serialization-and-checkpoint). Existing default biased [Conv3d](../../glossary.md#conv3d--ncdhw) sources can use
-[qualified backend training](../../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary)<span data-glossary-navigation="true"> ([backend glossary](../../glossary.md#backend))</span>
+[qualified backend training](../../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary)
 after load with a fresh training configuration. Pool3d similarly supports qualified [CPU](../../glossary.md#term-cpu)
 [FLOAT32](../../glossary.md#term-float32)/[FLOAT64](../../glossary.md#term-float64) and [Metal](../../glossary.md#term-metal) FLOAT32 training; it does not restore [optimizer history](../../glossary.md#term-optimizer-history).
 
@@ -79,7 +91,7 @@ Equal values or physically overlapping distinct Tensors never establish aliases.
 order is retained independently of first source encounter and input [signature](../../glossary.md#term-signature) order.
 
 [Checkpoint](../../glossary.md#term-checkpoint)'s body-free disk source [admission](../../glossary.md#term-admission) is the closed static FORWARD **flat**
-[Compiler slice](../../architecture/contracts/compiler-autograd.md#compile-lifecycle)<span data-glossary-navigation="true"> ([Compiler glossary](../../glossary.md#term-compiler); [slice glossary](../../glossary.md#slice))</span>: the original
+[Compiler slice](../../architecture/contracts/compiler-autograd.md#compile-lifecycle): the original
 eight kinds plus the selected [CNN](../../glossary.md#term-convolutional-neural-network-cnn)/static recurrent transforms and fixed scans described below.
 Full [descriptors](../../glossary.md#term-descriptor), sharing and occurrences remain exact. All nine raw types persist where [Model](../../glossary.md#term-model)
 permits them, with [FP8](../../glossary.md#term-fp8) requiring v7; outer SUB, NEG and [activations](../../glossary.md#term-activation) require floating operands.

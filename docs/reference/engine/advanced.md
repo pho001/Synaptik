@@ -1,11 +1,21 @@
 # Advanced [Engine](../../glossary.md#term-engine) [lifecycle](../../glossary.md#lifecycle)
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/engine/src/main/java/io/github/pho001/synaptik/engine/Engine.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/engine/src/main/java/io/github/pho001/synaptik/engine/Engine.java)
 
 The advanced [facade](../../glossary.md#term-facade) serves callers composing lower-level lifecycle objects explicitly.
 A **[composition root](../../glossary.md#term-composition-root)** is the place where opened [backend](../../glossary.md#backend) integrations are assembled and owned.
 It does not discover implementations. A [borrowed](../../glossary.md#ownership-borrowing-and-lease) representation wraps caller storage without
 taking responsibility for freeing that storage.
+
+## Why this boundary takes representations
+
+The application using Advanced Engine is also the low-level composition author: it explicitly
+borrows CPU-compatible storage and orders the resulting Runtime representations for `run`.
+Advanced Engine calls Runtime with those exact objects rather than discovering Tensor leaves or
+returning host values. The borrowed wrapper and backing storage must remain usable until the
+advanced result closes. The result owns its internal state, not the original storage. Prefer
+[ordinary Engine](lifecycle.md) for descriptor-aware Tensor binding and detached copies;
+[Runtime's inward lease](../runtime/publication.md) explains why representations are not values.
 
 <a id="advanced-engine-lifecycle"></a>
 ### Advanced [Engine](../../glossary.md#term-engine) [lifecycle](../../glossary.md#lifecycle)

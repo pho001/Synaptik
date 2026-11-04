@@ -1,12 +1,23 @@
 # [Parameter](../../glossary.md#term-parameter) domains, [admission](../../glossary.md#term-admission) and native copying
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/training/src/main/java/io/github/pho001/synaptik/training/TrainingSession.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/training/src/main/java/io/github/pho001/synaptik/training/TrainingSession.java)
 
 Parameter **admission** checks whether live state satisfies the session's update requirements,
 not merely whether it is [floating-point](../../glossary.md#term-floating-point). A **[master parameter](../../glossary.md#term-master-parameter)** is the private [FLOAT32](../../glossary.md#term-float32) working
 value retained for a low-[precision](../../glossary.md#term-precision) parameter; the [graph](../../glossary.md#graph) still sees its declared logical type.
 The explicit native copy changes the [Tensor](../../glossary.md#tensor)'s [host](../../glossary.md#term-host)-storage association without replacing its
 [identity](../../glossary.md#term-identity-meanings) and is not a [device](../../glossary.md#term-device) transfer.
+
+## Which participant owns the native memory?
+
+The application calls `copyToSharedNative(parameters, arena)` **before** session open. The helper
+copies bytes into the supplied Arena and changes each existing parameter Tensor's storage
+association; it does not replace the Tensor or take ownership of the Arena. The application
+therefore closes the session before closing that Arena. When Training later opens, it borrows
+these exact live parameters and updates their admitted storage in place. A frozen list alone
+cannot prove that an application module still uses those Tensors: `validateUnchanged()` must
+re-read the live owner. Compare [NN reference replacement](../nn/state.md#current-nn-parameter-update-contract),
+which changes the Tensor binding and would invalidate that session capture.
 
 <a id="initial-parameter-domain"></a>
 ## Initial [parameter](../../glossary.md#term-parameter) domain
@@ -56,6 +67,7 @@ This complete NN-free example trains one [FLOAT32](../../glossary.md#term-float3
 `p * p`. The [mutable](../../glossary.md#term-mutable) `live` list stands for the owner's current [bindings](../../glossary.md#term-binding), not the frozen entries:
 
 ```java
+// The live owner is re-read so a frozen entries list cannot hide parameter replacement.
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
@@ -78,8 +90,10 @@ TrainingParameters parameters = new TrainingParameters() {
     }
 };
 try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+    // Only storage association changes; the objective and live owner still refer to p.
     TrainingParameterStorage.copyToSharedNative(parameters, arena);
     try (TrainingSession session = TrainingSession.open(engine, parameters, p.mul(p), new Sgd(0.1))) {
+        // This updates p after evaluating p*p; a returned TrainingStep would report loss 4.
         session.run(List.of(), GradientMode.RESET_AND_STEP);
         float value = p.hostStorage().orElseThrow().segment().get(ValueLayout.JAVA_FLOAT, 0);
         assert Math.abs(value - 1.6f) < 1e-6f;
@@ -87,8 +101,10 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
 }
 ```
 
-Copy changes only storage, so the same live source opens successfully. The [derivative](../../glossary.md#term-derivative) is `2 * 2 = 4`;
-SGD computes `2 - 0.1 * 4 = 1.6`. Replacing `live[0]` with another Tensor would reject the next
+Copy changes only storage, so the same live source opens successfully. For finite real scalar
+$p$, the example's objective is $L(p)=p^2$, so $dL/dp=2p$. At $p=2$, the gradient is $4$;
+with learning rate $\eta=0.1$, $p_{\mathrm{new}}=p-\eta(dL/dp)=2-0.1\cdot4=1.6$.
+The native FLOAT32 update rounds in binary32, which is why the code checks a tolerance. Replacing `live[0]` with another Tensor would reject the next
 [operation](../../glossary.md#operation) even though `entries()` still returns the old Tensor. Callers exclude such mutation
 while copying or [borrowing](../../glossary.md#term-borrowing) a session. Neither operation closes caller [arenas](../../glossary.md#term-arena) or transfers [backend](../../glossary.md#backend) values.
 
@@ -116,6 +132,7 @@ For example, a caller can construct an initialized [`Linear`](../../glossary.md#
 storage transition before opening a [CPU](../../glossary.md#term-cpu) session:
 
 ```java
+// Copy storage before opening Training; preserve Tensor identity and keep the destination Arena alive.
 Linear layer = new Linear(1, 1, true, DataType.FLOAT32, new Random(42));
 Tensor output = layer.forward(input); // input is a live FLOAT32 [1, 1] Tensor
 Tensor difference = output.sub(target); // target is a live FLOAT32 [1, 1] Tensor

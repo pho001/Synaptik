@@ -1,16 +1,27 @@
 # [Structural capture](../../glossary.md#term-structural-capture) and [model](../../glossary.md#term-model) contracts
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
 **[Capture](../../glossary.md#term-capture-meanings)** walks [Tensor](../../glossary.md#tensor) expression dependencies and records operations and their ordered inputs
 and outputs as a [graph](../../glossary.md#graph). **[Provenance](../../glossary.md#provenance)** is the association between a Tensor and the [operation](../../glossary.md#operation)
 [occurrence](../../glossary.md#term-occurrence) that produced it. A **port** is one input or output position of that occurrence, not a
 memory location; a multi-output operation can therefore have several distinct result ports.
 
+## Why a leaf is not necessarily an array
+
+The compiler calls `GraphCapture` with the requested output Tensors. Capture walks each Tensor's
+producing expression; when a Tensor has no producer, it is a **leaf** and becomes a graph input
+unless explicitly classified as a compiler constant. That leaf may have host storage, or may be
+a storage-free prototype describing a future input. Capture inspects neither possibility's bytes.
+Its graph uses local value/node IDs and no longer retains the original Tensor objects. The
+separate input-ID association lets Engine match later stored inputs without owning the original
+storage. Read [cold capture](cold-source.md) for the special API that intentionally also returns
+leaf references, and [ordinary input binding](../runtime/engine-boundary.md) for actual value use.
+
 <a id="current-model-contracts"></a>
 ## Current [model](../../glossary.md#term-model) contracts
 
-Model type support is independent of [backend](../../glossary.md#backend) availability. The temporary Java [CPU](../../glossary.md#term-cpu) low-computation lock is historical and superseded by the [CPU low-precision parity cutover](../../architecture/contracts/backend-execution.md#cpu-low-precision-parity-cutover)<span data-glossary-navigation="true"> ([precision glossary](../../glossary.md#term-precision))</span>. [BFLOAT16](../../glossary.md#term-bfloat16), [FLOAT16](../../glossary.md#term-float16) and both [FP8](../../glossary.md#term-fp8) formats reuse ordinary CPU numerical [owners](../../glossary.md#term-owner) and shared [Compiler](../../glossary.md#term-compiler) first-order [AD](../../glossary.md#autograd) under the exact family, promotion, geometry and resource guards. This does not widen [Metal](../../glossary.md#term-metal) [admission](../../glossary.md#term-admission); use the [current backend-qualified matrix](../../backend-guide/production-support.md)<span data-glossary-navigation="true"> ([matrix glossary](../../glossary.md#term-matrix-meanings))</span>.
+Model type support is independent of [backend](../../glossary.md#backend) availability. The temporary Java [CPU](../../glossary.md#term-cpu) low-computation lock is historical and superseded by the [CPU low-precision parity cutover](../../architecture/contracts/backend-execution.md#cpu-low-precision-parity-cutover). [BFLOAT16](../../glossary.md#term-bfloat16), [FLOAT16](../../glossary.md#term-float16) and both [FP8](../../glossary.md#term-fp8) formats reuse ordinary CPU numerical [owners](../../glossary.md#term-owner) and shared [Compiler](../../glossary.md#term-compiler) first-order [AD](../../glossary.md#autograd) under the exact family, promotion, geometry and resource guards. This does not widen [Metal](../../glossary.md#term-metal) [admission](../../glossary.md#term-admission); use the [current backend-qualified matrix](../../backend-guide/production-support.md).
 
 The `io.github.pho001.synaptik.model.operation`, `io.github.pho001.synaptik.model.tensor`, and
 `io.github.pho001.synaptik.model.graph` packages now provide compiler-neutral data that later

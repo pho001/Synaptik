@@ -1,6 +1,6 @@
 # [Optimizers](../../glossary.md#term-optimizer), [gradient](../../glossary.md#term-gradient) modes and [atomic](../../glossary.md#resource-transaction-and-rollback) state
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/training/src/main/java/io/github/pho001/synaptik/training/TrainingSession.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/training/src/main/java/io/github/pho001/synaptik/training/TrainingSession.java)
 
 An **optimizer** turns gradients into [parameter](../../glossary.md#term-parameter) updates. Its **state** can include [momentum](../../glossary.md#term-momentum)
 (a running update direction), [Adam](../../glossary.md#adaptive-optimizer--adam-adamw)'s first and second moments (running gradient and squared-gradient
@@ -8,28 +8,58 @@ estimates), and pending accumulated gradients. An optimizer **slot** is one such
 history value, not a [Runtime](../../glossary.md#term-runtime) [memory slot](../../glossary.md#memory-slot). A **[transaction](../../glossary.md#term-transaction)** stages a complete update before [commit](../../glossary.md#term-commit);
 its documented [atomicity](../../glossary.md#term-atomicity) does not create a transaction across [model](../../glossary.md#term-model) files and external progress.
 
+## Read an update as a per-element calculation
+
+Training, not the Optimizer configuration record, executes the rule. The application supplies
+coefficients at session open; Training retains private history arrays and stages every element's
+candidate before changing live parameter bytes. Symbols below describe **one** finite real
+parameter element; the same rule applies independently to all admitted nonempty parameter
+coordinates. Floating evaluation rounds at the documented sites and rejects non-finite candidate
+state; these formulas do not authorize reassociation, loss scaling, or clipping.
+
+For low types, $p$ in these equations is the private FLOAT32 master, not the narrowed logical
+parameter stored for the graph. For SGD, let $p$ be the current parameter working value, $g$ its supplied gradient, $\lambda\ge0$ the coupled
+decay coefficient, and $\eta>0$ the learning rate. The direction is
+$d=g+\lambda p$ and, without momentum, $p_{\mathrm{new}}=p-\eta d$.
+For $p=2$, $g=4$, $\lambda=0$ and $\eta=0.1$, the candidate is $1.6$.
+With momentum coefficient $\mu$, dampening $\tau\in[0,1]$ and prior slot $b_{t-1}$,
+$b_1=d_1$ and $b_t=\mu b_{t-1}+(1-\tau)d_t$ for successful step index $t\ge2$.
+Ordinary momentum uses $b_t$; Nesterov uses $d_t+\mu b_t$, requiring $\mu>0$ and $\tau=0$.
+See [session ordering and pre-update loss](sessions.md#who-calls-whom-during-one-step) to interpret
+the value returned alongside this update.
+
 <a id="optimizers-and-gradient-modes"></a>
 ## [Optimizers](../../glossary.md#term-optimizer) and [gradient](../../glossary.md#term-gradient) modes
 
-For [parameter](../../glossary.md#term-parameter) `p`, published gradient `g`, coupled [weight decay](../../glossary.md#term-weight-decay) `wd`, [momentum](../../glossary.md#term-momentum) `m`, [dampening](../../glossary.md#term-dampening) `damp`,
-and [learning rate](../../glossary.md#term-learning-rate) `lr`, [SGD](../../glossary.md#term-stochastic-gradient-descent-sgd) first computes `d = g + wd * p`. Without momentum, the update is
-`p = p - lr * d`. With momentum, the first successful [optimizer step](../../glossary.md#optimizer-and-stochastic-gradient-descent) stores `d` without applying
-dampening; later steps store `m * previous + (1 - damp) * d`. Ordinary momentum selects that new
-slot, while [Nesterov](../../glossary.md#term-nesterov) selects `d + m * newSlot`. Dampening is in `[0, 1]`; Nesterov requires
-positive momentum and exactly zero dampening. [FLOAT32](../../glossary.md#term-float32) and all four low parameter types validate
+The SGD symbols and equations above define the candidate direction, momentum slot and Nesterov
+selection. [FLOAT32](../../glossary.md#term-float32) and all four low parameter types validate
 coefficients after one [binary32](../../glossary.md#floating-point-precision-and-rounding) [narrowing](../../glossary.md#term-narrowing) and use [finite](../../glossary.md#term-finite) binary32 master, momentum, accumulation,
 and candidate arithmetic. A successful low-[precision](../../glossary.md#term-precision) update narrows the validated master candidate
 once to the declared logical type. [FLOAT64](../../glossary.md#term-float64) parameters use [binary64](../../glossary.md#floating-point-precision-and-rounding).
 
 `Adam(lr, beta1, beta2, epsilon, weightDecay)` and
 `AdamW(lr, beta1, beta2, epsilon, weightDecay)` require finite positive `lr` and [`epsilon`](../../glossary.md#epsilon),
-betas in `[0, 1)`, and finite non-negative decay. On one-based global step `t`, both form
-`m = beta1 * oldM + (1 - beta1) * g` and
-`v = beta2 * oldV + (1 - beta2) * g * g`. They subtract
-`lr * (m / (1 - beta1^t)) / (sqrt(v / (1 - beta2^t)) + epsilon)`.
-[Adam](../../glossary.md#adaptive-optimizer--adam-adamw) adds `weightDecay * masterParameter` to `g` first (coupled decay). [AdamW](../../glossary.md#adaptive-optimizer--adam-adamw) keeps `g`
-unchanged and multiplies the [master parameter](../../glossary.md#term-master-parameter) by `1 - lr * weightDecay` before subtraction
-(decoupled decay). All parameters share the same `t`, including mixed SGD/Adam/AdamW groups.
+betas $\beta_1,\beta_2\in[0,1)$, and finite non-negative decay $\lambda$.
+Let $t\ge1$ be the one-based global successful optimizer-step index, $m_t$ the first moment,
+$v_t$ the second moment and $\epsilon>0$ the denominator stabilizer. Starting with zero moments,
+
+$$
+m_t=\beta_1m_{t-1}+(1-\beta_1)g_t,\qquad
+v_t=\beta_2v_{t-1}+(1-\beta_2)g_t^2,
+$$
+
+$$
+\widehat m_t=\frac{m_t}{1-\beta_1^t},\qquad
+\widehat v_t=\frac{v_t}{1-\beta_2^t},\qquad
+p_{\mathrm{new}}=p-\eta\frac{\widehat m_t}{\sqrt{\widehat v_t}+\epsilon}.
+$$
+
+Adam first replaces $g_t$ with $g_t+\lambda p$ (coupled decay). AdamW instead keeps $g_t$
+and replaces the leading $p$ in the final equation with $(1-\eta\lambda)p$ (decoupled decay).
+At the first step with $g_1=4$, bias correction gives $\widehat m_1=4$ and
+$\widehat v_1=16$ for either admitted beta pair; the adaptive subtraction is
+$\eta\cdot4/(4+\epsilon)$. This explains why it is not the same as SGD's $\eta\cdot4$.
+All parameter groups share $t$, including SGD groups; a group is not its own step counter.
 Binary32 assignments narrow all five coefficients once at open, rejecting zero rate/epsilon,
 betas rounded to one, and non-finite or out-of-range results. [Bias](../../glossary.md#term-bias) corrections are calculated
 outside each [element](../../glossary.md#term-element) loop. Every intermediate, both moments, and final logical narrowing must
@@ -40,6 +70,7 @@ block in the example above. AdamW updates `weight`; the unlisted `bias` uses Ada
 one global step together:
 
 ```java
+// Both algorithms stage one transaction; different groups do not create separate step counters.
 List<ParameterGroup> groups = List.of(
         new ParameterGroup(List.of("weight"),
                 new AdamW(0.001, 0.9, 0.999, 1e-8, 0.01)));
@@ -146,6 +177,7 @@ This helper also handles [FLOAT64](../../glossary.md#term-float64), [SGD](../../
 and its public dependencies on the [classpath](../../glossary.md#term-classpath):
 
 ```java
+// Copy canonical bytes, including optional adaptive slots, without interpreting or normalizing values.
 import io.github.pho001.synaptik.training.TrainingState;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;

@@ -1,13 +1,32 @@
 <a id="training-api"></a>
 # Training sessions and [owned Model](../../glossary.md#model-module-buffer-and-scan-distinctions) convenience
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/training/src/main/java/io/github/pho001/synaptik/training/TrainingSession.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/training/src/main/java/io/github/pho001/synaptik/training/TrainingSession.java)
 
 A [training session](../../glossary.md#training-session--trainingsession) connects a [scalar](../../glossary.md#term-scalar) **[objective](../../glossary.md#term-objective)** (the quantity to optimize), selected
 [parameters](../../glossary.md#term-parameter) and an [optimizer](../../glossary.md#term-optimizer) to one reusable [Engine](../../glossary.md#term-engine) execution. A **[gradient](../../glossary.md#term-gradient)** measures how that
 objective changes with a selected parameter. The session computes and checks gradients before
 committing an update; [model](../../glossary.md#term-model) train/[eval mode](../../glossary.md#inference-and-evaluation) is a separate forward-behavior choice and does not
 itself start an [optimizer step](../../glossary.md#optimizer-and-stochastic-gradient-descent).
+
+## Who calls whom during one step?
+
+With the lower-level API, the application calls `TrainingSession.open`, lending its Engine and
+live parameter source until session close. Training calls `Engine.compile` and `Engine.prepare`
+once, then reuses that preparation. On each `run`/`runValues`, Training lends the batch to Engine,
+reads the objective and gradients from the completed result, closes that result, validates the
+whole candidate update, and only then writes the captured parameter storage. External batch
+storage is borrowed only until the synchronous Training call returns; parameter storage must
+remain exclusively available for the session's lifetime.
+
+`TrainingStep` reports the objective from the forward/backward execution **before that call's
+optimizer update**. It is not a second evaluation of the updated model. An `ACCUMULATE` run has no
+parameter update at all. For a finite real scalar parameter $p$ and objective $L(p)=p^2$,
+$L(2)=4$ and $dL/dp=4$; an SGD step of size $0.1$ changes $p$ to $1.6$, but the reported loss is
+still $4$, not $L(1.6)=2.56$. These real-number values explain ordering; represented floating
+arithmetic follows the [optimizer's finite-candidate rules](optimizers.md#atomicity-state-concurrency-and-close).
+Owned Model convenience makes Model, rather than the application, the caller that opens and
+closes this private session.
 
 <a id="purpose-and-implementation-status"></a>
 ## Purpose and implementation status
@@ -100,6 +119,7 @@ For example, after the [`Linear`](../../glossary.md#term-linear-meanings) parame
 two-rate variation uses [learning rate](../../glossary.md#term-learning-rate) `0.05` for `weight` and the default `0.1` for `bias`:
 
 ```java
+// Groups choose per-path coefficients but all parameters share one successful optimizer-step count.
 List<ParameterGroup> groups = List.of(
         new ParameterGroup(List.of("weight"), new Sgd(0.05)));
 try (TrainingSession session = TrainingSession.open(
@@ -111,7 +131,7 @@ try (TrainingSession session = TrainingSession.open(
 ```
 
 Here `layer`, `objective`, `engine`, `input`, and `target` are the live values constructed in the
-complete example under [explicit native parameter copy](parameters.md#explicit-native-parameter-copy)<span data-glossary-navigation="true"> ([native parameter copy glossary](../../glossary.md#native-parameter-copy--trainingparameterstorage))</span>. The
+complete example under [explicit native parameter copy](parameters.md#explicit-native-parameter-copy). The
 single run advances one global [optimizer step](../../glossary.md#optimizer-and-stochastic-gradient-descent), not one step per group.
 
 For a three-parameter [Module](../../glossary.md#term-module) with recursive paths `first`, `second`, and `third`, this assignment
@@ -119,6 +139,7 @@ fragment shows all three algorithms in one session. The unlisted `first` uses [A
 groups assign [SGD](../../glossary.md#term-stochastic-gradient-descent-sgd) to `second` and [AdamW](../../glossary.md#adaptive-optimizer--adam-adamw) to `third`. All three still update at the same global step:
 
 ```java
+// Unlisted paths use the default Adam; this session still requires explicit close by its caller.
 List<ParameterGroup> mixed = List.of(
         new ParameterGroup(List.of("second"), new Sgd(0.2)),
         new ParameterGroup(List.of("third"),
@@ -129,7 +150,7 @@ TrainingSession session = TrainingSession.open(engine, module.trainingParameters
 
 Here `module` must own those three live native parameters and `objective` must be a scalar
 expression connected to all three; the caller closes `session` after use. The
-[CPU integration test](../../../testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/TrainingSessionCpuIntegrationTest.java)<span data-glossary-navigation="true"> ([CPU glossary](../../glossary.md#term-cpu); [integration test glossary](../../glossary.md#term-integration-test))</span>
+[CPU integration test](../../../testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/TrainingSessionCpuIntegrationTest.java)
 constructs and runs that complete scenario.
 
 `session.inputs()` contains only the compiled inputs not supplied internally as captured
@@ -153,7 +174,7 @@ value repeated across matching positions; zero-byte overlap remains exempt. This
 stronger than generic Engine positional [binding](../../glossary.md#term-binding). Both methods borrow caller external storage only
 through the [synchronous](../../glossary.md#term-synchronous) call and internal result closure, never for the next run. Keep it alive,
 accessible and free of conflicting mutation until return. See the
-[fresh-batch scalar example](../../user-guide/training.md#train-fresh-batches-and-targets)<span data-glossary-navigation="true"> ([batch glossary](../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span> for compiled-order mapping
+[fresh-batch scalar example](../../user-guide/training.md#train-fresh-batches-and-targets) for compiled-order mapping
 and independently calculated [losses](../../glossary.md#loss) and updates.
 
 

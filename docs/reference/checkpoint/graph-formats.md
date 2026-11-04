@@ -1,11 +1,21 @@
 # Selective [graph](../../glossary.md#graph) format versions
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/checkpoint/src/main/java/io/github/pho001/synaptik/checkpoint/graph/GraphCheckpoint.java)
 
 A format version identifies the rules for reading stored bytes. An **[opcode](../../glossary.md#term-opcode)** is the numeric
 label for one stored [operation](../../glossary.md#operation), and a data-type ID identifies its [element](../../glossary.md#term-element) format. **[Serialization](../../glossary.md#term-serialization)**
 encodes supported source descriptions and state into bytes; [deserialization](../../glossary.md#term-deserialization) rebuilds them. Format
 support is separate from a [backend](../../glossary.md#backend)'s ability to execute the rebuilt computation or train it.
+
+## Follow the writer and reader, not just the version number
+
+The caller supplies a Source to GraphCheckpoint; the writer chooses the smallest format that
+can describe every retained operation/type/body. The reader validates that version's complete
+metadata before creating candidate Tensors and copying stored state into fresh heap storage.
+Neither a version number nor a successful round trip grants backend execution: the application
+must later compile and prepare the reconstructed expressions on a qualifying route. Input
+prototypes store descriptions, not old batch contents. Use [the cold example](graph-example.md)
+to see those calls and [the source boundary](graph.md#inputs-outputs-and-identity) for roles and aliases.
 
 <a id="fp8-graph-persistence"></a>
 ## [FP8](../../glossary.md#term-fp8) [graph](../../glossary.md#graph) [persistence](../../glossary.md#term-persistence)
@@ -42,7 +52,7 @@ change. No caller version selector or implicit [operation](../../glossary.md#ope
 ### Selected [CNN](../../glossary.md#term-convolutional-neural-network-cnn) and recurrent [persistence](../../glossary.md#term-persistence)
 
 The v3 extension adds only the exact selected **flat**
-[Compiler source mappings](../../architecture/contracts/compiler-autograd.md#compile-lifecycle)<span data-glossary-navigation="true"> ([Compiler glossary](../../glossary.md#term-compiler))</span>: SUB,
+[Compiler source mappings](../../architecture/contracts/compiler-autograd.md#compile-lifecycle): SUB,
 RESHAPE, [axis](../../glossary.md#term-axis)-2 EXPAND_DIMS/SQUEEZE, axis-0 SELECT/[GATHER](../../glossary.md#gather)/CONCAT, [rank-two](../../glossary.md#axis-rank-scalar-vector-and-matrix) last-axis [SLICE](../../glossary.md#slice),
 three-input biased default [CONV2D](../../glossary.md#convolution--conv2d)/[CONV3D](../../glossary.md#conv3d--ncdhw), builder MAX_POOL2D, and the fixed RNN_TANH,
 GRU_RESET_AFTER and [LSTM](../../glossary.md#term-long-short-term-memory-lstm) scans. Attribute and [signature](../../glossary.md#term-signature) restrictions are deliberate; this is not
@@ -112,7 +122,7 @@ records focused evidence and main's final gate/capability acceptance.
 <a id="length-aware-general-scan-persistence"></a>
 ### Length-aware general-[scan](../../glossary.md#term-cumulative-scan) [persistence](../../glossary.md#term-persistence)
 
-[Checkpoint v5](../../architecture/contracts/extensions-training.md#canonical-graph-model-version-5)<span data-glossary-navigation="true"> ([Checkpoint glossary](../../glossary.md#term-checkpoint))</span>
+[Checkpoint v5](../../architecture/contracts/extensions-training.md#canonical-graph-model-version-5)
 adds the static floating length-aware cold intersection without changing v4 records or [widening](../../glossary.md#term-widening)
 its pre-[Pool3d](../../glossary.md#pool3d--ncdhw-pooling) constructor inventory. Qualified mixed per-role floating [dtypes](../../glossary.md#data-type--datatype) and explicit casts
 retain their exact [descriptors](../../glossary.md#term-descriptor). Non-[FP8](../../glossary.md#term-fp8) sources needing length mode without Pool3d select

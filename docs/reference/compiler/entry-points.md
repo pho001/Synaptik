@@ -1,11 +1,23 @@
 # Ordinary and advanced [compile](../../glossary.md#compile) entry points
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
 An entry point is the [API](../../glossary.md#term-application-programming-interface-api) through which a caller requests [compilation](../../glossary.md#compiler-engine-and-execution-stage-names). Ordinary [Engine](../../glossary.md#term-engine) supplies
 a fixed convenient policy; Advanced Engine exposes more explicit request data. A compiled handle
 identifies a logical recipe belonging to one Engine, not runnable storage. Preparation must still
 check that the selected [backend](../../glossary.md#backend) can turn that recipe into executable work.
+
+## The caller changes at the integration boundary
+
+The application calls `engine.compile(outputs)` with Tensor expressions describing desired
+results. Engine then calls `GraphCompilationPort.compile(...)` with those expressions and its
+frozen policy/provider inputs; the port delegates to the package-private compiler. Compiler
+captures dependencies and returns logical metadata, not the input arrays' current values.
+Engine wraps that result in its own owner-bound handle. Compile reads no host-storage bytes and
+does not acquire a lease that would keep an application Arena alive. At execution, the application
+must separately supply usable stored inputs under [run binding and result lifetimes](../runtime/engine-boundary.md#current-ordinary-engine-boundary).
+The [artifact structure](artifacts.md#current-complete-artifact-compilation-and-integration-port)
+is useful to integration authors, but ordinary callers do not receive it directly.
 
 <a id="current-ordinary-and-advanced-engine-compile-boundaries"></a>
 ## Current ordinary and advanced [Engine](../../glossary.md#term-engine) [compile](../../glossary.md#compile) boundaries
@@ -13,6 +25,7 @@ check that the selected [backend](../../glossary.md#backend) can turn that recip
 The ordinary `Engine` exposes these two compile forms:
 
 ```java
+// These calls describe forward/derivative work; neither reads stored inputs or updates parameters.
 CompiledGraph forward = engine.compile(List.of(output));
 CompiledGraph differentiated = engine.compile(
         List.of(output), List.of(cotangentSeed), List.of(target));

@@ -1,6 +1,6 @@
 # Public capability and [planning](../../glossary.md#term-planning) values
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc))</span> · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
 A capability query describes one exact [operation](../../glossary.md#operation) and its input/output [metadata](../../glossary.md#term-metadata). A provider answers
 whether its [backend](../../glossary.md#backend) can own that [occurrence](../../glossary.md#term-occurrence); planning then records the selected [owner](../../glossary.md#term-owner) and groups
@@ -14,13 +14,13 @@ The public `modules:planning` surface contains these backend-neutral [compile](.
   output `TensorDescriptor` references, an optional independently scoped `CompiledScanBody`,
   and an optional `ScanActivityPlan`;
 - `ScanActivityPlan`, immutable structural presence and ordered-merge facts for one exact local
-  Scan body, with distinct carry/seed roots and temporal accumulators;<span data-glossary-navigation="true"> ([Scan body glossary](../../glossary.md#backpropagation-through-time-and-recurrent-state))</span>
+  Scan body, with distinct carry/seed roots and temporal accumulators;
 - [`BackendCapabilityProvider`](../../glossary.md#backend-capability-provider--backendcapabilityprovider), an explicitly supplied collaboration with a stable non-null
   [`BackendId`](../../glossary.md#backend-identity--backendid) and a deterministic [boolean](../../glossary.md#data-type--datatype) capability answer; and
 - `BackendOwnerPlanning`, a stateless one-method collaboration that composes internal hard
   eligibility and baseline owner comparison for one occurrence;
 - `PlannedPartition`, an immutable owner-plus-node-ID recipe for one non-empty consecutive region
-  of an owning compiled graph;<span data-glossary-navigation="true"> ([compiled graph glossary](../../glossary.md#compiled-graph--compiledgraphmodel))</span>
+  of an owning compiled graph;
 - `MaximalSameOwnerPartitioning`, the stateless generator over one complete compiler-assembled
   node-to-owner map;
 - `LogicalMemoryRequirement`, one immutable graph-value recipe retaining logical descriptor,
@@ -64,6 +64,7 @@ Cold/wire and [NN](../../glossary.md#neural-network-module-parameter-buffer-and-
 This current example asks an illustrative local provider about one [unary](../../glossary.md#term-unary) `ABS` occurrence:
 
 ```java
+// This illustrative provider recognizes a name only; production support also checks exact occurrence guards.
 import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.operation.NoOperationAttrs;
@@ -130,6 +131,7 @@ the graph's stored [topological order](../../glossary.md#term-topological-order)
 The following current code constructs the public recipe directly:
 
 ```java
+// Direct construction snapshots IDs but does not prove they belong to one consecutive graph region.
 import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.model.graph.NodeId;
 import io.github.pho001.synaptik.planning.partition.PlannedPartition;
@@ -186,3 +188,14 @@ construction.
 ---
 
 [Previous topic](configuration-values.md) · [Next topic](artifact-values.md)
+## Construction does not answer the whole planning question
+
+An integration author can construct the records below directly, but Compiler is the caller that
+supplies final graph facts to Planning in the normal pipeline. A direct `PlannedPartition` value
+only snapshots an owner and node IDs; partition generation establishes whether those IDs really
+form one region of this graph. Likewise a query contains descriptors, not the current arrays.
+Providers inspect those descriptions and return support without acquiring storage. Read
+[the complete Planning collaboration](planning.md) before treating a local illustrative provider
+as a production capability proof, and [physical assignment](../runtime/prepare.md) for the later
+transition from logical facts to resource slots.
+

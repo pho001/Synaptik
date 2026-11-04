@@ -1,12 +1,23 @@
 <a id="compile-api"></a>
 # Named-[batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) [metadata](../../glossary.md#term-metadata) [binding](../../glossary.md#term-binding)
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
 A named [batch dimension](../../glossary.md#batch-dimension), written B, leaves the number of examples unspecified in a template.
 **Metadata binding** supplies actual input descriptions and checks that every use of B agrees,
 without reading the input's numbers. This differs from [runtime](../../glossary.md#term-runtime) input binding, which associates
 usable stored values with the compiled input positions.
+
+## Who binds the named dimension?
+
+Engine's run path supplies actual **descriptors** to Compiler's `BatchBindingPlan`; Compiler
+checks their shared batch size and deferred shape relationships before Engine borrows storage.
+The plan retains immutable logical facts, not batches, arrays or a cached actual size. A new call
+can bind another admitted size without mutating the original template. The number of examples
+is a non-negative integer $B$; for fixed time $T=3$ and feature width $F=2$, a sequence descriptor
+$[T,B,F]$ becomes $[3,40,2]$ at $B=40$. This is dimension substitution, not a copy or a transpose.
+See [changing-batch execution](../engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+for the independently qualified numerical route.
 
 <a id="ordinary-named-batch-metadata-binding"></a>
 ## Ordinary named-[batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) [metadata](../../glossary.md#term-metadata) [binding](../../glossary.md#term-binding)

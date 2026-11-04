@@ -1,11 +1,22 @@
 # Logical memory and [compile](../../glossary.md#compile) outputs
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
 Logical memory [planning](../../glossary.md#term-planning) records which [graph value](../../glossary.md#graph-value) is produced, consumed or required as an
 output. Physical memory planning must later determine storage size and arrangement. A logical
 value ID names a computation result, not a [buffer](../../glossary.md#term-buffer) address; a logical preservation requirement
 therefore does not allocate storage or decide which physical copy will be published.
+
+## From a logical value to a physical slot
+
+Compiler calls `LogicalMemoryPlanning.plan` with a verified graph and its ordered partitions.
+Planning returns one immutable requirement per value: who produces it, who consumes it, and
+whether it must survive as an output. A requirement can exist for a storage-free input or an
+unresolved shape. Prepare later calls backend analysis, receives concrete byte requirements and
+assigns Runtime slots; only backend creators allocate per-run storage. A logical `ValueId` is
+therefore not an address or a cleanup handle. Compare [Runtime byte geometry](../runtime/memory.md)
+and [Prepare assignment](../runtime/orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization)
+to follow that later boundary.
 
 <a id="current-logical-memory-recipes"></a>
 ## Current logical-memory recipes
@@ -14,6 +25,7 @@ therefore does not allocate storage or decide which physical copy will be publis
 [compile](../../glossary.md#compile)-time data with exactly these ordered components:
 
 ```java
+// A requirement preserves logical use relationships; it does not allocate bytes.
 ValueId valueId
 TensorDescriptor descriptor
 Optional<PlannedPartition> producerPartition
@@ -62,6 +74,7 @@ package-private [compiler](../../glossary.md#term-compiler) invokes it after par
 Ordinary [compilation](../../glossary.md#compiler-engine-and-execution-stage-names) receives an ordered [Tensor](../../glossary.md#tensor)-output list through the current [Engine](../../glossary.md#term-engine):
 
 ```java
+// Compilation reads the output description; stored input bytes are supplied at a later run.
 CompiledGraph graph = engine.compile(List.of(output));
 ```
 
@@ -124,20 +137,20 @@ CompiledGraph graph = engine.compile(List.of(output));
   graph-local canonicalization, the guarded seven-rule exact arithmetic scan, the bounded
   logical-splat fold matrix, and exact one-shot whole-graph DCE/phase-local-CSE/DCE cleanup are
   current internal behavior.
-  All other operation-specific rewrites listed above remain planned.<span data-glossary-navigation="true"> ([compiler glossary](../../glossary.md#term-compiler); [capture glossary](../../glossary.md#term-capture-meanings); [binary glossary](../../glossary.md#term-binary-descriptor-and-metadata); [boolean glossary](../../glossary.md#data-type--datatype); [unary glossary](../../glossary.md#term-unary); [GELU glossary](../../glossary.md#gaussian-error-linear-unit--gelu); [tanh glossary](../../glossary.md#term-tanh); [SiLU glossary](../../glossary.md#sigmoid-linear-unit--silu); [scalar glossary](../../glossary.md#term-scalar); [mean glossary](../../glossary.md#term-mean); [binding glossary](../../glossary.md#term-binding); [target glossary](../../glossary.md#term-target); [Shape glossary](../../glossary.md#shape); [axis glossary](../../glossary.md#term-axis); [log-sum-exp glossary](../../glossary.md#log-sum-exp); [norm glossary](../../glossary.md#term-norm); [scan glossary](../../glossary.md#term-cumulative-scan); [softmax glossary](../../glossary.md#softmax--log-softmax); [log-softmax glossary](../../glossary.md#softmax--log-softmax); [normalization glossary](../../glossary.md#term-normalization); [batch glossary](../../glossary.md#term-batch-machine-learning-and-hyperparameters); [inference glossary](../../glossary.md#term-inference); [statistic glossary](../../glossary.md#term-statistic); [loss reduction glossary](../../glossary.md#loss-reduction); [dispatch glossary](../../glossary.md#term-dispatch); [BOOL glossary](../../glossary.md#data-type--datatype); [mask glossary](../../glossary.md#term-boolean-mask); [producer glossary](../../glossary.md#term-producer); [weights glossary](../../glossary.md#term-weight); [NCHW glossary](../../glossary.md#term-nchw); [Conv2d glossary](../../glossary.md#convolution--conv2d); [bias glossary](../../glossary.md#term-bias); [NCDHW glossary](../../glossary.md#conv3d--ncdhw); [Conv3d glossary](../../glossary.md#conv3d--ncdhw); [validation glossary](../../glossary.md#term-validation); [pooling glossary](../../glossary.md#term-pooling); [operation glossary](../../glossary.md#operation); [spatial glossary](../../glossary.md#term-spatial-axes); [metadata glossary](../../glossary.md#term-metadata); [contiguous request glossary](../../glossary.md#contiguous-request); [view glossary](../../glossary.md#term-view-meanings); [permutation glossary](../../glossary.md#permutation); [rank-two glossary](../../glossary.md#axis-rank-scalar-vector-and-matrix); [transpose glossary](../../glossary.md#term-transpose); [dimensions glossary](../../glossary.md#dimension); [slice glossary](../../glossary.md#slice); [occurrence glossary](../../glossary.md#term-occurrence); [finite glossary](../../glossary.md#term-finite); [slice update glossary](../../glossary.md#slice-update); [layout glossary](../../glossary.md#layout); [Gather glossary](../../glossary.md#gather); [Gather Elements glossary](../../glossary.md#gather-elements); [Gather-ND glossary](../../glossary.md#gather-nd); [Scatter Elements glossary](../../glossary.md#scatter-elements); [Scatter Add glossary](../../glossary.md#scatter-add); [Scatter-ND glossary](../../glossary.md#scatter-nd); [constant glossary](../../glossary.md#term-constant); [padding glossary](../../glossary.md#padding); [dropout glossary](../../glossary.md#dropout--inverted-dropout); [gradient glossary](../../glossary.md#term-gradient); [activation glossary](../../glossary.md#term-activation); [decomposition glossary](../../glossary.md#term-decomposition); [contiguous glossary](../../glossary.md#term-contiguous); [rank glossary](../../glossary.md#term-rank); [preflight glossary](../../glossary.md#term-preflight); [matrix glossary](../../glossary.md#term-matrix-meanings); [canonicalization glossary](../../glossary.md#occurrence-identity-and-canonical-form); [convolution glossary](../../glossary.md#term-channels-first-convolution-layers); [materialization glossary](../../glossary.md#materialization); [planning glossary](../../glossary.md#term-planning); [identity glossary](../../glossary.md#term-identity-meanings); [autograd glossary](../../glossary.md#autograd); [graph glossary](../../glossary.md#graph); [DCE glossary](../../glossary.md#term-dead-code-elimination-dce); [CSE glossary](../../glossary.md#term-common-subexpression-elimination-cse))</span>
+  All other operation-specific rewrites listed above remain planned.
 - [`GraphRngState`](../../glossary.md#graph-rng-state--graphrngstate) is an implemented [opaque](../../glossary.md#term-opaque) [model](../../glossary.md#term-model) expression value rather than a public numerical
   `Tensor` output. Current dropout places its private state Tensor at producer input one and wraps
   producer output two as the next state. Package-private structural capture preserves the
   reachable initial-state producer, state edge, and every dropout output slot. Direct state
   boundary selection, serialization, value rewriting, lifetime policy, and public compilation
   remain planned. Current internal canonicalization preserves every state slot, exact CSE merges
-  only complete equal occurrences, and DCE retains all slots of a live dropout node.<span data-glossary-navigation="true"> ([structural capture glossary](../../glossary.md#term-structural-capture))</span><span data-glossary-navigation="true"> ([serialization glossary](../../glossary.md#term-serialization); [lifetime glossary](../../glossary.md#term-lifetime); [node glossary](../../glossary.md#node))</span>
+  only complete equal occurrences, and DCE retains all slots of a live dropout node.
 - `CompileConfig` will aggregate the current [compile mode](../../glossary.md#compile-mode--compilemode), [`BackendIntent`](../../glossary.md#backend-intent--backendintent), graph-optimization,
   and [`PartitionScoringConfig`](../../glossary.md#partition-scoring-configuration--partitionscoringconfig) values with any later justified planning-cost inputs as data. It will not
   contain live backend services. Its exact surface and defaults remain planned.
 - `PublicationPlan` is current compiler-owned output-only context around ordered forward and
   gradient publication bindings and the exact final graph. It is separate from the model graph
-  and adds no publication delivery policy or runtime behavior.<span data-glossary-navigation="true"> ([publication glossary](../../glossary.md#term-publication))</span>
+  and adds no publication delivery policy or runtime behavior.
 - `CompileConstantPlan` is current compiler-owned output-only classification of final graph inputs
   as caller-bindable or exact logical splats. Its typed bindable view associates each final
   caller-bindable [`ValueId`](../../glossary.md#logical-valueid-versus-physical-memory-slot) with its originating [immutable](../../glossary.md#term-immutable) [`TensorId`](../../glossary.md#tensorid); `bindableInputs()` remains
@@ -147,11 +160,11 @@ CompiledGraph graph = engine.compile(List.of(output));
 - `CompileArtifacts` currently combines mode, the exact final [`CompiledGraphModel`](../../glossary.md#compiled-graph--compiledgraphmodel), maximal
   backend-owned partitions, the derived logical memory plan, publication roles, constant/input
   roles, diagnostics, and derivative-order metadata. Its public record and nested output data are
-  implemented, and the public constant-free <span data-glossary-navigation="true"> ([logical memory plan glossary](../../glossary.md#logical-memory-plan); [derivative glossary](../../glossary.md#term-derivative))</span>`GraphCompilationPort` delegates to the
+  implemented, and the public constant-free `GraphCompilationPort` delegates to the
   package-private complete construction entry.
 - Engine `CompiledGraph` is an [owner](../../glossary.md#term-owner)-bound [facade](../../glossary.md#term-facade) over immutable `CompileArtifacts`, not the same
   object as `CompiledGraphModel`. It exposes only final caller-bindable Tensor identity and
-  descriptor metadata.<span data-glossary-navigation="true"> ([descriptor glossary](../../glossary.md#term-descriptor))</span>
+  descriptor metadata.
 
 The [compile artifacts](../../glossary.md#compile-artifacts) deliberately contain no [device](../../glossary.md#term-device) [buffers](../../glossary.md#term-buffer), [backend](../../glossary.md#backend) executable objects, [runtime](../../glossary.md#term-runtime)
 [residency](../../glossary.md#residency), prepared schedules, or [mutable](../../glossary.md#term-mutable) [run state](../../glossary.md#run-state--runstate).

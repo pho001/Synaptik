@@ -1,6 +1,6 @@
 # Caller-coordinated in-memory recovery
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/training/src/main/java/io/github/pho001/synaptik/training/TrainingSession.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/training/src/main/java/io/github/pho001/synaptik/training/TrainingSession.java)
 
 Exact continuation means taking the same next training input with all state that can affect the
 step restored consistently. [Model](../../glossary.md#term-model) values alone omit the [optimizer](../../glossary.md#term-optimizer)'s history and the caller's
@@ -24,6 +24,18 @@ flowchart TD
 Read every incoming branch as required information, not fields automatically stored in a model
 file. The caller supplies exclusion throughout; the diagram is not a durable [checkpoint](../../glossary.md#term-checkpoint) adapter
 or a promise that a failed old-session close can be reversed.
+
+## Name the coordinator before restoring anything
+
+Here the caller is the application code holding the active model/session pair and its input
+cursor. It calls NN's checkpoint loader, the native-storage helper and Training's restore API;
+none of those callees knows the whole application state. The application keeps the old run
+quiescent and builds a distinct candidate tree/session, so a rejected candidate cannot become
+partially visible as the active run. It must keep the candidate Arena and borrowed Engine alive
+until the candidate session closes. The diagram below is a publication protocol for that holder,
+not file-system atomicity. For the separate file guarantee, read
+[artifact publication and uncertain moves](../checkpoint/artifacts.md#lifecycle-and-invariants);
+for what is missing from a model file, read [values-only recovery](../checkpoint/values.md).
 
 <a id="caller-coordinated-in-memory-recovery"></a>
 ## Caller-coordinated in-memory recovery
@@ -51,22 +63,22 @@ The supported integration [fixture](../../glossary.md#term-fixture) follows this
    if it was previously inspected. The fixture also directly saves this loaded heap tree, compares
    complete artifact bytes, and loads it again before native copying; this is a model round-trip
    check, not a required recovery stage. Restore local modes parent first, then child overrides
-   for a mixed-mode tree.<span data-glossary-navigation="true"> ([heap glossary](../../glossary.md#term-heap); [round-trip glossary](../../glossary.md#schema-serialization-and-checkpoint))</span>
+   for a mixed-mode tree.
 3. Use `TrainingParameterStorage.copyToSharedNative(privateTree.trainingParameters(), privateArena)` before building
    the replacement objective or opening a session. Loaded parameters are heap-backed and
    Engine-executable, but `TrainingSession.open` requires writable, shareable native parameter
-   storage. Keep the Arena alive through session close.<span data-glossary-navigation="true"> ([Arena glossary](../../glossary.md#term-arena))</span>
+   storage. Keep the Arena alive through session close.
 4. Build the fixed objective from the tree's **final Tensor [bindings](../../glossary.md#term-binding)** and recorded effective
    forward contexts, then call `TrainingSession.open`. Before `restore`, compare the exact stable
    path set and canonical logical `parameterBytes()` of `privateSession.state().parameters()`
    with the saved `TrainingState`. These fresh views start at position zero and contain
-   big-endian represented bytes; raw native-order NN carrier bytes are not comparable.<span data-glossary-navigation="true"> ([big-endian glossary](../../glossary.md#text-encoding-and-file-boundaries); [carrier glossary](../../glossary.md#term-storage-carrier))</span>
+   big-endian represented bytes; raw native-order NN carrier bytes are not comparable.
 5. Call `privateSession.restore(savedState)` for its own optimizer, schema, counter, slot, and
    payload validation. Validate the staged typed cursor and external-state handoff against the
    candidate, then retire the quiescent old session and publish one replacement holder under
    caller exclusion. On ordinary failure, close and discard the private session and Arena
    without publishing them. A failure while retiring the old session aborts publication, but
-   cannot promise that old session is still runnable.<span data-glossary-navigation="true"> ([optimizer glossary](../../glossary.md#term-optimizer); [payload glossary](../../glossary.md#artifact-envelope-and-atomic-publication); [validation glossary](../../glossary.md#term-validation); [publication glossary](../../glossary.md#term-publication))</span>
+   cannot promise that old session is still runnable.
 
 For example, the [CPU private-restore fixture](../../../testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/PrivateTrainingRestoreIntegrationTest.java)
 captures after two successful runs with a pending [gradient](../../glossary.md#term-gradient), [optimizer momentum](../../glossary.md#optimizer-refinements-and-initialization), a [persistent

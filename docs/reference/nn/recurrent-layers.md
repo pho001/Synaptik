@@ -1,12 +1,28 @@
 # [RNN](../../glossary.md#term-recurrent-neural-network-rnn), [GRU](../../glossary.md#term-gated-recurrent-unit-gru) and [LSTM](../../glossary.md#term-long-short-term-memory-lstm) layer contracts
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
 
 A [recurrent neural network](../../glossary.md#neural-network-families) (**RNN**) carries a hidden value from one sequence step to the next.
 A [gated recurrent unit](../../glossary.md#neural-network-families) (**GRU**) uses learned controls to mix old and new hidden values;
 [long short-term memory](../../glossary.md#neural-network-families) (**LSTM**) carries both hidden state and a separate cell state. State is
 explicit here: a cell describes one transition, and a sequence composes transitions without
 silently keeping the caller's final state for another call.
+
+## Choose construction-time or execution-time lengths
+
+The application is the caller of both sequence APIs, but the values crossing the boundary differ:
+
+- `forward(..., long[] lengths)` reads host counts while constructing a specialized expression.
+  The sequence calls its cell once per represented compact step; these are Java construction
+  calls, not backend executions.
+- `forwardScan(..., Tensor validLengths, ...)` describes one multi-output occurrence. Length
+  bytes are read only when a qualified backend executes it, so a reused preparation can receive
+  fresh counts with the same descriptors.
+
+Both retain ordinary dependencies on the input/state/parameter Tensors, not detached copies.
+Keep their storage valid according to the later [Engine run/result lease](../runtime/engine-boundary.md).
+See [runtime-length composition](recurrent.md) for that boundary and [state replacement](state.md)
+for why an already-built occurrence continues to reference its old parameter bindings.
 
 <a id="current-nn-recurrent-composition-contract"></a>
 ## Current [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) recurrent composition contract
@@ -23,6 +39,7 @@ share the same static packing policy without claiming that the different cell-st
 are interchangeable. Static calls are:
 
 ```java
+// Java lengths specialize construction; the cell calls here create expressions rather than run kernels.
 RnnSequenceForwardResult rnnResult =
         rnnSequence.forward(input, initialHidden, lengths);
 GruSequenceForwardResult gruResult =
@@ -89,6 +106,7 @@ For example, this GRU request uses input Shape `[3, 3, inputSize]`, lengths `[3,
 width 64, and fresh default states:
 
 ```java
+// Two seeds create independent directional parameters; valid prefixes reverse separately per row.
 BidirectionalGruSequence encoder = new BidirectionalGruSequence(
         64,
         true,
@@ -125,18 +143,26 @@ and the existing compiler [reverse-mode](../../glossary.md#primal-adjoint-and-di
 [target](../../glossary.md#term-target). The sequence [API](../../glossary.md#term-application-programming-interface-api) itself neither defines numerical [gradients](../../glossary.md#term-gradient) nor exposes training or
 execution.
 
-This is static Tensor-expression construction, not numerical execution. For one direction,
-`T = max(lengths)` produces `T` batched cell calls representing `S = sum(lengths)` compact logical
-rows. A bidirectional container constructs `2T` batched calls representing `2S` logical rows,
-plus bounded reverse-[alignment](../../glossary.md#term-alignment) expressions per represented time. These counts describe the
-constructed provenance only. They do not prove [backend](../../glossary.md#backend) [lowering](../../glossary.md#lowering), physical [kernel](../../glossary.md#kernel) skipping,
-[fusion](../../glossary.md#term-fusion), kernel count, execution cost, or a public training workflow, and different Java length
-values specialize different Tensor-expression [topology](../../glossary.md#term-topology).
+This is static Tensor-expression construction, not numerical execution. For a nonempty batch
+of $B$ rows, let $\ell_b$ be row $b$'s valid count, with integer $0\le\ell_b\le T_{\mathrm{input}}$
+and $0\le b<B$; $T_{\mathrm{input}}$ is the input time extent. Define
+
+$$
+T_{\mathrm{active}}=\max_{0\le b<B}\ell_b,\qquad S=\sum_{b=0}^{B-1}\ell_b.
+$$
+
+One direction constructs $T_{\mathrm{active}}$ batched cell calls representing $S$ compact row
+applications; two directions construct $2T_{\mathrm{active}}$ calls and $2S$ rows, plus reverse
+alignment expressions. For counts `[5,3,1]`, these are five calls and nine rows per direction,
+not fifteen dense padded rows. With no rows or all-zero counts, no cell step is constructed.
+These counts do not prove kernel skipping, fusion, kernel count, execution cost or throughput;
+changing the Java counts specializes a different expression topology.
 
 The same three one-directional Sequences additionally expose `forwardScan`, which constructs one
 fixed [scan](../../glossary.md#term-cumulative-scan) using that cell's current parameters. All [arguments](../../glossary.md#term-argument) are explicit:
 
 ```java
+// Tensor lengths are checked at execution, so constructing these expressions reads no length bytes.
 RecurrentScanResult r = rnnSequence.forwardScan(input, validLengths, initialHidden, direction);
 RecurrentScanResult g = gruSequence.forwardScan(input, validLengths, initialHidden, direction);
 LstmRecurrentScanResult l = lstmSequence.forwardScan(
@@ -184,7 +210,8 @@ The explicit FLOAT32/[FLOAT64](../../glossary.md#term-float64) [scalar objective
 One call returns the canonical ports of one producer regardless of time extent. Produced inputs,
 states, lengths and parameter bindings retain their provenance without copies or detach. Both
 train/eval modes preserve gradient eligibility, including [trainable parameters](../../glossary.md#trainable-parameter) in eval; this is
-not permission to differentiate a fixed forwardScan. The module retains no caller state or result. Pass
+not by itself permission to differentiate a fixed forwardScan: selected first-order routes
+still require Compiler and backend qualification. The module retains no caller state or result. Pass
 LSTM `finalHidden()` and `finalCell()` explicitly to a later scan for symbolic carry; across
 separate runs, supply materialized state values with the next graph's exact descriptors.
 
@@ -203,7 +230,7 @@ with fresh full-descriptor values in `compiled.inputs()` order, including parame
 Each [run](../../glossary.md#term-run) validates every length in `[0,time]` before writing scan results; invalid values may be
 repaired and the preparation reused. Fixed expression validity remains distinct from execution
 [qualification](../../glossary.md#term-qualification). Owned fixed-scan-containing Models compute and configure qualified first-order
-training through those same [owners](../../glossary.md#term-owner); see [owned Model training](../training/sessions.md#owned-model-training-convenience)<span data-glossary-navigation="true"> ([owned Model glossary](../../glossary.md#model-module-buffer-and-scan-distinctions))</span>.
+training through those same [owners](../../glossary.md#term-owner); see [owned Model training](../training/sessions.md#owned-model-training-convenience).
 Low fixed scans use FLOAT32 working projections and declared next-state narrowing through the
 existing CPU [owner](../../glossary.md#term-owner); [optimizer](../../glossary.md#term-optimizer) masters do not change that recipe. General RNN composition keeps
 its distinct ordinary operation-result rounding and working/publication recipe.

@@ -1,12 +1,34 @@
 # Pre-[capture](../../glossary.md#term-capture-meanings) [autograd](../../glossary.md#autograd) and functional [gradients](../../glossary.md#term-gradient)
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
 [Automatic differentiation](../../glossary.md#autograd) (**autograd**, or [AD](../../glossary.md#autograd)) builds expressions for [derivatives](../../glossary.md#term-derivative) by following
 how an output depends on selected inputs. A **[cotangent seed](../../glossary.md#primal-adjoint-and-differentiation-seed)** specifies the output [sensitivity](../../glossary.md#term-sensitivity)
 being propagated backward; for a [scalar objective](../../glossary.md#loss), a [seed](../../glossary.md#term-seed) of one asks for its ordinary gradient.
 Here those expressions are built before **capture**, the conversion to a [graph](../../glossary.md#graph) with local [node](../../glossary.md#node)
 and value identifiers. Constructing derivatives does not execute or update [parameters](../../glossary.md#term-parameter).
+
+## What a seed and a gradient mean
+
+The application selects outputs and differentiation targets through Engine; Engine calls
+Compiler, which builds ordinary Tensor derivative expressions. Compiler is not an optimizer and
+does not write updated parameter bytes. For a differentiable real function
+$f:\mathbb{R}^n\to\mathbb{R}^m$, let $x_j$ be input coordinate $j$ for $1\le j\le n$ and
+$y_i=f_i(x)$ output coordinate $i$ for $1\le i\le m$. A seed $s_i$ says how much sensitivity to
+propagate from output $i$. The vector-Jacobian product at input coordinate $j$ is
+
+$$
+g_j=\sum_{i=1}^{m}s_i\frac{\partial f_i}{\partial x_j}.
+$$
+
+For the scalar case $f(x)=x^2$ with seed $s=1$, this gives $g=2x$: at $x=3$, the gradient is $6$.
+A second admitted stage differentiates that expression and yields $2$. A vector needs an explicit
+matching seed because different $s$ ask different questions. These real derivatives explain the
+sensitivity; the implementation constructs the exact ordered Tensor formulas described below,
+including finite-path restrictions, local non-differentiable conventions and represented
+NaN/infinity/signed-zero behavior. It does not replace rounded computation by real algebra.
+See [Engine compile entry points](entry-points.md) for which seed policies ordinary calls select
+and [Training](../training/sessions.md#who-calls-whom-during-one-step) for later parameter mutation.
 
 <a id="current-package-private-pre-capture-autograd"></a>
 ### Current package-private pre-[capture](../../glossary.md#term-capture-meanings) [autograd](../../glossary.md#autograd)
@@ -114,7 +136,7 @@ they describe current semantics without claiming a public [compile](../../glossa
 For [scalar](../../glossary.md#term-scalar) `loss = x * x`, request stage one from [`loss`](../../glossary.md#loss) to `x` with its default [seed](../../glossary.md#term-seed) and
 `createGraph=true`, then request stage two from
 `FirstStageGradientReference(0)` to `x` with its default seed and `createGraph=false`. One combined
-compile returns an order-one role for `2 * x` and an order-two role for `2`; both are ordinary
+compile returns an order-one role for $2x$ and an order-two role for $2$; both are ordinary
 values in the same [graph](../../glossary.md#graph), and no [Tensor](../../glossary.md#tensor) gradient field is written.
 
 For a [vector](../../glossary.md#term-vector) output, supply an exact-[Shape](../../glossary.md#shape) explicit seed to select its [vector-Jacobian product](../../glossary.md#term-vector-jacobian-product-vjp).
@@ -182,14 +204,24 @@ mask, and other non-floating control roles receive no cotangent.
 For a forward `CAST`, the existing rule is similarly limited to floating source and target types.
 A same-type occurrence reuses the incoming cotangent; a cross-floating occurrence creates one
 ordinary `CAST` back to the source type. That generated expression uses the same Model-owned
-forward conversion contract documented in the [Tensor API](../tensor/selection-casts.md#cast-expressions)<span data-glossary-navigation="true"> ([API glossary](../../glossary.md#term-application-programming-interface-api))</span>,
+forward conversion contract documented in the [Tensor API](../tensor/selection-casts.md#cast-expressions),
 including direct target-format [rounding](../../glossary.md#term-rounding) and deterministic [NaN](../../glossary.md#term-nan) behavior. Compiler adds no
 gradient-specific rounding, [saturation](../../glossary.md#term-saturation), straight-through estimator, or value evaluator. Any cast
 with an integral or BOOL source or target remains non-differentiable, and this documentation change
 adds no Compiler production behavior.
 
-Binary DIV constructs the left contribution as `g / right` and the right contribution in the
-exact order `-(g * left) / (right * right)`. Scalar DIV constructs `g / scalar`. These are
+#### Elementwise local contributions
+
+In the formulas in this subsection, $g$ is the incoming cotangent at one output coordinate,
+$x$ is a unary input, $y$ its saved forward output, $\ell,r$ are binary left/right inputs, and
+$a$ is a fixed scalar attribute. Products and quotients follow the displayed construction order.
+For classical real derivatives, division needs a nonzero denominator; powers and logarithms
+use a positive base for the stated real formulas. The represented program still constructs the
+listed formulas at exceptional inputs, with the precise NaN/infinity/signed-zero behavior below;
+these mathematical domains do not introduce a new runtime guard or repaired value.
+
+Binary DIV constructs the left contribution as $g/r$ and the right contribution in the
+exact order $-(g\ell)/(rr)$. Scalar DIV constructs $g/a$. These are
 ordinary Tensor expressions: they inherit the same division, multiplication, negation, NaN,
 [infinity](../../glossary.md#term-infinity), [signed-zero](../../glossary.md#nan-infinity-and-signed-zero), [overflow](../../glossary.md#term-overflow), [underflow](../../glossary.md#term-underflow), rounding, [validation](../../glossary.md#term-validation), and exact-optimization
 contracts as forward expressions. No gradient-specific singularity or exceptional-value rule is
@@ -197,33 +229,41 @@ added.
 
 Binary `MIN` and `MAX` route `g` to the strictly selected operand and split an exact numeric tie
 equally. Each selected contribution then uses ordinary `sumToShape`-then-`cast` normalization.
-Binary `POW(left, right)` constructs `g * right * pow(left, right - 1)` for `left` and
-`g * output * log(left)` for `right`; it deliberately does not replace the first formula with
-`output / left`.
+Binary `POW(left, right)` constructs $g\,r\,\ell^{r-1}$ for `left` and
+$g\,y\,\log(\ell)$ for `right`; it deliberately does not replace the first formula with
+$y/\ell$.
 
-Scalar `MIN` and `MAX` give the Tensor receiver `g` on its strict side, `g * 0.5` at an exact
+Scalar `MIN` and `MAX` give the Tensor receiver `g` on its strict side, $g\cdot0.5$ at an exact
 numeric tie, and exact [positive zero](../../glossary.md#nan-infinity-and-signed-zero) otherwise. Scalar `POW` constructs
-`g * exponent * pow(input, exponentMinusOne)`. The derived scalar uses exactly one subtraction in
+$g\,a\,x^{a-1}$. The derived scalar uses exactly one subtraction in
 the represented type: [BFLOAT16](../../glossary.md#term-bfloat16) expands to [binary32](../../glossary.md#floating-point-precision-and-rounding), subtracts binary32 one, and rounds back;
 [FLOAT32](../../glossary.md#term-float32) and [FLOAT64](../../glossary.md#term-float64) subtract one in their own formats. First-class `CLAMP` differentiates the
 exact ordered forward composition `MIN(MAX(input, minValue), maxValue)`. With distinct [finite](../../glossary.md#term-finite)
-bounds the contribution is zero outside, `g` strictly inside, and `g / 2` at either endpoint;
-when both [extrema](../../glossary.md#saturation-pole-and-extremum) stages tie it is `g / 4`.
+bounds the contribution is zero outside, `g` strictly inside, and $g/2$ at either endpoint;
+when both [extrema](../../glossary.md#saturation-pole-and-extremum) stages tie it is $g/4$.
+
+For the next table, $\operatorname{where}(c,u,v)$ selects $u$ where condition $c$ is true
+and $v$ otherwise; it is not a promise of lazy branch evaluation. For real calculus, LOG needs
+$x>0$, LOG1P needs $x>-1$, SQRT and RSQRT formulas need $x>0$, and RECIPROCAL needs $x\ne0$.
+ABS and RELU use the listed local convention at their nondifferentiable zero. For example,
+RECIPROCAL at $x=2$, $g=1$ gives $-1/(2\cdot2)=-0.25$; the sign means increasing the input
+decreases the output. Here $\Phi$ is the standard normal cumulative distribution and
+$\sigma(x)=1/(1+e^{-x})$ is sigmoid; these identify the GELU/SiLU functions below.
 
 The added unary formulas are:
 
 | Kind | Input contribution |
 |---|---|
-| `ABS` | `where(x > 0, g, where(x < 0, -g, 0))` |
-| `RECIPROCAL` | `-g / (x * x)` |
-| [`LOG`](../../glossary.md#term-log) | `g / x` |
-| `LOG1P` | `g / (x + 1)` |
-| `SQRT` | `g / (2 * output)` |
-| `RSQRT` | `-0.5 * g * output * output * output` |
-| `RELU` | `where(x > 0, g, 0)` |
+| `ABS` | $\operatorname{where}(x>0,g,\operatorname{where}(x<0,-g,0))$ |
+| `RECIPROCAL` | $-g/(xx)$ |
+| [`LOG`](../../glossary.md#term-log) | $g/x$ |
+| `LOG1P` | $g/(x+1)$ |
+| `SQRT` | $g/(2y)$ |
+| `RSQRT` | $-0.5\,g\,y\,y\,y$ |
+| `RELU` | $\operatorname{where}(x>0,g,0)$ |
 
-Exact [GELU](../../glossary.md#gaussian-error-linear-unit--gelu) uses the derivative of `x * Phi(x)`. Fixed [tanh](../../glossary.md#term-tanh)-approximation GELU differentiates its
-specified `0.044715` cubic approximation, and [SiLU](../../glossary.md#sigmoid-linear-unit--silu) differentiates `x * sigmoid(x)`. Each of these
+Exact [GELU](../../glossary.md#gaussian-error-linear-unit--gelu) uses the derivative of $x\Phi(x)$. Fixed [tanh](../../glossary.md#term-tanh)-approximation GELU differentiates its
+specified `0.044715` cubic approximation, and [SiLU](../../glossary.md#sigmoid-linear-unit--silu) differentiates $x\sigma(x)$. Each of these
 three activations selects `g` at [positive infinity](../../glossary.md#nan-infinity-and-signed-zero) and exact positive zero at [negative infinity](../../glossary.md#nan-infinity-and-signed-zero)
 to avoid a spurious infinity-times-zero NaN; finite and NaN inputs use the ordinary analytic
 formula. Every other raw formula retains ordinary shared Tensor exceptional behavior without a
@@ -239,6 +279,12 @@ and clamp bounds, and non-floating cast roles remain non-differentiable.
 first-order local convention. They do not construct `g * 0` or a floating comparison. This
 convention does not change the forward operations' model semantics.
 
+#### Reductions, counts and normalization
+
+Reduction domains are the selected logical coordinates, not the Tensor's physical storage span.
+A nonempty mean divides by its selected count; empty/all-false cases retain the explicit
+represented conventions below rather than an assumed real-number division by zero.
+
 Ordinary MEAN restores and expands `g`, creates an input-shaped exact logical-one expression,
 reduces those ones across the same full, single-axis, or ordered multi-axis domain, expands the
 count, and divides. The same expression works for static, dynamic, expression, zero-sized, and
@@ -249,7 +295,7 @@ returns exact zero at every input [coordinate](../../glossary.md#axis-rank-scala
 [evaluation](../../glossary.md#term-evaluation) or suppress the intermediate quotient.
 
 For input `x` and output cotangent `g`, [ERF](../../glossary.md#term-erf) constructs
-`g * exp(-(x * x)) * (2 / sqrt(pi))`. The coefficient is exact scalar-operation [metadata](../../glossary.md#term-metadata) with
+$g\exp(-(xx))\,(2/\sqrt{\pi})$. The coefficient is exact scalar-operation [metadata](../../glossary.md#term-metadata) with
 fixed BFLOAT16 bits `0x3F90`, [FLOAT16](../../glossary.md#term-float16) bits `0x3C83`, FLOAT32 bits `0x3F906EBB`, or
 FLOAT64 bits `0x3FF20DD750429B6D`; [compilation](../../glossary.md#compiler-engine-and-execution-stage-names) does not evaluate a host transcendental function or add a
 coefficient Tensor [leaf](../../glossary.md#term-leaf).
@@ -274,7 +320,7 @@ reverse, and zero-length structure without a gradient-specific infinity or NaN r
 Reduction `MIN` and `MAX` compare each input with the exact restored forward output and divide the
 restored cotangent equally among all matching coordinates. Opposite signed zeros are ties. A NaN
 forward output matches no coordinate, so the selected contribution is exact positive zero.
-`LOG_SUM_EXP` uses `restored(g) * exp(input - restored(output))`.
+`LOG_SUM_EXP` uses $\operatorname{restored}(g)\exp(x-\operatorname{restored}(y))$.
 
 `VARIANCE` and `STANDARD_DEVIATION` derive selected-domain count by reducing exact logical ones
 and construct correction as a typed logical-one reduction rather than a host floating
@@ -283,14 +329,22 @@ positive. `L1_NORM` selects sign with exact zero at [signed zero](../../glossary
 zero when its saved [norm](../../glossary.md#term-norm) is not strictly positive. Other exceptional values follow the ordinary
 Tensor formulas in their recorded order.
 
+For the softmax equations, $y$ is the exact saved forward output, $g$ its same-shape
+cotangent, and $k$ the selected axis. $\operatorname{sum}_k$ sums all coordinates along that
+axis while keeping a singleton dimension, so multiplication broadcasts back to the original
+shape. For a two-coordinate finite real slice $y=(0.25,0.75)$ and $g=(1,0)$, the inner sum is
+$0.25$ and the SOFTMAX input contribution is $(0.1875,-0.1875)$. This is an interpretation of
+the rule, not permission to recompute saved probabilities or reorder rounded arithmetic.
+$\operatorname{restored}$ below means reinsert reduced singleton axes for broadcasting.
+
 `SOFTMAX` consumes exact forward output `y` and constructs
-`y * (g - sum(g * y, axis, true))`. `LOG_SOFTMAX` constructs
-`g - exp(y) * sum(g, axis, true)`. Neither rule recomputes a softmax occurrence or selects a
+$y\bigl(g-\operatorname{sum}_{k}(gy)\bigr)$. `LOG_SOFTMAX` constructs
+$g-\exp(y)\operatorname{sum}_{k}(g)$. Neither rule recomputes a softmax occurrence or selects a
 forward numerical algorithm.
 
 Layer and root-mean-square (RMS) normalization rebuild their population statistics with ordinary
 Tensor operations over the exact trailing normalized axes. Mixed-floating occurrences compute in
-the selected forward-output type, align affine operands by visible reshape/expand expressions,
+the selected forward-output type, except FLOAT16 and FP8 use FLOAT32 working expressions, align affine operands by visible reshape/expand expressions,
 and cast each completed Shape-correct contribution back to its selected input type. [Layer
 normalization](../../glossary.md#layer-normalization) supports input, scale, and bias roles; [RMS normalization](../../glossary.md#rms-normalization) supports input and
 optional scale.
@@ -308,13 +362,19 @@ it would require derivatives of the saved statistics. The ordinary input path in
 does not make that [second derivative](../../glossary.md#term-second-derivative) complete. This restriction does not change first-order
 BatchNorm or prohibit using a [saved statistic](../../glossary.md#saved-statistic) solely to construct a comparison mask.
 
+#### Matrix, movement and indexing contributions
+
+These rules route cotangents back to the exact selected input shape. Repeated operand/index
+positions can contribute more than once; the ordered accumulation is part of the constructed
+program, not a set of unique numerical values.
+
 MATMUL handles vector/vector, vector/matrix, matrix/vector, and matrix/matrix formulas with public
 rank edits, last-two-axis [permutation](../../glossary.md#permutation), multiplication or MATMUL, followed by `sumToShape` for
 each selected operand where batch broadcasting may have occurred and then one ordinary cast when
 the promoted contribution type differs from that operand. Integral MATMUL remains
 non-differentiable.
 For matrix/vector input `A[batch..., rows, columns] @ b[columns]`, the vector cotangent restores
-the seed's final [singleton](../../glossary.md#term-singleton) column: `T(A) @ expandDims(g, -1)`, then squeezes that column and sums
+the seed's final [singleton](../../glossary.md#term-singleton) column: $A^{\mathsf T}\operatorname{expandDims}(g,-1)$, then squeezes that column and sums
 the batch axes. Here `T` swaps the final two axes and `g` has Shape `[batch..., rows]`; these are
 formula sketches, with explicit contiguous [materialization](../../glossary.md#materialization) at rank edits in the implementation.
 For `A[2,2,2]` containing `1..8` and unit `g[2,2]`, the two batch contributions are `[4,6]` and
@@ -363,14 +423,17 @@ matching recomputation in the current matrix. TOP_K instead uses the exact canon
 indices from its original producer; `k == 0` routes an input-shaped zero. Equal keys, NaN-last
 membership, signed-zero order, and equal-cutoff membership freeze the forward route without
 averaging. DROPOUT uses the exact canonical same-occurrence BOOL mask and
-`where(mask, g / (1 - probability), zero)`. It neither infers nor resamples a mask and does not
-advance or differentiate [graph RNG state](../../glossary.md#graph-rng-state--graphrngstate). At either signed probability zero, the denominator is
+$\operatorname{where}(M,g/(1-q),0)$. It neither infers nor resamples a mask and does not
+advance or differentiate [graph RNG state](../../glossary.md#graph-rng-state--graphrngstate). Here $M$ is the saved BOOL keep mask and $q$ the configured probability with
+$0\le q<1$; the selected zero has the input type. At either signed probability zero, the denominator is
 positive one and the all-kept mask routes `g`.
 
 The original rules remain unchanged: broadcasted elementwise contributions use `sumToShape`;
 ordinary SUM restores removed axes before expansion; CUM_SUM reverses scan direction while
 retaining exclusivity; and PERMUTE uses the inverse axis order. WHERE routes no cotangent through
 its BOOL condition.
+
+#### Exact typed constants and accumulation
 
 Generated BFLOAT16, FLOAT16, FLOAT32, and FLOAT64 exact scalar bases are [provenance](../../glossary.md#provenance)-free,
 storage-free, non-gradient scalar leaves. BFLOAT16 uses exact bits `0x0000` and `0x3F80`;
@@ -391,7 +454,7 @@ Compiler 0005D loss rule, and the FLOAT16 cutover fix these exact bit patterns:
 |---|---:|---:|---:|---:|
 | `0.5` | `0x3F00` | `0x3800` | `0x3F000000` | `0x3FE0000000000000` |
 | `-0.5` | `0xBF00` | `0xB800` | `0xBF000000` | `0xBFE0000000000000` |
-| `2` | `0x4000` | `0x4000` | `0x40000000` | `0x4000000000000000` |
+| $2$ | `0x4000` | `0x4000` | `0x40000000` | `0x4000000000000000` |
 | `-2` | `0xC000` | `0xC000` | `0xC0000000` | `0xC000000000000000` |
 | `invSqrt2` | `0x3F35` | `0x39A8` | `0x3F3504F3` | `0x3FE6A09E667F3BCD` |
 | `invSqrt2Pi` | `0x3ECC` | `0x3662` | `0x3ECC422A` | `0x3FD9884533D43651` |
@@ -402,6 +465,8 @@ Compiler 0005D loss rule, and the FLOAT16 cutover fix these exact bit patterns:
 The ERF coefficient is `0x3F90`, `0x3C83`, `0x3F906EBB`, and
 `0x3FF20DD750429B6D` in BFLOAT16, FLOAT16, FLOAT32, and FLOAT64 order. Compilation derives none of
 these coefficients with a host transcendental function.
+
+#### Combined capture and remaining boundaries
 
 The compiler captures forward outputs and generated gradient roots together once. The request
 includes target-specific roles, the original forward-producer identity set, and merged explicit

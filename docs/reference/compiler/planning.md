@@ -1,11 +1,22 @@
 # Capability queries and planned partitions
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
 **Capability** asks whether an implementation supports the exact described [operation](../../glossary.md#operation), not just
 whether an operation name appears in a list. **Eligibility** also accounts for availability and
 hard requirements. A **[partition](../../glossary.md#partition)** is a consecutive [graph](../../glossary.md#graph) region assigned to one [backend](../../glossary.md#backend); it does
 not promise that the region becomes one [fused](../../glossary.md#specialization-and-fusion) numerical [kernel](../../glossary.md#kernel).
+
+## Who asks the capability question?
+
+Compiler constructs one query from the final operation and descriptors, then calls
+`BackendOwnerPlanning.selectOwner`. Planning calls each still-eligible backend's provider and
+returns an identity; it neither lends an execution resource nor moves input bytes. Compiler then
+builds the complete node-to-owner map and calls partitioning. A provider's `true` answer concerns
+this exact occurrence, including a Scan's whole body, not every operation with the same name.
+The resulting ownership is responsibility for implementing work, not ownership of the
+application's memory. [Prepare](../runtime/prepare.md) separately asks that backend to finalize
+recipes; [Engine composition](../engine/composition.md) explains where opened integrations live.
 
 <a id="current-operation-capability-contracts"></a>
 ## Current [operation](../../glossary.md#operation)-capability contracts
@@ -116,6 +127,7 @@ failure.
 data with exactly two ordered components:
 
 ```java
+// These are recipe components, not a kernel or an allocated backend resource.
 BackendId owner
 List<NodeId> nodeIds
 ```

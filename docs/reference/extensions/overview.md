@@ -1,6 +1,6 @@
 # Data, Text and [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) public boundaries
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span>
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)
 
 These extensions meet at ordinary [Tensors](../../glossary.md#tensor) but do different jobs: Data arranges numeric inputs,
 Text maps text fragments to integer identifiers, and NN (neural networks) owns layers and their
@@ -18,7 +18,7 @@ validates geometry without inspecting Tensor contents. Direct record constructio
 `LongSequenceBatcher` instead allocates one fresh [INT64](../../glossary.md#data-type--datatype) [heap](../../glossary.md#term-heap) Tensor and pads ordered long-array
 rows to their maximum length, on either side and in either [axis](../../glossary.md#term-axis) order, without [truncation](../../glossary.md#term-truncation-toward-zero).
 Neither path binds [runtime](../../glossary.md#term-runtime) length inputs or changes recurrent-[scan](../../glossary.md#term-cumulative-scan) semantics; see the
-[Data sequence batching API](../data/sequences.md)<span data-glossary-navigation="true"> ([API glossary](../../glossary.md#term-application-programming-interface-api))</span> for construction, [ownership](../../glossary.md#term-ownership-meanings) and failures.
+[Data sequence batching API](../data/sequences.md) for construction, [ownership](../../glossary.md#term-ownership-meanings) and failures.
 
 The implemented `extensions:text` surface contains final `WhitespaceTokenizer` and
 `TextSequenceBatcher` in one flat package. The [tokenizer](../../glossary.md#frozen-whitespace-tokenizer) freezes ordered ordinary IDs from 2,

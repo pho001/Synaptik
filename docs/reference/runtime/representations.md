@@ -1,6 +1,6 @@
 # Per-[run](../../glossary.md#term-run) representations and validity
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
 **[Residency](../../glossary.md#residency)** means that a representation object is present and bound to the open run.
 **Validity** means that this copy contains the logical value the schedule may read. These are
@@ -24,6 +24,16 @@ stateDiagram-v2
 Read the arrows as [Runtime](../../glossary.md#term-runtime) bookkeeping around physical actions, not as actions that copy bytes.
 [Borrowed](../../glossary.md#ownership-borrowing-and-lease) inputs and initialized [buffers](../../glossary.md#term-buffer) start in the valid state; scratch workspaces have no
 logical validity bit. Ending a borrowed [binding](../../glossary.md#term-binding) does not free caller-owned storage.
+
+## Which component owns a copy?
+
+Engine lends input representations to Runtime; backend creators supply internal representations.
+`RunState` retains those exact objects for one invocation and distinguishes borrowed bindings
+from run-owned bindings. Closing the state releases only the latter and its workspaces. Validity
+records whether a selected copy may be read; it is not a storage owner or a copy command. The
+example below directly drives bookkeeping to isolate these rules; production runner actions
+perform validity transitions around backend work. See [creation rollback](creation.md) and
+[transfers](transfers.md) before interpreting multiple representations as automatically coherent.
 
 <a id="current-per-run-representation-foundation"></a>
 ## Current per-[run](../../glossary.md#term-run) representation foundation
@@ -78,6 +88,7 @@ and close the state. The local representation classes make cleanup observable wi
 production backend.
 
 ```java
+// The counters expose cleanup roles only; setting validity below does not produce physical bytes.
 import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan;
 import io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation;
@@ -134,6 +145,7 @@ RunState state =
 
 boolean borrowedInitiallyValid = state.isBufferRepresentationValid(0, 0);
 boolean ownedInitiallyValid = state.isBufferRepresentationValid(0, 1);
+// Assume production succeeded: this bit write alone performs no physical initialization.
 state.setBufferRepresentationValid(0, 1, true);
 boolean ownedAfterProduction = state.isBufferRepresentationValid(0, 1);
 state.close();

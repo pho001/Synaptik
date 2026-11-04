@@ -1,11 +1,22 @@
 # [Compile](../../glossary.md#compile)-configuration inputs
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
 Compile configuration separates which [graph](../../glossary.md#graph) is requested, which [backend](../../glossary.md#backend) [owners](../../glossary.md#term-owner) are acceptable,
 and whether optional exact rewrites are allowed. A **[compile mode](../../glossary.md#compile-mode--compilemode)** describes graph [scope](../../glossary.md#term-scope), such
 as forward results plus [derivatives](../../glossary.md#term-derivative); it is not itself a [training session](../../glossary.md#training-session--trainingsession). An [optimizer](../../glossary.md#term-optimizer) still
 needs a separate training [owner](../../glossary.md#term-owner) to apply those derivatives to [parameters](../../glossary.md#term-parameter).
+
+## Requests are data, not backend actions
+
+An integration caller constructs these values and passes them to `AdvancedEngine.compile`; the
+ordinary Engine supplies its own fixed values. Engine forwards them to Compiler, which calls
+Planning for each surviving operation occurrence. Constructing a CUDA identity below therefore
+does not open CUDA, register a provider or prove an executable CUDA route exists. Immutable
+configuration may be retained safely without owning native resources. Compare
+[explicit Engine composition](../engine/composition.md#current-explicit-cpu-and-metal-composition)
+for the separate call that transfers opened integrations, and [eligibility and partitions](planning.md)
+for how hard constraints differ from soft preferences.
 
 <a id="current-compile-configuration-inputs"></a>
 ## Current [compile](../../glossary.md#compile)-configuration inputs
@@ -14,6 +25,7 @@ needs a separate training [owner](../../glossary.md#term-owner) to apply those d
 configuration. It holds exactly one `Optional<BackendRequirement>` named `hardRequirement`:
 
 ```java
+// A CUDA requirement is data for Planning, not registration or a device-open call.
 import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.backend.contract.BackendIdRequirement;
 import io.github.pho001.synaptik.config.compile.BackendIntent;
@@ -43,6 +55,7 @@ semantics.
 requested graph scopes in declaration order:
 
 ```java
+// TRAINING_STEP selects graph scope; it does not apply an optimizer update.
 import io.github.pho001.synaptik.config.compile.CompileMode;
 
 CompileMode inferenceScope = CompileMode.FORWARD_ONLY;
@@ -65,6 +78,7 @@ its [CPU](../../glossary.md#term-cpu)-only advanced [prepare](../../glossary.md#
 `io.github.pho001.synaptik.config.compile.GraphOptimizationConfig` is another current value:
 
 ```java
+// Disabling optional rewrites still preserves mandatory validation and canonicalization.
 import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 
 GraphOptimizationConfig noOptionalOptimization =
@@ -88,6 +102,7 @@ compile [facade](../../glossary.md#term-facade) does.
 holds exactly one `Optional<DeviceClass>` named `preferredDeviceClass`:
 
 ```java
+// A soft class preference cannot override hard eligibility or promise accelerator ownership.
 import io.github.pho001.synaptik.backend.contract.DeviceClass;
 import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
 

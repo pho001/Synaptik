@@ -1,6 +1,6 @@
 # [Prepare](../../glossary.md#prepare) declarations, assignment and finalization
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
 Prepare bridges a logical computation plan and reusable execution recipes. A [directed acyclic
 graph](../../glossary.md#term-directed-acyclic-graph-dag) (**[DAG](../../glossary.md#intermediate-representation-dag-and-ssa)**) records [operation](../../glossary.md#operation) dependencies without cycles; its input/output **ports** are
@@ -88,3 +88,14 @@ recipes captured during cold preparation.
 ---
 
 [Previous topic](contracts.md) · [Next topic](../engine/lifecycle.md)
+## The two calls on either side of Prepare
+
+Engine calls `GraphPreparation.prepare` with Compiler's immutable artifact and explicit backend
+collaborators. Prepare calls each selected backend's analyzer to describe resource needs, assigns
+slots, then calls its finalizer with those exact assignments. A successful finalizer transfers
+its acquired persistent resources to Prepare; Prepare either rolls them back on a later failure
+or transfers them to the returned Runtime `PreparedExecution`. No application input bytes cross
+this setup boundary. At run time, backend creators supply fresh per-run representations under
+[the creation plan](creation.md); [Engine composition](../engine/composition.md) owns the longer-lived
+opened integrations.
+

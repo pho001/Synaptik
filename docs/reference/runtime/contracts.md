@@ -1,6 +1,6 @@
 # [Runtime](../../glossary.md#term-runtime) public contract relationships
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
 Runtime connects reusable work recipes to the resources of one invocation. **Prepared** objects
 describe repeated work; **bound** objects hold that [run](../../glossary.md#term-run)'s concrete references. A **[lease](../../glossary.md#term-lease)** keeps
@@ -16,7 +16,7 @@ The public `modules:runtime` surface now contains five focused packages:
   immutable [`PreparedRepresentationPlan`](../../glossary.md#prepared-representation-plan--preparedrepresentationplan) origins, caller-input occurrences, ordinary and
   initialized buffer origins, and typed buffer/workspace creators;
 - `runtime.run` defines borrowed/run-owned [buffer](../../glossary.md#term-buffer) [bindings](../../glossary.md#term-binding), the array-backed one-run [`RunState`](../../glossary.md#run-state--runstate),
-  dense-coordinate <span data-glossary-navigation="true"> ([coordinate glossary](../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>[`PreparedPublication`](../../glossary.md#prepared-publication--preparedpublication), per-run [`BoundPublication`](../../glossary.md#bound-publication--boundpublication), the whole-state
+  dense-coordinate [`PreparedPublication`](../../glossary.md#prepared-publication--preparedpublication), per-run [`BoundPublication`](../../glossary.md#bound-publication--boundpublication), the whole-state
   [`RunResult`](../../glossary.md#run-result--runresult) lease, and stateless [`PreparedExecutionRunner`](../../glossary.md#prepared-execution-runner--preparedexecutionrunner); and
 - `runtime.execution` defines the immutable-recipe, explicitly closeable [`PreparedExecution`](../../glossary.md#prepared-execution--preparedexecution)
   owner, reusable
@@ -137,3 +137,14 @@ failure, and thread-safety details.
 ---
 
 [Previous topic](../engine/cpu-integration.md) · [Next topic](prepare.md)
+## Keep the outer and inner callers distinct
+
+At the application boundary, the caller lends stored Tensor inputs to Engine and receives an
+Engine result. Inside Engine, the caller is Engine itself: it lends backend-specific
+representations to `PreparedExecutionRunner`. Runtime calls backend binding/execution hooks and
+returns its own result lease to Engine. That inward lease is not a public Tensor value, and the
+application never owns the representation obtained through Runtime's SPI. To obtain independent
+bytes, the application asks its **Engine** result to materialize a publication while it remains
+open. Follow [ordinary binding](engine-boundary.md) for that outer lifetime and
+[publication](publication.md) for the inner lease.
+

@@ -1,11 +1,20 @@
 # Ordered prepared schedules
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
 A **schedule** is an ordered recipe for actions, not the actions already performed. Each list
 position is an **[occurrence](../../glossary.md#term-occurrence)**: retaining the same executable twice requests two executions, not
 two [owners](../../glossary.md#term-owner) of its resources. A **suffix** is the final portion of the list; [publication](../../glossary.md#term-publication) belongs
 there so outputs are exposed only after the preceding execution and transfer actions.
+
+## Who writes the schedule, and who follows it?
+
+Engine's preparation composition supplies an assembler to shared Prepare. The assembler describes
+creation, backend executions, necessary transfers and final publications; Prepare validates the
+recipe before returning an owner. Only a later `PreparedExecutionRunner.run` binds resources and
+follows those occurrences. A copied list of repeated recipe references is not copied native
+storage and does not duplicate cleanup responsibility. See [Prepare assembly](orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization)
+for validation and [Runtime execution binding](executables.md) for the later direct calls.
 
 <a id="current-prepared-schedule"></a>
 ## Current [prepared schedule](../../glossary.md#prepared-schedule--preparedschedule)
@@ -42,6 +51,7 @@ transfer occurrence and two occurrences of the current `ExampleExecutable` recip
 [callback](../../glossary.md#term-callback) and needs no [run state](../../glossary.md#run-state--runstate) or physical representation.
 
 ```java
+// Repeating an executable reference requests two occurrences, not duplicate ownership of its resources.
 import io.github.pho001.synaptik.runtime.schedule.PreparedSchedule;
 import java.util.ArrayList;
 import java.util.List;

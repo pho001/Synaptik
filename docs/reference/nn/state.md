@@ -1,11 +1,25 @@
 # [Parameter](../../glossary.md#term-parameter) updates, state dictionaries and [Engine](../../glossary.md#term-engine) coordination
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
 
 A **[binding](../../glossary.md#term-binding)** is the [Tensor](../../glossary.md#tensor) currently held by a named parameter or [buffer](../../glossary.md#term-buffer) wrapper. Replacing a
 binding changes later reads of that wrapper, not expressions already built from its old Tensor.
 A **state dictionary** maps complete names to current Tensor references; it is a shallow [snapshot](../../glossary.md#term-snapshot)
 of bindings, not [detached value](../../glossary.md#detached-model-results) bytes, a saved file or [optimizer history](../../glossary.md#term-optimizer-history).
+
+## Follow one replacement across the boundary
+
+An application or optimizer adapter can call `parameter.replace(newWeight)`. The Parameter
+wrapper is the callee: after compatibility checks it retains the **exact** `newWeight` Tensor,
+not a copy of its numeric storage. If an earlier `layer.forward(input)` read `oldWeight`, that
+expression still depends on `oldWeight`. A later forward reads `newWeight`. The application must
+coordinate these calls and keep each expression's required storage alive through execution.
+
+Likewise, the application calls `module.stateDictionary()` to collect references and
+`module.loadStateDictionary(dictionary)` to install validated references. Neither call turns
+references into independently owned bytes. Use [values-only capture](../checkpoint/values.md#core-contracts)
+for detached values, and [session parameter admission](../training/parameters.md#initial-parameter-domain)
+before allowing Training exclusive in-place access.
 
 <a id="current-nn-parameter-update-contract"></a>
 ## Current [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [parameter](../../glossary.md#term-parameter) update contract
@@ -79,7 +93,7 @@ bytes, files, [codec](../../glossary.md#term-codec), format version, migration r
 [`TrainingSession`](../../glossary.md#training-session--trainingsession) state, [graph](../../glossary.md#graph) random-number-generator state, [compiler](../../glossary.md#term-compiler) [artifact](../../glossary.md#term-artifact), [prepared
 execution](../../glossary.md#prepared-execution--preparedexecution), [runtime](../../glossary.md#term-runtime) state, or [backend](../../glossary.md#backend) state. The current Training workflow can coordinate this
 module-owned state with its separately owned `TrainingState`. By contrast, the current
-[model checkpoint API](../checkpoint/models.md)<span data-glossary-navigation="true"> ([model glossary](../../glossary.md#term-model); [API glossary](../../glossary.md#term-application-programming-interface-api))</span> saves, inspects, and loads fully bound NN
+[model checkpoint API](../checkpoint/models.md) saves, inspects, and loads fully bound NN
 parameter and buffer values through a file with [atomic live publication](../../glossary.md#artifact-envelope-and-atomic-publication); it does not persist
 `TrainingState` or provide [exact training continuation](../../glossary.md#exact-training-continuation). A future Training Checkpoint adapter may
 coordinate [persistence](../../glossary.md#term-persistence) of both state owners.
@@ -125,11 +139,11 @@ reverse the required [dependency direction](../../glossary.md#java-platform-and-
 ## Related contracts
 
 Old [model](../../glossary.md#term-model) recovery examples use an explicit `:extensions:nn` [dependency](../../glossary.md#term-dependency); generic [Checkpoint](../../glossary.md#term-checkpoint)
-alone no longer exports [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context). The [generic graph API](../checkpoint/graph.md)<span data-glossary-navigation="true"> ([graph glossary](../../glossary.md#graph); [API glossary](../../glossary.md#term-application-programming-interface-api))</span> stores source/value
+alone no longer exports [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context). The [generic graph API](../checkpoint/graph.md) stores source/value
 state only, not [optimizer](../../glossary.md#term-optimizer)/session state, and adds no fresh-value [TrainingSession](../../glossary.md#training-session--trainingsession) support.
 
-- [Training graph](../../architecture/training-graph.md)<span data-glossary-navigation="true"> ([Training graph glossary](../../glossary.md#training-graph))</span>
-- [Autograd guide](../../user-guide/autograd.md)<span data-glossary-navigation="true"> ([Autograd glossary](../../glossary.md#autograd))</span>
+- [Training graph](../../architecture/training-graph.md)
+- [Autograd guide](../../user-guide/autograd.md)
 - [Training guide](../../user-guide/training.md)
 - [Training master plan](../../planning/extensions/training/master-plan.md)
 

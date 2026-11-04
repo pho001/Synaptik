@@ -1,11 +1,23 @@
 # [Runtime](../../glossary.md#term-runtime)-length recurrent composition
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java)
 
 A **[valid length](../../glossary.md#term-valid-length)** says how many initial time steps belong to each sequence; the remaining
 suffix is [padding](../../glossary.md#padding). **Runtime-length** means those counts arrive as [Tensor](../../glossary.md#tensor) values for execution,
 rather than Java counts used to construct a different expression for each [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters). A final hidden
 state is the state after that row's last valid transition, not necessarily its last padded output.
+
+## Who supplies the sequence state?
+
+The application calls the NN sequence's `forwardScan` with values, lengths and explicit initial
+states. The sequence passes these Tensor **descriptions** and its cell's current parameter
+references to the Model scan constructor. Neither participant reads length bytes at this boundary.
+At a later Engine run, the application supplies stored values matching the compiled descriptors;
+the backend then checks the length values and evaluates the transitions. The sequence never
+remembers a final state for the next batch. To continue, explicitly pass the returned symbolic
+state into another expression, or materialize state and provide compatible stored values to a
+later run. [Data's length export](../data/sequences.md#explicit-runtime-scan-lengths) creates the
+separate INT64 input; it does not bind or execute it.
 
 <a id="nn-runtime-length-recurrent-composition"></a>
 ### [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [runtime](../../glossary.md#term-runtime)-length recurrent composition

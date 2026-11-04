@@ -13,20 +13,35 @@ descriptions from the storage and work needed to produce results.
 
 | I want to… | Start here | Then consult |
 |---|---|---|
-| Create values or understand an expression | [Tensor families](tensor/index.md)<span data-glossary-navigation="true"> ([Tensor glossary](../glossary.md#tensor))</span> | [Shapes](tensor/shapes.md)<span data-glossary-navigation="true"> ([Shapes glossary](../glossary.md#shape))</span>, [descriptors](tensor/descriptors.md)<span data-glossary-navigation="true"> ([descriptors glossary](../glossary.md#term-descriptor))</span>, [borrowed storage](tensor/storage-association.md)<span data-glossary-navigation="true"> ([borrowed glossary](../glossary.md#ownership-borrowing-and-lease))</span> |
-| Build a small owned [neural network](../glossary.md#neural-network-module-parameter-buffer-and-forward-context) | [Fluent Model builder](nn/model-builder.md)<span data-glossary-navigation="true"> ([Fluent Model builder glossary](../glossary.md#fluent-model-builder))</span> | [Owned Model execution](nn/owned-model.md)<span data-glossary-navigation="true"> ([Owned Model glossary](../glossary.md#model-module-buffer-and-scan-distinctions))</span>, [NN contracts](nn/index.md)<span data-glossary-navigation="true"> ([NN glossary](../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span> |
-| [Compile](../glossary.md#compile) once and [run](../glossary.md#term-run) fresh inputs | [Engine lifecycle](engine/lifecycle.md)<span data-glossary-navigation="true"> ([Engine glossary](../glossary.md#term-engine); [lifecycle glossary](../glossary.md#lifecycle))</span> | [Exact bindings and results](runtime/engine-boundary.md)<span data-glossary-navigation="true"> ([bindings glossary](../glossary.md#term-binding))</span>, [explicit CPU/Metal composition](engine/composition.md)<span data-glossary-navigation="true"> ([CPU glossary](../glossary.md#term-cpu); [Metal glossary](../glossary.md#term-metal))</span> |
-| Train [parameters](../glossary.md#term-parameter) and recover [optimizer state](../glossary.md#term-optimizer-state) | [Training sessions](training/sessions.md) | [Optimizers and transactions](training/optimizers.md)<span data-glossary-navigation="true"> ([Optimizers glossary](../glossary.md#term-optimizer))</span>, [caller-coordinated recovery](training/recovery.md) |
-| Save or load a [graph](../glossary.md#graph) or [Model](../glossary.md#term-model) | [Checkpoint choices](checkpoint/index.md)<span data-glossary-navigation="true"> ([Checkpoint glossary](../glossary.md#term-checkpoint))</span> | [Graph sources](checkpoint/graph.md), [format versions](checkpoint/graph-formats.md), [whole-model recovery](checkpoint/models.md) |
-| Pad sequences or encode text | [Sequence batches](data/sequences.md)<span data-glossary-navigation="true"> ([batches glossary](../glossary.md#term-batch-machine-learning-and-hyperparameters))</span> | [Frozen tokenization](text/tokenization.md)<span data-glossary-navigation="true"> ([tokenization glossary](../glossary.md#frozen-whitespace-tokenizer))</span>, [runtime-length NN composition](nn/recurrent.md)<span data-glossary-navigation="true"> ([runtime glossary](../glossary.md#term-runtime))</span> |
-| Understand logical [compilation](../glossary.md#compiler-engine-and-execution-stage-names) outputs | [Compiler boundaries](compiler/index.md)<span data-glossary-navigation="true"> ([Compiler glossary](../glossary.md#term-compiler))</span> | [Artifacts](compiler/artifacts.md)<span data-glossary-navigation="true"> ([Artifacts glossary](../glossary.md#term-artifact))</span>, [functional gradients](compiler/autograd.md)<span data-glossary-navigation="true"> ([gradients glossary](../glossary.md#term-gradient))</span>, [batch binding](compiler/batch-binding.md) |
-| Integrate below the application [facade](../glossary.md#term-facade) | [Runtime mental model](runtime/index.md)<span data-glossary-navigation="true"> ([mental model glossary](../glossary.md#term-mental-model))</span> | [Prepare](runtime/prepare.md)<span data-glossary-navigation="true"> ([Prepare glossary](../glossary.md#prepare))</span>, [representation ownership](runtime/representations.md)<span data-glossary-navigation="true"> ([ownership glossary](../glossary.md#term-ownership-meanings))</span>, [run orchestration](runtime/orchestration.md) |
+| Create values or understand an expression | [Tensor families](tensor/index.md) | [Shapes](tensor/shapes.md), [descriptors](tensor/descriptors.md), [borrowed storage](tensor/storage-association.md) |
+| Build a small owned [neural network](../glossary.md#neural-network-module-parameter-buffer-and-forward-context) | [Fluent Model builder](nn/model-builder.md) | [Owned Model execution](nn/owned-model.md), [NN contracts](nn/index.md) |
+| [Compile](../glossary.md#compile) once and [run](../glossary.md#term-run) fresh inputs | [Engine lifecycle](engine/lifecycle.md) | [Exact bindings and results](runtime/engine-boundary.md), [explicit CPU/Metal composition](engine/composition.md) |
+| Train [parameters](../glossary.md#term-parameter) and recover [optimizer state](../glossary.md#term-optimizer-state) | [Training sessions](training/sessions.md) | [Optimizers and transactions](training/optimizers.md), [caller-coordinated recovery](training/recovery.md) |
+| Save or load a [graph](../glossary.md#graph) or [Model](../glossary.md#term-model) | [Checkpoint choices](checkpoint/index.md) | [Graph sources](checkpoint/graph.md), [format versions](checkpoint/graph-formats.md), [whole-model recovery](checkpoint/models.md) |
+| Pad sequences or encode text | [Sequence batches](data/sequences.md) | [Frozen tokenization](text/tokenization.md), [runtime-length NN composition](nn/recurrent.md) |
+| Understand logical [compilation](../glossary.md#compiler-engine-and-execution-stage-names) outputs | [Compiler boundaries](compiler/index.md) | [Artifacts](compiler/artifacts.md), [functional gradients](compiler/autograd.md), [batch binding](compiler/batch-binding.md) |
+| Integrate below the application [facade](../glossary.md#term-facade) | [Runtime mental model](runtime/index.md) | [Prepare](runtime/prepare.md), [representation ownership](runtime/representations.md), [run orchestration](runtime/orchestration.md) |
 | Look up exact Java [signatures](../glossary.md#term-signature) | [Generated Javadoc access](javadoc.md) | Build-required local links and extraction instructions for all 18 supplied [Javadoc](../glossary.md#term-javadoc) JARs |
-| Check whether a [backend](../glossary.md#backend) accepts my [occurrence](../glossary.md#term-occurrence) | [Current production matrix](../backend-guide/production-support.md)<span data-glossary-navigation="true"> ([matrix glossary](../glossary.md#term-matrix-meanings))</span> | [Public API compatibility](compatibility.md)<span data-glossary-navigation="true"> ([API glossary](../glossary.md#term-application-programming-interface-api))</span>; Model-valid does not mean backend-supported |
+| Check whether a [backend](../glossary.md#backend) accepts my [occurrence](../glossary.md#term-occurrence) | [Current production matrix](../backend-guide/production-support.md) | [Public API compatibility](compatibility.md); Model-valid does not mean backend-supported |
 
 ## Follow one small computation
 
-The shared learning example uses [FLOAT32](../glossary.md#term-float32) input `[2,1]` with values `[1,3]`, a supplied [gradient](../glossary.md#term-gradient)-eligible [weight](../glossary.md#term-weight) `[1,1]` initialized to `0`, no [bias](../glossary.md#term-bias), and [target](../glossary.md#term-target) `[2,6]`. [Linear projection](tensor/matmul-linear.md)<span data-glossary-navigation="true"> ([Linear projection glossary](../glossary.md#linear-projection))</span> describes `input @ transpose(weight)`. [Arithmetic](tensor/arithmetic.md) and [reductions](tensor/reductions.md) describe `sum((prediction-target)^2)`. Initially the [prediction](../glossary.md#term-prediction) is `[0,0]`, the [objective](../glossary.md#term-objective) is `40`, and the weight gradient is `-40`. [SGD](training/optimizers.md)<span data-glossary-navigation="true"> ([SGD glossary](../glossary.md#term-stochastic-gradient-descent-sgd))</span> at [learning rate](../glossary.md#term-learning-rate) `0.05` updates the privately owned weight to `2`, yielding `[2,6]`; fresh input `[2,4]` yields `[4,8]`.
+The shared learning example has two examples, each with one feature: FLOAT32 input `[2,1]`
+containing $x_1=1$, $x_2=3$, and target values $y_1=2$, $y_2=6$. A supplied trainable scalar
+weight starts at $w=0$ and there is no bias. [Linear projection](tensor/matmul-linear.md) describes
+predictions $\widehat y_i=x_iw$ for $i\in\{1,2\}$; [arithmetic](tensor/arithmetic.md) and
+[reductions](tensor/reductions.md) describe the squared-error sum
+
+$$
+L(w)=\sum_{i=1}^{2}(x_iw-y_i)^2,\qquad
+\frac{dL}{dw}=2\sum_{i=1}^{2}x_i(x_iw-y_i).
+$$
+
+At $w=0$, $L=4+36=40$ and $dL/dw=-40$. [SGD](training/optimizers.md) with learning rate
+$\eta=0.05$ computes $w_{\mathrm{new}}=0-0.05(-40)=2$, yielding `[2,6]`; fresh input `[2,4]`
+then yields `[4,8]`. These real-number calculations explain the example; execution follows
+FLOAT32 rounding rather than arbitrary algebraic reassociation. The Model acquires a private
+copy of the application's supplied weight, and the step reports the **pre-update** loss $40$.
 
 These are exact teaching values, not a convergence or performance claim. The [complete learning program](../examples/README.md) supplies setup, execution and interpretation. [General Scan](../glossary.md#general-differentiable-scan), [tokenization](../glossary.md#frozen-whitespace-tokenizer), [convolution](../glossary.md#term-channels-first-convolution-layers), [checkpoint](../glossary.md#term-checkpoint) formats, [backend](../glossary.md#backend) integration and [runtime](../glossary.md#term-runtime) service-provider interfaces are not needed to understand that first step.
 
@@ -39,7 +54,7 @@ These are exact teaching values, not a convergence or performance claim. The [co
 - **Evidence:** 55 retained complete Java classes compiled against installed public artifacts;
   all 53 with main methods ran, and all 47 literal stdout blocks matched. The learning project
   independently matched its complete transcript. Conceptual fragments and package-local sketches
-  are not executable application promises; these checks do not qualify all backend geometries.<span data-glossary-navigation="true"> ([artifacts glossary](../glossary.md#term-artifact))</span>
+  are not executable application promises; these checks do not qualify all backend geometries.
 
 ## Existing links
 
