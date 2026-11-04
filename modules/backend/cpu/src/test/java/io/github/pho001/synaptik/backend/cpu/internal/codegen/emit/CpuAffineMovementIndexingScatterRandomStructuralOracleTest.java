@@ -1996,7 +1996,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
      * ABI and non-erased topology.
      * The direct scatter closure remains the executable represented-value oracle; this projection
      * retains base copy, ordered index/update loads, output store, row-major contribution loop,
-     * range ownership, and the floating-MUL workspace parameter boundary.
+     * range ownership, and the declared numerical-workspace parameter boundary.
      */
     @Test void everyScatterRowHasAnIndependentTypedCleanJavaStateProjection() throws Throwable {
         var candidates = CpuOrdinaryNonPointwiseGeneratedMatrixTest.scatterCandidates();
@@ -2047,8 +2047,6 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
             assertGeneratedInstructionMemberHygiene(row.owner + " clean", counterpart);
             ScatterFacts cleanFacts = scatterFacts(counterpart), generatedFacts = scatterFacts(generated);
             assertScatterProjection(row, cleanFacts, generatedFacts);
-            assertScratchTopology(row, counterpart, "clean");
-            assertScratchTopology(row, generated, "generated");
             assertScatterHygiene(row.owner + " clean", row, cleanFacts);
             assertScatterHygiene(row.owner + " generated", row, generatedFacts);
             var generatedEntry = generator.defineClassBytes(row.specialization, row.kernelIr, bytes).entryPoint();
@@ -2155,7 +2153,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
     /** Active controls ensure retained scatter facts cannot be removed cosmetically. */
     @Test void scatterProjectionRejectsAbiOrderIndexRangeReductionScratchStoreAndHygieneMutations() throws Exception {
         PreparedScatter baseline = new PreparedScatter("control", "SCATTER_ELEMENTS", DataType.FLOAT32,
-                DataType.INT32, "ADD", new ScratchRequirement(false, 0L, 0L, "([F[I[F[F[JJJ)V"), null, null);
+                DataType.INT32, "ADD", new ScratchRequirement(false, 0L, "([F[I[F[F[JJJ)V"), null, null);
         ScatterFacts facts = new ScatterFacts("([F[I[F[F[JJJ)V", 4, 3, 2, 2, 2,
                 true, true, true, true, true, true, List.of(), List.of("IFGE"));
         assertScatterProjection(baseline, facts, facts);
@@ -2181,25 +2179,6 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
         }
     }
 
-    /** Real javac source mutants prove that each live scratch role remains mandatory. */
-    @Test void scatterScratchProjectionRejectsResetHeaderLimbPublicationAndSizeMutants() throws Exception {
-        String descriptor = "([F[I[F[FLjava/lang/foreign/MemorySegment;[JJJ)V";
-        PreparedScatter basis = new PreparedScatter("scratch-control", "SCATTER_ELEMENTS", DataType.FLOAT32,
-                DataType.INT32, "MUL", new ScratchRequirement(true, 32L, 0L, descriptor), null, null);
-        var row = new CpuAffineMovementIndexingScatterRandomCleanJavaOracle.Row("scratch-control", "scatter-elements",
-                descriptor, "FLOAT32:INT32:MUL:scratch", false, 2, 2L);
-        var mutants = CpuAffineMovementIndexingScatterRandomCleanJavaOracle.compileScatterMutants(row);
-        MethodModel canonical = methods(mutants.bytes()).get(mutants.methods().get("missing-base-copy"));
-        assertTrue(canonical != null, "independently javac-compiled scratch canonical body");
-        // The canonical source differs only in an unrelated base-copy mutant; its scratch body is intact.
-        assertScratchTopology(basis, canonical, "clean");
-        for (String name : List.of("missing-scratch-reset", "wrong-scratch-header", "missing-scratch-limb",
-                "missing-scratch-publication", "scratch-size")) {
-            MethodModel mutant = methods(mutants.bytes()).get(mutants.methods().get(name));
-            assertThrows(AssertionError.class, () -> assertScratchTopology(basis, mutant, "clean"),
-                    "real javac scratch mutant rejected: " + name);
-        }
-    }
 
     private static ScatterFacts scatterFacts(MethodModel method) {
         int loads = 0, stores = 0, longLoads = 0, branches = 0;
@@ -2262,109 +2241,14 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
         int dataParameters = parameters.size() - 3;
         assertTrue(dataParameters == preparedBoundaryCount || dataParameters == preparedBoundaryCount + 1,
                 "scatter descriptor differs from prepared boundary topology: " + descriptor);
-        // The descriptor contributes exactly one segment after the independently prepared
-        // boundary topology only for exact-product workspace; ordinary segment carriers occupy
-        // one of the boundary slots and cannot change this cardinality.
+        // A declared numerical workspace adds one segment after the prepared boundary
+        // topology. Segment-backed data carriers already occupy their own boundary slots.
         boolean required = dataParameters == preparedBoundaryCount + 1
                 && parameters.get(dataParameters - 1).equals("java.lang.foreign.MemorySegment");
-        return new ScratchRequirement(required, preparedBytes, 0L, descriptor);
+        return new ScratchRequirement(required, preparedBytes, descriptor);
     }
 
 
-    /**
-     * Proves that the descriptor's scratch parameter, rather than an arbitrary segment carrier,
-     * reaches the live exact-product reset/header/limb/publication accesses.  This deliberately
-     * proves only live state: the emitter intentionally leaves unreachable trailing limbs
-     * unspecified, so final whole-scratch byte equality would be a false requirement.
-     */
-    private static void assertScratchTopology(PreparedScatter row, MethodModel method, String implementation) {
-        if (!row.scratchRequirement.required()) {
-            return;
-        }
-        assertEquals(0L, row.scratchRequirement.offset(), row.owner + " exact scratch slice offset");
-        assertTrue(row.scratchRequirement.bytes() >= 24L && row.scratchRequirement.bytes() % Long.BYTES == 0L,
-                row.owner + " exact scratch extent");
-        List<String> parameters = CpuAffineMovementIndexingScatterRandomCleanJavaOracle.parameters(method.methodType().stringValue());
-        assertEquals("java.lang.foreign.MemorySegment", parameters.get(parameters.size() - 4),
-                row.owner + " one scratch boundary immediately before geometry/start/end");
-        ScratchDataflow flow = scratchDataflow(method, parameters.size() - 4);
-        if (implementation.equals("clean")) assertTrue(flow.sizeGuard,
-                row.owner + " clean scratch parameter guards prepared exact slice bytes");
-        assertTrue(flow.reset, row.owner + ' ' + implementation + " descriptor scratch parameter resets exact state header");
-        assertTrue(flow.header, row.owner + ' ' + implementation + " descriptor scratch parameter writes exact state header");
-        assertTrue(flow.limbRead && flow.limbWrite, row.owner + ' ' + implementation + " descriptor scratch parameter reads and updates live limb");
-        if (implementation.equals("clean")) assertTrue(flow.publication,
-                row.owner + " clean descriptor scratch parameter feeds publication observation");
-    }
-
-    private static ScratchDataflow scratchDataflow(MethodModel method, int scratchParameter) {
-        List<String> parameters = CpuAffineMovementIndexingScatterRandomCleanJavaOracle.parameters(method.methodType().stringValue());
-        List<Instruction> instructions = method.code().orElseThrow().elementStream()
-                .filter(Instruction.class::isInstance).map(Instruction.class::cast).toList();
-        Set<Integer> scratchLocals = parameterDerivedLocals(instructions, parameterSlot(parameters, scratchParameter));
-        boolean reset = false, header = false, limbRead = false, limbWrite = false, publication = false, sizeGuard = false;
-        boolean firstLiveScratchAccess = true;
-        for (int index = 0; index < instructions.size(); index++) {
-            Instruction instruction = instructions.get(index);
-            if (!(instruction instanceof InvokeInstruction call)
-                    || !call.owner().asInternalName().equals("java/lang/foreign/MemorySegment")) continue;
-            boolean fromScratch = false;
-            int zeroes = 0;
-            boolean hasEight = false, hasSixteen = false, hasTwentyFour = false, priorScratchGetTwentyFour = false;
-            for (int prior = Math.max(0, index - 32); prior < index; prior++) {
-                Instruction previous = instructions.get(prior);
-                if (previous instanceof LoadInstruction load && scratchLocals.contains(load.slot())) fromScratch = true;
-                if (previous instanceof InvokeInstruction priorCall
-                        && priorCall.owner().asInternalName().equals("java/lang/foreign/MemorySegment")
-                        && priorCall.name().stringValue().startsWith("get")) priorScratchGetTwentyFour = true;
-                if (previous instanceof ConstantInstruction constant && constant.constantValue() instanceof Number number) {
-                    long value = number.longValue();
-                    if (value == 0L) zeroes++;
-                    hasEight |= value == 8L; hasSixteen |= value == 16L; hasTwentyFour |= value == 24L;
-                }
-            }
-            if (!fromScratch) continue;
-            String name = call.name().stringValue();
-            if (name.equals("byteSize")) sizeGuard = true;
-            if (name.startsWith("set")) {
-                if (firstLiveScratchAccess) reset = zeroes >= 2;
-                firstLiveScratchAccess = false;
-                header |= hasEight && hasSixteen;
-                limbWrite |= priorScratchGetTwentyFour;
-            }
-            if (name.startsWith("get")) {
-                firstLiveScratchAccess = false;
-                limbRead |= hasTwentyFour;
-                publication |= hasTwentyFour && hasPublicationBranch(instructions, index);
-            }
-        }
-        return new ScratchDataflow(sizeGuard, reset, header, limbRead, limbWrite, publication);
-    }
-
-    private static boolean hasFollowingStore(List<Instruction> instructions, int index, Set<Integer> scratchLocals) {
-        for (int next = index + 1; next < Math.min(instructions.size(), index + 128); next++) {
-            Instruction instruction = instructions.get(next);
-            if (instruction instanceof ArrayStoreInstruction) return true;
-            if (instruction instanceof InvokeInstruction call
-                    && call.owner().asInternalName().equals("java/lang/foreign/MemorySegment")
-                    && call.name().stringValue().startsWith("set")) {
-                boolean scratch = false;
-                for (int prior = Math.max(index + 1, next - 24); prior < next; prior++)
-                    if (instructions.get(prior) instanceof LoadInstruction load && scratchLocals.contains(load.slot())) scratch = true;
-                return !scratch;
-            }
-        }
-        return false;
-    }
-
-    private static boolean hasPublicationBranch(List<Instruction> instructions, int index) {
-        for (int next = index + 1; next < Math.min(instructions.size(), index + 16); next++) {
-            if (instructions.get(next).opcode() == Opcode.LCMP) return true;
-            if (instructions.get(next) instanceof InvokeInstruction call
-                    && call.owner().asInternalName().equals("java/lang/foreign/MemorySegment")) return false;
-        }
-        return false;
-    }
 
     private static void assertScatterHygiene(String owner, PreparedScatter row, ScatterFacts facts) {
         for (String opcode : facts.opcodes) assertFalse(Set.of("NEW", "ANEWARRAY", "NEWARRAY", "MULTIANEWARRAY",
@@ -2403,7 +2287,11 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
         }
         if (row.scratchRequirement.required()) allowed.addAll(Set.of(
                 "java/lang/foreign/MemorySegment.get(Ljava/lang/foreign/ValueLayout$OfLong;J)J",
-                "java/lang/foreign/MemorySegment.set(Ljava/lang/foreign/ValueLayout$OfLong;JJ)V"));
+                "java/lang/foreign/MemorySegment.set(Ljava/lang/foreign/ValueLayout$OfLong;JJ)V",
+                "java/lang/foreign/MemorySegment.get(Ljava/lang/foreign/ValueLayout$OfFloat;J)F",
+                "java/lang/foreign/MemorySegment.set(Ljava/lang/foreign/ValueLayout$OfFloat;JF)V",
+                "java/lang/foreign/MemorySegment.get(Ljava/lang/foreign/ValueLayout$OfByte;J)B",
+                "java/lang/foreign/MemorySegment.set(Ljava/lang/foreign/ValueLayout$OfByte;JB)V"));
         // The private BF16 conversion pair is selected only by a BF16 data role, never by suffix.
         if (row.dataType == DataType.BFLOAT16) allowed.addAll(Set.of(
                 "io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuDataMovementEmitter.bf16(F)S",
@@ -2611,9 +2499,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
     private record PreparedScatter(String owner, String form, DataType dataType, DataType indexType,
             String reduction, ScratchRequirement scratchRequirement, CpuKernelSpecialization specialization,
             CpuKernelIr kernelIr) { }
-    private record ScratchRequirement(boolean required, long bytes, long offset, String descriptor) { }
-    private record ScratchDataflow(boolean sizeGuard, boolean reset, boolean header,
-            boolean limbRead, boolean limbWrite, boolean publication) { }
+    private record ScratchRequirement(boolean required, long bytes, String descriptor) { }
     private record ScatterCarrier(Object array, Object carrier, DataType type) { }
     private record ScatterFacts(String descriptor, int roles, int loads, int stores, int longLoads, int branches,
             boolean range, boolean orderedLoads, boolean baseCopy, boolean indexLoad, boolean updateLoad,

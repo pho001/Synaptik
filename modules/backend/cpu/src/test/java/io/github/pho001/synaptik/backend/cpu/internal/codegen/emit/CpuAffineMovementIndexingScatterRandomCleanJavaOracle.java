@@ -175,10 +175,6 @@ final class CpuAffineMovementIndexingScatterRandomCleanJavaOracle {
                 scatterMutant(basis, "reflection"), scatterMutant(basis, "string-dispatch"),
                 scatterMutant(basis, "map-dispatch"), scatterMutant(basis, "helper"),
                 scatterMutant(basis, "athrow"), scatterMutant(basis, "invokedynamic")));
-        if (basis.dataType().endsWith(":scratch")) rows.addAll(List.of(
-                scatterMutant(basis, "missing-scratch-reset"), scatterMutant(basis, "wrong-scratch-header"),
-                scatterMutant(basis, "missing-scratch-limb"), scatterMutant(basis, "missing-scratch-publication"),
-                scatterMutant(basis, "scratch-size")));
         return compile(rows);
     }
 
@@ -650,12 +646,6 @@ final class CpuAffineMovementIndexingScatterRandomCleanJavaOracle {
             case "missing-store" -> correct.replace("p3[(int)oa]=value;", "");
             case "wrong-reduction" -> inject(correct, "helper(p" + start + ");")
                     .replace("value=value+right;", "value=value-right;");
-            case "missing-scratch-reset" -> correct.replace("scratch.set(java.lang.foreign.ValueLayout.JAVA_LONG,0L,0L);", "");
-            case "wrong-scratch-header" -> correct.replace("8L,0L", "9L,0L");
-            case "missing-scratch-limb" -> correct.replace("scratch.set(java.lang.foreign.ValueLayout.JAVA_LONG,24L,limb+1L);", "")
-                    .replace("scratch.set(java.lang.foreign.ValueLayout.JAVA_LONG,0L,scratch.get(java.lang.foreign.ValueLayout.JAVA_LONG,0L)|1L);", "");
-            case "missing-scratch-publication" -> correct.replace("long published=scratch.get(java.lang.foreign.ValueLayout.JAVA_LONG,24L);if(published==Long.MIN_VALUE)value=right;", "");
-            case "scratch-size" -> correct.replace("if(scratch.byteSize()<scratchBytes)return;", "");
             case "scratch-access" -> inject(correct, "p4.byteSize();");
             case "helper" -> inject(correct, "helper(p" + start + ");");
             case "new" -> inject(correct, "new Object();");

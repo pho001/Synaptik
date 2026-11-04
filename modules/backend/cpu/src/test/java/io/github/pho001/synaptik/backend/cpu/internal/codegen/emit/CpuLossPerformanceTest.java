@@ -761,7 +761,8 @@ class CpuLossPerformanceTest {
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
-        var kernel = generator.defineClassBytes(route.specialization(), route.kernelIr(), generator.generateClassBytes(route.specialization(), route.kernelIr()));
+        byte[] generatedBytes = generator.generateClassBytes(route.specialization(), route.kernelIr());
+        var kernel = generator.defineClassBytes(route.specialization(), route.kernelIr(), generatedBytes);
         long domain = row.family() == LossKind.MEAN_SQUARED_ERROR ? 4_096L : 128L;
         Object[] storage = arrays(types);
         populateInputs(storage, types, types.size() - 1, row.ignore());
@@ -777,7 +778,7 @@ class CpuLossPerformanceTest {
                 arguments[row.roles().getLast()], outputCarrier, (long[]) arguments[storage.length],
                 (long) arguments[storage.length + 1], (long) arguments[storage.length + 2]);
         return new Case(new TimedSide(generated, checksumHandle(outputCarrier, row.result()), outputCarrier),
-                new TimedSide(direct, checksumHandle(outputCarrier, row.result()), outputCarrier));
+                new TimedSide(direct, checksumHandle(outputCarrier, row.result()), outputCarrier), generatedBytes);
     }
 
     /** Binds all cold carriers, geometry, and range once; the timed call site is exact void(). */
@@ -992,5 +993,5 @@ class CpuLossPerformanceTest {
             if (carrier == null) throw new NullPointerException("carrier");
         }
     }
-    private record Case(TimedSide generated, TimedSide direct) { }
+    private record Case(TimedSide generated, TimedSide direct, byte[] generatedClassBytes) { }
 }
