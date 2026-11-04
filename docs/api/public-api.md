@@ -1380,11 +1380,11 @@ builder, or target prototypes and a list builder, plus an Optimizer. It succeeds
 two declared inputs and one output, including ordinary graphs and loaded Models. It binds positions,
 not inferred dtype or length roles, and uses the same cached execution as list compute with
 `Long.MAX_VALUE`. Capability/lifecycle admission precedes arity, then arguments. Cold `forward`
-is optional, never a prerequisite. Fixed-scan-containing sources reject both configureTraining and both
-train overload families with `UnsupportedOperationException` after lifecycle/live-source checks,
-before arity/arguments, binding freeze, callbacks, Engine creation, inference-cache closure or
-native parameter copy. Valid rejected sources retain state, caches and their previous freeze status;
-ordinary static training is unchanged.
+is optional, never a prerequisite. Fixed and general recurrent sources use the existing configured
+TrainingSession and Compiler first-order AD when their actual forward/reverse bodies qualify.
+Mixed fixed/general sources share one configured session. Objectives still require a scalar,
+gradient-eligible FLOAT32/FLOAT64 result; low-output objectives explicitly cast to FLOAT32/FLOAT64.
+The ordinary CPU low-arithmetic restriction and existing setup/lifecycle ordering are unchanged.
 
 `Model.graph` and `defineTensor` also acquire bounded all-valid general-scan bodies through Checkpoint and
 Compiler's [cold constructor inventory](../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction).
@@ -1394,8 +1394,8 @@ PURE-body support. The all-valid compute/first-order training workflow is qualif
 canonical homogeneous FLOAT32/FLOAT64 occurrences whose actual forward/reverse bodies and binders
 qualify. All-valid means every static time step participates, with no lengths or padding mask.
 Acquire private state once, configure once, and pass fresh exact-descriptor batches to the same
-prepared/session owners. Connected nonempty parameter admission still applies at T=0. A source
-containing any fixed scan remains inference-only, even when it also contains general scans.
+prepared/session owners. Connected nonempty parameter admission still applies at T=0; neither
+fixed nor general recurrence bypasses the selected backend's actual derivative qualification.
 Bounded all-valid general-body save/load uses
 [v4](../architecture/contracts/extensions-training.md#canonical-graph-model-version-4);
 the static homogeneous FLOAT32/FLOAT64 length intersection uses
@@ -1578,8 +1578,10 @@ both snapshot recipes and create fresh private state.
 
 FLOAT32/FLOAT64 `rnnScan` uses the general composition above, supporting qualified first-order
 training and v5 persistence with canonical source outputs. Retained low RNN, GRU/LSTM and direct
-fixed expressions stay fixed/inference-only. Any fixed scan in a mixed source preserves the
-pre-setup training rejection. Old v3 fixed files remain fixed rather than migrating on load.
+fixed expressions remain fixed recipes with their own working/publication semantics. Qualified
+first-order configured training now uses their existing Compiler AD without rewriting them as
+general Scan. Old v3 fixed files remain fixed after load; fresh training does not restore optimizer
+history. Low execution still requires a supporting backend and explicit FLOAT32/FLOAT64 objective.
 
 
 There is no model-wide mask: bias and sigmoid may change padded zeros; convolution/pooling keep

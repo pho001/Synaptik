@@ -35,14 +35,13 @@ arbitrary external objective leaves reject. Configuration preserves eval mode an
 Failed setup permits explicit retry but Engine selection freezes before callback/native/preparation
 work, even on failure. Successful native admission is not repeated on retry.
 
-Owned sources containing any fixed recurrent scan are inference-only, including mixed
-fixed/general sources behind a head or with only a final-state root. Both configureTraining and
-both train overload families throw `UnsupportedOperationException` after existing lifecycle and
-live-source admission, before arity/arguments, binding freeze, objective callbacks, Engine creation,
-inference-preparation closure or native parameter copy. For a valid source, rejection preserves
-state bytes, stores, inference caches, gradient flags and any preexisting freeze status, before or
-after compute/load. It does not rely on a late Compiler BPTT error. Live-source invalidation and
-closed/busy diagnostics still take precedence; configured static-unroll training is unchanged.
+Qualified fixed recurrent sources now use that same configured TrainingSession and Compiler
+first-order AD, including mixed fixed/general sources, ordinary heads and final-state roots.
+Fixed presence is not a separate inference-only admission guard. Keep the source's original
+fixed/general recipe, storage carriers and rounding boundaries; low-output objectives explicitly
+cast to FLOAT32/FLOAT64, and the CPU low-arithmetic restriction still applies.
+Actual backend/AD rejection follows the existing setup, native transition and retry ordering.
+No optimizer/session history is restored by graph load; configure fresh training on restored values.
 
 Qualified general Scan sources are different: all-valid homogeneous F32/F64 and NN0033's static
 runtime-length F32/F64 RNN support first-order training through the same owners. The explicit
@@ -1115,19 +1114,20 @@ construction with an ordinary `INT64[batch]` `validLengths` Tensor. The advanced
 `RecurrentScan.rnn`, `gru`, and `lstm` namespace has exactly six biased or bias-free methods with
 explicit time-major input first. Each creates one flat multi-output producer with dense time-major
 output and explicit final states. The namespace is not an NN layer or module and does not read
-length values, statically unroll a cell, own parameters, or execute. Current package-private
-Compiler forward-only inference adopts the family, while both backward-capable modes reject it
-before derivative Tensor allocation. The CPU scalar fixed route separately qualifies homogeneous
+length values, statically unroll a cell, own parameters, or execute.
+The Compiler supports the current forward family and selected first-order AD through its shared
+cell/Scan construction; actual reverse bodies still require independent backend admission.
+Higher-order recurrence remains unsupported. The CPU scalar fixed route qualifies homogeneous
 static FLOAT32/FLOAT64 and resolved nonnegative read layouts, both directions/
 bias modes, with trainable NN parameter flags. Compile through public Engine, prepare once and runValues
 with fresh full-descriptor values in `compiled.inputs()` order, including parameters and states.
 Each run validates every length in `[0,time]` before writing scan results; invalid values may be
 repaired and the preparation reused. Fixed expression validity remains distinct from execution
-qualification. Owned fixed-scan-containing Models compute through that cached Engine path but
-reject BPTT/training early as described under [owned Model training](#owned-model-training-convenience).
+qualification. Owned fixed-scan-containing Models compute and configure qualified first-order
+training through those same owners; see [owned Model training](#owned-model-training-convenience).
 Low fixed-scan source/storage remains retained, while BF16/FP16 CPU numerical execution is
 temporarily locked; private F32 optimizer masters do not widen that fixed forward capability.
-NN0033's separate F32/F64 general RNN training is not subject to that fixed-only rejection.
+NN0033's F32/F64 general RNN composition keeps its distinct working/publication recipe.
 
 The additive scan method does not redirect any existing `forward` overload or bidirectional
 container. Their Java `long[]` construction-time lengths, compact per-step outputs, provenance
@@ -1138,7 +1138,7 @@ concrete bidirectional constructors already expose their two seeds and no factor
 current. Existing builder `rnn/gru/lstm` steps remain statically unrolled and retain supported training.
 Explicit `rnnScan/gruScan/lstmScan` steps build two-input Models with shared runtime lengths,
 FORWARD biased transitions and independent zero states. F32/F64 RNN uses trainable general Scan;
-retained fixed families stay inference-only. `finalHidden` selects the actual producer's semantic
+retained fixed families use their existing first-order AD when qualified. `finalHidden` selects the actual producer's semantic
 port, not a universal index. See the [runtime-length Model workflow](../user-guide/running-models.md#run-a-runtime-length-scan-model)
 and [RNN training journey](../user-guide/running-models.md#train-a-runtime-length-rnn).
 No global padding mask, hidden state carry or NN-to-Data dependency is introduced. Data exports

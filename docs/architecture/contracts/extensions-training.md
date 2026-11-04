@@ -344,8 +344,9 @@ must follow the actual producer's declared roles. Do not insert copies or erase 
 imitate old fixed result layouts. General backend/layout qualification remains independent.
 NN0033 is implemented and MAIN accepted after independent reviews, affected gates and public
 F32/F64 repeated train/save/close/load/fresh-training proof. Exact canonical formal/emission/latent
-geometry preflight precedes initialization and IDs. Mixed sources containing any fixed scan retain
-pre-setup training rejection. Ordinary `.rnn` is not migrated and NN0032 compatibility is not waived.
+geometry preflight precedes initialization and IDs. Qualified fixed and mixed fixed/general sources
+now share the existing configured TrainingSession and Compiler AD. Ordinary `.rnn` is not migrated
+and NN0032 compatibility is not waived.
 
 `buildWithLengths()` requires at least one scan and declares `[values, validLengths]` in that order,
 with one chain output. Existing `build()` retains `Model<Tensor,Tensor>` and rejects scan recipes;
@@ -399,9 +400,10 @@ The list boundary may declare sequence, non-gradient INT64 runtime lengths and i
 unique provenance-free inputs, disjoint from named state. Their prototype storage is never copied
 or saved; copy/load recreate storage-free prototypes and cold forward accepts fresh exact full
 descriptors. Explicit scan recipes and graph/load scan sources may compute through existing cached
-public Engine execution; static recipes and sequence containers are not redirected. Scan-containing
-Models with fixed recurrent scans remain inference-only. Raw persistence supports seven dtypes,
-independently of execution. Old model.v1/whole-model.v1 readers and flexible forward remain separate.
+public Engine execution; static recipes and sequence containers are not redirected. Fixed sources
+may use configured first-order training when their actual backend/AD closure qualifies. Raw
+persistence supports seven dtypes independently of execution. Old model.v1/whole-model.v1 readers
+and flexible forward remain separate.
 
 `HostTensorValue Model.compute(Tensor firstInput, Tensor secondInput)` is a generic convenience for
 any owned Model with exactly two declared inputs and one output, including graph/loaded sources,
@@ -420,21 +422,23 @@ Batch storage is borrowed for the whole synchronous call. TrainingStep is detach
 
 withEngine returns the same receiver and only selects a borrowed Engine, never closing it. Admission
 checks selected-Engine closure, Model closing/closure, busy, then capability. withEngine then checks
-freeze before null/closed candidate validation. Selection remains unchanged on failure. Except for
-rejected scan-training requests below, valid compute/configure arguments and live-source checks freeze
-binding before Engine creation, callback, native
-copy, compile or prepare, even on failure; same-Engine rebinding then rejects. Without explicit selection,
-setup lazily creates a model-owned CPU-only Engine.standard, with no discovery/global Engine.
+freeze before null/closed candidate validation. Selection remains unchanged on failure. Otherwise,
+valid compute/configure arguments and live-source checks freeze binding before Engine creation,
+callback, native copy, compile or prepare, even on failure; same-Engine rebinding then rejects.
+Without explicit selection, setup lazily creates a model-owned CPU-only Engine.standard. The CPU
+owner may perform its existing optional native-route discovery/qualification.
 Construction/load/save/cold forward never create an Engine.
 
-Fixed recurrent scan presence is cached from ordinary source provenance at acquisition for builder, definition,
-graph and load, including scans behind ordinary heads or rooted only at a final-state port.
-Both configureTraining and both train overload families reject fixed-scan-containing sources with
-UnsupportedOperationException after existing lifecycle/live-source admission and before binding
-freeze, objective callbacks, Engine creation, inference-owner closure or native parameter copy.
-This rejection preserves state bytes, stores, caches and any preexisting freeze status, including
-after compute/load; it must not clear requiresGrad or rely on late Compiler BPTT rejection.
-The ordinary valid-setup freeze rule above and configured static-unroll training remain unchanged.
+Fixed recurrent presence is not an NN-level training rejection or separately cached source flag.
+Builder, definition, graph and loaded sources use the same configured TrainingSession/Compiler AD
+as ordinary graphs, including fixed recurrence behind ordinary heads, final-state roots and mixed
+fixed/general sources. Preserve fixed versus general recipes, original storage carriers and
+rounding boundaries; never redirect low fixed recipes through an ordinary-cell general Scan.
+Objective validation remains scalar gradient-eligible FLOAT32/FLOAT64, before Engine/native setup.
+Unsupported backend/AD requests follow the existing TrainingSession admission and native-state
+transition ordering. CPU low arithmetic, higher-order recurrence and saved-residual AD restrictions
+are unchanged. Load restores raw parameters/source, not objectives, optimizer history or sessions;
+fresh configured training is distinct from exact continuation.
 
 configureTraining succeeds once, keeps mode unchanged, and calls a pure objective builder once per
 explicit attempt, retaining no callback. The scalar FLOAT32/FLOAT64 objective uses current Compiler
@@ -1211,6 +1215,8 @@ There is one inline body per SCAN, at most one per outer node, depth one. Before
 allocation, bound every count/rank/arity/root/role/residual array by remaining schema bytes and
 checked JVM arithmetic, not a backend rank-16 ceiling. For header counts c/s/i/e/r, check formal
 count=c+s+i, Q=c+e+r, nextCarry=c, emissions=e and residuals=r (canonical unique inventory).
+Zero carry counts are valid when the remaining Model roles and nonempty publication inventory
+qualify; do not invent a carry or force time unrolling to serialize a carry-free body.
 Unique roots cannot exceed local values or c+e+r. Each scope's boundary+sum(Q) and contained
 aggregate formal/node/value/role-reference counts must fit signed i32 budgets. Validate static
 geometry and every output descriptor, including unused siblings and zero-time bodies.
@@ -1262,8 +1268,11 @@ Append i32 rowCarryCount, i32 sequence-axis count equal to sequenceCount, then o
 flag per ordered sequence (0=SHARED, 1=ROW), with an i32 step axis only when present. Current
 row geometry admits axes zero and one. Continue with the unchanged v4 inline body, Q and every
 canonical output descriptor. Body formal count is checked c+s+i, never inputCount including lengths.
-Require positive rowCarryCount <= carryCount and checked actual count c+s+i+1. Validate old
-scalar domains and checked actual/formal/output cardinalities, including parsed actual arity,
+Require 0 <= rowCarryCount <= carryCount and checked actual count c+s+i+1.
+Zero ROW count, including carry-free length mode and SHARED scalar accumulation, uses these same
+fields. Derive static/named batch geometry from the final lengths descriptor, never from a first
+carry/formal or from reading actual length values. Preserve zero-time and empty-batch sources.
+Validate old scalar domains and checked actual/formal/output cardinalities, including parsed actual arity,
 before reading/allocating axis roles. Bound axis count by sequenceCount and remaining bytes;
 reject other flags, negative/out-of-domain axes, truncated entries and descriptor/role mismatches.
 

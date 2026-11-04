@@ -169,7 +169,7 @@ See [builder API and lifecycle](../api/public-api.md#fluent-model-builder).
 ### Run a runtime-length scan Model
 
 Use `buildWithLengths()` to build a Model with two ordered inputs: values and valid lengths.
-F32/F64 `rnnScan` supports qualified first-order training; retained fixed recipes are inference-only.
+F32/F64 `rnnScan` and qualified fixed recipes support first-order configured training.
 The list-typed `Model<List<Tensor>,List<Tensor>>` keeps inputs explicit, while `compute(values,
 validLengths)` returns the sole detached result. No prior forward is required, before or after load;
 this workflow has no Data dependency. The example below retains fixed GRU/LSTM inference.
@@ -265,17 +265,18 @@ there is no implicit conversion, layout copy or CPU fallback for unsupported com
 | `finalHidden()` rejects | Place it immediately after a new scan recipe, before any classifier or transform. |
 | Later scan rejects geometry | Preserve exact time/batch axes; do not reshape lengths or guess a different batch axis. |
 | Compute rejects length input | Match canonical non-gradient INT64 `[B]` and all declared descriptor fields. Values must lie in `[0,T]`; repair out-of-range values and reuse the Model. |
-| Configure/train throws `UnsupportedOperationException` | Fixed runtime-length scan Models are inference-only. Both overload families reject after lifecycle/live-source checks, before arity/arguments, freeze, callbacks, Engine creation, cache closure or native copy. Valid-source state, caches and existing freeze status stay unchanged. Static unrolled training remains supported. |
+| Configure/train rejects | Check the selected backend's actual forward/AD closure and use a scalar gradient-eligible F32/F64 objective. Low objectives need an explicit cast; fixed versus general recipe identity is preserved rather than bypassed. |
 
 See [builder API details](../api/public-api.md#fluent-model-builder) and
-[training rejection](../api/training-api.md#owned-model-training-convenience).
+[training admission](../api/training-api.md#owned-model-training-convenience).
 
 ### Train a runtime-length RNN
 
 F32/F64 `rnnScan` composes the existing RNN cell equation through general Scan. Configure once,
 then supply fresh values and INT64 lengths at the same static signature. Save before compute or
 after training; close and `loadGraph`, then configure a new objective and optimizer on restored
-weights. This is not exact optimizer continuation. Old v3 fixed-RNN files stay inference-only.
+weights. This is not exact optimizer continuation. Old v3 fixed-RNN files keep their fixed recipe;
+fresh first-order configured training is available when that recipe's backend/AD closure qualifies.
 
 The example below uses the same JVM/NN prerequisites and an existing destination directory.
 Inactive sequence suffixes contain NaN deliberately: recurrence skips them rather than masking
@@ -767,8 +768,8 @@ same model. That selection freezes even if setup fails, and a closed selected En
 replaced. Without a selection, only execution opens a fresh model-owned CPU Engine. Close never
 closes a borrowed Engine; it waits for active work and closes session/preparation before native
 storage and an owned Engine, attempting all cleanup and replaying retained failures.
-Rejected fixed-scan training requests are not setup attempts: after lifecycle/live-source checks they
-leave a valid source's Engine freeze status and cached inference unchanged.
+Fixed and mixed recurrent sources use this same setup ordering. Unsupported backend or derivative
+closure is not replaced by a separate inference-only NN guard or an implicit recipe conversion.
 
 | Symptom | Cause and correction |
 |---|---|
@@ -892,10 +893,10 @@ batches/targets to further compute/train calls; neither cold `forward` nor recon
 There is one inference preparation per setup and one configured training session, not one per batch.
 
 At T=0 the body does not execute; Training still requires connected, nonempty parameters. Residual
-ports may be cold roots, but residual-root differentiation rejects. Sources containing any fixed
-scan, including mixed fixed/general sources, still reject configure/train before setup effects.
-This all-valid source saves as v4; the separate static homogeneous length intersection uses v5.
-The explicit F32/F64 `rnnScan` workflow above adds neither low training nor fixed-scan BPTT.
+ports may be cold roots, but residual-root differentiation rejects. Qualified fixed and mixed
+fixed/general sources use the same configured session and actual Compiler AD.
+This all-valid source saves as v4; the separate static length intersection uses v5.
+Low execution still requires a supporting backend and an explicit F32/F64 training objective.
 
 The two saved sources retain the initial and trained raw weights respectively, with one scoped
 body rather than three unrolled steps. `Model.loadGraph` adopts final heap values and reconstructs

@@ -147,6 +147,23 @@
 
 ### Fixed
 
+- CPU FLOAT32 RSQRT preserves its square-root working site before reciprocal across scalar,
+  vector/remainder and composed helpers; selective schema 76 rejects stale affected bodies.
+- CPU dropout now uses typed complement/reciprocal/multiply with numeric identity v2, preserving
+  exact RNG words, masks and next-state. SOFTMAX/LOG_SOFTMAX algorithm 3 handles the Model's
+  nonfinite and empty-slice domain without a separate finite-only validator.
+- CPU attention preserves zero-plus-singleton batch broadcasting. Wide CONCAT/STACK uses a
+  prepared operand table and checked geometry under selective schema 75 instead of an N-wide
+  JVM entry budget; small existing entries and controlled arena ownership remain unchanged.
+- Metal semantic identity 44 aligns affine unary/comparison/MATMUL capability, preparation and
+  raw preflight, closes ordinary empty and zero-grid fused-anchor execution, and maps proved
+  numeric Scan ingress through existing CONTIGUOUS. Canonical non-gradient raw F64 Scan stays
+  source-only; ABI7/schema22 and intentional numerical/resource restrictions remain.
+- Cold carry-free and zero-ROW/scalar-SHARED Scan reconstruction/persistence uses the existing
+  v4/v5/v6 records, deriving batch geometry from the external lengths descriptor.
+- Owned fixed and mixed recurrent Models now train through the existing TrainingSession and
+  Compiler first-order AD, retaining original recipes/carriers and fresh-training-after-load
+  semantics. CPU low arithmetic and higher-order recurrence are not unlocked.
 - CPU qualification no longer requires macOS temporary paths, a particular vector width,
   generated-code hashes or latency thresholds. Numerical controls retain exact non-NaN
   comparisons, typed overflow, subrange/canary checks and the selected StrictMath TANH

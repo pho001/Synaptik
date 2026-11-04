@@ -1414,29 +1414,25 @@ capability on 2026-10-24; this status update runs no measurement.
 
 ### CPU0077 finite-softmax admission parity
 
-Implemented and independently reviewed under the delegated first-release parity requirement.
-[CPU0077](../../planning/backends/cpu/tasks/0077-f64-finite-softmax-admission-parity.md#result)
-records 45 passing targeted tests, CPU Javadoc/Jar and actual public both-type/kind backward proof.
-FLOAT32 and FLOAT64 admit finite represented SOFTMAX/LOG_SOFTMAX inputs even when maximum
-subtraction overflows to a negative-infinity working shift. BFLOAT16 retains its finite-working-
-shift requirement; finite FLOAT16 pairs cannot overflow their FLOAT32 working shift. This is
-not a new low occurrence. Nonfinite represented inputs, including negative infinity produced
-upstream, still reject after producers and before consumer writes or worker submission.
+The [CPU0077 checkpoint](../../planning/backends/cpu/tasks/0077-f64-finite-softmax-admission-parity.md#result)
+records the earlier finite-input correction and its bounded verification. The subsequent
+interchangeability repair supersedes its finite-only admission and unchanged-class statement.
 
-The existing stable arithmetic, compensation, saved-output backward, fused derivative, and
-loss/attention formulas remain unchanged. Remove only the obsolete F64 shift-domain check and
-dead maximum/traversal from the production validator and synchronize the existing reference
-oracle's admission; maintain checked addresses, complete-domain validation and invocation
-freshness. Emitter Javadoc follows the domain, not a new implementation. Cached classes contain
-unchanged arithmetic and invocation always uses the current validator, so no algorithm version,
-generated-class identity, ABI or global schema changes. No new type/package/API, numeric policy,
-fallback, special-case repair, value snapshot or per-element allocation is selected.
+Current SOFTMAX/LOG_SOFTMAX bodies preserve the Model's finite, nonfinite and empty-slice rules.
+All-finite slices retain maximum-shifted arithmetic and compensation, including represented
+negative-infinity shifts caused by finite subtraction overflow. A NaN input makes the complete
+slice NaN. With positive infinity but no NaN, positive-infinity positions are NaN; other positions
+are positive zero for SOFTMAX and negative infinity for LOG_SOFTMAX. Only slices with negative
+infinity but neither NaN nor positive infinity use the literal unshifted Model formula.
+Any zero extent gives an empty shape-preserving output with no input read or output write.
+Checked geometry, carriers, aliases, thread access and resource ownership remain independently
+validated. No finite-only validator is bound before ordinary or Scan execution; producer values
+are consumed directly by the numerical body.
 
-Both dtypes/kinds need independent forward and actual first-order backward proof, tied extrema
-with nonzero gradients, axis/layout/carrier controls, and fresh valid/invalid/valid invocations.
-Retain nonfinite failure atomicity, including later slices and parallel submission, and qualify
-the ordinary dense/index cross-entropy derivative consumers without changing their formulas.
-This correction does not extend cold inventories, general Scan algebra or any low family.
+CPU-private softmax algorithm version 3 invalidates the former finite-only generated bodies,
+including retained composition helpers. It does not change loss/attention formulas, invent a
+numerical policy, enable runtime fallback, or unlock BFLOAT16/FLOAT16 numerical occurrences under
+the current CPU low-arithmetic restriction.
 
 ### CPU0078 temporary low-arithmetic lock
 
@@ -1605,6 +1601,16 @@ The Java project lives in `modules/backend/metal`; its macOS arm64 native bridge
 BFLOAT16 and FLOAT16 ordinary, fixed-cell first-order and native Scan domains.
 Task-era qualification paragraphs retain their explicit checkpoint scope;
 they neither certify nor veto subsequent independently qualified occurrences.
+
+The interchangeability repair uses coordinated backend-local identity 44, retaining native ABI7
+and schema22/header124. Its authenticated fixed corpus is 190,688 UTF-8 bytes across 23 components,
+SHA-256 `f6a560fd381664d01e0ec7f65f2148646d9d9837015133c5571ebadfb2c776fc`.
+Physical unary/comparison/numeric-MATMUL reads share original-carrier layout authentication;
+ordinary empty outputs and zero-grid fused anchors preserve the family identities without reads
+or dispatch. Numeric GeneralScan may map proved strided ingress through ordinary CONTIGUOUS.
+Raw F64 Scan is canonical, non-gradient and source-only; no F64 body arithmetic, AD, implicit
+conversion, dynamic-B Metal or runtime fallback is authorized.
+
 
 Metal backend owns:
 

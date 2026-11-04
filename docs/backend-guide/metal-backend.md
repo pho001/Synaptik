@@ -5,15 +5,33 @@
 Metal is a first-production backend, not an experimental CPU fallback. One backend owns each
 complete maximal Metal partition. The active protocol is native ABI 7 with thirteen exports,
 program schema 22 (`SM22`) and its 124-byte header, operation wires `1..116`, attribute wires `0..42`,
-type wires `1..7`, route wires `1..3`, and coordinated backend-local identity 43.
+type wires `1..7`, route wires `1..3`, and coordinated backend-local identity 44.
 Older program and decision identities are rejected. The authenticated fixed shader corpus has
-23 components and 188,490 UTF-8 bytes; the last device compilation exposed 165 functions.
+23 components and 190,688 UTF-8 bytes, SHA-256
+`f6a560fd381664d01e0ec7f65f2148646d9d9837015133c5571ebadfb2c776fc`.
 
 The [production support ledger](production-support.md#metal-production-target) separates
 operation-catalog execution, independent numerical oracles, composed training and final
 source/artifact/installation acceptance. A legal occurrence, a supported forward graph and a
 supported selected derivative are different claims. The current inventory covers 115 ordinary
 kinds and 137 signatures; general Scan is recorded separately.
+
+### Current interchangeability repair
+
+Original-carrier affine reads now agree across capability, Java preparation and raw native
+preflight for numeric unary operations, comparisons and qualified numeric MATMUL. Offset,
+strided, transpose and broadcast geometry is authenticated before resource creation; nonbroadcast
+axis collisions and malformed descriptors still reject. Materialized PERMUTE outputs are not
+indexed through their old strides a second time.
+
+Ordinary empty unary outputs, numeric SUM, K0/empty-result MATMUL and TOP_K k0 retain their real
+geometry and identities. Empty fused MATMUL epilogues use the same zero-grid step, with no source
+load or dispatch. Strided numeric GeneralScan ingress uses the existing CONTIGUOUS owner into
+declared aligned workspace. Canonical non-gradient source-only F64 Scan preserves raw state,
+sequence and invariant values without admitting F64 body arithmetic, AD or affine F64 mapping.
+Dynamic-B Metal, rank/pooling/resource bounds and the CPU low-arithmetic lock are unchanged.
+The [follow-up audit](backend-interchangeability-audit.md#15-navazující-opravy-a-aktuální-hranice)
+separates current source verification from the previously sealed distribution.
 
 ### Ordinary numerical and exact domains
 

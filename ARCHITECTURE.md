@@ -255,16 +255,14 @@ consume fresh values. NN owns exclusion and its native Arena, not execution or o
 Construction, cold forward and save create no Engine. The owning rules are in
 [extensions/nn](docs/architecture/contracts/extensions-training.md#owned-tensor-models).
 
-Owned Models may compose fixed recurrent scans for inference through that same public Engine
-lifecycle. Explicit `ModelBuilder` scan recipes use a shared runtime-length input and zero initial
-states; `buildWithLengths()` returns the existing list-boundary Model. The generic two-input,
-one-output compute convenience uses the same cached execution path, including after load.
-Fixed-scan-containing Models reject configure/train after lifecycle and live-source admission but before
-binding freeze, callbacks, Engine creation, inference-cache closure or native parameter copy.
-Static builder recurrence and training remain unchanged. This limited inference cutover adds no
-execution owner, dependency edge, backend capability, BPTT or persistence-format permission;
-the [owning NN contract](docs/architecture/contracts/extensions-training.md#owned-tensor-models)
-defines the exact API, cold composition and rejection boundary.
+Owned Models compose fixed and general recurrent scans through that same public Engine lifecycle
+and may configure first-order training when the actual forward/Compiler-AD/backend closure qualifies.
+Explicit `ModelBuilder` scan recipes share runtime lengths and zero initial states;
+`buildWithLengths()` returns the existing list-boundary Model. The generic two-input, one-output
+compute convenience uses the same cached execution path, including after load. Fixed/general
+recipes retain their original storage and rounding semantics; NN neither rewrites them nor owns
+a separate adjoint implementation. The [owning NN contract](docs/architecture/contracts/extensions-training.md#owned-tensor-models)
+defines exact objective, lifecycle, source, execution and persistence admission.
 
 All-valid general-scan owned Models use existing `Model.graph`/`defineTensor`, `compute` and
 `configureTraining`/`train`, with no new execution owner or dependency. Bounded Compiler cold body
@@ -275,7 +273,7 @@ through the existing Engine/Training owners. All-valid means every static time s
 not arbitrary body support. Implemented general-body persistence uses the bounded
 [graph-model v4 contract](docs/architecture/contracts/extensions-training.md#canonical-graph-model-version-4);
 codec/consumer evidence and main's accepted final gates are recorded in CP0013. V1/v2/v3
-remain body-free, and fixed scan-training rejection stays. The [owning extension contract](docs/architecture/contracts/extensions-training.md#owned-tensor-models)
+remain body-free. The [owning extension contract](docs/architecture/contracts/extensions-training.md#owned-tensor-models)
 defines the separate source, execution and persistence admissions.
 
 The static homogeneous FLOAT32/FLOAT64 length-aware cold intersection in the
@@ -293,7 +291,8 @@ builder cutover through existing length-aware general Scan. Independent reviews,
 and public forward/repeated-training/v5 save/load/fresh-training proof are accepted in its
 [Result](docs/planning/extensions/nn/tasks/0033-trainable-runtime-length-rnn-workflow.md#result).
 There is no new execution owner or higher-order grant. Ordinary static recurrence, direct fixed
-forwardScan, low fixed construction and GRU/LSTM remain unchanged; mixed fixed sources still reject training.
+forwardScan, low fixed construction and GRU/LSTM retain their recipes; qualified fixed and mixed
+sources use the same configured TrainingSession and Compiler first-order AD.
 
 ## Core invariants
 
@@ -778,7 +777,7 @@ briefs and maintained navigation adopt the exact scoped destinations:
 | Data host counts, padded batches, integral sequence batching and opt-in scan-length Tensor export | [Extensions/training — `extensions/data`](docs/architecture/contracts/extensions-training.md#extensionsdata) |
 | Frozen whitespace tokenization and Data-delegating text batching | [Extensions/training — `extensions/text`](docs/architecture/contracts/extensions-training.md#extensionstext) |
 | NN stateful composition, declarative reconstruction and retained old model persistence | [Extensions/training — `extensions/nn`](docs/architecture/contracts/extensions-training.md#extensionsnn) |
-| Owned Models, fixed inference-only runtime-length scans and all-valid general-scan workflows | [Extensions/training — owned tensor Models](docs/architecture/contracts/extensions-training.md#owned-tensor-models) |
+| Owned Models, fixed/general recurrent inference and qualified first-order training | [Extensions/training — owned tensor Models](docs/architecture/contracts/extensions-training.md#owned-tensor-models) |
 | Training | [Extensions/training — `modules/training`](docs/architecture/contracts/extensions-training.md#modulestraining) |
 | Generic graph/value persistence and opaque artifact envelope | [Extensions/training — `extensions/checkpoint`](docs/architecture/contracts/extensions-training.md#extensionscheckpoint) |
 | Selective graph-model v1/v2 wire compatibility | [Extensions/training — canonical graph-model version 2](docs/architecture/contracts/extensions-training.md#canonical-graph-model-version-2) |

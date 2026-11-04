@@ -1772,12 +1772,12 @@ without conversion or numerical interpretation. PAD retains the exact typed fill
 repeats complete logical input patterns, CONCAT selects ordered segments along an existing axis,
 and STACK selects ordered inputs along one inserted axis.
 
-Composition accepts one through sixteen semantic input occurrences. A repeated input remains a
-repeated semantic segment, but CPU analysis declares that graph value only once. Unique input
-boundaries appear in first-occurrence order, followed by one output declaration. The output must
-have an injective resolved layout and a representation distinct from every input; even an
-identity-like request materializes its result. Input layouts may be offset or strided because
-cold geometry maps output coordinates directly to the selected input carrier.
+CONCAT/STACK preserve ordered semantic input occurrences, including repeated inputs, while analysis
+declares each graph value once. Up to sixteen occurrences retain their existing typed entry ABI.
+Larger compositions bind one prepared `MemorySegment[]` operand table and checked geometry rather
+than adding one JVM argument or one generated branch per occurrence. The output must have an
+injective resolved layout distinct from every input; even an identity-like request materializes.
+Offset, strided and broadcast reads use the original represented carrier.
 
 The canonical movement IR records only the family, rank, represented type, unique structural
 access forms, ordered occurrence-to-boundary mapping, one output store, and code-shaping padding
@@ -1797,16 +1797,19 @@ occurrence map:      0, 1, 0
 Generated scalar bodies accept arbitrary half-open output ranges. Cold binding computes the
 range-start coordinate and base addresses once. The hot loop advances coordinates with carry and
 reset state; TILE wraps through the same mechanism, without per-element division or modulo.
-PAD may branch between exact fill bits and its source, while CONCAT and STACK may branch among at
-most sixteen ordered occurrences. There is no reflection, Model interpretation, map lookup,
-callback, or per-element allocation in generated code.
+PAD may branch between exact fill bits and its source. Small CONCAT/STACK entries retain bounded
+ordered branches; wide entries traverse their prepared operand table and write disjoint final
+output cells. There is no reflection, Model interpretation, map lookup, callback, or per-element
+allocation in generated code. Controlled Scan helpers reuse their existing shared arena, with no
+per-step operand-table allocation. Cardinality still obeys checked list/geometry/resource limits;
+the former N-wide JVM entry budget is not a capability limit.
 
 Movement uses scalar compute and either single-thread or deterministic parallel orchestration.
 Parallel chunks are safe because output injectivity proves disjoint writes. Vector preference
-falls back to scalar for this family. CPU finalization realizes current schema-71 generated
-artifacts; cold binding validates complete input/output spans and rejects every output/input
-overlap before execution. The scalar reference consumes the same movement IR and compact geometry for
-differential tests, not as a Runtime fallback.
+falls back to scalar for this family. Wide ordinary entries use selective schema 75; unchanged
+small entries retain their previous identities. Cold binding validates complete input/output spans
+and rejects every output/input overlap. The scalar reference consumes the same movement IR and
+compact geometry for differential tests, not as a Runtime fallback.
 
 Dense heap-array affine and movement entries use a cold-proved integer loop/address form. The
 entry descriptor remains shape-polymorphic and accepts `long start, long end`; it narrows those
@@ -2397,11 +2400,13 @@ Here `i` is the zero-based row-major logical ordinal, independent of physical la
 worker range, or scheduling. Each logical element consumes exactly one word. The element is kept
 when `uniform53(word) >= probability`; equality therefore keeps. The comparison uses binary64
 without first narrowing the draw or probability. Mask storage is byte `1` for kept and byte `0`
-for dropped. A dropped value is represented positive zero. For a kept value, CPU computes
-`denominator = 1.0d - probability` once per invocation. FLOAT64 performs one binary64 division.
-FLOAT32 and FLOAT16 widen their exact input to binary64 and perform the same division; FLOAT32
-narrows once to binary32, while FLOAT16 narrows directly to binary16 without a binary32
-double-rounding boundary. This fixed order forbids reciprocal multiplication and fixes parity for this CPU configuration.
+for dropped. A dropped value is represented positive zero. Kept values use the Model's ordered
+complement, reciprocal, and multiplication: FLOAT64 computes `input * (1.0d / (1.0d - probability))`;
+FLOAT32 computes `input * (1.0f / (float) (1.0d - probability))`. Homogeneous low bodies expand
+the represented input to FLOAT32, use the FLOAT32 complement/reciprocal/multiply sites, and narrow
+only the final product. This is not direct division of the input by the complement. RNG words,
+keep masks, and modulo state advancement are unchanged; the ordinary CPU low-arithmetic lock
+still determines whether a low numerical occurrence is admitted.
 
 The independent compatibility vectors are:
 
@@ -2719,8 +2724,8 @@ prepared recipe. Binding validates carriers, usable spans, writability, overlap 
 against the integer proof before execution. Zero rows need no state or output write; zero-width
 slices perform no tensor reads or writes, although state reset/finish may remain. Width one
 retains all sites, and generated entries accept legal half-open complete-slice subranges. Empty
-ranges and zero width cannot trigger a hoisted cotangent read. This does not widen the forward
-softmax producer's positive selected-axis requirement.
+ranges and zero width cannot trigger a hoisted cotangent read. Empty forward selected axes are
+also shape-preserving and publish no values.
 
 The canonical family is `ordinary-softmax-backward-v1`, with a selective baked suffix in both
 artifact compatibility and generated-class identity streams. Variant, typed sites, roles and
@@ -3190,32 +3195,28 @@ The portable stable-softmax family accepts exactly one first-class, fully static
 resolved-layout `SOFTMAX` or `LOG_SOFTMAX` occurrence. CPU never recognizes an equivalent-looking
 maximum/subtraction/exponential/reduction/division/logarithm graph as this family. Input and output
 use the same FLOAT64, FLOAT32, BFLOAT16, or FLOAT16 representation and exact Shape, and retain
-matching gradient-eligibility metadata. The selected normalized axis must have positive extent. A zero
-extent on any non-selected axis instead makes the shape-preserving output empty, so execution
-performs no value scan, generated call, write, or worker submission.
+matching gradient-eligibility metadata. A zero extent on any axis makes the shape-preserving
+output empty, so execution performs no source load, generated value pass, write, or worker
+submission. The retained low body does not override the ordinary CPU low-arithmetic lock.
 The separate [ordinary backward fusion](#ordinary-softmax-and-log-softmax-backward-fusion) reads
-this stored result and retains the Compiler's primitive derivative graph. Its empty-domain and
-special-value handling do not broaden this forward producer's admission.
+this stored result and retains the Compiler's primitive derivative graph.
 
-This route deliberately admits a CPU-private numerical subset. Every represented input must be
-finite. The implemented [CPU0077 correction](../architecture/contracts/backend-execution.md#cpu0077-finite-softmax-admission-parity)
-admits FLOAT32 and FLOAT64 finite inputs even when maximum subtraction overflows to a negative-
-infinity working shift. BFLOAT16 retains its finite-working-shift requirement, while finite
-FLOAT16 pairs cannot overflow a FLOAT32 shift. The
-[task result](../planning/backends/cpu/tasks/0077-f64-finite-softmax-admission-parity.md#result) records qualification.
-Model separately defines nonfinite and empty-slice results; CPU rejects nonfinite inputs before
-consumer writes. A positive selected-axis extent is required. These CPU restrictions do not
-require another backend to reject the same values.
+The current body follows the Model value domain rather than a finite-input-only subset.
+All-finite slices use the stable maximum-shifted algorithm, including a negative-infinity working
+shift caused by finite subtraction overflow. A NaN input makes every result NaN. With positive
+infinity but no NaN, positive-infinity positions are NaN; other positions are positive zero for
+SOFTMAX and negative infinity for LOG_SOFTMAX. Only negative-infinity-containing slices with
+neither NaN nor positive infinity use the Model's literal unshifted formula.
+The earlier [CPU0077 finite-input checkpoint](../planning/backends/cpu/tasks/0077-f64-finite-softmax-admission-parity.md#result)
+is historical evidence, not a current nonfinite-input restriction.
 
-Cold binding first validates the exact heap-array or native-order `MemorySegment` carrier,
-thread access, liveness, alignment, complete referenced span, output writability and injectivity,
-and complete input/output non-overlap. It prebinds a focused validator that checks the entire
-admitted value domain at invocation, after producers and before output mutation or worker
-submission. FLOAT16 and BFLOAT16 storage are decoded distinctly and exactly, with FLOAT32
-maximum/shift checks for each low type. Heap, segment, and mixed input/output pairs are supported
-for `double[]`, `float[]`, and raw-BFLOAT16/FLOAT16 `short[]` carriers. Arbitrary
-resolved legal non-negative layouts are supported, including positive offsets, non-contiguous
-injective output strides, and zero input strides.
+Cold binding validates the exact heap-array or native-order `MemorySegment` carrier, thread
+access, liveness, alignment, complete referenced span, output writability and injectivity, and
+complete input/output non-overlap. There is no separate finite-value scan. FLOAT16 and BFLOAT16
+storage are decoded distinctly and exactly. Heap, segment, and mixed input/output pairs are
+supported for `double[]`, `float[]`, and raw-BFLOAT16/FLOAT16 `short[]` carriers. Arbitrary resolved
+legal non-negative layouts are supported, including positive offsets, non-contiguous injective
+output strides, and zero input strides.
 
 Each generated range counts complete normalization slices rather than individual elements. Slice
 coordinates follow canonical logical row-major order over non-selected axes, and selected-axis
@@ -3252,13 +3253,14 @@ LOG_SOFTMAX retains its required logarithm. Complete inspection found no allocat
 reflection, method handle, `invokedynamic`, collection, semantic dispatch, or Synaptik numerical
 helper in the retained generated targets.
 
-The CPU-private softmax algorithm identity advanced from version 1 to 2. That changed the
-structural fingerprint, generated binary name, and artifact compatibility key for both kinds,
-while the global CPU envelope stayed at schema 70 at that checkpoint. Current schema 71 retains
-the version-2 algorithm; old softmax artifacts cannot be reused. Other families retain their
-family projections under the new global envelope. The earlier performance evidence
-below describes the old generated bodies; it is historical, not a new performance claim for
-version 2.
+Current CPU-private softmax algorithm version 3 encodes the complete Model value/empty domain
+and cannot reuse former finite-only bodies. The selective family identity also applies to
+retained composition helpers.
+
+At the historical version-1→2 checkpoint, structural fingerprints, generated binary names and
+artifact keys changed while the global envelope was schema 70; schema 71 later retained that
+version-2 family. The performance receipts below belong to those recorded earlier bodies.
+They have not been rerun or promoted to algorithm-3 performance evidence.
 
 The retained evidence covers eight generated targets and three unchanged-family controls across
 five sequential isolated Java virtual machine forks. All 55 per-fork and all 11 aggregate ratios
@@ -3269,8 +3271,8 @@ algorithm, pass/dataflow shape, addressing, narrowing, and stores. The worst for
 version, and protocol. It is not a universal throughput, tuning, vector/native, or cross-backend
 claim.
 
-A separate opt-in v2 diagnostic compares the current generated class against directly written
-clean Java for SOFTMAX and LOG_SOFTMAX at FLOAT32 and FLOAT16. It uses matching contiguous heap
+The separate historical opt-in v2 diagnostic compared its then-current generated class against
+directly written clean Java for SOFTMAX and LOG_SOFTMAX at FLOAT32 and FLOAT16. It used matching contiguous heap
 carriers and 128 rows of 2048 values. Both timed sides make the same maximum, shifted-exponential
 sum, and output passes; binary32 shift, EXP/LOG result, and Kahan sum/residual sites match, and
 FLOAT16 narrows only each final output. A representative output is consumed through a volatile
@@ -3284,19 +3286,19 @@ cases and which side ran first. The times below are medians in nanoseconds per f
 the ratio is the median of the seven paired generated/direct ratios, so it need not equal the
 ratio of the two displayed time medians.
 
-| Current v2 case | Generated median (ns) | Direct median (ns) | Paired median ratio | Paired ratio range |
+| Recorded v2 case | Generated median (ns) | Direct median (ns) | Paired median ratio | Paired ratio range |
 |---|---:|---:|---:|---:|
 | LOG_SOFTMAX / FLOAT16 | 9,186,895 | 9,180,104 | 1.000580x | 0.982913–1.029248x |
 | LOG_SOFTMAX / FLOAT32 | 1,637,906 | 1,612,520 | 1.021311x | 0.981995–1.054201x |
 | SOFTMAX / FLOAT16 | 18,653,864 | 18,541,114 | 1.012033x | 0.994502–1.022780x |
 | SOFTMAX / FLOAT32 | 3,132,718 | 3,114,146 | 0.999465x | 0.988187–1.019029x |
 
-Reproduce this bounded diagnostic with
+The recorded v2 diagnostic used this opt-in entry point:
 `SYNAPTIK_CPU_0033_DIAGNOSTIC=true ./gradlew :backends:cpu:test --tests io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuSoftmaxV2PerformanceDiagnosticTest --max-workers=2 --console=plain --info`.
-The probe prints its per-case table. These four cases show no material regression in this run,
-but one process, one host, one shape, and seven samples cannot establish multi-fork parity, a
-general speed bound, or a route-qualification threshold. The preceding five-fork results remain
-historical evidence for the earlier class identity, not timings for v2.
+The recorded probe printed its per-case table. Those four cases showed no material regression in
+that run, but one process, one host, one shape and seven samples establish neither multi-fork
+parity nor a general speed/route threshold. Neither this v2 receipt nor the preceding five-fork
+receipt measures the current algorithm-3 class.
 
 This CPU route adds no public API, Compiler semantic change, backward execution, vector or
 native route, fusion, dynamic Shape/layout support, overlap allowance, workspace algorithm,
@@ -4136,10 +4138,10 @@ the generated class. Where the JDK lacks a FLOAT32 overload, scalar emission wid
 binary32 input exactly, performs the selected binary64 calculation, and narrows once. This is a
 private realization of a same-typed request, not a cross-type Model cast.
 
-FLOAT32 `RSQRT` applies that rule to the complete `1.0d / StrictMath.sqrt(input)` expression: it
-widens the input before the square root, performs the reciprocal in FLOAT64, and narrows only the
-final reciprocal-square-root result. It does not round the square root to FLOAT32 between the two
-operations.
+FLOAT32 `RSQRT` rounds the square root at its prescribed FLOAT32 working site, then computes the
+FLOAT32 reciprocal: `1.0f / (float) StrictMath.sqrt(input)`. Scalar, vector, remainder, Scan and
+regional helpers share that order; widening the complete reciprocal-square-root expression
+would skip a required intermediate rounding boundary.
 
 The compute matrix separates semantic support from vector eligibility:
 
