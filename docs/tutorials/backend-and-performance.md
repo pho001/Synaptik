@@ -22,18 +22,24 @@ Virtual Machine](../glossary.md#java-platform-and-build-tools). Java's **Vector 
 [OpenBLAS](../glossary.md#term-openblas) and [oneDNN](../glossary.md#term-onednn) are external CPU numerical libraries; [Metal](../glossary.md#term-metal) is Apple's [device](../glossary.md#term-device)-computation
 interface. None of those names replaces checking whether the exact operation is supported.
 
-The [canonical](../glossary.md#term-canonical-form) program uses `Engine.standard()`, which is CPU-only. Adding native-access
-permission neither selects Metal nor promises OpenBLAS use. The standard CPU [owner](../glossary.md#term-owner) can probe
-optional OpenBLAS even for a graph whose actual work uses portable Java. The project requires
-no Vector API [module](../glossary.md#term-module); explicit Vector API routes have separate setup requirements.
+The application uses `Engine.standard()`, which creates a CPU-only Engine. Model borrows the
+explicit Engine in `reuse`; the application closes it after Model. Engine in turn owns its
+opened backend integration. Adding native-access permission neither selects Metal nor promises
+OpenBLAS use. Standard CPU composition can probe optional OpenBLAS even when the actual graph
+uses portable Java. The project requires no Vector API module; explicit Vector API routes have
+separate setup requirements.
 
-The tiny workload remains [FLOAT32](../glossary.md#term-float32) input `[2,1]`, private [weight](../glossary.md#term-weight) `[1,1]`, no [bias](../glossary.md#term-bias), SUM [loss](../glossary.md#loss),
-`Sgd(0.05)`, with the same `40 -> -40 -> w=2` arithmetic. Nothing here changes the candidate,
-adds a [dependency](../glossary.md#term-dependency), rewrites numerical semantics or enables a global backend switch.
+The tiny workload remains FLOAT32 input `[2,1]`, private weight `[1,1]`, no bias, SUM loss and
+`Sgd(0.05)`. Its pre-update objective $L(0)=40$, derivative $L'(0)=-40$ and updated weight
+$w_{\mathrm{new}}=0-0.05(-40)=2$ refer to the
+[defined one-weight calculation](train-and-evaluate.md#work-through-the-update), not timings.
+Nothing here changes the candidate, adds a dependency, changes numerical semantics or enables
+a global backend switch.
 
 ## [Run](../glossary.md#term-run) the baseline, not a timing claim
 
 ```bash
+# Keep correctness and lifetime checks before attempting any timing experiment.
 java --enable-native-access=ALL-UNNAMED -cp "$LEARNING_CP" \
   io.github.pho001.synaptik.examples.LearningJourney reuse
 ```
@@ -82,6 +88,7 @@ program are explained in the atlas; absence from this journey is not evidence of
 [Run](../glossary.md#term-run) the [gradient](../glossary.md#term-gradient) boundary independently before evaluating another supported configuration:
 
 ```bash
+# Forward support alone does not establish support for the selected derivative.
 java --enable-native-access=ALL-UNNAMED -cp "$LEARNING_CP" \
   io.github.pho001.synaptik.examples.LearningJourney gradients
 ```

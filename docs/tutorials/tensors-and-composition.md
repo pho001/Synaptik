@@ -31,9 +31,11 @@ permission to reshape a Model input.
 
 The [`matrix`](../glossary.md#term-matrix-meanings)/`descriptor` helpers in
 [LearningJourney.java](../examples/learning-journey/src/main/java/io/github/pho001/synaptik/examples/LearningJourney.java)
-only spell out those public types; they do not add a data framework. `fromFlatArray` copies the
-source array, requires exactly the logical number of elements and a matching dtype/resolved
-dense layout. Modifying the original Java array afterward does not modify the stored Tensor.
+only spell out those public types; they do not add a data framework. The application calls
+`TensorFactory.fromFlatArray` with a descriptor and Java array. The factory copies that array
+into independent heap storage and returns a Tensor associated with the copy. It requires
+exactly the logical number of elements and a matching dtype/resolved dense layout.
+The application may subsequently change its original array without changing the imported Tensor.
 
 There is no loader in this experiment: input and [target](../glossary.md#term-target) are standalone stored data. Larger
 applications may load/[batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) data through separate data facilities before supplying exact Tensor
@@ -44,10 +46,14 @@ identifies a separate extension, not another [dependency](../glossary.md#term-de
 
 ## Construction is not execution
 
-Read the source's [`tensors`](../glossary.md#tensor) method. `x.linear(w)` constructs an expression with [provenance](../glossary.md#provenance):
-it records how a result depends on the inputs. It does not multiply their values now and does
-not fill result storage. `Engine.compute` is the explicit execution boundary for this standalone
-expression and returns a [detached](../glossary.md#detached-model-results) output. Here the same zero [weight](../glossary.md#term-weight) gives `[0,0]`.
+Read the source's `tensors` method. The application calls `x.linear(w)` to construct an
+expression with [provenance](../glossary.md#provenance): it records the operation and exact input
+Tensors, rather than multiplying their values or filling result storage now. The application
+then calls `Engine.compute(expression)`. Engine arranges compilation, preparation and execution,
+borrowing the live stored inputs during the call, and returns independent copied output bytes.
+Here the same zero weight produces $[0,0]$. See
+[fresh-value binding](../user-guide/running-models.md#run-fresh-values-in-compiled-order)
+when the same description should run with different stored inputs.
 
 The later `model.forward(prototype).relu()` demonstrates **composition**: use the [Model](../glossary.md#term-model) as one
 part of a larger expression. The [prototype](../glossary.md#term-prototype) is storage-free [FLOAT32](../glossary.md#term-float32) `[2,1]` with the exact Model
@@ -76,6 +82,7 @@ further computation. Calling `forward` on every [batch](../glossary.md#term-batc
 ## [Run](../glossary.md#term-run) the data/composition experiment
 
 ```bash
+# Run construction and execution side by side: only the explicit compute produces values.
 java --enable-native-access=ALL-UNNAMED -cp "$LEARNING_CP" \
   io.github.pho001.synaptik.examples.LearningJourney tensors
 ```
@@ -97,6 +104,7 @@ mean the operations failed or that result values are known without execution.
 ## [Run](../glossary.md#term-run) the actual error path
 
 ```bash
+# A matching value count cannot compensate for swapped sample and feature axes.
 java --enable-native-access=ALL-UNNAMED -cp "$LEARNING_CP" \
   io.github.pho001.synaptik.examples.LearningJourney invalid-shape
 ```

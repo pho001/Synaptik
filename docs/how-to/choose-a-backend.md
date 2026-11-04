@@ -13,16 +13,31 @@ An **[operation](../glossary.md#operation) [occurrence](../glossary.md#term-occu
 not every possible use of its name. **[Derivative](../glossary.md#term-derivative) order** distinguishes a first derivative from
 a derivative of a derivative. Check the needed order, not only forward [prediction](../glossary.md#term-prediction) support.
 
+### Which ownership choice belongs to my application?
+
+Your Java application opens Engine. With `Engine.standard()`, Engine creates and owns CPU
+integration resources. With explicit composition, your application opens integrations and
+transfers them to Engine's builder; Engine then closes them. This does not transfer ownership
+of your input arrays or Arenas. Execution borrows input storage, and an explicit run result
+must close before you release that storage.
+
+If your application calls `model.withEngine(engine)`, Model borrows that Engine instead of
+owning it. Close Model first, then the Engine you created. This is a different boundary from
+`takeOwnership(integration)`. Follow the
+[explicit composition example](../user-guide/backend-selection.md#compose-cpu-and-metal-explicitly)
+for the transfers and [run/materialize example](../user-guide/running-models.md#run-and-materialize)
+for input and output lifetimes.
+
 ## Decide from the program, not the [device](../glossary.md#term-device) name
 
-1. List the operations, exact data types, layouts, shapes and required derivative order. Check
-   them against the <span data-glossary-navigation="true"> ([layouts glossary](../glossary.md#layout); [shapes glossary](../glossary.md#shape); [derivative glossary](../glossary.md#term-derivative))</span>[current support matrix](../backend-guide/production-support.md)<span data-glossary-navigation="true"> ([support matrix glossary](../glossary.md#term-review-matrix))</span><span data-glossary-navigation="true"> ([matrix glossary](../glossary.md#term-review-matrix))</span>.
-2. Keep standard [CPU](../glossary.md#term-cpu) for the first working result. `Engine.standard()` provides a CPU composition;
-   it is not automatic CPU/GPU selection. The tutorial needs no external BLAS or oneDNN library.<span data-glossary-navigation="true"> ([BLAS glossary](../glossary.md#term-blas))</span>
-3. If selecting Metal, obtain and verify the documented macOS arm64 native package and supply its
-   absolute library path. Register the opened integration explicitly through Engine's ownership
-   builder. Use the <span data-glossary-navigation="true"> ([arm64 glossary](../glossary.md#native-packaging-and-platform-vocabulary); [Engine glossary](../glossary.md#term-engine); [ownership glossary](../glossary.md#term-ownership-meanings))</span>[complete composition reference](../reference/engine/lifecycle.md), not a
-   replacement hidden dependency or service loader.<span data-glossary-navigation="true"> ([dependency glossary](../glossary.md#term-dependency))</span>
+1. List the operations, exact data types, layouts, shapes and required derivative order.
+   A layout maps logical positions to memory; a shape gives axis sizes. Check the
+   [current support matrix](../backend-guide/production-support.md) for those exact facts.
+2. Keep standard CPU for the first working result. `Engine.standard()` provides CPU
+   composition, not automatic CPU/GPU selection. The tutorial needs no external BLAS or oneDNN.
+3. For Metal, obtain and verify the documented macOS arm64 native package and provide its
+   absolute library path. Register its opened integration explicitly through Engine's builder;
+   do not hide the selection in another dependency or service loader.
 4. For an [owned Model](../glossary.md#model-module-buffer-and-scan-distinctions), call `withEngine` before its first valid compute/training setup attempt.
    That Engine is borrowed: keep it open for the Model's dependent prepared work and close it
    yourself afterward. A failed setup can still freeze the choice.<span data-glossary-navigation="true"> ([borrowed glossary](../glossary.md#ownership-borrowing-and-lease); [Model glossary](../glossary.md#term-model))</span>

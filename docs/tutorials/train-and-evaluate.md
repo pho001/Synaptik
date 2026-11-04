@@ -11,12 +11,15 @@ the example project. No earlier process needs to be running.
 ## Configure what training means
 
 An **[optimizer](../glossary.md#term-optimizer)** turns [derivatives](../glossary.md#term-derivative) into [parameter](../glossary.md#term-parameter) updates. Plain [stochastic gradient descent](../glossary.md#term-stochastic-gradient-descent-sgd)
-([SGD](../glossary.md#optimizer-and-stochastic-gradient-descent)), as configured here without [momentum](../glossary.md#term-momentum) or decay, uses `newWeight = oldWeight - rate*gradient`.
-The method `configureTraining` supplies three separate choices:
+([SGD](../glossary.md#optimizer-and-stochastic-gradient-descent)), as configured here without
+momentum or decay, subtracts the learning rate times the objective's weight derivative.
+The application calls `model.configureTraining(...)` with three separate choices:
 
 - The [target](../glossary.md#term-target) [descriptor](../glossary.md#term-descriptor): [FLOAT32](../glossary.md#term-float32) `[2,1]`, [canonical](../glossary.md#term-canonical-form) [contiguous](../glossary.md#term-contiguous), `requiresGrad=false`.
-- A pure objective builder that constructs the scalar sum of squared errors from prediction and
-  target prototypes. It is a setup callback, not a callback invoked once per sample or batch.<span data-glossary-navigation="true"> ([objective glossary](../glossary.md#term-objective); [scalar glossary](../glossary.md#term-scalar); [prototypes glossary](../glossary.md#term-prototype); [callback glossary](../glossary.md#term-callback))</span>
+- A pure objective builder. Model calls this application-supplied function during setup with
+  a prediction expression built from its input prototype and a storage-free target prototype.
+  These describe the comparison, not current batch values. The function returns an expression
+  for the scalar sum of squared errors; it is not called per sample or per training batch.
 - `new Sgd(0.05)`, the [immutable](../glossary.md#term-immutable) optimizer configuration.
 
 The **[learning rate](../glossary.md#term-learning-rate)**, `0.05`, multiplies the [gradient](../glossary.md#term-gradient) to set the size of the update; it is a
@@ -65,18 +68,33 @@ itself has no train/eval-dependent branch; the owned-source mode still must rema
 The complete starting state is input `[1,3]`, [target](../glossary.md#term-target) `[2,6]`, private [weight](../glossary.md#term-weight) `0`, no [bias](../glossary.md#term-bias) and SUM
 [objective](../glossary.md#term-objective). The preceding chapter gave objective `40` and weight [derivative](../glossary.md#term-derivative) `-40`.
 
-Conceptual [optimizer](../glossary.md#term-optimizer) [pseudocode](../glossary.md#term-pseudocode), not an [API](../glossary.md#term-application-programming-interface-api):
+Let $w_{\mathrm{old}}\in\mathbb{R}$ be the weight before the step,
+$g=L'(w_{\mathrm{old}})$ its objective derivative, and $\eta>0$ the learning rate.
+Plain SGD proposes the new weight $w_{\mathrm{new}}$:
 
-```text
-w := 0 - 0.05*(-40) = 2
-p := [1*2, 3*2] = [2,6]
-```
+$$
+\begin{aligned}
+w_{\mathrm{new}}&=w_{\mathrm{old}}-\eta g\\
+               &=0-0.05(-40)=2,\\
+(p_1(w_{\mathrm{new}}),p_2(w_{\mathrm{new}}))&=(1\cdot2,3\cdot2)=(2,6),\\
+L(w_{\mathrm{new}})&=(2-2)^2+(6-6)^2=0.
+\end{aligned}
+$$
 
-`model.train(input(), target())` performs one forward/backward/[update transaction](../glossary.md#resource-transaction-and-rollback). Its
-`TrainingStep.objective()` is the [loss](../glossary.md#loss) from the forward pass **before** the update: `40`.
-It is not a second [evaluation](../glossary.md#term-evaluation) of the fitted weight. `optimizerStep()` is `1`, recording the
-first committed update. A subsequent `model.compute(input())` observes the updated weight and
-predicts `[2,6]`, whose squared-error sum would be `0`.
+Here $p_i(w)=x_iw$, sample index $i\in\{1,2\}$, inputs $(x_1,x_2)=(1,3)$,
+and desired answers $(t_1,t_2)=(2,6)$; all are dimensionless. These real-number equations
+explain the step. Actual FLOAT32 evaluation rounds arithmetic; `0.05` is not an exact binary
+fraction, but this example's rounded update produces the represented weight `2`. The equations
+do not extend training admission to NaN, infinity or empty parameters.
+
+The application calls `model.train(input(), target())` with current stored values. Model's
+configured session borrows the input/target for that synchronous transaction and updates its
+private parameter, not the original supplied weight. Its returned `TrainingStep.objective()`
+contains $L(w_{\mathrm{old}})=40$, measured **before** the update. It is not a fresh evaluation
+at $w_{\mathrm{new}}$. `optimizerStep()` is `1`, the first committed update.
+A later `model.compute(input())` borrows a batch for a new prediction using weight $2$,
+returns $[2,6]$, and makes no optimizer update. To assess the new objective, compare these
+fresh predictions with the desired answers; that squared-error sum is zero.
 
 The example keeps the original supplied [heap](../glossary.md#term-heap) [Tensor](../glossary.md#tensor) to check that its value is still `0`.
 Only the [Model](../glossary.md#term-model)'s private copy becomes `2`. [Parameter](../glossary.md#term-parameter) inspection through `stateDictionary` is
@@ -92,6 +110,7 @@ to distinguish that borrowed state from detached training and compute results.
 ## [Run](../glossary.md#term-run) and interpret
 
 ```bash
+# The reported TrainingStep loss precedes the update; the later compute uses the new weight.
 java --enable-native-access=ALL-UNNAMED -cp "$LEARNING_CP" \
   io.github.pho001.synaptik.examples.LearningJourney train
 ```
@@ -116,8 +135,9 @@ checks the learned rule on different values while keeping the exact input [descr
 
 ## Useful variation and relevant errors
 
-In an independent experiment use `Sgd(0.025)` with the same SUM [loss](../glossary.md#loss). The [derivative](../glossary.md#term-derivative) remains
-`-40`, so one step gives [weight](../glossary.md#term-weight) `1` and [prediction](../glossary.md#term-prediction) `[1,3]`; post-step squared error is `10`.
+In an independent experiment use `Sgd(0.025)` with the same SUM loss. With
+$g=-40$ and $\eta=0.025$, $w_{\mathrm{new}}=0-0.025(-40)=1$.
+Predictions are $[1,3]$ and the fresh squared-error sum is $(1-2)^2+(3-6)^2=10$.
 Update the numerical assertions/expected output, then rebuild with the
 [setup command](../examples/README.md#build-the-complete-project). Restore `0.05` before running
 the [canonical](../glossary.md#term-canonical-form) full journey. [Learning rate](../glossary.md#term-learning-rate) and reduction must be considered together.

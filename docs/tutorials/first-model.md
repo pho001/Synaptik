@@ -22,15 +22,26 @@ input number. A **leaf** is a [Tensor](../glossary.md#tensor) with no producing 
 stored values; other leaves can be storage-free input [prototypes](../glossary.md#term-prototype). Leaf status alone does not
 establish the presence of storage.
 
-`Model.builder().input(...).linear(supplied).build()` creates the rule `p = x @ transpose(w)`.
-The weight is `[output features,input features]`, so this case maps one feature to one feature.
-`linear(weight)` has **no [bias](../glossary.md#term-bias)**. A bias would add another parameter and change the equation.
-Build creates an [evaluation](../glossary.md#term-evaluation)-mode [owned Model](../glossary.md#model-module-buffer-and-scan-distinctions), but no [Engine](../glossary.md#term-engine) yet. A successful build copies the
-supplied stored leaf; it does not evaluate an arbitrary supplied weight expression.
+### Who supplies the weight, and who executes the rule?
 
-Here `@` denotes [matrix multiplication](../glossary.md#matrix-multiplication--matmul), and [transpose](../glossary.md#term-transpose) swaps the weight's row and column [axes](../glossary.md#term-axis).
-With one weight this is just `p = x*w` for each row. A bias would instead give `p = x*w+b`;
-“no bias” means no such extra stored number, not a bias initialized to zero.
+The Java application calls `Model.builder().input(...).linear(supplied).build()`.
+The builder reads the application's stored weight while its storage is live and creates a
+Model with a **private copy**. Here the application is the caller and the builder is the
+callee; Engine has not been created and is not the caller at this boundary.
+
+The rule is $p_i=x_iw$ for sample index $i\in\{1,2\}$, input measurements
+$x_1=1$, $x_2=3$, weight $w=0$, and predictions $p_1,p_2$. These are dimensionless
+teaching numbers. In the general matrix form, $P=XW^{\mathsf T}$, rows of $X$ are
+samples and rows of $W$ are output-feature weights; $\mathsf T$ swaps matrix axes.
+Here `linear(weight)` has **no [bias](../glossary.md#term-bias)**: there is no extra
+adjustable number $b$ in a rule $p_i=x_iw+b$.
+
+Build creates an [evaluation](../glossary.md#term-evaluation)-mode Model but no Engine.
+It copies a stored leaf, not an arbitrary weight expression awaiting evaluation. Later the
+application calls `model.compute(input)`: Model uses its execution path to calculate values
+from the supplied batch and its own weight. The input is borrowed for the synchronous call,
+not adopted as Model state; keep its storage live and unchanged until that call returns.
+
 **Evaluation mode** is a [Module](../glossary.md#term-module) behavior setting, not a request to update parameters or assess
 [prediction](../glossary.md#term-prediction) quality. This chapter performs [inference](../glossary.md#term-inference): it computes predictions without training.
 
@@ -38,16 +49,19 @@ Read `copiedModel` and `first` in the
 [complete Java source](../examples/learning-journey/src/main/java/io/github/pho001/synaptik/examples/LearningJourney.java).
 The important decisions are:
 
-1. A caller-owned [`Arena`](../glossary.md#term-arena) allocates one native float holding zero. `TensorFactory.create` borrows
-   that storage and associates its exact contiguous descriptor with it.<span data-glossary-navigation="true"> ([contiguous glossary](../glossary.md#term-contiguous); [descriptor glossary](../glossary.md#term-descriptor))</span>
-2. Build runs while the supplied storage is still live. The program checks that Model state has
-   different Tensor and storage identities, changes the caller's original value to <span data-glossary-navigation="true"> ([identities glossary](../glossary.md#term-identity-meanings))</span>`99`, and
-   checks that the Model's private value is still `0`.
-3. The caller Arena closes **before** the returned Model computes. A correct private copy can
-   still predict `[1*0,3*0] = [0,0]`.
-4. `compute` lazily obtains execution through the Model's Engine path and returns a detached
-   immutable <span data-glossary-navigation="true"> ([immutable glossary](../glossary.md#term-immutable))</span>[`HostTensorValue`](../glossary.md#host-tensor-value--hosttensorvalue). Try-with-resources closes the Model's cached owners; the output
-   bytes are still readable afterward.
+1. The application's `copiedModel` helper opens an [`Arena`](../glossary.md#term-arena),
+   which controls the lifetime of one native float holding zero. `TensorFactory.create`
+   attaches that storage to `supplied` without copying it. The Tensor has no producing
+   expression, so it is a leaf; the application still controls its Arena.
+2. The helper calls `build()` before closing that Arena. It checks that the Model's weight
+   has different Tensor and storage identities, writes `99` to the original storage, and
+   checks that the Model's private value is still zero.
+3. The helper closes the Arena before returning the Model to `first`. Computation still
+   produces $[1\cdot0,3\cdot0]=[0,0]$, because it reads the private copy.
+4. `first` calls `compute`, which lazily obtains execution through the Model's Engine path
+   and copies the output into an immutable
+   [`HostTensorValue`](../glossary.md#host-tensor-value--hosttensorvalue). Closing the Model
+   releases its cached resources, not the independent output bytes.
 
 This is why a tensor object, its storage and a [detached](../glossary.md#detached-model-results) result are not interchangeable:
 
@@ -70,6 +84,7 @@ Keep supplied storage live and exclude concurrent mutation during build.
 ## [Run](../glossary.md#term-run) and interpret
 
 ```bash
+# This process checks both parameter-copy isolation and output survival after Model close.
 java --enable-native-access=ALL-UNNAMED -cp "$LEARNING_CP" \
   io.github.pho001.synaptik.examples.LearningJourney first
 ```
@@ -85,8 +100,9 @@ first.after-model-close=[0.0, 0.0]
 
 The first marker follows checks and a successful compute after supplied-[owner](../glossary.md#term-owner) close. The final
 line is read **after [Model](../glossary.md#term-model) close**, so it checks a different boundary: [detached](../glossary.md#detached-model-results) outputs do not
-borrow their originating Model. Zero [predictions](../glossary.md#term-prediction) [mean](../glossary.md#term-mean) the chosen [weight](../glossary.md#term-weight) is zero, not that the
-model is uninitialized or that the input was ignored. No [optimizer](../glossary.md#term-optimizer) has run.
+borrow their originating Model. In this example zero predictions follow from multiplying the
+nonzero inputs by the chosen zero weight; they do not indicate an uninitialized Model or ignored
+input. No [optimizer](../glossary.md#term-optimizer) has run.
 
 ## Useful variation and relevant error
 
@@ -97,7 +113,7 @@ mode's numerical assertions too. Rebuild with the exact [Maven](../glossary.md#t
 [parameter](../glossary.md#term-parameter); it is not learning. Restore the [canonical](../glossary.md#term-canonical-form) source before later chapters.
 
 A supplied weight with `requiresGrad=false`, wrong [rank](../glossary.md#term-rank)/[dtype](../glossary.md#data-type--datatype), no stored values, or incompatible
-[feature](../glossary.md#term-software-feature) width is not a substitute for this parameter. Recipe/[schema](../glossary.md#term-schema) [admission](../glossary.md#term-admission) can throw
+[feature](../glossary.md#term-feature) width is not a substitute for this parameter. Recipe/[schema](../glossary.md#term-schema) [admission](../glossary.md#term-admission) can throw
 `IllegalArgumentException`; unavailable storage at build can throw `IllegalStateException`.
 Provide a stored [FLOAT32](../glossary.md#term-float32) `[1,1]` [gradient](../glossary.md#term-gradient)-eligible [leaf](../glossary.md#term-leaf) and keep its [owner](../glossary.md#term-owner) live until build
 returns. Do not close a [Model](../glossary.md#term-model) and then call `compute` again: read the already [detached value](../glossary.md#detached-model-results),

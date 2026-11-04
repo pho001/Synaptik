@@ -2,11 +2,16 @@
 
 ## Outcome
 
-This guide explains what callers can select today. `Engine.standard()` owns a fixed [CPU](../glossary.md#term-cpu)-only
-composition. `Engine.builder()` accepts explicitly opened CPU and [Metal](../glossary.md#term-metal) integrations and freezes
-their registration order, capability providers, and availability snapshots. [Compilation](../glossary.md#compiler-engine-and-execution-stage-names) selects
-one [owner](../glossary.md#term-owner) per [operation](../glossary.md#operation); ordinary preparation can combine both registered owners through a
-validated shared schedule and explicit bounded transfers.
+This guide explains how a Java application chooses which execution integrations Engine may
+use. The application calls `Engine.standard()` for a CPU-only composition, or opens CPU/Metal
+integrations and passes them to `Engine.builder().takeOwnership(...)`. That transfer makes
+the builder, then the built Engine, responsible for closing integrations; the application must
+not also close or reuse them. It retains responsibility for closing the Engine itself.
+
+The builder freezes registration order, capability providers and availability snapshots.
+Compilation assigns one backend to each operation. Preparation can combine CPU and Metal
+through a checked schedule and explicit bounded transfers. These assignments do not adopt the
+application's input storage; actual runs borrow it until their result closes.
 
 A **[backend](../glossary.md#backend)** supplies execution for a supported processor or [device](../glossary.md#term-device). An **integration** is the
 opened Java-facing connection that [Engine](../glossary.md#term-engine) can own. A **[partition](../glossary.md#partition)** is a group of operations
@@ -42,13 +47,14 @@ setup so each [run](../glossary.md#term-run) can bind input storage or copy outp
 ## Use the ordinary composition
 
 ```java
+// The application closes Engine; compute returns copied bytes independent of that close.
 try (Engine engine = Engine.standard()) {
     HostTensorValue result = engine.compute(output);
 }
 ```
 
 Every call to `standard()` opens one fresh independent [CPU](../glossary.md#term-cpu) integration. [Engine](../glossary.md#term-engine) owns it and closes
-it. There is no [classpath](../glossary.md#term-classpath) [scan](../glossary.md#term-cumulative-scan), `ServiceLoader`, process-global [registry](../glossary.md#term-registry), fallback [backend](../glossary.md#backend), or
+it. There is no classpath search, `ServiceLoader`, process-global registry, fallback backend, or
 [Runtime](../glossary.md#term-runtime) service [lookup](../glossary.md#term-lookup).
 
 ## Compose [CPU](../glossary.md#term-cpu) and [Metal](../glossary.md#term-metal) explicitly
@@ -60,6 +66,7 @@ native opening happen before [Engine](../glossary.md#term-engine) takes [ownersh
 MetalBackendConfiguration metalConfiguration =
         new MetalBackendConfiguration(nativeLibrary.toAbsolutePath());
 try (Engine.Builder builder = Engine.builder()) {
+    // Ownership transfers at each call's entry, including when registration reports an error.
     builder.takeOwnership(MetalBackendIntegration.open(metalConfiguration));
     builder.takeOwnership(CpuBackendIntegration.open());
     try (Engine engine = builder.build()) {
@@ -88,6 +95,7 @@ Advanced integration code may transfer one supported [CPU](../glossary.md#term-c
 standalone [compile](../glossary.md#compile) settings:
 
 ```java
+// AdvancedEngine now owns the opened CPU integration; this scope closes it.
 try (AdvancedEngine engine =
         AdvancedEngine.takeOwnership(CpuBackendIntegration.open())) {
     AdvancedCompiledGraph graph = engine.compile(

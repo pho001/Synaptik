@@ -8,7 +8,7 @@ fresh `[2,4]` to `[4,8]`. Then configure a new [training session](../glossary.md
 
 Complete [setup](../examples/README.md#build-the-complete-project) and
 [train/evaluate](train-and-evaluate.md). Use [JDK](../glossary.md#term-java-development-kit-jdk) 26 and `LEARNING_CP` from the example project.
-The [Maven](../glossary.md#term-maven)-created [`target`](../glossary.md#term-target) directory must exist and be writable. The destination below is
+The Maven-created `target` directory must exist and be writable. The destination below is
 **replaced if it already exists**; choose another filename if you need to retain an earlier file.
 The mode trains its own Model, so it does not depend on an earlier `train` process.
 
@@ -44,6 +44,19 @@ try-with-resources block ends before `Model.load` starts. Loading creates a new 
 `[2,1]` values `[2,4]` give `[4,8]`. The [sample](../glossary.md#term-sample-machine-learning-and-hyperparameters) count is still two: fresh data does not imply a
 changed [signature](../glossary.md#term-signature).
 
+### Who owns the restored state?
+
+The application calls `original.save(file)` while the original Model is live. Model delegates
+the supported source and current state values to Checkpoint's file-writing boundary; it does
+not transfer the live parameter allocation into the file. After original Model close, the
+application calls `Model.load(file)`. That call constructs a new Model with independent state.
+The application must close this restored Model too.
+
+Next, `restored.compute(freshInput)` borrows the application's fresh stored batch during the
+synchronous call and returns independent prediction bytes. Those inputs are not stored training
+examples in the saved model. For the difference between restoring model values and restoring
+session progress, read [in-memory TrainingState recovery](../user-guide/training.md#snapshot-and-restore).
+
 | Saved by this workflow | Not restored by this workflow |
 |---|---|
 | Supported graph semantics and input/output [descriptors](../glossary.md#term-descriptor) | Cached compiled/[prepared execution](../glossary.md#prepared-execution--preparedexecution) or [backend](../glossary.md#backend) eligibility |
@@ -66,6 +79,7 @@ No mode toggle is needed or valid for this captured owned source.
 ## [Run](../glossary.md#term-run) and interpret
 
 ```bash
+# This replaces the graph file and loads a new owner; it does not resume optimizer history.
 java --enable-native-access=ALL-UNNAMED -cp "$LEARNING_CP" \
   io.github.pho001.synaptik.examples.LearningJourney save-load target/learning-journey.graph
 ```

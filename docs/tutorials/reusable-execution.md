@@ -22,6 +22,14 @@ The [owned Model](../glossary.md#model-module-buffer-and-scan-distinctions) cach
 and values are allowed; per-[batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) builder calls, cold forward composition or [graph](../glossary.md#graph) rebinding
 are not required.
 
+### Which caller supplies each batch?
+
+The application's `reuse` method calls `model.compute(batch)`. Model is the callee and hides
+its cached compilation/preparation. Internally Model calls Engine with current input values
+and its own parameter. The application must keep batch storage usable and unchanged until
+`compute` returns; Model closes the internal run result and returns copied output bytes.
+Changing batch values does not change the prototype that described the input.
+
 **[Capture](../glossary.md#term-capture-meanings)** records expression operations and their connections as a graph; it does not record
 an already-computed [prediction](../glossary.md#term-prediction). **[Compile](../glossary.md#compile)** validates that meaning and fixes execution [ownership](../glossary.md#term-ownership-meanings).
 **[Prepare](../glossary.md#prepare)** builds reusable execution resources from it. A **[cache](../glossary.md#term-cache)** retains setup for reuse,
@@ -29,10 +37,11 @@ not the answer to every future input. **Binding** supplies this [run](../glossar
 positions. Consequently `[2,4]` reaches the same prepared multiplication as `[1,3]` without
 reusing the earlier prediction `[2,6]`.
 
-The mode constructs `Engine.standard()` explicitly and selects it with `withEngine` before
-training/compute setup freezes [Engine](../glossary.md#term-engine) choice. The Model **borrows** this Engine; Model close
-will not close it. Without an explicit selection, the usual Model path lazily owns its standard
-[CPU](../glossary.md#term-cpu) Engine. Neither choice changes the equation or transfers [optimizer](../glossary.md#term-optimizer) ownership to Engine.
+The application constructs `Engine.standard()` and passes that Engine to `model.withEngine`
+before training/compute setup freezes the choice. The **application owns the Engine** and
+closes it after Model; Model only borrows it. Without this selection, Model lazily creates and
+owns its standard CPU Engine. Neither choice changes the equation or gives Engine responsibility
+for optimizer mathematics.
 
 ## Expose the reusable [owner](../glossary.md#term-owner) once
 
@@ -45,15 +54,17 @@ such a tiny [graph](../glossary.md#graph).
 2. `engine.compile` determines graph meaning and the final input [occurrence](../glossary.md#term-occurrence) order.
 3. `engine.prepare(compiled)` creates one closeable [`PreparedExecution`](../glossary.md#prepared-execution--preparedexecution) tied to this Engine.
    Preparation does not bind caller input values or run the graph.
-4. For each batch, construct a map from source Tensor identity to current value. The weight
-   comes from the live Model state; the input comes from this iteration. Iterate<span data-glossary-navigation="true"> ([identity glossary](../glossary.md#term-identity-meanings))</span>
-   `compiled.inputs()` to build the **[Compiler](../glossary.md#term-compiler)'s** positional order, rather than assuming
-   expression traversal matches the caller's list.
-5. `engine.runValues(prepared, bindings)` borrows live input/parameter storage for the run.
-   It matches positions and exact descriptors, not the fresh Tensor's identity. This differs
-   from <span data-glossary-navigation="true"> ([descriptors glossary](../glossary.md#term-descriptor))</span>`engine.run`, whose [binding](../glossary.md#term-binding) uses the exact compiled TensorIds.
-6. Materialize the sole [publication](../glossary.md#term-publication) with an `8`-byte ceiling: two [FLOAT32](../glossary.md#term-float32) values. Close each
-   [`RunResult`](../glossary.md#run-result--runresult) before the next iteration. The [detached](../glossary.md#detached-model-results) copy is independent of that result.
+4. For each batch, the application maps source Tensor identity to a current stored value.
+   The weight is a borrowed reference from live Model state; the input is this iteration's
+   batch. It iterates `compiled.inputs()` to build **Compiler's positional order**, not
+   an assumed expression traversal order.
+5. The application calls `engine.runValues(prepared, bindings)`. Engine borrows those stores
+   until the returned `RunResult` closes; it neither adopts them nor permanently replaces the
+   prototype. Positions and full descriptors must match, but fresh Tensor identities are allowed.
+   By contrast, `engine.run` requires the exact compiled input identities.
+6. The application asks that result to materialize its sole output with an `8`-byte ceiling:
+   two FLOAT32 elements at four bytes each. It closes each `RunResult` before the next
+   iteration. Only the copied `HostTensorValue` is retained afterward.
 
 A **publication** is an output occurrence the [run](../glossary.md#term-run) exposes, such as this [prediction](../glossary.md#term-prediction).
 **[Materialization](../glossary.md#materialization)** copies its numerical bytes into an independent [host](../glossary.md#term-host) value. “Host” means
@@ -64,7 +75,7 @@ shows why a live result is needed for copying but a detached copy can outlast it
 Read the [ownership](../glossary.md#term-ownership-meanings) stack from the inside out at closure:
 
 ```text
-Engine (caller-owned)
+Engine (created and closed by the Java application)
   Model (borrows Engine, owns private parameter storage/session)
     PreparedExecution (borrows Engine, runs with live Model state)
       RunResult (one invocation) -> materialize -> detached HostTensorValue
@@ -79,6 +90,7 @@ per-run work, allocation or output copying.
 ## [Run](../glossary.md#term-run) and interpret
 
 ```bash
+# Reuse setup, not previous answers: both same-descriptor batches execute.
 java --enable-native-access=ALL-UNNAMED -cp "$LEARNING_CP" \
   io.github.pho001.synaptik.examples.LearningJourney reuse
 ```

@@ -12,6 +12,22 @@ new input values; it does not mean reusing an old answer. The
 [experiment table](../tutorials/index.md#the-experiment-in-concrete-terms) fixes the actual
 [FLOAT32](../glossary.md#term-float32) `[2,1]` data and the one [bias](../glossary.md#term-bias)-free weight used throughout the chapters.
 
+### What does this application own?
+
+`LearningJourney.main` selects a chapter and calls the public APIs from Java. `TensorFactory`
+imports current arrays; Tensor operations describe calculations; Model or Engine executes them.
+A **prototype** describes an input's type and geometry without storing its values.
+At Model build, supplied parameter values are copied into private state. Each compute/train call
+instead borrows current input/target storage only for the synchronous call.
+
+The application closes Model and any Engine it explicitly creates. Model closes execution
+resources it owns, but not an explicitly borrowed Engine. Returned `HostTensorValue` and
+`TrainingStep` values contain copied bytes and have no close method. The explicit `reuse`
+example also closes each `RunResult` before releasing inputs or starting the next iteration.
+Follow the [copy/borrow walkthrough](../tutorials/first-model.md#who-supplies-the-weight-and-who-executes-the-rule)
+and [explicit result lifecycle](../tutorials/reusable-execution.md#expose-the-reusable-owner)
+for the actual boundaries rather than treating every Tensor as a resource owner.
+
 ## Prerequisites and [artifact](../glossary.md#term-artifact) boundary
 
 - [JDK](../glossary.md#term-java-development-kit-jdk) **26** selected by both `java` and [Maven](../glossary.md#term-maven), and Maven 3.9 or newer.
@@ -22,7 +38,7 @@ new input values; it does not mean reusing an old answer. The
 - A terminal initially at the repository root; alternatively copy the entire `learning-journey`
   directory and enter that copied directory instead of the first command below.
 - An existing writable destination directory for the saved [graph](../glossary.md#graph). The commands use the Maven-created
-  [`target`](../glossary.md#term-target) directory. `save-load` and `all` **replace** the destination file if it already exists.
+  `target` directory. `save-load` and `all` **replace** the destination file if it already exists.
 
 No data download, [GPU](../glossary.md#term-gpu), native [BLAS](../glossary.md#term-blas) installation, test framework, preview flag, or [Vector API](../glossary.md#term-vector-api) flag
 is needed. Enable native access: `Engine.standard()` can probe optional [OpenBLAS](../glossary.md#term-openblas) through the
@@ -43,17 +59,21 @@ First set `SYNAPTIK_REPOSITORY_URL` in your shell to the absolute file URL you w
 (for example, the URL form starts with `file:///`, not a bare filesystem path). Then [run](../glossary.md#term-run):
 
 ```bash
+# Use the complete project so the pinned dependency and executable checks travel together.
 cd docs/examples/learning-journey
 : "${SYNAPTIK_REPOSITORY_URL:?Set this to the supplied absolute file Maven repository URL}"
+# Fail on a missing/private repository URL instead of substituting an unrelated public version.
 case "$SYNAPTIK_REPOSITORY_URL" in
   file:///*) ;;
   *) printf '%s\n' 'Expected an absolute file:/// repository URL' >&2; exit 1 ;;
 esac
 java -version
 mvn -version
+# Resolve the consumer's runtime dependencies, then keep that classpath for chapter commands.
 mvn -Dsynaptik.repository.url="$SYNAPTIK_REPOSITORY_URL" \
   compile dependency:build-classpath -Dmdep.outputFile=target/runtime-classpath.txt
 export LEARNING_CP="target/classes:$(cat target/runtime-classpath.txt)"
+# Native access permits the optional CPU probe; it does not select a GPU backend.
 java --enable-native-access=ALL-UNNAMED -cp "$LEARNING_CP" \
   io.github.pho001.synaptik.examples.LearningJourney all target/learning-journey.graph
 ```

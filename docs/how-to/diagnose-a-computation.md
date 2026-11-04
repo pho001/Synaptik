@@ -11,6 +11,22 @@ For the learning input, `[2,1]` means two [sample](../glossary.md#term-sample-ma
 roles. A **boundary** below is a stage where one kind of responsibility is checked before the
 next stage can proceed. **[Admission](../glossary.md#term-admission)** means accepting work after those checks.
 
+### Identify the actual call before interpreting “caller”
+
+If your application calls `model.compute(batch)`, Model checks the batch and calls Engine
+internally. If your application directly calls `engine.runValues(prepared, values)`, it must
+also manage the returned result. In the first case input borrowing ends before `compute`
+returns; in the second it ends at `RunResult.close()`, not just when the kernel finishes.
+A TrainingSession is another internal caller of Engine and closes its own result before
+returning a detached step. An error mentioning a caller does not always refer to your `main`.
+
+Record the API call, expected descriptor, actual stored values and responsible Arena/Engine.
+A leaf Tensor has no producing expression; it can be a storage-free prototype or a stored
+input. Passing the former where the run requires the latter is a storage problem, not evidence
+that the numerical operation is unavailable. Compare the
+[prototype/fresh-value example](../user-guide/running-models.md#run-fresh-values-in-compiled-order)
+and [Training input lifetime](../user-guide/training.md#lifetimes-and-concurrency).
+
 ## Read the failure in [lifecycle](../glossary.md#lifecycle) order
 
 | Boundary | Question | Useful evidence |
@@ -50,11 +66,17 @@ the active Engine or mutate live [model](../glossary.md#term-model) state.
 
 ## Check numeric expectations separately
 
-For the learning project, the returned first training [objective](../glossary.md#term-objective) is the pre-update squared-error
-sum. Recompute after the update to evaluate new [predictions](../glossary.md#term-prediction). Exact teaching numbers do not imply
-bit-identical arbitrary [FLOAT32](../glossary.md#term-float32) reductions across all supported [backends](../glossary.md#backend). For low types, logical
-storage and FLOAT32 [working arithmetic](../glossary.md#accumulator-type) are different facts; use the [Model](../glossary.md#term-model) semantic contract and
-current qualified [operation](../glossary.md#operation) domain, not a guessed [accumulator](../glossary.md#accumulator-type) policy.
+For the learning project, the first returned training objective is
+$L(w_{\mathrm{old}})=40$; the step produces $w_{\mathrm{new}}=2$.
+Here $L$ is the sum of squared errors and $w$ the shared weight for the two samples.
+A fresh prediction at the new weight gives $[2,6]$ and a fresh comparison gives
+$L(w_{\mathrm{new}})=0$. Reading the old TrainingStep again does not recompute that objective.
+Use the [fully defined update](../tutorials/train-and-evaluate.md#work-through-the-update)
+before treating old loss alongside new predictions as a defect.
+
+Exact teaching numbers do not imply bit-identical arbitrary FLOAT32 reductions across
+backends. For low types, logical storage and working arithmetic are different facts; use
+the operation's numerical contract and current qualified domain, not a guessed accumulator policy.
 
 FLOAT32 rounds intermediate results to representable values, so changing the order in which
 many numbers are summed can change final bits. An **accumulator** holds a running sum; its

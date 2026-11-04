@@ -15,6 +15,19 @@ A **schedule** orders the already-selected computations and transfers. None of t
 run's input data or an already-computed answer. Use the
 [execution-stage visual](../explanation/packages/execution.md) to follow those handoffs.
 
+### Who calls whom during preparation?
+
+The Java application calls `engine.prepare(graph)` with a handle produced by that same
+Engine's `compile`. Engine calls shared Prepare with its fixed backend inventory. Prepare
+asks those backends to construct their parts of the executable schedule, then Engine returns
+a `PreparedExecution` the application must close. “Owner” in a partition assignment means
+the backend responsible for executing its operations, not the owner of an application array.
+
+No batch values cross this ordinary prepare boundary. Later the application calls Engine's
+run method with stored inputs; Runtime executes the prepared schedule and borrows those
+stores until the run result closes. This distinction allows the same prepared description
+to run on [fresh stored batches](running-models.md#run-fresh-values-in-compiled-order).
+
 ## Prerequisites
 
 - One open `Engine.standard()`, or one open explicitly composed [CPU](../glossary.md#term-cpu)/[Metal](../glossary.md#term-metal) [Engine](../glossary.md#term-engine).
@@ -25,6 +38,7 @@ run's input data or an already-computed answer. Use the
 ## [Prepare](../glossary.md#prepare) once
 
 ```java
+// Keep this setup outside the batch loop; no input bytes are bound here.
 CompiledGraph graph = engine.compile(List.of(output));
 try (PreparedExecution prepared = engine.prepare(graph)) {
     assert prepared.compiledGraph() == graph;
@@ -71,11 +85,12 @@ complete-plan candidates against exact [canonical](../glossary.md#term-canonical
 production preparation. The result says explicitly whether it is `TUNED` or an allowed
 `SAFE_HEURISTIC_FALLBACK`.
 
-Representative [Tensors](../glossary.md#tensor) and their storage remain caller-owned. A strict request fails if tuning
-cannot complete; an allowed fallback uses a fresh safe ordinary preparation through the same
-already-selected [backend](../glossary.md#backend). This is not generic
-multiple-[occurrence](../glossary.md#term-occurrence) extraction, [Compiler](../glossary.md#term-compiler) [graph](../glossary.md#graph)-alternative search, [Planning](../glossary.md#term-planning) owner or partition
-search, or mixed-backend tuning. [Runtime](../glossary.md#term-runtime) performs no tuning.
+For tuning, unlike ordinary prepare, the application also supplies representative stored
+Tensors for trial execution. The application still owns those Tensors and their storage and
+must keep them usable during tuning; it does not transfer them to Engine.
+A strict request fails if tuning cannot complete. An allowed fallback makes a fresh safe
+ordinary preparation through the already-selected backend. This does not search for a
+different backend, arbitrary graph alternative or mixed-backend plan. Runtime performs no tuning.
 
 A **representative workload** is concrete input chosen to stand for later work during timing.
 A **candidate** is an allowed implementation being compared. A **cache** can reuse a compatible

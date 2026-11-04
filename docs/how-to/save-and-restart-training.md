@@ -13,10 +13,23 @@ must be understood by its stated contents: saving this model is not saving every
 continue a training process. **[Detached](../glossary.md#detached-model-results)** predictions own copied bytes; **owned** loaded state
 has a new responsible [owner](../glossary.md#term-owner) rather than [borrowing](../glossary.md#term-borrowing) the original Model's storage.
 
+### Name the owners before saving
+
+The Java application calls `model.save(path)` on its live Model. Checkpoint writes admitted
+source descriptions and current values, not references to the live Model's allocations.
+The application then closes that Model and calls `Model.load(path)` to obtain a **new**
+Model with independent private state. It closes the loaded Model when finished too.
+
+`loaded.compute(batch)` borrows your fresh stored input for that synchronous call and returns
+copied prediction bytes. `loaded.configureTraining(...)` calls your objective-builder function
+at setup with a prediction expression and target prototype. These describe the comparison
+without supplying current answers. Only `loaded.train(batch,target)` supplies current data and
+performs an optimizer transaction; changing train/eval mode is not that transaction.
+
 ## Procedure
 
-1. Train the learning Model or run its save/load mode. The learned weight is two; the intended
-   function is <span data-glossary-navigation="true"> ([run glossary](../glossary.md#term-run); [weight glossary](../glossary.md#term-weight))</span>`y=2x`.
+1. Train the learning Model or run its save/load mode. Its learned dimensionless weight is
+   $w=2$, so the function is $y=wx=2x$, where $x$ is an input and $y$ its prediction.
 2. Save with `Model.save` while the Model and its state are valid. The parent directory must exist.
    Successful publication atomically replaces an existing target; choose that path deliberately.<span data-glossary-navigation="true"> ([publication glossary](../glossary.md#term-publication); [target glossary](../glossary.md#term-target))</span>
 3. Close the original [Model](../glossary.md#term-model). Retain a [detached](../glossary.md#detached-model-results) [prediction](../glossary.md#term-prediction) if you want to compare it afterward.
@@ -24,8 +37,9 @@ has a new responsible [owner](../glossary.md#term-owner) rather than [borrowing]
    shape, layout, dtype and gradient eligibility. This learning signature is static <span data-glossary-navigation="true"> ([tensors glossary](../glossary.md#tensor); [signature glossary](../glossary.md#term-signature); [shape glossary](../glossary.md#shape); [layout glossary](../glossary.md#layout); [dtype glossary](../glossary.md#data-type--datatype); [gradient glossary](../glossary.md#term-gradient))</span>`[2,1]`.
 5. Compute to verify learned values. New input `[2,4]` should produce `[4,8]` without the original
    Model or its Engine.<span data-glossary-navigation="true"> ([Engine glossary](../glossary.md#term-engine))</span>
-6. If further training is intended, configure a fresh target signature, objective builder and
-   optimizer, then call <span data-glossary-navigation="true"> ([objective glossary](../glossary.md#term-objective); [optimizer glossary](../glossary.md#term-optimizer))</span>`train`. Explain that as a new session, not resumed history.
+6. If further training is intended, call `configureTraining` with a fresh target signature,
+   objective builder and optimizer, then call `train(batch,target)`.
+   Explain this as a new session, not resumed history.
 
 The [canonical source](../examples/README.md)<span data-glossary-navigation="true"> ([canonical glossary](../glossary.md#term-canonical-form))</span> is the runnable example. The
 [checkpoint reference](../reference/checkpoint/graph.md)<span data-glossary-navigation="true"> ([checkpoint glossary](../glossary.md#term-checkpoint))</span> documents [admission](../glossary.md#term-admission) and version selection.
@@ -56,8 +70,8 @@ magic value to decide how to execute it.
 Training has [detached](../glossary.md#detached-model-results) in-memory state snapshots and strict transactional restore. Recreating a
 compatible session and restoring its state requires caller coordination of [parameters](../glossary.md#term-parameter), input
 progress and the [objective](../glossary.md#term-objective). That is not an implied durable cross-[owner](../glossary.md#term-owner) [resume](../glossary.md#schema-serialization-and-checkpoint) format. See the
-[Training reference](../reference/training/sessions.md) and the existing
-[in-memory recovery procedure](../user-guide/training.md).
+[Training session reference](../reference/training/sessions.md) and
+[snapshot/restore procedure](../user-guide/training.md#snapshot-and-restore).
 
 ## Common errors and useful variation
 

@@ -1,8 +1,11 @@
 # Learn Synaptik by fitting one [weight](../glossary.md#term-weight)
 
-Build a Java program that learns `y = 2x` from two examples. Follow the same numbers and complete
-source from a first [prediction](../glossary.md#term-prediction) to training, [persistence](../glossary.md#term-persistence) and reusable execution. You need Java
-knowledge, not prior machine-learning experience.
+Build a Java program that learns the rule $y=2x$ from two examples: $x$ is an input
+measurement and $y$ its desired output, both dimensionless here.
+Follow the same numbers and complete source from a first
+[prediction](../glossary.md#term-prediction) to training,
+[persistence](../glossary.md#term-persistence) and reusable execution.
+You need Java knowledge, not prior machine-learning experience.
 
 ## Outcome and prerequisites
 
@@ -16,6 +19,20 @@ Those instructions require an explicit caller-supplied [file repository](../glos
 `0.1.0-public-audit.20261104`; this tutorial does not authorize publishing or assume a public
 artifact download. All chapter commands run from `docs/examples/learning-journey`, with
 `LEARNING_CP` exported by that setup.
+
+### What will my application call?
+
+`LearningJourney.main` is the Java application entry point. Its helpers import arrays with
+`TensorFactory`, describe the multiplication with Tensor/Model APIs, then request actual
+values through `compute`, `backward` or configured `train(input,target)`. An expression
+describes work; a stored Tensor supplies current data. A **prototype** is a storage-free Tensor
+that declares the expected shape and type.
+
+The application supplies the initial weight, but Model copies it into private state at build.
+Inputs and desired answers remain application data borrowed during synchronous calls.
+Model returns independent `HostTensorValue` prediction bytes and `TrainingStep` objective
+bytes. Close Model and any explicitly created Engine, not every Tensor; these result values
+have no close method. The chapters show where each copy and lifetime boundary occurs.
 
 ## The experiment in concrete terms
 
@@ -47,14 +64,19 @@ optimizer update. **[Evaluation](../glossary.md#term-evaluation)** assesses thos
 targets. A complete pass through a chosen training [dataset](../glossary.md#term-dataset) is an **[epoch](../glossary.md#term-epoch-meanings)**. This journey performs
 one batch update; it does not introduce a dataset iterator or an automatic epoch loop.
 
-Read this flow left to right: data flows through the model into a comparison, and training uses
-the [derivative](../glossary.md#term-derivative) of that comparison to update the private parameter.
+Read the existing [training-action diagram](train-and-evaluate.md#configure-what-training-means)
+as three different actions: configuration describes the objective/update, a training transaction
+changes the private parameter, and compute reads it to predict. All retain the acquired eval
+mode; changing a Module's mode is not an optimizer step.
 
-```text
-x [1,3] -- model: p = x*w --> p [0,0] -- compare with t [2,6] --> L = 40
-                    ^                                             |
-                    +------ SGD: w = 0 - 0.05*(-40) = 2 <----------+
-```
+For sample index $i\in\{1,2\}$, let $x_i$ be the input, $t_i$ the desired answer,
+$w$ the weight and $p_i=x_iw$ the prediction. The sum-squared objective is
+$L(w)=\sum_{i=1}^{2}(p_i-t_i)^2$. With learning rate $\eta=0.05$, the finite
+real-number calculation gives $L(0)=40$, $L'(0)=-40$ and
+$w_{\mathrm{new}}=0-\eta L'(0)=2$.
+The [loss derivation](loss-and-gradients.md#how-do-both-samples-affect-the-same-weight)
+and [rounded update interpretation](train-and-evaluate.md#work-through-the-update) explain
+those steps; the returned training loss is measured before the update.
 
 Once `w=2`, the original batch predicts `[2,6]` and a fresh batch `[2,4]` predicts `[4,8]`.
 This demonstrates the learned multiplication, not statistical [generalization](../glossary.md#term-generalization): two synthetic
@@ -83,14 +105,15 @@ separately shows which results need a live execution [owner](../glossary.md#term
 The [canonical](../glossary.md#term-canonical-form) implementation is
 [LearningJourney.java](../examples/learning-journey/src/main/java/io/github/pho001/synaptik/examples/LearningJourney.java),
 with its [Maven POM](../examples/learning-journey/pom.xml)<span data-glossary-navigation="true"> ([Maven glossary](../glossary.md#term-maven); [POM glossary](../glossary.md#term-pom))</span>. Chapters explain its named methods
-instead of repeating partial Java snippets. Any mathematical procedure labelled [pseudocode](../glossary.md#term-pseudocode) is
-explanatory, not another [API](../glossary.md#term-application-programming-interface-api).
+instead of repeating partial Java snippets. Mathematical derivations explain the numerical
+meaning; they are not extra API calls.
 
 ## [Run](../glossary.md#term-run) the entire journey
 
 After setup:
 
 ```bash
+# Each mode creates its own state; only the chosen graph file persists across processes.
 java --enable-native-access=ALL-UNNAMED -cp "$LEARNING_CP" \
   io.github.pho001.synaptik.examples.LearningJourney all target/learning-journey.graph
 ```

@@ -24,12 +24,16 @@ and run begin.
 
 ## [Compile](../glossary.md#compile) forward computation
 
-Assume `input` is a caller-owned [Tensor](../glossary.md#tensor) [leaf](../glossary.md#term-leaf) with a resolved static [descriptor](../glossary.md#term-descriptor) and live [host
-storage](../glossary.md#host-storage). This current call compiles one non-empty expression:
+Assume the Java application created `input`, a Tensor with no producing expression (a **leaf**),
+and calls the code below. A static descriptor fixes its type and geometry. The application
+retains responsibility for attached host storage, but this compile call reads descriptions,
+not input bytes; the leaf could instead be a storage-free prototype. Usable storage must be
+supplied at execution. This example compiles one non-empty expression:
 
 ```java
 try (Engine engine = Engine.standard()) {
     Tensor output = input.contiguous();
+    // contiguous() describes a conversion; compile does not perform the copy yet.
     CompiledGraph graph = engine.compile(List.of(output));
 
     assert graph.inputs().size() == 1;
@@ -57,6 +61,7 @@ Tensor used by a training [loss](../glossary.md#loss). The [autograd explanation
 introduces the [vector-Jacobian product](../glossary.md#term-vector-jacobian-product-vjp) and why [seed](../glossary.md#term-seed) and output must match.
 
 ```java
+// Explicit targets identify which input derivatives Compiler must construct.
 CompiledGraph graph = engine.compile(
         List.of(output),
         List.of(seed),
@@ -66,6 +71,12 @@ CompiledGraph graph = engine.compile(
 The [Compiler](../glossary.md#term-compiler) owns differentiation and validates seed, target, [operation](../glossary.md#operation), and connectivity
 semantics. [Engine](../glossary.md#term-engine) does not infer targets, add Tensor gradient fields, or provide a no-[argument](../glossary.md#term-argument)
 backward [lifecycle](../glossary.md#lifecycle). For the narrower fresh [scalar](../glossary.md#term-scalar)-[objective](../glossary.md#term-objective) case, use `Engine.backward(...)`.
+
+Here the application calls Engine, and Engine calls Compiler; “Compiler owns differentiation”
+means Compiler defines and constructs the derivative expressions. It does not mean Compiler
+adopts the application's input memory. The returned graph fixes identities/descriptors and
+input order; [binding current values](running-models.md#run-fresh-values-in-compiled-order)
+is a separate run-time action.
 
 ## Ordinary versus advanced [compilation](../glossary.md#compiler-engine-and-execution-stage-names)
 

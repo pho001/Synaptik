@@ -22,7 +22,7 @@ loading supplies the exact value Tensor references before ordinary execution.
 change; a **binding** connects a layer's required state position to a particular Tensor.
 Here **closed** means reconstruction accepts a fixed supported inventory of layer kinds, not
 that the source is a resource whose `close()` method has [run](../glossary.md#term-run). **Bound** means its state
-requirements are established; it does not necessarily [mean](../glossary.md#term-mean) numerical values are present.
+requirements are established; it does not necessarily imply that numerical values are present.
 
 ## Prerequisites and concrete inputs
 
@@ -34,8 +34,8 @@ explicit; reconstruction does not initialize weights.
 
 A **projection** here maps two input [features](../glossary.md#term-feature) to two output features by a [Linear](../glossary.md#term-linear-meanings) calculation.
 An **[activation](../glossary.md#term-activation)** adds a transformation between layers; RELU keeps positive values and replaces
-nonpositive values with zero. **Shared parameters** [mean](../glossary.md#term-mean) both paths use the exact same Tensor,
-not separate copies that happen to contain equal numbers. “Quiescent” means no concurrent
+nonpositive values with zero. **Shared parameters** use the exact same Tensor at both paths,
+not separate copies with equal numbers. “Quiescent” means no concurrent
 state changes while the description or expression is being constructed.
 
 ```java
@@ -55,17 +55,20 @@ import java.util.Random;
 public final class ReconstructExample {
     public static void main(String[] args) {
         Linear first = new Linear(2, 2, false, DataType.FLOAT32, new Random(7));
+        // Reuse the exact weight object so description can record shared state, not equal copies.
         Linear second = new Linear(first.weight().value());
         Sequential source = new Sequential(List.of(
                 first, new Activation(ActivationKind.RELU), second));
 
         ModelSpecification specification = ModelSpecification.describe(source);
+        // describe reads configuration; reconstruct creates layers with no parameter values yet.
         DeclarativeModel candidate = DeclarativeModel.reconstruct(specification);
         System.out.println(specification.aliases().getFirst().paths());
         System.out.println(candidate.parametersRecursively().get("0.weight")
                 .value().hostStorage().isEmpty());
 
         candidate.loadStateDictionary(source.stateDictionary());
+        // This strict load borrows source Tensor references rather than copying their bytes.
         System.out.println(candidate.parametersRecursively().get("0.weight").value()
                 == candidate.parametersRecursively().get("2.weight").value());
         TensorDescriptor output = specification.outputDescriptor(new TensorDescriptor(
@@ -84,18 +87,25 @@ true
 10
 ```
 
-Description borrows the source without reparenting it or changing mode. Reconstruction
-owns independent layer instances under direct numeric root names and starts in
-[evaluation](../glossary.md#term-evaluation) mode. The first `true` proves the skeleton has no weight storage; the
-second proves strict loading retained the shared source reference at both paths.
-The output [descriptor](../glossary.md#term-descriptor) has [Shape](../glossary.md#shape) `[5, 2]`, hence ten [elements](../glossary.md#term-element), without evaluation.
-Changed compatible [batches](../glossary.md#term-batch-machine-learning-and-hyperparameters) and leading ranks are not a saved fixed [signature](../glossary.md#term-signature).
+### Which objects become independent, and which remain shared?
 
-This example's state dictionary is a shallow [binding](../glossary.md#term-binding) [snapshot](../glossary.md#term-snapshot): loading borrows its
-exact Tensors, not [detached](../glossary.md#detached-model-results) copies of their values. A [persistence](../glossary.md#term-persistence) [owner](../glossary.md#term-owner) may instead
-load fresh value Tensors through the same fully bound [target](../glossary.md#term-target). Once values are loaded,
-construct a forward expression and use the ordinary
-[compile, prepare and run workflow](running-models.md#compile-and-prepare-once)<span data-glossary-navigation="true"> ([compile glossary](../glossary.md#compile); [prepare glossary](../glossary.md#prepare); [run glossary](../glossary.md#term-run))</span>.
+The application's `ModelSpecification.describe(source)` call reads the source layer tree
+without reparenting its layers or changing its mode. `DeclarativeModel.reconstruct` creates
+new layer instances under direct numeric root names and starts them in eval mode, but it
+does not initialize numerical weights. The first `true` reports absent skeleton storage.
+
+The application then calls `candidate.loadStateDictionary(source.stateDictionary())`.
+This strict load installs the exact source Tensor references. The second `true` confirms
+that both candidate paths now share one weight object. Candidate layers are independent
+objects, but their loaded weight values still refer to the supplied source state. If that
+state uses an Arena, its owner must keep it live for every dependent run; do not infer a
+private numerical copy from reconstruction.
+
+`outputDescriptor(...)` checks a hypothetical input `[5,2]` and returns output shape `[5,2]`.
+There are $5\cdot2=10$ elements, not ten evaluated output bytes. Compatible leading batch
+dimensions may vary for a newly constructed expression; this is not a saved fixed execution
+signature. After loading values, build a forward expression and follow
+[compile, prepare and run](running-models.md#compile-and-prepare-once).
 
 A **shallow snapshot** copies the associations between names and Tensor references, not the
 underlying numerical bytes. A **detached snapshot** instead owns independent value bytes.
@@ -113,6 +123,7 @@ They do not add Pool3d to the closed `ModelSpecification` layer inventory below.
 For an existing builder declared with [FLOAT32](../glossary.md#term-float32) volume input `[2,1,4,8,8]`, a conceptual chain is:
 
 ```java
+// These are builder recipe steps; the caller's later build/compute creates state and executes.
 builder.conv3d(2, 1, 1, 1)
         .maxPool3d(2, 2, 2)
         .averagePool3d(1, 2, 2)
@@ -159,7 +170,7 @@ specific input, not whether some input exists or every input is accepted; its st
 Model [metadata](../glossary.md#term-metadata) operations may consume [Tensor](../glossary.md#tensor) identifiers but neither evaluate values nor
 choose a [backend](../glossary.md#backend). Empty roots return the exact input descriptor.
 
-[Alias](../glossary.md#aliasing-and-arena) groups [mean](../glossary.md#term-mean) exact Tensor [identity](../glossary.md#term-reference-identity), not equal values or overlapping storage.
+[Alias](../glossary.md#aliasing-and-arena) groups record exact Tensor [identity](../glossary.md#term-reference-identity), not equal values or overlapping storage.
 Description recomputes them after legal parameter replacement or strict loading,
 including joins and splits. Training's duplicate/overlapping-parameter rejection
 is unchanged, and state replacement remains forbidden during an open session.

@@ -10,6 +10,13 @@ runs before an update. Use the [learning vocabulary and concrete batch](../tutor
 when those tasks are new; the table below is navigation, not a prerequisite to understand every
 advanced technique.
 
+For high-level Model calls, your application supplies data while Model manages private copied
+parameters and cached execution. For direct Engine calls, your application also manages each
+run result and prepared handle. Choose [fresh-value binding](../user-guide/running-models.md#run-fresh-values-in-compiled-order)
+when the next batch has new Tensor objects, and
+[result materialization](../user-guide/running-models.md#run-and-materialize)
+when output bytes must survive result closure. Neither workflow asks you to close every Tensor.
+
 | I want to… | Guide |
 |---|---|
 | Choose [CPU](../glossary.md#term-cpu), [Metal](../glossary.md#term-metal) or explicit mixed execution | [Choose a backend deliberately](choose-a-backend.md) |

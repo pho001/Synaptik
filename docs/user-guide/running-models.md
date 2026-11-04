@@ -4,14 +4,22 @@
 
 ## Outcome
 
-This guide compiles one fixed [inference](../glossary.md#term-inference) [graph](../glossary.md#graph), prepares one closeable [`PreparedExecution`](../glossary.md#prepared-execution--preparedexecution), and runs the same
-[prepared execution](../glossary.md#prepared-execution--preparedexecution) repeatedly with current caller-owned input storage. Each [run](../glossary.md#term-run) returns typed,
-ordered [publication](../glossary.md#term-publication) [metadata](../glossary.md#term-metadata) and supports explicit copying into [detached](../glossary.md#detached-model-results) [immutable](../glossary.md#term-immutable)
-[`HostTensorValue`](../glossary.md#host-tensor-value--hosttensorvalue) objects.
+This guide helps a Java application describe computation once and execute it repeatedly with
+current inputs. The application calls `engine.compile(outputs)`, then `engine.prepare(graph)`,
+then `engine.run(...)` or `runValues(...)` for each batch. Compilation returns a description
+of the accepted computation; preparation returns reusable execution resources. Neither call
+supplies the numerical values of future batches.
+
+Each run borrows the application's input storage until that run's `RunResult` closes.
+The application owns that storage and must keep it usable without conflicting writes.
+The result owns one invocation's resources and identifies its outputs as ordered
+**publications**. Calling `result.materialize(...)` copies one publication into an independent
+immutable `HostTensorValue`. Close run results, prepared handles and Engine; a Tensor
+description or detached value is not itself a closeable resource.
 
 **Inference** computes [predictions](../glossary.md#term-prediction) without an [optimizer](../glossary.md#term-optimizer) update. **[Eval mode](../glossary.md#inference-and-evaluation)** is a separate
 [Module](../glossary.md#term-module) setting controlling mode-dependent forward behavior; it does not disable every [gradient](../glossary.md#term-gradient)
-or [mean](../glossary.md#term-mean) prediction quality was measured. **[Capture](../glossary.md#term-capture-meanings)** records expression structure, **[compile](../glossary.md#compile)**
+or imply that prediction quality was measured. **[Capture](../glossary.md#term-capture-meanings)** records expression structure, **[compile](../glossary.md#compile)**
 validates meaning and chooses [owners](../glossary.md#term-owner), **[prepare](../glossary.md#prepare)** builds reusable executable resources, and
 **[binding](../glossary.md#term-binding)** supplies each run's actual input storage. A [cache](../glossary.md#term-cache) can retain setup, not the answer
 for every future [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters).
@@ -21,6 +29,20 @@ distinctions are new. Its actual example remains [FLOAT32](../glossary.md#term-f
 one `[1,1]` [weight](../glossary.md#term-weight) initially zero, no [bias](../glossary.md#term-bias) and summed squared error. One [SGD](../glossary.md#term-stochastic-gradient-descent-sgd) update at [learning
 rate](../glossary.md#term-learning-rate) `0.05` changes weight `0` to `2`. The independent examples below retain their own existing
 inputs and expected outputs; they are reference workflows, not replacements for that journey.
+
+### Which workflow answers my question?
+
+- [Build a fluent Model](#build-a-fluent-model) for layers, private parameter copies and
+  high-level `compute`/configured `train` calls.
+- [Acquire an owned static source](#owned-static-model-workflow) when your application
+  supplies a definition or explicit graph instead of a layer recipe.
+- [Compile and prepare once](#compile-and-prepare-once), then
+  [bind fresh stored values](#run-fresh-values-in-compiled-order), when your application
+  should manage Engine results directly.
+- [Changing batch size on ordinary CPU](#ordinary-cpu-execution-with-changing-batch-size)
+  is a separately qualified named-dimension workflow, not a relaxation of Model's fixed input.
+- [Load a saved whole model](#load-a-saved-whole-model) for the older flexible declarative
+  workflow, whose forward expressions differ from owned Model `compute`.
 
 ## [JVM](../glossary.md#term-java-virtual-machine-jvm) prerequisites
 
@@ -47,6 +69,7 @@ results are [detached](../glossary.md#detached-model-results) values.
 For example, a [multilayer perceptron](../glossary.md#term-multilayer-perceptron-mlp) ([MLP](../glossary.md#neural-network-families)) maps [FLOAT32](../glossary.md#term-float32) `[32,784]` to `[32,10]`:
 
 ```java
+// The application owns this Model; build describes layers without running a batch.
 try (var model = Model.builder().input(DataType.FLOAT32, 32, 784)
         .seed(42).linear(128).relu().linear(10, false).build()) {
     // compute requires stored FLOAT32 [32,784] batches with the exact input descriptor.
@@ -108,11 +131,13 @@ public final class FluentModelExample {
     public static void main(String[] args) throws Exception {
         Path file = Path.of(args.length == 0 ? "fluent.graph" : args[0]);
         Tensor externalWeight = matrix(2, true);
+        // build copies this stored leaf into private Model state; later training leaves it unchanged.
         try (var model = Model.builder().input(DataType.FLOAT32, 1, 1)
                 .linear(externalWeight).build()) {
             model.save(file); // supported graph-model.v1, before any Engine exists
             System.out.println(model.compute(matrix(3, false)).bytes().getFloat()); // 6
             model.configureTraining(matrix(0, false).descriptor(), (prediction, target) -> {
+                // Setup receives a prediction expression and target prototype, not batch values.
                 Tensor error = prediction.sub(target);
                 return error.mul(error).sum();
             }, new Sgd(0.1));
@@ -128,9 +153,15 @@ public final class FluentModelExample {
 ```
 
 [Run](../glossary.md#term-run) with the [NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [runtime](../glossary.md#term-runtime) [classpath](../glossary.md#term-classpath) and the [JVM](../glossary.md#term-java-virtual-machine-jvm) prerequisites above. The destination's parent
-must exist. Output is `6.0`, `25.0`, `-2.0`: squared error `(2*3-1)^2` has weight gradient 30,
-so [SGD](../glossary.md#term-stochastic-gradient-descent-sgd) changes only the private weight to `2-0.1*30=-1`. Configure training again after load;
-the file contains neither the [objective](../glossary.md#term-objective) nor [optimizer history](../glossary.md#term-optimizer-history).
+must exist. Output is `6.0`, `25.0`, `-2.0`. For dimensionless input $x=3$, desired answer
+$t=1$ and weight $w=2$, prediction is $p=wx=6$, objective is
+$L(w)=(wx-t)^2=25$, and weight derivative is $dL/dw=2(wx-t)x=30$.
+Plain SGD with learning rate $\eta=0.1$ gives
+$w_{\mathrm{new}}=w-\eta(dL/dw)=2-0.1\cdot30=-1$.
+The printed objective is pre-update; the loaded Model later predicts $(-1)\cdot2=-2$.
+These are finite real-number calculations interpreted through rounded FLOAT32 evaluation;
+they do not specify nonfinite or empty-input behavior. Configure training again after load:
+the file contains neither the objective builder nor optimizer history.
 
 ### [Convolution](../glossary.md#term-channels-first-convolution-layers) and recurrent [axes](../glossary.md#term-axis)
 
@@ -147,6 +178,7 @@ the computed output [extent](../glossary.md#term-extent) downward. These terms d
 that every geometry is supported.
 
 ```java
+// These shapes declare axis roles; no input batch is evaluated by either build.
 try (var cnn = Model.builder().input(DataType.FLOAT32, 32, 1, 28, 28).seed(42)
         .conv2d(32, 3, 3).relu().maxPool2d(2, 2)
         .conv2d(64, 3, 3).relu().maxPool2d(2, 2)
@@ -246,12 +278,14 @@ public final class RuntimeLengthScanModelExample {
 
     public static void main(String[] args) throws Exception {
         Path file = Path.of(args.length == 0 ? "scan.graph" : args[0]);
+        // The application supplies current values separately from the Model's input description.
         Tensor values = TensorFactory.fromFlatArray(descriptor(DataType.FLOAT32, 4, 3, 2),
                 Optional.empty(), new float[]{
                     .1f, .2f, .3f, .4f, .5f, .6f,
                     .7f, .8f, .9f, 1f, 1.1f, 1.2f,
                     1.3f, 1.4f, 1.5f, 1.6f, 1.7f, 1.8f,
                     1.9f, 2f, 2.1f, 2.2f, 2.3f, 2.4f});
+        // Lengths count valid time steps per batch row; they are not inferred from padding.
         Tensor validLengths = TensorFactory.fromFlatArray(descriptor(DataType.INT64, 3),
                 Optional.empty(), new long[]{4, 2, 0});
         HostTensorValue scores;
@@ -356,6 +390,7 @@ public final class RuntimeLengthRnnTrainingExample {
     }
 
     private static Tensor loss(List<Tensor> prediction, List<Tensor> target) {
+        // Build one scalar comparison expression; actual target values arrive in train calls.
         Tensor error = prediction.getFirst().sub(target.getFirst());
         return error.mul(error).sum();
     }
@@ -376,6 +411,7 @@ public final class RuntimeLengthRnnTrainingExample {
         try (var model = Model.builder().input(DataType.FLOAT32, 3, 2, 2).seed(37)
                 .rnnScan(3).finalHidden().linear(1).buildWithLengths()) {
             model.save(file); // Cold: no compute or configured training yet.
+            // Configuration preserves eval mode; train(values, targets), not train(), updates state.
             model.configureTraining(List.of(target), RuntimeLengthRnnTrainingExample::loss, new Sgd(.02));
             model.train(List.of(first, firstLengths), List.of(target));
             model.train(List.of(fresh, freshLengths), List.of(target));
@@ -422,6 +458,7 @@ import io.github.pho001.synaptik.nn.initialization.ParameterInitialization;
 import io.github.pho001.synaptik.nn.layers.LstmSequence;
 import java.util.Optional;
 
+// forwardScan constructs a body/state relationship; Engine execution is a separate action.
 var lstm = new LstmSequence(4, true, DataType.FLOAT32,
         ParameterInitialization.glorotUniform(), 42L);
 var x = TensorFactory.zeros(Shape.of(3, 2, 2), DataType.FLOAT32, Optional.empty(), false);
@@ -500,6 +537,7 @@ class ChangingBatch {
         return TensorFactory.fromFlatArray(descriptor(shape, grad), Optional.empty(), data);
     }
     public static void main(String[] args) {
+        // This storage-free prototype permits B to change; the four feature columns stay fixed.
         Tensor x = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32,
                 Shape.ofDimensions(new DynamicDimension("B"), new StaticDimension(4)),
                 Optional.empty(), true));
@@ -511,6 +549,7 @@ class ChangingBatch {
                 for (int b : new int[] {64, 40, 1, 64, 0}) {
                     Tensor actualX = ones(Shape.of(b, 4), true);
                     Tensor actualW = ones(Shape.of(4, 3), true);
+                    // Compiler's final input order, not local variable order, defines the binding.
                     var values = compiled.inputs().stream().map(i -> i.tensorId().equals(x.id())
                             ? actualX : i.tensorId().equals(w.id()) ? actualW : seed).toList();
                     try (var result = engine.runValues(prepared, values)) {
@@ -524,13 +563,28 @@ class ChangingBatch {
 }
 ```
 
-The symbolic X has no storage; actual X values declare concrete B and keep F=4 fixed. The explicit
-scalar-one [seed](../glossary.md#term-seed) differentiates only the published scalar loss. The result order is loss, dX, dW:
-for positive B, loss is 4, each dX is approximately `1/B`, and each dW is approximately `1/3` under
-FLOAT32 [rounding](../glossary.md#term-rounding). Their [shapes](../glossary.md#shape) are scalar, `[B,4]`, `[4,3]`; the [parameter](../glossary.md#term-parameter) gradient is not a bank
-of B parameter copies. Printed losses are `4.0, 4.0, 4.0, 4.0, NaN`. At B=0, dX is empty and dW
-contains positive zeros. Slots, route and generated code are reused; results own independent
-writable storage and remain materializable after prepared close while Engine remains open.
+The symbolic input $X$ has no storage. For a nonempty batch size $B\in\mathbb{Z}_{>0}$,
+actual $X\in\mathbb{R}^{B\times4}$ and $W\in\mathbb{R}^{4\times3}$ contain ones.
+Thus $Y=XW$ has $B$ rows and three columns, each entry equal to $4$.
+The scalar loss $L$ averages all $3B$ entries:
+
+$$
+L=\frac{1}{3B}\sum_{r=1}^{B}\sum_{j=1}^{3}Y_{rj}=4,\qquad
+\frac{\partial L}{\partial X_{rk}}=\frac{1}{B},\qquad
+\frac{\partial L}{\partial W_{kj}}=\frac{1}{3}.
+$$
+
+Here $r$ selects a sample row, $j\in\{1,2,3\}$ an output column and
+$k\in\{1,2,3,4\}$ an input feature; all numerical values are dimensionless.
+The explicit scalar-one seed asks for the loss's derivatives. Publications are loss, dX and dW,
+with shapes scalar, `[B,4]`, `[4,3]`. The displayed fractions are real-number identities;
+FLOAT32 produces rounded approximations. The weight gradient is shared across rows, not
+$B$ copies of a parameter.
+
+The formula above excludes $B=0$. Actual empty-mean semantics give printed losses
+`4.0, 4.0, 4.0, 4.0, NaN`; at zero batch dX is empty and dW contains positive zeros.
+Code, routes and slots are reused; each result owns independent writable storage and can
+still materialize after prepared close while Engine remains open.
 
 A wrong fixed feature count, gradient flag, missing/noncanonical/offset dynamic input [layout](../glossary.md#layout),
 inconsistent B, [overflow](../glossary.md#term-overflow) or unusable storage rejects before [borrowing](../glossary.md#term-borrowing). Dynamic inputs require
@@ -542,7 +596,7 @@ tuning. See the [CPU slice](../backend-guide/cpu-backend.md#ordinary-named-batch
 ## [Symbolic Scan](../glossary.md#symbolic-scan) with changing [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) size
 
 Use the same public [Engine](../glossary.md#term-engine) [lifecycle](../glossary.md#lifecycle) for an all-valid [Scan](../glossary.md#term-cumulative-scan): every time step participates, time
-and [feature](../glossary.md#term-software-feature) widths stay fixed, and one named batch B changes between calls. [JDK](../glossary.md#term-java-development-kit-jdk) 26 and Engine/[CPU](../glossary.md#term-cpu)
+and [feature](../glossary.md#term-feature) widths stay fixed, and one named batch B changes between calls. [JDK](../glossary.md#term-java-development-kit-jdk) 26 and Engine/[CPU](../glossary.md#term-cpu)
 [modules](../glossary.md#term-module) are prerequisites. Current ordinary CPU [general Scan](../glossary.md#general-differentiable-scan) qualifies [FLOAT32](../glossary.md#term-float32)/[FLOAT64](../glossary.md#term-float64) forward
 and actual selected VJPs under these ordinary single-B, fixed-T/features guards. The FLOAT32
 example below retains the historical generated [scalar](../glossary.md#term-scalar), single-range Prepare0014 layer; its
@@ -577,6 +631,7 @@ class ChangingScanBatch {
         Shape row = Shape.ofDimensions(b, new StaticDimension(3));
         Shape sequence = Shape.ofDimensions(new StaticDimension(3), b, new StaticDimension(3));
         Tensor h = TensorFactory.create(descriptor(row, true));
+        // Body formals describe one transition; initial and x describe outer inputs.
         Tensor step = TensorFactory.create(descriptor(row, true));
         Tensor initial = TensorFactory.create(descriptor(row, true));
         Tensor x = TensorFactory.create(descriptor(sequence, true));
@@ -595,6 +650,7 @@ class ChangingScanBatch {
                             x.id(), filled(actualSequence, true, 1),
                             fs.id(), filled(actualRow, false, 1), es.id(), filled(actualSequence, false, 1));
                     var values = graph.inputs().stream().map(i -> supplied.get(i.tensorId())).toList();
+                    // New stores fill the same compiled positions without replacing prototypes.
                     try (var result = engine.runValues(prepared, values)) {
                         var carry = result.materialize(result.publications().get(0), 1_000_000);
                         var dInitial = result.materialize(result.publications().get(2), 1_000_000);
@@ -608,11 +664,19 @@ class ChangingScanBatch {
 }
 ```
 
-Each line prints `B: 3.0 / 4.0`, with B equal to `64, 40, 1, 64`. Forward carry progresses
-through 1, 2 and 3; emissions retain those original-time frames. Publications are final carry,
-emissions, dInitial and dX. The final [seed](../glossary.md#term-seed) and three emission seeds each contribute once, giving
-dInitial=4 and dX time frames 4, 3 and 2. This arithmetic walkthrough is not a performance or
-nonuniform [conformance](../glossary.md#term-conformance) [oracle](../glossary.md#term-test-oracle); focused tests also compare actual reverse with ordinary [unrolling](../glossary.md#term-unrolling).
+Each line prints `B: 3.0 / 4.0`, with B equal to `64, 40, 1, 64`. For any row and feature,
+let $h_t$ be carry after step $t\in\{1,2,3\}$, $h_0=0$ the initial carry, and
+$x_t=1$ the supplied step value. The body is $h_t=h_{t-1}+x_t$, so carry progresses
+through $1,2,3$ and emissions retain those time frames.
+
+With unit sensitivities for final carry and all three emissions, the selected scalar comparison
+is $S=h_3+\sum_{t=1}^{3}h_t$. Therefore
+$\partial S/\partial h_0=1+3=4$ and
+$(\partial S/\partial x_1,\partial S/\partial x_2,\partial S/\partial x_3)=(4,3,2)$.
+All values are dimensionless; this calculation applies per row/feature, independently of
+positive batch size. Publications are final carry, emissions, dInitial and dX.
+These small sums are exactly representable, but are not a general floating-point
+reordering rule or a performance/conformance oracle.
 
 Symbolic templates have no storage or resolved numeric [layout](../glossary.md#layout). Actual inputs/seeds have [canonical](../glossary.md#term-canonical-form)
 static [descriptors](../glossary.md#term-descriptor) and unchanged gradient flags; caller storage stays [borrowed](../glossary.md#ownership-borrowing-and-lease) until result close.
@@ -629,7 +693,7 @@ symbolic cold/copy/wire, native/mixed-[owner](../glossary.md#term-owner) executi
 ## Symbolic-length [Scan](../glossary.md#term-cumulative-scan) with changing [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) size
 
 For variable active prefixes, pass non-[gradient](../glossary.md#term-gradient) [INT64](../glossary.md#data-type--datatype) `[B]` lengths to the existing `Scan.apply`
-overload. Keep time/[features](../glossary.md#term-software-feature) fixed and use a qualified floating body under its per-role [dtype](../glossary.md#data-type--datatype) guards.
+overload. Keep time/[features](../glossary.md#term-feature) fixed and use a qualified floating body under its per-role [dtype](../glossary.md#data-type--datatype) guards.
 The same [Engine](../glossary.md#term-engine)/[CPU](../glossary.md#term-cpu) and [JDK](../glossary.md#term-java-development-kit-jdk) 26 prerequisites apply. Prepare0015 implements this path; owning
 tests and independent code/structural review passed, with root [validation](../glossary.md#term-validation) and the sole bounded probe completed
 (evidence and limits:
@@ -676,6 +740,7 @@ class ChangingLengthScanBatch {
         Tensor x = TensorFactory.create(descriptor(DataType.FLOAT64, stack, true));
         Tensor lengths = TensorFactory.create(descriptor(DataType.INT64, Shape.ofDimensions(b), false));
         Tensor next = h.add(step);
+        // Lengths select each row's active prefix; the body receives only declared formals.
         var scan = Scan.apply(List.of(initial), List.of(x), List.of(), lengths, 1,
                 List.of(OptionalInt.of(0)),
                 new ScanBody(List.of(h), List.of(step), List.of(), List.of(next), List.of(next)), false);
@@ -695,6 +760,7 @@ class ChangingLengthScanBatch {
                             fs.id(), filled(Shape.of(batch, 2), false, 1),
                             es.id(), filled(Shape.of(3, batch, 2), false, 1));
                     var ordered = graph.inputs().stream().map(i -> values.get(i.tensorId())).toList();
+                    // Even empty batches bind every position; the guarded print avoids reading a cell.
                     try (var result = engine.runValues(prepared, ordered)) {
                         var carry = result.materialize(result.publications().get(0), 1_000_000);
                         var dInitial = result.materialize(result.publications().get(2), 1_000_000);
@@ -710,11 +776,18 @@ class ChangingLengthScanBatch {
 }
 ```
 
-At B=3, lengths are `[0,1,2]`: each final row is its length, inactive emission frames are +0,
-and each dInitial row is `1 + length` from the final seed and active emission seeds. The first row
-therefore prints `0.0 / 1.0`, including B=1. B=0 publishes empty row outputs safely; do not read a
-cell from them. The carry [descriptor](../glossary.md#term-descriptor) is `[B,2]` resolved to each actual batch. Forward and reverse
-reuse the same code/routes/slots while each [run](../glossary.md#term-run) owns fresh outputs, resources and [mutable](../glossary.md#term-mutable) arrays.
+For batch size $B=3$, row lengths are $(\ell_0,\ell_1,\ell_2)=(0,1,2)$, where
+$\ell_r\in\{0,1,2,3\}$ counts valid transitions for zero-based row index
+$r\in\{0,\ldots,B-1\}$. For each of the two feature columns, initial carry is zero and
+each active step adds one, so final carry is $\ell_r$.
+With unit final/emission seeds, the initial-carry derivative is $1+\ell_r$:
+one contribution from the final output and one from each active emission.
+Inactive emission frames are specifically positive zero; they are not included in that derivative.
+
+The first row therefore prints `0.0 / 1.0`, also for $B=1$.
+At $B=0$ there are no rows: the result is empty, so the code does not read a cell.
+The carry shape `[B,2]` resolves separately for each run. Forward and reverse reuse
+code/routes/slots, but every result owns fresh outputs and mutable working resources.
 
 Use [FLOAT32](../glossary.md#term-float32) descriptors and `float[]`/`getFloat()` for the corresponding FLOAT32 example; do not
 change just the descriptor while leaving double storage. For produced lengths, construct a
@@ -786,12 +859,14 @@ public final class OwnedModelExample {
         Path file = Path.of("owned.graph");
         HostTensorValue retained;
         try (Model<Tensor, Tensor> model = Model.defineTensor(signature, topology -> {
+            // Model adopts the topology but privately copies externalWeight at acquisition.
             Linear linear = topology.addModule("linear", new Linear(externalWeight));
             return linear::forward;
         })) {
             model.save(file); // no Engine yet; source and signature are already fixed
             retained = model.compute(matrix(3, false)); // prediction 6, lazy CPU Engine
             model.configureTraining(signature, (prediction, target) -> {
+                // Compose the setup prediction/target descriptions, not current numerical values.
                 Tensor error = prediction.sub(target);
                 return error.mul(error).sum();
             }, new Sgd(0.1));
@@ -808,11 +883,17 @@ public final class OwnedModelExample {
 }
 ```
 
-The squared error is `(2*3-1)^2 = 25`; [SGD](../glossary.md#term-stochastic-gradient-descent-sgd) applies [gradient](../glossary.md#term-gradient) 30, so weight becomes `2-0.1*30 = -1`.
-Acquisition copied external values once and installed final private leaves into the adopted wrappers.
-Definition and [prototype](../glossary.md#term-prototype) forward each ran once in [eval mode](../glossary.md#inference-and-evaluation); their callbacks are discarded. Explicit
-`forward` is cold symbolic composition, not a batch execution path. Construction failure cannot
-undo arbitrary [callback](../glossary.md#term-callback) effects. Do not mutate adopted child [modules](../glossary.md#term-module) after construction.
+For finite dimensionless input $x=3$, desired answer $t=1$ and weight $w=2$,
+$L(w)=(wx-t)^2=25$ and $dL/dw=2(wx-t)x=30$.
+With learning rate $\eta=0.1$, SGD proposes $w_{\mathrm{new}}=2-0.1\cdot30=-1$.
+The training result reports $25$ before this update; a later compute reads the new weight.
+These equations describe real arithmetic; the example executes rounded FLOAT32 operations.
+
+At acquisition, Model copied the application's supplied weight bytes into private leaf Tensors
+(state with no producing expression) and installed them in the adopted layer wrappers.
+Model called the definition and prototype forward once in eval mode, then discarded those
+callbacks. Explicit `forward` constructs a cold expression, not a batch execution.
+Construction failure cannot undo arbitrary callback effects; do not mutate adopted child modules.
 
 The [signature](../glossary.md#term-signature) includes [dtype](../glossary.md#data-type--datatype), static [Shape](../glossary.md#shape), [layout](../glossary.md#layout) presence/geometry and requiresGrad. Even unused
 declared slots must match and have usable storage. A [2,1] batch rejects rather than recompiling.
@@ -930,6 +1011,7 @@ public final class OwnedGeneralScanExample {
         Tensor h = TensorFactory.create(initial.descriptor());
         Tensor x = TensorFactory.create(initial.descriptor());
         Tensor w = TensorFactory.create(weight.descriptor());
+        // The weight enters through invariant formal w, not a hidden captured Tensor.
         var body = new ScanBody(List.of(h), List.of(x), List.of(w),
                 List.of(h.mul(w).add(x)), List.of(h));
         var scan = Scan.apply(List.of(initial), List.of(sequence), List.of(weight), body, false);
@@ -965,13 +1047,23 @@ public final class OwnedGeneralScanExample {
 }
 ```
 
-The invariant formal `w` makes the shared weight explicit; a captured weight inside the body would
-be an undeclared free leaf and reject. The [CONSTANT](../glossary.md#term-constant) initial carry stays outside `stateDictionary`.
-The [scalar objective](../glossary.md#loss) consumes both output roles: `4.25² + 0² + 1² + 2.5² = 25.3125`.
-Its weight gradient is `30.5`, so [SGD](../glossary.md#term-stochastic-gradient-descent-sgd) changes the owned weight to approximately `0.195`; the caller's
-weight remains `0.5`. Later compute sees that same updated native store. Pass fresh exact-[descriptor](../glossary.md#term-descriptor)
-[batches](../glossary.md#term-batch-machine-learning-and-hyperparameters)/[targets](../glossary.md#term-target) to further compute/train calls; neither cold `forward` nor reconstruction is needed.
-There is one [inference](../glossary.md#term-inference) preparation per setup and one configured [training session](../glossary.md#training-session--trainingsession), not one per batch.
+The invariant formal `w` makes the shared weight explicit; using an outside weight directly
+inside the body would introduce an undeclared free leaf and reject. The CONSTANT initial carry
+is private source state but is not an entry in `stateDictionary`.
+
+For dimensionless weight $w$, define $h_0=0$ and $h_t=wh_{t-1}+x_t$ for
+$t\in\{1,2,3\}$ and inputs $(x_1,x_2,x_3)=(1,2,3)$. Emission $e_t=h_{t-1}$ is
+the **pre-step** carry. At $w=0.5$, carries are $(1,2.5,4.25)$ and emissions are
+$(0,1,2.5)$. With zero desired answers, the objective is
+$L(w)=h_3^2+\sum_{t=1}^{3}e_t^2=4.25^2+0^2+1^2+2.5^2=25.3125$.
+Since $h_3=w^2+2w+3$ and $e_3=w+2$, the weight derivative is
+$L'(0.5)=2(4.25)(2\cdot0.5+2)+2(2.5)=30.5$.
+SGD rate $\eta=0.01$ gives $w_{\mathrm{new}}=0.5-0.01\cdot30.5=0.195$
+in real arithmetic, approximately in FLOAT32. The application's supplied weight remains `0.5`.
+
+Later compute reads the updated private store. Supply fresh exact-descriptor batches and targets;
+neither cold forward nor reconstruction is needed. Model retains one inference preparation per
+setup and one configured training session, rather than rebuilding them per batch.
 
 At T=0 the body does not execute; Training still requires connected, nonempty [parameters](../glossary.md#term-parameter). Residual
 ports may be cold roots, but residual-root differentiation rejects. Qualified fixed and mixed
@@ -1017,6 +1109,7 @@ static void activationMlp() throws Exception {
     Tensor secondBatch = values(Shape.of(1, 2), false, -0.5f, 1);
     Path file = Path.of("activation.graph");
     try (var model = Model.defineTensor(firstBatch.descriptor(), topology -> {
+        // The application supplies four stored state leaves; acquisition privately copies them.
         var first = topology.addModule("first", new Linear(firstWeight, firstBias));
         var last = topology.addModule("last", new Linear(lastWeight, lastBias));
         return input -> last.forward(first.forward(input).relu());
@@ -1120,6 +1213,7 @@ public final class WholeModelExample {
                     new Linear(tensor(storage, Shape.of(2, 2), true)),
                     new Activation(ActivationKind.RELU)));
             source.train();
+            // This changes Module behavior only; no objective, backward pass or optimizer step runs.
             ModelCheckpoint.save(file, source, engine);
         }
         DeclarativeModel loaded = ModelCheckpoint.load(file);
@@ -1157,6 +1251,7 @@ Compile the requested output boundary once, then retain its prepared [owner](../
 
 ```java
 CompiledGraph graph = engine.compile(List.of(output));
+// Compile records meaning; prepare below creates reusable resources, not a numerical result.
 try (PreparedExecution prepared = engine.prepare(graph)) {
     assert prepared.compiledGraph() == graph;
     // Reuse engine.run(prepared, ...) while both prepared handle and Engine remain open.
@@ -1178,8 +1273,10 @@ The input list may use any order because [Engine](../glossary.md#term-engine) bi
 HostTensorValue retained;
 try (PreparedExecution prepared = engine.prepare(graph)) {
     try (RunResult result = engine.run(prepared, List.of(rightInput, leftInput))) {
+        // Inputs remain borrowed until this result closes, even after synchronous execution finishes.
         RunResult.Publication first = result.publications().getFirst();
         retained = result.materialize(first, 2L * Float.BYTES);
+        // Copy while the result is live so retained can outlast every execution resource.
     }
 
     // Replace a required Tensor's host-storage association here when the next call
@@ -1220,6 +1317,7 @@ var shape = Shape.of(2);
 var descriptor = new TensorDescriptor(DataType.FLOAT32, shape,
         Optional.of(LayoutDescriptor.contiguous(shape)), false);
 Tensor prototype = TensorFactory.create(descriptor);
+// No values live in prototype; each run supplies a separate stored batch below.
 Tensor firstBatch = TensorFactory.fromFlatArray(
         descriptor, Optional.empty(), new float[] {1, -2});
 Tensor secondBatch = TensorFactory.fromFlatArray(
@@ -1229,6 +1327,7 @@ try (Engine engine = Engine.standard()) {
     try (var prepared = engine.prepare(graph)) {
         for (Tensor batch : List.of(firstBatch, secondBatch)) {
             try (var result = engine.runValues(prepared, List.of(batch))) {
+                // runValues binds by compiled position, so fresh Tensor identities are accepted.
                 var values = result.materialize(result.publications().getFirst(), 8).bytes();
                 System.out.println(values.getFloat() + ", " + values.getFloat());
             }
@@ -1309,9 +1408,12 @@ recompile; no replacement wrapper is introduced.
 
 ## Limitations
 
-Prepared runs are [synchronous](../glossary.md#term-synchronous) and fixed to one [compiled graph](../glossary.md#compiled-graph--compiledgraphmodel). Fresh [identities](../glossary.md#term-identity-meanings) are supported only
-by runValues; neither method provides dynamic [descriptors](../glossary.md#term-descriptor), [asynchronous](../glossary.md#term-asynchronous) submission, implicit
-[materialization](../glossary.md#materialization), [persistence](../glossary.md#term-persistence), generic [device](../glossary.md#term-device)-result handles, or tuning controls. Explicit
+Prepared runs are synchronous and tied to one compiled graph. The ordinary static path requires
+the full fixed descriptor at every input position; only the separately qualified named-B
+examples above allow that one dimension to vary. Fresh Tensor identities are supported by
+`runValues`, not exact-ID `run`. Neither method provides arbitrary dynamic geometry,
+asynchronous submission, implicit materialization or persistence, generic device-result handles,
+or tuning controls. Explicit
 [CPU](../glossary.md#term-cpu)/[Metal](../glossary.md#term-metal) composition supports current single-[owner](../glossary.md#term-owner) execution and the bounded all-seven-[carrier](../glossary.md#term-storage-carrier)
 [rank](../glossary.md#term-rank)-0..16 static [canonical](../glossary.md#term-canonical-form) or positive-[stride](../glossary.md#term-stride) non-overlapping transfer domain; unsupported
 capability or transfer combinations fail during [compile](../glossary.md#compile) or preparation rather than

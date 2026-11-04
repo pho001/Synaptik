@@ -22,6 +22,21 @@ and SGD rate `0.05` give weight `2`. The existing examples below address additio
 workflows with their own unchanged starting states. An **[epoch](../glossary.md#term-epoch-meanings)** is one pass through a [dataset](../glossary.md#term-dataset);
 neither a loop iteration nor an accumulate-only [run](../glossary.md#term-run) necessarily completes one.
 
+### Who performs each part of a training call?
+
+For an owned Model, the application calls Model, which owns its private copied parameters and
+configured session. For the explicit `TrainingSession` examples below, the application creates
+the parameter storage and calls `TrainingSession.open(engine, parameters, objective, optimizer)`.
+Opening a session **borrows**, rather than copies or adopts, that parameter storage.
+
+TrainingSession in turn calls Engine to compile, prepare and execute the objective and
+derivatives. Compiler constructs derivative formulas; Engine coordinates execution; Training
+calculates and commits optimizer changes. A session's `run` borrows external inputs only for
+the synchronous call and closes its internal result before returning detached `TrainingStep`
+bytes. This is shorter than an explicit Engine `RunResult` lifetime, which lasts until the
+application closes that result. The application closes the session before its borrowed Engine
+and parameter Arena.
+
 ## Train an owned static [Model](../glossary.md#term-model)
 
 For a supported static [graph](../glossary.md#graph), `Model.defineTensor` or `Model.load` can own the working [weights](../glossary.md#term-weight),
@@ -32,9 +47,11 @@ the private weight to -1, and restored compute on input 2 yields -2. External we
 
 Supply a pure [scalar](../glossary.md#term-scalar) [FLOAT32](../glossary.md#term-float32)/[FLOAT64](../glossary.md#term-float64) [objective](../glossary.md#term-objective) builder once with `configureTraining`; the builder
 is invoked once per explicit attempt and is never retained for [runtime](../glossary.md#term-runtime). Do not [capture](../glossary.md#term-capture-meanings) arbitrary
-external state leaves. Configuration leaves [eval mode](../glossary.md#inference-and-evaluation) unchanged and succeeds once. Subsequent
-`train(batch, target)` calls use fresh exact-[signature](../glossary.md#term-signature) values and `RESET_AND_STEP`; list forms
-also support explicit target [prototypes](../glossary.md#term-prototype). Training retains overlap, nonfinite and [precommit](../glossary.md#term-precommit) checks.
+external state leaves: a leaf has no producing expression, so capturing a stored Tensor from
+outside the supplied arguments would add a hidden dependency. Configuration leaves eval mode
+unchanged and succeeds once. Subsequent `train(batch, target)` calls supply current stored
+values with exact descriptors and perform `RESET_AND_STEP`; list forms also support explicit
+target prototypes. Training retains overlap, nonfinite and precommit checks.
 
 **Eval mode** is a [Module](../glossary.md#term-module) behavior setting, distinct from **[evaluation](../glossary.md#term-evaluation)**, which assesses
 [predictions](../glossary.md#term-prediction), and **[inference](../glossary.md#term-inference)**, which computes predictions without an [optimizer](../glossary.md#term-optimizer) update.
@@ -42,6 +59,10 @@ Here configuring an update mechanism does not toggle that setting. A **pure obje
 constructs the objective from the supplied prototypes without hidden [mutable](../glossary.md#term-mutable) dependencies.
 **Cached** training setup retains reusable [compilation](../glossary.md#compiler-engine-and-execution-stage-names) and preparation, not a permanently fixed
 prediction or [gradient](../glossary.md#term-gradient).
+The inherited no-argument `model.train()` changes Module behavior, not parameters. In the
+owned-source workflow it also changes captured structure and invalidates execution.
+Use `model.train(batch,target)` for a configured optimizer transaction, and `compute(batch)`
+for new predictions without an update; do not toggle modes around these calls.
 
 [Engine](../glossary.md#term-engine) selection freezes before the first valid setup attempt, even on failure. A failed setup
 may be retried explicitly on that selection without recopying successfully admitted native state.
@@ -52,11 +73,14 @@ workflow below rather than assuming that model-only load is [exact training cont
 
 ## Copy an initialized [Linear](../glossary.md#term-linear-meanings)
 
-An [eager](../glossary.md#term-eager-evaluation) `Linear` initializes its [weight](../glossary.md#term-weight) and [bias](../glossary.md#term-bias) in Java [heap](../glossary.md#term-heap) storage. To train it without
-replacing those [Tensor](../glossary.md#tensor) objects, construct the [loss](../glossary.md#loss) first, then explicitly copy its [parameters](../glossary.md#term-parameter)
-into a caller-owned shared native [arena](../glossary.md#term-arena) before opening a session. `Arena.ofShared()` keeps those
-parameter segments accessible to the session's [operation](../glossary.md#operation) threads. The copy may allocate the
-entire parameter [payload](../glossary.md#artifact-envelope-and-atomic-publication) even if a later step fails; plan the Arena [lifetime](../glossary.md#term-lifetime) before calling it.
+An initialized `Linear` has weight and bias values in Java heap storage before any execution.
+In this explicit-session workflow the Java application calls
+`TrainingParameterStorage.copyToSharedNative(parameters, arena)` after constructing its loss
+expression. The helper copies bytes into the application's shared native Arena and updates
+storage associations while keeping the same Tensor objects connected to the expression.
+`TrainingSession.open` does not perform that copy. A shared Arena permits access from the
+session's operation threads; keep it open through session close. Allocation may consume
+capacity even if a later copy step fails, so choose the Arena lifetime beforehand.
 
 This complete example starts with a [`FLOAT32`](../glossary.md#term-float32) one-input, one-output `Linear` and a [target](../glossary.md#term-target) of zero.
 The input and target have native storage too, because the [CPU](../glossary.md#term-cpu) [Engine](../glossary.md#term-engine) needs live [host](../glossary.md#term-host) inputs.
@@ -79,6 +103,7 @@ static Tensor nativeMatrix(Arena arena, float value) {
     TensorDescriptor descriptor = new TensorDescriptor(
             DataType.FLOAT32, shape,
             Optional.of(LayoutDescriptor.contiguous(shape)), false);
+    // The returned Tensor borrows arena storage; retaining it cannot keep a closed Arena live.
     MemorySegmentStorage storage = new MemorySegmentStorage(
             DataType.FLOAT32, 1, arena.allocate(Float.BYTES, Float.BYTES));
     storage.segment().set(ValueLayout.JAVA_FLOAT, 0, value);
@@ -91,6 +116,7 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
     Tensor input = nativeMatrix(arena, 1.0f);
     Tensor target = nativeMatrix(arena, 0.0f);
     Tensor output = layer.forward(input);
+    // forward/sub/mul build the expression; opening/running the session executes it later.
     Tensor error = output.sub(target);
     Tensor objective = error.mul(error).sum();
 
@@ -100,6 +126,7 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
     assert layer.weight().value() == originalWeight;
     try (TrainingSession session = TrainingSession.open(
             engine, parameters, objective, new Sgd(0.1))) {
+        // Each objective is measured before that call's committed optimizer update.
         float firstLoss = session.run(
                 List.of(input, target), GradientMode.RESET_AND_STEP)
                 .objective().bytes().getFloat();
@@ -157,6 +184,7 @@ final class ScalarModel extends Module {
 }
 
 static Tensor nativeScalar(Arena arena, float value, boolean requiresGrad) {
+    // The application owns arena; TrainingSession borrows parameter bytes rather than adopting it.
     Shape shape = Shape.scalar();
     TensorDescriptor descriptor = new TensorDescriptor(
             DataType.FLOAT32,
@@ -183,6 +211,7 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
     Tensor error = model.weight().value().sub(target);
     Tensor loss = error.mul(error);
 
+    // TrainingSession is closed before Engine and arena release the resources it borrows.
     try (TrainingSession training = TrainingSession.open(
             engine, model.trainingParameters(), loss, new Sgd(0.1))) {
         // inputs() excludes the captured parameter and private cotangent seed.
@@ -206,6 +235,21 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
 float finalLoss = last.objective().bytes().getFloat();
 ```
 
+### Why does the scalar approach the target?
+
+For finite dimensionless weight $w$ and desired answer $t=2.5$, the objective is
+$L(w)=(w-t)^2$ and its derivative is $L'(w)=2(w-t)$.
+With learning rate $\eta=0.1$, update number $s\in\{0,\ldots,39\}$ gives
+$w_{s+1}=w_s-0.1\cdot2(w_s-t)$, hence $w_{s+1}-t=0.8(w_s-t)$.
+Starting at $w_0=-4$, the first derivative is $-13$ and the first new weight is
+$-4-0.1(-13)=-2.7$. Each ideal real-number step shrinks the remaining error by a factor
+of $0.8$; FLOAT32 rounds each actual update, so the code checks a tolerance after forty steps
+instead of asserting a real-number identity on final bits.
+
+`last.objective()` is the fortieth call's **pre-update** loss, not a new loss evaluated at the
+weight read afterward. Reading it after session close is safe because the session returned
+copied bytes, not borrowed workspace.
+
 `TrainingSession.open` performs the only [gradient](../glossary.md#term-gradient) [compile](../glossary.md#compile) and the only preparation. Every [`run`](../glossary.md#term-run)
 reuses that [Engine](../glossary.md#term-engine) [`PreparedExecution`](../glossary.md#prepared-execution--preparedexecution) through `engine.run(prepared, inputs)`.
 Inputs to `run` may be supplied in any list order, but every [identity](../glossary.md#term-identity-meanings) listed by `training.inputs()`
@@ -226,6 +270,7 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
     Tensor weight = nativeScalar(arena, 2.0f, true);
     ScalarModel model = new ScalarModel(weight);
     Tensor batchPrototype = nativeScalar(arena, 1.0f, false);
+    // These stored prototype values describe positions; runValues supplies fresh values instead.
     Tensor targetPrototype = nativeScalar(arena, 0.0f, false);
     Tensor error = weight.mul(batchPrototype).sub(targetPrototype);
     Tensor objective = error.mul(error);
@@ -237,6 +282,7 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
             var values = session.inputs().stream().map(input ->
                     input.tensorId().equals(batchPrototype.id()) ? batch : target).toList();
             first = session.runValues(values, GradientMode.RESET_AND_STEP);
+            // Fresh inputs are borrowed only through this synchronous call's internal result close.
         } // Fresh storage may close as soon as the synchronous call has returned.
         assert first.objective().bytes().getFloat() == 25.0f;
         assert Math.abs(weight.hostStorage().orElseThrow().segment()
@@ -257,10 +303,16 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
 assert first.objective().bytes().getFloat() == 25.0f;
 ```
 
-The first [prediction](../glossary.md#term-prediction) is `2 * 3 = 6`, [loss](../glossary.md#loss) is `(6 - 1)^2 = 25`, and the [gradient](../glossary.md#term-gradient) is
-`2 * (6 - 1) * 3 = 30`; [SGD](../glossary.md#term-stochastic-gradient-descent-sgd) updates the same weight to `2 - 0.1 * 30 = -1`.
-The second fresh batch/target produce prediction `-1 * 2 = -2`, loss `(-2 + 3)^2 = 1`,
-gradient `2 * 1 * 2 = 4`, and weight `-1 - 0.1 * 4 = -1.4` (within [FLOAT32](../glossary.md#term-float32) [rounding](../glossary.md#term-rounding)).
+For dimensionless weight $w$, batch value $x$ and desired answer $t$, define
+$p=wx$, $L(w)=(p-t)^2$ and $g=dL/dw=2(wx-t)x$. Plain SGD with
+learning rate $\eta=0.1$ uses $w_{\mathrm{new}}=w-\eta g$.
+The first call has $w=2$, $x=3$, $t=1$, so $p=6$, $L=25$, $g=30$ and
+$w_{\mathrm{new}}=2-0.1\cdot30=-1$.
+The second call uses that new weight with $x=2$, $t=-3$, giving $p=-2$,
+$L=1$, $g=4$ and $w_{\mathrm{new}}=-1-0.1\cdot4=-1.4$.
+Each returned loss precedes its own update. These real-number calculations explain the
+finite example; actual FLOAT32 arithmetic rounds, so the code uses tolerances for updated
+weights. They are not an extension to nonfinite or empty-parameter training.
 The mapping uses `session.inputs()` [metadata](../glossary.md#term-metadata), excluding [parameters](../glossary.md#term-parameter) and the private [seed](../glossary.md#term-seed); do not
 assume expression construction order is final compiled order. Same-descriptor positions remain
 positional: swapping batch and target changes the computation, not their [identities](../glossary.md#term-identity-meanings)' mapping.
@@ -274,17 +326,24 @@ even when descriptors match. No prototype value is copied or rebound, and no new
 `new Sgd(learningRate)` selects plain [SGD](../glossary.md#term-stochastic-gradient-descent-sgd). The constructor with every coefficient is:
 
 ```java
+// Configuration only; a successful step selects and applies the resulting update.
 new Sgd(learningRate, momentum, dampening, weightDecay, nesterov)
 ```
 
-The four-[argument](../glossary.md#term-argument) convenience omits [dampening](../glossary.md#term-dampening) and uses zero. [Weight decay](../glossary.md#term-weight-decay) is coupled:
-`adjusted = gradient + weightDecay * parameter`. [Momentum](../glossary.md#term-momentum) stores the adjusted [gradient](../glossary.md#term-gradient) on the
-first update without applying dampening. Later updates store
-`momentum * previous + (1 - dampening) * adjusted`. Ordinary momentum uses the new slot; [Nesterov](../glossary.md#term-nesterov)
-uses `adjusted + momentum * newSlot`. Dampening is in `[0, 1]`; Nesterov requires positive momentum
-and exactly zero dampening. The selected update is subtracted as `learningRate * selected`.
-[FLOAT32](../glossary.md#term-float32), [BFLOAT16](../glossary.md#term-bfloat16), and [FLOAT16](../glossary.md#term-float16) [parameter](../glossary.md#term-parameter) sessions validate coefficients after [narrowing](../glossary.md#term-narrowing) to their
-private FLOAT32 arithmetic domain as well as before it; [FLOAT64](../glossary.md#term-float64) uses the configured [binary64](../glossary.md#floating-point-precision-and-rounding) values.
+The four-argument convenience uses zero dampening. To read the equations below, consider
+one parameter element $w$ and its gradient $g$ on optimizer step $s\in\mathbb{Z}_{>0}$.
+Let $\lambda\ge0$ be weight decay, $\mu\in[0,1)$ momentum, $d\in[0,1]$ dampening
+and $\eta>0$ learning rate. The adjusted gradient is $a=g+\lambda w$.
+Momentum history $v_s$ is $a$ on the first step and
+$v_s=\mu v_{s-1}+(1-d)a$ on later steps.
+Without momentum the selected direction is $u=a$; ordinary momentum selects $u=v_s$;
+Nesterov selects $u=a+\mu v_s$ and requires $\mu>0$, $d=0$.
+The candidate parameter is $w_{\mathrm{new}}=w-\eta u$.
+
+These are elementwise real-number descriptions, not permission to reassociate floating
+operations. Coefficients must be finite and satisfy their API bounds. FLOAT32, BFLOAT16
+and FLOAT16 parameter sessions also validate them after narrowing to private FLOAT32
+working arithmetic; FLOAT64 uses configured binary64 values.
 
 **Momentum** retains a running direction from earlier gradients. **Dampening** reduces how
 much a new gradient enters that history after its initial update. **Weight decay** discourages
@@ -299,11 +358,13 @@ plus one optimizer configuration. In this example the group's `weight` uses SGD 
 unlisted `bias` uses the default SGD rate `0.1`:
 
 ```java
+// A group changes selected paths' optimizer settings, not their membership in the graph.
 List<ParameterGroup> groups = List.of(
         new ParameterGroup(List.of("weight"), new Sgd(0.05)));
 try (TrainingSession session = TrainingSession.open(
         engine, layer.trainingParameters(), objective, new Sgd(0.1), groups)) {
     TrainingState before = session.state();
+    // Capture detached state before the update so restore can reinstate parameters and counters.
     session.run(List.of(input, target), GradientMode.RESET_AND_STEP);
     assert session.optimizerSteps() == 1;
     assert session.parameterGroups().equals(groups);
@@ -323,6 +384,7 @@ uses decoupled-decay [AdamW](../glossary.md#adaptive-optimizer--adam-adamw), whi
 same successful global step:
 
 ```java
+// Both algorithms commit on the same global optimizer step; this is not two sessions.
 List<ParameterGroup> groups = List.of(
         new ParameterGroup(List.of("weight"),
                 new AdamW(0.001, 0.9, 0.999, 1e-8, 0.01)));
@@ -335,11 +397,11 @@ try (TrainingSession session = TrainingSession.open(engine, layer.trainingParame
 
 Both constructors accept `(learningRate, beta1, beta2, epsilon, weightDecay)`. Rates and [epsilon](../glossary.md#epsilon)
 must be [finite](../glossary.md#term-finite) and positive, betas finite in `[0, 1)`, and decay finite and non-negative. Adam
-adds decay to the gradient before updating its two moments; AdamW instead scales the [master
-parameter](../glossary.md#term-master-parameter) by `1 - learningRate * weightDecay` before the adaptive update. Each moment is
-bias-corrected using the one-based global [optimizer step](../glossary.md#optimizer-and-stochastic-gradient-descent). For FLOAT32, BFLOAT16, and FLOAT16
-parameters, coefficients narrow once to FLOAT32 at open, and invalid narrowed values are
-rejected before compilation.
+adds decay to the gradient before updating its two moments; AdamW instead scales the master
+parameter by $1-\eta\lambda$ before the adaptive update, where $\eta$ is learning rate and
+$\lambda$ is weight decay. Each moment is bias-corrected using the one-based global optimizer step.
+For FLOAT32, BFLOAT16 and FLOAT16 parameters, coefficients narrow once to FLOAT32 at open;
+invalid narrowed values are rejected before compilation.
 
 **Adam**, adaptive moment estimation, tracks moving averages of gradients and squared gradients
 to scale updates. Its **first moment** summarizes gradient direction; its **second moment**
@@ -348,17 +410,33 @@ summarizes squared magnitude. `beta1` and `beta2` control how strongly earlier v
 layer's additive [bias parameter](../glossary.md#bias-and-activation). **Epsilon** is the small positive denominator [constant](../glossary.md#term-constant).
 **AdamW** applies weight decay separately from those gradient summaries, as described above.
 
-The adaptive subtraction is `(learningRate * correctedM) / (sqrt(correctedV) + epsilon)`,
-where `correctedM` and `correctedV` are the bias-corrected first and second moments. Multiplication
-by the [learning rate](../glossary.md#term-learning-rate) happens before division, in the parameter's working [precision](../glossary.md#term-precision). The scaled
-numerator and the final update must each be finite; a non-finite intermediate rejects the whole
-run without committing parameters, moments, counters, or pending gradients.
+Let $\widehat m$ and $\widehat v$ be the bias-corrected first and second moments for one
+parameter element, $\eta>0$ its learning rate, and $\epsilon>0$ the configured denominator
+constant. The adaptive amount subtracted is
 
-For example, start a FLOAT32 [scalar](../glossary.md#term-scalar) at `1`, use learning rate and epsilon `1e-30`, beta1 `0.5`,
-beta2 `0`, no decay, and gradients `1e19` then `0`. The first update leaves the represented
-parameter at `1`; the second subtracts approximately `3.333333e18` and [commits](../glossary.md#commit-release-distribution-log-and-seed-meanings) step `2` for
-either Adam or AdamW. Dividing the corrected first moment by epsilon before scaling would
-[overflow](../glossary.md#term-overflow), even though the documented multiply-before-divide update is finite.
+$$
+\Delta=\frac{\eta\widehat m}{\sqrt{\widehat v}+\epsilon}.
+$$
+
+This real-number formula is evaluated **multiply before divide**, in the parameter's working
+precision. Its finite domain requires nonnegative $\widehat v$ and admitted finite coefficients
+and state. The scaled numerator and final update must each be finite; a nonfinite intermediate
+rejects the whole run without committing parameters, moments, counters or pending gradients.
+Changing operation order can change overflow behavior even when real-number expressions agree.
+
+For a dimensionless FLOAT32 scalar initially $w=1$, choose
+$\eta=\epsilon=10^{-30}$, first-moment retention $\beta_1=0.5$,
+second-moment retention $\beta_2=0$, no decay, and gradients $g_1=10^{19}$ then $g_2=0$.
+Here subscript $s\in\{1,2\}$ identifies an optimizer step, not a sample.
+The first update is too small to change the represented weight $1$.
+
+On step two, the first moment is $m_2=0.5(0.5\cdot10^{19})=2.5\cdot10^{18}$.
+Bias correction gives $\widehat m_2=m_2/(1-\beta_1^2)\approx3.333333\cdot10^{18}$;
+the corrected second moment is $\widehat v_2=0$ because $\beta_2=0$ and $g_2=0$.
+Thus $\Delta_2=(\eta\widehat m_2)/\epsilon\approx3.333333\cdot10^{18}$ is finite
+in FLOAT32 and step two commits for either Adam or AdamW. The separately evaluated quotient
+$\widehat m_2/\epsilon\approx3.333333\cdot10^{48}$ would overflow FLOAT32 before
+later scaling. These approximations explain why the documented rounded operation order matters.
 
 ## Accumulate and clear [gradients](../glossary.md#term-gradient)
 
@@ -368,6 +446,7 @@ either Adam or AdamW. Dividing the corrected first moment by epsilon before scal
 - `zeroGrad()` clears only the pending sum.
 
 ```java
+// The first two calls execute backward but deliberately leave parameter bytes unchanged.
 training.run(inputs, GradientMode.ACCUMULATE);
 training.run(inputs, GradientMode.ACCUMULATE);
 TrainingStep update = training.run(inputs, GradientMode.ACCUMULATE_AND_STEP);

@@ -13,9 +13,12 @@ float[] values --copy--> host-backed leaf Tensor --neg()--> storage-free express
                          identity + descriptor          descriptor + provenance
 ```
 
-The [leaf](../glossary.md#term-leaf) owns stable logical metadata and borrows its associated [host](../glossary.md#term-host)-storage object. The derived
-Tensor records what to compute and from which exact input, but it has no computed values or host
-storage merely because the expression exists.
+Here the Java application calls `TensorFactory.fromFlatArray` with its array and descriptor.
+The factory copies the array into new heap storage, then associates that storage with a new leaf
+Tensor. The original array remains the application's and can change independently.
+The Tensor does not manage the storage object's lifetime or become closeable because it has
+storage. Calling `input.neg()` records a producing operation and its input reference, but
+attaches no computed values to the expression.
 
 A **tensor** is an ordered numerical value with one or more [coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix) directions, or no
 directions for a [scalar](../glossary.md#term-scalar). Its **[shape](../glossary.md#shape)** lists the size of each [axis](../glossary.md#term-axis); **[rank](../glossary.md#term-rank)** counts those axes.
@@ -66,11 +69,13 @@ public final class TensorGuideExample {
                 false);
         float[] source = {1.0f, -2.0f, 3.5f, 4.0f, 0.0f, -6.0f};
 
+        // Copy the application array so later source-array writes cannot change input values.
         Tensor input = TensorFactory.fromFlatArray(
                 descriptor, Optional.of("input"), source);
         HostTensorStorage storage = input.hostStorage().orElseThrow();
 
         Tensor expression = input.neg();
+        // Describe negation only: no numerical evaluation or computed result storage yet.
         TensorProvenance origin = expression.provenance().orElseThrow();
 
         System.out.println("inputType=" + input.descriptor().dataType());
@@ -129,7 +134,7 @@ expressionHasStorage=false
 expressionCanonicalOutput=true
 ```
 
-The capacity is six complete [elements](../glossary.md#term-element) and the byte size is `6 x 4 = 24`.
+The capacity is six elements. At four bytes per FLOAT32 element, $6\cdot4=24$ bytes.
 `inputUsesSourceArray=false` confirms that the destination storage uses a different [heap](../glossary.md#term-heap) backing
 array; the flat-import contract additionally guarantees that it does not retain the source array.
 The [leaf](../glossary.md#term-leaf) has no [provenance](../glossary.md#provenance) because it is an input, while the derived [Tensor](../glossary.md#tensor) records one exact
@@ -138,8 +143,8 @@ provenance only; they do not prove [evaluation](../glossary.md#term-evaluation) 
 
 Tensor [identity](../glossary.md#term-identity-meanings), [descriptor](../glossary.md#term-descriptor), label, and provenance are [immutable](../glossary.md#term-immutable). The optional [host](../glossary.md#term-host)-storage
 association is the sole [mutable](../glossary.md#term-mutable) Tensor state: its synchronized methods serialize [snapshot](../glossary.md#term-snapshot),
-replacement, and clearing with respect to one another. That [synchronization](../glossary.md#term-synchronization) does not [coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix)
-raw-memory access, sharing through another Tensor, [arena](../glossary.md#term-arena) closure, or thread accessibility, and it
+replacement, and clearing with respect to one another. That synchronization does not protect
+raw-memory access, sharing through another Tensor, Arena closure, or thread accessibility, and it
 does not extend the storage [lifetime](../glossary.md#term-lifetime). Factory-created heap storage has an automatic [JVM](../glossary.md#term-java-virtual-machine-jvm) lifetime;
 when callers instead attach an arena-backed `HostTensorStorage`, they continue to own that arena,
 must keep its segment alive, and may access it only from threads permitted by the segment [scope](../glossary.md#term-scope).
@@ -172,9 +177,10 @@ non-[saturating](../glossary.md#saturation-pole-and-extremum) [round-to-nearest,
 | [E5M2](../glossary.md#term-e5m2) | Sign/exponent/fraction 1/5/2, bias 15, signed zeros and subnormals, finite maximum 57344. [Infinities](../glossary.md#nan-infinity-and-signed-zero) are `0x7c`/`0xfc`; exponent 31 with nonzero fraction is NaN. Numeric NaN becomes `0x7e`; magnitude at or above the 61440 overflow tie becomes signed infinity. |
 
 In this table, **bias** is the fixed offset used to encode an exponent, not an adjustable
-neural-network [bias parameter](../glossary.md#bias-and-activation). A NaN **[payload](../glossary.md#artifact-envelope-and-atomic-publication)** is extra information in its fraction bits, not
-an ordinary numeric value. **Canonical** NaN means the chosen standard bit pattern used by
-numeric conversion; raw import instead preserves the exact supplied pattern.
+neural-network [bias parameter](../glossary.md#bias-and-activation). A NaN **[payload](../glossary.md#term-nan-payload)** is extra
+information in its fraction bits, not a file payload or an ordinary numeric value.
+**Canonical** NaN means the chosen standard bit pattern used by numeric conversion;
+raw import instead preserves the exact supplied pattern.
 **Non-saturating** conversion does not clamp overflow to the largest finite value.
 
 `ScalarValue.float8E4m3(float)` and `float8E5m2(float)` encode numeric values.
@@ -222,7 +228,7 @@ support on a [backend](../glossary.md#backend).
 |---|---|---|
 | `tensor allocation requires a resolved layout` | `TensorFactory.allocate` received a [descriptor](../glossary.md#term-descriptor) whose [layout](../glossary.md#layout) is unresolved. | Supply a descriptor with compatible resolved geometry, such as `LayoutDescriptor.contiguous` for a fully static [Shape](../glossary.md#shape). |
 | Flat import rejects the descriptor or source length | The layout is not dense-[contiguous](../glossary.md#term-contiguous), the primitive [carrier](../glossary.md#term-storage-carrier) does not match the [data type](../glossary.md#data-type--datatype), or the source count differs from the logical [element](../glossary.md#term-element) count. | Use a matching primitive array with exactly one value per logical position and a resolved dense-contiguous descriptor. |
-| A [binary](../glossary.md#term-binary-descriptor-and-metadata) expression such as `left.add(right)` throws `IllegalArgumentException` | The operand types cross numeric categories or their Shapes cannot broadcast. | Use compatible floating or signed-integral types and right-aligned broadcast-compatible Shapes. |
+| A [binary operation](../glossary.md#term-binary-operation) (two operands), such as `left.add(right)`, throws `IllegalArgumentException` | The operand types cross numeric categories or their Shapes cannot broadcast. | Use compatible floating or signed-integral types and right-aligned broadcast-compatible Shapes. |
 | [Engine](../glossary.md#term-engine) preparation or execution rejects a constructed expression | [Model](../glossary.md#term-model) expression construction does not promise a [CPU](../glossary.md#term-cpu) route for every [operation](../glossary.md#operation), type, Shape, or layout. | Check current [backend capability](../glossary.md#backend-capability) and use only an explicitly supported combination. |
 
 ## Limitations
@@ -244,4 +250,6 @@ support on a [backend](../glossary.md#backend).
 - [Unary numeric transforms](../reference/tensor/elementwise.md#unary-numeric-transforms-and-floating-classifications)<span data-glossary-navigation="true"> ([Unary glossary](../glossary.md#term-unary))</span>
   describes `neg()` and the other storage-free expression constructors.
 - [Current public Engine lifecycle](../architecture/lifecycle.md#current-public-engine-lifecycle)<span data-glossary-navigation="true"> ([Engine glossary](../glossary.md#term-engine); [lifecycle glossary](../glossary.md#lifecycle))</span>
-  explains the separate compile, session, run, and materialization boundary.<span data-glossary-navigation="true"> ([compile glossary](../glossary.md#compile); [run glossary](../glossary.md#term-run); [materialization glossary](../glossary.md#materialization))</span>
+  explains separate compile, prepare, run and materialization. To actually evaluate this guide's
+  expression, follow [compile and prepare once](running-models.md#compile-and-prepare-once);
+  to supply different stored inputs, use [runValues](running-models.md#run-fresh-values-in-compiled-order).

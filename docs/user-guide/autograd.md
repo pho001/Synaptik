@@ -28,6 +28,19 @@ For the concrete [FLOAT32](../glossary.md#term-float32) `[2,1]`, no-[bias](../gl
 All three paths leave public [Tensors](../glossary.md#tensor) unchanged. They do not add a gradient field, a recording
 tape, or a `Tensor.backward()` method.
 
+### Who asks for the derivative?
+
+In these examples the Java application supplies Tensor expressions and calls Engine.
+Engine calls Compiler to construct the derivative descriptions; Compiler does not read
+batch bytes to perform this construction. The one-shot `backward` path then executes and
+copies results before returning. The `compile` paths return handles for later preparation
+and execution, not current derivative values.
+
+During an actual run, input stores remain the supplying application's responsibility.
+An explicit `RunResult` borrows them until it closes; `backward` closes its temporary result
+before returning detached copies. See
+[run and materialize](running-models.md#run-and-materialize) for that lifetime difference.
+
 ## Prerequisites and inputs
 
 Start with an open [Engine](../glossary.md#term-engine) composition and [Tensor](../glossary.md#tensor) expressions whose selected [derivative](../glossary.md#term-derivative) routes are
@@ -50,6 +63,7 @@ for complete [lifecycle](../glossary.md#lifecycle) [ownership](../glossary.md#te
 For one [scalar](../glossary.md#term-scalar) floating [objective](../glossary.md#term-objective), use the ordinary one-shot convenience:
 
 ```java
+// Ask for derivatives of this loss with respect to these exact Tensors; do not update them.
 ScalarObjectiveBackwardResult result =
         engine.backward(loss, List.of(weight, bias), maximumTotalBytes);
 ```
@@ -70,6 +84,7 @@ targets, or a second stage.
 The ordinary compile overload aligns one explicit [seed](../glossary.md#term-seed) with each forward output:
 
 ```java
+// The seed selects the output sensitivities; compile creates formulas, not computed bytes.
 CompiledGraph compiled = engine.compile(
         List.of(vectorOutput),
         List.of(cotangentSeed),
@@ -87,11 +102,11 @@ The **[Jacobian](../glossary.md#term-jacobian)** is the array of all output-to-i
 combines its rows using the seed, without requiring a separately published full Jacobian.
 For a [scalar](../glossary.md#term-scalar) [loss](../glossary.md#loss), seed one asks for the loss's own derivative.
 
-The result is an [owner](../glossary.md#term-owner)-bound reusable compile handle, not computed gradient bytes. Open an
-ordinary [inference](../glossary.md#term-inference) session and [run](../glossary.md#term-run) it, then inspect its forward and gradient [publication](../glossary.md#term-publication)
-occurrences. Direct prepared-handle [ownership](../glossary.md#term-ownership-meanings) remains available through the lower-level public
-[lifecycle](../glossary.md#lifecycle). A successful compile does not by itself promise that every planned owner and transfer
-is registered and supported or that each [backend](../glossary.md#backend) can [prepare](../glossary.md#prepare) its partitions.
+The result is a reusable compile handle bound to this Engine, not computed gradient bytes.
+Call `engine.prepare(compiled)` once, then `run` or `runValues` for each batch and inspect
+the forward and gradient publications. Close each result before releasing borrowed input
+storage. The [prepared-run guide](running-models.md#compile-and-prepare-once) shows those calls.
+Successful compile does not promise that every planned backend and transfer can be prepared.
 
 ### [Pool3d](../glossary.md#pool3d--ncdhw-pooling) first-order training
 
@@ -142,11 +157,21 @@ combines them along a supplied direction, rather than producing the entire secon
 array. This advanced example teaches that separate concept; it is not an additional prerequisite
 or a replacement [model](../glossary.md#term-model) for the one-[weight](../glossary.md#term-weight) learning journey.
 
+For a finite dimensionless real vector $x=(x_1,x_2)$ and
+$L(x)=x_1^2+x_2^2$, the first derivative is
+$\nabla L(x)=(2x_1,2x_2)$. The Hessian has diagonal entries $2$ and other entries $0$.
+A seed vector $v=(v_1,v_2)$ therefore selects
+$H_L(x)v=(2v_1,2v_2)$, where $H_L$ denotes the second-derivative matrix.
+For $v=(1,-1)$ the mathematical result is $(2,-2)$.
+This explains which derivative the request describes; it does not establish execution support
+for a backend, NaN/infinite input behavior or a particular floating-point evaluation order.
+
 ### Meaningful steps
 
 The following is conceptual Java because [Tensor](../glossary.md#tensor) storage and [Engine](../glossary.md#term-engine) composition setup are omitted:
 
 ```java
+// Retain first-stage formulas only so the immediately following stage can differentiate them.
 var first = new FunctionalGradientRequest.Stage(
         List.of(new FunctionalGradientRequest.ForwardTensorReference(loss)),
         List.of(Optional.empty()),
@@ -154,6 +179,7 @@ var first = new FunctionalGradientRequest.Stage(
         true,
         FunctionalGradientRequest.DisconnectedPolicy.ERROR);
 
+// Select generated gradient number zero, not a forward Tensor with similar values.
 var second = new FunctionalGradientRequest.Stage(
         List.of(new FunctionalGradientRequest.FirstStageGradientReference(0)),
         List.of(Optional.of(vector)),

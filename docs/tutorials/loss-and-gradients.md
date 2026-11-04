@@ -9,16 +9,23 @@ with [JDK](../glossary.md#term-java-development-kit-jdk) 26 and `LEARNING_CP` se
 
 ## Why one [scalar objective](../glossary.md#loss)?
 
-A **[loss](../glossary.md#loss)** measures how wrong a [prediction](../glossary.md#term-prediction) is. For these two [samples](../glossary.md#term-sample-machine-learning-and-hyperparameters), subtraction gives errors
-`[-2,-6]`; squaring gives `[4,36]`. Training needs an explicit [scalar](../glossary.md#term-scalar) **[objective](../glossary.md#term-objective)**, the one
-number whose [derivative](../glossary.md#term-derivative) guides updates. The choice of reduction defines what is being optimized:
-we use a **sum**, not a [mean](../glossary.md#term-mean), and no implicit division by [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) size occurs.
+A **[loss](../glossary.md#loss)** measures prediction error. The application supplies two input
+measurements $x_1=1$, $x_2=3$ and desired answers $t_1=2$, $t_2=6$.
+Sample index $i\in\{1,2\}$ selects a row; $w\in\mathbb{R}$ is the one shared weight,
+$p_i(w)=x_iw$ is that row's prediction, and $e_i(w)=p_i(w)-t_i$ is its error.
+All values are dimensionless in this synthetic experiment.
 
-The **[target](../glossary.md#term-target)** supplies the desired outputs `[2,6]`; it is not a [differentiation target](../glossary.md#functional-gradient-request) in this
-calculation. A **reduction** combines several [elements](../glossary.md#term-element) into fewer elements. SUM combines `4` and
-`36` into `40`; MEAN would divide that sum by two. A **scalar** is one number with no [axes](../glossary.md#term-axis), not
-merely a one-element row. The objective is the scalar we choose to minimize, while the
-per-sample squared losses still describe the separate errors.
+The scalar **objective** is the one number chosen for minimization. We reduce the two squared
+errors by **summing**, not averaging:
+
+$$
+L(w)=\sum_{i=1}^{2}e_i(w)^2=(w-2)^2+(3w-6)^2.
+$$
+
+At the initial weight $w=0$, errors are $(-2,-6)$, squared errors are $(4,36)$, and
+$L(0)=4+36=40$. A mean would be $L(0)/2=20$; SUM performs no division by sample count.
+The training target $t_i$ is the desired answer, not the Tensor with respect to which a derivative
+is requested. A scalar has no axes, unlike the two-row tensor of per-sample losses.
 
 Read `squaredErrorSum` and [`gradients`](../glossary.md#term-gradient) in the
 [complete Java source](../examples/learning-journey/src/main/java/io/github/pho001/synaptik/examples/LearningJourney.java).
@@ -26,27 +33,29 @@ The function constructs `error = prediction.sub(target)` and `error.mul(error).s
 Those are [Tensor](../glossary.md#tensor) expressions, not a Java loop reading prediction bytes. `sum()` reduces every
 logical element to a [rank-zero](../glossary.md#axis-rank-scalar-vector-and-matrix) [FLOAT32](../glossary.md#term-float32) scalar, preserving its [dependency](../glossary.md#term-dependency) on the [weight](../glossary.md#term-weight).
 
-The arithmetic before any update is:
+### How do both samples affect the same weight?
 
-| Stage | [Shape](../glossary.md#shape) | Values |
-|---|---|---|
-| `p = x*w` with `w=0` | `[2,1]` | `[0,0]` |
-| `p-t` with `t=[2,6]` | `[2,1]` | `[-2,-6]` |
-| `(p-t)*(p-t)` | `[2,1]` | `[4,36]` |
-| Sum | scalar | `40` |
+For finite real inputs, the chain rule differentiates each squared error and adds the
+contributions. The prime in $L'(w)=dL/dw$ denotes the derivative with respect to the shared
+weight, not to the sample index:
 
-**Gradient** means the derivative of the objective with respect to selected values. Here there
-is one weight, so its gradient says how the loss changes when that one number changes. With
-`L(w) = (1*w-2)^2 + (3*w-6)^2`, ordinary differentiation gives:
+$$
+\begin{aligned}
+L'(w)&=\sum_{i=1}^{2}2(x_iw-t_i)x_i\\
+     &=2(w-2)\cdot1+2(3w-6)\cdot3,\\
+L'(0)&=2(-2)\cdot1+2(-6)\cdot3=-4-36=-40.
+\end{aligned}
+$$
 
-```text
-L'(w) = 2*(w-2)*1 + 2*(3*w-6)*3
-L'(0) = 2*(-2)*1 + 2*(-6)*3 = -4 - 36 = -40
-```
+The negative derivative says that a sufficiently small increase in weight reduces the objective
+locally. It does not say the squared loss is negative. Both sample contributions reach the same
+`[1,1]` weight derivative, not a separate weight for each row.
 
-The negative sign says increasing the weight is the local downhill direction; it does not mean
-the squared loss is negative. The derivative has the [parameter](../glossary.md#term-parameter)'s shape `[1,1]`, not one weight
-per sample. Contributions from both rows add into that same parameter derivative.
+These equations teach real-number calculus. The program evaluates FLOAT32 operations with
+rounding at their defined boundaries; the displayed initial predictions, objective and derivative
+are exactly representable here. This derivation is not a rule for NaN, infinity or an empty
+reduction, nor permission to reorder arbitrary floating-point sums. The configured training
+path separately rejects nonfinite update state.
 
 A **derivative** measures local [sensitivity](../glossary.md#term-sensitivity): approximately how much the objective changes per
 small change in the selected number. With many parameters the collection of those derivatives
@@ -56,14 +65,18 @@ shared weight; both samples contribute to one weight derivative, not to two inde
 
 ## What performs differentiation?
 
-The mode supplies a stored [gradient](../glossary.md#term-gradient)-eligible [weight](../glossary.md#term-weight) and calls public
-`Engine.backward(objective, List.of(w), 8)`. [Compiler](../glossary.md#term-compiler) owns the actual [derivative](../glossary.md#term-derivative) construction;
-[Engine](../glossary.md#term-engine) orchestrates [compile](../glossary.md#compile), [prepare](../glossary.md#prepare), execution and [detached](../glossary.md#detached-model-results) copies. The explicit [target](../glossary.md#term-target) list
-asks for the weight derivative, not input/target derivatives. No `Tensor.backward()` or [mutable](../glossary.md#term-mutable)
-[Tensor](../glossary.md#tensor) gradient field is involved.
+The Java application's `gradients` method creates the stored gradient-eligible weight `w`,
+builds the objective expression, and calls
+`Engine.backward(objective, List.of(w), 8)`. Engine is the application's callee; it in turn
+asks Compiler to construct derivative expressions and arranges preparation and execution.
+The input, desired-answer and weight storage remain supplied by the application and must be
+usable during this call. The explicit differentiation-target list selects the exact weight
+Tensor, not input or desired-answer derivatives. No `Tensor.backward()` or mutable Tensor
+gradient field is involved.
 
-The `8` is an aggregate output-copy ceiling: one [FLOAT32](../glossary.md#term-float32) [objective](../glossary.md#term-objective) plus one FLOAT32 weight
-gradient uses `4 + 4` bytes. It does not bound the entire execution workspace. This one-shot
+The `8` is an aggregate output-copy ceiling: one FLOAT32 objective and one FLOAT32 weight
+gradient require $1\cdot4+1\cdot4=8$ bytes (four bytes per element). It does not bound
+the entire execution workspace. This one-shot
 convenience compiles/prepares per call; use [prepared execution](reusable-execution.md)<span data-glossary-navigation="true"> ([prepared execution glossary](../glossary.md#prepared-execution--preparedexecution))</span> when
 reuse is the goal. The result's objective and target-aligned gradients are detached values.
 Backward alone does not own an [optimizer](../glossary.md#term-optimizer) and does not mutate `w`.
@@ -77,6 +90,7 @@ not that temporary memory.
 ## [Run](../glossary.md#term-run) and interpret
 
 ```bash
+# backward computes derivatives but does not perform an optimizer update.
 java --enable-native-access=ALL-UNNAMED -cp "$LEARNING_CP" \
   io.github.pho001.synaptik.examples.LearningJourney gradients
 ```
@@ -98,10 +112,11 @@ The final line checks that gradient bytes remain readable after Engine close.
 
 ## Useful variation and relevant errors
 
-As a separate experiment change `sum()` to `mean()`. There are two errors, so the initial
-[objective](../glossary.md#term-objective) becomes `20` and the [derivative](../glossary.md#term-derivative) becomes `-20`. At [learning rate](../glossary.md#term-learning-rate) `0.05`, one update
-would yield `w=1`, not `2`. Update the [gradient](../glossary.md#term-gradient) expectations and any downstream training checks
-before rebuilding with the [setup command](../examples/README.md#build-the-complete-project).
+As a separate experiment change `sum()` to `mean()`. Dividing by the two samples gives
+$L_{\mathrm{mean}}(0)=40/2=20$ and $L'_{\mathrm{mean}}(0)=-40/2=-20$.
+At learning rate $\eta=0.05$, plain SGD would produce $w_{\mathrm{new}}=0-\eta(-20)=1$,
+not $2$. Update gradient expectations and downstream training checks before rebuilding with
+the [setup command](../examples/README.md#build-the-complete-project).
 Restore SUM for the [canonical](../glossary.md#term-canonical-form) journey; reduction is a mathematical choice, not just a display
 preference.
 
