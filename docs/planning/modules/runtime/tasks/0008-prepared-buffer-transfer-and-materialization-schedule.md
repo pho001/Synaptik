@@ -1,4 +1,4 @@
-# Task 0008: Prepared Buffer Transfer and Materialization Schedule
+# Task 0008: [Prepared Buffer Transfer](../../../../glossary.md#prepared-buffer-transfer--preparedbuffertransfer) and [Materialization](../../../../glossary.md#materialization) Schedule
 
 ## Status
 
@@ -6,18 +6,18 @@ Complete
 
 ## Goal
 
-Add the smallest Runtime-owned prepared and per-run bound contracts for copying one logical
-buffer value between two distinct, already-created physical representation positions of the same
-prepared buffer slot, and make that work expressible as one ordered prepared-schedule occurrence.
+Add the smallest [Runtime](../../../../glossary.md#term-runtime)-owned prepared and per-[run](../../../../glossary.md#term-run) bound contracts for copying one logical
+[buffer](../../../../glossary.md#term-buffer) value between two distinct, already-created physical representation positions of the same
+prepared [buffer slot](../../../../glossary.md#buffer-slot--bufferslot), and make that work expressible as one ordered prepared-schedule [occurrence](../../../../glossary.md#term-occurrence).
 
 The public capability consists of:
 
-- one immutable reusable `PreparedBufferTransfer` recipe supplied by a concrete backend;
-- one per-run `BoundBufferTransfer` with direct source and destination physical references held by
+- one [immutable](../../../../glossary.md#term-immutable) reusable [`PreparedBufferTransfer`](../../../../glossary.md#prepared-buffer-transfer--preparedbuffertransfer) recipe supplied by a [concrete backend](../../../../glossary.md#concrete-backend);
+- one per-run [`BoundBufferTransfer`](../../../../glossary.md#bound-buffer-transfer--boundbuffertransfer) with direct source and destination physical references held by
   its concrete-backend subclass; and
 - one `PreparedSchedule.BufferTransferStep` occurrence retaining the prepared recipe.
 
-Materialization is not a second operation. When the destination is an equivalent already-created
+[Materialization](../../../../glossary.md#materialization) is not a second [operation](../../../../glossary.md#operation). When the destination is an equivalent already-created
 representation of the same logical buffer, performing this buffer transfer materializes that
 value there. The task adds no allocation, representation creation, second materialization type,
 or second schedule variant.
@@ -27,14 +27,14 @@ For one bound action, destination validity controls the transition:
 1. if the destination is already valid, return without requiring a valid source and without
    invoking backend work;
 2. otherwise require the source to be valid immediately before physical work;
-3. invoke the backend action exactly once; and
+3. invoke the [backend](../../../../glossary.md#backend) action exactly once; and
 4. only after successful return, mark only the destination valid.
 
 If backend work throws a `RuntimeException` or `Error`, every Runtime validity bit remains
 unchanged. The source and every other valid copy remain valid after success; this task introduces
 no invalidation or hidden coherence policy.
 
-## Rationale and mental model
+## Rationale and [mental model](../../../../glossary.md#term-mental-model)
 
 ```text
 one logical prepared buffer position
@@ -53,17 +53,17 @@ hot bound action
   -> mark only destination valid after success
 ```
 
-Runtime owns the coordinates, validity transition, exact-plan/run association, and schedule
-occurrence. A concrete backend owns the physical representation classes, compatibility checks,
+[Runtime](../../../../glossary.md#term-runtime) owns the [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix), validity transition, exact-plan/[run](../../../../glossary.md#term-run) association, and schedule
+[occurrence](../../../../glossary.md#term-occurrence). A [concrete backend](../../../../glossary.md#concrete-backend) owns the physical representation classes, compatibility checks,
 direct fields, and copy mechanics. This preserves the established cold checked boundary and keeps
-resource resolution out of the hot backend action.
+resource resolution out of the hot [backend](../../../../glossary.md#backend) action.
 
-The word *materialization* describes why a transfer may be required: an already-created
+The word *[materialization](../../../../glossary.md#materialization)* describes why a transfer may be required: an already-created
 destination representation needs the same logical value in a form required by later prepared
 work. It does not authorize another resource origin, allocation path, route search, or coherence
 protocol.
 
-## Exact API
+## Exact [API](../../../../glossary.md#term-application-programming-interface-api)
 
 Add these two public abstract classes in `io.github.pho001.synaptik.runtime.execution`:
 
@@ -125,11 +125,11 @@ public record BufferTransferStep(
 }
 ```
 
-`PreparedBufferTransfer` and `BoundBufferTransfer` add no interface, nested type, factory,
+[`PreparedBufferTransfer`](../../../../glossary.md#prepared-buffer-transfer--preparedbuffertransfer) and [`BoundBufferTransfer`](../../../../glossary.md#bound-buffer-transfer--boundbuffertransfer) add no interface, nested type, factory,
 builder, overload, public mutator, public resource accessor, close method, result, or custom
 object method. `BufferTransferStep` is the only new schedule variant. Existing
-`PreparedExecution(PreparedMemoryPlan, PreparedSchedule)`, `PreparedExecutable`,
-`BoundInvocation`, `PreparedRepresentationPlan`, `RunState`, and `RunStateCreation` declarations
+`PreparedExecution(PreparedMemoryPlan, PreparedSchedule)`, [`PreparedExecutable`](../../../../glossary.md#prepared-executable--preparedexecutable),
+[`BoundInvocation`](../../../../glossary.md#bound-invocation--boundinvocation), [`PreparedRepresentationPlan`](../../../../glossary.md#prepared-representation-plan--preparedrepresentationplan), [`RunState`](../../../../glossary.md#run-state--runstate), and `RunStateCreation` declarations
 remain unchanged.
 
 `BoundBufferTransfer` has package-private final association accessors used only by
@@ -145,73 +145,73 @@ final int sourceRepresentationIndex();
 final int destinationRepresentationIndex();
 ```
 
-These methods are not public or protected backend API. No other package-private member or
+These methods are not public or protected [backend](../../../../glossary.md#backend) API. No other package-private member or
 top-level production type is added.
 
-## Scope
+## [Scope](../../../../glossary.md#term-scope)
 
 - Add the exact prepared/bound transfer pair and schedule variant above.
-- Address one prepared buffer by dense `PreparedMemoryPlan.buffers()` position and two distinct
-  dense representation positions within that buffer's `RunState` binding list.
+- Address one prepared [buffer](../../../../glossary.md#term-buffer) by dense `PreparedMemoryPlan.buffers()` position and two distinct
+  dense representation positions within that buffer's [`RunState`](../../../../glossary.md#run-state--runstate) [binding](../../../../glossary.md#term-binding) list.
 - Require both physical representations to exist before binding; this task creates neither one.
 - Confine physical-type checks and representation resolution to `PreparedBufferTransfer.bind`.
-- Require concrete backend subclasses of `BoundBufferTransfer` to retain direct concrete typed
+- Require [concrete backend](../../../../glossary.md#concrete-backend) subclasses of [`BoundBufferTransfer`](../../../../glossary.md#bound-buffer-transfer--boundbuffertransfer) to retain direct concrete typed
   source and destination references established by the bind hook.
 - Implement the exact destination-no-op, source-valid, one-action, success-only destination-valid
   transition.
 - Preserve source and unrelated-copy validity on every successful action.
-- Preserve all Runtime validity bits when the backend action throws.
+- Preserve all [Runtime](../../../../glossary.md#term-runtime) validity bits when the [backend](../../../../glossary.md#backend) action throws.
 - Propagate the exact unchecked backend failure without retry, fallback, wrapping, cleanup, or
-  publication.
-- Extend `PreparedSchedule` with the one exact-plan transfer occurrence while preserving its
+  publication.<span data-glossary-navigation="true"> ([publication glossary](../../../../glossary.md#term-publication))</span>
+- Extend [`PreparedSchedule`](../../../../glossary.md#prepared-schedule--preparedschedule) with the one exact-plan transfer occurrence while preserving its
   existing creation-prefix rule, empty schedules, executable-only schedules, repeated
-  occurrences, and immutable encounter order.
+  occurrences, and immutable encounter order.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence); [immutable glossary](../../../../glossary.md#term-immutable))</span>
 - Add focused tests for API shape, validation, identity, binding order, compatibility hooks,
   direct references, no-op/action/failure transitions, schedule behavior, threading boundaries,
-  and forbidden hot-path mechanisms.
+  and forbidden hot-path mechanisms.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [shape glossary](../../../../glossary.md#shape); [validation glossary](../../../../glossary.md#term-validation); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Finalize affected Javadocs and explanatory documentation in a distinct clean documentation
   context after implementation tests stabilize.
-- Preserve completed Runtime 0001–0007 and Prepare 0001–0002 history.
+- Preserve completed Runtime 0001–0007 and [Prepare](../../../../glossary.md#prepare) 0001–0002 history.
 
-## Out of scope
+## Out of [scope](../../../../glossary.md#term-scope)
 
-- a separate materialization recipe, bound action, schedule step, enum value, or policy
+- a separate [materialization](../../../../glossary.md#materialization) recipe, bound action, schedule step, enum value, or policy
 - representation creation, allocation, lazy creation, replacement, eviction, removal, pooling,
-  reuse, aliasing, or lifetime/interference analysis
+  reuse, aliasing, or lifetime/interference analysis<span data-glossary-navigation="true"> ([lazy glossary](../../../../glossary.md#term-lazy-evaluation); [pooling glossary](../../../../glossary.md#term-pooling); [aliasing glossary](../../../../glossary.md#term-aliasing); [lifetime glossary](../../../../glossary.md#term-lifetime))</span>
 - transfer-route discovery, route search, graph search, shortest-path selection, fallback, or
-  multi-hop transfer composition
+  multi-hop transfer composition<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph))</span>
 - backend selection, lowering, kernel selection, concrete backend implementation, native bridge,
-  device inspection, or physical storage/access implementation in Runtime
-- a runner, schedule traversal/consumption, `RunState` creation, executable binding/execution,
-  output invalidation after executable work, retries, barriers, branches, or parallel scheduling
+  device inspection, or physical storage/access implementation in Runtime<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [lowering glossary](../../../../glossary.md#lowering); [kernel glossary](../../../../glossary.md#kernel); [concrete backend glossary](../../../../glossary.md#concrete-backend); [native bridge glossary](../../../../glossary.md#term-native-bridge); [device glossary](../../../../glossary.md#term-device))</span>
+- a runner, schedule traversal/consumption, [`RunState`](../../../../glossary.md#run-state--runstate) creation, executable binding/execution,
+  output invalidation after executable work, retries, barriers, branches, or parallel scheduling<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding))</span>
 - automatic invalidation of stale copies, dirty bits, preferred-copy policy, hidden write-back,
-  implicit synchronization, or a general coherence protocol
-- publication, ownership transfer/lease, `RunResult`, result cleanup, delivery target, or Config
+  implicit synchronization, or a general coherence protocol<span data-glossary-navigation="true"> ([synchronization glossary](../../../../glossary.md#term-synchronization))</span>
+- [publication](../../../../glossary.md#term-publication), [ownership](../../../../glossary.md#term-ownership-meanings) transfer/[lease](../../../../glossary.md#term-lease), [`RunResult`](../../../../glossary.md#run-result--runresult), result cleanup, delivery [target](../../../../glossary.md#term-target), or Config
 - public Prepare orchestration, complete prepared-result validation, Engine composition, caller
-  input handoff, or a public run lifecycle
-- changes to `PreparedExecution`, `PreparedExecutable`, `BoundInvocation`,
-  `PreparedRepresentationPlan`, `RunState`, `RunStateCreation`, memory geometry, or resource
-  ownership contracts
+  input handoff, or a public run lifecycle<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [Engine glossary](../../../../glossary.md#term-engine); [handoff glossary](../../../../glossary.md#term-handoff); [run glossary](../../../../glossary.md#term-run); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+- changes to [`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution), [`PreparedExecutable`](../../../../glossary.md#prepared-executable--preparedexecutable), [`BoundInvocation`](../../../../glossary.md#bound-invocation--boundinvocation),
+  [`PreparedRepresentationPlan`](../../../../glossary.md#prepared-representation-plan--preparedrepresentationplan), `RunState`, `RunStateCreation`, memory geometry, or resource
+  ownership contracts<span data-glossary-navigation="true"> ([resource ownership glossary](../../../../glossary.md#term-resource-ownership))</span>
 - Compiler, Planning, Model, Prepare Java, Config, Trace, Backend Contract, Engine, concrete
   backend, Gradle, dependency, architecture-contract, ADR, architecture-test,
-  backend-conformance, or integration-test behavior
+  backend-conformance, or integration-test behavior<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [Planning glossary](../../../../glossary.md#term-planning); [Model glossary](../../../../glossary.md#term-model); [Trace glossary](../../../../glossary.md#trace); [Gradle glossary](../../../../glossary.md#term-gradle); [dependency glossary](../../../../glossary.md#term-dependency); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 - tracing, profiling, configuration/tuning interpretation, measurement, cache lookup/mutation, or
-  model-autotuning
+  model-autotuning<span data-glossary-navigation="true"> ([cache glossary](../../../../glossary.md#term-cache); [lookup glossary](../../../../glossary.md#term-lookup); [autotuning glossary](../../../../glossary.md#autotuning--model-autotuning))</span>
 - maps, registries, services, service locators, raw `Object`, unchecked generic access,
   reflection, class-name tests, string dispatch, boxing, synchronization, or public concrete-
-  backend switches
-- detailed Runtime 0009–0011 or Prepare 0003 specifications
+  backend switches<span data-glossary-navigation="true"> ([dispatch glossary](../../../../glossary.md#term-dispatch))</span>
+- detailed [Runtime](../../../../glossary.md#term-runtime) 0009–0011 or [Prepare](../../../../glossary.md#prepare) 0003 specifications
 
 ## Architecture references
 
 - [`ARCHITECTURE.md`](../../../../../ARCHITECTURE.md): core invariants; Runtime and concrete-
-  backend ownership; run lifecycle; hot-path and dependency rules.
-- [ADR 0006: No Runtime service locator](../../../../design/decisions/0006-no-runtime-service-locator.md)
-- [ADR 0010: Staged backend preparation](../../../../design/decisions/0010-staged-backend-preparation.md)
-- [ADR 0011: Per-run Runtime resource ownership and cold binding](../../../../design/decisions/0011-per-run-runtime-resource-ownership.md)
+  backend ownership; run lifecycle; hot-path and dependency rules.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [backend ownership glossary](../../../../glossary.md#backend-ownership); [run glossary](../../../../glossary.md#term-run); [lifecycle glossary](../../../../glossary.md#lifecycle); [dependency glossary](../../../../glossary.md#term-dependency))</span>
+- [ADR 0006: No Runtime service locator](../../../../design/decisions/0006-no-runtime-service-locator.md)<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [service locator glossary](../../../../glossary.md#term-service-locator))</span>
+- [ADR 0010: Staged backend preparation](../../../../design/decisions/0010-staged-backend-preparation.md)<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend))</span>
+- [ADR 0011: Per-run Runtime resource ownership and cold binding](../../../../design/decisions/0011-per-run-runtime-resource-ownership.md)<span data-glossary-navigation="true"> ([resource ownership glossary](../../../../glossary.md#term-resource-ownership))</span><span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership); [binding glossary](../../../../glossary.md#term-binding))</span>
 - [Lifecycle](../../../../architecture/lifecycle.md)
-- [Runtime, Prepare, and Backend Boundary](../../../../architecture/runtime-prepare-backend-boundary.md)
-- [Runtime API](../../../../api/runtime-api.md)
+- [Runtime, Prepare, and Backend Boundary](../../../../architecture/runtime-prepare-backend-boundary.md)<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare))</span>
+- [Runtime API](../../../../api/runtime-api.md)<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - [Runtime master plan](../master-plan.md)
 - [Runtime 0004](0004-prepared-executable-and-bound-invocation.md)
 - [Runtime 0005](0005-prepared-schedule-contract.md)
@@ -221,18 +221,18 @@ top-level production type is added.
 ## Architecture constraints
 
 - Prepared transfer recipes are immutable, reusable, and thread-safe. Each bind produces a new
-  per-run bound action associated with one exact open `RunState`.
+  per-run bound action associated with one exact open <span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [thread-safe glossary](../../../../glossary.md#term-thread-safe); [run glossary](../../../../glossary.md#term-run))</span>[`RunState`](../../../../glossary.md#run-state--runstate).
 - Every source and destination coordinate refers to distinct representation positions of one
-  logical buffer position. A transfer never crosses buffer slots.
+  logical buffer position. A transfer never crosses buffer slots.<span data-glossary-navigation="true"> ([coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [buffer glossary](../../../../glossary.md#term-buffer))</span>
 - Every representation is already structurally resident because Runtime 0007 creates and binds
-  the complete state before cold binding. Transfer performs no allocation or resource lookup.
+  the complete state before cold binding. Transfer performs no allocation or resource lookup.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [binding glossary](../../../../glossary.md#term-binding); [lookup glossary](../../../../glossary.md#term-lookup))</span>
 - Runtime owns explicit validity checks and mutation. Concrete backends own physical copy/access
   mechanics and retain direct typed physical references in the bound subclass.
 - Java compatibility checks occur once at cold binding. The hot action performs no representation
   lookup, compatibility cast, map access, reflection, registry/service lookup, string dispatch,
-  boxing, backend discovery, route selection, graph inspection, or allocation.
+  boxing, backend discovery, route selection, graph inspection, or allocation.<span data-glossary-navigation="true"> ([registry glossary](../../../../glossary.md#term-registry); [dispatch glossary](../../../../glossary.md#term-dispatch); [graph glossary](../../../../glossary.md#graph))</span>
 - The only hot shared-state access is constant-time dense boolean validity query/mutation through
-  the exact retained `RunState`; the backend action uses direct concrete fields.
+  the exact retained <span data-glossary-navigation="true"> ([constant glossary](../../../../glossary.md#term-constant); [boolean glossary](../../../../glossary.md#data-type--datatype))</span>`RunState`; the [backend](../../../../glossary.md#backend) action uses direct concrete fields.
 - A valid destination makes the action an explicit no-op even if the source is invalid. Backend
   work is not invoked and no validity bit changes.
 - An invalid destination requires a valid source immediately before work. An invalid source fails
@@ -240,37 +240,37 @@ top-level production type is added.
 - Successful work marks only the destination valid. Source and all other copies remain unchanged.
 - Backend failure may have physically touched the destination, but Runtime validity remains
   unchanged and therefore continues to classify that destination as invalid.
-- One `BoundBufferTransfer` is mutable-run-associated and not thread-safe. Callers must not race
-  its action with itself, other validity transitions, execution, or state closure.
+- One [`BoundBufferTransfer`](../../../../glossary.md#bound-buffer-transfer--boundbuffertransfer) is mutable-run-associated and not thread-safe. Callers must not race
+  its action with itself, other validity transitions, execution, or state closure.<span data-glossary-navigation="true"> ([mutable glossary](../../../../glossary.md#term-mutable); [race glossary](../../../../glossary.md#term-race))</span>
 - Runtime remains independent of Prepare, Planning, Compiler, Model, Engine, and concrete
-  backends. No existing module edge or architecture rule changes.
+  backends. No existing module edge or architecture rule changes.<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [Planning glossary](../../../../glossary.md#term-planning); [Compiler glossary](../../../../glossary.md#term-compiler); [Model glossary](../../../../glossary.md#term-model); [Engine glossary](../../../../glossary.md#term-engine); [module glossary](../../../../glossary.md#term-module))</span>
 - If implementation needs another operation kind, resource origin, module edge, ownership rule,
-  or completed API change, stop and report the conflict.
+  or completed API change, stop and report the conflict.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 
 ## Package impact
 
 Existing packages used:
 
-- `io.github.pho001.synaptik.runtime.memory` — supplies the exact plan and dense buffer geometry.
+- `io.github.pho001.synaptik.runtime.memory` — supplies the exact plan and dense [buffer](../../../../glossary.md#term-buffer) geometry.
 - `io.github.pho001.synaptik.runtime.resource` — supplies nominal physical buffer roles without
-  modification.
+  modification.<span data-glossary-navigation="true"> ([nominal glossary](../../../../glossary.md#term-nominal))</span>
 - `io.github.pho001.synaptik.runtime.run` — supplies exact per-run bindings and validity without
-  modification.
+  modification.<span data-glossary-navigation="true"> ([run glossary](../../../../glossary.md#term-run); [bindings glossary](../../../../glossary.md#term-binding))</span>
 
 Packages changed:
 
 - `io.github.pho001.synaptik.runtime.execution` — owns reusable prepared work, cold binding, and
   direct-reference per-run actions; the prepared/bound transfer pair follows the existing
-  `PreparedExecutable`/`BoundInvocation` boundary.
+  [`PreparedExecutable`](../../../../glossary.md#prepared-executable--preparedexecutable)/[`BoundInvocation`](../../../../glossary.md#bound-invocation--boundinvocation) boundary.
 - `io.github.pho001.synaptik.runtime.schedule` — owns the closed semantic schedule family and adds
-  the transfer occurrence.
+  the transfer occurrence.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 
 Type placement:
 
 - `io.github.pho001.synaptik.runtime.execution.PreparedBufferTransfer` — one immutable reusable
-  backend-supplied transfer/materialization recipe.
+  backend-supplied transfer/materialization recipe.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [backend glossary](../../../../glossary.md#backend); [materialization glossary](../../../../glossary.md#materialization))</span>
 - `io.github.pho001.synaptik.runtime.execution.BoundBufferTransfer` — one backend-owned per-run
-  direct-reference transfer action with Runtime validity orchestration.
+  direct-reference transfer action with Runtime validity orchestration.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime))</span>
 - `io.github.pho001.synaptik.runtime.schedule.PreparedSchedule.BufferTransferStep` — one ordered
   occurrence of that recipe in the existing schedule.
 
@@ -278,8 +278,8 @@ Tests mirror `runtime.execution` and `runtime.schedule`. No package is added, mo
 
 ## Prepared transfer construction contract
 
-`PreparedBufferTransfer` stores exactly four private final fields matching its constructor
-parameters. Construction validates in this exact order:
+[`PreparedBufferTransfer`](../../../../glossary.md#prepared-buffer-transfer--preparedbuffertransfer) stores exactly four private final fields matching its constructor
+[parameters](../../../../glossary.md#term-parameter). Construction validates in this exact order:
 
 1. require `memoryPlan` non-null;
 2. require `bufferIndex` non-negative;
@@ -297,12 +297,12 @@ Exact failures are:
 - `IllegalArgumentException("destinationRepresentationIndex must be non-negative")`; and
 - `IllegalArgumentException("sourceRepresentationIndex and destinationRepresentationIndex must be distinct")`.
 
-The four final accessors return the exact plan reference and exact primitive coordinates. The
-constructor performs no state access, physical compatibility check, allocation, callback,
-validity query, or schedule action. Representation-position bounds remain cold per-run checks
-because `PreparedMemoryPlan` does not describe representation counts.
+The four final accessors return the exact plan reference and exact primitive [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix). The
+constructor performs no state access, physical compatibility check, allocation, [callback](../../../../glossary.md#term-callback),
+validity query, or schedule action. Representation-position bounds remain cold per-[run](../../../../glossary.md#term-run) checks
+because [`PreparedMemoryPlan`](../../../../glossary.md#prepared-memory-plan--preparedmemoryplan) does not describe representation counts.
 
-## Cold binding contract
+## Cold [binding](../../../../glossary.md#term-binding) contract
 
 `PreparedBufferTransfer.bind` validates and acts in this exact order:
 
@@ -315,9 +315,9 @@ because `PreparedMemoryPlan` does not describe representation counts.
 7. call `acceptsSourceBufferRepresentation` exactly once and require `true`;
 8. resolve the exact destination representation once;
 9. call `acceptsDestinationBufferRepresentation` exactly once and require `true`;
-10. call `bindCompatible` exactly once with the exact state and exact resolved nominal references;
+10. call `bindCompatible` exactly once with the exact state and exact resolved [nominal](../../../../glossary.md#term-nominal) references;
 11. require the returned bound action non-null; and
-12. require it to retain the exact state and all four exact coordinates.
+12. require it to retain the exact state and all four exact [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix).
 
 Exact shared failures are:
 
@@ -334,24 +334,24 @@ Exact shared failures are:
 
 Range failure occurs before either compatibility hook. Source compatibility failure occurs before
 destination resolution/compatibility. `bindCompatible` runs only after both checks succeed.
-Binding may allocate only the ordinary bound object and concrete-backend immutable/direct-reference
-fields. It changes no validity or ownership, invokes no physical transfer, and acquires no
+Binding may allocate only the ordinary bound object and concrete-[backend](../../../../glossary.md#backend) [immutable](../../../../glossary.md#term-immutable)/direct-reference
+fields. It changes no validity or [ownership](../../../../glossary.md#term-ownership-meanings), invokes no physical transfer, and acquires no
 auxiliary closeable resource.
 
-The concrete prepared subclass must be immutable and thread-safe. Its compatibility hooks use
+The concrete prepared subclass must be immutable and [thread-safe](../../../../glossary.md#term-thread-safe). Its compatibility hooks use
 explicit checked type tests. Its `bindCompatible` implementation performs the justified checked
-casts and constructs a concrete `BoundBufferTransfer` subclass retaining direct typed source and
+casts and constructs a concrete [`BoundBufferTransfer`](../../../../glossary.md#bound-buffer-transfer--boundbuffertransfer) subclass retaining direct typed source and
 destination fields. It must not retain a nominal array or perform later slot resolution.
 
-## Bound transfer construction and identity
+## Bound transfer construction and [identity](../../../../glossary.md#term-identity-meanings)
 
-The protected `BoundBufferTransfer` constructor retains exactly one `RunState` and the three
-primitive coordinates. It validates in this exact order:
+The protected [`BoundBufferTransfer`](../../../../glossary.md#bound-buffer-transfer--boundbuffertransfer) constructor retains exactly one [`RunState`](../../../../glossary.md#run-state--runstate) and the three
+primitive [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix). It validates in this exact order:
 
 1. require `runState` non-null;
 2. require it open;
 3. require `bufferIndex` to address the state;
-4. require `sourceRepresentationIndex` to address that buffer;
+4. require `sourceRepresentationIndex` to address that [buffer](../../../../glossary.md#term-buffer);
 5. require `destinationRepresentationIndex` to address that buffer; and
 6. require the representation indices to be distinct.
 
@@ -366,14 +366,14 @@ It uses existing dense-index diagnostics where applicable:
 For either representation range failure, the existing `representationIndex` diagnostic carries
 the rejected source or destination value; source is checked first. Construction performs no
 physical work or validity mutation. The package-private accessors return the retained association
-for final bind validation.
+for final bind [validation](../../../../glossary.md#term-validation).
 
 ## Hot action and validity transition
 
 `BoundBufferTransfer.execute()` is final and follows this exact order on every call:
 
-1. query destination validity exactly once; the existing `RunState` open guard first rejects a
-   closed state with `IllegalStateException("run state is closed")`;
+1. query destination validity exactly once; the existing [`RunState`](../../../../glossary.md#run-state--runstate) open guard first rejects a
+   closed state with <span data-glossary-navigation="true"> ([guard glossary](../../../../glossary.md#term-guard))</span>`IllegalStateException("run state is closed")`;
 2. if the destination is valid, return immediately;
 3. query source validity exactly once;
 4. if the source is invalid, throw
@@ -384,16 +384,16 @@ for final bind validation.
 
 No validity bit is written before `executeTransfer()`. A thrown `RuntimeException` or `Error` is
 propagated unchanged, with no retry, fallback, wrapping, cleanup, or suppressed failure. The
-source, destination, and every other Runtime validity bit therefore retain their pre-call values.
+source, destination, and every other [Runtime](../../../../glossary.md#term-runtime) validity bit therefore retain their pre-call values.
 On normal return, source and unrelated bits remain unchanged and destination becomes valid.
 
 Sequential calls are permitted while the state remains open. After the first success, a later
-call observes the valid destination and is a no-op. The bound action is not thread-safe and must
-not race with state closure, execution, another transfer, or direct validity mutation.
+call observes the valid destination and is a no-op. The bound action is not [thread-safe](../../../../glossary.md#term-thread-safe) and must
+not [race](../../../../glossary.md#term-race) with state closure, execution, another transfer, or direct validity mutation.
 
-`executeTransfer()` receives no argument because the backend subclass already retains direct
+`executeTransfer()` receives no [argument](../../../../glossary.md#term-argument) because the [backend](../../../../glossary.md#backend) subclass already retains direct
 concrete typed source and destination references. It returns `void`, owns no resource, and must
-not mutate Runtime validity itself. It may perform only the backend transfer/materialization work
+not mutate Runtime validity itself. It may perform only the backend transfer/[materialization](../../../../glossary.md#materialization) work
 prepared for this pair. It must not rediscover a backend, route, or representation.
 
 ## Schedule contract
@@ -402,60 +402,60 @@ prepared for this pair. It must not rediscover a backend, route, or representati
 `PreparedBufferTransfer transfer`.
 
 Its compact constructor requires the component non-null with
-`NullPointerException("transfer")`, retains the exact reference, and performs no binding or
+`NullPointerException("transfer")`, retains the exact reference, and performs no [binding](../../../../glossary.md#term-binding) or
 physical work. `memoryPlan()` returns exactly `transfer.memoryPlan()` without caching or copying.
 
 Add `BufferTransferStep` to the exact permitted subclass family and declared nested surface.
-Existing `PreparedSchedule` validation remains in the same order:
+Existing [`PreparedSchedule`](../../../../glossary.md#prepared-schedule--preparedschedule) [validation](../../../../glossary.md#term-validation) remains in the same order:
 
 1. top-level null checks;
 2. each step's exact-plan association in encounter order;
 3. the existing first-only `RepresentationCreationStep` rule; and
-4. final `List.copyOf` snapshot.
+4. final `List.copyOf` [snapshot](../../../../glossary.md#term-snapshot).
 
 Transfer occurrences have no additional construction-time ordering restriction. Empty,
 creation-only, executable-only, transfer-only, and mixed schedules remain representable at this
 foundation layer when their exact plans match. Repeated transfer step or recipe references are
-valid and each list position is one explicit occurrence. This task does not claim such schedules
-are runnable; later Prepare validation and the runner own complete lifecycle ordering.
+valid and each list position is one explicit [occurrence](../../../../glossary.md#term-occurrence). This task does not claim such schedules
+are runnable; later [Prepare](../../../../glossary.md#prepare) validation and the runner own complete [lifecycle](../../../../glossary.md#lifecycle) ordering.
 
-## Identity, ownership, side effects, and threading
+## [Identity](../../../../glossary.md#term-identity-meanings), [ownership](../../../../glossary.md#term-ownership-meanings), side effects, and threading
 
-- Plan association always uses exact reference identity, never structural equality.
-- Buffer and representation indices are dense positions, not numeric `BufferSlot` values,
-  backend/device IDs, addresses, handles, or graph identities.
-- Prepared recipes and schedule steps own only immutable Java state and no physical resource.
+- Plan association always uses exact [reference identity](../../../../glossary.md#term-reference-identity), never [structural equality](../../../../glossary.md#term-structural-equality).
+- [Buffer](../../../../glossary.md#term-buffer) and representation indices are dense positions, not numeric [`BufferSlot`](../../../../glossary.md#buffer-slot--bufferslot) values,
+  backend/device IDs, addresses, handles, or graph identities.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [device glossary](../../../../glossary.md#term-device); [graph glossary](../../../../glossary.md#graph))</span>
+- Prepared recipes and schedule steps own only [immutable](../../../../glossary.md#term-immutable) Java state and no physical resource.
 - Bound actions own no state or physical representation. They retain references whose lifecycle
-  remains owned by the run and must not close them.
-- Binding transfers no ownership and changes no validity.
-- A valid-destination action has no physical or Runtime side effect.
+  remains owned by the run and must not close them.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle); [run glossary](../../../../glossary.md#term-run))</span>
+- [Binding](../../../../glossary.md#term-binding) transfers no ownership and changes no validity.
+- A valid-destination action has no physical or [Runtime](../../../../glossary.md#term-runtime) [side effect](../../../../glossary.md#term-side-effect).
 - An invalid-source failure has no physical or Runtime side effect.
 - A successful backend action may mutate only the prepared destination physical representation;
   Runtime then changes only its destination validity bit.
 - On backend failure the destination's physical contents may be partial or unspecified, but its
   Runtime validity remains false and all other validity remains unchanged.
 - Prepared transfer recipes may bind concurrently to distinct states. A bound transfer may be
-  used sequentially only and must not race any mutation or closure of its state.
+  used sequentially only and must not race any mutation or closure of its state.<span data-glossary-navigation="true"> ([race glossary](../../../../glossary.md#term-race))</span>
 
 ## Performance limits
 
-- Prepared construction and access are constant-time.
+- Prepared construction and access are [constant](../../../../glossary.md#term-constant)-time.
 - Cold binding performs direct dense array/index access, two compatibility hooks, and one bound
   construction; it uses no list snapshot, map, registry, reflection, string dispatch, boxing,
-  service lookup, backend discovery, graph inspection, route search, or physical action.
+  service lookup, backend discovery, graph inspection, route search, or physical action.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding); [snapshot glossary](../../../../glossary.md#term-snapshot); [registry glossary](../../../../glossary.md#term-registry); [dispatch glossary](../../../../glossary.md#term-dispatch); [lookup glossary](../../../../glossary.md#term-lookup); [backend glossary](../../../../glossary.md#backend); [graph glossary](../../../../glossary.md#graph))</span>
 - Hot execution performs one destination validity operation, optionally one source validity
   operation, at most one direct backend virtual call, and after success one destination validity
-  operation. Each existing `RunState` validity operation retains its constant-time open and dense-
-  index guards; this task adds no duplicate resource resolution or alternative validity API.
+  operation. Each existing <span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation))</span>[`RunState`](../../../../glossary.md#run-state--runstate) validity operation retains its constant-time open and dense-
+  index guards; this task adds no duplicate resource resolution or alternative validity API.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - Hot execution performs no representation lookup, compatibility check/cast, nominal-array walk,
   allocation, synchronization, identifier creation, route/configuration choice, tracing, or
-  publication.
+  publication.<span data-glossary-navigation="true"> ([nominal glossary](../../../../glossary.md#term-nominal); [synchronization glossary](../../../../glossary.md#term-synchronization); [publication glossary](../../../../glossary.md#term-publication))</span>
 - Tests must inspect source and bytecode sufficiently to lock the direct-reference/no-forbidden-
-  mechanism boundary that ordinary behavior assertions cannot prove.
+  mechanism boundary that ordinary behavior assertions cannot prove.<span data-glossary-navigation="true"> ([bytecode glossary](../../../../glossary.md#term-bytecode))</span>
 
 ## Affected files
 
-Expected Runtime production/Javadoc paths:
+Expected [Runtime](../../../../glossary.md#term-runtime) production/[Javadoc](../../../../glossary.md#term-javadoc) paths:
 
 - `modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedBufferTransfer.java` — add.
 - `modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/BoundBufferTransfer.java` — add.
@@ -478,26 +478,26 @@ Expected explanatory documentation paths:
 - `docs/backend-guide/writing-a-backend.md`
 - `docs/glossary.md`
 
-Expected planning paths:
+Expected [planning](../../../../glossary.md#term-planning) paths:
 
 - this task
 - `docs/planning/modules/runtime/master-plan.md`
 - `docs/planning/roadmap.md`
 
 Review only unless a concrete contradiction is found: `AGENTS.md`, `ARCHITECTURE.md`, ADRs
-0006/0010/0011, focused lifecycle/module/dependency documents, documentation rules/profiles,
-planning guide, completed Runtime 0001–0007, Prepare 0001–0002 and Draft 0003, current Runtime and
-relevant Prepare source/tests/generated Javadocs, Runtime/Public APIs, backend guide, glossary,
-Compile/Tensor/Training APIs, Runtime/root builds, and architecture/conformance/integration tests.
+0006/0010/0011, focused [lifecycle](../../../../glossary.md#lifecycle)/[module](../../../../glossary.md#term-module)/[dependency](../../../../glossary.md#term-dependency) documents, documentation rules/profiles,
+planning guide, completed Runtime 0001–0007, [Prepare](../../../../glossary.md#prepare) 0001–0002 and Draft 0003, current Runtime and
+relevant Prepare source/tests/generated Javadocs, Runtime/Public APIs, [backend](../../../../glossary.md#backend) guide, glossary,
+[Compile](../../../../glossary.md#compile)/[Tensor](../../../../glossary.md#tensor)/Training APIs, Runtime/root builds, and architecture/[conformance](../../../../glossary.md#term-conformance)/integration tests.
 
-## Maximum scope
+## Maximum [scope](../../../../glossary.md#term-scope)
 
-At most 16 paths: five Runtime production/Javadoc paths, three Runtime test paths, five
-explanatory documentation paths, and three planning paths.
+At most 16 paths: five [Runtime](../../../../glossary.md#term-runtime) production/[Javadoc](../../../../glossary.md#term-javadoc) paths, three Runtime test paths, five
+explanatory documentation paths, and three [planning](../../../../glossary.md#term-planning) paths.
 
-No Java/test path outside Runtime, Gradle, architecture contract, ADR, architecture-test,
-backend-conformance, or integration path may change. Stop if another type, package, module edge,
-behavior owner, or path is required. Do not create a later task specification.
+No Java/test path outside Runtime, [Gradle](../../../../glossary.md#term-gradle), [architecture contract](../../../../glossary.md#architecture-contract), [ADR](../../../../glossary.md#term-architecture-decision-record-adr), architecture-test,
+[backend](../../../../glossary.md#backend)-[conformance](../../../../glossary.md#term-conformance), or integration path may change. Stop if another type, package, [module](../../../../glossary.md#term-module) edge,
+behavior [owner](../../../../glossary.md#term-owner), or path is required. Do not create a later task specification.
 
 ## Test requirements
 
@@ -510,79 +510,79 @@ behavior owner, or path is required. Do not create a later task specification.
 - bind null/closed/foreign-plan/range order and exact messages;
 - exact source-then-destination resolution and compatibility hook count/order;
 - stop-on-first-incompatibility and no `bindCompatible` call before complete compatibility;
-- exact nominal references supplied to one bind hook;
+- exact [nominal](../../../../glossary.md#term-nominal) references supplied to one bind hook;
 - null, foreign-state, and mismatched-position bound results;
-- immutable recipe reuse across distinct isolated run states; and
+- [immutable](../../../../glossary.md#term-immutable) recipe reuse across distinct isolated [run](../../../../glossary.md#term-run) states; and
 - forbidden imports, allocation/resource action, lookup, discovery, registry, reflection, string,
-  boxing, generic-payload, and hot-path mechanisms.
+  boxing, generic-payload, and hot-path mechanisms.<span data-glossary-navigation="true"> ([lookup glossary](../../../../glossary.md#term-lookup); [registry glossary](../../../../glossary.md#term-registry); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication))</span>
 
 `BoundBufferTransferTest` must cover:
 
 - exact public abstract template, private final association fields, protected constructor, final
   execute method, one abstract backend hook, package-private association accessors, and absence of
   extra public/protected surface;
-- constructor null/closed/index/distinct validation in exact order and no physical/validity work;
-- destination-valid no-op without source requirement or backend call;
+- constructor null/closed/index/distinct [validation](../../../../glossary.md#term-validation) in exact order and no physical/validity work;
+- destination-valid no-op without source requirement or [backend](../../../../glossary.md#backend) call;
 - destination-invalid/source-invalid failure before backend work with exact message;
 - successful one-call action and change of only destination validity;
 - repeated sequential call becoming a destination-valid no-op;
 - exact propagation of `RuntimeException` and `Error`, one attempted backend call, and unchanged
-  full validity matrix on failure;
+  full validity matrix on failure;<span data-glossary-navigation="true"> ([matrix glossary](../../../../glossary.md#term-matrix-meanings))</span>
 - source and other copies remaining valid after success;
 - rejection after state closure before any validity/backend work;
 - direct concrete source/destination field use in the test backend subclass; and
 - absence of resource lookup, compatibility cast, allocation, map, reflection, string dispatch,
   boxing, registry/service, discovery, retry, cleanup, publication, or invalidation in the hot
-  action.
+  action.<span data-glossary-navigation="true"> ([dispatch glossary](../../../../glossary.md#term-dispatch); [publication glossary](../../../../glossary.md#term-publication))</span>
 
 `PreparedScheduleTest` must cover:
 
 - the exact updated declared/permitted nested family and `BufferTransferStep` record shape;
-- null transfer failure, exact transfer/plan retention, and `memoryPlan()` identity;
+- null transfer failure, exact transfer/plan retention, and `memoryPlan()` [identity](../../../../glossary.md#term-identity-meanings);
 - same-plan and foreign-plan validation with existing first-failure order/messages;
 - transfer-only and mixed creation/execution/transfer schedules;
 - preservation of the creation-first rule;
 - immutable order, repeated transfer steps/recipes, and construction action absence; and
 - unchanged existing schedule semantics and tests.
 
-No existing `RunState`, `PreparedExecutable`, `BoundInvocation`, or `PreparedExecution` test is
-modified. No architecture, conformance, or integration test is added because no module edge,
-concrete backend, or end-to-end runner behavior changes.
+No existing [`RunState`](../../../../glossary.md#run-state--runstate), [`PreparedExecutable`](../../../../glossary.md#prepared-executable--preparedexecutable), [`BoundInvocation`](../../../../glossary.md#bound-invocation--boundinvocation), or [`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution) test is
+modified. No architecture, [conformance](../../../../glossary.md#term-conformance), or [integration test](../../../../glossary.md#term-integration-test) is added because no [module](../../../../glossary.md#term-module) edge,
+[concrete backend](../../../../glossary.md#concrete-backend), or end-to-end runner behavior changes.
 
 ## Acceptance criteria
 
 - The exact prepared/bound transfer pair and sole new schedule variant exist only in their named
-  packages with no second materialization type or step.
+  packages with no second materialization type or step.<span data-glossary-navigation="true"> ([materialization glossary](../../../../glossary.md#materialization))</span>
 - Source and destination are distinct representation positions of one prepared buffer position,
-  and both representations must already exist in the exact run state.
+  and both representations must already exist in the exact run state.<span data-glossary-navigation="true"> ([buffer glossary](../../../../glossary.md#term-buffer); [run state glossary](../../../../glossary.md#run-state--runstate))</span>
 - Construction and binding follow every exact validation order, failure type/message, call count,
-  and identity rule in this task.
+  and identity rule in this task.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding); [validation glossary](../../../../glossary.md#term-validation); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Cold binding supplies exact direct physical references to a backend-owned bound object and
-  changes no resource ownership or validity.
+  changes no resource ownership or validity.<span data-glossary-navigation="true"> ([resource ownership glossary](../../../../glossary.md#term-resource-ownership))</span><span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership))</span>
 - A valid destination is an explicit no-op even with an invalid source.
-- An invalid destination requires a valid source immediately before exactly one backend call.
+- An invalid destination requires a valid source immediately before exactly one [backend](../../../../glossary.md#backend) call.
 - Success marks only destination valid; source and other copies keep their validity.
-- Backend failure is propagated unchanged and leaves the entire Runtime validity matrix unchanged.
+- Backend failure is propagated unchanged and leaves the entire [Runtime](../../../../glossary.md#term-runtime) validity [matrix](../../../../glossary.md#term-matrix-meanings) unchanged.
 - The hot path contains no physical-resource lookup, map, reflection, registry/service, string
   dispatch, boxing, backend rediscovery, graph/route/configuration work, allocation, retry,
-  invalidation, cleanup, publication, or tracing.
+  invalidation, cleanup, publication, or tracing.<span data-glossary-navigation="true"> ([hot path glossary](../../../../glossary.md#term-hot-path); [lookup glossary](../../../../glossary.md#term-lookup); [registry glossary](../../../../glossary.md#term-registry); [dispatch glossary](../../../../glossary.md#term-dispatch); [graph glossary](../../../../glossary.md#graph); [publication glossary](../../../../glossary.md#term-publication))</span>
 - Materialization is explained only as the same operation producing an equivalent already-created
-  destination representation.
-- `PreparedExecution` remains exactly memory plan plus schedule; no runner or traversal is added.
-- Existing Runtime 0001–0007 and Prepare 0001–0002 behavior/history remain unchanged.
+  destination representation.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation))</span>
+- [`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution) remains exactly memory plan plus schedule; no runner or traversal is added.
+- Existing Runtime 0001–0007 and [Prepare](../../../../glossary.md#prepare) 0001–0002 behavior/history remain unchanged.
 - Javadocs fully describe inputs, returns, nullability, exact identity, ownership, lifecycle,
-  threading, side effects, validity transitions, performance, failures, and exclusions.
+  threading, side effects, validity transitions, performance, failures, and exclusions.<span data-glossary-navigation="true"> ([nullability glossary](../../../../glossary.md#term-nullability); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - Runtime/Public APIs, focused boundary status, backend guide, glossary, task, master plan, and
   roadmap distinguish current transfer/materialization contracts from later publication, runner,
-  output invalidation, Prepare orchestration, Engine, and concrete backend work.
+  output invalidation, Prepare orchestration, Engine, and concrete backend work.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [concrete backend glossary](../../../../glossary.md#concrete-backend))</span>
 - A separate clean documentation-focused pass finalizes affected Javadocs/docs/examples/glossary,
   generated-page and Markdown validation, planning evidence, and reasoned no-change conclusions
-  without repeating successful Java tests absent an executable change or concrete risk.
+  without repeating successful Java tests absent an executable change or concrete risk.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning))</span>
 - Exactly the authorized 16 paths change; Runtime 0009–0011 and Prepare 0003 remain Draft without
   detailed specifications; links, anchors, terminology, fences, final newlines, whitespace, and
   `git diff --check` pass.
 
-## Tests / validation
+## Tests / [validation](../../../../glossary.md#term-validation)
 
 Implementation development:
 
@@ -593,7 +593,7 @@ Implementation development:
   --tests io.github.pho001.synaptik.runtime.schedule.PreparedScheduleTest
 ```
 
-Final affected module after executable Java stabilizes:
+Final affected [module](../../../../glossary.md#term-module) after executable Java stabilizes:
 
 ```bash
 ./gradlew :modules:runtime:test
@@ -617,150 +617,150 @@ git diff --check
 ```
 
 If the temporary validator is absent or incompatible, create an equivalent validator outside the
-repository. It must check local file targets and heading anchors, unique effective anchors,
+repository. It must check local file [targets](../../../../glossary.md#term-target) and heading anchors, unique effective anchors,
 balanced backtick and tilde fences, final newlines, and trailing whitespace.
 
 Also verify:
 
 - exact source, compiled, reflection, and permitted-family surfaces;
 - exact validation order/messages, identity, hook/action counts, no-op/success/failure validity,
-  and state-closure behavior;
+  and state-closure behavior;<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - direct typed source/destination retention in the concrete test bound action;
-- unchanged `PreparedExecution`, `PreparedExecutable`, `BoundInvocation`,
-  `PreparedRepresentationPlan`, `RunState`, `RunStateCreation`, and their compiled surfaces;
+- unchanged [`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution), [`PreparedExecutable`](../../../../glossary.md#prepared-executable--preparedexecutable), [`BoundInvocation`](../../../../glossary.md#bound-invocation--boundinvocation),
+  [`PreparedRepresentationPlan`](../../../../glossary.md#prepared-representation-plan--preparedrepresentationplan), [`RunState`](../../../../glossary.md#run-state--runstate), `RunStateCreation`, and their compiled surfaces;
 - hot-method bytecode contains only the closed/validity/action/success transition and no resource
-  resolution or forbidden mechanism;
+  resolution or forbidden mechanism;<span data-glossary-navigation="true"> ([bytecode glossary](../../../../glossary.md#term-bytecode))</span>
 - no forbidden upstream/concrete-backend imports or map/reflection/raw/unchecked/string/boxing/
   registry/service/synchronization/discovery/route/search/config/tuning/tracing/publication/
-  runner mechanism;
+  runner mechanism;<span data-glossary-navigation="true"> ([registry glossary](../../../../glossary.md#term-registry); [synchronization glossary](../../../../glossary.md#term-synchronization); [publication glossary](../../../../glossary.md#term-publication))</span>
 - unchanged Runtime/root Gradle, dependencies, architecture/ADRs/tests, Java 26 configuration,
-  Prepare/Config/Trace/Backend Contract/Engine/concrete backend Java, conformance, and integration;
-- exact 16-path ceiling and no Java/test outside Runtime;
+  Prepare/Config/Trace/Backend Contract/Engine/concrete backend Java, conformance, and integration;<span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle); [Prepare glossary](../../../../glossary.md#prepare); [Trace glossary](../../../../glossary.md#trace); [Engine glossary](../../../../glossary.md#term-engine))</span>
+- exact 16-path ceiling and no Java/test outside [Runtime](../../../../glossary.md#term-runtime);
 - Runtime 0001–0007 and Prepare 0001–0002 remain Complete; Runtime 0008 becomes Complete only
   after all gates; Runtime 0009–0011 and Prepare 0003 remain Draft without detailed specs; and
-- final documentation/status/scope/whitespace gates.
+- final documentation/status/[scope](../../../../glossary.md#term-scope)/whitespace gates.
 
-Repository-wide and architecture validation is deferred to Runtime 0011, continuous integration,
-or the prepared-execution checkpoint because this task changes one module without a dependency,
-build, architecture, concrete-backend, or end-to-end runner change. Backend conformance and
-integration tests remain inapplicable until a concrete backend and runner consume the contract.
+Repository-wide and architecture validation is deferred to Runtime 0011, [continuous integration](../../../../glossary.md#term-continuous-integration-ci),
+or the prepared-execution [checkpoint](../../../../glossary.md#term-checkpoint) because this task changes one module without a [dependency](../../../../glossary.md#term-dependency),
+build, architecture, concrete-[backend](../../../../glossary.md#backend), or end-to-end runner change. Backend [conformance](../../../../glossary.md#term-conformance) and
+integration tests remain inapplicable until a [concrete backend](../../../../glossary.md#concrete-backend) and runner consume the contract.
 
 ## Documentation pass
 
-After implementation and final Runtime module tests, hand the exact diff and test evidence to a
-distinct clean documentation-focused agent/thread. It must apply the General, API/Javadoc,
-Architecture, Backend Guide, Planning, and Example profiles as appropriate and inspect the actual
-source/tests rather than trusting the handoff summary.
+After implementation and final [Runtime](../../../../glossary.md#term-runtime) [module](../../../../glossary.md#term-module) tests, hand the exact diff and test evidence to a
+distinct clean documentation-focused agent/thread. It must apply the General, [API](../../../../glossary.md#term-application-programming-interface-api)/[Javadoc](../../../../glossary.md#term-javadoc),
+Architecture, [Backend](../../../../glossary.md#backend) Guide, [Planning](../../../../glossary.md#term-planning), and Example profiles as appropriate and inspect the actual
+source/tests rather than trusting the [handoff](../../../../glossary.md#term-handoff) summary.
 
 The pass must:
 
 - finalize both new class Javadocs, both affected package summaries, and the schedule Javadocs;
 - document materialization as the same already-created-representation transfer, never a second
-  operation;
+  operation;<span data-glossary-navigation="true"> ([materialization glossary](../../../../glossary.md#materialization); [operation glossary](../../../../glossary.md#operation))</span>
 - add a current Runtime API example and backend-author pattern that use direct concrete fields,
   demonstrate destination no-op/success/failure validity, and label runner usage conceptual;
 - update Public API and focused architecture implementation status without changing authority;
-- update the glossary for the reusable `PreparedBufferTransfer`/`BoundBufferTransfer` distinction
+- update the glossary for the reusable [`PreparedBufferTransfer`](../../../../glossary.md#prepared-buffer-transfer--preparedbuffertransfer)/[`BoundBufferTransfer`](../../../../glossary.md#bound-buffer-transfer--boundbuffertransfer) distinction
   and materialization boundary only if those terms need reusable cross-document navigation;
 - inspect generated Runtime Javadoc pages for both new classes, `BufferTransferStep`, and the
   affected package summaries;
 - validate links, anchors, terminology, examples, fences, newlines, whitespace, exact scope, and
-  planning status; and
+  planning status; and<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope))</span>
 - record exact files reviewed/changed, reused test evidence, commands/results, limitations,
   unresolved issues, and reasoned no-change conclusions.
 
 Required no-change conclusions unless a concrete contradiction is found:
 
 - `ARCHITECTURE.md`, ADRs, lifecycle/module/dependency pages already assign explicit transfer,
-  Runtime validity, backend physical mechanics, cold binding, and module direction.
-- `PreparedExecution`, `PreparedExecutable`, `BoundInvocation`, representation creation,
-  `RunState`, and their unaffected Javadocs remain accurate because this task adds a parallel
+  Runtime validity, backend physical mechanics, cold binding, and module direction.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle); [dependency glossary](../../../../glossary.md#term-dependency); [binding glossary](../../../../glossary.md#term-binding))</span>
+- [`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution), [`PreparedExecutable`](../../../../glossary.md#prepared-executable--preparedexecutable), [`BoundInvocation`](../../../../glossary.md#bound-invocation--boundinvocation), representation creation,
+  [`RunState`](../../../../glossary.md#run-state--runstate), and their unaffected Javadocs remain accurate because this task adds a parallel
   transfer action without changing those contracts.
 - Prepare Java/Javadocs remain unchanged because public orchestration and complete runnable-
-  schedule validation remain Draft Prepare 0003.
+  schedule validation remain Draft Prepare 0003.<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [validation glossary](../../../../glossary.md#term-validation))</span>
 - Compile, Tensor, and Training APIs remain unchanged because transfer coordinates and physical
-  validity are Runtime-only facts.
+  validity are Runtime-only facts.<span data-glossary-navigation="true"> ([Compile glossary](../../../../glossary.md#compile); [Tensor glossary](../../../../glossary.md#tensor); [coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
 - Config, Trace, Backend Contract, Engine, concrete backends, other guides, Gradle/dependencies,
   architecture tests, conformance, and integration remain unchanged because no consumer,
-  implementation, module edge, or end-to-end behavior is added.
+  implementation, module edge, or end-to-end behavior is added.<span data-glossary-navigation="true"> ([Trace glossary](../../../../glossary.md#trace); [Engine glossary](../../../../glossary.md#term-engine); [Gradle glossary](../../../../glossary.md#term-gradle); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 
 ## Dependencies
 
-- Runtime 0001–0007 — Complete and preserved.
+- [Runtime](../../../../glossary.md#term-runtime) 0001–0007 — Complete and preserved.
 - Runtime 0007 supplies complete already-created representation coordinates and explicit
-  independent per-copy validity.
+  independent per-copy validity.<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
 - Runtime 0004 supplies the established prepared/cold-bound/direct-reference design pattern.
-- Runtime 0005 supplies the exact-plan sealed schedule family.
-- ADR 0011 supplies the immutable prepared/per-run/backend physical ownership split.
+- Runtime 0005 supplies the exact-plan [sealed](../../../../glossary.md#term-sealed) schedule family.
+- [ADR](../../../../glossary.md#term-architecture-decision-record-adr) 0011 supplies the [immutable](../../../../glossary.md#term-immutable) prepared/per-[run](../../../../glossary.md#term-run)/[backend](../../../../glossary.md#backend) physical [ownership](../../../../glossary.md#term-ownership-meanings) split.
 - Existing Runtime dependencies and Java 26 build contract remain unchanged.
 
-Prepare 0003, Runtime 0009+, Config, Trace run payloads, concrete backends, Engine, publication,
+[Prepare](../../../../glossary.md#prepare) 0003, Runtime 0009+, Config, [Trace](../../../../glossary.md#trace) run payloads, concrete backends, [Engine](../../../../glossary.md#term-engine), [publication](../../../../glossary.md#term-publication),
 runner behavior, and tuning are not dependencies of this bounded contract.
 
 ## Follow-up tasks
 
 - Runtime 0009 remains Draft for Runtime-owned publication/result association, delivery, and
-  ownership transition.
+  ownership transition.<span data-glossary-navigation="true"> ([publication glossary](../../../../glossary.md#term-publication); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Runtime 0010 remains Draft for cold schedule traversal/binding, caller-input handoff, bound
-  action ordering, executable-output validity/invalidation, publication, and dynamic execution.
-- Runtime 0011 remains Draft for contract closure and the prepared-execution checkpoint.
+  action ordering, executable-output validity/invalidation, publication, and dynamic execution.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding); [handoff glossary](../../../../glossary.md#term-handoff))</span>
+- [Runtime](../../../../glossary.md#term-runtime) 0011 remains Draft for contract closure and the prepared-execution [checkpoint](../../../../glossary.md#term-checkpoint).
 - Prepare 0003 remains Draft for public preparation orchestration and complete prepared-result
-  validation.
+  validation.<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [validation glossary](../../../../glossary.md#term-validation))</span>
 - Concrete backend tasks later implement physical representation and transfer mechanics and add
-  applicable conformance coverage.
+  applicable conformance coverage.<span data-glossary-navigation="true"> ([Concrete backend glossary](../../../../glossary.md#concrete-backend); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 
 Do not create any follow-up detailed specification in this task.
 
 ## Decisions
 
-- Use one prepared/bound pair parallel to `PreparedExecutable`/`BoundInvocation`; this keeps
-  heterogeneous type checks cold and physical references direct.
+- Use one prepared/bound pair parallel to [`PreparedExecutable`](../../../../glossary.md#prepared-executable--preparedexecutable)/[`BoundInvocation`](../../../../glossary.md#bound-invocation--boundinvocation); this keeps
+  heterogeneous type checks cold and physical references direct.<span data-glossary-navigation="true"> ([heterogeneous glossary](../../../../glossary.md#term-heterogeneous))</span>
 - Keep both representation coordinates within one buffer index. A cross-buffer copy is not
-  materialization of one logical buffer and requires a separately justified contract.
+  materialization of one logical buffer and requires a separately justified contract.<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [buffer glossary](../../../../glossary.md#term-buffer); [materialization glossary](../../../../glossary.md#materialization))</span>
 - Require distinct source/destination positions. A same-position action has no transfer meaning
-  and is represented by omitting the occurrence.
+  and is represented by omitting the occurrence.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 - Treat materialization as transfer to an equivalent already-created destination. Add no second
-  API or schedule kind.
+  API or schedule kind.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - Make destination validity the first transition check. An already-valid destination is a no-op
   even when the selected source is invalid.
 - Write only destination validity and only after backend success. Preserve source and other copies
-  to avoid inventing coherence or invalidation policy.
+  to avoid inventing coherence or invalidation policy.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend))</span>
 - Permit repeated and mixed schedule occurrences. Complete runnable-order validation belongs to
-  later Prepare/runner work, not the immutable foundation schedule.
-- Keep `PreparedExecution` unchanged because the schedule already makes the recipe reachable.
+  later Prepare/runner work, not the immutable foundation schedule.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [Prepare glossary](../../../../glossary.md#prepare); [immutable glossary](../../../../glossary.md#term-immutable))</span>
+- Keep [`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution) unchanged because the schedule already makes the recipe reachable.
 - Use primitive dense coordinates and arrays only; add no ID, map, registry, route model, or
-  generic payload.
+  generic payload.<span data-glossary-navigation="true"> ([registry glossary](../../../../glossary.md#term-registry); [model glossary](../../../../glossary.md#term-model); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication))</span>
 
 ## Known limitations
 
 - Runtime cannot prove that backend work copied correct bytes; concrete backend tests must verify
-  physical semantics and failure behavior.
+  physical semantics and failure behavior.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [backend glossary](../../../../glossary.md#backend))</span>
 - A failed backend action may have partially modified destination storage, but the destination
-  remains invalid and Runtime performs no rollback.
+  remains invalid and Runtime performs no rollback.<span data-glossary-navigation="true"> ([rollback glossary](../../../../glossary.md#term-rollback))</span>
 - No automatic source choice, route search, multi-hop copy, or fallback exists; the prepared
   recipe names exactly one source and destination pair.
 - No execution-output invalidation or freshness policy exists. Runtime 0010 must define explicit
   executable transitions without changing this transfer contract silently.
 - Schedules remain immutable recipes rather than validated runnable programs; Prepare 0003 and
-  Runtime 0010 remain future owners.
-- All representations remain resident until state closure; there is no lazy creation or eviction.
-- No concrete backend, runner, publication/result, or Engine lifecycle consumes the contract yet.
+  Runtime 0010 remain future owners.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [Prepare glossary](../../../../glossary.md#prepare))</span>
+- All representations remain resident until state closure; there is no [lazy](../../../../glossary.md#term-lazy-evaluation) creation or eviction.
+- No [concrete backend](../../../../glossary.md#concrete-backend), runner, [publication](../../../../glossary.md#term-publication)/result, or [Engine](../../../../glossary.md#term-engine) [lifecycle](../../../../glossary.md#lifecycle) consumes the contract yet.
 - The task does not require a production backend, so direct-reference behavior is demonstrated
-  and locked with local concrete test subclasses and source/bytecode inspection.
+  and locked with local concrete test subclasses and source/bytecode inspection.<span data-glossary-navigation="true"> ([bytecode glossary](../../../../glossary.md#term-bytecode))</span>
 - Repository-wide, architecture, conformance, and integration validation remain deferred for the
-  reasons in the validation section.
+  reasons in the validation section.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance); [validation glossary](../../../../glossary.md#term-validation))</span>
 
 ## Architecture impact
 
 Expected impact: None.
 
-The architecture already assigns explicit prepared transfer/materialization work and per-run
-validity to Runtime, physical transfer/access mechanics to concrete backends, and heterogeneous
-compatibility to cold binding. This task implements that contract without a new dependency,
-ownership rule, architecture decision, or `PreparedExecution` component.
+The architecture already assigns explicit prepared transfer/[materialization](../../../../glossary.md#materialization) work and per-[run](../../../../glossary.md#term-run)
+validity to [Runtime](../../../../glossary.md#term-runtime), physical transfer/access mechanics to concrete [backends](../../../../glossary.md#backend), and [heterogeneous](../../../../glossary.md#term-heterogeneous)
+compatibility to cold [binding](../../../../glossary.md#term-binding). This task implements that contract without a new [dependency](../../../../glossary.md#term-dependency),
+[ownership](../../../../glossary.md#term-ownership-meanings) rule, architecture decision, or [`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution) component.
 
-If implementation requires another module edge, a second materialization concept, route search,
-allocation, hidden coherence, or a completed signature change, stop and report the exact conflict.
+If implementation requires another [module](../../../../glossary.md#term-module) edge, a second materialization concept, route search,
+allocation, hidden coherence, or a completed [signature](../../../../glossary.md#term-signature) change, stop and report the exact conflict.
 
 ## Implementation prompt
 
@@ -797,13 +797,13 @@ follow-up, and the repository completion status. Do not commit or push.
   rename them or replace them with records/interfaces.
 - `execute()` is the common final transition method and `executeTransfer()` is the sole backend
   hot hook, mirroring the established final-template pattern without conflating it with executable
-  computation.
+  computation.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend))</span>
 - Bound association coordinates are retained as primitive fields so final cold binding can reject
-  a backend-created object for the wrong state or positions without reflection or a registry.
+  a backend-created object for the wrong state or positions without reflection or a registry.<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [binding glossary](../../../../glossary.md#term-binding); [registry glossary](../../../../glossary.md#term-registry))</span>
 - Exact validation messages are part of the contract and tests because they locate cold binding
-  failures before physical work.
+  failures before physical work.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
 
-## Validation evidence
+## [Validation](../../../../glossary.md#term-validation) evidence
 
 - Implementation context: `019fbe31-7ba9-7b20-b4ca-c7a5ea9cf4d9`
   (`/root/runtime_0008_impl`). The final focused pass reported 31 tests: 8
@@ -814,71 +814,71 @@ follow-up, and the repository completion status. Do not commit or push.
 - Documentation context: `/root/runtime_0008_docs`. It independently inspected the actual diff,
   relevant architecture and planning contracts, current source/tests, affected Javadocs, and the
   General, API/Javadoc, Architecture, Backend Guide, Planning, and Example documentation profiles.
-  It reused the successful Java evidence and did not repeat Java tests.
+  It reused the successful Java evidence and did not repeat Java tests.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [Javadoc glossary](../../../../glossary.md#term-javadoc); [Backend glossary](../../../../glossary.md#backend))</span>
 - `./gradlew :modules:runtime:javadoc` completed successfully with five actionable tasks, one
-  executed and four up-to-date. Generated pages for `PreparedBufferTransfer`,
-  `BoundBufferTransfer`, `PreparedSchedule.BufferTransferStep`, and both affected package
+  executed and four up-to-date. Generated pages for [`PreparedBufferTransfer`](../../../../glossary.md#prepared-buffer-transfer--preparedbuffertransfer),
+  [`BoundBufferTransfer`](../../../../glossary.md#bound-buffer-transfer--boundbuffertransfer), `PreparedSchedule.BufferTransferStep`, and both affected package
   summaries were inspected for the exact transfer/materialization, identity, lifecycle,
-  validity, failure, direct-reference, threading, and current-versus-planned boundaries.
+  validity, failure, direct-reference, threading, and current-versus-planned boundaries.<span data-glossary-navigation="true"> ([materialization glossary](../../../../glossary.md#materialization); [identity glossary](../../../../glossary.md#term-identity-meanings); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - `/tmp/validate_synaptik_markdown.py` validated all eight affected Markdown files. The validator
   checked local targets and anchors, unique effective anchors, balanced backtick and tilde
-  fences, final newlines, and trailing whitespace.
+  fences, final newlines, and trailing whitespace.<span data-glossary-navigation="true"> ([targets glossary](../../../../glossary.md#term-target))</span>
 - `javap -p` confirmed the exact compiled prepared/bound class surfaces, package-private final
-  bound-association accessors, unchanged `PreparedSchedule` record surface, the exact sealed
+  bound-association accessors, unchanged [`PreparedSchedule`](../../../../glossary.md#prepared-schedule--preparedschedule) record surface, the exact [sealed](../../../../glossary.md#term-sealed)
   `Step` family, and the sole `BufferTransferStep` addition. `javap -p -c` confirmed that hot
   `BoundBufferTransfer.execute()` performs only destination-valid no-op, source-valid rejection,
   one direct backend hook, and success-only destination validity.
 - Source and test inspection confirmed exact construction/binding order and diagnostics, direct
-  concrete `source` and `destination` fields in the test bound subclass, the required validity
+  concrete <span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding))</span>`source` and `destination` fields in the test bound subclass, the required validity
   transitions and failure propagation, and absence of forbidden hot-path imports or mechanisms.
 - `git diff --exit-code` confirmed no changes to the named unaffected Runtime contracts, Prepare,
   Compile, Tensor, Training, build files, architecture contract, ADRs, focused lifecycle/module/
   dependency documents, or architecture tests. Scope inspection confirmed exactly the authorized
   16 paths, no Java/test path outside Runtime, and no Runtime 0009-0011 or Prepare 0003 detailed
-  specification.
+  specification.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [Prepare glossary](../../../../glossary.md#prepare); [Compile glossary](../../../../glossary.md#compile); [Tensor glossary](../../../../glossary.md#tensor); [architecture contract glossary](../../../../glossary.md#architecture-contract); [module glossary](../../../../glossary.md#term-module); [dependency glossary](../../../../glossary.md#term-dependency); [Scope glossary](../../../../glossary.md#term-scope))</span>
 - `git diff --check` and the final status/scope/planning-state gates passed after this evidence was
   recorded. Runtime 0001-0007 and Prepare 0001-0002 remain Complete; Runtime 0008 is Complete;
   Runtime 0009-0011 and Prepare 0003 remain Draft.
 
 ## Implementation notes
 
-- Added the exact immutable `PreparedBufferTransfer` recipe and per-run `BoundBufferTransfer`
+- Added the exact [immutable](../../../../glossary.md#term-immutable) [`PreparedBufferTransfer`](../../../../glossary.md#prepared-buffer-transfer--preparedbuffertransfer) recipe and per-[run](../../../../glossary.md#term-run) [`BoundBufferTransfer`](../../../../glossary.md#bound-buffer-transfer--boundbuffertransfer)
   template in Runtime execution. Cold binding resolves and checks the two already-created
-  representations once and validates the exact returned state and coordinates.
+  representations once and validates the exact returned state and coordinates.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [binding glossary](../../../../glossary.md#term-binding))</span>
 - Added only `PreparedSchedule.BufferTransferStep` to the closed schedule family. Existing exact-
-  plan validation, encounter order, immutability, and creation-prefix behavior remain intact.
+  plan validation, encounter order, immutability, and creation-prefix behavior remain intact.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
 - The final hot action makes an already-valid destination a no-op, rejects an invalid source,
   calls backend work once, and marks only the destination valid after success. Backend failure
-  leaves Runtime validity unchanged and propagates unchanged.
+  leaves Runtime validity unchanged and propagates unchanged.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend))</span>
 - Finalized all affected class, method, record, and package Javadocs. Runtime/Public API,
   focused-boundary, backend-author, glossary, master-plan, and roadmap documentation now describe
   materialization as this same transfer to an equivalent already-created representation and keep
   runner, executable-output invalidation, publication/result, Prepare orchestration, Engine, and
-  concrete backend implementation explicitly planned.
+  concrete backend implementation explicitly planned.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [materialization glossary](../../../../glossary.md#materialization); [publication glossary](../../../../glossary.md#term-publication); [Prepare glossary](../../../../glossary.md#prepare); [Engine glossary](../../../../glossary.md#term-engine); [concrete backend glossary](../../../../glossary.md#concrete-backend))</span>
 - No architecture contract, ADR, module edge, dependency, Gradle setting, Java version, or
-  concrete-backend/end-to-end behavior changed. `PreparedExecution`, `PreparedExecutable`,
-  `BoundInvocation`, representation creation, `RunState`, and their Javadocs remain accurate
+  concrete-backend/end-to-end behavior changed. <span data-glossary-navigation="true"> ([architecture contract glossary](../../../../glossary.md#architecture-contract); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [module glossary](../../../../glossary.md#term-module); [dependency glossary](../../../../glossary.md#term-dependency); [Gradle glossary](../../../../glossary.md#term-gradle))</span>[`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution), [`PreparedExecutable`](../../../../glossary.md#prepared-executable--preparedexecutable),
+  [`BoundInvocation`](../../../../glossary.md#bound-invocation--boundinvocation), representation creation, [`RunState`](../../../../glossary.md#run-state--runstate), and their Javadocs remain accurate
   because this is a parallel action contract. Prepare Java/Javadocs remain unchanged because
   public orchestration and complete runnable-schedule validation remain Draft Prepare 0003.
   Compile, Tensor, and Training APIs remain unchanged because physical coordinates and validity
   are Runtime-only facts. Config, Trace, Backend Contract, Engine, other guides, architecture
   tests, backend conformance, and integration remain unchanged because no consumer, concrete
-  implementation, module edge, or runnable lifecycle was added.
+  implementation, module edge, or runnable lifecycle was added.<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span><span data-glossary-navigation="true"> ([Compile glossary](../../../../glossary.md#compile); [Tensor glossary](../../../../glossary.md#tensor); [Trace glossary](../../../../glossary.md#trace); [conformance glossary](../../../../glossary.md#term-conformance); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 
 ## Completion summary
 
 - Completed changes: implemented and documented the reusable prepared transfer, per-run direct-
   reference bound action, success-only validity transition, and the one exact-plan schedule
-  occurrence.
+  occurrence.<span data-glossary-navigation="true"> ([run glossary](../../../../glossary.md#term-run); [occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 - Files changed or created: five Runtime production/Javadoc paths, three Runtime test paths, five
-  explanatory documentation paths, and three planning paths, exactly matching the 16-path ceiling.
+  explanatory documentation paths, and three planning paths, exactly matching the 16-path ceiling.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [Javadoc glossary](../../../../glossary.md#term-javadoc); [planning glossary](../../../../glossary.md#term-planning))</span>
 - Tests and validation: focused Runtime tests 31/31; final Runtime module tests 113/113; Runtime
   Javadoc successful; generated pages, compiled/reflection surface, hot bytecode, direct fields,
   forbidden mechanisms, Markdown, unchanged-area, scope, planning-state, and whitespace gates
-  passed.
-- Unresolved issues: none within task scope.
+  passed.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [module glossary](../../../../glossary.md#term-module); [bytecode glossary](../../../../glossary.md#term-bytecode))</span>
+- Unresolved issues: none within task [scope](../../../../glossary.md#term-scope).
 - Required follow-up: Runtime 0009-0011, Prepare 0003, concrete backend transfer mechanics, and
   end-to-end consumption remain their recorded Draft/future work and are not required for this
-  bounded contract.
+  bounded contract.<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [concrete backend glossary](../../../../glossary.md#concrete-backend))</span>
 
 Status: Complete

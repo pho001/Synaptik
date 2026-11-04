@@ -1,222 +1,222 @@
-# Task 0078: Temporary Java CPU low-arithmetic lock
+# Task 0078: Temporary Java [CPU](../../../../glossary.md#term-cpu) low-arithmetic lock
 
 ## Status
 
 Complete — independent final production/evidence/documentation APPROVE0 and MAIN's full affected
 gate/public consumers passed. The low implementation remains retained, not expanded; no final
-production-repository or whole-release qualification is claimed.
+production-repository or whole-[release](../../../../glossary.md#term-release) [qualification](../../../../glossary.md#term-qualification) is claimed.
 
 ## Change class
 
-Class C — capability, direct generated realization/cache reuse and fixed-recurrent admission.
-Clean implementation, independent code/Javadoc/contract review and actual consumer validation.
+Class C — capability, direct generated realization/[cache](../../../../glossary.md#term-cache) reuse and fixed-recurrent [admission](../../../../glossary.md#term-admission).
+Clean implementation, independent code/[Javadoc](../../../../glossary.md#term-javadoc)/contract review and actual consumer [validation](../../../../glossary.md#term-validation).
 
 ## Goal
 
-Temporarily reject BFLOAT16/FLOAT16 floating computation on the single CPU backend while keeping
-shared Model types, low host/storage/borrow/export, raw movement, initialized literals, all existing
-casts/conversions, INT32/INT64/BOOL control and exact represented-value semantics. No deletion,
-new low algorithm, runtime unlock flag, hidden F32 fallback or precision/profile object.
+Temporarily reject [BFLOAT16](../../../../glossary.md#term-bfloat16)/[FLOAT16](../../../../glossary.md#term-float16) floating computation on the single [CPU](../../../../glossary.md#term-cpu) [backend](../../../../glossary.md#backend) while keeping
+shared [Model](../../../../glossary.md#term-model) types, low [host](../../../../glossary.md#term-host)/storage/borrow/export, raw movement, initialized literals, all existing
+casts/conversions, [INT32](../../../../glossary.md#data-type--datatype)/[INT64](../../../../glossary.md#data-type--datatype)/[BOOL](../../../../glossary.md#data-type--datatype) control and exact represented-value semantics. No deletion,
+new low algorithm, [runtime](../../../../glossary.md#term-runtime) unlock flag, hidden [F32](../../../../glossary.md#floating-point-precision-and-rounding) fallback or [precision](../../../../glossary.md#term-precision)/profile object.
 
-[The reviewed matrix](../../../../backend-guide/production-support.md#temporary-java-low-computation-lock)
-sets the operation-sensitive boundary. Reject low numerical operand roles even with a promoted
-result: ADD/SUB/MUL/DIV/POW and numerical unary composites, MATMUL/convolution, SUM/MEAN/PROD,
-arithmetic/statistical/masked/cumulative reductions, average pooling, normalization, losses,
-attention, dropout scaling, floating scatter ADD/MUL, and CPU's zero-initialized fold addition.
-CPU FoldIr always declares addition from positive zero: do not invent a no-overlap/raw alternative
-or singleton exception. Fixed low RNN/GRU/LSTM compute is locked even for T/B=0 or all-zero lengths.
+[The reviewed matrix](../../../../backend-guide/production-support.md#temporary-java-low-computation-lock)<span data-glossary-navigation="true"> ([matrix glossary](../../../../glossary.md#term-matrix-meanings))</span>
+sets the [operation](../../../../glossary.md#operation)-sensitive boundary. Reject low numerical operand roles even with a promoted
+result: ADD/SUB/MUL/DIV/POW and numerical [unary](../../../../glossary.md#term-unary) composites, [MATMUL](../../../../glossary.md#matrix-multiplication--matmul)/[convolution](../../../../glossary.md#term-channels-first-convolution-layers), SUM/[MEAN](../../../../glossary.md#term-mean)/PROD,
+arithmetic/statistical/masked/cumulative reductions, average [pooling](../../../../glossary.md#term-pooling), [normalization](../../../../glossary.md#term-normalization), [losses](../../../../glossary.md#loss),
+attention, [dropout](../../../../glossary.md#dropout--inverted-dropout) scaling, floating [scatter ADD](../../../../glossary.md#scatter-add)/MUL, and CPU's zero-initialized fold addition.
+CPU FoldIr always declares addition from [positive zero](../../../../glossary.md#nan-infinity-and-signed-zero): do not invent a no-overlap/raw alternative
+or [singleton](../../../../glossary.md#term-singleton) exception. Fixed low [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn)/[GRU](../../../../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../../../../glossary.md#term-long-short-term-memory-lstm) compute is locked even for T/B=0 or all-zero lengths.
 
 Preserve exact ABS/NEG/SIGN/FLOOR/CEIL/RELU/clamp, MIN/MAX including reductions/scatter, stored
-comparisons/classification/WHERE, ordering/arg-extrema/max pooling, raw affine/movement/indexing/
-replacement, explicit casts and raw state/mask transitions under their existing predicates. Do not
-ban a partition merely because it contains low storage. State/mask control is not arithmetic;
+comparisons/classification/WHERE, ordering/arg-[extrema](../../../../glossary.md#saturation-pole-and-extremum)/max pooling, raw affine/movement/indexing/
+replacement, explicit casts and raw state/[mask](../../../../glossary.md#term-boolean-mask) transitions under their existing predicates. Do not
+ban a [partition](../../../../glossary.md#partition) merely because it contains low storage. State/mask control is not arithmetic;
 INITIAL_STATE stays available, while low dropout's rescaling is locked without p=0 shortcuts.
 
-Explicit low parameter/storage -> F32 CAST -> F32 computation remains valid, with the ordinary
-last gradient/storage conversions and existing Training-owned F32-working optimizer updates.
+Explicit low [parameter](../../../../glossary.md#term-parameter)/storage -> F32 CAST -> F32 computation remains valid, with the ordinary
+last [gradient](../../../../glossary.md#term-gradient)/storage conversions and existing Training-owned F32-working [optimizer](../../../../glossary.md#term-optimizer) updates.
 The backend lock must not disable generic Training storage conversion/update algorithms.
 
 ## Contracts and prerequisite coordination
 
 - [Root invariants](../../../../../ARCHITECTURE.md#core-invariants): one Model semantics; current
-  low guarantees are implementation-retention facts, not an exception to the accepted CPU lock.
+  low guarantees are implementation-retention facts, not an exception to the accepted CPU lock.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [CPU glossary](../../../../glossary.md#term-cpu))</span>
 - [CPU0078 exact authority](../../../../architecture/contracts/backend-execution.md#cpu0078-temporary-low-arithmetic-lock),
   [low evidence](../../../../architecture/contracts/backend-execution.md#low-precision-capability-evidence)
-  and [identity](../../../../architecture/contracts/backend-execution.md#profile-free-backend-capability-and-identity).
-  Root/owning CPU-only lock and exact cold signatures are accepted; Metal and Model semantics stay.
-- [Prepare/runtime owners](../../../../architecture/contracts/runtime-prepare-engine.md#prepare-lifecycle)
-  retain slots, resource ownership and hot execution. No Runtime low-policy check or new protocol.
+  and [identity](../../../../architecture/contracts/backend-execution.md#profile-free-backend-capability-and-identity)<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>.
+  Root/owning CPU-only lock and exact cold signatures are accepted; Metal and Model semantics stay.<span data-glossary-navigation="true"> ([signatures glossary](../../../../glossary.md#term-signature); [Metal glossary](../../../../glossary.md#term-metal))</span>
+- [Prepare/runtime owners](../../../../architecture/contracts/runtime-prepare-engine.md#prepare-lifecycle)<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [runtime glossary](../../../../glossary.md#term-runtime))</span>
+  retain slots, resource ownership and hot execution. No Runtime low-policy check or new protocol.<span data-glossary-navigation="true"> ([resource ownership glossary](../../../../glossary.md#term-resource-ownership))</span><span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership))</span>
 - [Product authorization](../../../production-release-goal.md#java-cpu-target) requires the lock;
-  independent review resolves source/seam concerns without a duplicate operation registry.
+  independent review resolves source/seam concerns without a duplicate operation registry.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [registry glossary](../../../../glossary.md#term-registry))</span>
 
-## Concrete ownership and proposed cold seams
+## Concrete [ownership](../../../../glossary.md#term-ownership-meanings) and proposed cold seams
 
-No new/moved production type, package, public facade, dependency or opcode ordinal. Existing
+No new/moved production type, package, public [facade](../../../../glossary.md#term-facade), [dependency](../../../../glossary.md#term-dependency) or [opcode](../../../../glossary.md#term-opcode) ordinal. Existing
 CpuPointwiseOpcode owns one numerical-versus-exact opcode distinction, reused through the existing
-operation-to-opcode mapping. Existing internal.lowering.CpuPartitionLowering owns the CPU-local
-availability checks, not a new policy/service/registry. Accepted exact cold-only signatures:
+[operation](../../../../glossary.md#operation)-to-opcode mapping. Existing internal.[lowering](../../../../glossary.md#lowering).CpuPartitionLowering owns the [CPU](../../../../glossary.md#term-cpu)-local
+availability checks, not a new policy/service/[registry](../../../../glossary.md#term-registry). Accepted exact cold-only [signatures](../../../../glossary.md#term-signature):
 
 - `public static boolean permitsLowPrecisionUse(OperationCapabilityQuery query)`;
 - `public static void requirePermittedLowPrecisionUse(CpuPortableKernelIr ir)`;
 - `public static void requirePermittedLowPrecisionUse(CpuKernelSpecialization specialization, CpuKernelIr ir)`.
 
-These methods are unsupported backend-internal API despite cross-package public visibility.
-The query predicate never calls provider.supports, recurrent/general-Scan analysis or the
+These methods are unsupported [backend](../../../../glossary.md#backend)-internal [API](../../../../glossary.md#term-application-programming-interface-api) despite cross-package public visibility.
+The query predicate never calls provider.supports, recurrent/general-[Scan](../../../../glossary.md#term-cumulative-scan) analysis or the
 CpuPartitionLowering constructor. Generalize the one existing `opcode(CompiledNode)` mapping to
 `opcode(OperationKind)` and migrate Lowering, GeneralScanLowering and DagDecomposer callers;
-do not copy a provider mapping. POW remains numerical even under IDENTITY/POSITIVE_ONE realization.
+do not copy a provider mapping. POW remains numerical even under [IDENTITY](../../../../glossary.md#term-identity-meanings)/POSITIVE_ONE realization.
 The opcode property is `usesFloatingArithmetic()`. Authorized narrow getters are existing
 CpuAggregateIr/CpuPool2dIr/CpuPool3dIr.encodedKind(CpuKernelIr), CpuScatterIr.encodedReduction
 and CpuRandomIr.encodedFamily, returning only their existing semantic enums; see exact authority.
 
-Use the existing exact typed family metadata/encoding owners. Do not copy shape inference,
-normalization/convolution/fold mathematics, parse a second ad-hoc family registry or convert a
-query into a fake graph. Pointwise checks inspect actual numerical inputs and virtual values,
+Use the existing exact typed family [metadata](../../../../glossary.md#term-metadata)/encoding [owners](../../../../glossary.md#term-owner). Do not copy [shape](../../../../glossary.md#shape) [inference](../../../../glossary.md#term-inference),
+[normalization](../../../../glossary.md#term-normalization)/[convolution](../../../../glossary.md#term-channels-first-convolution-layers)/fold mathematics, parse a second ad-hoc family registry or convert a
+query into a fake [graph](../../../../glossary.md#graph). [Pointwise](../../../../glossary.md#term-pointwise) checks inspect actual numerical inputs and virtual values,
 not every low boundary indiscriminately; explicit CAST boundaries stay meaningful. The shared
-policy is compile-time backend admission, not a selectable production mode.
+policy is [compile](../../../../glossary.md#compile)-time backend [admission](../../../../glossary.md#term-admission), not a selectable production mode.
 Only narrow semantic-discriminator access on the existing aggregate/pool/scatter/random encoding
 owners is permitted, shared with their existing emitter decoder where needed. No general
 decoder, geometry reconstruction or decode-record allocation just for availability. Authenticate
-the facts emission actually consumes: typed MATMUL encoding/key must agree with its envelope,
+the facts emission actually consumes: typed [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) encoding/key must agree with its envelope,
 and both actual represented operands are checked, not only the promoted output.
 
 Migrate `CpuClassFileKernelGenerator.defineClassBytes` to `(specialization, kernelIr, classBytes)`
-so direct byte definition can authenticate the current exact IR before definition, just like fresh
-generation. Migrate every caller/test; retain no two-argument bypass or compatibility shim. Existing
+so direct byte definition can authenticate the current exact [IR](../../../../glossary.md#term-intermediate-representation-ir) before definition, just like fresh
+generation. Migrate every caller/test; retain no two-[argument](../../../../glossary.md#term-argument) bypass or compatibility shim. Existing
 verify-only class-shape inspection need not execute/admit an otherwise locked algorithm.
 
-## Independent admission boundaries
+## Independent [admission](../../../../glossary.md#term-admission) boundaries
 
 1. CpuCapabilityProvider and direct ordinary/family/fixed-recurrent lowering reject locked source
-   occurrences, before absorbed-one/count/fusion paths erase source roles.
+   occurrences, before absorbed-one/count/fusion paths erase source roles.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [fusion glossary](../../../../glossary.md#term-fusion))</span>
 2. Direct preparer/retained lowered plans authenticate typed facts independently before resources,
    candidates or generated realization; all CPU routes obey the lock, with no native escape.
    Sweep analyze/analyzeSelected/completePlanCandidates before declarations/candidates. In
    finalization, sweep retained semantic units AND actual represented portable plans before
-   realizing copies/children or configuring native resources; representationUnits can substitute plans.
+   realizing copies/children or configuring native resources; representationUnits can substitute plans.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>
 3. ArtifactStore authenticates current IR/policy before weak-intern or trusted-root hits; generator
    fresh emission and direct byte definition independently reject. Never silently retry old low code.
    The low CpuConstantWriteIr / constant-write-v1 physical family is explicitly rejected too:
    it represents arithmetic SUM-derived counts whose source roles have been erased, not original
    graph-literal initialization. Reject it at typed/envelope/retained-finalization admission.
    Shared Prepare's original low graph-literal initialization remains available. Cache policy
-   rejection stays outside persisted catches and must not turn into miss/regeneration.
+   rejection stays outside persisted catches and must not turn into miss/regeneration.<span data-glossary-navigation="true"> ([IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [constant glossary](../../../../glossary.md#term-constant); [graph glossary](../../../../glossary.md#graph); [Prepare glossary](../../../../glossary.md#prepare); [Cache glossary](../../../../glossary.md#term-cache))</span>
 4. Fixed recurrent lowering/preparer/executable binds only current F32/F64 computation; retained
    concrete low kernels are not removed or reimplemented. Raw primitive/storage helpers are not
    themselves an executable backend admission API.
 Direct MATMUL checks both lowering overloads at lowerRecognized, including recognized/fused
 decomposer paths that previously lacked anchor-provider admission. Fixed executable construction
 checks before zero-scratch decisions or concrete low-kernel construction. Existing OpenBLAS
-routes are already F32/F64-only and remain so; no native algorithm change.
+routes are already F32/F64-only and remain so; no native algorithm change.<span data-glossary-navigation="true"> ([F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [kernels glossary](../../../../glossary.md#kernel); [backend glossary](../../../../glossary.md#backend); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [fused glossary](../../../../glossary.md#specialization-and-fusion); [kernel glossary](../../../../glossary.md#kernel); [OpenBLAS glossary](../../../../glossary.md#term-openblas))</span>
 
 Keep the policy outside hot loops and avoid unnecessary cold object allocation/copying. Inspect
-internal low values and specialized instruction-free envelopes, mixed/promoted MATMUL operand
+internal low values and specialized instruction-free envelopes, mixed/promoted [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) operand
 roles, low-only source folds, and T/B=0/all-inactive cases. Early no-work must not bypass admission.
-Unchanged retained/allowed emitted code requires no arbitrary global generator/ABI bump; any real
-changed bytes/facts need their owning selective identity decision before code.
+Unchanged retained/allowed emitted code requires no arbitrary global generator/[ABI](../../../../glossary.md#term-application-binary-interface-abi) bump; any real
+changed bytes/facts need their owning selective [identity](../../../../glossary.md#term-identity-meanings) decision before code.
 
 ## Dependencies and integration
 
-- Depends on: reviewed scope freeze, complete CPU0077 integration, reviewed seams and authority.
+- Depends on: reviewed [scope](../../../../glossary.md#term-scope) freeze, complete CPU0077 integration, reviewed seams and authority.
 - Conflicts with: CPU provider/lowering/preparer/IR/generator/cache/fixed execution, current low
-  ledger and affected tests. Serialize the entire CPU source cutover; no all-PURE Scan writer.
-- Parallel group: RELEASE-CPU78-LIFECYCLE; sole CPU writer, disjoint Engine0022 cleanup scope.
+  ledger and affected tests. Serialize the entire CPU source cutover; no all-PURE Scan writer.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [cache glossary](../../../../glossary.md#term-cache); [PURE glossary](../../../../glossary.md#term-pure); [Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+- Parallel group: [RELEASE](../../../../glossary.md#term-release)-CPU78-[LIFECYCLE](../../../../glossary.md#lifecycle); sole [CPU](../../../../glossary.md#term-cpu) writer, disjoint Engine0022 cleanup scope.
 - Common base revision: `07a281edd3086efde2853211b71b48288db027e1` plus accepted post-CPU0077
   cpu0078-base.json and MAIN's authority-only Engine0022 addendum. No CPU source/semantics change
   accompanies that clarification; MAIN synchronizes its named documents into the isolated worktree.
 - Integration order: scoped approval/authority -> isolated implementation -> independent review ->
-  MAIN gates/public low-storage/negative compute smoke -> later all-PURE composition/final RC join.
+  MAIN gates/public low-storage/negative compute smoke -> later all-PURE composition/final RC join.<span data-glossary-navigation="true"> ([smoke glossary](../../../../glossary.md#term-smoke-test))</span>
 - Integration validation: final CPU/Javadoc gate, low-ledger/current conformance, TrainingSessionCpu,
   plain-JVM/MLP/CNN/RNN and new low-negative/raw controls; MAIN groups focused selectors once source
-  and independent review stabilize, then unchanged LowLockProductionSmoke after and later RC join.
-- Shared-document integration owner: MAIN; worker owns only declared CPU/test/ledger source.
+  and independent review stabilize, then unchanged LowLockProductionSmoke after and later RC join.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [Javadoc glossary](../../../../glossary.md#term-javadoc); [conformance glossary](../../../../glossary.md#term-conformance); [JVM glossary](../../../../glossary.md#term-java-virtual-machine-jvm); [MLP glossary](../../../../glossary.md#term-multilayer-perceptron-mlp); [CNN glossary](../../../../glossary.md#term-convolutional-neural-network-cnn); [RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn))</span>
+- Shared-document integration [owner](../../../../glossary.md#term-owner): MAIN; worker owns only declared CPU/test/ledger source.
 
 ## Acceptance and test changes
 
-Both low dtypes reject arithmetic across source/provider, direct typed generation/definition,
-pre-cache reuse and fixed execution, including promoted outputs and empty/inactive domains. Valid
-F32/F64 arithmetic and low-storage explicit F32 computation remain exercised. Check exact raw bits,
-signed zero/subnormals, winner/tie/index/mask/state results and all existing conversions.
+Both low [dtypes](../../../../glossary.md#data-type--datatype) reject arithmetic across source/provider, direct typed generation/definition,
+pre-[cache](../../../../glossary.md#term-cache) reuse and fixed execution, including promoted outputs and empty/inactive domains. Valid
+[F32](../../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../../glossary.md#floating-point-precision-and-rounding) arithmetic and low-storage explicit F32 computation remain exercised. Check exact [raw bits](../../../../glossary.md#storage-mapping-contiguity-and-injectivity),
+[signed zero](../../../../glossary.md#term-signed-zero)/[subnormals](../../../../glossary.md#term-subnormal), winner/tie/index/[mask](../../../../glossary.md#term-boolean-mask)/state results and all existing conversions.
 
-Update current ledger v2 from actual provider answers, never historical v1 or Metal rows. Keep an
+Update current ledger v2 from actual provider answers, never historical v1 or [Metal](../../../../glossary.md#term-metal) rows. Keep an
 honest coverage inventory: low numerical rows become explicit unsupported outcomes, not skipped,
 deleted from the domain or falsely GENERATED. Remove incidental exact-count/name/wording pins;
-do not re-pin new totals. Permanent tests target consumer-visible unsupported behavior, storage
-preservation, current admission and stale-artifact rejection, not mock echoes/source-text checks.
+do not re-pin new totals. Permanent tests [target](../../../../glossary.md#term-target) consumer-visible unsupported behavior, storage
+preservation, current [admission](../../../../glossary.md#term-admission) and stale-[artifact](../../../../glossary.md#term-artifact) rejection, not [mock](../../../../glossary.md#term-mock) echoes/source-text checks.
 
-Existing softmax validators/reference/emitters keep their retained low implementation; newly
+Existing [softmax](../../../../glossary.md#softmax--log-softmax) validators/reference/emitters keep their retained low implementation; newly
 unsupported generation/consumer cases must become meaningful capability negatives. Do not expand
-or numerically repair the frozen low implementation. Tests run once by MAIN after stable review;
-worker skips build/lint/tests/formatters. Javadoc reflects current admission and retained semantics.
+or numerically repair the frozen low implementation. Tests [run](../../../../glossary.md#term-run) once by MAIN after stable review;
+worker skips build/lint/tests/formatters. [Javadoc](../../../../glossary.md#term-javadoc) reflects current admission and retained semantics.
 
-Independent pre-Ready review: one P2 count-write ambiguity identified; the explicit physical-family
-rejection above resolves lost source provenance without a new type/fact or blocking original
-literals. Opcode mapping, exact encoded-discriminator reuse, typed MATMUL consistency and actual
+Independent pre-[Ready](../../../../glossary.md#term-ready) review: one P2 count-write ambiguity identified; the explicit physical-family
+rejection above resolves lost [source provenance](../../../../glossary.md#term-source-provenance) without a new type/fact or blocking original
+literals. [Opcode](../../../../glossary.md#term-opcode) mapping, exact encoded-discriminator reuse, typed [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) consistency and actual
 representation-finalization boundaries are part of this packet, not follow-up work.
 
-MAIN Ready verification: complete predecessors, accepted reviewed scope, sole frontier/inactive
-conflicts and exact root/CPU authority verified before launch. ADR0060 records the Class C decision;
-no new production type/dependency, emitter mathematics, scheduler/native/ABI or schema change.
+MAIN Ready verification: complete predecessors, accepted reviewed [scope](../../../../glossary.md#term-scope), sole frontier/inactive
+conflicts and exact root/[CPU](../../../../glossary.md#term-cpu) authority verified before launch. ADR0060 records the Class C decision;
+no new production type/[dependency](../../../../glossary.md#term-dependency), emitter mathematics, scheduler/native/[ABI](../../../../glossary.md#term-application-binary-interface-abi) or [schema](../../../../glossary.md#term-schema) change.
 Before evidence: actual public low ADD and explicit F32/cast-back/exact raw ABS for both types,
-plus INT64 arithmetic. The BF16 successful prefix and corrected separate FP16 run are retained;
+plus [INT64](../../../../glossary.md#data-type--datatype) arithmetic. The [BF16](../../../../glossary.md#floating-point-precision-and-rounding) successful prefix and corrected separate [FP16](../../../../glossary.md#term-fp16) run are retained;
 original wrong-FP16-import command stays FAILED, not relabeled PASS.
 
-Genuine old ADD artifacts (BF16 class projection59, F16 projection68) were generated/defined by
-the unmodified old generator in low-lock-authentic-legacy, with class/identity/compatibility/key
-payloads and provenance.json. Use these for stale-artifact fixtures without a production bypass;
-retain honest failed-first/corrected-F16 capture evidence. Do not regenerate them after the lock.
+Genuine old ADD artifacts (BF16 class projection59, [F16](../../../../glossary.md#floating-point-precision-and-rounding) projection68) were generated/defined by
+the unmodified old generator in low-lock-authentic-legacy, with class/[identity](../../../../glossary.md#term-identity-meanings)/compatibility/key
+payloads and [provenance](../../../../glossary.md#provenance).json. Use these for stale-artifact fixtures without a production bypass;
+retain honest failed-first/corrected-F16 [capture](../../../../glossary.md#term-capture-meanings) evidence. Do not regenerate them after the lock.
 
 ## Result
 
 Complete after independent final production, evidence and documentation acceptance. No
-full-production repository checkpoint or release-readiness claim follows.
+full-production repository [checkpoint](../../../../glossary.md#term-checkpoint) or [release](../../../../glossary.md#term-release)-readiness claim follows.
 
-The 23 production files use the existing opcode mapper and CpuPartitionLowering availability
-owner. Provider/source, portable and encoded retained IR, all preparation paths, fresh generation,
-direct definition, persisted/weak cache reuse and direct fixed recurrence reject low numerical
+The 23 production files use the existing [opcode](../../../../glossary.md#term-opcode) mapper and CpuPartitionLowering availability
+[owner](../../../../glossary.md#term-owner). Provider/source, portable and encoded retained [IR](../../../../glossary.md#term-intermediate-representation-ir), all preparation paths, fresh generation,
+direct definition, persisted/weak [cache](../../../../glossary.md#term-cache) reuse and direct fixed recurrence reject low numerical
 operand roles before execution/resources. Direct definition requires spec+actual IR+bytes; no
-two-argument bypass, unlock flag, new production type/profile or duplicated arithmetic remains.
+two-[argument](../../../../glossary.md#term-argument) bypass, unlock flag, new production type/profile or duplicated arithmetic remains.
 Exact/discrete/raw/conversion/storage behavior and the original literal initialization are retained.
-The ordinary symbolic MATMUL typed/envelope seam authenticates its actual existing encoding;
+The ordinary symbolic [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) typed/envelope seam authenticates its actual existing encoding;
 qualified generated keys/classes are preserved, not globally versioned.
 
 MAIN checked every child SHA and frozen MAIN preimage before exact integration. Independent
 Cpu0078DesignReview approved production and its MATMUL correction; Cpu78BehaviorReview and
-Cpu78CatalogReview approved final disjoint fixture repairs and resource/evidence changes.
-Obsolete count/wording pins were deleted, not repinned. The copy-only Gap JUnit test was replaced
-by the non-JUnit CpuSpecializedSemanticClosureInventory CLI; actual semantic-execution owners
-and the complete canonical owner universe remain. Its seven-column derived resource records
-EXACT_ROW_OUTCOME_OWNERS, not an execution certificate.
+Cpu78CatalogReview approved final disjoint [fixture](../../../../glossary.md#term-fixture) repairs and resource/evidence changes.
+Obsolete count/wording pins were deleted, not repinned. The copy-only Gap [JUnit](../../../../glossary.md#term-junit) test was replaced
+by the non-JUnit CpuSpecializedSemanticClosureInventory [CLI](../../../../glossary.md#term-cli); actual semantic-execution owners
+and the complete [canonical](../../../../glossary.md#term-canonical-form) owner universe remain. Its seven-column derived resource records
+EXACT_ROW_OUTCOME_OWNERS, not an execution [certificate](../../../../glossary.md#formal-proof-certificate-and-trusted-assumptions).
 
 Actual current rendering retains all 41,601 original owner IDs/forms. All 8,700 still-generated
 rows are literal-equal in all 27 fields, including IR/entry/key/class bytes. Original low-typed
 numerical occurrences account for 32,636 generated-to-provider-rejected and eight former
-preparer-to-provider-rejected transitions; denied rows have actual false admission and no
-fabricated generated facts. Current v2 retains 290 original queries with 54 CPU-only support
-losses; all 145 Metal rows and historical v1 remain literal. The real non-JUnit CLI preserves
+preparer-to-provider-rejected transitions; denied rows have actual false [admission](../../../../glossary.md#term-admission) and no
+fabricated generated facts. Current v2 retains 290 original queries with 54 [CPU](../../../../glossary.md#term-cpu)-only support
+[losses](../../../../glossary.md#loss); all 145 [Metal](../../../../glossary.md#term-metal) rows and historical v1 remain literal. The real non-JUnit CLI preserves
 all 29 derived forms/raw counts/owner methods and independently checked current group counts.
 
 MAIN's final affected command passed (artifact549/bg99, 177.03s):
 `:backends:cpu:test/javadoc/jar`, `:testing:backend-conformance:test`,
 `:testing:integration-tests:test --tests '*TrainingSessionCpuIntegrationTest'`,
-`:modules:engine:test/javadoc`. CPU: 1,471 passed/60 skipped; conformance: 83 passed; Training CPU:
-eight passed/two Metal-configured skips; Engine: 154 passed/two skips; zero failures/errors.
-The 60 CPU skip identities are unchanged from the first full gate; retain their complete
+`:modules:engine:test/javadoc`. CPU: 1,471 passed/60 skipped; [conformance](../../../../glossary.md#term-conformance): 83 passed; Training CPU:
+eight passed/two Metal-configured skips; [Engine](../../../../glossary.md#term-engine): 154 passed/two skips; zero failures/errors.
+The 60 CPU skip [identities](../../../../glossary.md#term-identity-meanings) are unchanged from the first full gate; retain their complete
 performance/diagnostic/evidence list, not an assertion that all are timing tests. The final
 command executed two tasks and reused 51 unchanged task results, including unaffected component
-and Javadoc/jar evidence. CPU test execution was fresh after the reviewed repairs.
+and [Javadoc](../../../../glossary.md#term-javadoc)/jar evidence. CPU test execution was fresh after the reviewed repairs.
 
-Unchanged actual public before/after low consumers now reject BF16/F16 ADD while explicit
-F32 computation/cast-back, raw ABS signed-zero/subnormal controls and INT64 arithmetic pass.
-A separate real TrainingSession consumer passes both low storage types with six changing-target
-steps, exact F32 master bits, logical narrowing, prepared-graph reuse, snapshot restoration and
-fresh resumed steps; caller-owned Arena lifetime remains intact. This is retained F32 work,
-not low numerical backend expansion.
+Unchanged actual public before/after low consumers now reject [BF16](../../../../glossary.md#floating-point-precision-and-rounding)/[F16](../../../../glossary.md#floating-point-precision-and-rounding) ADD while explicit
+[F32](../../../../glossary.md#floating-point-precision-and-rounding) computation/cast-back, raw ABS [signed-zero](../../../../glossary.md#nan-infinity-and-signed-zero)/[subnormal](../../../../glossary.md#term-subnormal) controls and [INT64](../../../../glossary.md#data-type--datatype) arithmetic pass.
+A separate real [TrainingSession](../../../../glossary.md#training-session--trainingsession) consumer passes both low storage types with six changing-[target](../../../../glossary.md#term-target)
+steps, exact F32 master bits, logical [narrowing](../../../../glossary.md#term-narrowing), prepared-[graph](../../../../glossary.md#graph) reuse, [snapshot](../../../../glossary.md#term-snapshot) restoration and
+fresh resumed steps; caller-owned [Arena](../../../../glossary.md#term-arena) [lifetime](../../../../glossary.md#term-lifetime) remains intact. This is retained F32 work,
+not low numerical [backend](../../../../glossary.md#backend) expansion.
 
-Evidence lives in MAIN's source-snapshot run directory: cpu0078-final-gate-evidence.json and
+Evidence lives in MAIN's source-snapshot [run](../../../../glossary.md#term-run) directory: cpu0078-final-gate-evidence.json and
 copied XML; cpu0078-public-after-evidence.json; cpu0078-low-master-evidence.json;
-cpu0078-actual-resource-authentication.json; cpu0078-specialized-inventory-authentication.json;
+cpu0078-actual-resource-[authentication](../../../../glossary.md#term-authentication).json; cpu0078-specialized-inventory-authentication.json;
 exact cumulative/integration manifests. Failed attempts 450/462/480/487/496/502 stay FAILED:
-compile/fixture repairs, first snapshot comparisons and the wrong-task selection were not
-relabelled as passes. Genuine old BF16/F16 ADD class/identity/compatibility/key payloads and
-their capture provenance remain, never regenerated through a current production bypass.
+[compile](../../../../glossary.md#compile)/fixture repairs, first snapshot comparisons and the wrong-task selection were not
+relabelled as passes. Genuine old BF16/F16 ADD class/[identity](../../../../glossary.md#term-identity-meanings)/compatibility/key payloads and
+their [capture](../../../../glossary.md#term-capture-meanings) [provenance](../../../../glossary.md#provenance) remain, never regenerated through a current production bypass.

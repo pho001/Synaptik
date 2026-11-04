@@ -1,4 +1,4 @@
-# Task 0003: Ownership Candidates and Baseline Scoring
+# Task 0003: [Ownership](../../../../glossary.md#term-ownership-meanings) Candidates and Baseline Scoring
 
 ## Status
 
@@ -6,11 +6,11 @@ Complete
 
 ## Goal
 
-Add the smallest planning-owned consumer of current per-query hard eligibility that compares the
-remaining backend ownership alternatives with the current optional device-class preference and
-deterministically returns one `BackendId` owner.
+Add the smallest [planning](../../../../glossary.md#term-planning)-owned consumer of current per-query hard eligibility that compares the
+remaining [backend ownership](../../../../glossary.md#backend-ownership) alternatives with the current optional [device](../../../../glossary.md#term-device)-class preference and
+deterministically returns one [`BackendId`](../../../../glossary.md#backend-identity--backendid) [owner](../../../../glossary.md#term-owner).
 
-Mental model:
+[Mental model](../../../../glossary.md#term-mental-model):
 
 ```text
 BackendEligibility.eligibleBackendIds() in provider encounter order
@@ -22,30 +22,30 @@ BackendEligibility.eligibleBackendIds() in provider encounter order
   -> one exact retained BackendId reference
 ```
 
-The hard-eligible identities are already the complete candidate set. This baseline needs no
-candidate record, numeric score, operation-family classification, workload bucket, cost profile,
-or public planner facade. It selects backend ownership only; it does not select a device, route,
-kernel, executable, partition, or runtime state.
+The hard-eligible [identities](../../../../glossary.md#term-identity-meanings) are already the complete candidate set. This baseline needs no
+candidate record, numeric score, [operation](../../../../glossary.md#operation)-family classification, workload bucket, cost profile,
+or public planner [facade](../../../../glossary.md#term-facade). It selects backend ownership only; it does not select a device, route,
+[kernel](../../../../glossary.md#kernel), executable, [partition](../../../../glossary.md#partition), or [runtime](../../../../glossary.md#term-runtime) state.
 
 ## Motivation
 
-Planning task 0002 deliberately represents a valid no-match outcome with an empty immutable list
-and defers terminal ownership-selection failure to its first consumer. Config task 0003 supplies
-one optional coarse `DeviceClass` preference but deliberately performs no evaluation. This task
-connects those two current facts with one deterministic backend-neutral baseline before maximal
-same-owner partitioning.
+[Planning](../../../../glossary.md#term-planning) task 0002 deliberately represents a valid no-match outcome with an empty [immutable](../../../../glossary.md#term-immutable) list
+and defers terminal [ownership](../../../../glossary.md#term-ownership-meanings)-selection failure to its first consumer. Config task 0003 supplies
+one optional coarse [`DeviceClass`](../../../../glossary.md#device-class--deviceclass) preference but deliberately performs no [evaluation](../../../../glossary.md#term-evaluation). This task
+connects those two current facts with one deterministic [backend](../../../../glossary.md#backend)-neutral baseline before maximal
+same-[owner](../../../../glossary.md#term-owner) partitioning.
 
-The discarded Config 0004 design attempted to define broad fixed and linear costs before a stable
+The discarded Config 0004 design attempted to define broad fixed and [linear](../../../../glossary.md#term-linear-meanings) costs before a stable
 consumer or workload classification existed. The current baseline consumes no cost quantity. It
-therefore establishes the exact current selection seam without inventing placeholder operation
+therefore establishes the exact current selection seam without inventing placeholder [operation](../../../../glossary.md#operation)
 families, workload buckets, profile units, or backend tuning vocabulary.
 
-## Scope
+## [Scope](../../../../glossary.md#term-scope)
 
 - Add package-private final class `BackendOwnerSelection` in
   `io.github.pho001.synaptik.planning.capability`.
 - Give the class exactly one private no-argument constructor and no instance state, interface,
-  nested type, enum, record component, builder, registry, service, or callback.
+  nested type, enum, record component, builder, registry, service, or callback.<span data-glossary-navigation="true"> ([argument glossary](../../../../glossary.md#term-argument); [registry glossary](../../../../glossary.md#term-registry); [callback glossary](../../../../glossary.md#term-callback))</span>
 - Add exactly one package-private static method:
 
   ```java
@@ -57,23 +57,23 @@ families, workload buckets, profile units, or backend tuning vocabulary.
 
 - Keep the selector in `planning.capability` for this task. `BackendEligibility` is deliberately
   package-private, and the current consumer is also internal. Putting the selector in the later
-  `ownership` package would require widening the completed eligibility result or adding a public
+  [`ownership`](../../../../glossary.md#term-ownership-meanings) package would require widening the completed eligibility result or adding a public
   bridge with no external compiler consumer. The focused colocated handoff is smaller and keeps
   Planning's public surface unchanged. A later public compiler-planning orchestration task must
-  reassess the external facade from its concrete aggregate consumer.
+  reassess the external facade from its concrete aggregate consumer.<span data-glossary-navigation="true"> ([widening glossary](../../../../glossary.md#term-widening); [compiler glossary](../../../../glossary.md#term-compiler); [handoff glossary](../../../../glossary.md#term-handoff); [Planning glossary](../../../../glossary.md#term-planning); [facade glossary](../../../../glossary.md#term-facade))</span>
 - Treat `eligibility.eligibleBackendIds()` as the complete ordered ownership-candidate set. Do not
-  copy candidates into a production record, row, matrix, map, score result, or public collection.
-- Use associated `BackendAvailabilitySnapshot` values only to determine whether an already
-  eligible backend reports at least one device whose `DeviceClass` equals the optional preferred
+  copy candidates into a production record, row, matrix, map, score result, or public collection.<span data-glossary-navigation="true"> ([matrix glossary](../../../../glossary.md#term-matrix-meanings))</span>
+- Use associated [`BackendAvailabilitySnapshot`](../../../../glossary.md#backend-availability-snapshot--backendavailabilitysnapshot) values only to determine whether an already
+  eligible backend reports at least one device whose <span data-glossary-navigation="true"> ([device glossary](../../../../glossary.md#term-device))</span>[`DeviceClass`](../../../../glossary.md#device-class--deviceclass) equals the optional preferred
   class. Do not re-evaluate support, availability, or the hard requirement and do not remove or
   restore any candidate.
-- Validate top-level inputs in this exact order before reading an availability-snapshot element:
+- Validate top-level inputs in this exact order before reading an availability-[snapshot](../../../../glossary.md#term-snapshot) [element](../../../../glossary.md#term-element):
   1. null `eligibility` -> `NullPointerException("eligibility")`;
   2. null `scoringConfig` -> `NullPointerException("scoringConfig")`; and
   3. null `availabilitySnapshots` ->
      `NullPointerException("availabilitySnapshots")`.
 - After top-level validation, treat an empty eligible list as terminal before reading any
-  availability-snapshot element. Throw `IllegalStateException` with exact message:
+  availability-snapshot element. Throw <span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>`IllegalStateException` with exact message:
 
   ```text
   no hard-eligible backend is available for ownership selection
@@ -82,19 +82,19 @@ families, workload buckets, profile units, or backend tuning vocabulary.
   This is the exact current internal failure. It is not a public compiler exception and must not
   be translated into a default or fallback backend in this task.
 - For a non-empty eligible list, scan the complete availability-snapshot list in caller encounter
-  order:
+  order:<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
   1. reject the first null snapshot at index `i` with `NullPointerException` message
      `availabilitySnapshots[i]`;
   2. use the snapshot's already non-null `backendId()` as its association key; and
-  3. reject the second snapshot with an equal backend identity using
+  3. reject the second snapshot with an equal [backend identity](../../../../glossary.md#backend-identity--backendid) using
      `IllegalArgumentException` message
      `duplicate availability snapshot backendId: <backendId.value()>`.
 - After the complete snapshot scan succeeds, walk eligible identities in their existing provider
   order and reject the first identity with no equal snapshot identity using
   `IllegalArgumentException` message
   `missing availability snapshot for backendId: <backendId.value()>`.
-- Match eligible and snapshot identities through `BackendId.equals`, never by list position or
-  object identity. A snapshot may hold an equal but non-identical `BackendId` reference.
+- Match eligible and snapshot [identities](../../../../glossary.md#term-identity-meanings) through `BackendId.equals`, never by list position or
+  object identity. A snapshot may hold an equal but non-identical <span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-reference-identity))</span>[`BackendId`](../../../../glossary.md#backend-identity--backendid) reference.
 - Permit extra unique snapshots for backends not present in the eligible list. Task 0002 receives
   one snapshot for every provider before filtering, so snapshots for unavailable, mismatched, or
   unsupported providers are expected input and must not become candidates.
@@ -108,88 +108,88 @@ families, workload buckets, profile units, or backend tuning vocabulary.
   - when `preferredDeviceClass()` is empty, return the first eligible backend identity;
   - when a preferred class is present, return the first eligible identity whose associated
     snapshot contains at least one device of that exact enum class;
-  - when no eligible backend matches the preferred class, return the first eligible identity; and
+  - when no eligible [backend](../../../../glossary.md#backend) matches the preferred class, return the first eligible [identity](../../../../glossary.md#term-identity-meanings); and
   - when multiple eligible backends match, the first in existing provider order wins.
 - Treat preference matching as a two-bucket lexicographic comparison, not a numeric bonus,
   penalty, weight, or score. Matching candidates precede nonmatching candidates only for this
-  baseline; provider order resolves every equality within a bucket.
+  baseline; provider order resolves every equality within a bucket.<span data-glossary-navigation="true"> ([weight glossary](../../../../glossary.md#term-weight))</span>
 - Preserve soft preference semantics: every hard-eligible nonmatch remains a candidate, and a
   preferred-class miss never weakens a hard requirement or restores an ineligible backend.
 - Return the exact `BackendId` reference stored in `eligibility.eligibleBackendIds()`. Do not
   return the snapshot's equal identity reference and do not allocate or normalize an identity.
 - Read only immutable compile-time facts. Do not call capability providers, discover backends,
   inspect mutable runtime state, allocate IDs, mutate any supplied value or list, emit a trace,
-  or retain selection state.
+  or retain selection state.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [compile glossary](../../../../glossary.md#compile); [mutable glossary](../../../../glossary.md#term-mutable); [runtime glossary](../../../../glossary.md#term-runtime); [trace glossary](../../../../glossary.md#trace))</span>
 - Add no production workload or cost classification. The current baseline requires only the
   existing `DeviceClass` preference. Shared `OperationFamily`, workload-bucket, cost-profile, and
   fixed/per-element/per-byte classifications remain deferred until a concrete backend-neutral
-  cost consumer requires their exact distinctions.
+  cost consumer requires their exact distinctions.<span data-glossary-navigation="true"> ([concrete backend glossary](../../../../glossary.md#concrete-backend))</span>
 - Update capability-package Javadoc to describe the current internal eligibility-to-baseline-
-  owner step while preserving the public query/provider boundary.
+  owner step while preserving the public query/provider boundary.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [owner glossary](../../../../glossary.md#term-owner))</span>
 - Add one focused test class covering exact selector shape, validation order/messages, empty
   terminal failure, association rules, reference and ordering rules, neutral/preferred/no-match/
-  tie behavior, hard-eligibility preservation, absence of side effects, and forbidden surfaces.
+  tie behavior, hard-eligibility preservation, absence of side effects, and forbidden surfaces.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape))</span>
 - Finalize Javadocs and affected explanatory/planning documentation through the required separate
   clean-context documentation pass in the same overall implementation change.
 
-## Out of scope
+## Out of [scope](../../../../glossary.md#term-scope)
 
 - a public planner facade, public ownership selector, public eligibility result/evaluator,
   public candidate or score type, public matrix, public ownership decision record, or compiler
-  entry point
-- changing `BackendEligibility`, `OperationCapabilityQuery`, `BackendCapabilityProvider`,
-  `PartitionScoringConfig`, `BackendIntent`, `BackendAvailabilitySnapshot`, `DeviceClass`, or
-  `BackendId` signatures, value behavior, visibility, or existing validation
+  entry point<span data-glossary-navigation="true"> ([facade glossary](../../../../glossary.md#term-facade); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [compiler glossary](../../../../glossary.md#term-compiler))</span>
+- changing `BackendEligibility`, [`OperationCapabilityQuery`](../../../../glossary.md#operation-capability-query--operationcapabilityquery), [`BackendCapabilityProvider`](../../../../glossary.md#backend-capability-provider--backendcapabilityprovider),
+  [`PartitionScoringConfig`](../../../../glossary.md#partition-scoring-configuration--partitionscoringconfig), [`BackendIntent`](../../../../glossary.md#backend-intent--backendintent), [`BackendAvailabilitySnapshot`](../../../../glossary.md#backend-availability-snapshot--backendavailabilitysnapshot), [`DeviceClass`](../../../../glossary.md#device-class--deviceclass), or
+  [`BackendId`](../../../../glossary.md#backend-identity--backendid) [signatures](../../../../glossary.md#term-signature), value behavior, visibility, or existing [validation](../../../../glossary.md#term-validation)
 - re-evaluating capability, availability, or hard requirements; weakening hard eligibility;
-  restoring an ineligible backend; provider discovery, registration, refresh, or service lookup
-- a selected `BackendDeviceId`, device candidate, default device, device-level capability,
-  device ranking, device ownership, or retention of a device or class in the returned result
+  restoring an ineligible backend; provider discovery, registration, refresh, or service lookup<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [lookup glossary](../../../../glossary.md#term-lookup))</span>
+- a selected [`BackendDeviceId`](../../../../glossary.md#backend-device-identity--backenddeviceid), device candidate, default device, device-level capability,
+  device ranking, device ownership, or retention of a device or class in the returned result<span data-glossary-navigation="true"> ([ranking glossary](../../../../glossary.md#term-ranking))</span><span data-glossary-navigation="true"> ([device glossary](../../../../glossary.md#term-device))</span>
 - numeric score values, score maps, callbacks, policy hierarchies, weights, bonuses, penalties,
   thresholds, transfer estimates, boundary estimates, materialization estimates, region-size
-  estimates, or calibrated units
+  estimates, or calibrated units<span data-glossary-navigation="true"> ([weights glossary](../../../../glossary.md#term-weight); [materialization glossary](../../../../glossary.md#materialization))</span>
 - a production `OperationFamily`, workload bucket, cost class, cost profile, platform profile,
   backend profile, tuning profile, measurement evidence, workload cache, model-autotuning value,
-  or serialization schema
+  or serialization schema<span data-glossary-navigation="true"> ([cache glossary](../../../../glossary.md#term-cache); [model glossary](../../../../glossary.md#term-model); [autotuning glossary](../../../../glossary.md#autotuning--model-autotuning); [serialization glossary](../../../../glossary.md#term-serialization); [schema glossary](../../../../glossary.md#term-schema))</span>
 - concrete backend, route, Vector API species or lane, thread, chunk, tile, OpenBLAS, MPSGraph,
   CUDA, kernel, fusion, specialization, lowering, prepare, executable, schedule, buffer,
-  workspace, residency, or run-state logic
+  workspace, residency, or run-state logic<span data-glossary-navigation="true"> ([concrete backend glossary](../../../../glossary.md#concrete-backend); [Vector API glossary](../../../../glossary.md#term-vector-api); [lane glossary](../../../../glossary.md#term-lane); [OpenBLAS glossary](../../../../glossary.md#term-openblas); [MPSGraph glossary](../../../../glossary.md#term-mpsgraph); [CUDA glossary](../../../../glossary.md#term-cuda); [kernel glossary](../../../../glossary.md#kernel); [fusion glossary](../../../../glossary.md#term-fusion); [specialization glossary](../../../../glossary.md#term-specialization); [lowering glossary](../../../../glossary.md#lowering); [prepare glossary](../../../../glossary.md#prepare); [buffer glossary](../../../../glossary.md#term-buffer); [residency glossary](../../../../glossary.md#residency); [run glossary](../../../../glossary.md#term-run))</span>
 - graph/node/value identity, graph phase, producer/consumer ownership, segment comparison,
   transfer boundaries, maximal same-owner partition construction, physical transfers, logical
-  materialization, logical memory planning, compiler orchestration, or compile artifacts
+  materialization, logical memory planning, compiler orchestration, or compile artifacts<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [node glossary](../../../../glossary.md#node); [identity glossary](../../../../glossary.md#term-identity-meanings); [graph phase glossary](../../../../glossary.md#graph-phase); [producer glossary](../../../../glossary.md#term-producer); [owner glossary](../../../../glossary.md#term-owner); [partition glossary](../../../../glossary.md#partition); [planning glossary](../../../../glossary.md#term-planning); [compile artifacts glossary](../../../../glossary.md#compile-artifacts))</span>
 - generic candidate registries, broad managers/facades, service locators, string dispatch,
-  reflection-based dispatch, `ServiceLoader`, plugin discovery, or diagnostics matrices
+  reflection-based dispatch, <span data-glossary-navigation="true"> ([dispatch glossary](../../../../glossary.md#term-dispatch))</span>`ServiceLoader`, [plugin](../../../../glossary.md#term-plugin) discovery, or diagnostics [matrices](../../../../glossary.md#term-matrix-meanings)
 - trace event or payload schema, rejection-reason taxonomy, public compile exception, backend
-  conformance behavior, integration behavior, or end-to-end execution
+  conformance behavior, integration behavior, or end-to-end execution<span data-glossary-navigation="true"> ([trace glossary](../../../../glossary.md#trace); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [compile glossary](../../../../glossary.md#compile); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 - dependency, Gradle, Java-version, root-build, architecture-contract, ADR, architecture-test,
-  backend-conformance-test, or integration-test changes
+  backend-conformance-test, or integration-test changes<span data-glossary-navigation="true"> ([dependency glossary](../../../../glossary.md#term-dependency); [Gradle glossary](../../../../glossary.md#term-gradle); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
 - Config 0004 or Planning 0004 detailed specifications, unrelated refactoring, or documentation
   cleanup outside the exact paths below
 
 ## Architecture references
 
-- [Architecture contract](../../../../../ARCHITECTURE.md)
+- [Architecture contract](../../../../../ARCHITECTURE.md)<span data-glossary-navigation="true"> ([Architecture contract glossary](../../../../glossary.md#architecture-contract))</span>
 - [Current architecture index](../../../../architecture/current-architecture-plan.md)
-- [Module boundaries](../../../../architecture/module-boundaries.md)
-- [Dependency rules](../../../../architecture/dependency-rules.md)
-- [Lifecycle](../../../../architecture/lifecycle.md)
-- [Partition scoring](../../../../architecture/partition-scoring.md)
-- [Performance evidence and model autotuning](../../../../architecture/performance-evidence-and-tuning.md)
-- [ADR 0008](../../../../design/decisions/0008-performance-evidence-and-tuning-boundaries.md)
+- [Module boundaries](../../../../architecture/module-boundaries.md)<span data-glossary-navigation="true"> ([Module glossary](../../../../glossary.md#term-module))</span>
+- [Dependency rules](../../../../architecture/dependency-rules.md)<span data-glossary-navigation="true"> ([Dependency glossary](../../../../glossary.md#term-dependency))</span>
+- [Lifecycle](../../../../architecture/lifecycle.md)<span data-glossary-navigation="true"> ([Lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+- [Partition scoring](../../../../architecture/partition-scoring.md)<span data-glossary-navigation="true"> ([Partition glossary](../../../../glossary.md#partition))</span>
+- [Performance evidence and model autotuning](../../../../architecture/performance-evidence-and-tuning.md)<span data-glossary-navigation="true"> ([model autotuning glossary](../../../../glossary.md#autotuning--model-autotuning))</span>
+- [ADR 0008](../../../../design/decisions/0008-performance-evidence-and-tuning-boundaries.md)<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
 - [Documentation rules](../../../../developer-guide/documentation-rules.md)
 - [Documentation profile index](../../../../developer-guide/documentation/README.md)
 - [General style](../../../../developer-guide/documentation/general-style.md)
-- [API and Javadoc style](../../../../developer-guide/documentation/api-and-javadoc-style.md)
+- [API and Javadoc style](../../../../developer-guide/documentation/api-and-javadoc-style.md)<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 - [Architecture style](../../../../developer-guide/documentation/architecture-style.md)
-- [Backend guide style](../../../../developer-guide/documentation/backend-guide-style.md)
+- [Backend guide style](../../../../developer-guide/documentation/backend-guide-style.md)<span data-glossary-navigation="true"> ([Backend glossary](../../../../glossary.md#backend))</span>
 - [User guide style](../../../../developer-guide/documentation/user-guide-style.md)
-- [Planning style](../../../../developer-guide/documentation/planning-style.md)
+- [Planning style](../../../../developer-guide/documentation/planning-style.md)<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning))</span>
 - [Example format](../../../../developer-guide/documentation/example-format.md)
 - [Planning guide](../../../planning-guide.md)
 - [Roadmap](../../../roadmap.md)
 - [Planning master plan](../master-plan.md)
 - [Config master plan](../../config/master-plan.md)
 - [Backend-contract master plan](../../backend-contract/master-plan.md)
-- [Trace master plan](../../trace/master-plan.md)
+- [Trace master plan](../../trace/master-plan.md)<span data-glossary-navigation="true"> ([Trace glossary](../../../../glossary.md#trace))</span>
 - [Planning task 0001](0001-operation-capability-query-foundation.md)
 - [Planning task 0002](0002-per-query-backend-hard-eligibility.md)
 - [Config task 0001](../../config/tasks/0001-backend-intent-foundation.md)
@@ -198,48 +198,48 @@ families, workload buckets, profile units, or backend tuning vocabulary.
 - [Backend-contract task 0003](../../backend-contract/tasks/0003-backend-availability-snapshot.md)
 - [Backend-contract task 0004](../../backend-contract/tasks/0004-declarative-backend-requirements.md)
 - [Public API](../../../../api/public-api.md)
-- [Compile API](../../../../api/compile-api.md)
+- [Compile API](../../../../api/compile-api.md)<span data-glossary-navigation="true"> ([Compile glossary](../../../../glossary.md#compile))</span>
 - [Capability-provider guide](../../../../backend-guide/capability-provider.md)
 - [Backend-selection guide](../../../../user-guide/backend-selection.md)
 - [Glossary](../../../../glossary.md)
 
 ## Architecture constraints
 
-- Planning owns backend-neutral compile-time capability analysis, scoring, and `BackendId`
-  ownership. This task answers only where one operation occurrence should run.
-- Hard eligibility is complete before this task. Selection may compare only the identities in
+- [Planning](../../../../glossary.md#term-planning) owns [backend](../../../../glossary.md#backend)-neutral [compile](../../../../glossary.md#compile)-time capability analysis, scoring, and [`BackendId`](../../../../glossary.md#backend-identity--backendid)
+  ownership. This task answers only where one operation occurrence should run.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [occurrence glossary](../../../../glossary.md#term-occurrence); [run glossary](../../../../glossary.md#term-run))</span>
+- Hard eligibility is complete before this task. Selection may compare only the [identities](../../../../glossary.md#term-identity-meanings) in
   `BackendEligibility.eligibleBackendIds()` and may neither restore an excluded backend nor remove
   an eligible nonpreferred backend.
-- Compile-time ownership uses `BackendId`, not a provider, concrete backend object, device,
-  preparer, executable, route, kernel, or live service.
-- `PartitionScoringConfig` supplies one soft coarse-class preference. A class match may influence
-  ranking but cannot become device selection or device-level capability.
+- Compile-time [ownership](../../../../glossary.md#term-ownership-meanings) uses `BackendId`, not a provider, concrete backend object, device,
+  preparer, executable, route, kernel, or live service.<span data-glossary-navigation="true"> ([concrete backend glossary](../../../../glossary.md#concrete-backend); [device glossary](../../../../glossary.md#term-device); [kernel glossary](../../../../glossary.md#kernel))</span>
+- [`PartitionScoringConfig`](../../../../glossary.md#partition-scoring-configuration--partitionscoringconfig) supplies one soft coarse-class preference. A class match may influence
+  ranking but cannot become device selection or device-level capability.<span data-glossary-navigation="true"> ([ranking glossary](../../../../glossary.md#term-ranking))</span>
 - Baseline comparison uses current immutable compile-time facts only. Runtime residency, buffers,
   prepared state, backend-local caches, model-autotuning values, and measurement evidence remain
-  outside planning selection.
+  outside planning selection.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [residency glossary](../../../../glossary.md#residency); [buffers glossary](../../../../glossary.md#term-buffer); [model glossary](../../../../glossary.md#term-model); [autotuning glossary](../../../../glossary.md#autotuning--model-autotuning))</span>
 - Planning selects backend ownership, not implementation routes. ADR 0008's compiler/planning/
-  prepare/backend/tuning/runtime ownership boundaries remain unchanged.
+  prepare/backend/tuning/runtime ownership boundaries remain unchanged.<span data-glossary-navigation="true"> ([backend ownership glossary](../../../../glossary.md#backend-ownership); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [compiler glossary](../../../../glossary.md#term-compiler))</span>
 - The package-private selector preserves planning's existing `implementation` dependency on
-  config. No public signature exposes `PartitionScoringConfig`, so no dependency-visibility or
+  config. No public signature exposes <span data-glossary-navigation="true"> ([dependency glossary](../../../../glossary.md#term-dependency); [signature glossary](../../../../glossary.md#term-signature))</span>`PartitionScoringConfig`, so no dependency-visibility or
   architecture-test change is justified.
 - A workload/cost classification is not an architecture prerequisite for this exact baseline.
   Adding one without consumed cost data would be speculative and would incorrectly precede its
   consumer.
-- Planning remains independent of runtime, prepare, engine, and concrete backends.
+- Planning remains independent of [runtime](../../../../glossary.md#term-runtime), [prepare](../../../../glossary.md#prepare), [engine](../../../../glossary.md#term-engine), and concrete backends.
 - Stop if implementation requires a public selector/result, another production type, numeric
   score, workload/cost classification, dependency edit, graph/partition model, device selection,
-  diagnostics schema, or architecture decision.
+  diagnostics schema, or architecture decision.<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [partition glossary](../../../../glossary.md#partition); [schema glossary](../../../../glossary.md#term-schema))</span>
 
 ## Current contract inventory
 
 | Contract | Current meaning consumed by this task | Deliberate boundary |
 |---|---|---|
-| `OperationCapabilityQuery` | Immutable one-occurrence semantic question retained inside `BackendEligibility` | No graph identity, availability, score, route, or execution fact |
-| `BackendCapabilityProvider` | Source of backend-level semantic support already consumed by task 0002 | Never called by baseline selection |
-| `BackendEligibility` | Package-private immutable query plus unique provider-ordered hard-eligible `BackendId` list | Empty is valid before selection; no snapshot, device, score, or rejection reason retained |
-| `BackendAvailabilitySnapshot` | Immutable association used transiently to test preferred `DeviceClass` presence | Not discovery, device capability, selected device, or retained selection state |
-| `PartitionScoringConfig` | Optional soft preferred `DeviceClass` | No formula, weight, default, cost data, or ownership result |
-| `BackendId` | Compile-time ownership identity and exact return type | Not a live backend service or concrete implementation route |
+| [`OperationCapabilityQuery`](../../../../glossary.md#operation-capability-query--operationcapabilityquery) | [Immutable](../../../../glossary.md#term-immutable) one-[occurrence](../../../../glossary.md#term-occurrence) semantic question retained inside `BackendEligibility` | No [graph](../../../../glossary.md#graph) [identity](../../../../glossary.md#term-identity-meanings), availability, score, route, or execution fact |
+| [`BackendCapabilityProvider`](../../../../glossary.md#backend-capability-provider--backendcapabilityprovider) | Source of [backend](../../../../glossary.md#backend)-level semantic support already consumed by task 0002 | Never called by baseline selection |
+| `BackendEligibility` | Package-private immutable query plus unique provider-ordered hard-eligible [`BackendId`](../../../../glossary.md#backend-identity--backendid) list | Empty is valid before selection; no [snapshot](../../../../glossary.md#term-snapshot), [device](../../../../glossary.md#term-device), score, or rejection reason retained |
+| [`BackendAvailabilitySnapshot`](../../../../glossary.md#backend-availability-snapshot--backendavailabilitysnapshot) | Immutable association used transiently to test preferred [`DeviceClass`](../../../../glossary.md#device-class--deviceclass) presence | Not discovery, device capability, selected device, or retained selection state |
+| [`PartitionScoringConfig`](../../../../glossary.md#partition-scoring-configuration--partitionscoringconfig) | Optional soft preferred `DeviceClass` | No formula, [weight](../../../../glossary.md#term-weight), default, cost data, or [ownership](../../../../glossary.md#term-ownership-meanings) result |
+| `BackendId` | [Compile](../../../../glossary.md#compile)-time ownership identity and exact return type | Not a live backend service or concrete implementation route |
 
 ## Package impact
 
@@ -247,17 +247,17 @@ Existing package extended:
 
 - `io.github.pho001.synaptik.planning.capability` — public operation query/provider contracts,
   package-private hard eligibility, and the smallest package-private baseline owner selection
-  that can consume that eligibility without widening it
+  that can consume that eligibility without widening it<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [widening glossary](../../../../glossary.md#term-widening))</span>
 
 Type placement:
 
 - `io.github.pho001.synaptik.planning.capability.BackendOwnerSelection` — package-private
   stateless selection operation colocated with the package-private eligibility result it consumes
 
-No `ownership` package is opened in this task. That package remains reserved for later public or
-cross-package ownership/candidate contracts justified by compiler orchestration, maximal
-same-owner partitioning, or another concrete consumer. No workload, cost, profile, diagnostics,
-registry, service, runtime, prepare, or backend-specific package is added.
+No [`ownership`](../../../../glossary.md#term-ownership-meanings) package is opened in this task. That package remains reserved for later public or
+cross-package ownership/candidate contracts justified by [compiler](../../../../glossary.md#term-compiler) orchestration, maximal
+same-[owner](../../../../glossary.md#term-owner) partitioning, or another concrete consumer. No workload, cost, profile, diagnostics,
+[registry](../../../../glossary.md#term-registry), service, [runtime](../../../../glossary.md#term-runtime), [prepare](../../../../glossary.md#prepare), or [backend](../../../../glossary.md#backend)-specific package is added.
 
 ## Proposed production surface
 
@@ -276,7 +276,7 @@ final class BackendOwnerSelection {
 }
 ```
 
-This conceptual shape is exact for names, visibility, parameters, generic arguments, return type,
+This conceptual [shape](../../../../glossary.md#shape) is exact for names, visibility, [parameters](../../../../glossary.md#term-parameter), generic [arguments](../../../../glossary.md#term-argument), return type,
 constructor count, and absence of state. It is not authorization to add a generic utility or a
 second method.
 
@@ -285,48 +285,48 @@ second method.
 | Eligible IDs | Preference | Matching eligible snapshots | Result |
 |---|---|---|---|
 | empty | any valid config | not read | exact terminal `IllegalStateException` |
-| `[cpu, metal]` | empty | irrelevant after association validation | exact `cpu` eligibility reference |
-| `[cpu, metal]` | `ACCELERATOR` | only `metal` | exact `metal` eligibility reference |
+| `[cpu, metal]` | empty | irrelevant after association [validation](../../../../glossary.md#term-validation) | exact `cpu` eligibility reference |
+| `[cpu, metal]` | [`ACCELERATOR`](../../../../glossary.md#term-accelerator) | only [`metal`](../../../../glossary.md#term-metal) | exact `metal` eligibility reference |
 | `[cpu, metal, cuda]` | `ACCELERATOR` | `metal`, `cuda` | exact `metal` eligibility reference by provider order |
 | `[cpu, metal]` | `ACCELERATOR` | none | exact `cpu` eligibility reference; neither candidate was filtered |
-| `[hybrid, metal]` | `ACCELERATOR` | both; hybrid snapshot also contains CPU | exact `hybrid` eligibility reference by provider order |
+| `[hybrid, metal]` | `ACCELERATOR` | both; hybrid [snapshot](../../../../glossary.md#term-snapshot) also contains [CPU](../../../../glossary.md#term-cpu) | exact `hybrid` eligibility reference by provider order |
 
 The table describes a stable lexicographic comparison: preferred-class match first when requested,
 then existing provider order. It defines no numeric score or future cost combination rule.
 
-## Validation and failure contract
+## [Validation](../../../../glossary.md#term-validation) and failure contract
 
 | Stage | Condition | Failure |
 |---|---|---|
 | 1 | null `eligibility` | `NullPointerException("eligibility")` |
 | 2 | null `scoringConfig` | `NullPointerException("scoringConfig")` |
 | 3 | null `availabilitySnapshots` | `NullPointerException("availabilitySnapshots")` |
-| 4 | no eligible backend | `IllegalStateException("no hard-eligible backend is available for ownership selection")` |
-| 5 | first null snapshot at index `i` | `NullPointerException("availabilitySnapshots[i]")` |
+| 4 | no eligible [backend](../../../../glossary.md#backend) | `IllegalStateException("no hard-eligible backend is available for ownership selection")` |
+| 5 | first null [snapshot](../../../../glossary.md#term-snapshot) at index `i` | `NullPointerException("availabilitySnapshots[i]")` |
 | 5 | second snapshot with equal backend ID | `IllegalArgumentException("duplicate availability snapshot backendId: <value>")` |
 | 6 | first eligible ID without an equal snapshot | `IllegalArgumentException("missing availability snapshot for backendId: <value>")` |
 
-Top-level validation always completes before stage 4. Stage 4 occurs before any list-element read.
-For a non-empty candidate set, the complete snapshot scan and duplicate validation finish before
+Top-level validation always completes before stage 4. Stage 4 occurs before any list-[element](../../../../glossary.md#term-element) read.
+For a non-empty candidate set, the complete snapshot [scan](../../../../glossary.md#term-cumulative-scan) and duplicate validation finish before
 the first missing-association check or preference comparison. Preference comparison begins only
-after all eligible identities have a matching snapshot.
+after all eligible [identities](../../../../glossary.md#term-identity-meanings) have a matching snapshot.
 
-## Ordering, identity, immutability, and side effects
+## Ordering, [identity](../../../../glossary.md#term-identity-meanings), immutability, and side effects
 
 - Eligible/provider encounter order is the sole stable tie order.
-- Snapshot list order never reorders candidates or changes a successful result.
-- Equal `BackendId` values associate a candidate and snapshot; the selected return reference is
-  always the eligibility element, never the snapshot component.
+- [Snapshot](../../../../glossary.md#term-snapshot) list order never reorders candidates or changes a successful result.
+- Equal [`BackendId`](../../../../glossary.md#backend-identity--backendid) values associate a candidate and snapshot; the selected return reference is
+  always the eligibility element, never the snapshot component.<span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element))</span>
 - The selector retains no list, map, snapshot, class, score, candidate, or chosen owner after the
-  call and exposes no mutable state.
+  call and exposes no mutable state.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [mutable glossary](../../../../glossary.md#term-mutable))</span>
 - It does not mutate supplied lists or snapshots, call a provider, allocate an ID, read a device
-  handle, discover a backend, emit diagnostics, or perform preparation/execution work.
+  handle, discover a backend, emit diagnostics, or perform preparation/execution work.<span data-glossary-navigation="true"> ([device glossary](../../../../glossary.md#term-device); [backend glossary](../../../../glossary.md#backend))</span>
 - It creates no ID or graph/value/node identity. There is therefore no allocation order,
-  uniqueness, overflow, or rollback behavior to specify.
+  uniqueness, overflow, or rollback behavior to specify.<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [node glossary](../../../../glossary.md#node); [overflow glossary](../../../../glossary.md#term-overflow); [rollback glossary](../../../../glossary.md#term-rollback))</span>
 
 ## Affected files
 
-The intended overall implementation scope is exactly fourteen paths.
+The intended overall implementation [scope](../../../../glossary.md#term-scope) is exactly fourteen paths.
 
 Production — exactly two paths:
 
@@ -350,7 +350,7 @@ Architecture-status and explanatory documentation — exactly six paths:
 - `docs/user-guide/backend-selection.md`
 - `docs/glossary.md`
 
-Planning — exactly five paths:
+[Planning](../../../../glossary.md#term-planning) — exactly five paths:
 
 - add and finalize this task
 - `docs/planning/modules/planning/master-plan.md`
@@ -359,95 +359,95 @@ Planning — exactly five paths:
 - `docs/planning/roadmap.md`
 
 Review without modification: `BackendEligibility.java` and its test; all other planning/config/
-backend-contract/trace source and tests; planning/config/trace Gradle files; architecture contract,
-ADRs, and architecture tests; compiler/prepare/runtime/engine master plans and source; concrete
-backends; backend-conformance and integration tests; Public Tensor APIs; every unrelated guide;
+[backend](../../../../glossary.md#backend)-contract/[trace](../../../../glossary.md#trace) source and tests; planning/config/trace [Gradle](../../../../glossary.md#term-gradle) files; [architecture contract](../../../../glossary.md#architecture-contract),
+ADRs, and architecture tests; [compiler](../../../../glossary.md#term-compiler)/[prepare](../../../../glossary.md#prepare)/[runtime](../../../../glossary.md#term-runtime)/[engine](../../../../glossary.md#term-engine) master plans and source; concrete
+backends; backend-[conformance](../../../../glossary.md#term-conformance) and integration tests; Public [Tensor](../../../../glossary.md#tensor) APIs; every unrelated guide;
 and every later task row/specification.
 
-## Maximum scope
+## Maximum [scope](../../../../glossary.md#term-scope)
 
 Exactly the fourteen paths above. Stop if implementation requires modifying
-`BackendEligibility`, another production type or test, a public API, the `ownership` package, a
-workload/cost/profile type, a dependency/build file, an architecture test or rule, a diagnostics
-schema, a graph/partition contract, a concrete backend, or a detailed Planning 0004 or Config 0004
+`BackendEligibility`, another production type or test, a public [API](../../../../glossary.md#term-application-programming-interface-api), the [`ownership`](../../../../glossary.md#term-ownership-meanings) package, a
+workload/cost/profile type, a [dependency](../../../../glossary.md#term-dependency)/build file, an [architecture test](../../../../glossary.md#term-architecture-test) or rule, a diagnostics
+[schema](../../../../glossary.md#term-schema), a [graph](../../../../glossary.md#graph)/[partition](../../../../glossary.md#partition) contract, a [concrete backend](../../../../glossary.md#concrete-backend), or a detailed [Planning](../../../../glossary.md#term-planning) 0004 or Config 0004
 specification. Do not use a follow-up task to hide an incomplete acceptance criterion.
 
-## Required Javadoc contracts
+## Required [Javadoc](../../../../glossary.md#term-javadoc) contracts
 
 - Class Javadoc must define one stateless package-private selection operation, the existing
-  hard-eligible identity list as its candidate set, and its backend-ownership-only boundary.
+  hard-eligible identity list as its candidate set, and its backend-ownership-only boundary.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [identity glossary](../../../../glossary.md#term-identity-meanings); [backend glossary](../../../../glossary.md#backend); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Private-constructor Javadoc must explain that instances are forbidden because the class retains
   no selection state.
 - Method Javadoc must document all three non-null inputs, the empty terminal failure, complete
   snapshot validation, equal-ID association, extra-snapshot allowance, empty-snapshot preference
   nonmatch, exact reference return, provider-order tie behavior, neutral/preferred/no-match
-  behavior, no eligibility re-evaluation, and no device/route/kernel selection.
-- Method `@return` must state that the result is the exact non-null `BackendId` reference from the
+  behavior, no eligibility re-evaluation, and no device/route/kernel selection.<span data-glossary-navigation="true"> ([snapshot glossary](../../../../glossary.md#term-snapshot); [validation glossary](../../../../glossary.md#term-validation); [evaluation glossary](../../../../glossary.md#term-evaluation); [device glossary](../../../../glossary.md#term-device); [kernel glossary](../../../../glossary.md#kernel))</span>
+- Method `@return` must state that the result is the exact non-null [`BackendId`](../../../../glossary.md#backend-identity--backendid) reference from the
   eligible list.
 - Method `@throws` entries must state every exact failure condition/message from the validation
   table.
 - Package Javadoc must distinguish the public query/provider contracts from current internal hard
   eligibility and baseline owner selection. Public planning orchestration, numeric/cost scoring,
   operation-family/workload classification, profiles, partitioning, logical memory, compiler
-  integration, device/route/kernel selection, prepare, runtime, and execution remain planned.
+  integration, device/route/kernel selection, prepare, runtime, and execution remain planned.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [planning glossary](../../../../glossary.md#term-planning); [compiler glossary](../../../../glossary.md#term-compiler); [prepare glossary](../../../../glossary.md#prepare); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 
 ## Documentation impact and no-change expectations
 
 - Update the six authorized explanatory documents from “ownership selection planned” to the exact
   current internal baseline: provider-ordered hard-eligible IDs, optional preferred-class match,
-  deterministic fallback/ties, and internal no-eligible failure.
+  deterministic fallback/ties, and internal no-eligible failure.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Keep the public API pages explicit that no external planner workflow or public owner selector
-  exists.
+  exists.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [owner glossary](../../../../glossary.md#term-owner))</span>
 - Keep future cost scoring conceptual. Do not present the user guide's illustrative transfer or
   boundary numbers as current behavior.
 - Add or revise one glossary entry only where needed to distinguish internal baseline ownership
-  selection from hard eligibility, general partition scoring, and backend prepare routing.
+  selection from hard eligibility, general partition scoring, and backend prepare routing.<span data-glossary-navigation="true"> ([partition glossary](../../../../glossary.md#partition); [backend glossary](../../../../glossary.md#backend); [prepare glossary](../../../../glossary.md#prepare))</span>
 - No architecture contract or ADR changes are expected because this implements the already
-  assigned planning responsibility and preserves ADR 0008 boundaries.
+  assigned planning responsibility and preserves ADR 0008 boundaries.<span data-glossary-navigation="true"> ([architecture contract glossary](../../../../glossary.md#architecture-contract); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [planning glossary](../../../../glossary.md#term-planning))</span>
 - No Gradle/dependency, architecture-test, backend-conformance, integration, compile-workflow,
   config/backend-contract/trace Java, compiler/prepare/runtime/engine, concrete-backend, or other-
   module documentation change is expected. The documentation pass must record a reasoned
-  no-change conclusion for each group rather than `N/A`.
+  no-change conclusion for each group rather than <span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle); [dependency glossary](../../../../glossary.md#term-dependency); [conformance glossary](../../../../glossary.md#term-conformance); [compile glossary](../../../../glossary.md#compile); [trace glossary](../../../../glossary.md#trace); [compiler glossary](../../../../glossary.md#term-compiler); [runtime glossary](../../../../glossary.md#term-runtime); [engine glossary](../../../../glossary.md#term-engine); [module glossary](../../../../glossary.md#term-module))</span>`N/A`.
 
 ## Acceptance criteria
 
 - `BackendOwnerSelection` has the exact package-private final stateless class shape and sole
-  package-private static `select` method specified above.
+  package-private static <span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape))</span>`select` method specified above.
 - The selector consumes `BackendEligibility` directly; no copied production candidate, public
-  bridge, public matrix, or public planner facade is introduced.
+  bridge, public matrix, or public planner facade is introduced.<span data-glossary-navigation="true"> ([matrix glossary](../../../../glossary.md#term-matrix-meanings); [facade glossary](../../../../glossary.md#term-facade))</span>
 - Top-level, empty-result, snapshot-element, duplicate-association, and missing-association
-  validation follows the exact order, types, and messages in this specification.
+  validation follows the exact order, types, and messages in this specification.<span data-glossary-navigation="true"> ([snapshot glossary](../../../../glossary.md#term-snapshot); [element glossary](../../../../glossary.md#term-element); [validation glossary](../../../../glossary.md#term-validation))</span>
 - Empty hard eligibility always fails terminally before scoring or snapshot-element reads and
   never selects a default or fallback backend.
 - Equal backend identities associate candidates and snapshots. Extra unique noncandidate
   snapshots are accepted; duplicate snapshot identities and missing candidate snapshots fail.
 - Neutral selection returns the first eligible identity. A present preference returns the first
-  eligible preferred-class match, or the first eligible identity when none matches.
+  eligible preferred-class match, or the first eligible identity when none matches.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Multiple preferred matches and all other equal comparisons resolve by preserved provider
-  encounter order. Snapshot input order and `DeviceClass` enum ordinal never define priority.
+  encounter order. Snapshot input order and [`DeviceClass`](../../../../glossary.md#device-class--deviceclass) enum ordinal never define priority.
 - Nonpreferred candidates remain hard eligible. Empty matching snapshots are preference
   nonmatches and are not silently removed. No ineligible backend can be added or restored.
 - The method returns the exact selected eligibility identity reference and never the equal
   snapshot identity reference.
 - No provider call, mutable input change, ID allocation, device selection/retention, route/kernel
-  selection, trace emission, preparation, runtime, execution, or other side effect occurs.
+  selection, trace emission, preparation, runtime, execution, or other side effect occurs.<span data-glossary-navigation="true"> ([mutable glossary](../../../../glossary.md#term-mutable); [device glossary](../../../../glossary.md#term-device); [kernel glossary](../../../../glossary.md#kernel); [runtime glossary](../../../../glossary.md#term-runtime); [side effect glossary](../../../../glossary.md#term-side-effect))</span>
 - No numeric score, generic score map, classification type, `OperationFamily`, workload bucket,
-  planning cost profile, platform/backend/tuning profile, or model-autotuning value is added.
+  planning cost profile, platform/backend/tuning profile, or model-autotuning value is added.<span data-glossary-navigation="true"> ([planning cost profile glossary](../../../../glossary.md#term-planning-cost-profile); [autotuning glossary](../../../../glossary.md#autotuning--model-autotuning))</span>
 - Focused automated tests lock selector shape and every recurring validation, ordering, identity,
   immutability, side-effect, and forbidden-surface invariant. Reflection is used in the focused
-  test for the concrete API-shape risk; no recurring shape check remains manual.
-- Existing planning dependencies remain exactly `api` for model/backend-contract and
-  `implementation` for config/trace. No Gradle or architecture-test file changes.
+  test for the concrete API-shape risk; no recurring shape check remains manual.<span data-glossary-navigation="true"> ([invariant glossary](../../../../glossary.md#term-invariant); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
+- Existing [planning](../../../../glossary.md#term-planning) dependencies remain exactly `api` for [model](../../../../glossary.md#term-model)/[backend](../../../../glossary.md#backend)-contract and
+  `implementation` for config/[trace](../../../../glossary.md#trace). No [Gradle](../../../../glossary.md#term-gradle) or architecture-test file changes.
 - The two production paths, one focused test, six explanatory documents, and five planning paths
-  are the exact final implementation scope.
+  are the exact final implementation scope.<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope))</span>
 - A separate clean-context documentation-focused pass finalizes Javadocs, explanations, glossary
   impact, planning evidence, and status in the same overall change after executable Java and the
-  final module suite stabilize.
+  final module suite stabilize.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module))</span>
 - Planning 0003 becomes Complete only after every implementation, test, documentation, Javadoc,
   scope, status, and whitespace criterion passes. Planning 0004 and Config 0004 remain Draft
-  without detailed specifications after completion pending a separate frontier reassessment.
+  without detailed specifications after completion pending a separate frontier reassessment.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 
-## Tests / validation
+## Tests / [validation](../../../../glossary.md#term-validation)
 
 Focused development validation while executable Java is changing:
 
@@ -455,7 +455,7 @@ Focused development validation while executable Java is changing:
 ./gradlew :modules:planning:test --tests io.github.pho001.synaptik.planning.capability.BackendOwnerSelectionTest
 ```
 
-After executable Java stabilizes, run exactly one final affected-module suite:
+After executable Java stabilizes, [run](../../../../glossary.md#term-run) exactly one final affected-[module](../../../../glossary.md#term-module) suite:
 
 ```bash
 ./gradlew :modules:planning:test
@@ -465,7 +465,7 @@ Record XML suite/test/failure/error/skip counts. Then hand the task, actual diff
 evidence to the separate clean-context documentation pass. That pass reuses the successful Java
 evidence unless it changes executable Java behavior or records a concrete cross-check risk.
 
-After final Javadoc and Markdown edits, the documentation pass runs:
+After final [Javadoc](../../../../glossary.md#term-javadoc) and Markdown edits, the documentation pass runs:
 
 ```bash
 ./gradlew :modules:planning:javadoc
@@ -483,87 +483,87 @@ Manual final checks are limited to risks not better locked by tests:
 
 - exact fourteen-path tracked/untracked scope and no Java/test/Gradle/architecture/API/glossary
   changes outside those authorized for implementation;
-- unchanged planning Gradle dependency declarations;
-- one Ready row during implementation, then synchronized Complete/Draft status;
+- unchanged [planning](../../../../glossary.md#term-planning) [Gradle](../../../../glossary.md#term-gradle) [dependency](../../../../glossary.md#term-dependency) declarations;
+- one [Ready](../../../../glossary.md#term-ready) row during implementation, then synchronized Complete/Draft status;
 - no detailed Planning 0004 or Config 0004 specification;
-- no production operation-family/workload/cost/profile type;
+- no production [operation](../../../../glossary.md#operation)-family/workload/cost/profile type;
 - generated public Javadoc boundary, balanced Markdown fences, links/anchors, final newlines, and
   trailing whitespace.
 
-No manual `javap`, separate bytecode inspection, or source-import scan is required: ordinary
-compilation plus the focused reflection/API-shape and forbidden-surface tests cover those risks.
-No architecture test or repository-wide suite is run by habit because this task adds one internal
-planning selector with no dependency, public API, architecture boundary, shared build, concrete
-backend, or cross-module executable change. Continuous integration or the Planning 0006 closure
-checkpoint owns the repository tier unless implementation reveals a concrete trigger; such a
-trigger requires stopping before scope expansion.
+No manual `javap`, separate [bytecode](../../../../glossary.md#term-bytecode) inspection, or source-import [scan](../../../../glossary.md#term-cumulative-scan) is required: ordinary
+[compilation](../../../../glossary.md#compiler-engine-and-execution-stage-names) plus the focused reflection/[API](../../../../glossary.md#term-application-programming-interface-api)-[shape](../../../../glossary.md#shape) and forbidden-surface tests cover those risks.
+No [architecture test](../../../../glossary.md#term-architecture-test) or repository-wide suite is run by habit because this task adds one internal
+planning selector with no dependency, public API, architecture boundary, shared build, [concrete
+backend](../../../../glossary.md#concrete-backend), or cross-module executable change. [Continuous integration](../../../../glossary.md#term-continuous-integration-ci) or the Planning 0006 closure
+[checkpoint](../../../../glossary.md#term-checkpoint) owns the repository tier unless implementation reveals a concrete trigger; such a
+trigger requires stopping before [scope](../../../../glossary.md#term-scope) expansion.
 
-## Documentation handoff
+## Documentation [handoff](../../../../glossary.md#term-handoff)
 
-After the implementation context records the final planning-module result, hand this
+After the implementation context records the final [planning](../../../../glossary.md#term-planning)-[module](../../../../glossary.md#term-module) result, hand this
 specification, the actual fourteen-path diff, and the exact focused/final Java evidence to a
 separate clean-context documentation-focused agent or thread.
 
 The handoff must identify:
 
-- the package-private `BackendOwnerSelection` shape and exact method signature;
+- the package-private `BackendOwnerSelection` [shape](../../../../glossary.md#shape) and exact method [signature](../../../../glossary.md#term-signature);
 - `BackendEligibility` as the unchanged candidate handoff;
 - the exact null, empty, duplicate, and missing-association failures;
 - neutral, preferred-match, preferred-miss, and tie behavior;
-- exact eligibility-reference return and unchanged public/dependency surface;
+- exact eligibility-reference return and unchanged public/[dependency](../../../../glossary.md#term-dependency) surface;
 - the decision to add no workload/cost classification or Config 0004 contract; and
-- the six explanatory documents, five planning paths, and final validation commands.
+- the six explanatory documents, five planning paths, and final [validation](../../../../glossary.md#term-validation) commands.
 
-The documentation pass must read the architecture contract, documentation rules, General,
-API/Javadoc, Architecture, Backend guide, User guide, Planning, and Example profiles, final source
-and tests, current backend-contract/config/planning contracts, ADR 0008 boundaries, and all
+The documentation pass must read the [architecture contract](../../../../glossary.md#architecture-contract), documentation rules, General,
+[API](../../../../glossary.md#term-application-programming-interface-api)/[Javadoc](../../../../glossary.md#term-javadoc), Architecture, [Backend](../../../../glossary.md#backend) guide, User guide, Planning, and Example profiles, final source
+and tests, current backend-contract/config/planning contracts, [ADR](../../../../glossary.md#term-architecture-decision-record-adr) 0008 boundaries, and all
 directly affected documents. It independently finalizes class/constructor/method/package
 Javadocs, current-versus-planned wording, examples, links, terminology, glossary impact, evidence,
 and completion status.
 
-It must record reasoned no-change conclusions for Gradle/dependencies, architecture contract and
-ADRs, architecture tests, backend-conformance and integration tests, compile workflow beyond the
-authorized API/status pages, config/backend-contract/trace Java, compiler/prepare/runtime/engine,
+It must record reasoned no-change conclusions for [Gradle](../../../../glossary.md#term-gradle)/dependencies, architecture contract and
+ADRs, architecture tests, backend-[conformance](../../../../glossary.md#term-conformance) and integration tests, [compile](../../../../glossary.md#compile) workflow beyond the
+authorized API/status pages, config/backend-contract/[trace](../../../../glossary.md#trace) Java, [compiler](../../../../glossary.md#term-compiler)/[prepare](../../../../glossary.md#prepare)/[runtime](../../../../glossary.md#term-runtime)/[engine](../../../../glossary.md#term-engine),
 concrete backends, and every other module. It does not rerun successful Java tests unless
 executable behavior changes.
 
 ## Dependencies
 
-- Complete Planning task 0001 with stable public `OperationCapabilityQuery` and
-  `BackendCapabilityProvider` contracts.
-- Complete Planning task 0002 with package-private immutable `BackendEligibility`, provider-order
-  eligible identities, exact provider/snapshot association, and empty no-match representation.
-- Complete Config task 0003 with stable optional soft `DeviceClass` preference.
+- Complete [Planning](../../../../glossary.md#term-planning) task 0001 with stable public [`OperationCapabilityQuery`](../../../../glossary.md#operation-capability-query--operationcapabilityquery) and
+  [`BackendCapabilityProvider`](../../../../glossary.md#backend-capability-provider--backendcapabilityprovider) contracts.
+- Complete Planning task 0002 with package-private [immutable](../../../../glossary.md#term-immutable) `BackendEligibility`, provider-order
+  eligible identities, exact provider/snapshot association, and empty no-match representation.<span data-glossary-navigation="true"> ([snapshot glossary](../../../../glossary.md#term-snapshot))</span>
+- Complete Config task 0003 with stable optional soft [`DeviceClass`](../../../../glossary.md#device-class--deviceclass) preference.
 - Complete Backend-contract tasks 0001–0004 with stable identity, class, snapshot, and hard-
-  requirement vocabulary.
+  requirement vocabulary.<span data-glossary-navigation="true"> ([Backend glossary](../../../../glossary.md#backend); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Accepted ADR 0008 separation of planning cost, model autotuning, backend route configuration,
-  benchmarking, and runtime observation.
+  benchmarking, and runtime observation.<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [model autotuning glossary](../../../../glossary.md#autotuning--model-autotuning); [backend route glossary](../../../../glossary.md#backend-route); [benchmarking glossary](../../../../glossary.md#term-benchmarking); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 
 ## Follow-up tasks
 
 - Planning task 0004 remains Draft for maximal same-owner partitioning after this one-occurrence
-  owner result is stable. Do not create its detailed specification in this task.
+  owner result is stable. Do not create its detailed specification in this task.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 - Config task 0004 remains Draft without a detailed specification. This baseline consumes no
   cost quantity and therefore justifies no operation-family, workload-bucket, or cost-profile
   schema. A later concrete backend-neutral cost extension must first identify the exact
-  classification and units it consumes.
-- Planning tasks 0005–0006 retain logical materialization/memory and closure work as Draft rows.
+  classification and units it consumes.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [schema glossary](../../../../glossary.md#term-schema); [concrete backend glossary](../../../../glossary.md#concrete-backend))</span>
+- [Planning](../../../../glossary.md#term-planning) tasks 0005–0006 retain logical [materialization](../../../../glossary.md#materialization)/memory and closure work as Draft rows.
 - Public compiler-planning orchestration and any public ownership failure remain with their later
   concrete consumer. That task may translate the current internal empty-eligibility failure but
-  must not weaken hard eligibility.
+  must not weaken hard eligibility.<span data-glossary-navigation="true"> ([compiler glossary](../../../../glossary.md#term-compiler); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Device-level capability/selection, structured rejection diagnostics, tuning candidates and
   caches, concrete backend routing, preparation, runtime, and execution remain with their owning
-  future tasks.
+  future tasks.<span data-glossary-navigation="true"> ([Device glossary](../../../../glossary.md#term-device); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 
 ## Architecture impact
 
 Expected impact: None.
 
-The task realizes the existing planning responsibility for backend-neutral ownership selection,
-uses only current immutable compile-time facts, returns `BackendId`, and preserves the hard-
-eligibility and prepare/backend/tuning/runtime boundaries. If implementation reveals a need for a
-public API, dependency visibility change, new cost/workload classification, device selection,
-route vocabulary, graph/partition contract, or another architecture decision, stop before editing
+The task realizes the existing [planning](../../../../glossary.md#term-planning) responsibility for [backend](../../../../glossary.md#backend)-neutral [ownership](../../../../glossary.md#term-ownership-meanings) selection,
+uses only current [immutable](../../../../glossary.md#term-immutable) [compile](../../../../glossary.md#compile)-time facts, returns [`BackendId`](../../../../glossary.md#backend-identity--backendid), and preserves the hard-
+eligibility and [prepare](../../../../glossary.md#prepare)/backend/tuning/[runtime](../../../../glossary.md#term-runtime) boundaries. If implementation reveals a need for a
+public [API](../../../../glossary.md#term-application-programming-interface-api), [dependency](../../../../glossary.md#term-dependency) visibility change, new cost/workload classification, [device](../../../../glossary.md#term-device) selection,
+route vocabulary, [graph](../../../../glossary.md#graph)/[partition](../../../../glossary.md#partition) contract, or another architecture decision, stop before editing
 source or architecture documentation and report the conflict.
 
 ## Implementation prompt
@@ -596,21 +596,21 @@ documentation pass succeed.
 
 ## Local decisions
 
-- Use the existing hard-eligible `BackendId` list directly as the candidate set. A separate
-  candidate record would duplicate identity and add no fact required by the baseline.
+- Use the existing hard-eligible [`BackendId`](../../../../glossary.md#backend-identity--backendid) list directly as the candidate set. A separate
+  candidate record would duplicate identity and add no fact required by the baseline.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Keep the selector package-private and colocated with `BackendEligibility`. This is the smallest
   implementable cross-contract handoff and avoids exposing config through a new public planning
-  signature before a compiler aggregate exists.
+  signature before a compiler aggregate exists.<span data-glossary-navigation="true"> ([handoff glossary](../../../../glossary.md#term-handoff); [planning glossary](../../../../glossary.md#term-planning); [signature glossary](../../../../glossary.md#term-signature); [compiler glossary](../../../../glossary.md#term-compiler))</span>
 - Use a stateless focused selector class rather than adding selection behavior to the eligibility
-  value. Hard eligibility remains a value/factory; owner comparison is a separate operation.
+  value. Hard eligibility remains a value/factory; owner comparison is a separate operation.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [operation glossary](../../../../glossary.md#operation))</span>
 - Interpret the optional preferred class as one lexicographic match bucket. No numeric magnitude
   exists, so provider order remains the deterministic tie and fallback rule.
 - Treat extra snapshots as expected because task 0002 validates the complete provider set before
   filtering. Only eligible identities become candidates.
 - Treat an empty matching snapshot as a soft-preference nonmatch, not a renewed hard-eligibility
-  filter. The eligibility result is authoritative, and this prevents scoring from weakening it.
+  filter. The eligibility result is authoritative, and this prevents scoring from weakening it.<span data-glossary-navigation="true"> ([snapshot glossary](../../../../glossary.md#term-snapshot))</span>
 - Return the exact eligibility identity reference so equal snapshot identities validate
-  association without replacing the ownership identity selected from the candidate set.
+  association without replacing the ownership identity selected from the candidate set.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Define the empty result as an internal `IllegalStateException` now. A public compiler exception
   remains deferred until public orchestration exists.
 - Add no workload or cost classification. The current consumer has no cost input, and a
@@ -620,47 +620,47 @@ documentation pass succeed.
 
 - Baseline selection considers only the current optional coarse device-class preference and
   provider order. It has no transfer, boundary, materialization, region-size, or execution-cost
-  estimate.
+  estimate.<span data-glossary-navigation="true"> ([device glossary](../../../../glossary.md#term-device); [materialization glossary](../../../../glossary.md#materialization))</span>
 - A backend reporting both CPU and accelerator devices matches either preferred class, but no
-  device is selected and capability remains backend-level.
-- The selector is internal. No current compiler, public planner, or `CompileConfig` aggregate
+  device is selected and capability remains backend-level.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [CPU glossary](../../../../glossary.md#term-cpu); [accelerator glossary](../../../../glossary.md#term-accelerator))</span>
+- The selector is internal. No current [compiler](../../../../glossary.md#term-compiler), public planner, or `CompileConfig` aggregate
   invokes it externally.
 - The internal no-eligible exception is not a public compile failure contract and carries no
-  structured rejection reason.
+  structured rejection reason.<span data-glossary-navigation="true"> ([compile glossary](../../../../glossary.md#compile))</span>
 - Availability is only as current as the immutable caller-supplied snapshots; selection performs
-  no discovery, refresh, or liveness check.
-- No serialization or external compatibility guarantee is established.
+  no discovery, refresh, or liveness check.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [liveness glossary](../../../../glossary.md#term-liveness))</span>
+- No [serialization](../../../../glossary.md#term-serialization) or external compatibility guarantee is established.
 
-## Validation evidence
+## [Validation](../../../../glossary.md#term-validation) evidence
 
-- Planning context `/root/plan_planning_0003` read the repository instructions, authoritative
+- [Planning](../../../../glossary.md#term-planning) context `/root/plan_planning_0003` read the repository instructions, authoritative
   architecture contract, focused module/dependency/lifecycle/partition-scoring/performance
   explanations, ADR 0008, documentation rules and applicable profiles, planning guide and
   roadmap, planning/config/backend-contract/prepare/compiler/engine master plans, completed
   Planning 0001–0002 and Config 0001–0003 tasks, current production/tests/builds, Compile API,
-  backend/user guides, and glossary before selecting this contract.
+  backend/user guides, and glossary before selecting this contract.<span data-glossary-navigation="true"> ([architecture contract glossary](../../../../glossary.md#architecture-contract); [module glossary](../../../../glossary.md#term-module); [dependency glossary](../../../../glossary.md#term-dependency); [lifecycle glossary](../../../../glossary.md#lifecycle); [partition glossary](../../../../glossary.md#partition); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [backend glossary](../../../../glossary.md#backend); [prepare glossary](../../../../glossary.md#prepare); [compiler glossary](../../../../glossary.md#term-compiler); [engine glossary](../../../../glossary.md#term-engine); [Compile glossary](../../../../glossary.md#compile); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - The current consumer needs no production candidate or workload/cost classification: the
   provider-ordered eligible IDs are complete alternatives, and snapshot class presence is the
   only current ranking fact. The selected package-private handoff preserves current dependencies
-  and creates no architecture uncertainty.
+  and creates no architecture uncertainty.<span data-glossary-navigation="true"> ([ranking glossary](../../../../glossary.md#term-ranking))</span><span data-glossary-navigation="true"> ([snapshot glossary](../../../../glossary.md#term-snapshot); [handoff glossary](../../../../glossary.md#term-handoff))</span>
 - Planning-stage `python3 /tmp/validate_synaptik_markdown.py` passed for 227 Markdown files, 4,012
   local links, 244 local anchors, 2,846 fence markers, final newlines, and trailing whitespace.
 - `git diff --check` passed with no output. The combined tracked/untracked scope is exactly this
   task, the planning/config/trace master plans, and the roadmap: five planning-only paths. No
-  Java, test, Gradle, architecture, API, guide, or glossary file changed during planning.
+  Java, test, Gradle, architecture, API, guide, or glossary file changed during planning.<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope); [trace glossary](../../../../glossary.md#trace); [Gradle glossary](../../../../glossary.md#term-gradle))</span>
 - Status and task-directory checks found exactly one global Ready master-plan row and exactly one
   Ready detailed task: Planning 0003. Planning 0001–0002 and Config 0001–0003 remain Complete;
   Planning 0004+, Config 0004+, and Trace 0003+ remain Draft. No detailed Planning 0004 or Config
-  0004 specification exists.
+  0004 specification exists.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready))</span>
 - Manual planning review confirmed the exact proposed package-private shape, validation messages,
   provider-order tie/fallback semantics, unchanged public/dependency surface, cost-classification
-  deferral, canonical sections and implementation prompt, and preserved completed-task history.
+  deferral, canonical sections and implementation prompt, and preserved completed-task history.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [canonical glossary](../../../../glossary.md#term-canonical-form))</span>
 - Implementation context `/root/implement_planning_0003` added the package-private final stateless
   `BackendOwnerSelection` and its sole package-private static `select` method. The selector consumes
   `BackendEligibility` directly, validates inputs and equal-identity snapshot associations in the
   specified order, applies the optional preferred class, preserves provider-order ties/fallback,
   returns the exact eligible identity reference, and introduces no candidate, score, device,
-  route, kernel, provider call, trace, preparation, runtime, or execution behavior.
+  route, kernel, provider call, trace, preparation, runtime, or execution behavior.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [device glossary](../../../../glossary.md#term-device); [kernel glossary](../../../../glossary.md#kernel); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 - Focused validation
   `./gradlew :modules:planning:test --tests io.github.pho001.synaptik.planning.capability.BackendOwnerSelectionTest`
   passed with `BUILD SUCCESSFUL`; its XML reports 13 tests with zero failures, errors, or skips.
@@ -684,35 +684,35 @@ documentation pass succeed.
 - Final status checks found no Ready task, Planning 0004–0006, Config 0004–0008, and Trace 0003+
   remain Draft, and no detailed Planning 0004 or Config 0004 specification exists. Source checks
   found no production operation-family, workload-bucket, cost-profile, platform-profile, or
-  tuning-profile type.
+  tuning-profile type.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation))</span>
 - The final combined tracked/untracked scope is exactly the two production paths, one focused-test
   path, six explanatory-document paths, and five planning paths authorized below; there are no
   extra changed paths.
 
 ## Implementation notes
 
-The implementation uses the existing immutable provider-ordered eligibility identities as the
-complete candidate set and builds one temporary equal-identity snapshot lookup. It does not widen
-the package-private handoff or add a numeric comparison. The focused tests lock class/method shape,
-validation precedence and messages, neutral/preferred/miss/tie behavior, equality association,
-reference identity, immutable inputs, and forbidden side effects/surfaces.
+The implementation uses the existing [immutable](../../../../glossary.md#term-immutable) provider-ordered eligibility [identities](../../../../glossary.md#term-identity-meanings) as the
+complete candidate set and builds one temporary equal-[identity](../../../../glossary.md#term-identity-meanings) [snapshot](../../../../glossary.md#term-snapshot) [lookup](../../../../glossary.md#term-lookup). It does not widen
+the package-private [handoff](../../../../glossary.md#term-handoff) or add a numeric comparison. The focused tests lock class/method [shape](../../../../glossary.md#shape),
+[validation](../../../../glossary.md#term-validation) precedence and messages, neutral/preferred/miss/tie behavior, equality association,
+[reference identity](../../../../glossary.md#term-reference-identity), immutable inputs, and forbidden side effects/surfaces.
 
 The documentation pass changed no executable Java, tests, build files, or dependencies. The
-planning Gradle declarations remain exactly `api` for model/backend-contract and `implementation`
-for config/trace. No architecture contract or ADR changed because the selector implements the
-existing planning responsibility and ADR 0008 boundary. No architecture test was needed because
-no dependency, module, or public boundary changed. No backend-conformance or integration test was
-needed because no concrete backend or end-to-end behavior changed. No compile workflow beyond the
-authorized API/status explanations changed because no compiler or public planning workflow exists.
+[planning](../../../../glossary.md#term-planning) [Gradle](../../../../glossary.md#term-gradle) declarations remain exactly `api` for [model](../../../../glossary.md#term-model)/[backend](../../../../glossary.md#backend)-contract and `implementation`
+for config/[trace](../../../../glossary.md#trace). No [architecture contract](../../../../glossary.md#architecture-contract) or [ADR](../../../../glossary.md#term-architecture-decision-record-adr) changed because the selector implements the
+existing planning responsibility and ADR 0008 boundary. No [architecture test](../../../../glossary.md#term-architecture-test) was needed because
+no [dependency](../../../../glossary.md#term-dependency), [module](../../../../glossary.md#term-module), or public boundary changed. No backend-[conformance](../../../../glossary.md#term-conformance) or [integration test](../../../../glossary.md#term-integration-test) was
+needed because no [concrete backend](../../../../glossary.md#concrete-backend) or end-to-end behavior changed. No [compile](../../../../glossary.md#compile) workflow beyond the
+authorized [API](../../../../glossary.md#term-application-programming-interface-api)/status explanations changed because no [compiler](../../../../glossary.md#term-compiler) or public planning workflow exists.
 Config, backend-contract, and trace Java remained unchanged because the selector only consumes
-their current immutable contracts. Compiler, prepare, runtime, engine, concrete backends, and all
+their current immutable contracts. Compiler, [prepare](../../../../glossary.md#prepare), [runtime](../../../../glossary.md#term-runtime), [engine](../../../../glossary.md#term-engine), concrete backends, and all
 other modules remained unchanged because the selector performs no work in those layers.
 
 ## Completion summary
 
 - Completed changes: Added the exact internal preferred-class/provider-order baseline owner
   selector over the complete hard-eligible identity list, with deterministic validation, fallback,
-  tie, and exact-reference semantics.
+  tie, and exact-reference semantics.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [identity glossary](../../../../glossary.md#term-identity-meanings); [validation glossary](../../../../glossary.md#term-validation))</span>
 - Files changed or created: Exactly 14 paths: production
   `modules/planning/src/main/java/io/github/pho001/synaptik/planning/capability/BackendOwnerSelection.java`
   and `modules/planning/src/main/java/io/github/pho001/synaptik/planning/capability/package-info.java`;
@@ -720,23 +720,23 @@ other modules remained unchanged because the selector performs no work in those 
   `modules/planning/src/test/java/io/github/pho001/synaptik/planning/capability/BackendOwnerSelectionTest.java`;
   explanatory documentation `docs/architecture/partition-scoring.md`, `docs/api/public-api.md`,
   `docs/api/compile-api.md`, `docs/backend-guide/capability-provider.md`,
-  `docs/user-guide/backend-selection.md`, and `docs/glossary.md`; planning records this task,
+  `docs/user-guide/backend-selection.md`, and `docs/glossary.md`; [planning](../../../../glossary.md#term-planning) records this task,
   `docs/planning/modules/planning/master-plan.md`, `docs/planning/modules/config/master-plan.md`,
   `docs/planning/modules/trace/master-plan.md`, and `docs/planning/roadmap.md`.
 - Tests and validation: Focused selector tests passed 13/13; the final planning suite passed 38/38
   across three suites; planning Javadoc, 227-file Markdown validation, exact scope/status/source
-  checks, and `git diff --check` passed.
+  checks, and <span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [scope glossary](../../../../glossary.md#term-scope))</span>`git diff --check` passed.
 - Documentation-agent review: Clean context `/root/implement_planning_0003/docs_planning_0003`
   completed the independent documentation pass without changing executable Java behavior.
 - Documentation impact: Six explanatory pages and five planning records now describe the current
   internal baseline and preserve the planned public orchestration, cost scoring, partitioning,
   device/route/kernel, prepare, runtime, and execution boundaries; the reasoned no-change groups
-  are recorded above.
+  are recorded above.<span data-glossary-navigation="true"> ([device glossary](../../../../glossary.md#term-device); [kernel glossary](../../../../glossary.md#kernel); [prepare glossary](../../../../glossary.md#prepare); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 - Javadoc review: Finalized selector and package contracts; generated public Javadocs preserve the
   public/internal surface and exclude the package-private selector from public indexes.
 - Glossary impact: Updated backend ownership and directly dependent intent/requirement status text
   to distinguish internal baseline selection from hard eligibility, future cost scoring, and
-  backend prepare routing.
+  backend prepare routing.<span data-glossary-navigation="true"> ([backend ownership glossary](../../../../glossary.md#backend-ownership); [backend glossary](../../../../glossary.md#backend))</span>
 - Unresolved issues: None.
 - Follow-up required: None.
 

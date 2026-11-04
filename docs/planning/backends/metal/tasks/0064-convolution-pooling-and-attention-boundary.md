@@ -1,350 +1,350 @@
-# Task 0064: Convolution, Pooling, and Attention Boundary
+# Task 0064: [Convolution](../../../../glossary.md#term-channels-first-convolution-layers), [Pooling](../../../../glossary.md#term-pooling), and Attention Boundary
 
 ## Status
 
 Complete — the exact six-row production cutover, documentation, signed native package, focused
-Task-0059/0060/0064 evidence, complete Metal suite, and full test/build validation are complete
+Task-0059/0060/0064 evidence, complete [Metal](../../../../glossary.md#term-metal) suite, and full test/build [validation](../../../../glossary.md#term-validation) are complete
 through `d71ac005`. Independent cumulative and final-delta code, evidence, documentation, and
 security reviews report no unresolved P0/P1/P2 findings.
 
 ## Change class
 
-Class C — the reviewed implementation will widen Metal capability for six convolution/pooling
-kinds, add exact custom-kernel execution, expand the authenticated Conv1d/Pool1d composition
-boundary, advance private route identities, change public Engine behavior, and update current
-backend documentation. Scaled dot-product attention and convolution transpose remain fail-closed
-for explicit numerical, selector, Model, schema, and gradient reasons. An independent cumulative
+Class C — the reviewed implementation will widen [Metal](../../../../glossary.md#term-metal) capability for six [convolution](../../../../glossary.md#term-channels-first-convolution-layers)/[pooling](../../../../glossary.md#term-pooling)
+kinds, add exact custom-[kernel](../../../../glossary.md#kernel) execution, expand the authenticated Conv1d/[Pool1d composition](../../../../glossary.md#pool1d-composition)
+boundary, advance private route [identities](../../../../glossary.md#term-identity-meanings), change public [Engine](../../../../glossary.md#term-engine) behavior, and update current
+[backend](../../../../glossary.md#backend) documentation. [Scaled dot-product attention](../../../../glossary.md#scaled-dot-product-attention) and convolution [transpose](../../../../glossary.md#term-transpose) remain [fail-closed](../../../../glossary.md#term-fail-closed)
+for explicit numerical, selector, [Model](../../../../glossary.md#term-model), [schema](../../../../glossary.md#term-schema), and [gradient](../../../../glossary.md#term-gradient) reasons. An independent cumulative
 code, evidence, documentation, and security review is required after implementation.
 
 ## Goal
 
-Implement the maximal deterministic domain currently provable from Model and Compiler contracts for
-`CONV2D`, `CONV3D`, `MAX_POOL2D`, `AVERAGE_POOL2D`, `MAX_POOL3D`, and `AVERAGE_POOL3D` through one
-fixed custom-program route. Preserve exact NCHW/NCDHW layout, grouping, dilation, stride, padding,
-ceil-grid, fixed-divisor, special-class, signed-zero, bias, promotion, output-Shape, and gradient-
-metadata contracts. Select the route before resource creation and use no opaque-selector numerical
-assumption, timing, autotuning, value-dependent choice, retry, fallback, or host repair.
+Implement the maximal deterministic domain currently provable from [Model](../../../../glossary.md#term-model) and [Compiler](../../../../glossary.md#term-compiler) contracts for
+[`CONV2D`](../../../../glossary.md#convolution--conv2d), [`CONV3D`](../../../../glossary.md#conv3d--ncdhw), `MAX_POOL2D`, `AVERAGE_POOL2D`, `MAX_POOL3D`, and `AVERAGE_POOL3D` through one
+fixed custom-program route. Preserve exact [NCHW](../../../../glossary.md#term-nchw)/[NCDHW](../../../../glossary.md#conv3d--ncdhw) [layout](../../../../glossary.md#layout), grouping, [dilation](../../../../glossary.md#term-dilation), [stride](../../../../glossary.md#term-stride), [padding](../../../../glossary.md#padding),
+ceil-grid, fixed-divisor, special-class, [signed-zero](../../../../glossary.md#nan-infinity-and-signed-zero), [bias](../../../../glossary.md#term-bias), promotion, output-[Shape](../../../../glossary.md#shape), and [gradient](../../../../glossary.md#term-gradient)-
+[metadata](../../../../glossary.md#term-metadata) contracts. Select the route before resource creation and use no [opaque](../../../../glossary.md#term-opaque)-selector numerical
+assumption, timing, [autotuning](../../../../glossary.md#autotuning--model-autotuning), value-dependent choice, retry, fallback, or [host](../../../../glossary.md#term-host) repair.
 
-Audit `SCALED_DOT_PRODUCT_ATTENTION`, its optional mask/causal/scale/two-output contract, and the
+Audit `SCALED_DOT_PRODUCT_ATTENTION`, its optional [mask](../../../../glossary.md#term-boolean-mask)/causal/scale/two-output contract, and the
 absence of `CONV_TRANSPOSE` completely, but do not make either production-capable without the
-missing proof or Model/schema contract.
+missing proof or Model/[schema](../../../../glossary.md#term-schema) contract.
 
-## Scope
+## [Scope](../../../../glossary.md#term-scope)
 
-### Exact audited 115-kind registry boundary
+### Exact audited 115-kind [registry](../../../../glossary.md#term-registry) boundary
 
-The current registry has exactly seven family rows in scope:
+The current registry has exactly seven family rows in [scope](../../../../glossary.md#term-scope):
 
-| Wire/kind | Arity and attribute wire | Exact Model role | Pre-cutover Metal state | Task-0064 decision |
+| Wire/kind | [Arity](../../../../glossary.md#term-arity) and attribute wire | Exact [Model](../../../../glossary.md#term-model) role | Pre-cutover [Metal](../../../../glossary.md#term-metal) state | Task-0064 decision |
 |---|---|---|---|---|
-| 35 `SCALED_DOT_PRODUCT_ATTENTION` | 3..4 inputs, 1..2 outputs; 39 `ATTENTION` | broadcast query/key/value, optional BOOL mask, optional scale, causal guard, output and optional saved weights | non-executable; `DIRECT / MD_ATTENTION_BASE`; custom `PENDING / CP_CONTRACT` | remain blocked |
-| 36 `CONV2D` | 2..3/1; 40 `CONV_2D` | grouped NCHW cross-correlation with optional bias | non-executable; `DIRECT / MD_CONV_BASE`; custom pending | accelerator custom route |
-| 37 `CONV3D` | 2..3/1; 41 `CONV_3D` | grouped NCDHW cross-correlation with optional bias | non-executable; `DIRECT / MD_CONV_BASE`; custom pending | accelerator custom route |
-| 97 `MAX_POOL2D` | 1/1; 19 `WINDOW_2D` | exact NCHW winner selection, excluded padding | non-executable; `DIRECT / MD_POOL2D`; custom `PENDING / CP_AGGREGATE` | exact both-profile custom route |
-| 98 `AVERAGE_POOL2D` | 1/1; 19 `WINDOW_2D` | fixed-count NCHW average including padding | non-executable; `DIRECT / MD_POOL2D`; custom pending | accelerator FLOAT32 custom route |
+| 35 `SCALED_DOT_PRODUCT_ATTENTION` | 3..4 inputs, 1..2 outputs; 39 `ATTENTION` | broadcast query/key/value, optional [BOOL](../../../../glossary.md#data-type--datatype) [mask](../../../../glossary.md#term-boolean-mask), optional scale, causal [guard](../../../../glossary.md#term-guard), output and optional saved [weights](../../../../glossary.md#term-weight) | non-executable; `DIRECT / MD_ATTENTION_BASE`; custom `PENDING / CP_CONTRACT` | remain blocked |
+| 36 [`CONV2D`](../../../../glossary.md#convolution--conv2d) | 2..3/1; 40 `CONV_2D` | grouped [NCHW](../../../../glossary.md#term-nchw) cross-correlation with optional [bias](../../../../glossary.md#term-bias) | non-executable; `DIRECT / MD_CONV_BASE`; custom pending | [accelerator](../../../../glossary.md#term-accelerator) custom route |
+| 37 [`CONV3D`](../../../../glossary.md#conv3d--ncdhw) | 2..3/1; 41 `CONV_3D` | grouped [NCDHW](../../../../glossary.md#conv3d--ncdhw) cross-correlation with optional bias | non-executable; `DIRECT / MD_CONV_BASE`; custom pending | accelerator custom route |
+| 97 `MAX_POOL2D` | 1/1; 19 `WINDOW_2D` | exact NCHW winner selection, excluded [padding](../../../../glossary.md#padding) | non-executable; `DIRECT / MD_POOL2D`; custom `PENDING / CP_AGGREGATE` | exact both-profile custom route |
+| 98 `AVERAGE_POOL2D` | 1/1; 19 `WINDOW_2D` | fixed-count NCHW average including padding | non-executable; `DIRECT / MD_POOL2D`; custom pending | accelerator [FLOAT32](../../../../glossary.md#term-float32) custom route |
 | 99 `MAX_POOL3D` | 1/1; 22 `WINDOW_3D` | exact NCDHW winner selection, excluded padding | non-executable; `COMPOSED / MC_WINDOW3D`; custom pending | exact both-profile custom route |
 | 100 `AVERAGE_POOL3D` | 1/1; 22 `WINDOW_3D` | fixed-count NCDHW average including padding | non-executable; `COMPOSED / MC_WINDOW3D`; custom pending | accelerator FLOAT32 custom route |
 
-The schema-15 attribute grammar already carries every admitted intrinsic field:
+The [schema](../../../../glossary.md#term-schema)-15 attribute grammar already carries every admitted intrinsic field:
 
 - `CONV_2D` has seven words in declaration order: two strides, two symmetric paddings, two
   dilations, and groups. `CONV_3D` has ten words: three strides, three paddings, three dilations,
   and groups. Stride, dilation, and groups are positive; padding is non-negative. Kernel extents,
-  optional bias presence, types, and Shapes remain occurrence facts.
-- `WINDOW_2D` has nine words: kernel H/W, stride H/W, padding H/W, dilation H/W, and Boolean
+  optional bias presence, types, and Shapes remain occurrence facts.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence))</span>
+- `WINDOW_2D` has nine words: [kernel](../../../../glossary.md#kernel) H/W, [stride](../../../../glossary.md#term-stride) H/W, padding H/W, [dilation](../../../../glossary.md#term-dilation) H/W, and [Boolean](../../../../glossary.md#data-type--datatype)
   `ceilMode`. `WINDOW_3D` has the analogous thirteen D/H/W words. There is no
-  `countIncludePad` wire: average pooling always counts every kernel position.
+  `countIncludePad` wire: average [pooling](../../../../glossary.md#term-pooling) always counts every kernel position.
 - `ATTENTION` is `[scalePresent, causal]` when scale is absent, or
   `[1, scalarType, scalarBits, causal]` when present. The scalar carrier is FLOAT64, FLOAT32, or
   BFLOAT16; Model additionally requires exact promoted-type equality and positive finite value.
-  The optional mask is the fourth BOOL tensor input, not an attribute.
+  The optional mask is the fourth BOOL tensor input, not an attribute.<span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar); [carrier glossary](../../../../glossary.md#term-storage-carrier); [finite glossary](../../../../glossary.md#term-finite))</span>
 
-Type wires remain exactly `1..6`: FLOAT32 `1`, INT32 `2`, BOOL `3`, FLOAT64 `4`, BFLOAT16 `5`, and
-INT64 `6`. Only floating carriers are Model-legal for the seven family rows.
+Type wires remain exactly `1..6`: FLOAT32 `1`, [INT32](../../../../glossary.md#data-type--datatype) `2`, BOOL `3`, [FLOAT64](../../../../glossary.md#term-float64) `4`, [BFLOAT16](../../../../glossary.md#term-bfloat16) `5`, and
+[INT64](../../../../glossary.md#data-type--datatype) `6`. Only floating carriers are Model-legal for the seven family rows.
 
-No Model operation kind, registry row, attribute, Tensor overload, Compiler inference row, or native
+No Model [operation](../../../../glossary.md#operation) kind, registry row, attribute, [Tensor](../../../../glossary.md#tensor) overload, [Compiler](../../../../glossary.md#term-compiler) [inference](../../../../glossary.md#term-inference) row, or native
 wire named `CONV_TRANSPOSE` exists. `ConvolutionGradientRules` deliberately reconstructs Conv2d
-input cotangents with `UNFOLD2D`/`MATMUL`/`FOLD2D` and states that it introduces no transposed-
-convolution or backward-only kind. Task 0064 must not reserve a wire, alias `CONV2D`, or invent a
-backend-private public semantic. A future transposed-convolution operation requires a Model task,
-shape/type semantics, Compiler adoption, a new registry/schema decision, and its own reviewed Metal
+input cotangents with `UNFOLD2D`/[`MATMUL`](../../../../glossary.md#matrix-multiplication--matmul)/`FOLD2D` and states that it introduces no transposed-
+[convolution](../../../../glossary.md#term-channels-first-convolution-layers) or backward-only kind. Task 0064 must not reserve a wire, [alias](../../../../glossary.md#aliasing-and-arena) `CONV2D`, or invent a
+[backend](../../../../glossary.md#backend)-private public semantic. A future transposed-convolution operation requires a Model task,
+[shape](../../../../glossary.md#shape)/type semantics, Compiler adoption, a new registry/schema decision, and its own reviewed Metal
 plan.
 
 Related existing rows are dependencies or callers, not new family kinds:
 
-- wires 6..11 provide shape/layout compositions; public Conv1d is
+- wires 6..11 provide shape/[layout](../../../../glossary.md#layout) compositions; public Conv1d is
   `EXPAND_DIMS(input) + EXPAND_DIMS(weight) + CONV2D + SQUEEZE`, and public max/average Pool1d is
   `EXPAND_DIMS + Pool2d + SQUEEZE`;
 - wires 13, 15, 17, 20..25, 39..45, 46..52, 73, 81..84, 109, and shape operations occur in
   Compiler-generated Conv2d/pooling/attention formulas; their current capability domains remain
   independently enforced;
-- wire 101 `DROPOUT` is a separate explicit-state two-input/three-output random operation with
+- wire 101 [`DROPOUT`](../../../../glossary.md#dropout--inverted-dropout) is a separate explicit-state two-input/three-output random operation with
   attribute wire 33. Attention has no dropout field or implicit RNG state, so fused attention
-  dropout is outside the current Model contract.
+  dropout is outside the current Model contract.<span data-glossary-navigation="true"> ([RNG state glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [fused glossary](../../../../glossary.md#specialization-and-fusion))</span>
 
-### Exact convolution production domain
+### Exact [convolution](../../../../glossary.md#term-channels-first-convolution-layers) production domain
 
-Admit `CONV2D` and `CONV3D` only under `ACCELERATOR` when all of the following hold:
+Admit [`CONV2D`](../../../../glossary.md#convolution--conv2d) and [`CONV3D`](../../../../glossary.md#conv3d--ncdhw) only under [`ACCELERATOR`](../../../../glossary.md#term-accelerator) when all of the following hold:
 
 - input/weight rank is exactly four for NCHW/OIHW or five for NCDHW/OIDHW; optional bias rank is
-  one; output rank matches the input; every dimension is fully static and positive;
+  one; output rank matches the input; every dimension is fully static and positive;<span data-glossary-navigation="true"> ([weight glossary](../../../../glossary.md#term-weight); [rank glossary](../../../../glossary.md#term-rank); [NCHW glossary](../../../../glossary.md#term-nchw); [NCDHW glossary](../../../../glossary.md#conv3d--ncdhw); [dimension glossary](../../../../glossary.md#dimension))</span>
 - input, weight, and optional bias are each FLOAT32 or BFLOAT16, exact ordered promotion produces
   FLOAT32, and the output is FLOAT32. At least one participating role is therefore FLOAT32.
   All-FLOAT32 occurrences may retain Model's exact input-OR/output gradient metadata. If any role is
   BFLOAT16, every input and output is no-grad, matching the current proved mixed-carrier custom
-  boundary. FLOAT64 results and all-BFLOAT16/BFLOAT16 results remain false;
+  boundary. FLOAT64 results and all-BFLOAT16/BFLOAT16 results remain false;<span data-glossary-navigation="true"> ([gradient glossary](../../../../glossary.md#term-gradient); [metadata glossary](../../../../glossary.md#term-metadata); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
 - input channels and output channels are divisible by positive groups, weight channel extent one is
-  exactly `Cin/groups`, bias length is exactly `Cout`, and groups do not exceed either channel
+  exactly <span data-glossary-navigation="true"> ([channel glossary](../../../../glossary.md#term-channel); [extent glossary](../../../../glossary.md#term-extent))</span>`Cin/groups`, [bias](../../../../glossary.md#term-bias) length is exactly `Cout`, and groups do not exceed either channel
   count;
-- for each spatial axis `a`, effective kernel is
+- for each [spatial axis](../../../../glossary.md#spatial-axes-channels-and-window-sampling) `a`, effective [kernel](../../../../glossary.md#kernel) is
   `Ea = dilation_a * (kernel_a - 1) + 1`, padded input is `Pa = input_a + 2 * padding_a`,
   `Pa >= Ea`, and output is exactly `floor((Pa - Ea) / stride_a) + 1`;
 - every output cell uses the exact contiguous channel group and every channel/kernel position once.
-  Conceptual positive-zero padding is an ordinary multiplicand, so `+0 * +/-infinity` produces NaN
+  Conceptual positive-zero padding is an ordinary multiplicand, so <span data-glossary-navigation="true"> ([contiguous glossary](../../../../glossary.md#term-contiguous); [padding glossary](../../../../glossary.md#padding))</span>`+0 * +/-infinity` produces NaN
   rather than being skipped. The optional bias is the initial promoted accumulator; an unbiased
-  cell begins at positive zero;
+  cell begins at positive zero;<span data-glossary-navigation="true"> ([NaN glossary](../../../../glossary.md#term-nan); [accumulator glossary](../../../../glossary.md#accumulator-type); [positive zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>
 - ordinary Conv2d/Conv3d roles are canonical dense, zero-offset, non-view storage. Conv2d input and
-  weight may additionally be the exact direct local `EXPAND_DIMS(axis=2)` singleton-height affine
+  weight may additionally be the exact direct local <span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [view glossary](../../../../glossary.md#term-view-meanings))</span>`EXPAND_DIMS(axis=2)` singleton-height affine
   views of canonical rank-three NCW/OIW sources used by public Conv1d. Complete-partition analysis,
   Java image validation, and native validation must authenticate the producer, singleton extent,
   offset, positive strides, span, and physical source; no other affine form is admitted. Bias and
-  every convolution output remain canonical; and
+  every convolution output remain canonical; and<span data-glossary-navigation="true"> ([singleton glossary](../../../../glossary.md#term-singleton); [NCW glossary](../../../../glossary.md#term-ncw); [partition glossary](../../../../glossary.md#partition); [validation glossary](../../../../glossary.md#term-validation); [producer glossary](../../../../glossary.md#term-producer); [strides glossary](../../../../glossary.md#term-stride))</span>
 - each output is fresh and physically disjoint from every input and sibling live value. Repeated
-  input identity and arbitrary fan-out are legal, but in-place or overlapping publication is not.
+  input identity and arbitrary fan-out are legal, but in-place or overlapping publication is not.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [fan-out glossary](../../../../glossary.md#term-fan-out); [publication glossary](../../../../glossary.md#term-publication))</span>
 
-This is a recursive-result-set domain, not a tolerance. The fixed source loop may use deterministic
-FLOAT32 rounding, DAZ/FTZ, any compiler-selected binary association, and corresponding multiply/add
-fusion because current Model explicitly permits those at `ACCELERATOR FLOAT32` convolution sites.
+This is a recursive-result-set domain, not a [tolerance](../../../../glossary.md#term-tolerance). The fixed source loop may use deterministic
+[FLOAT32](../../../../glossary.md#term-float32) [rounding](../../../../glossary.md#term-rounding), [DAZ](../../../../glossary.md#term-daz)/[FTZ](../../../../glossary.md#term-ftz), any [compiler](../../../../glossary.md#term-compiler)-selected [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) association, and corresponding multiply/add
+[fusion](../../../../glossary.md#term-fusion) because current [Model](../../../../glossary.md#term-model) explicitly permits those at `ACCELERATOR FLOAT32` convolution sites.
 It may not drop, duplicate, pretruncate, invent, or replace a term; alter group membership; change
-placement; or use MATMUL's separate final-zero freedom. Strict FLOAT32, every FLOAT64 result, and
-every BFLOAT16 result remain blocked because ordinary Metal floating arithmetic cannot prove their
-strict subnormal/rounding contract and no software IEEE implementation exists here.
+placement; or use [MATMUL](../../../../glossary.md#matrix-multiplication--matmul)'s separate final-zero freedom. Strict FLOAT32, every [FLOAT64](../../../../glossary.md#term-float64) result, and
+every [BFLOAT16](../../../../glossary.md#term-bfloat16) result remain blocked because ordinary [Metal](../../../../glossary.md#term-metal) floating arithmetic cannot prove their
+strict [subnormal](../../../../glossary.md#term-subnormal)/rounding contract and no software [IEEE](../../../../glossary.md#term-ieee) implementation exists here.
 
-### Exact pooling production domains
+### Exact [pooling](../../../../glossary.md#term-pooling) production domains
 
-For all four pooling kinds, require rank-four NCHW or rank-five NCDHW, same input/output type, exact
-batch/channel identity, fully static positive Shapes, exact derived output Shape, fresh canonical
-output, and the same checked layout/alias rules as convolution. Pool2d additionally accepts only the
-authenticated direct local singleton-height `EXPAND_DIMS(axis=2)` view used by public Pool1d; Pool3d
+For all four pooling kinds, require [rank](../../../../glossary.md#term-rank)-four [NCHW](../../../../glossary.md#term-nchw) or rank-five [NCDHW](../../../../glossary.md#conv3d--ncdhw), same input/output type, exact
+[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)/[channel](../../../../glossary.md#term-channel) [identity](../../../../glossary.md#term-identity-meanings), fully static positive [Shapes](../../../../glossary.md#shape), exact derived output Shape, fresh [canonical](../../../../glossary.md#term-canonical-form)
+output, and the same checked [layout](../../../../glossary.md#layout)/[alias](../../../../glossary.md#aliasing-and-arena) rules as [convolution](../../../../glossary.md#term-channels-first-convolution-layers). Pool2d additionally accepts only the
+authenticated direct local [singleton](../../../../glossary.md#term-singleton)-height `EXPAND_DIMS(axis=2)` [view](../../../../glossary.md#term-view-meanings) used by public Pool1d; [Pool3d](../../../../glossary.md#pool3d--ncdhw-pooling)
 accepts canonical input only.
 
-For each spatial axis, define effective kernel and padded input as above. Output is exactly
+For each [spatial axis](../../../../glossary.md#spatial-axes-channels-and-window-sampling), define effective [kernel](../../../../glossary.md#kernel) and padded input as above. Output is exactly
 
 `(ceilMode ? ceil((Pa - Ea) / stride_a) : floor((Pa - Ea) / stride_a)) + 1`.
 
-Literal ceiling mode retains a terminal all-padding window; no framework-style terminal-window trim
+Literal ceiling mode retains a terminal all-[padding](../../../../glossary.md#padding) window; no framework-style terminal-window trim
 is permitted.
 
-`MAX_POOL2D` and `MAX_POOL3D` admit FLOAT64, FLOAT32, and BFLOAT16 under both profiles, including
-legal gradient metadata. Padding is excluded from selection. Logical traversal is H then W or D
-then H then W. NaN dominates every non-NaN, positive zero is greater than negative zero, equal
-represented values retain the first logical candidate, and the selected original raw carrier is
-published. An all-padding window returns exact negative infinity in the input type. These are exact
+`MAX_POOL2D` and `MAX_POOL3D` admit [FLOAT64](../../../../glossary.md#term-float64), [FLOAT32](../../../../glossary.md#term-float32), and [BFLOAT16](../../../../glossary.md#term-bfloat16) under both profiles, including
+legal [gradient](../../../../glossary.md#term-gradient) [metadata](../../../../glossary.md#term-metadata). Padding is excluded from selection. Logical traversal is H then W or D
+then H then W. [NaN](../../../../glossary.md#term-nan) dominates every non-NaN, [positive zero](../../../../glossary.md#nan-infinity-and-signed-zero) is greater than [negative zero](../../../../glossary.md#nan-infinity-and-signed-zero), equal
+represented values retain the first logical candidate, and the selected original raw [carrier](../../../../glossary.md#term-storage-carrier) is
+published. An all-padding window returns exact [negative infinity](../../../../glossary.md#nan-infinity-and-signed-zero) in the input type. These are exact
 discrete semantics with no profile relaxation.
 
-`AVERAGE_POOL2D` and `AVERAGE_POOL3D` admit only FLOAT32 under `ACCELERATOR`, with matching input/
+`AVERAGE_POOL2D` and `AVERAGE_POOL3D` admit only FLOAT32 under [`ACCELERATOR`](../../../../glossary.md#term-accelerator), with matching input/
 output gradient metadata. Every logical kernel position participates, padding contributes positive
 zero, and the divisor is always the exact kernel-position product converted to FLOAT32 for the one
-final division. A fixed FLOAT32 reduction may reassociate and use per-step rounding plus DAZ/FTZ,
-but may not omit a padding or input contributor. NaN propagates, opposing infinities produce NaN,
-one infinity retains its sign, all-padding returns positive zero, and an exact-zero result is
+final division. A fixed FLOAT32 reduction may reassociate and use per-step [rounding](../../../../glossary.md#term-rounding) plus [DAZ](../../../../glossary.md#term-daz)/[FTZ](../../../../glossary.md#term-ftz),
+but may not omit a padding or input contributor. NaN propagates, opposing [infinities](../../../../glossary.md#nan-infinity-and-signed-zero) produce NaN,
+one [infinity](../../../../glossary.md#term-infinity) retains its sign, all-padding returns positive zero, and an exact-zero result is
 negative only when every divisor position is an in-bounds negative zero. Strict FLOAT32, FLOAT64,
 and BFLOAT16 average pooling remain false without exact non-flushing/software arithmetic.
 
 ### Static positive and unsigned-32-bit boundary
 
-Before capability returns true, checked `long`/`uint64_t` arithmetic must prove all of these facts:
+Before capability returns true, checked `long`/[`uint64_t`](../../../../glossary.md#index-mappings-and-cost-dominance) arithmetic must prove all of these facts:
 
 - every dimension, stride, dilation, padding, group count, channel-per-group count, effective kernel,
   padded extent, output extent, kernel volume, convolution contributor count, element count,
   canonical stride, direct-view stride, logical coordinate, linear element index, custom thread
-  count, and one-dimensional grid width is representable without narrowing or signed overflow;
-- positive dimensions/counts/extents/attributes are in `1..UINT32_MAX`, padding and derived
+  count, and one-dimensional grid width is representable without narrowing or signed overflow;<span data-glossary-navigation="true"> ([dilation glossary](../../../../glossary.md#term-dilation); [padding glossary](../../../../glossary.md#padding); [channel glossary](../../../../glossary.md#term-channel); [kernel glossary](../../../../glossary.md#kernel); [convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers); [canonical glossary](../../../../glossary.md#term-canonical-form); [view glossary](../../../../glossary.md#term-view-meanings); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [linear glossary](../../../../glossary.md#term-linear-meanings); [narrowing glossary](../../../../glossary.md#term-narrowing); [overflow glossary](../../../../glossary.md#term-overflow))</span>
+- positive [dimensions](../../../../glossary.md#dimension)/counts/extents/attributes are in `1..UINT32_MAX`, padding and derived
   zero-based coordinates/indices are in `0..UINT32_MAX`, and every access index is strictly below
   its governing count/extent. Signed window origins may be negative but must fit checked signed
   64-bit arithmetic before an in-bounds decision;
-- each input/output element count and the one-thread-per-output grid width are in
-  `1..UINT32_MAX`; every loop is half-open and never requires `limit + 1`, so exact
+- each input/output [element](../../../../glossary.md#term-element) count and the one-thread-per-output grid width are in
+  `1..UINT32_MAX`; every loop is [half-open](../../../../glossary.md#term-half-open-interval) and never requires `limit + 1`, so exact
   `UINT32_MAX` limits terminate without increment wrap; and
-- byte widths, byte offsets/spans, metadata sizes, products, `NSUInteger` conversions, buffer
+- byte widths, byte offsets/spans, [metadata](../../../../glossary.md#term-metadata) sizes, products, `NSUInteger` conversions, buffer
   lengths, and allocations separately pass existing native-size bounds. A 64-bit metadata or byte
-  carrier never widens the logical unsigned-32-bit domain.
+  carrier never widens the logical unsigned-32-bit domain.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
 
-Java capability/preparation and native image validation enforce the same facts before pipeline,
-buffer, or executable creation and before any device write. Dynamic/expression, zero extent, scalar,
-over-limit, general affine, negative/zero-stride, overlapping, aliased, unresolved, or malformed
-occurrences fail closed without MPSGraph or host fallback.
+Java capability/preparation and native image [validation](../../../../glossary.md#term-validation) enforce the same facts before pipeline,
+[buffer](../../../../glossary.md#term-buffer), or executable creation and before any [device](../../../../glossary.md#term-device) write. Dynamic/expression, zero [extent](../../../../glossary.md#term-extent), [scalar](../../../../glossary.md#term-scalar),
+over-limit, general affine, negative/zero-[stride](../../../../glossary.md#term-stride), overlapping, aliased, unresolved, or malformed
+occurrences [fail closed](../../../../glossary.md#admission-preflight-and-fail-closed-validation) without [MPSGraph](../../../../glossary.md#term-mpsgraph) or [host](../../../../glossary.md#term-host) fallback.
 
 ### Fixed custom route and native algorithms
 
-Add one Task-0064 custom Metal source/header and append it unconditionally to the existing fixed
-custom-program library. Add native operation constants only for wires 36, 37, and 97..100. Reuse the
-Task-0061 raw BFLOAT16-to-FLOAT32 widening convention and Task-0063 raw floating classification/key
-convention rather than native BFLOAT16 or FLOAT64 arithmetic.
+Add one Task-0064 custom [Metal](../../../../glossary.md#term-metal) source/header and append it unconditionally to the existing fixed
+custom-program library. Add native [operation](../../../../glossary.md#operation) [constants](../../../../glossary.md#term-constant) only for wires 36, 37, and 97..100. Reuse the
+Task-0061 raw [BFLOAT16](../../../../glossary.md#term-bfloat16)-to-[FLOAT32](../../../../glossary.md#term-float32) [widening](../../../../glossary.md#term-widening) convention and Task-0063 raw [floating classification](../../../../glossary.md#floating-classification)/key
+convention rather than native BFLOAT16 or [FLOAT64](../../../../glossary.md#term-float64) arithmetic.
 
-Every admitted node dispatches one one-dimensional thread per output element:
+Every admitted [node](../../../../glossary.md#node) dispatches one one-dimensional thread per output [element](../../../../glossary.md#term-element):
 
 - Conv2d/Conv3d decode the output's N/C/spatial coordinate, derive the contiguous group, initialize
   from promoted bias or positive zero, then visit input-channel and kernel coordinates in fixed
   lexicographic order. Each in-bounds input is loaded as FLOAT32; BFLOAT16 is widened exactly from
   bits. Each out-of-bounds input is literal positive zero but is still multiplied by the promoted
   weight. The source expresses every multiply/add contributor exactly once; any emitted FMA,
-  association, DAZ, or FTZ remains inside the current accelerator recursive result set.
+  association, DAZ, or FTZ remains inside the current accelerator recursive result set.<span data-glossary-navigation="true"> ([Conv2d glossary](../../../../glossary.md#convolution--conv2d); [Conv3d glossary](../../../../glossary.md#conv3d--ncdhw); [spatial glossary](../../../../glossary.md#term-spatial-axes); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [contiguous glossary](../../../../glossary.md#term-contiguous); [bias glossary](../../../../glossary.md#term-bias); [positive zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [weight glossary](../../../../glossary.md#term-weight); [FMA glossary](../../../../glossary.md#term-fused-multiply-add-fma); [DAZ glossary](../../../../glossary.md#term-daz); [FTZ glossary](../../../../glossary.md#term-ftz); [accelerator glossary](../../../../glossary.md#term-accelerator))</span>
 - Maximum pooling visits only in-bounds candidates, classifies and compares raw FLOAT64/FLOAT32/
   BFLOAT16 encodings using integer exponent/fraction/sign keys, replaces on NaN preference or a
   strictly greater numerical value, and never replaces on an exact tie. It copies the winning raw
-  word. With no candidate it writes canonical negative infinity in the carrier.
+  word. With no candidate it writes canonical negative infinity in the carrier.<span data-glossary-navigation="true"> ([pooling glossary](../../../../glossary.md#term-pooling); [exponent glossary](../../../../glossary.md#term-exponent); [NaN glossary](../../../../glossary.md#term-nan); [negative infinity glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
 - Average pooling initializes positive-zero FLOAT32, visits every kernel position, selects either
   the input value or literal positive zero, and performs one fixed accumulation plus one division
   by the FLOAT32 kernel volume. It separately tracks whether every position is in-bounds raw
   negative zero and applies the exact final zero-sign rule. No scratch, atomic, reduction pass,
-  host calculation, or data-dependent route exists.
+  host calculation, or data-dependent route exists.<span data-glossary-navigation="true"> ([negative zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [atomic glossary](../../../../glossary.md#resource-transaction-and-rollback); [host glossary](../../../../glossary.md#term-host))</span>
 
-Use the schema's authenticated layout strides only for canonical storage and the exact Conv1d/
-Pool1d singleton view above. Kernel metadata must not trust Java-derived output dimensions,
-groups, channel relations, view geometry, or products: native preflight independently recomputes and
-compares all of them. Unique output-thread ownership proves race-free writes. Byte addressing uses
+Use the [schema](../../../../glossary.md#term-schema)'s authenticated [layout](../../../../glossary.md#layout) [strides](../../../../glossary.md#term-stride) only for [canonical](../../../../glossary.md#term-canonical-form) storage and the exact Conv1d/
+Pool1d [singleton](../../../../glossary.md#term-singleton) [view](../../../../glossary.md#term-view-meanings) above. [Kernel](../../../../glossary.md#kernel) [metadata](../../../../glossary.md#term-metadata) must not trust Java-derived output [dimensions](../../../../glossary.md#dimension),
+groups, [channel](../../../../glossary.md#term-channel) relations, view geometry, or products: native [preflight](../../../../glossary.md#term-preflight) independently recomputes and
+compares all of them. Unique output-thread [ownership](../../../../glossary.md#term-ownership-meanings) proves [race](../../../../glossary.md#term-race)-free writes. Byte addressing uses
 checked wider arithmetic after the logical unsigned-32-bit proof.
 
-Any partition containing one of the six admitted rows selects `CUSTOM_PROGRAM` only. The custom
-program may compose these kernels with already approved custom steps and nested MPSGraph steps in
-one fixed topological program, but candidate generation never offers MPSGraph for a family row.
+Any [partition](../../../../glossary.md#partition) containing one of the six admitted rows selects `CUSTOM_PROGRAM` only. The custom
+program may compose these [kernels](../../../../glossary.md#kernel) with already approved custom steps and nested [MPSGraph](../../../../glossary.md#term-mpsgraph) steps in
+one fixed [topological](../../../../glossary.md#term-topological-order) program, but candidate generation never offers MPSGraph for a family row.
 There is one deterministic result set per valid partition; route choice never consults timing,
-cache winners, input values, runtime failure, or retry.
+[cache](../../../../glossary.md#term-cache) winners, input values, [runtime](../../../../glossary.md#term-runtime) failure, or retry.
 
-### Opaque MPSGraph routes are not numerical proof
+### [Opaque](../../../../glossary.md#term-opaque) [MPSGraph](../../../../glossary.md#term-mpsgraph) routes are not numerical proof
 
-Keep every existing MPSGraph catalog state and reason unchanged as structural metadata:
+Keep every existing MPSGraph catalog state and reason unchanged as structural [metadata](../../../../glossary.md#term-metadata):
 
 - Installed Conv2d/Conv3d selectors document basic NCHW/NCDHW descriptor mapping but not the
   shape-dependent contraction tree, per-step rounding, FMA placement, DAZ/FTZ behavior, padding-
-  times-infinity participation, bias placement, or the complete admitted geometry. Historical
+  times-infinity participation, bias placement, or the complete admitted geometry. Historical<span data-glossary-navigation="true"> ([Conv2d glossary](../../../../glossary.md#convolution--conv2d); [Conv3d glossary](../../../../glossary.md#conv3d--ncdhw); [NCHW glossary](../../../../glossary.md#term-nchw); [descriptor glossary](../../../../glossary.md#term-descriptor); [contraction glossary](../../../../glossary.md#contraction-dimension); [rounding glossary](../../../../glossary.md#term-rounding); [FMA glossary](../../../../glossary.md#term-fused-multiply-add-fma); [DAZ glossary](../../../../glossary.md#term-daz); [FTZ glossary](../../../../glossary.md#term-ftz); [padding glossary](../../../../glossary.md#padding); [infinity glossary](../../../../glossary.md#term-infinity); [bias glossary](../../../../glossary.md#term-bias))</span>
   [Task 0031](0031-accelerator-canonical-float32-unbiased-conv2d-forward.md) correctly rejected
-  inference from one geometry. Optional bias is also outside its audited direct mapping.
+  inference from one geometry. Optional bias is also outside its audited direct mapping.<span data-glossary-navigation="true"> ([inference glossary](../../../../glossary.md#term-inference))</span>
 - The direct Pool2d maximum selector failed historical
   [Task 0030](0030-profile-common-exact-canonical-float32-max-pool2d-forward.md): it returned
-  negative zero for `[+0,-0]` and finite `3.0` for every NaN pair. That is a Model-visible exact
+  negative zero for <span data-glossary-navigation="true"> ([negative zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>`[+0,-0]` and [finite](../../../../glossary.md#term-finite) `3.0` for every NaN pair. That is a Model-visible exact
   winner failure. The average selector exposes include-zero-pad and ceil fields but gives no
-  complete reduction/special-class/zero-sign proof. Neither direct row is selectable here.
-- No installed true Pool3d selector closes the NCDHW contract. The existing
+  complete reduction/special-class/zero-sign proof. Neither direct row is selectable here.<span data-glossary-navigation="true"> ([NaN glossary](../../../../glossary.md#term-nan); [Model glossary](../../../../glossary.md#term-model))</span>
+- No installed true [Pool3d](../../../../glossary.md#pool3d--ncdhw-pooling) selector closes the [NCDHW](../../../../glossary.md#conv3d--ncdhw) contract. The existing
   `COMPOSED / MC_WINDOW3D` catalog entry records only a structural slice/reshape/concat/reduction
-  recipe. Historical [Task 0036](0036-extended-3d-inference.md) remains correct that Pooling4D or
+  recipe. Historical <span data-glossary-navigation="true"> ([slice glossary](../../../../glossary.md#slice))</span>[Task 0036](0036-extended-3d-inference.md) remains correct that Pooling4D or
   stencil names do not prove literal ceil-tail, fixed divisor, padding, or exact winner semantics.
 - The base attention selector mapped by the catalog takes query/key/value and scale and returns only
   the main output. It does not close Model's BOOL mask, top-left causal guard, saved weights output,
   special classes, default-scale construction, or exact output roles, and its contraction/softmax
-  implementation is opaque.
+  implementation is opaque.<span data-glossary-navigation="true"> ([BOOL glossary](../../../../glossary.md#data-type--datatype); [mask glossary](../../../../glossary.md#term-boolean-mask); [guard glossary](../../../../glossary.md#term-guard); [weights glossary](../../../../glossary.md#term-weight); [softmax glossary](../../../../glossary.md#softmax--log-softmax))</span>
 
-The custom source is instead structurally auditable over every admitted type, Shape, and attribute.
-A bounded real-device corpus corroborates the implementation but never authorizes unsampled domain.
+The custom source is instead structurally auditable over every admitted type, [Shape](../../../../glossary.md#shape), and attribute.
+A bounded real-[device](../../../../glossary.md#term-device) corpus corroborates the implementation but never authorizes unsampled domain.
 No selector probe or benchmark is required before the reviewed source-proved cutover.
 
 ### Attention audit and explicit blocker
 
-Current Model attention accepts rank-two-or-higher floating query `[...,L,E]`, key `[...,S,E]`, and
-value `[...,S,Ev]`, with exact right-aligned three-way batch broadcasting. Optional BOOL mask must
+Current [Model](../../../../glossary.md#term-model) attention accepts [rank-two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix)-or-higher floating query `[...,L,E]`, key `[...,S,E]`, and
+value `[...,S,Ev]`, with exact right-aligned three-way [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) [broadcasting](../../../../glossary.md#broadcasting). Optional [BOOL](../../../../glossary.md#data-type--datatype) [mask](../../../../glossary.md#term-boolean-mask) must
 broadcast to scores `[...,L,S]`; causal eligibility additionally requires key index `j <= i`.
-Output slot zero is `[...,L,Ev]`; optional canonical saved normalized weights at slot one are
+Output slot zero is `[...,L,Ev]`; optional [canonical](../../../../glossary.md#term-canonical-form) saved normalized [weights](../../../../glossary.md#term-weight) at slot one are
 `[...,L,S]`. Query/key/value promotion selects both floating outputs. Explicit scale must have that
-promoted type and positive finite bits; absent scale is `1 / sqrt(E)`.
+promoted type and positive [finite](../../../../glossary.md#term-finite) bits; absent scale is `1 / sqrt(E)`.
 
 The exact formula guards exclusion before arithmetic. No eligible score and all eligible negative
-infinities produce positive-zero outputs; eligible NaN propagates; positive-infinity ties split unit
+[infinities](../../../../glossary.md#nan-infinity-and-signed-zero) produce positive-zero outputs; eligible [NaN](../../../../glossary.md#term-nan) propagates; positive-[infinity](../../../../glossary.md#term-infinity) ties split unit
 weight equally; and excluded exceptional score/value operands never enter arithmetic. Under current
 Model, `ACCELERATOR FLOAT32` does have recursive freedoms for score and value contractions, scale,
-default-scale conversion/sqrt/division, and guarded exp/sum/division sites. Historical
+default-scale conversion/sqrt/division, and guarded [exp](../../../../glossary.md#term-expx)/sum/division sites. Historical
 [Task 0033](0033-profile-common-canonical-float32-no-grad-unmasked-noncausal-default-scale-sdpa-forward.md)
 predates part of that current profile wording, so its old broad “unrelaxed” premise is not reused.
-Its selector-structure and opaque-complete-domain objections remain valid.
+Its selector-structure and [opaque](../../../../glossary.md#term-opaque)-complete-domain objections remain valid.
 
 Attention nevertheless remains blocked because:
 
-1. no current custom EXP/SQRT/softmax core has a complete recursive-result-set proof. In particular,
+1. no current custom EXP/SQRT/[softmax](../../../../glossary.md#softmax--log-softmax) core has a complete recursive-result-set proof. In particular,
    [Task 0053](0053-certified-accelerator-float32-custom-exp-stable-sigmoid.md) remains blocked on
    the constructive-real exponential bridge; an MSL builtin or opaque MPSGraph softmax cannot
-   substitute for that proof;
+   substitute for that proof;<span data-glossary-navigation="true"> ([MSL glossary](../../../../glossary.md#term-metal-shading-language-msl); [MPSGraph glossary](../../../../glossary.md#term-mpsgraph))</span>
 2. the direct selector cannot produce Model's optional mask/causal semantics and exact saved weights
-   role, and schema-valid two-output infrastructure does not manufacture missing numerical output;
+   role, and schema-valid two-output infrastructure does not manufacture missing numerical output;<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema))</span>
 3. one-output no-grad, explicit-scale, unmasked, or noncausal subsets still require the same guarded
    exponential/normalization and special-class proof. Capability cannot inspect runtime values to
-   admit only a convenient finite corpus; and
+   admit only a convenient finite corpus; and<span data-glossary-navigation="true"> ([normalization glossary](../../../../glossary.md#term-normalization); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 4. Compiler gradients require the exact same-occurrence output slot one. Their formulas use saved
    weights, selection-safe products, comparisons/WHERE, reductions, contractions, configured or
    default scale, and normalization back to each role. No partial forward route may claim this
-   saved-state or gradient contract.
+   saved-state or gradient contract.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 
 Wire 35 therefore remains non-executable, production false, and custom pending. Masked, causal,
-explicit/default scale, one/two output, all types/profiles, and all gradients fail before resource
-creation. Dropout remains the separate wire-101 contract; there is no attention-dropout value to
+explicit/default scale, one/two output, all types/profiles, and all [gradients](../../../../glossary.md#term-gradient) fail before resource
+creation. [Dropout](../../../../glossary.md#dropout--inverted-dropout) remains the separate wire-101 contract; there is no attention-dropout value to
 ignore or default.
 
-### Compiler gradients and public callers
+### [Compiler](../../../../glossary.md#term-compiler) [gradients](../../../../glossary.md#term-gradient) and public callers
 
-Model and public Tensor sources remain unchanged. Compiler convolution and pooling formulas add
-only explicit `CONTIGUOUS` expression nodes at canonical primitive boundaries, and Pool3d
-constructibility preflight recognizes the resulting semantic descriptor; no operation, gradient
-meaning, public API, or backend-specific compiler branch is added. The implementation audited
+[Model](../../../../glossary.md#term-model) and public [Tensor](../../../../glossary.md#tensor) sources remain unchanged. Compiler [convolution](../../../../glossary.md#term-channels-first-convolution-layers) and [pooling](../../../../glossary.md#term-pooling) formulas add
+only explicit [`CONTIGUOUS`](../../../../glossary.md#term-contiguous) expression [nodes](../../../../glossary.md#node) at [canonical](../../../../glossary.md#term-canonical-form) primitive boundaries, and [Pool3d](../../../../glossary.md#pool3d--ncdhw-pooling)
+constructibility [preflight](../../../../glossary.md#term-preflight) recognizes the resulting semantic [descriptor](../../../../glossary.md#term-descriptor); no [operation](../../../../glossary.md#operation), gradient
+meaning, public [API](../../../../glossary.md#term-application-programming-interface-api), or [backend](../../../../glossary.md#backend)-specific compiler branch is added. The implementation audited
 `StructuredOperationInference`, `ConvolutionLogicalLayoutClosure`, `AutogradPreflight`,
 `ConvolutionGradientRules`, `PoolingGradientRules`, `AttentionGradientRules`,
-`FirstOrderGradientCoverage`, public Tensor methods/results, and the NN convolution callers.
+`FirstOrderGradientCoverage`, public Tensor methods/results, and the [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) convolution callers.
 
-Forward capability and complete derivative-partition capability are distinct:
+Forward capability and complete [derivative](../../../../glossary.md#term-derivative)-[partition](../../../../glossary.md#partition) capability are distinct:
 
-- Conv2d gradients use group-preserving reshape/permute, `UNFOLD2D`, FLOAT32 `MATMUL`, reductions,
+- [Conv2d](../../../../glossary.md#convolution--conv2d) gradients use group-preserving reshape/permute, `UNFOLD2D`, [FLOAT32](../../../../glossary.md#term-float32) [`MATMUL`](../../../../glossary.md#matrix-multiplication--matmul), reductions,
   and overlap-accumulating `FOLD2D`; bias uses reduction. Prove CPU-free accelerator checkpoints for
   each separately selected all-FLOAT32 input, weight, and bias cotangent where the other source
   roles are no-grad and any input-gradient fold has non-overlapping windows. These are the maximal
   current primitive-closed cases by source inspection. Joint gradient-bearing source roles,
   overlapping folds, and BFLOAT16 normalization remain explicit negative cases unless a separate
-  reviewed primitive-domain plan closes them.
-- Conv3d remains forward-only because `AutogradPreflight` rejects every Conv3d occurrence before
+  reviewed primitive-domain plan closes them.<span data-glossary-navigation="true"> ([accelerator glossary](../../../../glossary.md#term-accelerator); [checkpoints glossary](../../../../glossary.md#term-checkpoint); [cotangent glossary](../../../../glossary.md#cotangent); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [normalization glossary](../../../../glossary.md#term-normalization))</span>
+- [Conv3d](../../../../glossary.md#conv3d--ncdhw) remains forward-only because `AutogradPreflight` rejects every Conv3d occurrence before
   derivative allocation until Compiler task 0006C. Task 0064 must preserve and publicly prove that
-  rejection while admitting the forward occurrence.
+  rejection while admitting the forward occurrence.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 - Average Pool2d/Pool3d gradients divide the output cotangent by the fixed kernel-position divisor,
   expand columns, and fold. Prove accelerator FLOAT32 backward only when the current fold domain is
   statically non-overlapping. Overlap accumulation remains outside Task 0060's exact-copy fold
-  capability.
+  capability.<span data-glossary-navigation="true"> ([kernel glossary](../../../../glossary.md#kernel))</span>
 - Maximum-pool gradients read the gradient-bearing original input, reconstruct in-bounds exact
   winners with padded unfold, classification, comparisons, reciprocal signed-zero tests, Boolean
-  logic, `ARG_MAX(FIRST_INDEX)`, one-hot, WHERE, and fold. Current Metal read-only unfold,
+  logic, <span data-glossary-navigation="true"> ([signed-zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [Boolean glossary](../../../../glossary.md#data-type--datatype))</span>`ARG_MAX(FIRST_INDEX)`, one-hot, WHERE, and fold. Current Metal read-only unfold,
   comparison, reciprocal, and overlapping-fold domains do not collectively accept that generated
   graph. Preserve forward gradient metadata but require generated max-pool backward to reject before
-  preparation under both profiles and every carrier; do not widen unrelated primitive rows here.
-- Attention gradients remain blocked for the saved-weights and numerical reasons above.
+  preparation under both profiles and every carrier; do not widen unrelated primitive rows here.<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [metadata glossary](../../../../glossary.md#term-metadata); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+- Attention gradients remain blocked for the saved-[weights](../../../../glossary.md#term-weight) and numerical reasons above.
 
-Public Engine proof must use only the packaged Metal provider, with no CPU provider or skip:
+Public [Engine](../../../../glossary.md#term-engine) proof must use only the packaged [Metal](../../../../glossary.md#term-metal) provider, with no [CPU](../../../../glossary.md#term-cpu) provider or skip:
 
 - accelerator biased/unbiased grouped Conv2d/Conv3d covering stride, dilation, symmetric padding,
   groups, positive-zero-padding times infinity, FLOAT32 and no-grad mixed BFLOAT16/FLOAT32 inputs,
-  retained reuse, and independent sessions;
-- Conv1d through its exact expand/Conv2d/squeeze composition, including bias and groups;
+  retained reuse, and independent sessions;<span data-glossary-navigation="true"> ([stride glossary](../../../../glossary.md#term-stride); [dilation glossary](../../../../glossary.md#term-dilation); [padding glossary](../../../../glossary.md#padding); [infinity glossary](../../../../glossary.md#term-infinity))</span>
+- Conv1d through its exact expand/Conv2d/squeeze composition, including [bias](../../../../glossary.md#term-bias) and groups;
 - maximum Pool1d/2d/3d under both profiles and all three carriers, including signed zeros, multiple
   NaNs/raw payloads, ties, infinities, excluded padding, dilation, ceil terminal all-padding window,
-  and exact selected bits;
+  and exact selected bits;<span data-glossary-navigation="true"> ([infinities glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>
 - average Pool1d/2d/3d accelerator FLOAT32 with fixed divisor, padding inclusion, ceil/floor,
-  subnormals, signed zeros, NaN, same/opposing infinities, all-padding, reuse, and sessions;
+  subnormals, signed zeros, NaN, same/opposing infinities, all-padding, reuse, and sessions;<span data-glossary-navigation="true"> ([subnormals glossary](../../../../glossary.md#term-subnormal); [NaN glossary](../../../../glossary.md#term-nan))</span>
 - the provable Conv2d and average-pool gradient checkpoints above plus explicit early failures for
   Conv3d, max-pool, attention, overlap, mixed-gradient, strict convolution/average, malformed, and
   one-past-limit graphs.
 
-### Catalog, schema, identity, and lifecycle
+### Catalog, [schema](../../../../glossary.md#term-schema), [identity](../../../../glossary.md#term-identity-meanings), and [lifecycle](../../../../glossary.md#lifecycle)
 
 - Mark only wires 36, 37, and 97..100 structurally executable: `93/22 -> 99/16`. Production
   capability becomes `75/40 -> 81/34`. Wire 35 remains false in both counts.
-- Keep the MPSGraph catalog exactly `75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE`. Conv and Pool2d
+- Keep the [MPSGraph](../../../../glossary.md#term-mpsgraph) catalog exactly `75 DIRECT / 35 COMPOSED / 5 UNAVAILABLE`. Conv and Pool2d
   retain their direct structural reasons; Pool3d retains its composed reason; attention retains its
-  direct-base reason. Catalog structure is not selector authorization.
+  direct-base reason. Catalog structure is not selector authorization.<span data-glossary-navigation="true"> ([Pool3d glossary](../../../../glossary.md#pool3d--ncdhw-pooling))</span>
 - Add `CA_0064`, change exactly the six convolution/pooling custom rows from pending to available,
-  and produce custom catalog `58 AVAILABLE / 57 PENDING / 0 UNAVAILABLE-WITH-PROOF`. Attention
+  and produce custom catalog <span data-glossary-navigation="true"> ([convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers); [pooling glossary](../../../../glossary.md#term-pooling))</span>`58 AVAILABLE / 57 PENDING / 0 UNAVAILABLE-WITH-PROOF`. Attention
   remains `PENDING / CP_CONTRACT`.
-- Keep schema 15, ABI 5, type wires `1..6`, operation wires `1..115`, attribute wires `0..41`, route
+- Keep schema 15, [ABI](../../../../glossary.md#term-application-binary-interface-abi) 5, type wires `1..6`, [operation](../../../../glossary.md#operation) wires `1..115`, attribute wires `0..41`, route
   wires `1..3`, image grammar, generic multi-output records, and thirteen exports. Advance workload-
   signature, exact-default-policy, candidate-schema, compatibility-schema, route-policy, and codec
-  identities together `19 -> 20`; identity 19 rejects with no alias, migration reader, or shim.
+  identities together <span data-glossary-navigation="true"> ([signature glossary](../../../../glossary.md#term-signature); [codec glossary](../../../../glossary.md#term-codec))</span>`19 -> 20`; identity 19 rejects with no [alias](../../../../glossary.md#aliasing-and-arena), migration reader, or shim.
 - Preserve cold deterministic route selection, stable value/feed/target order, transactional
   finalization, synchronous invocation, direct/internal output liveness, physical-span
   authentication, leases, rollback and suppression, reuse, concurrency/session isolation, close
-  ordering, trace identity, and the profile-free Runtime/Trace boundary.
+  ordering, trace identity, and the profile-free Runtime/Trace boundary.<span data-glossary-navigation="true"> ([target glossary](../../../../glossary.md#term-target); [synchronous glossary](../../../../glossary.md#term-synchronous); [liveness glossary](../../../../glossary.md#term-liveness); [authentication glossary](../../../../glossary.md#term-authentication); [leases glossary](../../../../glossary.md#term-lease); [rollback glossary](../../../../glossary.md#term-rollback); [concurrency glossary](../../../../glossary.md#term-concurrency); [trace glossary](../../../../glossary.md#trace); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
 
 ## Provable domains versus explicit blockers
 
@@ -352,134 +352,134 @@ The provable cutover is exactly:
 
 - accelerator FLOAT32-result Conv2d/Conv3d over FLOAT32/BFLOAT16 roles, with all-FLOAT32 gradient
   metadata or no-grad mixed roles, exact canonical/singleton-composition layouts, and the complete
-  checked unsigned-32-bit domain;
+  checked unsigned-32-bit domain;<span data-glossary-navigation="true"> ([Conv2d glossary](../../../../glossary.md#convolution--conv2d); [Conv3d glossary](../../../../glossary.md#conv3d--ncdhw); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [canonical glossary](../../../../glossary.md#term-canonical-form); [singleton glossary](../../../../glossary.md#term-singleton))</span>
 - both-profile exact max Pool2d/Pool3d over FLOAT64/FLOAT32/BFLOAT16 with legal forward gradient
-  metadata and the same domain; and
-- accelerator FLOAT32 average Pool2d/Pool3d with legal gradient metadata and the same domain.
+  metadata and the same domain; and<span data-glossary-navigation="true"> ([FLOAT64 glossary](../../../../glossary.md#term-float64))</span>
+- [accelerator](../../../../glossary.md#term-accelerator) [FLOAT32](../../../../glossary.md#term-float32) average Pool2d/[Pool3d](../../../../glossary.md#pool3d--ncdhw-pooling) with legal [gradient](../../../../glossary.md#term-gradient) [metadata](../../../../glossary.md#term-metadata) and the same domain.
 
 Remain explicitly blocked:
 
-- all attention forms and gradients; every convolution transpose form; fused attention dropout;
+- all attention forms and gradients; every [convolution](../../../../glossary.md#term-channels-first-convolution-layers) [transpose](../../../../glossary.md#term-transpose) form; [fused](../../../../glossary.md#specialization-and-fusion) attention [dropout](../../../../glossary.md#dropout--inverted-dropout);
 - strict convolution/average FLOAT32, convolution FLOAT64 or BFLOAT16 result, average FLOAT64 or
   BFLOAT16, mixed convolution gradients, Conv3d gradients, maximum-pool gradients, and any
   overlap-accumulating generated fold;
 - count-exclude-pad average, asymmetric padding, alternate NHWC/NDHWC or weight layouts, output
   padding, transposed kernels, dynamic/symbolic/empty/scalar/general-view/in-place/aliased geometry,
-  and any dimension/count/coordinate/index/grid above the declared unsigned-32-bit boundary;
+  and any dimension/count/coordinate/index/grid above the declared unsigned-32-bit boundary;<span data-glossary-navigation="true"> ([padding glossary](../../../../glossary.md#padding); [NHWC glossary](../../../../glossary.md#term-nhwc); [weight glossary](../../../../glossary.md#term-weight); [kernels glossary](../../../../glossary.md#kernel); [scalar glossary](../../../../glossary.md#term-scalar); [view glossary](../../../../glossary.md#term-view-meanings); [dimension glossary](../../../../glossary.md#dimension); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
 - direct MPSGraph family execution, host calculation/validation/repair, sampled-value authorization,
-  retry, fallback, timing, autotuning, cache winner, performance claim, or a Task-0053 workaround.
+  retry, fallback, timing, autotuning, cache winner, performance claim, or a Task-0053 workaround.<span data-glossary-navigation="true"> ([MPSGraph glossary](../../../../glossary.md#term-mpsgraph); [host glossary](../../../../glossary.md#term-host); [validation glossary](../../../../glossary.md#term-validation); [autotuning glossary](../../../../glossary.md#autotuning--model-autotuning); [cache glossary](../../../../glossary.md#term-cache))</span>
 
-If implementation needs another carrier, profile, layout, gradient primitive widening, numerical
-freedom, schema field, ABI export, 64-bit/multidimensional dispatch, scratch/atomic route, or runtime
-choice, stop for a new independently reviewed plan rather than narrowing or silently changing this
+If implementation needs another [carrier](../../../../glossary.md#term-storage-carrier), profile, [layout](../../../../glossary.md#layout), gradient primitive [widening](../../../../glossary.md#term-widening), numerical
+freedom, [schema](../../../../glossary.md#term-schema) field, [ABI](../../../../glossary.md#term-application-binary-interface-abi) export, 64-bit/multidimensional [dispatch](../../../../glossary.md#term-dispatch), scratch/[atomic](../../../../glossary.md#resource-transaction-and-rollback) route, or [runtime](../../../../glossary.md#term-runtime)
+choice, stop for a new independently reviewed plan rather than [narrowing](../../../../glossary.md#term-narrowing) or silently changing this
 one.
 
 ## Non-goals
 
-No Model, public Tensor, NN, Config, Planning, Prepare, Runtime, Trace, or Engine API change; no
-operation/attribute/type wire; no ABI export; no general affine layout; no general multi-output
-widening; no dynamic or empty kernel; no benchmark; no selector rehabilitation; and no rewrite of
-historical blocked evidence. The only Compiler source change is explicit public-`CONTIGUOUS`
-formula materialization plus matching Pool3d preflight semantics required to expose the already
-specified primitive-closed gradients. Task 0064 does not complete attention, Conv3d backward,
+No [Model](../../../../glossary.md#term-model), public [Tensor](../../../../glossary.md#tensor), [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context), Config, [Planning](../../../../glossary.md#term-planning), [Prepare](../../../../glossary.md#prepare), [Runtime](../../../../glossary.md#term-runtime), [Trace](../../../../glossary.md#trace), or [Engine](../../../../glossary.md#term-engine) [API](../../../../glossary.md#term-application-programming-interface-api) change; no
+[operation](../../../../glossary.md#operation)/attribute/type wire; no [ABI](../../../../glossary.md#term-application-binary-interface-abi) export; no general affine [layout](../../../../glossary.md#layout); no general multi-output
+[widening](../../../../glossary.md#term-widening); no dynamic or empty [kernel](../../../../glossary.md#kernel); no benchmark; no selector rehabilitation; and no rewrite of
+historical blocked evidence. The only [Compiler](../../../../glossary.md#term-compiler) source change is explicit public-[`CONTIGUOUS`](../../../../glossary.md#term-contiguous)
+formula [materialization](../../../../glossary.md#materialization) plus matching [Pool3d](../../../../glossary.md#pool3d--ncdhw-pooling) [preflight](../../../../glossary.md#term-preflight) semantics required to expose the already
+specified primitive-closed [gradients](../../../../glossary.md#term-gradient). Task 0064 does not complete attention, [Conv3d](../../../../glossary.md#conv3d--ncdhw) backward,
 maximum-pool backward, overlap folds, or `CONV_TRANSPOSE`.
 
 ## Contracts
 
-- [`ARCHITECTURE.md` — Core lifecycle and Core invariants](../../../../../ARCHITECTURE.md#core-lifecycle)
+- [`ARCHITECTURE.md` — Core lifecycle and Core invariants](../../../../../ARCHITECTURE.md#core-lifecycle)<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle))</span>
   — Model owns exact profile-indexed meaning; route choice is cold and Runtime/Trace stay
-  profile-free.
-- [Foundational modules — Numerical profiles](../../../../architecture/contracts/foundational-modules.md#numerical-profiles)
-  — contraction/reduction recursive result sets and exact discrete winner/guard semantics.
-- [Backend execution — Metal backend](../../../../architecture/contracts/backend-execution.md#metal-backend)
-  and [Numerical-profile backend identity](../../../../architecture/contracts/backend-execution.md#numerical-profile-backend-identity)
-  — truthful occurrence capability, fixed routes, native state, and private identities.
-- [Prepare lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#prepare-lifecycle)
-  and [Run lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#run-lifecycle).
-- Model [Conv2d](../../../modules/model/tasks/0020-nchw-conv2d-semantics-and-tensor-expressions.md),
+  profile-free.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [Trace glossary](../../../../glossary.md#trace))</span>
+- [Foundational modules — Numerical profiles](../../../../architecture/contracts/foundational-modules.md#numerical-profiles)<span data-glossary-navigation="true"> ([modules glossary](../../../../glossary.md#term-module))</span>
+  — contraction/reduction recursive result sets and exact discrete winner/guard semantics.<span data-glossary-navigation="true"> ([contraction glossary](../../../../glossary.md#contraction-dimension); [guard glossary](../../../../glossary.md#term-guard))</span>
+- [Backend execution — Metal backend](../../../../architecture/contracts/backend-execution.md#metal-backend)<span data-glossary-navigation="true"> ([Backend glossary](../../../../glossary.md#backend); [Metal glossary](../../../../glossary.md#term-metal))</span>
+  and [Numerical-profile backend identity](../../../../architecture/contracts/backend-execution.md#numerical-profile-backend-identity)<span data-glossary-navigation="true"> ([backend identity glossary](../../../../glossary.md#backend-identity--backendid))</span>
+  — truthful occurrence capability, fixed routes, native state, and private identities.<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence))</span>
+- [Prepare lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#prepare-lifecycle)<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare))</span>
+  and [Run lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#run-lifecycle)<span data-glossary-navigation="true"> ([Run glossary](../../../../glossary.md#term-run))</span>.
+- [Model](../../../../glossary.md#term-model) [Conv2d](../../../modules/model/tasks/0020-nchw-conv2d-semantics-and-tensor-expressions.md)<span data-glossary-navigation="true"> ([Conv2d glossary](../../../../glossary.md#convolution--conv2d))</span>,
   [Conv1d](../../../modules/model/tasks/0025g-ncw-conv1d-composition.md),
-  [Conv3d](../../../modules/model/tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md),
+  [Conv3d](../../../modules/model/tasks/0025h-ncdhw-conv3d-semantics-and-tensor-expressions.md)<span data-glossary-navigation="true"> ([Conv3d glossary](../../../../glossary.md#conv3d--ncdhw))</span>,
   [max Pool2d](../../../modules/model/tasks/0020a-nchw-max-pool2d-semantics-and-tensor-expression.md),
   [average Pool2d](../../../modules/model/tasks/0020a1-nchw-average-pool2d-semantics-and-tensor-expression.md),
   [Pool1d](../../../modules/model/tasks/0025i-ncw-max-average-pool1d-composition.md),
-  [Pool3d](../../../modules/model/tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md), and
+  [Pool3d](../../../modules/model/tasks/0025j-first-class-ncdhw-max-average-pool3d-semantics.md)<span data-glossary-navigation="true"> ([Pool3d glossary](../../../../glossary.md#pool3d--ncdhw-pooling))</span>, and
   [attention](../../../modules/model/tasks/0019e-scaled-dot-product-attention.md) plus
-  [weights output](../../../modules/model/tasks/0023f-scaled-dot-product-attention-weights-output.md)
-  own operation semantics.
-- Compiler [structured gradients](../../../modules/compiler/tasks/0005d-attention-convolution-pooling-and-loss-gradient-completion.md),
+  [weights output](../../../modules/model/tasks/0023f-scaled-dot-product-attention-weights-output.md)<span data-glossary-navigation="true"> ([weights glossary](../../../../glossary.md#term-weight))</span>
+  own operation semantics.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation))</span>
+- [Compiler](../../../../glossary.md#term-compiler) [structured gradients](../../../modules/compiler/tasks/0005d-attention-convolution-pooling-and-loss-gradient-completion.md)<span data-glossary-navigation="true"> ([gradients glossary](../../../../glossary.md#term-gradient))</span>,
   [Conv3d boundary](../../../modules/compiler/tasks/0006b-conv3d-forward-adoption-and-explicit-gradient-boundary.md),
   and [Pool3d gradients](../../../modules/compiler/tasks/0006b2-pool3d-and-3d-window-gradient-closure.md)
   own formula/rejection topology. CPU implementations are exact oracles/precedents, never Metal
-  authorization.
+  authorization.<span data-glossary-navigation="true"> ([topology glossary](../../../../glossary.md#term-topology); [CPU glossary](../../../../glossary.md#term-cpu))</span>
 
 ## Dependencies and integration
 
 - Depends on: Task 0063 Complete through `c80d79c0`; current Model/Compiler contracts named above;
   Tasks 0030/0031/0033/0036 retained blocker evidence; Task 0053's current EXP proof blocker; and
   completed six-carrier, BFLOAT16 widening, schema-15, custom-program, non-overlap fold, general
-  MATMUL, exact ordering, lifecycle, package, and public Engine foundations.
+  MATMUL, exact ordering, lifecycle, package, and public Engine foundations.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Compiler glossary](../../../../glossary.md#term-compiler); [EXP glossary](../../../../glossary.md#term-expx); [carrier glossary](../../../../glossary.md#term-storage-carrier); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [widening glossary](../../../../glossary.md#term-widening); [schema glossary](../../../../glossary.md#term-schema); [MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul); [lifecycle glossary](../../../../glossary.md#lifecycle); [Engine glossary](../../../../glossary.md#term-engine))</span>
 - Supersedes only the future-route conclusions of historical Tasks 0030, 0031, and 0036 by choosing
   a separately proved custom route. Those direct/composed MPSGraph tasks remain Blocked and their
-  evidence remains immutable. Task 0033 and Task 0053 remain Blocked.
+  evidence remains immutable. Task 0033 and Task 0053 remain Blocked.<span data-glossary-navigation="true"> ([MPSGraph glossary](../../../../glossary.md#term-mpsgraph); [immutable glossary](../../../../glossary.md#term-immutable))</span>
 - Conflicts with: every concurrent Metal capability/schema/native/custom-source/catalog/candidate/
-  route/preparation/package/shared-document scope and resumed Task-0053 production.
+  route/preparation/package/shared-document scope and resumed Task-0053 production.<span data-glossary-navigation="true"> ([Metal glossary](../../../../glossary.md#term-metal); [scope glossary](../../../../glossary.md#term-scope))</span>
 - Parallel group: None.
 - Common base revision: `bc8fb4a5baa188af86092b06a96bc4134a8a4eed`.
 - Integration order: this independent plan review, then one serial proof/kernel/capability/
-  preparation/execution/test/documentation cutover; no production edit before plan approval.
+  preparation/execution/test/documentation cutover; no production edit before plan approval.<span data-glossary-navigation="true"> ([kernel glossary](../../../../glossary.md#kernel))</span>
 - Integration validation: native build/sign/package/verification, complete Metal, conformance,
   source-backed Model/Compiler contract tests, CPU-free public Engine forward/backward/negative
   evidence, Javadoc/architecture/docs, exact count/identity/export audits, and independent
-  cumulative Class C review.
-- Shared-document integration owner: Task-0064 coordinator.
+  cumulative Class C review.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [conformance glossary](../../../../glossary.md#term-conformance); [CPU glossary](../../../../glossary.md#term-cpu); [Javadoc glossary](../../../../glossary.md#term-javadoc); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
+- Shared-document integration [owner](../../../../glossary.md#term-owner): Task-0064 coordinator.
 
 ## Files and symbols
 
-Expected implementation owners:
+Expected implementation [owners](../../../../glossary.md#term-owner):
 
 - `MetalCapabilityProvider`, `MetalMpsGraphProgram`, `MetalNegPartitionPreparer`,
   `MetalNegPreparationPlan`, `MetalNativeApi`, `MetalOperationRouteCatalog`, custom route candidate/
-  tuning/codec identity owners, and affected package/type Javadocs;
-- native foundation operation/preflight/metadata/pipeline/step/binding code plus a new
-  `synaptik_task0064_convolution_pooling_kernels.h`, with no new export or schema field;
+  tuning/codec identity owners, and affected package/type Javadocs;<span data-glossary-navigation="true"> ([codec glossary](../../../../glossary.md#term-codec); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
+- native foundation [operation](../../../../glossary.md#operation)/[preflight](../../../../glossary.md#term-preflight)/[metadata](../../../../glossary.md#term-metadata)/pipeline/step/[binding](../../../../glossary.md#term-binding) code plus a new
+  `synaptik_task0064_convolution_pooling_kernels.h`, with no new export or [schema](../../../../glossary.md#term-schema) field;
 - focused capability/catalog/schema/malformed/prepared/native/raw-word/result-set tests, including
-  allocation-free exact-`UINT32_MAX` and one-past/product/stride/span rejection parity;
+  allocation-free exact-`UINT32_MAX` and one-past/product/[stride](../../../../glossary.md#term-stride)/span rejection parity;
 - existing Compiler convolution/pooling/attention contract suites, Metal conformance, and a
   dedicated CPU-free Engine Metal integration for direct 1D/2D/3D forward, bounded generated
-  gradients, exclusions, reuse, and sessions; and
+  gradients, exclusions, reuse, and sessions; and<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers); [pooling glossary](../../../../glossary.md#term-pooling); [conformance glossary](../../../../glossary.md#term-conformance); [CPU glossary](../../../../glossary.md#term-cpu); [Engine glossary](../../../../glossary.md#term-engine); [gradients glossary](../../../../glossary.md#term-gradient))</span>
 - Metal/backend/native guides, public API scope/capability/preparer status, targeted glossary and
-  architecture identity claims, this brief, master plan, and roadmap after behavior stabilizes.
+  architecture identity claims, this brief, master plan, and roadmap after behavior stabilizes.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [scope glossary](../../../../glossary.md#term-scope))</span>
 
-The planning-only revision changes exactly this brief, the Metal master plan, and the roadmap.
+The [planning](../../../../glossary.md#term-planning)-only revision changes exactly this brief, the [Metal](../../../../glossary.md#term-metal) master plan, and the roadmap.
 
 ## Acceptance criteria
 
 1. The seven-row audit and tests retain exact wires, cardinalities, attributes, carriers, profiles,
    layouts, gradient metadata, output roles/Shapes, groups, geometry, special classes, UINT32/native-
-   size bounds, and blocker decisions. `CONV_TRANSPOSE` remains absent rather than aliased.
+   size bounds, and blocker decisions. <span data-glossary-navigation="true"> ([layouts glossary](../../../../glossary.md#layout); [gradient glossary](../../../../glossary.md#term-gradient); [metadata glossary](../../../../glossary.md#term-metadata); [Shapes glossary](../../../../glossary.md#shape); [UINT32 glossary](../../../../glossary.md#index-mappings-and-cost-dominance))</span>`CONV_TRANSPOSE` remains absent rather than aliased.
 2. Exactly wires 36, 37, and 97..100 become executable/custom-available and occurrence-capable only
-   in the domains above. Wire 35 and every excluded occurrence reject before resource creation.
+   in the domains above. Wire 35 and every excluded occurrence reject before resource creation.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 3. Conv kernels visit every group/channel/kernel term once, including padding multiplication;
    output is inside Model's recursive accelerator set. Maximum pools implement exact raw winner
    semantics and average pools implement every-contributor fixed-divisor semantics and exact
-   special-class/zero-sign rules.
+   special-class/zero-sign rules.<span data-glossary-navigation="true"> ([kernels glossary](../../../../glossary.md#kernel); [channel glossary](../../../../glossary.md#term-channel); [kernel glossary](../../../../glossary.md#kernel); [padding glossary](../../../../glossary.md#padding); [Model glossary](../../../../glossary.md#term-model); [accelerator glossary](../../../../glossary.md#term-accelerator))</span>
 4. Conv1d and Pool1d authenticate only their exact local singleton-height view composition. General
-   affine/view/alias paths remain closed. Outputs have unique writers and no input is mutated.
-5. Every admitted partition has only `CUSTOM_PROGRAM`; MPSGraph family selectors, host repair,
-   retry, fallback, timing, autotuning, value-based decisions, and cache winners are absent.
-6. Counts become `81/34` capability, `99/16` structural, `75/35/5` MPSGraph, and `58/57/0` custom;
+   affine/view/alias paths remain closed. Outputs have unique writers and no input is mutated.<span data-glossary-navigation="true"> ([singleton glossary](../../../../glossary.md#term-singleton); [view glossary](../../../../glossary.md#term-view-meanings); [alias glossary](../../../../glossary.md#aliasing-and-arena))</span>
+5. Every admitted [partition](../../../../glossary.md#partition) has only `CUSTOM_PROGRAM`; MPSGraph family selectors, host repair,
+   retry, fallback, timing, autotuning, value-based decisions, and cache winners are absent.<span data-glossary-navigation="true"> ([host glossary](../../../../glossary.md#term-host); [autotuning glossary](../../../../glossary.md#autotuning--model-autotuning); [cache glossary](../../../../glossary.md#term-cache))</span>
+6. Counts become `81/34` capability, `99/16` structural, `75/35/5` [MPSGraph](../../../../glossary.md#term-mpsgraph), and `58/57/0` custom;
    schema 15, ABI 5, and thirteen exports remain; all backend-local identities are 20 and identity
-   19 rejects.
+   19 rejects.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [backend glossary](../../../../glossary.md#backend); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 7. CPU-free packaged-Metal Engine proves direct and composed forward domains, raw special values,
    grouping/geometry/bias/promotion, both relevant profiles, reuse/sessions, the provable Conv2d and
-   average-pool gradients, and every named early-failure boundary without skip or CPU fallback.
+   average-pool gradients, and every named early-failure boundary without skip or CPU fallback.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [Metal glossary](../../../../glossary.md#term-metal); [Engine glossary](../../../../glossary.md#term-engine); [bias glossary](../../../../glossary.md#term-bias); [Conv2d glossary](../../../../glossary.md#convolution--conv2d))</span>
 8. Attention one/two-output, mask/causal/scale, gradients, dropout claim, Conv3d/max-pool blocked
    gradients, convolution transpose, strict/missing carriers, overlap, malformed, and one-past
-   domains stay visibly fail-closed.
+   domains stay visibly fail-closed.<span data-glossary-navigation="true"> ([mask glossary](../../../../glossary.md#term-boolean-mask); [dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [Conv3d glossary](../../../../glossary.md#conv3d--ncdhw); [convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers); [transpose glossary](../../../../glossary.md#term-transpose); [fail-closed glossary](../../../../glossary.md#term-fail-closed))</span>
 9. Native/package, complete Metal, conformance, dedicated Engine, Javadoc, architecture, Markdown/
-   link/diff checks pass; independent cumulative Class C review has no unresolved P0/P1/P2.
+   link/diff checks pass; independent cumulative Class C review has no unresolved P0/P1/P2.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 
-## Validation after implementation
+## [Validation](../../../../glossary.md#term-validation) after implementation
 
 ```bash
 ./native/metal-macos-arm64/build.sh
@@ -498,34 +498,34 @@ SYNAPTIK_METAL_TEST_LIBRARY="$PWD/native/metal-macos-arm64/build/package-v1/maco
 git diff --check
 ```
 
-No timing or benchmark command is authorized. The complete packaged Metal and Compiler suites,
-focused conformance and public Engine proof, architecture/Javadoc gates, package verification, and
+No timing or benchmark command is authorized. The complete packaged [Metal](../../../../glossary.md#term-metal) and [Compiler](../../../../glossary.md#term-compiler) suites,
+focused [conformance](../../../../glossary.md#term-conformance) and public [Engine](../../../../glossary.md#term-engine) proof, architecture/[Javadoc](../../../../glossary.md#term-javadoc) gates, package verification, and
 full repository test/build commands close the implementation after the Compiler formula
-materialization change.
+[materialization](../../../../glossary.md#materialization) change.
 
 ## Documentation and review impact
 
-Implementation must update every current capability/count/identity/convolution/pooling/attention
-statement and describe only the exact bounded domains above. Public/backend/native/Javadoc wording
-must name profile/type/layout/gradient boundaries, literal ceil and fixed-divisor behavior, raw max
+Implementation must update every current capability/count/[identity](../../../../glossary.md#term-identity-meanings)/[convolution](../../../../glossary.md#term-channels-first-convolution-layers)/[pooling](../../../../glossary.md#term-pooling)/attention
+statement and describe only the exact bounded domains above. Public/[backend](../../../../glossary.md#backend)/native/[Javadoc](../../../../glossary.md#term-javadoc) wording
+must name profile/type/[layout](../../../../glossary.md#layout)/[gradient](../../../../glossary.md#term-gradient) boundaries, literal ceil and fixed-divisor behavior, raw max
 winner rules, pre-resource failure, direct-selector exclusion, attention/ConvTranspose blockers,
-and unchanged ABI/schema/exports. Preserve historical tasks as evidence records.
+and unchanged [ABI](../../../../glossary.md#term-application-binary-interface-abi)/[schema](../../../../glossary.md#term-schema)/exports. Preserve historical tasks as evidence records.
 
 Independent plan review precedes every production edit. Independent final review must inspect the
-full plan-to-source proof, term/contributor preservation, padding-times-infinity, raw comparator,
-zero-sign logic, coordinate and byte arithmetic, exact-limit termination, singleton-view
-provenance, Java/native preflight parity, route exclusivity, identity invalidation, generated-
-gradient boundaries, public Engine behavior, documentation, and changed-path scope. Passing worker
+full plan-to-source proof, term/contributor preservation, [padding](../../../../glossary.md#padding)-times-[infinity](../../../../glossary.md#term-infinity), raw comparator,
+zero-sign logic, [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) and byte arithmetic, exact-limit termination, [singleton](../../../../glossary.md#term-singleton)-[view](../../../../glossary.md#term-view-meanings)
+[provenance](../../../../glossary.md#provenance), Java/native [preflight](../../../../glossary.md#term-preflight) parity, route exclusivity, identity invalidation, generated-
+gradient boundaries, public [Engine](../../../../glossary.md#term-engine) behavior, documentation, and changed-path [scope](../../../../glossary.md#term-scope). Passing worker
 evidence may be reused unless remediation changes executable behavior.
 
-## Planning result
+## [Planning](../../../../glossary.md#term-planning) result
 
-The implemented maximal cutover is six fixed custom convolution/pooling rows, not attention.
-Attention remains blocked on the unproved exponential/softmax numerical core and incomplete opaque
-selector/output contract; convolution transpose remains blocked before Metal because no Model or
-registry contract exists. Production is now `81/34` capability and `99/16` structural execution;
-catalogs are `75/35/5` MPSGraph and `58/57/0` custom. Schema 15, ABI 5, and thirteen exports remain
-fixed; backend-local identity is 20 and identity 19 fails closed. Implementation commit
-`58d1da7f` contains Java capability/lowering/preparation, six native kernels, Compiler
-materialization, raw ABI/security parity, source-backed numerical proof tests, and CPU-free public
-Engine forward/backward/negative evidence.
+The implemented maximal cutover is six fixed custom [convolution](../../../../glossary.md#term-channels-first-convolution-layers)/[pooling](../../../../glossary.md#term-pooling) rows, not attention.
+Attention remains blocked on the unproved exponential/[softmax](../../../../glossary.md#softmax--log-softmax) numerical core and incomplete [opaque](../../../../glossary.md#term-opaque)
+selector/output contract; convolution [transpose](../../../../glossary.md#term-transpose) remains blocked before [Metal](../../../../glossary.md#term-metal) because no [Model](../../../../glossary.md#term-model) or
+[registry](../../../../glossary.md#term-registry) contract exists. Production is now `81/34` capability and `99/16` structural execution;
+catalogs are `75/35/5` [MPSGraph](../../../../glossary.md#term-mpsgraph) and `58/57/0` custom. [Schema](../../../../glossary.md#term-schema) 15, [ABI](../../../../glossary.md#term-application-binary-interface-abi) 5, and thirteen exports remain
+fixed; [backend](../../../../glossary.md#backend)-local [identity](../../../../glossary.md#term-identity-meanings) is 20 and identity 19 fails closed. Implementation [commit](../../../../glossary.md#term-commit)
+`58d1da7f` contains Java capability/[lowering](../../../../glossary.md#lowering)/preparation, six native [kernels](../../../../glossary.md#kernel), [Compiler](../../../../glossary.md#term-compiler)
+[materialization](../../../../glossary.md#materialization), raw ABI/security parity, source-backed numerical proof tests, and [CPU](../../../../glossary.md#term-cpu)-free public
+[Engine](../../../../glossary.md#term-engine) forward/backward/negative evidence.

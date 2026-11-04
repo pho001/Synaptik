@@ -1,4 +1,4 @@
-# Task 0005: Producerless Published-Constant Resource Handoff and Shared Slot Assignment
+# Task 0005: Producerless Published-[Constant](../../../../glossary.md#term-constant) Resource [Handoff](../../../../glossary.md#term-handoff) and Shared Slot Assignment
 
 ## Status
 
@@ -6,12 +6,12 @@ Complete
 
 ## Goal
 
-Add the smallest Prepare-owned complete-graph resource contribution needed for a fully static
-source-only published compile-time splat constant. Compiler 0006B5 now supplies that graph input
-and graph output with a resolved logical descriptor; Planning continues to supply the exact
+Add the smallest [Prepare](../../../../glossary.md#prepare)-owned complete-[graph](../../../../glossary.md#graph) resource contribution needed for a fully static
+source-only published [compile](../../../../glossary.md#compile)-time splat [constant](../../../../glossary.md#term-constant). [Compiler](../../../../glossary.md#term-compiler) 0006B5 now supplies that graph input
+and graph output with a resolved logical [descriptor](../../../../glossary.md#term-descriptor); [Planning](../../../../glossary.md#term-planning) continues to supply the exact
 producerless, consumerless, graph-output-required `LogicalMemoryRequirement`. This task carries
-those exact references plus one externally supplied physical buffer declaration into Prepare's
-complete resource handoff and assigns the value one deterministic shared buffer slot.
+those exact references plus one externally supplied physical [buffer](../../../../glossary.md#term-buffer) declaration into Prepare's
+complete resource [handoff](../../../../glossary.md#term-handoff) and assigns the value one deterministic shared [buffer slot](../../../../glossary.md#buffer-slot--bufferslot).
 
 The new public value and overload are:
 
@@ -33,21 +33,21 @@ public final class GraphPreparation {
 }
 ```
 
-The existing three-argument `GraphPreparation.prepare(...)` remains source-compatible and means
+The existing three-[argument](../../../../glossary.md#term-argument) `GraphPreparation.prepare(...)` remains source-compatible and means
 that the caller contributes no producerless resources. It preserves the current path for ordinary
-partition-connected graphs. The new value is complete-graph composition input in the Prepare
-root package, not a `PrepareContext` value, partition-analysis requirement, backend selector,
-representation recipe, or Runtime object.
+[partition](../../../../glossary.md#partition)-connected graphs. The new value is complete-graph composition input in the Prepare
+root package, not a [`PrepareContext`](../../../../glossary.md#prepare-context-preparecontext) value, partition-analysis requirement, [backend](../../../../glossary.md#backend) selector,
+representation recipe, or [Runtime](../../../../glossary.md#term-runtime) object.
 
-## Current defect and mental model
+## Current defect and [mental model](../../../../glossary.md#term-mental-model)
 
-Current `GraphPreparation.Projection` includes only values occurring in a planned partition's
-node inputs or outputs. Current `BackendPartitionFinalizationHandoff` assigns buffers only from
-ordered `BackendPartitionAnalysis.requirements()`. A source-only published constant has neither a
-node producer nor a node consumer, so it is correctly absent from every partition projection and
-cannot be declared by ordinary partition analysis. Later schedule validation nevertheless
-requires every compile-time constant source and every requested publication to have a
-`PreparedBufferAssignment`; preparation therefore fails closed with
+Current `GraphPreparation.Projection` includes only values occurring in a planned [partition](../../../../glossary.md#partition)'s
+[node](../../../../glossary.md#node) inputs or outputs. Current `BackendPartitionFinalizationHandoff` assigns [buffers](../../../../glossary.md#term-buffer) only from
+ordered `BackendPartitionAnalysis.requirements()`. A source-only published [constant](../../../../glossary.md#term-constant) has neither a
+node [producer](../../../../glossary.md#term-producer) nor a node consumer, so it is correctly absent from every partition projection and
+cannot be declared by ordinary partition analysis. Later schedule [validation](../../../../glossary.md#term-validation) nevertheless
+requires every [compile-time constant source](../../../../glossary.md#compile-time-constant-source) and every requested [publication](../../../../glossary.md#term-publication) to have a
+[`PreparedBufferAssignment`](../../../../glossary.md#prepared-buffer-assignment--preparedbufferassignment); preparation therefore fails closed with
 `requested value has no prepared buffer assignment`.
 
 The repaired flow is:
@@ -63,87 +63,87 @@ Compiler-resolved GraphValue
   -> existing PreparedScheduleContext and schedule validation
 ```
 
-The contribution supplies physical byte size and alignment; Prepare does not derive them. CPU
+The contribution supplies physical byte size and [alignment](../../../../glossary.md#term-alignment); [Prepare](../../../../glossary.md#prepare) does not derive them. [CPU](../../../../glossary.md#term-cpu)
 0010H will be the first concrete producer of that declaration and the initialized representation
-recipe. This task deliberately stops before CPU integration, value materialization, schedule
-assembly changes, or Engine use.
+recipe. This task deliberately stops before CPU integration, value [materialization](../../../../glossary.md#materialization), schedule
+assembly changes, or [Engine](../../../../glossary.md#term-engine) use.
 
-## Scope
+## [Scope](../../../../glossary.md#term-scope)
 
-- Add exactly `ProducerlessPublishedConstantResource` in the public Prepare root package.
-- Add one four-argument `GraphPreparation.prepare(...)` overload accepting a list of those
+- Add exactly `ProducerlessPublishedConstantResource` in the public [Prepare](../../../../glossary.md#prepare) root package.
+- Add one four-[argument](../../../../glossary.md#term-argument) `GraphPreparation.prepare(...)` overload accepting a list of those
   contributions between the positional preparations and schedule assembler.
 - Retain the existing three-argument overload and delegate it to the same implementation with an
   empty contribution list.
 - Validate and snapshot the supplied contribution list before constructing a partition context or
-  invoking backend analysis.
+  invoking backend analysis.<span data-glossary-navigation="true"> ([snapshot glossary](../../../../glossary.md#term-snapshot); [partition glossary](../../../../glossary.md#partition); [backend glossary](../../../../glossary.md#backend))</span>
 - Validate each contribution's exact graph-value and logical-requirement references against the
-  supplied `CompileArtifacts`, and validate its exact source-only published-constant role.
+  supplied <span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph))</span>`CompileArtifacts`, and validate its exact source-only published-[constant](../../../../glossary.md#term-constant) role.
 - Require complete, unique contribution coverage for every artifact value with that role when the
   four-argument path is used; the three-argument path supplies the empty set and therefore keeps
-  unsupported source-only publication fail-closed.
+  unsupported source-only publication fail-closed.<span data-glossary-navigation="true"> ([artifact glossary](../../../../glossary.md#term-artifact); [publication glossary](../../../../glossary.md#term-publication); [fail-closed glossary](../../../../glossary.md#term-fail-closed))</span>
 - Canonicalize valid contributions by final `CompiledGraphModel.values()` encounter order rather
   than caller list order.
 - Extend the package-private complete-set handoff to validate the canonical contributions and add
   their supplied buffer geometry after every ordinary partition-analysis requirement has been
-  traversed.
+  traversed.<span data-glossary-navigation="true"> ([handoff glossary](../../../../glossary.md#term-handoff); [canonical glossary](../../../../glossary.md#term-canonical-form); [buffer glossary](../../../../glossary.md#term-buffer))</span>
 - Preserve ordinary per-finalizer assignment lists exactly. A producerless contribution has no
   owning partition and is never inserted into `BackendPartitionFinalization.assignments()`.
 - Return the contributed association through the existing plan-ordered
-  `PreparedBufferAssignment` list and `PreparedScheduleContext` only.
+  [`PreparedBufferAssignment`](../../../../glossary.md#prepared-buffer-assignment--preparedbufferassignment) list and [`PreparedScheduleContext`](../../../../glossary.md#prepared-schedule-context--preparedschedulecontext) only.
 - Add focused public-shape, record-contract, orchestration, failure-order, complete-coverage,
-  deterministic-order, assignment, and compatibility tests.
+  deterministic-order, assignment, and compatibility tests.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape))</span>
 - Finalize affected Javadocs and the focused Prepare explanations through the mandatory separate
   clean documentation pass after executable Java stabilizes.
 
-## Out of scope
+## Out of [scope](../../../../glossary.md#term-scope)
 
-- CPU 0010H production, tests, Javadocs, or detailed task specification
-- Engine 0006 production, tests, Javadocs, or API behavior
-- Runtime production, tests, API, representation, validity, publication, lease, or cleanup changes
-- selecting a backend, partition, device, route, kernel, representation, transfer, or executable
-- projecting the value into `PrepareContext`, adding a synthetic node, assigning a producer or
-  consumer partition, or attaching the contribution to a partition finalizer
+- [CPU](../../../../glossary.md#term-cpu) 0010H production, tests, Javadocs, or detailed task specification
+- [Engine](../../../../glossary.md#term-engine) 0006 production, tests, Javadocs, or [API](../../../../glossary.md#term-application-programming-interface-api) behavior
+- [Runtime](../../../../glossary.md#term-runtime) production, tests, API, representation, validity, [publication](../../../../glossary.md#term-publication), [lease](../../../../glossary.md#term-lease), or cleanup changes
+- selecting a [backend](../../../../glossary.md#backend), [partition](../../../../glossary.md#partition), [device](../../../../glossary.md#term-device), route, [kernel](../../../../glossary.md#kernel), representation, transfer, or executable
+- projecting the value into [`PrepareContext`](../../../../glossary.md#prepare-context-preparecontext), adding a synthetic node, assigning a producer or
+  consumer partition, or attaching the contribution to a partition finalizer<span data-glossary-navigation="true"> ([producer glossary](../../../../glossary.md#term-producer))</span>
 - deriving byte size, alignment, storage span, carrier, physical layout, creator, or
-  representation from a logical descriptor
+  representation from a logical descriptor<span data-glossary-navigation="true"> ([alignment glossary](../../../../glossary.md#term-alignment); [carrier glossary](../../../../glossary.md#term-storage-carrier); [layout glossary](../../../../glossary.md#layout); [descriptor glossary](../../../../glossary.md#term-descriptor))</span>
 - invoking a creator, materializing or copying the splat value, initializing a representation,
-  allocating storage, binding, executing, publishing, or creating mutable run state
-- adding a zero-node execution or making a zero-partition graph preparable
+  allocating storage, binding, executing, publishing, or creating mutable run state<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding); [mutable glossary](../../../../glossary.md#term-mutable); [run state glossary](../../../../glossary.md#run-state--runstate))</span>
+- adding a zero-[node](../../../../glossary.md#node) execution or making a zero-partition [graph](../../../../glossary.md#graph) preparable
 - relaxing the CPU integration's requirement for exactly one non-empty CPU partition or its
   mixed/multi-partition rejection
 - changing ordinary partition-connected projection, backend-analysis declaration order,
   first-declaration aggregation, workspace assignment, or finalizer inputs
 - changing Compiler graph/source/publication behavior, Planning logical-memory behavior, Model
   descriptors, build structure, dependencies, architecture rules, ADRs, architecture tests,
-  backend conformance, integration tests, or performance behavior
+  backend conformance, integration tests, or performance behavior<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [Planning glossary](../../../../glossary.md#term-planning); [Model glossary](../../../../glossary.md#term-model); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 - a general resource registry, callback, provider, backend switch, service locator, generic map,
-  or speculative multi-backend schedule-contribution framework
+  or speculative multi-backend schedule-contribution framework<span data-glossary-navigation="true"> ([registry glossary](../../../../glossary.md#term-registry); [callback glossary](../../../../glossary.md#term-callback); [service locator glossary](../../../../glossary.md#term-service-locator))</span>
 
 ## Architecture references
 
 - [`ARCHITECTURE.md`](../../../../../ARCHITECTURE.md), especially core invariants, Prepare,
-  Runtime, concrete backends, lifecycle, and dependency rules
+  Runtime, concrete backends, lifecycle, and dependency rules<span data-glossary-navigation="true"> ([backends glossary](../../../../glossary.md#backend); [lifecycle glossary](../../../../glossary.md#lifecycle); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 - [Current architecture plan](../../../../architecture/current-architecture-plan.md)
 - [Lifecycle](../../../../architecture/lifecycle.md)
-- [Module boundaries](../../../../architecture/module-boundaries.md)
+- [Module boundaries](../../../../architecture/module-boundaries.md)<span data-glossary-navigation="true"> ([Module glossary](../../../../glossary.md#term-module))</span>
 - [Dependency rules](../../../../architecture/dependency-rules.md)
 - [Runtime, Prepare, and Backend Boundary](../../../../architecture/runtime-prepare-backend-boundary.md)
-- [ADR 0010: Stage backend preparation around shared slot assignment](../../../../design/decisions/0010-staged-backend-preparation.md)
-- [ADR 0011: Per-run Runtime resource ownership and cold binding](../../../../design/decisions/0011-per-run-runtime-resource-ownership.md)
+- [ADR 0010: Stage backend preparation around shared slot assignment](../../../../design/decisions/0010-staged-backend-preparation.md)<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
+- [ADR 0011: Per-run Runtime resource ownership and cold binding](../../../../design/decisions/0011-per-run-runtime-resource-ownership.md)<span data-glossary-navigation="true"> ([resource ownership glossary](../../../../glossary.md#term-resource-ownership))</span><span data-glossary-navigation="true"> ([run glossary](../../../../glossary.md#term-run); [ownership glossary](../../../../glossary.md#term-ownership); [binding glossary](../../../../glossary.md#term-binding))</span>
 - [Planning guide](../../../planning-guide.md) and [roadmap](../../../roadmap.md)
-- [Prepare master plan](../master-plan.md) and completed Prepare tasks
+- [Prepare master plan](../master-plan.md) and completed [Prepare](../../../../glossary.md#prepare) tasks
   [0001](0001-backend-partition-analysis-and-resource-declaration.md),
   [0002](0002-backend-partition-finalization-handoff.md),
   [0003](0003-prepare-orchestration-and-validation.md),
   [0003A](0003a-immutable-partition-local-dag-analysis-projection.md), and
   [0004](0004-opaque-backend-candidate-batch-and-selected-decision-handoff.md)
-- [Compiler 0006B5](../../compiler/tasks/0006b5-published-compile-time-constant-descriptor-closure.md)
-- Planning [0005](../../planning/tasks/0005-logical-materialization-and-memory-requirements.md)
+- [Compiler 0006B5](../../compiler/tasks/0006b5-published-compile-time-constant-descriptor-closure.md)<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler))</span>
+- [Planning](../../../../glossary.md#term-planning) [0005](../../planning/tasks/0005-logical-materialization-and-memory-requirements.md)
   and [0006](../../planning/tasks/0006-planning-contract-closure-audit.md)
-- CPU [0010F](../../../backends/cpu/tasks/0010f-supported-cpu-lifecycle-integration-adapter.md)
+- [CPU](../../../../glossary.md#term-cpu) [0010F](../../../backends/cpu/tasks/0010f-supported-cpu-lifecycle-integration-adapter.md)
   and [0010G](../../../backends/cpu/tasks/0010g-canonical-caller-owned-host-snapshot-export.md)
-- [Engine 0006](../../engine/tasks/0006-one-shot-scalar-objective-backward-convenience.md)
-- Runtime [0008](../../runtime/tasks/0008-prepared-buffer-transfer-and-materialization-schedule.md),
+- [Engine 0006](../../engine/tasks/0006-one-shot-scalar-objective-backward-convenience.md)<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine))</span>
+- [Runtime](../../../../glossary.md#term-runtime) [0008](../../runtime/tasks/0008-prepared-buffer-transfer-and-materialization-schedule.md),
   [0009](../../runtime/tasks/0009-publication-and-result-schedule-steps.md),
   [0010](../../runtime/tasks/0010-prepared-runner-and-dynamic-execution.md), and
   [0015](../../runtime/tasks/0015-leased-publication-representation-access.md)
@@ -151,44 +151,44 @@ assembly changes, or Engine use.
 ## Architecture constraints
 
 - Compiler owns the exact final graph, source roles, publication boundary, and resolved logical
-  descriptor. Prepare consumes and validates those exact immutable facts without rebuilding them.
+  descriptor. Prepare consumes and validates those exact immutable facts without rebuilding them.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [graph glossary](../../../../glossary.md#graph); [publication glossary](../../../../glossary.md#term-publication); [descriptor glossary](../../../../glossary.md#term-descriptor); [Prepare glossary](../../../../glossary.md#prepare); [immutable glossary](../../../../glossary.md#term-immutable))</span>
 - Planning owns logical producer, consumer, and graph-output obligations. A producerless resource
-  contribution must retain the exact Planning requirement and must not invent partition ownership.
+  contribution must retain the exact Planning requirement and must not invent partition ownership.<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning); [producer glossary](../../../../glossary.md#term-producer); [partition glossary](../../../../glossary.md#partition); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Prepare owns complete-set validation, stable ordering, shared slot assignment, finalization
   coordination, and schedule validation. The new contribution is therefore a Prepare root-package
-  composition value, not a backend-analysis projection.
+  composition value, not a backend-analysis projection.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [backend glossary](../../../../glossary.md#backend))</span>
 - Concrete backends own exact physical declarations and representation creators. The
   contribution's byte size and alignment are supplied from outside Prepare; Prepare only
-  validates and transports that geometry into shared assignment.
+  validates and transports that geometry into shared assignment.<span data-glossary-navigation="true"> ([alignment glossary](../../../../glossary.md#term-alignment))</span>
 - Runtime owns the existing physical-plan, initialized-representation, execution, publication,
-  lease, and cleanup vocabulary. No new Runtime concept is needed.
+  lease, and cleanup vocabulary. No new Runtime concept is needed.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [lease glossary](../../../../glossary.md#term-lease))</span>
 - Engine remains the explicit composition root. Prepare must not discover a backend or infer which
-  backend should supply this resource.
+  backend should supply this resource.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [composition root glossary](../../../../glossary.md#term-composition-root))</span>
 - The current non-empty-partition execution model remains unchanged. A source-only constant may
   accompany ordinary prepared work, but this task cannot turn a zero-node graph into a runnable
-  schedule.
+  schedule.<span data-glossary-navigation="true"> ([model glossary](../../../../glossary.md#term-model); [constant glossary](../../../../glossary.md#term-constant); [node glossary](../../../../glossary.md#node))</span>
 - No module edge, authoritative architecture decision, or dependency direction changes. Stop if
-  implementation requires one.
+  implementation requires one.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module); [dependency direction glossary](../../../../glossary.md#java-platform-and-build-tools))</span>
 
 ## Package impact and exact type semantics
 
 Changed existing package:
 
 - `io.github.pho001.synaptik.prepare` gains one immutable complete-graph resource contribution and
-  one `GraphPreparation` overload. No subpackage is added.
+  one [`GraphPreparation`](../../../../glossary.md#graph-preparation--graphpreparation) overload. No subpackage is added.
 
 Consumed unchanged packages:
 
 - `io.github.pho001.synaptik.prepare.analysis` continues to own partition-analysis requirements
   unchanged. Its `PreparationResourceRequirement.Buffer` remains limited to projected values and
   is not reused for this unprojected contribution.
-- Compiler, Model, and Planning facts remain visible only at shared Prepare orchestration.
-- Runtime contracts are consumed unchanged.
+- [Compiler](../../../../glossary.md#term-compiler), [Model](../../../../glossary.md#term-model), and [Planning](../../../../glossary.md#term-planning) facts remain visible only at shared [Prepare](../../../../glossary.md#prepare) orchestration.
+- [Runtime](../../../../glossary.md#term-runtime) contracts are consumed unchanged.
 
 `ProducerlessPublishedConstantResource` has exactly four record components in this order:
 `GraphValue value`, `LogicalMemoryRequirement logicalRequirement`, `long byteSize`, and
-`long byteAlignment`. Its canonical constructor validates reference components in declaration
-order and retains each exact immutable reference. It then requires:
+`long byteAlignment`. Its [canonical](../../../../glossary.md#term-canonical-form) constructor validates reference components in declaration
+order and retains each exact [immutable](../../../../glossary.md#term-immutable) reference. It then requires:
 
 1. `logicalRequirement.valueId().equals(value.id())`;
 2. `logicalRequirement.descriptor().equals(value.descriptor())`;
@@ -200,73 +200,73 @@ order and retains each exact immutable reference. It then requires:
 8. `byteSize >= 0`; and
 9. `byteAlignment` is a positive power of two.
 
-The record alone cannot prove exact artifact membership, graph-input/output membership, constant
-source classification, node non-consumption, publication order, complete coverage, or non-empty
-partition context. `GraphPreparation` proves those facts against one exact `CompileArtifacts`.
-Physical byte size may include backend-required geometry and is not equated to logical element
-count or referenced span. The caller owns deriving both physical values; Prepare validates only
+The record alone cannot prove exact [artifact](../../../../glossary.md#term-artifact) membership, [graph](../../../../glossary.md#graph)-input/output membership, [constant](../../../../glossary.md#term-constant)
+source classification, [node](../../../../glossary.md#node) non-consumption, [publication](../../../../glossary.md#term-publication) order, complete coverage, or non-empty
+[partition](../../../../glossary.md#partition) context. `GraphPreparation` proves those facts against one exact `CompileArtifacts`.
+Physical byte size may include [backend](../../../../glossary.md#backend)-required geometry and is not equated to logical [element](../../../../glossary.md#term-element)
+count or [referenced span](../../../../glossary.md#referenced-element-span). The caller owns deriving both physical values; Prepare validates only
 their generic Runtime-compatible domain and never computes them.
 
-## Exact orchestration and validation semantics
+## Exact orchestration and [validation](../../../../glossary.md#term-validation) semantics
 
-The four-argument overload validates top-level inputs in parameter order: `artifacts`,
+The four-[argument](../../../../glossary.md#term-argument) overload validates top-level inputs in [parameter](../../../../glossary.md#term-parameter) order: [`artifacts`](../../../../glossary.md#term-artifact),
 `preparations`, `producerlessResources`, then `scheduleAssembler`. It validates and snapshots
-preparation and contribution elements before any projection or backend call. Existing preparation
+preparation and contribution [elements](../../../../glossary.md#term-element) before any projection or [backend](../../../../glossary.md#backend) call. Existing preparation
 coverage validation retains its current meaning.
 
-Derive the required source-only published-constant IDs from final artifacts in graph-value
+Derive the required source-only published-[constant](../../../../glossary.md#term-constant) IDs from final artifacts in [graph](../../../../glossary.md#graph)-value
 encounter order. A required value has all of these facts:
 
 1. its ID is in `graph.inputs()`;
-2. its ID is in `graph.outputs()` and therefore in the validated publication boundary;
+2. its ID is in `graph.outputs()` and therefore in the validated [publication](../../../../glossary.md#term-publication) boundary;
 3. its ID occurs in `constants.constantSources()`;
-4. no `CompiledNode.inputs()` occurrence consumes it;
-5. no node output produces it, as already implied by valid graph-input membership;
-6. its exact logical-memory requirement has no producer partition, no consumer partition, and
+4. no `CompiledNode.inputs()` [occurrence](../../../../glossary.md#term-occurrence) consumes it;
+5. no [node](../../../../glossary.md#node) output produces it, as already implied by valid graph-input membership;
+6. its exact logical-memory requirement has no [producer](../../../../glossary.md#term-producer) [partition](../../../../glossary.md#partition), no consumer partition, and
    `graphOutput == true`;
-7. its Shape is fully static; and
-8. its descriptor layout is resolved.
+7. its [Shape](../../../../glossary.md#shape) is fully static; and
+8. its [descriptor](../../../../glossary.md#term-descriptor) [layout](../../../../glossary.md#layout) is resolved.
 
 For every supplied contribution, require the exact `GraphValue` reference from
 `artifacts.graph().values()` and the exact `LogicalMemoryRequirement` reference from
 `artifacts.memory().requirements()`, not merely equal replacements. Require its ID to have the
 complete role above. Reject duplicate contributed IDs, missing required IDs, and contributed IDs
-outside the required set before constructing any `PrepareContext` or invoking any preparer.
+outside the required set before constructing any [`PrepareContext`](../../../../glossary.md#prepare-context-preparecontext) or invoking any preparer.
 
 Canonicalize the validated contributions by required graph-value encounter order. Caller list
-order is not assignment policy. If the canonical list is non-empty, require at least one planned
-non-empty partition. This explicit guard prevents the contribution seam from making a pure
+order is not assignment policy. If the [canonical](../../../../glossary.md#term-canonical-form) list is non-empty, require at least one planned
+non-empty partition. This explicit [guard](../../../../glossary.md#term-guard) prevents the contribution seam from making a pure
 zero-node graph preparable.
 
 After all ordinary analyses succeed and existing cross-partition declaration checks pass, give
-the canonical contribution list to the package-private complete-set handoff. The handoff must
+the canonical contribution list to the package-private complete-set [handoff](../../../../glossary.md#term-handoff). The handoff must
 validate all ordinary entry sources and all contributed exact sources before assignment or
 finalization. It traverses all ordinary partition analyses and their requirements exactly as
 today, then traverses canonical producerless contributions. Consequently:
 
 - every existing ordinary buffer and workspace keeps the same slot, plan index, geometry,
   finalizer assignment position, and aggregation behavior;
-- each distinct producerless contribution receives the next dense `BufferSlot` and plan index;
+- each distinct producerless contribution receives the next dense [`BufferSlot`](../../../../glossary.md#buffer-slot--bufferslot) and plan index;
 - multiple contributions follow final graph-value encounter order;
-- a contributed ID must not overlap any ordinary buffer declaration or another contribution;
+- a contributed ID must not overlap any ordinary [buffer](../../../../glossary.md#term-buffer) declaration or another contribution;
 - contributed geometry is copied unchanged into its `PreparedMemoryPlan.BufferEntry`; it is not
   merged with or reinterpreted from a logical descriptor;
 - no `PreparationResourceAssignment` is created for a producerless contribution because no
   partition finalizer owns it; and
-- the existing result builds one `PreparedBufferAssignment` per distinct buffer in complete plan
+- the existing result builds one [`PreparedBufferAssignment`](../../../../glossary.md#prepared-buffer-assignment--preparedbufferassignment) per distinct buffer in complete plan
   order, including the contributed value.
 
 The three-argument overload delegates with `List.of()`. Ordinary artifacts with no required
 producerless source-only publication preserve exact current behavior. Artifacts requiring such a
-resource continue to fail closed until a concrete composition uses the four-argument overload and
-supplies complete declarations; CPU 0010H and Engine 0006 own that later wiring.
+resource continue to [fail closed](../../../../glossary.md#admission-preflight-and-fail-closed-validation) until a concrete composition uses the four-argument overload and
+supplies complete declarations; [CPU](../../../../glossary.md#term-cpu) 0010H and [Engine](../../../../glossary.md#term-engine) 0006 own that later wiring.
 
 ### Failure types, messages, and precedence
 
 The record uses `NullPointerException("value")` then
 `NullPointerException("logicalRequirement")` for null references. Its remaining deliberate
 failures are `IllegalArgumentException` with these stable messages, evaluated in the listed
-invariant order:
+[invariant](../../../../glossary.md#term-invariant) order:
 
 - `logicalRequirement.valueId must match value.id`;
 - `logicalRequirement.descriptor must match value.descriptor`;
@@ -278,14 +278,14 @@ invariant order:
 - `byteSize must be non-negative`; and
 - `byteAlignment must be a positive power of two`.
 
-The four-argument operation checks top-level references in declared parameter order, producing
+The four-[argument](../../../../glossary.md#term-argument) [operation](../../../../glossary.md#operation) checks top-level references in declared [parameter](../../../../glossary.md#term-parameter) order, producing
 `NullPointerException("artifacts")`, `NullPointerException("preparations")`,
 `NullPointerException("producerlessResources")`, or
 `NullPointerException("scheduleAssembler")`. It then preserves existing indexed preparation and
 positional-coverage failures before checking indexed contributions. A null contribution produces
 `NullPointerException("producerlessResources[i]")`; the remaining deterministic
 `IllegalArgumentException` messages follow below. Supplied contributions are checked in caller
-order; missing coverage is checked in canonical required-value order.
+order; missing coverage is checked in [canonical](../../../../glossary.md#term-canonical-form) required-value order.
 
 - `producerlessResources[i] value reference does not match artifacts graph value: <ValueId>`;
 - `producerlessResources[i] logical requirement reference does not match artifacts memory requirement: <ValueId>`;
@@ -294,12 +294,12 @@ order; missing coverage is checked in canonical required-value order.
 - `producerlessResources has no contribution for required <ValueId>`; and
 - `producerless resources require at least one non-empty planned partition`.
 
-Complete contribution validation finishes before projection. Existing projection, analysis,
-cross-partition declaration, finalization, assembler, and schedule failures retain their current
-relative order afterward. The package-private handoff additionally rejects direct malformed use
+Complete contribution [validation](../../../../glossary.md#term-validation) finishes before projection. Existing projection, analysis,
+cross-[partition](../../../../glossary.md#partition) declaration, finalization, assembler, and schedule failures retain their current
+relative order afterward. The package-private [handoff](../../../../glossary.md#term-handoff) additionally rejects direct malformed use
 with `producerless resource overlaps ordinary buffer declaration: <ValueId>` before constructing
 the memory plan or invoking a finalizer. Valid orchestration makes duplicate producerless IDs
-unreachable at that boundary, but the handoff must still fail closed when tested directly.
+unreachable at that boundary, but the handoff must still [fail closed](../../../../glossary.md#admission-preflight-and-fail-closed-validation) when tested directly.
 
 ## Affected files
 
@@ -319,67 +319,67 @@ Exact future implementation and documentation allowlist (thirteen paths):
 12. `docs/planning/modules/prepare/master-plan.md`
 13. `docs/planning/roadmap.md`
 
-Review without editing Compiler, Planning, Runtime, CPU, Engine, Model, Config, Training, Tensor,
-build files, architecture documents, ADRs, architecture tests, backend conformance, integration
+Review without editing [Compiler](../../../../glossary.md#term-compiler), [Planning](../../../../glossary.md#term-planning), [Runtime](../../../../glossary.md#term-runtime), [CPU](../../../../glossary.md#term-cpu), [Engine](../../../../glossary.md#term-engine), [Model](../../../../glossary.md#term-model), Config, Training, [Tensor](../../../../glossary.md#tensor),
+build files, architecture documents, ADRs, architecture tests, [backend](../../../../glossary.md#backend) [conformance](../../../../glossary.md#term-conformance), integration
 tests, and all other paths. If implementation or documentation proves that a fourteenth path is
-required, stop and replan rather than widening implicitly.
+required, stop and replan rather than [widening](../../../../glossary.md#term-widening) implicitly.
 
-## Maximum scope
+## Maximum [scope](../../../../glossary.md#term-scope)
 
-At most the thirteen paths above. The executable change is one immutable contribution, one
-source-compatible overload, complete-role validation/canonicalization, and one append-only branch
-in existing shared assignment. It adds no module dependency, generated code, benchmark,
-repository-wide capability checkpoint, CPU/Engine behavior, or Runtime mechanism.
+At most the thirteen paths above. The executable change is one [immutable](../../../../glossary.md#term-immutable) contribution, one
+source-compatible overload, complete-role [validation](../../../../glossary.md#term-validation)/[canonicalization](../../../../glossary.md#occurrence-identity-and-canonical-form), and one append-only branch
+in existing shared assignment. It adds no [module](../../../../glossary.md#term-module) [dependency](../../../../glossary.md#term-dependency), generated code, benchmark,
+repository-wide capability [checkpoint](../../../../glossary.md#term-checkpoint), [CPU](../../../../glossary.md#term-cpu)/[Engine](../../../../glossary.md#term-engine) behavior, or [Runtime](../../../../glossary.md#term-runtime) mechanism.
 
 ## Acceptance criteria
 
 - The new record has exactly the four specified components and no additional public/protected
-  member beyond documented record accessors and canonical construction.
-- `GraphPreparation` exposes exactly the existing three-argument method and the new four-argument
-  overload; both remain stateless and synchronous.
+  member beyond documented record accessors and canonical construction.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form))</span>
+- [`GraphPreparation`](../../../../glossary.md#graph-preparation--graphpreparation) exposes exactly the existing three-argument method and the new four-argument
+  overload; both remain stateless and synchronous.<span data-glossary-navigation="true"> ([argument glossary](../../../../glossary.md#term-argument); [synchronous glossary](../../../../glossary.md#term-synchronous))</span>
 - Nulls, indexed null elements, duplicate IDs, equal-but-not-identical artifact references,
   mismatched IDs/descriptors, wrong graph/source/publication/logical roles, dynamic or unresolved
   descriptors, incomplete coverage, extra contributions, and the zero-partition case fail before
-  any backend analysis, finalization, or assembler call.
+  any backend analysis, finalization, or assembler call.<span data-glossary-navigation="true"> ([elements glossary](../../../../glossary.md#term-element); [artifact glossary](../../../../glossary.md#term-artifact); [descriptors glossary](../../../../glossary.md#term-descriptor); [graph glossary](../../../../glossary.md#graph); [publication glossary](../../../../glossary.md#term-publication); [partition glossary](../../../../glossary.md#partition); [backend glossary](../../../../glossary.md#backend))</span>
 - A valid fully static source-only published splat accompanying at least one ordinary partition is
-  absent from every `PrepareContext` yet present exactly once in the complete memory plan and
+  absent from every [`PrepareContext`](../../../../glossary.md#prepare-context-preparecontext) yet present exactly once in the complete memory plan and
   `PreparedScheduleContext.bufferAssignments()`.
 - Ordinary buffer/workspace slots, plan indices, geometry, aggregation, per-finalizer assignments,
-  backend invocation order, and partition projection are unchanged.
+  backend invocation order, and partition projection are unchanged.<span data-glossary-navigation="true"> ([buffer glossary](../../../../glossary.md#term-buffer))</span>
 - Contributed slots are appended after ordinary buffers and ordered by final graph-value encounter
   order independent of caller contribution order.
 - Contributed physical byte size and alignment are accepted exactly from the supplied values;
-  Prepare performs no descriptor-to-byte inference.
+  Prepare performs no descriptor-to-byte inference.<span data-glossary-navigation="true"> ([alignment glossary](../../../../glossary.md#term-alignment); [inference glossary](../../../../glossary.md#term-inference))</span>
 - The new assignment is sufficient for an unchanged fake assembler to describe one initialized
   constant representation and requested publication while retaining exactly the existing
-  execution occurrence for the accompanying partition.
+  execution occurrence for the accompanying partition.<span data-glossary-navigation="true"> ([constant glossary](../../../../glossary.md#term-constant); [occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 - No pure zero-node schedule succeeds, no synthetic executable/partition/node is created, and no
-  CPU or Engine acceptance boundary changes.
+  CPU or Engine acceptance boundary changes.<span data-glossary-navigation="true"> ([node glossary](../../../../glossary.md#node); [CPU glossary](../../../../glossary.md#term-cpu); [Engine glossary](../../../../glossary.md#term-engine))</span>
 - Public/package shape, Javadocs, Runtime/Public API explanations, glossary, task/master/roadmap
-  status, and exact scope are synchronized before completion.
-- Prepare 0005 is `Complete` only after executable implementation, focused/full Prepare
+  status, and exact scope are synchronized before completion.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [Runtime glossary](../../../../glossary.md#term-runtime); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [scope glossary](../../../../glossary.md#term-scope))</span>
+- [Prepare](../../../../glossary.md#prepare) 0005 is `Complete` only after executable implementation, focused/full Prepare
   validation, and the separate documentation pass all completed. CPU 0010H and Engine 0006 remain
-  Draft.
+  Draft.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
 
-## Tests and validation
+## Tests and [validation](../../../../glossary.md#term-validation)
 
-Focused Prepare tests must prove:
+Focused [Prepare](../../../../glossary.md#prepare) tests must prove:
 
 - exact record components, method overload descriptors, public/final/stateless shapes, and absence
-  of extra public surface;
+  of extra public surface;<span data-glossary-navigation="true"> ([descriptors glossary](../../../../glossary.md#term-descriptor); [shapes glossary](../../../../glossary.md#shape))</span>
 - record null order, ID/descriptor association, producer/consumer/output role, static Shape,
-  resolved-layout, non-negative byte-size, and power-of-two alignment validation;
+  resolved-layout, non-negative byte-size, and power-of-two alignment validation;<span data-glossary-navigation="true"> ([producer glossary](../../../../glossary.md#term-producer); [layout glossary](../../../../glossary.md#layout); [alignment glossary](../../../../glossary.md#term-alignment))</span>
 - orchestration null/index validation, immutable list snapshot, duplicate/missing/extra coverage,
-  exact-reference rejection, and failure before backend-visible work;
+  exact-reference rejection, and failure before backend-visible work;<span data-glossary-navigation="true"> ([snapshot glossary](../../../../glossary.md#term-snapshot))</span>
 - success with one non-empty fake partition plus one disconnected graph-input/output splat,
   including exact descriptor/logical references, unprojected value, unchanged finalizer
-  assignments, appended slot, exact supplied geometry, initialized representation, and publication;
-- multiple contributed constants supplied in reverse order but assigned in final graph-value order;
-- rejection of a contributed pure zero-node graph without finalization or assembly;
-- unchanged three-argument ordinary orchestration behavior;
+  assignments, appended slot, exact supplied geometry, initialized representation, and publication;<span data-glossary-navigation="true"> ([partition glossary](../../../../glossary.md#partition); [publication glossary](../../../../glossary.md#term-publication))</span>
+- multiple contributed [constants](../../../../glossary.md#term-constant) supplied in reverse order but assigned in final [graph](../../../../glossary.md#graph)-value order;
+- rejection of a contributed pure zero-[node](../../../../glossary.md#node) graph without finalization or assembly;
+- unchanged three-[argument](../../../../glossary.md#term-argument) ordinary orchestration behavior;
 - direct handoff first-declaration aggregation and workspace behavior with appended contributions;
-  and
-- immutable result/assignment containers and stable repeated ordinary declarations.
+  and<span data-glossary-navigation="true"> ([handoff glossary](../../../../glossary.md#term-handoff))</span>
+- [immutable](../../../../glossary.md#term-immutable) result/assignment containers and stable repeated ordinary declarations.
 
 Future implementation validation after executable Java stabilizes:
 
@@ -391,52 +391,52 @@ git diff --check
 ```
 
 The documentation-focused pass also validates all changed Markdown links and anchors, unique
-headings, balanced fences, LF/final newlines, trailing whitespace, exact thirteen-path scope,
+headings, balanced fences, LF/final newlines, trailing whitespace, exact thirteen-path [scope](../../../../glossary.md#term-scope),
 public/package inventory, task/master/roadmap order and status, only one detailed next unfinished
-Prepare task, absence of a CPU 0010H task file, and preservation of excluded Java/build/
+Prepare task, absence of a [CPU](../../../../glossary.md#term-cpu) 0010H task file, and preservation of excluded Java/build/
 architecture paths. Do not repeat successful Java tests unless documentation changes executable
 Java behavior or exposes a concrete stale-evidence risk.
 
-Validation tier: affected Prepare module plus its Javadoc and focused explanatory/planning
-documentation. Repository-wide, CPU, Engine, Runtime, architecture, conformance, integration, and
-performance validation are deferred to their owning tasks or CI because this task changes no
-module edge or implemented concrete-backend behavior.
+Validation tier: affected Prepare [module](../../../../glossary.md#term-module) plus its [Javadoc](../../../../glossary.md#term-javadoc) and focused explanatory/[planning](../../../../glossary.md#term-planning)
+documentation. Repository-wide, CPU, [Engine](../../../../glossary.md#term-engine), [Runtime](../../../../glossary.md#term-runtime), architecture, [conformance](../../../../glossary.md#term-conformance), integration, and
+performance validation are deferred to their owning tasks or [CI](../../../../glossary.md#term-continuous-integration-ci) because this task changes no
+module edge or implemented concrete-[backend](../../../../glossary.md#backend) behavior.
 
 ## Dependencies
 
-- Compiler 0006B5 — Complete; supplies the resolved static logical descriptor.
-- Planning 0005–0006 — Complete; preserves the producerless/consumerless graph-output obligation.
+- [Compiler](../../../../glossary.md#term-compiler) 0006B5 — Complete; supplies the resolved static logical [descriptor](../../../../glossary.md#term-descriptor).
+- [Planning](../../../../glossary.md#term-planning) 0005–0006 — Complete; preserves the producerless/consumerless [graph](../../../../glossary.md#graph)-output obligation.
 - Prepare 0001–0004 — Complete; supply analysis declarations, complete-set assignment,
   orchestration/schedule validation, immutable partition DAG projection, and the unrelated opaque
-  tuning handoff.
+  tuning handoff.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [immutable glossary](../../../../glossary.md#term-immutable); [partition glossary](../../../../glossary.md#partition); [DAG glossary](../../../../glossary.md#term-directed-acyclic-graph-dag); [opaque glossary](../../../../glossary.md#term-opaque); [handoff glossary](../../../../glossary.md#term-handoff))</span>
 - Runtime memory, initialized representation, schedule, publication, runner, and lease contracts
-  — Complete and unchanged.
+  — Complete and unchanged.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [publication glossary](../../../../glossary.md#term-publication); [lease glossary](../../../../glossary.md#term-lease))</span>
 
-This task is Complete. No later Prepare task is detailed, Ready, or In progress.
+This task is Complete. No later [Prepare](../../../../glossary.md#prepare) task is detailed, [Ready](../../../../glossary.md#term-ready), or In progress.
 
-## Downstream handoff
+## Downstream [handoff](../../../../glossary.md#term-handoff)
 
-CPU 0010H follows this task. In the current sole non-empty CPU composition it will identify the
-eligible source-only published splat, derive and supply exact CPU byte size/alignment, create the
-initialized CPU representation recipe from the existing Compiler scalar, and expose the
-contribution to Engine composition. It must retain zero-node and mixed/multi-partition rejection
-and reuse current initialization/publication machinery. This task does not create the CPU 0010H
+[CPU](../../../../glossary.md#term-cpu) 0010H follows this task. In the current sole non-empty CPU composition it will identify the
+eligible source-only published splat, derive and supply exact CPU byte size/[alignment](../../../../glossary.md#term-alignment), create the
+initialized CPU representation recipe from the existing [Compiler](../../../../glossary.md#term-compiler) [scalar](../../../../glossary.md#term-scalar), and expose the
+contribution to [Engine](../../../../glossary.md#term-engine) composition. It must retain zero-[node](../../../../glossary.md#node) and mixed/multi-[partition](../../../../glossary.md#partition) rejection
+and reuse current initialization/[publication](../../../../glossary.md#term-publication) machinery. This task does not create the CPU 0010H
 specification.
 
-Engine 0006 follows CPU 0010H and will wire the CPU contribution through the four-argument Prepare
-overload for the selected scalar-objective backward convenience. Runtime needs no task because its
-existing initialized-buffer, validity, ordered publication/alias, result lease, and cleanup
-contracts already cover the lifecycle.
+Engine 0006 follows CPU 0010H and will wire the CPU contribution through the four-[argument](../../../../glossary.md#term-argument) [Prepare](../../../../glossary.md#prepare)
+overload for the selected scalar-[objective](../../../../glossary.md#term-objective) backward convenience. [Runtime](../../../../glossary.md#term-runtime) needs no task because its
+existing initialized-[buffer](../../../../glossary.md#term-buffer), validity, ordered publication/[alias](../../../../glossary.md#aliasing-and-arena), result [lease](../../../../glossary.md#term-lease), and cleanup
+contracts already cover the [lifecycle](../../../../glossary.md#lifecycle).
 
 ## Documentation-focused clean-context pass
 
-After Java and focused Prepare tests stabilize, hand the exact diff, baseline status, validation
-evidence, public-shape evidence, source-only eligibility/canonical-order decisions, and downstream
-ownership boundary to a distinct clean documentation-focused context. Apply the General,
-API/Javadoc, and Planning profiles. Finalize every changed Java Javadoc, Prepare package Javadoc,
-the Prepare sections of Runtime/Public API documentation, glossary terminology, and planning
-status/evidence. Review the architecture contract, focused architecture pages, ADRs, Compiler,
-Planning, Runtime, CPU, Engine, Tensor, and Training documentation for impact and record reasoned
+After Java and focused [Prepare](../../../../glossary.md#prepare) tests stabilize, hand the exact diff, baseline status, [validation](../../../../glossary.md#term-validation)
+evidence, public-[shape](../../../../glossary.md#shape) evidence, source-only eligibility/[canonical](../../../../glossary.md#term-canonical-form)-order decisions, and downstream
+[ownership](../../../../glossary.md#term-ownership-meanings) boundary to a distinct clean documentation-focused context. Apply the General,
+[API](../../../../glossary.md#term-application-programming-interface-api)/[Javadoc](../../../../glossary.md#term-javadoc), and [Planning](../../../../glossary.md#term-planning) profiles. Finalize every changed Java Javadoc, Prepare package Javadoc,
+the Prepare sections of [Runtime](../../../../glossary.md#term-runtime)/Public API documentation, glossary terminology, and planning
+status/evidence. Review the [architecture contract](../../../../glossary.md#architecture-contract), focused architecture pages, ADRs, [Compiler](../../../../glossary.md#term-compiler),
+Planning, Runtime, [CPU](../../../../glossary.md#term-cpu), [Engine](../../../../glossary.md#term-engine), [Tensor](../../../../glossary.md#tensor), and Training documentation for impact and record reasoned
 no-change conclusions. Do not change executable Java or repeat successful Java tests unless a
 documentation correction requires it.
 
@@ -444,12 +444,12 @@ documentation correction requires it.
 
 Expected impact: None.
 
-The task realizes the existing staged Prepare ownership: complete shared resource validation and
-slot assignment occur between backend analysis and finalization, while a concrete backend supplies
+The task realizes the existing staged [Prepare](../../../../glossary.md#prepare) [ownership](../../../../glossary.md#term-ownership-meanings): complete shared resource [validation](../../../../glossary.md#term-validation) and
+slot assignment occur between [backend](../../../../glossary.md#backend) analysis and finalization, while a [concrete backend](../../../../glossary.md#concrete-backend) supplies
 physical geometry. The new contribution is required only because a semantically valid published
-source has no partition node through which ordinary analysis could declare it. No ownership rule,
-dependency direction, execution model, or Runtime lifecycle changes. Stop rather than edit
-architecture or an ADR if implementation evidence contradicts this conclusion.
+source has no [partition](../../../../glossary.md#partition) [node](../../../../glossary.md#node) through which ordinary analysis could declare it. No ownership rule,
+[dependency direction](../../../../glossary.md#java-platform-and-build-tools), execution [model](../../../../glossary.md#term-model), or [Runtime](../../../../glossary.md#term-runtime) [lifecycle](../../../../glossary.md#lifecycle) changes. Stop rather than edit
+architecture or an [ADR](../../../../glossary.md#term-architecture-decision-record-adr) if implementation evidence contradicts this conclusion.
 
 ## Implementation prompt
 
@@ -471,49 +471,49 @@ gate finish.
 
 ## Stop conditions
 
-Stop and report instead of implementing or widening if any of these occurs:
+Stop and report instead of implementing or [widening](../../../../glossary.md#term-widening) if any of these occurs:
 
 - the source-only value cannot be identified entirely from existing immutable Compiler and
-  Planning artifacts;
-- assignment requires choosing or synthesizing a partition/backend owner;
-- Prepare must derive physical byte geometry or inspect/materialize the scalar value;
-- the contribution must enter `PrepareContext` or a partition finalizer to work;
+  Planning artifacts;<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [Compiler glossary](../../../../glossary.md#term-compiler); [Planning glossary](../../../../glossary.md#term-planning); [artifacts glossary](../../../../glossary.md#term-artifact))</span>
+- assignment requires choosing or synthesizing a [partition](../../../../glossary.md#partition)/[backend](../../../../glossary.md#backend) [owner](../../../../glossary.md#term-owner);
+- [Prepare](../../../../glossary.md#prepare) must derive physical byte geometry or inspect/materialize the [scalar](../../../../glossary.md#term-scalar) value;
+- the contribution must enter [`PrepareContext`](../../../../glossary.md#prepare-context-preparecontext) or a partition finalizer to work;
 - success requires a synthetic node, partition, executable, zero-node schedule, or relaxed CPU
-  composition boundary;
-- Runtime requires a new representation, validity, schedule, publication, lease, or cleanup type;
+  composition boundary;<span data-glossary-navigation="true"> ([node glossary](../../../../glossary.md#node); [CPU glossary](../../../../glossary.md#term-cpu))</span>
+- [Runtime](../../../../glossary.md#term-runtime) requires a new representation, validity, schedule, [publication](../../../../glossary.md#term-publication), [lease](../../../../glossary.md#term-lease), or cleanup type;
 - a new dependency, architecture rule, ADR, build edit, CPU/Engine implementation, or fourteenth
-  path is required; or
+  path is required; or<span data-glossary-navigation="true"> ([dependency glossary](../../../../glossary.md#term-dependency); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [Engine glossary](../../../../glossary.md#term-engine))</span>
 - ordinary partition-connected slot/index/finalization behavior cannot remain unchanged.
 
 ## Local decisions
 
 - A root-package contribution is narrower and more truthful than projecting a node-disconnected
-  value into an arbitrary partition or weakening `PrepareContext`'s partition-local meaning.
+  value into an arbitrary partition or weakening <span data-glossary-navigation="true"> ([node glossary](../../../../glossary.md#node))</span>[`PrepareContext`](../../../../glossary.md#prepare-context-preparecontext)'s [partition](../../../../glossary.md#partition)-local meaning.
 - The contribution retains exact graph and logical requirement references so shared Prepare can
-  validate Compiler/Planning continuity before accepting backend-supplied physical geometry.
-- Canonical graph-value order, not caller order or numeric `ValueId`, defines deterministic order
+  validate Compiler/Planning continuity before accepting backend-supplied physical geometry.<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [Compiler glossary](../../../../glossary.md#term-compiler); [Planning glossary](../../../../glossary.md#term-planning); [backend glossary](../../../../glossary.md#backend))</span>
+- [Canonical](../../../../glossary.md#term-canonical-form) [graph](../../../../glossary.md#graph)-value order, not caller order or numeric [`ValueId`](../../../../glossary.md#logical-valueid-versus-physical-memory-slot), defines deterministic order
   among producerless contributions.
 - Appending after ordinary declarations preserves every established ordinary slot/index and
   finalizer assignment.
 - The contribution has no finalizer assignment because no partition owns it. The schedule
   assembler already receives complete artifacts plus the plan-ordered logical assignment and is
-  the existing place where CPU 0010H can later add initialized representation creation.
+  the existing place where CPU 0010H can later add initialized representation creation.<span data-glossary-navigation="true"> ([artifacts glossary](../../../../glossary.md#term-artifact); [CPU glossary](../../../../glossary.md#term-cpu))</span>
 - An explicit non-empty-partition guard keeps the seam from silently broadening current execution
-  composition.
+  composition.<span data-glossary-navigation="true"> ([guard glossary](../../../../glossary.md#term-guard))</span>
 - Implementation retained the four-component record and source-compatible overload exactly as
   planned. Complete-role validation occurs before projection or backend-visible work, and the
   handoff's append-only assignment branch leaves ordinary declaration aggregation and finalizer
-  inputs unchanged.
+  inputs unchanged.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [handoff glossary](../../../../glossary.md#term-handoff))</span>
 
 ## Known limitations
 
-This task alone does not make the value runnable in CPU or callable through Engine. Until CPU
-0010H supplies physical geometry and initialized materialization and Engine 0006 wires that
-contribution, the existing composition remains unable to prepare the source-only publication.
-Dynamic Shapes, unresolved descriptors, zero-node graphs, and mixed/multi-partition CPU
+This task alone does not make the value runnable in [CPU](../../../../glossary.md#term-cpu) or callable through [Engine](../../../../glossary.md#term-engine). Until CPU
+0010H supplies physical geometry and initialized [materialization](../../../../glossary.md#materialization) and Engine 0006 wires that
+contribution, the existing composition remains unable to [prepare](../../../../glossary.md#prepare) the source-only [publication](../../../../glossary.md#term-publication).
+Dynamic [Shapes](../../../../glossary.md#shape), unresolved [descriptors](../../../../glossary.md#term-descriptor), zero-[node](../../../../glossary.md#node) [graphs](../../../../glossary.md#graph), and mixed/multi-[partition](../../../../glossary.md#partition) CPU
 composition remain unsupported.
 
-## Validation evidence
+## [Validation](../../../../glossary.md#term-validation) evidence
 
 Implementation context: `01a0a5ae-357d-7463-838d-a84d556e1214` (2026-09-15).
 
@@ -521,26 +521,26 @@ Implementation context: `01a0a5ae-357d-7463-838d-a84d556e1214` (2026-09-15).
   overload with three-argument delegation, exact-reference and complete-role validation,
   graph-value-order canonicalization, the non-empty-partition guard, and append-only complete-set
   slot assignment. No producerless contribution enters a partition context or finalizer
-  assignment.
+  assignment.<span data-glossary-navigation="true"> ([argument glossary](../../../../glossary.md#term-argument); [graph glossary](../../../../glossary.md#graph); [canonicalization glossary](../../../../glossary.md#occurrence-identity-and-canonical-form); [partition glossary](../../../../glossary.md#partition); [guard glossary](../../../../glossary.md#term-guard))</span>
 - The focused command
   `./gradlew :modules:prepare:test --tests io.github.pho001.synaptik.prepare.GraphPreparationPublicShapeTest --tests io.github.pho001.synaptik.prepare.GraphPreparationTest --tests io.github.pho001.synaptik.prepare.BackendPartitionFinalizationHandoffTest`
   passed 23 tests with zero failures, errors, or skips.
 - The final `./gradlew :modules:prepare:test` passed 52 tests with zero failures, errors, or skips.
-  No executable Java changed after that run.
+  No executable Java changed after that run.<span data-glossary-navigation="true"> ([run glossary](../../../../glossary.md#term-run))</span>
 
 Documentation context: `01a0a5b6-e42c-7211-a8df-4a02d857314d` (2026-09-15).
 
 - Applied the General, API/Javadoc, and Planning profiles after reading the complete architecture
   contract, documentation rules, planning guide/roadmap, Prepare master/task, focused
-  architecture and ADR contracts, implementation source, tests, API guides, and glossary.
+  architecture and ADR contracts, implementation source, tests, API guides, and glossary.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [Javadoc glossary](../../../../glossary.md#term-javadoc); [architecture contract glossary](../../../../glossary.md#architecture-contract); [Prepare glossary](../../../../glossary.md#prepare); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
 - Finalized Javadoc/comments only in the three affected production types plus Prepare package
   documentation. Constructor, component-accessor, overload, and package contracts now state
   nullability, exact identity, ordering, snapshots, ownership, side effects, results, failures,
-  and the non-allocation/non-materialization boundary without changing executable Java tokens.
+  and the non-allocation/non-materialization boundary without changing executable Java tokens.<span data-glossary-navigation="true"> ([nullability glossary](../../../../glossary.md#term-nullability); [identity glossary](../../../../glossary.md#term-identity-meanings); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [materialization glossary](../../../../glossary.md#materialization))</span>
 - Finalized the Runtime and Public API mental model, added the reusable glossary term, and kept the
   current-vs-planned boundary explicit: Prepare assigns only; CPU 0010H supplies physical
   declaration/initialization and Engine 0006 supplies wiring later; zero-node execution remains
-  unsupported.
+  unsupported.<span data-glossary-navigation="true"> ([mental model glossary](../../../../glossary.md#term-mental-model))</span><span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [Engine glossary](../../../../glossary.md#term-engine))</span>
 - Architecture contract, focused architecture pages, and ADRs require no change because the
   implementation realizes the existing staged complete-set assignment boundary without changing
   ownership or dependency direction. CPU and Engine masters remain unchanged because their Draft
@@ -549,14 +549,14 @@ Documentation context: `01a0a5b6-e42c-7211-a8df-4a02d857314d` (2026-09-15).
   schedule, publication, lease, and cleanup contracts already consume the assignment. Compiler,
   Planning, Model, Config, Tensor, Training, other guides, tests, build files, architecture tests,
   backend conformance, and integration tests require no change because this task changes none of
-  their contracts, dependencies, or executable behavior.
+  their contracts, dependencies, or executable behavior.<span data-glossary-navigation="true"> ([dependency direction glossary](../../../../glossary.md#java-platform-and-build-tools); [publication glossary](../../../../glossary.md#term-publication); [lease glossary](../../../../glossary.md#term-lease); [Compiler glossary](../../../../glossary.md#term-compiler); [Tensor glossary](../../../../glossary.md#tensor); [backend glossary](../../../../glossary.md#backend); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 - Reused the stable Java test evidence above and did not rerun tests because this documentation
   pass changed no executable Java. Final Prepare Javadoc and the Markdown, exact-scope,
   executable-token, test-preservation, public/package inventory, whitespace, newline, and
-  status/order gates passed.
+  status/order gates passed.<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope))</span>
 - `./gradlew :modules:prepare:javadoc` passed after final Javadoc edits: 9 actionable tasks, 2
   executed and 7 up-to-date. Inspection of the generated record, facade, and package pages
-  confirmed the component/accessor descriptions, both overloads, and package boundary.
+  confirmed the component/accessor descriptions, both overloads, and package boundary.<span data-glossary-navigation="true"> ([facade glossary](../../../../glossary.md#term-facade))</span>
 - The corrected read-only Ruby validator over the six changed Markdown files passed local-link,
   generated-heading-anchor, explicit-anchor uniqueness, fence-balance, trailing-whitespace, CRLF,
   and LF final-newline checks. Two earlier invocations failed in the checker itself—first because
@@ -564,37 +564,37 @@ Documentation context: `01a0a5b6-e42c-7211-a8df-4a02d857314d` (2026-09-15).
   collapsed spaces around punctuation—and did not identify a documentation defect.
 - `cmp` against the documentation-context baseline passed for all three allowlisted test files.
   Comment-stripped and whitespace-normalized SHA-256 comparison passed for all three affected Java
-  production files: `1daa93e546f29de356c1c32cc370233708c22085e613cfe8c21513f3a727cae3`
+  production files: <span data-glossary-navigation="true"> ([SHA-256 glossary](../../../../glossary.md#term-sha-256))</span>`1daa93e546f29de356c1c32cc370233708c22085e613cfe8c21513f3a727cae3`
   for `ProducerlessPublishedConstantResource.java`,
   `efd37e90e46eef6eacef747534fdd5e1d03176b50bbe4a38fa4c999205af84cd`
   for `GraphPreparation.java`, and
   `6fc1922d974cf85b445d5c5bbd1819ba255d5a2d455d0b5091785035bd480c87`
-  for `BackendPartitionFinalizationHandoff.java`; executable Java tokens are unchanged.
+  for `BackendPartitionFinalizationHandoff.java`; executable Java [tokens](../../../../glossary.md#term-token) are unchanged.
 - A sorted `git status --porcelain=v1` scope comparison passed for exactly the thirteen task paths.
   This documentation context changed only allowlist paths 1, 2, 3, 4, 8, 9, 10, 11, 12, and 13;
   implementation-owned test paths 5, 6, and 7 remained byte-for-byte unchanged.
 - Root-package source inventory plus `javap -public` confirmed the new record's exact constructor,
   four accessors and inherited record-object methods, and exactly the two public static
-  `GraphPreparation.prepare(...)` overloads. No CPU 0010H task file exists.
+  `GraphPreparation.prepare(...)` overloads. No [CPU](../../../../glossary.md#term-cpu) 0010H task file exists.
 - Status/order inspection confirmed Prepare 0001–0005 Complete, no later detailed Ready or
-  In-progress Prepare task, Complete Compiler 0006B5, and Draft CPU 0010H and Engine 0006.
+  In-progress Prepare task, Complete Compiler 0006B5, and Draft CPU 0010H and Engine 0006.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready))</span>
 - Final `git diff --check` passed. The full `git status --short` review confirmed that every path
   outside the thirteen-path Prepare 0005 scope remains part of the preserved stacked worktree.
 
-Planning context: `01a0a59b-dccb-7d53-b9d4-f7cf0b53a4c6` (2026-09-15).
+[Planning](../../../../glossary.md#term-planning) context: `01a0a59b-dccb-7d53-b9d4-f7cf0b53a4c6` (2026-09-15).
 
 - Read the required architecture contract, focused architecture pages, ADRs, documentation rules
   and General/Planning profiles, planning guide/roadmap, complete Prepare lineage, Compiler 0006B5
   and master, Planning 0005–0006, relevant Runtime/CPU/Engine plans and contracts, directly
   relevant source/tests, and the starting dirty diff.
-- Source inspection confirmed that `GraphPreparation.Projection` is intentionally node-connected,
-  `PrepareContext` constants must be projected node inputs, the complete-set handoff assigns only
+- Source inspection confirmed that `GraphPreparation.Projection` is intentionally [node](../../../../glossary.md#node)-connected,
+  [`PrepareContext`](../../../../glossary.md#prepare-context-preparecontext) constants must be projected node inputs, the complete-set handoff assigns only
   analysis declarations in first-declaration order, and schedule validation already requires
   assignments plus initialized representations for all constant sources and assignments for all
-  publications.
+  publications.<span data-glossary-navigation="true"> ([constants glossary](../../../../glossary.md#term-constant); [handoff glossary](../../../../glossary.md#term-handoff))</span>
 - Compiler 0006B5 evidence confirms the exact fully static graph-input + splat + graph-output +
   no-consumer role and canonical resolved descriptor. Planning continues to retain the matching
-  producerless/consumerless graph-output logical requirement.
+  producerless/consumerless graph-output logical requirement.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [descriptor glossary](../../../../glossary.md#term-descriptor))</span>
 - CPU 0010F evidence confirms the sole non-empty CPU composition rejection boundary; CPU 0010G,
   Runtime memory/schedule/initialized/publication/lease contracts, and Engine 0006 confirm that
   only later CPU physical declaration/materialization and Engine wiring remain.
@@ -603,50 +603,50 @@ Planning context: `01a0a59b-dccb-7d53-b9d4-f7cf0b53a4c6` (2026-09-15).
   planning pass edits only the five authorized planning paths and preserves all other changes.
 - Read-only local-link validation over the five planning paths reported no missing targets; the
   changed content adds no heading-anchor reference. Duplicate-heading and balanced-fence checks
-  reported no failure.
+  reported no failure.<span data-glossary-navigation="true"> ([targets glossary](../../../../glossary.md#term-target))</span>
 - `rg` checks reported no carriage return or trailing whitespace in the five planning paths;
   byte inspection reported `0a` as the final byte of each file.
 - Status/order inspection confirmed Prepare 0001–0004 Complete followed by the sole detailed
   Ready Prepare 0005, Complete Compiler 0006B5 before it, and Draft CPU 0010H plus Draft detailed
   Engine 0006 after it. No CPU 0010H task file exists.
 - `git diff --check` passed. No Gradle test or Javadoc task was run because this context changes
-  planning Markdown only and implements no Java, build, API guide, architecture, or behavior.
+  planning Markdown only and implements no Java, build, API guide, architecture, or behavior.<span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle))</span>
 
 ## Implementation notes
 
 - Added `ProducerlessPublishedConstantResource` as the exact immutable complete-graph
-  contribution and added the four-argument `GraphPreparation.prepare(...)` overload while the
+  contribution and added the four-argument <span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [graph glossary](../../../../glossary.md#graph); [argument glossary](../../../../glossary.md#term-argument))</span>`GraphPreparation.prepare(...)` overload while the
   original overload delegates with `List.of()`.
-- `GraphPreparation` validates exact graph/logical references, required role and coverage, caller
+- [`GraphPreparation`](../../../../glossary.md#graph-preparation--graphpreparation) validates exact graph/logical references, required role and coverage, caller
   order failures, final graph-value ordering, and the non-empty-partition condition before
-  projection or backend work.
+  projection or backend work.<span data-glossary-navigation="true"> ([partition glossary](../../../../glossary.md#partition); [backend glossary](../../../../glossary.md#backend))</span>
 - `BackendPartitionFinalizationHandoff` validates contribution overlap and appends each supplied
-  geometry after ordinary buffers without adding any per-finalizer assignment.
+  geometry after ordinary buffers without adding any per-finalizer assignment.<span data-glossary-navigation="true"> ([buffers glossary](../../../../glossary.md#term-buffer))</span>
 - Focused tests lock public shape, validation precedence, exact identity, immutable snapshots,
   unchanged ordinary behavior, append ordering/geometry, schedule visibility, and zero-node
-  rejection.
+  rejection.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [validation glossary](../../../../glossary.md#term-validation); [identity glossary](../../../../glossary.md#term-identity-meanings); [node glossary](../../../../glossary.md#node))</span>
 - The independent documentation pass changed documentation and comments only; executable Java and
-  all tests remain byte-for-byte identical to its starting snapshot.
+  all tests remain byte-for-byte identical to its starting snapshot.<span data-glossary-navigation="true"> ([snapshot glossary](../../../../glossary.md#term-snapshot))</span>
 
 ## Completion summary
 
 - Completed changes: added the exact producerless published-constant handoff, orchestration
   validation/canonicalization, and append-only shared buffer assignment while preserving ordinary
-  partition analysis and finalization.
+  partition analysis and finalization.<span data-glossary-navigation="true"> ([constant glossary](../../../../glossary.md#term-constant); [handoff glossary](../../../../glossary.md#term-handoff); [validation glossary](../../../../glossary.md#term-validation); [canonicalization glossary](../../../../glossary.md#occurrence-identity-and-canonical-form); [buffer glossary](../../../../glossary.md#term-buffer); [partition glossary](../../../../glossary.md#partition))</span>
 - Files changed or created: exactly the thirteen allowlisted production/Javadoc, Prepare package,
-  focused test, API/glossary, task, Prepare master-plan, and roadmap paths.
+  focused test, API/glossary, task, Prepare master-plan, and roadmap paths.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - Tests and validation: implementation context passed the focused 23-test command and full
   52-test Prepare command with zero failures, errors, or skips; documentation context passed
-  Prepare Javadoc and all required documentation/scope/status checks without rerunning tests.
+  Prepare Javadoc and all required documentation/scope/status checks without rerunning tests.<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope))</span>
 - Documentation-agent review: clean context `01a0a5b6-e42c-7211-a8df-4a02d857314d` finalized
-  affected Javadoc/comments, API explanations, glossary impact, and planning evidence.
+  affected Javadoc/comments, API explanations, glossary impact, and planning evidence.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning))</span>
 - Documentation impact: current shared assignment and later CPU/Engine ownership are documented
-  without implying execution or materialization.
+  without implying execution or materialization.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings); [materialization glossary](../../../../glossary.md#materialization))</span>
 - Javadoc review: affected public construction, accessors, and overload contracts document inputs,
-  results, nullability, identity, ordering, ownership, side effects, and failures.
+  results, nullability, identity, ordering, ownership, side effects, and failures.<span data-glossary-navigation="true"> ([nullability glossary](../../../../glossary.md#term-nullability); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Glossary impact: added the reusable producerless published-constant resource term and linked it
-  from graph preparation.
-- Unresolved issues: None within Prepare 0005.
-- Follow-up required: CPU 0010H and Engine 0006 remain separate Draft downstream work.
+  from graph preparation.<span data-glossary-navigation="true"> ([graph preparation glossary](../../../../glossary.md#graph-preparation--graphpreparation))</span>
+- Unresolved issues: None within [Prepare](../../../../glossary.md#prepare) 0005.
+- Follow-up required: [CPU](../../../../glossary.md#term-cpu) 0010H and [Engine](../../../../glossary.md#term-engine) 0006 remain separate Draft downstream work.
 
 Status: Complete

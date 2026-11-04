@@ -1,46 +1,46 @@
 <a id="data-sequence-batching-api"></a>
 # Sequence batching and valid lengths
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../extensions/data/src/main/java/io/github/pho001/synaptik/data/PaddedSequenceBatch.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../extensions/data/src/main/java/io/github/pho001/synaptik/data/PaddedSequenceBatch.java)
 
-A sequence batch puts several ordered sequences into one rectangular Tensor. **Padding** fills
+A sequence [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) puts several ordered sequences into one rectangular [Tensor](../../glossary.md#tensor). **[Padding](../../glossary.md#padding)** fills
 positions needed to make their lengths equal; a **valid count** records how many positions belong
-to each original sequence. Logical **axis order** says whether batch or time comes first. These
-metadata declarations do not themselves rearrange storage or make a downstream operation ignore padding.
+to each original sequence. Logical **[axis](../../glossary.md#term-axis) order** says whether batch or time comes first. These
+[metadata](../../glossary.md#term-metadata) declarations do not themselves rearrange storage or make a downstream [operation](../../glossary.md#operation) ignore padding.
 
 <a id="purpose-and-mental-model"></a>
-## Purpose and mental model
+## Purpose and [mental model](../../glossary.md#term-mental-model)
 
-Data can pad ordered long arrays into a Tensor or pair an existing Tensor with declared valid counts.
+Data can pad ordered long arrays into a [Tensor](../../glossary.md#tensor) or pair an existing Tensor with declared valid counts.
 Counts are position independent: RIGHT selects a valid prefix (the first `length` time steps),
-and LEFT selects a valid suffix (the last `length` time steps). Padding occupies the remaining
+and LEFT selects a valid suffix (the last `length` time steps). [Padding](../../glossary.md#padding) occupies the remaining
 positions. Counts and side, not numeric sentinels, distinguish valid data from padding. Zero is
 ordinary data inside either valid interval.
 
-`PaddedSequenceBatch` borrows the Tensor, `ValidSequenceLengths` owns an immutable copy of
-the host counts, `PaddingSide` selects the valid interval, and `SequenceAxisOrder` identifies
-the logical leading axes. Its fluent builder
+`PaddedSequenceBatch` borrows the Tensor, `ValidSequenceLengths` owns an [immutable](../../glossary.md#term-immutable) copy of
+the [host](../../glossary.md#term-host) counts, `PaddingSide` selects the valid interval, and `SequenceAxisOrder` identifies
+the logical leading [axes](../../glossary.md#term-axis). Its fluent builder
 checks declarations without reading or changing Tensor
 contents; callers supply values that already have the declared order and padding.
 
-The unpublished `RightPaddedSequenceBatch` has been replaced, without a compatibility alias.
-Migrate to `PaddedSequenceBatch`, add `PaddingSide.RIGHT` as the fourth constructor argument,
+The unpublished `RightPaddedSequenceBatch` has been replaced, without a compatibility [alias](../../glossary.md#aliasing-and-arena).
+Migrate to `PaddedSequenceBatch`, add `PaddingSide.RIGHT` as the fourth constructor [argument](../../glossary.md#term-argument),
 or add `.rightPadded()` to the values builder to retain the previous prefix semantics.
-Use `LongSequenceBatcher` when Data should allocate and pad values rather than only declare metadata.
-For RIGHT/TIME_MAJOR batches, explicitly call `toScanLengthsTensor()` to copy counts into an
-ordinary runtime input. The application, not Data, passes values and lengths to NN or Engine.
+Use `LongSequenceBatcher` when Data should allocate and pad values rather than only declare [metadata](../../glossary.md#term-metadata).
+For RIGHT/TIME_MAJOR [batches](../../glossary.md#term-batch-machine-learning-and-hyperparameters), explicitly call `toScanLengthsTensor()` to copy counts into an
+ordinary [runtime](../../glossary.md#term-runtime) input. The application, not Data, passes values and lengths to [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) or [Engine](../../glossary.md#term-engine).
 
-These types are in `io.github.pho001.synaptik.data`, Gradle project `:extensions:data`. Data exports
-the public Model dependency used by its Tensor signatures. The
+These types are in `io.github.pho001.synaptik.data`, [Gradle](../../glossary.md#term-gradle) project `:extensions:data`. Data exports
+the public [Model](../../glossary.md#term-model) [dependency](../../glossary.md#term-dependency) used by its Tensor [signatures](../../glossary.md#term-signature). The
 [owning Data contract](../../architecture/contracts/extensions-training.md#extensionsdata) defines
-the boundary; this reference explains the implemented API.
+the boundary; this reference explains the implemented [API](../../glossary.md#term-application-programming-interface-api).
 
 <a id="complete-fluent-example"></a>
 ## Complete fluent example
 
-The goal is to describe three batch-major FLOAT32 sequences with four time positions each.
-This Java example uses public Model factories to create values first, then wraps that existing
-Tensor with Data metadata. It needs Data and its exported Model API, not Engine or a session.
+The goal is to describe three [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters)-major [FLOAT32](../../glossary.md#term-float32) sequences with four time positions each.
+This Java example uses public [Model](../../glossary.md#term-model) factories to create values first, then wraps that existing
+[Tensor](../../glossary.md#tensor) with Data [metadata](../../glossary.md#term-metadata). It needs Data and its exported Model [API](../../glossary.md#term-application-programming-interface-api), not [Engine](../../glossary.md#term-engine) or a session.
 
 ```java
 import io.github.pho001.synaptik.data.PaddedSequenceBatch;
@@ -81,11 +81,11 @@ BATCH_MAJOR
 ```
 
 `TensorFactory.fromFlatArray` copies the flat data into a Model Tensor with the supplied resolved
-layout. That copy belongs to Model construction, not Data. The builder retains the exact
+[layout](../../glossary.md#layout). That copy belongs to Model construction, not Data. The builder retains the exact
 `values` reference and snapshots only the lengths at `validLengths(...)`; `build()` does not
-copy either the values or the immutable lengths again.
+copy either the values or the [immutable](../../glossary.md#term-immutable) lengths again.
 
-The declared prefixes and derived padding lengths are:
+The declared prefixes and derived [padding](../../glossary.md#padding) lengths are:
 
 | Original row | Valid prefix | Padding length at T = 4 |
 |---|---|---|
@@ -94,38 +94,38 @@ The declared prefixes and derived padding lengths are:
 | 2 | `[0]` | `4 - 1 = 3` |
 
 Here `99` is caller-chosen padding, not a sentinel checked by Data. Replacing any suffix value
-with zero, NaN or another value does not change metadata validation. The wrapper declares valid
+with zero, [NaN](../../glossary.md#term-nan) or another value does not change metadata [validation](../../glossary.md#term-validation). The wrapper declares valid
 positions; it does not prove the supplied contents are padded correctly.
 
 <a id="axis-order-and-geometry"></a>
-## Axis order and geometry
+## [Axis](../../glossary.md#term-axis) order and geometry
 
 `.batchMajor()` declares `[B, T, ...]`; `.timeMajor()` declares `[T, B, ...]`. B is the original
-batch-row count and T is the Tensor's declared time extent in logical steps. For the example's lengths,
-time-major values would need Shape `[4,3]` rather than `[3,4]`. Changing the builder's order does
-not transpose data or prove contiguity. Callers must supply the matching Tensor themselves.
+[batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters)-row count and T is the [Tensor](../../glossary.md#tensor)'s declared time [extent](../../glossary.md#term-extent) in logical steps. For the example's lengths,
+[time-major](../../glossary.md#term-time-major) values would need [Shape](../../glossary.md#shape) `[4,3]` rather than `[3,4]`. Changing the builder's order does
+not [transpose](../../glossary.md#term-transpose) data or prove [contiguity](../../glossary.md#storage-mapping-contiguity-and-injectivity). Callers must supply the matching Tensor themselves.
 
-Rank must be at least two, and both leading axes must be Model `StaticDimension` values. B must
-equal the number of lengths, and each length must lie in `[0, T]`. Trailing dimensions are opaque:
-they may be absent, zero, dynamic or expressions. A zero feature extent does not force zero
-counts. Every Model-valid data type, including BOOL, gradient flag, provenance and physical
-layout is accepted; unresolved layout and absent storage are also accepted.
+[Rank](../../glossary.md#term-rank) must be at least two, and both leading axes must be [Model](../../glossary.md#term-model) `StaticDimension` values. B must
+equal the number of lengths, and each length must lie in `[0, T]`. Trailing [dimensions](../../glossary.md#dimension) are [opaque](../../glossary.md#term-opaque):
+they may be absent, zero, dynamic or expressions. A zero [feature](../../glossary.md#term-software-feature) extent does not force zero
+counts. Every Model-valid [data type](../../glossary.md#data-type--datatype), including [BOOL](../../glossary.md#data-type--datatype), [gradient](../../glossary.md#term-gradient) flag, [provenance](../../glossary.md#provenance) and physical
+[layout](../../glossary.md#layout) is accepted; unresolved layout and absent storage are also accepted.
 
 B = 0 accepts explicitly empty lengths at any T, including zero. T = 0 accepts only zero lengths.
 For example, Shape `[2,3]` with batch-major lengths `[0,2]` declares an empty first sequence and
 two valid steps in the second. Their numeric values may both be zero.
 
 Extents and lengths remain `long`: T and lengths may reach `Long.MAX_VALUE`. B above
-`Integer.MAX_VALUE` cannot match the host-array count and is rejected without allocating a giant
-array. Validation does not multiply extents or calculate storage spans. Length creation and batch
-validation are O(B), independent of T and Tensor element count.
+`Integer.MAX_VALUE` cannot match the [host](../../glossary.md#term-host)-array count and is rejected without allocating a giant
+array. [Validation](../../glossary.md#term-validation) does not multiply extents or calculate storage spans. Length creation and batch
+validation are [O(B)](../../glossary.md#memory-management-atomic-counters-and-complexity), independent of T and Tensor [element](../../glossary.md#term-element) count.
 
 <a id="builder-state-and-reuse"></a>
 ## Builder state and reuse
 
-Axis order, padding side and lengths must be selected explicitly, in any order.
+[Axis](../../glossary.md#term-axis) order, [padding](../../glossary.md#padding) side and lengths must be selected explicitly, in any order.
 Use `.leftPadded()` for a valid suffix or `.rightPadded()` for a valid prefix. There are no defaults.
-`validLengths()` with no arguments selects empty lengths; omitting the call leaves lengths
+`validLengths()` with no [arguments](../../glossary.md#term-argument) selects empty lengths; omitting the call leaves lengths
 missing. `build()` throws `IllegalStateException` for any missing selection before checking
 geometry. `builder(null)` instead fails immediately with `NullPointerException("values")`.
 
@@ -134,9 +134,9 @@ immediately copies and checks non-negative entries, even before an order is sele
 or negative entry fails without replacing the previous selection. Callers must coordinate source
 array mutation during the setter call, not merely during `build()`.
 
-Each successful build creates a fresh record sharing the exact selected immutable lengths and
-borrowed Tensor. Repeated builds are equal but not identical. Later setters cannot change earlier
-batches. Continuing the example:
+Each successful build creates a fresh record sharing the exact selected [immutable](../../glossary.md#term-immutable) lengths and
+[borrowed](../../glossary.md#ownership-borrowing-and-lease) [Tensor](../../glossary.md#tensor). Repeated builds are equal but not identical. Later setters cannot change earlier
+[batches](../../glossary.md#term-batch-machine-learning-and-hyperparameters). Continuing the example:
 
 ```java
 var repeated = builder.build(); // Fresh batch, same immutable lengths as batch.
@@ -147,12 +147,12 @@ var changed = builder.build();  // batch still declares [3, 2, 1].
 A setter does not check T or B. For example, `builder.validLengths(5, 0, 1)` succeeds because all
 entries are non-negative, but the following `build()` fails because T is 4. A failed build leaves
 that selection in place; replace it with valid geometry before retrying. The reusable builder is
-caller-coordinated and not thread-safe. Immutable lengths may be shared independently.
+caller-coordinated and not [thread-safe](../../glossary.md#term-thread-safe). Immutable lengths may be shared independently.
 
 <a id="direct-construction-for-advanced-callers"></a>
 ## Direct construction for advanced callers
 
-Callers that already manage immutable metadata can use the public record constructor:
+Callers that already manage [immutable](../../glossary.md#term-immutable) [metadata](../../glossary.md#term-metadata) can use the public record constructor:
 
 ```java
 import io.github.pho001.synaptik.data.SequenceAxisOrder;
@@ -163,75 +163,75 @@ var prefixes = ValidSequenceLengths.of(3, 2, 1);
 var direct = new PaddedSequenceBatch(values, prefixes, SequenceAxisOrder.BATCH_MAJOR, PaddingSide.RIGHT);
 ```
 
-This continues the example with the same `values`. Both construction paths use the canonical
+This continues the example with the same `values`. Both construction paths use the [canonical](../../glossary.md#term-canonical-form)
 record constructor's geometry checks and retain the exact four component references.
 `ValidSequenceLengths.of(long...)` copies once and rejects negative entries in row order; it
 stores no T. `batchSize()` returns the `int` count, `length(row)` reads an original zero-based row,
-and every `toLongArray()` returns a fresh mutable copy, including for empty lengths.
+and every `toLongArray()` returns a fresh [mutable](../../glossary.md#term-mutable) copy, including for empty lengths.
 
-Length equality and hashing compare ordered lengths structurally. Batch record equality uses
-Tensor object identity, structural counts and both enum identities, not Tensor contents. Diagnostics
+Length equality and hashing compare ordered lengths structurally. [Batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) record equality uses
+[Tensor](../../glossary.md#tensor) object [identity](../../glossary.md#term-reference-identity), structural counts and both enum [identities](../../glossary.md#term-identity-meanings), not Tensor contents. Diagnostics
 describe metadata, not a serialized format or storage state.
 
 <a id="validation-failures-and-borrowing"></a>
-## Validation failures and borrowing
+## [Validation](../../glossary.md#term-validation) failures and [borrowing](../../glossary.md#term-borrowing)
 
-The canonical constructor null-checks `values`, `validLengths`, then `axisOrder` and `paddingSide`, with a
-`NullPointerException` naming the parameter. It then checks rank, static time/batch axes, B versus
+The [canonical](../../glossary.md#term-canonical-form) constructor null-checks `values`, `validLengths`, then `axisOrder` and `paddingSide`, with a
+`NullPointerException` naming the [parameter](../../glossary.md#term-parameter). It then checks [rank](../../glossary.md#term-rank), static time/[batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) [axes](../../glossary.md#term-axis), B versus
 length count, and upper bounds in row order. Geometry failures throw `IllegalArgumentException`
-identifying the mismatch or first offending row and T. Negative host lengths also throw
+identifying the mismatch or first offending row and T. Negative [host](../../glossary.md#term-host) lengths also throw
 `IllegalArgumentException` identifying the first row; a null length array throws
 `NullPointerException("lengths")`. Invalid `length(row)` indices throw `IndexOutOfBoundsException`;
 negative indices never wrap.
 
-Metadata wrapping reads only immutable descriptor/Shape metadata and host lengths. It does not call
-`hostStorage()`, check liveness, obtain a segment or lease, attach or replace storage, close
-resources, scan values, create expressions, call `contiguous()` or execute. A borrowed storage
-scope may already be dead after its earlier Model attachment; wrapping adds no liveness check.
-Later replacement or clearing of the Tensor's storage association remains governed by Model.
-The batch fixes references, not Tensor contents, and adds no readiness, lifetime or thread-safety
+[Metadata](../../glossary.md#term-metadata) wrapping reads only [immutable](../../glossary.md#term-immutable) [descriptor](../../glossary.md#term-descriptor)/[Shape](../../glossary.md#shape) metadata and host lengths. It does not call
+`hostStorage()`, check [liveness](../../glossary.md#term-liveness), obtain a segment or [lease](../../glossary.md#term-lease), attach or replace storage, close
+resources, [scan](../../glossary.md#term-cumulative-scan) values, create expressions, call `contiguous()` or execute. A [borrowed](../../glossary.md#ownership-borrowing-and-lease) storage
+[scope](../../glossary.md#term-scope) may already be dead after its earlier [Model](../../glossary.md#term-model) attachment; wrapping adds no liveness check.
+Later replacement or clearing of the [Tensor](../../glossary.md#tensor)'s storage association remains governed by Model.
+The batch fixes references, not Tensor contents, and adds no readiness, [lifetime](../../glossary.md#term-lifetime) or thread-safety
 guarantee for Tensor access. See [host storage](../../glossary.md#host-storage).
 
 Metadata wrapping does not pad or allocate values; LongSequenceBatcher below performs that work.
-Neither path truncates input. Host lengths are not themselves a runtime graph input.
-The opt-in export below creates an ordinary INT64 length Tensor but does not bind it or add an
-NN batch-compute overload. Padding lengths and dense masks are derived concepts, not stored fields.
+Neither path truncates input. Host lengths are not themselves a [runtime](../../glossary.md#term-runtime) [graph](../../glossary.md#graph) input.
+The opt-in export below creates an ordinary [INT64](../../glossary.md#data-type--datatype) length Tensor but does not bind it or add an
+[NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) batch-compute overload. [Padding](../../glossary.md#padding) lengths and dense [masks](../../glossary.md#term-boolean-mask) are derived concepts, not stored fields.
 
 <a id="explicit-runtime-scan-lengths"></a>
-## Explicit runtime scan lengths
+## Explicit [runtime](../../glossary.md#term-runtime) [scan](../../glossary.md#term-cumulative-scan) lengths
 
 `public Tensor PaddedSequenceBatch.toScanLengthsTensor()` exports valid counts in original row
-order. It checks RIGHT padding first, then TIME_MAJOR logical axes. LEFT or BATCH_MAJOR throws
-`IllegalArgumentException` before Tensor creation, allocation or storage access; neither order nor
-side is converted. Logical TIME_MAJOR order alone does not prove canonical physical layout.
+order. It checks RIGHT [padding](../../glossary.md#padding) first, then TIME_MAJOR logical [axes](../../glossary.md#term-axis). LEFT or BATCH_MAJOR throws
+`IllegalArgumentException` before [Tensor](../../glossary.md#tensor) creation, allocation or storage access; neither order nor
+side is converted. Logical TIME_MAJOR order alone does not prove [canonical](../../glossary.md#term-canonical-form) physical [layout](../../glossary.md#layout).
 
-Every successful call allocates a fresh, non-null ordinary heap-backed INT64 `[B]` leaf through
-public `TensorFactory.allocate`, then fills its writable Model host storage directly from counts.
-The result is provenance-free, canonical contiguous, offset-zero, non-view and `requiresGrad=false`.
-B=0 returns a fresh Tensor with fresh empty heap storage. Allocation and count copying cost O(B);
-there is no cached mutable export. Mutating an export cannot change immutable counts or another
+Every successful call allocates a fresh, non-null ordinary [heap](../../glossary.md#term-heap)-backed [INT64](../../glossary.md#data-type--datatype) `[B]` [leaf](../../glossary.md#term-leaf) through
+public `TensorFactory.allocate`, then fills its writable [Model](../../glossary.md#term-model) [host storage](../../glossary.md#host-storage) directly from counts.
+The result is [provenance](../../glossary.md#provenance)-free, canonical [contiguous](../../glossary.md#term-contiguous), offset-zero, non-[view](../../glossary.md#term-view-meanings) and `requiresGrad=false`.
+B=0 returns a fresh Tensor with fresh empty heap storage. Allocation and count copying cost [O(B)](../../glossary.md#memory-management-atomic-counters-and-complexity);
+there is no cached [mutable](../../glossary.md#term-mutable) export. Mutating an export cannot change [immutable](../../glossary.md#term-immutable) counts or another
 export. Model allocation failures, including identifier exhaustion and heap exhaustion, propagate.
 
-Only counts are copied. Export never reads values storage or checks its liveness, copies or repacks
-sequence contents, changes descriptors or gradient flags, or attaches/replaces storage. It works
-even for storage-free values or values whose former storage scope has closed. The constructor's
-broader geometry contract remains unchanged, including every Model-valid dtype/layout/provenance,
-opaque trailing dimensions, zero extents and `long` time/count values up to `Long.MAX_VALUE`.
-Export success is not execution admission.
+Only counts are copied. Export never reads values storage or checks its [liveness](../../glossary.md#term-liveness), copies or repacks
+sequence contents, changes [descriptors](../../glossary.md#term-descriptor) or [gradient](../../glossary.md#term-gradient) flags, or attaches/replaces storage. It works
+even for storage-free values or values whose former storage [scope](../../glossary.md#term-scope) has closed. The constructor's
+broader geometry contract remains unchanged, including every Model-valid [dtype](../../glossary.md#data-type--datatype)/layout/provenance,
+[opaque](../../glossary.md#term-opaque) trailing [dimensions](../../glossary.md#dimension), zero extents and `long` time/count values up to `Long.MAX_VALUE`.
+Export success is not execution [admission](../../glossary.md#term-admission).
 
 The caller passes ordinary Tensors to existing `model.compute(values, lengths)`. Both must match
 the Model's exact input descriptors and have usable storage free from conflicting mutation for the
-whole synchronous call. Heap lengths have ordinary garbage-collected lifetime: no Arena, close
-protocol, native allocation, device transfer or new resource owner is introduced. Compute returns
-detached results; Model and Engine retain their existing close and preparation responsibilities.
+whole [synchronous](../../glossary.md#term-synchronous) call. Heap lengths have ordinary garbage-collected [lifetime](../../glossary.md#term-lifetime): no [Arena](../../glossary.md#term-arena), close
+protocol, native allocation, [device](../../glossary.md#term-device) transfer or new [resource owner](../../glossary.md#ownership-borrowing-and-lease) is introduced. Compute returns
+[detached](../../glossary.md#detached-model-results) results; Model and [Engine](../../glossary.md#term-engine) retain their existing close and preparation responsibilities.
 
 <a id="complete-numeric-inference-example"></a>
-## Complete numeric inference example
+## Complete numeric [inference](../../glossary.md#term-inference) example
 
 This runnable Java program processes sequences `[1,2,3]` and `[10,20]` in original row order.
-Use the repository JDK 26 and an application classpath containing Data, NN and Engine with its
-standard backend/runtime dependencies (including tools used by the standard composition).
-Compile and run with `--add-modules jdk.incubator.vector`; also pass
+Use the repository [JDK](../../glossary.md#term-java-development-kit-jdk) 26 and an application [classpath](../../glossary.md#term-classpath) containing Data, [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) and [Engine](../../glossary.md#term-engine) with its
+standard [backend](../../glossary.md#backend)/[runtime](../../glossary.md#term-runtime) dependencies (including tools used by the standard composition).
+[Compile](../../glossary.md#compile) and [run](../../glossary.md#term-run) with `--add-modules jdk.incubator.vector`; also pass
 `--enable-native-access=ALL-UNNAMED` to `java`. Those application dependencies add no Data-to-NN edge.
 
 Save as `ScanExample.java`:
@@ -270,44 +270,44 @@ public class ScanExample {
 }
 ```
 
-The canonical FLOAT32 `[T,B,F] = [3,2,1]` Tensor stores time slices `[1,10]`, `[2,20]`,
-`[3,NaN]`. `fromFlatArray` copies these values during Model Tensor construction; wrapping and
-exporting counts never copy them again. Counts `[3,2]` exclude the NaN padded suffix from recurrence.
+The [canonical](../../glossary.md#term-canonical-form) [FLOAT32](../../glossary.md#term-float32) `[T,B,F] = [3,2,1]` [Tensor](../../glossary.md#tensor) stores time slices `[1,10]`, `[2,20]`,
+`[3,NaN]`. `fromFlatArray` copies these values during [Model](../../glossary.md#term-model) Tensor construction; wrapping and
+exporting counts never copy them again. Counts `[3,2]` exclude the [NaN](../../glossary.md#term-nan) padded suffix from recurrence.
 `rnnScan(4)` produces dense hidden values `[3,2,4]`; `finalHidden()` selects each row's semantic
 final state `[2,4]`, and `linear(1)` produces one score per row, `[2,1]`.
-With seed 42, the qualified CPU route gives finite scores approximately
-`[-0.47897735, -0.6437197]`. These are untrained model outputs, not calibrated predictions.
+With [seed](../../glossary.md#term-seed) 42, the qualified [CPU](../../glossary.md#term-cpu) route gives [finite](../../glossary.md#term-finite) scores approximately
+`[-0.47897735, -0.6437197]`. These are untrained model outputs, not calibrated [predictions](../../glossary.md#term-prediction).
 
 `gruScan(4)` and `lstmScan(4)` use the same values/lengths workflow. Without `finalHidden()` the
-scan returns dense `[T,B,H]`, not compact outputs; `lastTimeStep()` selects `T-1`, not each row's
+[scan](../../glossary.md#term-cumulative-scan) returns dense `[T,B,H]`, not compact outputs; `lastTimeStep()` selects `T-1`, not each row's
 last valid transition. A zero-length row returns its zero initial hidden state at the scan's
-final-state port, although an ordinary classifier bias can subsequently make its score nonzero.
+final-state port, although an ordinary classifier [bias](../../glossary.md#term-bias) can subsequently make its score nonzero.
 
 Keep the same Model open to reuse its preparation for fresh values and counts at the same static
-signature. Every replacement must match shape, dtype, layout presence/geometry and gradient
+[signature](../../glossary.md#term-signature). Every replacement must match [shape](../../glossary.md#shape), [dtype](../../glossary.md#data-type--datatype), [layout](../../glossary.md#layout) presence/geometry and [gradient](../../glossary.md#term-gradient)
 eligibility exactly; changing counts does not authorize arbitrary T, B or F. For direct Engine
-reuse, prepare once and pass fresh values in `compiled.inputs()` order to `runValues`; preserve
-caller storage until its `RunResult` closes. Data performs neither binding nor preparation.
+reuse, [prepare](../../glossary.md#prepare) once and pass fresh values in `compiled.inputs()` order to `runValues`; preserve
+caller storage until its [`RunResult`](../../glossary.md#run-result--runresult) closes. Data performs neither [binding](../../glossary.md#term-binding) nor preparation.
 
-This Data consumer slice uses canonical contiguous offset-zero non-view FLOAT32 `[T,B,F]` with
-`requiresGrad=false`, RIGHT/TIME_MAJOR metadata and positive static T/B/F for the fluent builder.
+This Data consumer [slice](../../glossary.md#slice) uses canonical [contiguous](../../glossary.md#term-contiguous) offset-zero non-[view](../../glossary.md#term-view-meanings) FLOAT32 `[T,B,F]` with
+`requiresGrad=false`, RIGHT/TIME_MAJOR [metadata](../../glossary.md#term-metadata) and positive static T/B/F for the fluent builder.
 Empty count export does not widen that builder contract; direct zero-T/B scans remain separate.
-F32 `rnnScan` now composes NN0033's general RNN, whose source outputs are canonical; retained
+[F32](../../glossary.md#floating-point-precision-and-rounding) `rnnScan` now composes NN0033's general [RNN](../../glossary.md#term-recurrent-neural-network-rnn), whose source outputs are canonical; retained
 fixed families keep their old source-layout semantics. Gradient flags are not cleared.
 Data only exports values/counts: NN independently qualifies general RNN compute/train/v5
-persistence, and lengths never receive gradients. This does not unlock fixed GRU/LSTM BPTT.
+[persistence](../../glossary.md#term-persistence), and lengths never receive gradients. This does not unlock fixed [GRU](../../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../../glossary.md#term-long-short-term-memory-lstm) [BPTT](../../glossary.md#term-backpropagation-through-time-bptt).
 
-Export does not enable a fluent Text IDs → Embedding → scan chain. ModelBuilder input is currently
+Export does not enable a fluent Text IDs → [Embedding](../../glossary.md#embedding) → scan chain. ModelBuilder input is currently
 floating-only, has no Embedding recipe and instantiates recipes with the original input dtype.
 That integer-to-floating transition needs a separately selected NN capability.
 
 <a id="integral-sequence-batching"></a>
 ## Integral sequence batching
 
-Use `LongSequenceBatcher` to copy long-array sequences into a fresh INT64 Tensor.
-Padding value, side and logical axis order have no defaults. The configuration is immutable;
-its reusable builder is not thread-safe. Later builder changes leave existing configurations
-unchanged. This example requires only Data and its exported Model API:
+Use `LongSequenceBatcher` to copy long-array sequences into a fresh [INT64](../../glossary.md#data-type--datatype) [Tensor](../../glossary.md#tensor).
+[Padding](../../glossary.md#padding) value, side and logical [axis](../../glossary.md#term-axis) order have no defaults. The configuration is [immutable](../../glossary.md#term-immutable);
+its reusable builder is not [thread-safe](../../glossary.md#term-thread-safe). Later builder changes leave existing configurations
+unchanged. This example requires only Data and its exported [Model](../../glossary.md#term-model) [API](../../glossary.md#term-application-programming-interface-api):
 
 ```java
 import io.github.pho001.synaptik.data.LongSequenceBatcher;
@@ -323,38 +323,38 @@ System.out.println(Arrays.toString(padded.values().hostStorage().orElseThrow()
         .segment().toArray(ValueLayout.JAVA_LONG)));
 ```
 
-The output is `[2, 1]` followed by `[2, 3, 0, 1]`: Shape is `[2,2]` and the
+The output is `[2, 1]` followed by `[2, 3, 0, 1]`: [Shape](../../glossary.md#shape) is `[2,2]` and the
 second row has one left padding position. With `.rightPadded()`, the flat values become
 `[2, 3, 1, 0]` without changing counts. A real zero inside an input row remains valid data.
-For count L at time extent T, LEFT declares `[T-L,T)` and RIGHT declares `[0,L)`.
-The batcher never truncates and preserves both row order and element order.
+For count L at time [extent](../../glossary.md#term-extent) T, LEFT declares `[T-L,T)` and RIGHT declares `[0,L)`.
+The batcher never truncates and preserves both row order and [element](../../glossary.md#term-element) order.
 
 B is list size and T is the maximum row length. Empty input yields B=0,T=0; all-empty
-rows yield T=0 in either order and side. The result has contiguous offset-zero rank-two
-layout, no gradients or provenance, and writable garbage-collected heap storage.
+rows yield T=0 in either order and side. The result has [contiguous](../../glossary.md#term-contiguous) offset-zero [rank-two](../../glossary.md#axis-rank-scalar-vector-and-matrix)
+[layout](../../glossary.md#layout), no [gradients](../../glossary.md#term-gradient) or [provenance](../../glossary.md#provenance), and writable garbage-collected [heap](../../glossary.md#term-heap) storage.
 One Model allocation is filled directly; no full flat staging/import copy is made.
-There is no Arena, close operation, or additional storage-lifetime owner.
+There is no [Arena](../../glossary.md#term-arena), close [operation](../../glossary.md#operation), or additional storage-[lifetime](../../glossary.md#term-lifetime) [owner](../../glossary.md#term-owner).
 
-Callers coordinate list and row mutation throughout the synchronous call; it is not a
-transactional snapshot. Once the call returns, no caller list or arrays are retained, and their
+Callers coordinate list and row mutation throughout the [synchronous](../../glossary.md#term-synchronous) call; it is not a
+transactional [snapshot](../../glossary.md#term-snapshot). Once the call returns, no caller list or arrays are retained, and their
 mutation cannot change the output. Repeated calls allocate independent values.
 Both list passes use sequential traversal, avoiding quadratic indexed access on linked lists.
 
 Null input throws `NullPointerException("sequences")`; a null row throws
 `NullPointerException` identifying its index. Geometry is checked incrementally before
-batch-sized metadata or output allocation, so a first row proving oversized geometry rejects
+[batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters)-sized [metadata](../../glossary.md#term-metadata) or output allocation, so a first row proving oversized geometry rejects
 without scanning later rows. Checked B*T must fit `Integer.MAX_VALUE` elements, and the byte
 span uses checked long arithmetic, not an int byte cap. Invalid geometry throws
 `IllegalArgumentException`; Model allocation failures, including heap exhaustion, propagate.
 
 LEFT metadata does not extend recurrent scans: they still require valid prefixes with right padding.
-The explicit count export above does not add runtime binding, tokenization, execution or persistence.
+The explicit count export above does not add [runtime](../../glossary.md#term-runtime) [binding](../../glossary.md#term-binding), [tokenization](../../glossary.md#frozen-whitespace-tokenizer), execution or [persistence](../../glossary.md#term-persistence).
 
 <a id="related-contracts"></a>
 ## Related contracts
 
-- [Public API status](../extensions/overview.md#current-public-contracts)
-- [Tensor construction and storage](../tensor/index.md)
+- [Public API status](../extensions/overview.md#current-public-contracts)<span data-glossary-navigation="true"> ([API glossary](../../glossary.md#term-application-programming-interface-api))</span>
+- [Tensor construction and storage](../tensor/index.md)<span data-glossary-navigation="true"> ([Tensor glossary](../../glossary.md#tensor))</span>
 - [Host sequence metadata terminology](../../glossary.md#host-sequence-metadata)
-- [Data module boundary](../../architecture/module-boundaries.md#extensionsdata)
+- [Data module boundary](../../architecture/module-boundaries.md#extensionsdata)<span data-glossary-navigation="true"> ([module glossary](../../glossary.md#term-module))</span>
 - [Authoritative architecture root](../../../ARCHITECTURE.md#scope-indexed-normative-contracts)

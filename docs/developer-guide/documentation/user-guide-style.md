@@ -2,7 +2,7 @@
 
 ## Purpose
 
-A user guide helps a user complete a concrete Synaptik task. Organize it around the user's goal and observable result rather than the repository's internal module structure.
+A user guide helps a user complete a concrete Synaptik task. Organize it around the user's goal and observable result rather than the repository's internal [module](../../glossary.md#term-module) structure.
 
 Apply [General style](general-style.md) and the [example format](example-format.md) alongside this profile.
 
@@ -16,7 +16,7 @@ demonstrates without treating one successful example as proof of every supported
 - State the task and the result the user will obtain.
 - List prerequisites, supported environment, and required setup.
 - Define task-specific terms at first use.
-- Provide a runnable example or exact command sequence when the required API or tool exists.
+- Provide a runnable example or exact command sequence when the required [API](../../glossary.md#term-application-programming-interface-api) or tool exists.
 - Show complete inputs, configuration, and starting state.
 - Explain steps in execution order and call out irreversible or expensive actions before they occur.
 - Show the expected output or observable state, then explain how to interpret it.
@@ -28,13 +28,13 @@ If the public workflow is planned but not implemented, do not invent a runnable 
 ## Avoid
 
 - beginning with architecture history instead of the user's goal;
-- examples that cannot run in the documented environment;
+- examples that cannot [run](../../glossary.md#term-run) in the documented environment;
 - placeholders presented as literal commands;
 - unexplained output;
 - internal implementation detail that does not help complete or troubleshoot the task; and
 - success-only instructions that omit likely errors.
 
-## Validation
+## [Validation](../../glossary.md#term-validation)
 
 - Execute the documented commands or example in the stated environment when possible.
 - Compare actual output with documented output.

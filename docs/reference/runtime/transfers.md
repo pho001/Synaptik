@@ -1,30 +1,30 @@
-# Prepared buffer transfers
+# Prepared [buffer](../../glossary.md#term-buffer) transfers
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
 A transfer copies one logical value between concrete representations already selected during
-preparation. It differs from allocation, which creates storage, and from binding, which connects
+preparation. It differs from allocation, which creates storage, and from [binding](../../glossary.md#term-binding), which connects
 a recipe to that storage. A successful transfer makes the destination valid; failed physical work
 must not make a partially written destination appear usable.
 
 <a id="current-prepared-buffer-transfer"></a>
-## Current prepared buffer transfer
+## Current [prepared buffer transfer](../../glossary.md#prepared-buffer-transfer--preparedbuffertransfer)
 
-`PreparedBufferTransfer` is an immutable reusable recipe for copying one logical buffer value
+[`PreparedBufferTransfer`](../../glossary.md#prepared-buffer-transfer--preparedbuffertransfer) is an [immutable](../../glossary.md#term-immutable) reusable recipe for copying one logical [buffer](../../glossary.md#term-buffer) value
 between two distinct, already-created representation positions of the same prepared buffer.
-Materialization is this same explicit transfer when it produces the equivalent value in an
+[Materialization](../../glossary.md#materialization) is this same explicit transfer when it produces the equivalent value in an
 already-created representation required by later work. It is not another recipe, allocation
-operation, route search, or coherence policy.
+[operation](../../glossary.md#operation), route search, or coherence policy.
 
 `bind(runState)` is the cold boundary. It requires the exact open state, validates both positions,
-and lets the concrete backend check source compatibility before destination compatibility. The
-backend then constructs a `BoundBufferTransfer` subclass with direct typed source and destination
-fields. Binding performs no transfer and changes no ownership or validity.
+and lets the [concrete backend](../../glossary.md#concrete-backend) check source compatibility before destination compatibility. The
+[backend](../../glossary.md#backend) then constructs a [`BoundBufferTransfer`](../../glossary.md#bound-buffer-transfer--boundbuffertransfer) subclass with direct typed source and destination
+fields. [Binding](../../glossary.md#term-binding) performs no transfer and changes no [ownership](../../glossary.md#term-ownership-meanings) or validity.
 
 `BoundBufferTransfer.execute()` first makes an already-valid destination a no-op, even if the
 selected source is invalid. Otherwise it requires a valid source, calls the backend hook exactly
 once, and marks only the destination valid after successful return. A backend
-`RuntimeException` or `Error` propagates unchanged and leaves every Runtime validity bit
+`RuntimeException` or `Error` propagates unchanged and leaves every [Runtime](../../glossary.md#term-runtime) validity bit
 unchanged. Physical destination contents may be partial after failure, but Runtime still
 classifies that copy as invalid.
 
@@ -34,8 +34,8 @@ classifies that copy as invalid.
 <a id="transfer-goal-and-inputs"></a>
 #### Transfer goal and inputs
 
-This current extension pattern binds two concrete buffers directly. It demonstrates success, the
-resulting destination-valid no-op, and backend failure. A later runner will bind schedule
+This current extension pattern binds two concrete [buffers](../../glossary.md#term-buffer) directly. It demonstrates success, the
+resulting destination-valid no-op, and [backend](../../glossary.md#backend) failure. A later runner will bind schedule
 occurrences conceptually; this example calls the current recipe and action directly because no
 runner exists yet.
 
@@ -106,7 +106,7 @@ final class TransferRecipe extends PreparedBufferTransfer {
 ```
 
 Given the earlier one-buffer/one-workspace `plan`, create two isolated states. Each starts with a
-valid borrowed source and invalid run-owned destination and receives its own workspace because
+valid [borrowed](../../glossary.md#ownership-borrowing-and-lease) source and invalid [run](../../glossary.md#term-run)-owned destination and receives its own workspace because
 the plan declares one workspace position.
 
 ```java
@@ -152,11 +152,11 @@ try {
 
 After the two successful calls, `source.reads` and `destination.writes` are both `1` and both
 copies in `transferState` are valid. The second call observed the valid destination and skipped
-the backend hook. In `failingState`, the source remains valid and the destination remains invalid;
+the [backend](../../glossary.md#backend) hook. In `failingState`, the source remains valid and the destination remains invalid;
 both physical counters are `1` because one backend attempt occurred. The action uses only its two
 direct fields for physical work. This proves the current transfer and validity contract, not
-byte-copy correctness, schedule traversal, executable-output invalidation, publication, result
-ownership, or a public run lifecycle.
+byte-copy correctness, schedule traversal, executable-output invalidation, [publication](../../glossary.md#term-publication), result
+[ownership](../../glossary.md#term-ownership-meanings), or a public [run](../../glossary.md#term-run) [lifecycle](../../glossary.md#lifecycle).
 
 
 ---

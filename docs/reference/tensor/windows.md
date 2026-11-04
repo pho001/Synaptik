@@ -1,17 +1,17 @@
 # Window transforms
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-**Reader model.** A **window** is a small set of neighboring coordinates sampled repeatedly
-across an input. **Unfold** exposes those samples as explicit window positions.
+**[Reader model](../../glossary.md#term-reader-model).** A **window** is a small set of neighboring [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix) sampled repeatedly
+across an input. **Unfold** exposes those [samples](../../glossary.md#term-sample-machine-learning-and-hyperparameters) as explicit window positions.
 **Fold** sends window contributions back to their source coordinates and adds overlaps;
 it does not generally undo unfold or divide by the overlap count.
-For images, **im2col** arranges sampled patches into columns, while **col2im** accumulates
-columns into image positions. NCHW means batch, channel, height, width; NCDHW adds depth before
-height. These describe logical axes, not a storage-allocation promise.
+For images, **[im2col](../../glossary.md#term-im2col)** arranges sampled patches into columns, while **[col2im](../../glossary.md#term-col2im)** accumulates
+columns into image positions. [NCHW](../../glossary.md#term-nchw) means [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters), [channel](../../glossary.md#term-channel), height, width; [NCDHW](../../glossary.md#conv3d--ncdhw) adds depth before
+height. These describe logical [axes](../../glossary.md#term-axis), not a storage-allocation promise.
 
 Read this conceptual width-three example from extraction to overlap addition. The center
-element occurs in three windows, so folding unchanged windows counts it three times.
+[element](../../glossary.md#term-element) occurs in three windows, so folding unchanged windows counts it three times.
 
 ```mermaid
 flowchart LR
@@ -24,8 +24,8 @@ flowchart LR
 <a id="window-transform-expressions"></a>
 ### Window-transform expressions
 
-The current public API constructs eight storage-free sliding-window expressions. The public
-`Tensor` class has exactly 213 declared public methods after adding the three rank-specific 3D
+The current public [API](../../glossary.md#term-application-programming-interface-api) constructs eight storage-free sliding-window expressions. The public
+[`Tensor`](../../glossary.md#tensor) class has exactly 213 declared public methods after adding the three [rank](../../glossary.md#term-rank)-specific 3D
 receivers:
 
 ```java
@@ -39,26 +39,26 @@ tensor.unfold3d(Window3dAttrs window, ScalarValue paddingValue)
 tensor.fold3d(Shape outputShape, Window3dAttrs window)
 ```
 
-`unfold` requires rank at least one and normalizes its raw axis against the input rank. The selected
-dimension must be static, `size` and `step` must be positive, and `size` must fit that dimension.
-For selected extent `D`, it replaces that extent with
+`unfold` requires rank at least one and normalizes its raw [axis](../../glossary.md#term-axis) against the input rank. The selected
+[dimension](../../glossary.md#dimension) must be static, `size` and `step` must be positive, and `size` must fit that dimension.
+For selected [extent](../../glossary.md#term-extent) `D`, it replaces that extent with
 `floor((D - size) / step) + 1`, preserves every unaffected exact Dimension reference, and appends
-`size` as the final axis. It accepts every current data type. Thus input Shape `[2, 5, 3]`, axis
+`size` as the final axis. It accepts every current [data type](../../glossary.md#data-type--datatype). Thus input [Shape](../../glossary.md#shape) `[2, 5, 3]`, axis
 `1`, size `3`, and step `1` produces `[2, 3, 3, 3]`.
 
 `foldAxis` reverses that rank change under overlap summation. Its final input Dimension is a
-positive static window size; its remaining Dimensions define the target rank used to normalize
+positive static window size; its remaining Dimensions define the [target](../../glossary.md#term-target) rank used to normalize
 the raw axis. The selected static window-count Dimension is replaced by non-negative
 `outputSize`, and the final Dimension is removed. Positive output size requires
 `floor((outputSize - windowSize) / step) + 1` windows; zero output size requires zero windows.
-Floating and signed-integral inputs are accepted, while BOOL is rejected. For conceptual windows
+Floating and signed-integral inputs are accepted, while [BOOL](../../glossary.md#data-type--datatype) is rejected. For conceptual windows
 `[[1,2,3], [4,5,6], [7,8,9]]`, axis `0`, output size `5`, and step `1`, overlap summation gives
 conceptual result `[1,6,15,14,9]`.
 
-Both `unfold2d` overloads require rank-four NCHW input and a floating data type. Batch, channel,
-height, and width may be static or unresolved; the exact batch Dimension is retained. `fold2d`
-requires floating rank-three canonical columns and an explicit rank-four NCHW output Shape.
-Column and output batch Dimensions must be structurally equal. For each spatial dimension, all
+Both `unfold2d` overloads require rank-four [NCHW](../../glossary.md#term-nchw) input and a floating data type. [Batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters), [channel](../../glossary.md#term-channel),
+height, and width may be static or unresolved; the exact [batch Dimension](../../glossary.md#batch-dimension) is retained. `fold2d`
+requires floating rank-three [canonical](../../glossary.md#term-canonical-form) columns and an explicit rank-four NCHW output Shape.
+Column and output batch Dimensions must be structurally equal. For each [spatial](../../glossary.md#term-spatial-axes) dimension, all
 three 2D construction paths use checked static arithmetic or retain the corresponding canonical
 symbolic expression:
 
@@ -69,35 +69,35 @@ positions       = floor(numerator / stride) + 1       in floor mode
 positions       = ceil(numerator / stride) + 1        in ceil mode
 ```
 
-The effective kernel must fit the padded input when static geometry can prove otherwise. An
-unresolved numerator retains its non-negativity obligation for later binding. Ceil mode avoids
-the overflow-prone `numerator + stride - 1` identity. `unfold2d` produces canonical Shape
+The effective [kernel](../../glossary.md#kernel) must fit the padded input when static geometry can prove otherwise. An
+unresolved numerator retains its non-negativity obligation for later [binding](../../glossary.md#term-binding). Ceil mode avoids
+the [overflow](../../glossary.md#term-overflow)-prone `numerator + stride - 1` [identity](../../glossary.md#term-identity-meanings). `unfold2d` produces canonical Shape
 `[N, C * kernelHeight * kernelWidth, outputHeight * outputWidth]`; products of unresolved
-Dimensions use the exact canonical symbolic-product form. `fold2d` requires complete structural
-equality with those channel and window-count formulas and retains the exact supplied output Shape.
-An unrelated unresolved symbol is rejected because model construction does not create an unnamed
+Dimensions use the exact canonical symbolic-product form. `fold2d` requires complete [structural
+equality](../../glossary.md#term-structural-equality) with those channel and window-count formulas and retains the exact supplied output Shape.
+An unrelated unresolved [symbol](../../glossary.md#term-symbol) is rejected because [model](../../glossary.md#term-model) construction does not create an unnamed
 equality constraint.
 
-For dynamic input `[N,C,H,W]`, a 3-by-3 kernel, stride two, padding one, unit dilation, and floor
+For dynamic input `[N,C,H,W]`, a 3-by-3 kernel, [stride](../../glossary.md#term-stride) two, [padding](../../glossary.md#padding) one, unit [dilation](../../glossary.md#term-dilation), and floor
 mode produces channel Dimension `9 * C` and flattened window Dimension
 `(floor((H - 1) / 2) + 1) * (floor((W - 1) / 2) + 1)`. Ceil mode retains the same formula with
-ceiling division. This metadata is exact structurally; it does not bind `N`, `C`, `H`, or `W`.
+ceiling division. This [metadata](../../glossary.md#term-metadata) is exact structurally; it does not bind `N`, `C`, `H`, or `W`.
 
-The one-argument `unfold2d` pairs `UNFOLD2D` directly with the supplied `Window2dAttrs`; every
-out-of-domain sample is conceptual positive zero. The two-argument overload instead pairs
-`UNFOLD2D` with `Unfold2dAttrs(window, paddingValue)`. The scalar must exactly match the floating
-input data type and is retained by reference with its raw NaN, infinity, or signed-zero bits. It
+The one-[argument](../../glossary.md#term-argument) `unfold2d` pairs `UNFOLD2D` directly with the supplied `Window2dAttrs`; every
+out-of-domain [sample](../../glossary.md#term-sample-machine-learning-and-hyperparameters) is conceptual [positive zero](../../glossary.md#nan-infinity-and-signed-zero). The two-argument overload instead pairs
+`UNFOLD2D` with `Unfold2dAttrs(window, paddingValue)`. The [scalar](../../glossary.md#term-scalar) must exactly match the floating
+input data type and is retained by reference with its raw [NaN](../../glossary.md#term-nan), [infinity](../../glossary.md#term-infinity), or [signed-zero](../../glossary.md#nan-infinity-and-signed-zero) bits. It
 supplies symmetric padding positions and terminal ceil-grid positions beyond the padded extent.
-This is extraction semantics, not maximum-pooling padding or a backend fill policy.
+This is extraction semantics, not maximum-[pooling](../../glossary.md#term-pooling) padding or a [backend](../../glossary.md#backend) fill policy.
 
 Conceptual `[1, 1, 3, 3]` input with a 2-by-2 kernel, unit stride and dilation, zero symmetric
 padding, and floor mode unfolds to `[1, 4, 4]`. Folding compatible columns to `[1, 1, 3, 3]`
 scatter-adds four contributions at the center and one at each corner, without overlap averaging.
 
-The 3D forms extend the same algebra to rank-five NCDHW input `[N, C, D, H, W]`. They accept
-every floating type, including FP8. For each depth, height, and width axis they use the same
+The 3D forms extend the same algebra to rank-five [NCDHW](../../glossary.md#conv3d--ncdhw) input `[N, C, D, H, W]`. They accept
+every floating type, including [FP8](../../glossary.md#term-fp8). For each depth, height, and width axis they use the same
 literal floor-or-ceiling formula above, deriving depth first, then height, then width. They do not
-drop a terminal literal-ceil window even when every sampled coordinate lies outside the unpadded
+drop a terminal literal-ceil window even when every sampled [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix) lies outside the unpadded
 input. `unfold3d` always returns the canonical rank-three Shape:
 
 ```text
@@ -126,9 +126,9 @@ This ordering is structural Model metadata. It fixes the later interpretation of
 not promise a physical storage traversal or backend algorithm.
 
 For direct `unfold3d(window)`, every out-of-range `(id, ih, iw)` sample is exact represented
-positive zero. The typed overload instead retains and uses the exact same-typed `ScalarValue`, so
+positive zero. The typed overload instead retains and uses the exact same-typed [`ScalarValue`](../../glossary.md#typed-scalar-value--scalarvalue), so
 `ScalarValue.float32(Float.NEGATIVE_INFINITY)` can describe maximum-reconstruction padding
-without adding a pooling-specific operation. The scalar's reference and represented bits are
+without adding a pooling-specific [operation](../../glossary.md#operation). The scalar's reference and [represented bits](../../glossary.md#term-represented-bits) are
 retained; no conversion occurs.
 
 `fold3d(outputShape, window)` requires rank-three columns whose batch, complete channel-kernel
@@ -136,8 +136,8 @@ Dimension, and complete flattened-grid Dimension are structurally equal to the f
 explicit rank-five NCDHW target. The result retains the exact supplied `Shape` reference.
 Out-of-range padded and literal-ceil-tail coordinates are excluded geometrically, regardless of
 the column value. Each target starts at represented positive zero, and in-range contributions are
-added in increasing `[n, q, p]` order. FLOAT64 and FLOAT32 add sequentially in their own format.
-BFLOAT16 expands the accumulator and next operand to FLOAT32, adds once, and narrows after every
+added in increasing `[n, q, p]` order. [FLOAT64](../../glossary.md#term-float64) and [FLOAT32](../../glossary.md#term-float32) add sequentially in their own format.
+[BFLOAT16](../../glossary.md#term-bfloat16) expands the [accumulator](../../glossary.md#accumulator-type) and next operand to FLOAT32, adds once, and narrows after every
 logical contribution. Fold neither averages overlaps nor compares values with a padding scalar.
 
 As a small overlap example, a one-channel `[1, 1, 3, 3, 3]` target with a 2-by-2-by-2 kernel,
@@ -158,31 +158,31 @@ For unresolved input `[N, C, D, H, W]`, a 2-by-3-by-4 kernel, stride `(2, 2, 3)`
 The exact `N` Dimension reference is retained. These canonical expressions describe unresolved
 metadata; they do not bind the symbols or discharge the later non-negative-numerator obligation.
 
-All results preserve the exact input data type and gradient-eligibility flag, use unresolved
-layout, record the matching normalized attributes and exact `[input]` provenance, and receive a
+All results preserve the exact input data type and [gradient](../../glossary.md#term-gradient)-eligibility flag, use unresolved
+[layout](../../glossary.md#layout), record the matching normalized attributes and exact `[input]` [provenance](../../glossary.md#provenance), and receive a
 fresh unlabeled identity. They do not inspect input layout, label, provenance, storage, or values;
 attach or allocate storage; materialize windows; accumulate overlaps; create a gradient rule;
-capture a graph; lower to a backend; or execute.
+[capture](../../glossary.md#term-capture-meanings) a [graph](../../glossary.md#graph); lower to a backend; or execute.
 
-Current Model owns `UNFOLD3D`/`FOLD3D` algebra and public metadata construction. Complete Compiler
-0006B1 captures both unfold variants and fold as ordinary flat nodes and independently validates
-their canonical descriptors and spatial obligations. Complete Compiler 0006B2 constructs all
-three adjoints through the same public API: either unfold form maps its cotangent through
+Current Model owns `UNFOLD3D`/`FOLD3D` algebra and public metadata construction. Complete [Compiler](../../glossary.md#term-compiler)
+0006B1 captures both unfold variants and fold as ordinary flat [nodes](../../glossary.md#node) and independently validates
+their canonical [descriptors](../../glossary.md#term-descriptor) and spatial obligations. Complete Compiler 0006B2 constructs all
+three adjoints through the same public API: either unfold form maps its [cotangent](../../glossary.md#cotangent) through
 `fold3d` into the exact original input Shape, and fold maps its cotangent through the direct
-positive-zero `unfold3d` overload. Typed padding is immutable configuration rather than a
-differentiable input. CPU separately executes fully static resolved-layout UNFOLD3D raw movement
-for every floating type, including FP8, and FOLD3D overlap arithmetic under ordinary dtype/geometry
-guards. Metal FOLD2D/FOLD3D overlap is FLOAT32-only, while its other floating image folds retain
-non-overlap. CPU floating and Metal F32 Pool3d training reuse the shared pooling adjoints and
+positive-zero `unfold3d` overload. Typed padding is [immutable](../../glossary.md#term-immutable) configuration rather than a
+[differentiable](../../glossary.md#derivative-and-chain-rule) input. [CPU](../../glossary.md#term-cpu) separately executes fully static resolved-layout UNFOLD3D raw movement
+for every floating type, including FP8, and FOLD3D overlap arithmetic under ordinary [dtype](../../glossary.md#data-type--datatype)/geometry
+guards. [Metal](../../glossary.md#term-metal) FOLD2D/FOLD3D overlap is FLOAT32-only, while its other floating image folds retain
+non-overlap. CPU floating and Metal [F32](../../glossary.md#floating-point-precision-and-rounding) [Pool3d](../../glossary.md#pool3d--ncdhw-pooling) training reuse the shared pooling adjoints and
 these 3D windows; CPU parity does not widen Metal's independent domain.
-These capabilities require concrete backend admission; constructing metadata alone supplies no
+These capabilities require [concrete backend](../../glossary.md#concrete-backend) [admission](../../glossary.md#term-admission); constructing metadata alone supplies no
 materialized result or performance guarantee. See the
-[production matrix](../../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary).
+[production matrix](../../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary)<span data-glossary-navigation="true"> ([matrix glossary](../../glossary.md#term-matrix-meanings))</span>.
 
 <a id="complete-window-transform-expression-example"></a>
 #### Complete window-transform expression example
 
-This runnable Java 26 example observes only Shape, operation, provenance, and storage metadata:
+This runnable Java 26 example observes only [Shape](../../glossary.md#shape), [operation](../../glossary.md#operation), [provenance](../../glossary.md#provenance), and storage [metadata](../../glossary.md#term-metadata):
 
 ```java
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -253,11 +253,11 @@ true
 true
 ```
 
-Invalid rank, axis, intrinsic sign, required staticity, window fit, type, or column compatibility
-fails before identity allocation. Structural `fold2d` compatibility rejects unrelated unresolved
-Dimensions. Checked geometry or canonicalization overflow propagates as `ArithmeticException`.
-Null references are rejected in parameter order. Identifier exhaustion remains possible only at
-final derived-Tensor construction after all local immutable metadata has been prepared.
+Invalid [rank](../../glossary.md#term-rank), [axis](../../glossary.md#term-axis), intrinsic sign, required staticity, window fit, type, or column compatibility
+fails before [identity](../../glossary.md#term-identity-meanings) allocation. Structural `fold2d` compatibility rejects unrelated unresolved
+[Dimensions](../../glossary.md#dimension). Checked geometry or [canonicalization](../../glossary.md#occurrence-identity-and-canonical-form) [overflow](../../glossary.md#term-overflow) propagates as `ArithmeticException`.
+Null references are rejected in [parameter](../../glossary.md#term-parameter) order. Identifier exhaustion remains possible only at
+final derived-[Tensor](../../glossary.md#tensor) construction after all local [immutable](../../glossary.md#term-immutable) metadata has been prepared.
 
 
 ---

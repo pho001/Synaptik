@@ -1,62 +1,62 @@
-# Prepared executables and cold invocation binding
+# Prepared executables and cold invocation [binding](../../glossary.md#term-binding)
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/execution/PreparedExecution.java)
 
-A prepared executable is a reusable recipe; a bound invocation is that recipe connected to one
-run's concrete resources. **Cold binding** performs compatibility checks before the repeated
+A [prepared executable](../../glossary.md#prepared-executable--preparedexecutable) is a reusable recipe; a [bound invocation](../../glossary.md#bound-invocation--boundinvocation) is that recipe connected to one
+[run](../../glossary.md#term-run)'s concrete resources. **Cold binding** performs compatibility checks before the repeated
 execution path, so execution can use direct typed references. Here cold means setup rather than
-numerical work; it is not the separate cold graph-reconstruction API.
+numerical work; it is not the separate cold [graph](../../glossary.md#graph)-reconstruction [API](../../glossary.md#term-application-programming-interface-api).
 
 <a id="current-prepared-executable-and-bound-invocation"></a>
-## Current prepared executable and bound invocation
+## Current [prepared executable](../../glossary.md#prepared-executable--preparedexecutable) and [bound invocation](../../glossary.md#bound-invocation--boundinvocation)
 
-`PreparedExecutable` is an immutable reusable recipe for one prepared computation region. Its
-constructor retains the exact `PreparedMemoryPlan` reference and snapshots ordered selections
+[`PreparedExecutable`](../../glossary.md#prepared-executable--preparedexecutable) is an [immutable](../../glossary.md#term-immutable) reusable recipe for one prepared computation region. Its
+constructor retains the exact [`PreparedMemoryPlan`](../../glossary.md#prepared-memory-plan--preparedmemoryplan) reference and snapshots ordered selections
 into private arrays:
 
 - `BufferSelection(bufferIndex, representationIndex)` addresses a dense position in
-  `memoryPlan().buffers()` and then a dense representation position in that buffer's `RunState`
+  `memoryPlan().buffers()` and then a dense representation position in that [buffer](../../glossary.md#term-buffer)'s [`RunState`](../../glossary.md#run-state--runstate)
   bindings; and
 - `WorkspaceSelection(workspaceIndex)` addresses a dense position in
   `memoryPlan().workspaces()`.
 
 These indices are list positions, not `BufferSlot.value()` or `WorkspaceSlot.value()` values.
 Selections may be empty or repeated. Repetition represents repeated operand roles and does not
-duplicate resource ownership in the state.
+duplicate resource [ownership](../../glossary.md#term-ownership) in the state.
 
 `bind(runState)` is the cold boundary. It first requires an open state whose `memoryPlan()` is the
 exact same object as the executable's plan; an equal plan constructed separately is rejected. It
-resolves buffers in selection order, then workspaces, and calls the backend's checked
+resolves buffers in selection order, then workspaces, and calls the [backend](../../glossary.md#backend)'s checked
 compatibility hook exactly once for each resolved selection. Only after all checks pass does it
-call `bindCompatible` with fresh nominal arrays in the same order.
+call `bindCompatible` with fresh [nominal](../../glossary.md#term-nominal) arrays in the same order.
 
 The backend uses explicit checked tests such as `instanceof`, then constructs a
-`BoundInvocation` with direct concrete typed fields. The returned invocation must retain the exact
-supplied `RunState`. Binding may allocate the temporary Java Virtual Machine (JVM) arrays and
+[`BoundInvocation`](../../glossary.md#bound-invocation--boundinvocation) with direct concrete typed fields. The returned invocation must retain the exact
+supplied `RunState`. [Binding](../../glossary.md#term-binding) may allocate the temporary [Java Virtual Machine](../../glossary.md#term-java-virtual-machine-jvm) ([JVM](../../glossary.md#java-platform-and-build-tools)) arrays and
 invocation object, but it acquires no auxiliary closeable or native binding resource, changes no
-ownership, and performs no cleanup on failure.
+[ownership](../../glossary.md#term-ownership-meanings), and performs no cleanup on failure.
 
 `BoundInvocation.execute()` checks that its retained state is still open, then calls the
-backend's `executeBound()` method. It performs no slot lookup, compatibility cast, graph work,
-backend discovery, route/configuration search, allocation, transfer, residency decision,
-publication, tuning, or tracing. Sequential calls while open are permitted. One invocation is not
-thread-safe and must not race execution with state closure; after closure it fails with
+backend's `executeBound()` method. It performs no slot [lookup](../../glossary.md#term-lookup), compatibility cast, [graph](../../glossary.md#graph) work,
+backend discovery, route/configuration search, allocation, transfer, [residency](../../glossary.md#residency) decision,
+[publication](../../glossary.md#term-publication), tuning, or tracing. Sequential calls while open are permitted. One invocation is not
+[thread-safe](../../glossary.md#term-thread-safe) and must not [race](../../glossary.md#term-race) execution with state closure; after closure it fails with
 `IllegalStateException("run state is closed")` before backend work.
 
-One immutable executable may bind concurrently to distinct run states. Each resulting invocation
+One immutable executable may bind concurrently to distinct [run](../../glossary.md#term-run) states. Each resulting invocation
 belongs to exactly one state and owns neither that state nor its buffer/workspace representations.
 Concrete executable subclasses must therefore be immutable and thread-safe, while invocation
 subclasses keep their per-run direct references isolated.
 
 <a id="focused-cold-binding-example"></a>
-## Focused cold-binding example
+## Focused cold-[binding](../../glossary.md#term-binding) example
 
 <a id="cold-binding-goal-and-inputs"></a>
-### Cold-binding goal and inputs
+### Cold-[binding](../../glossary.md#term-binding) goal and inputs
 
-Bind one backend-specific buffer and workspace from a matching open state, execute once through
-direct typed fields, then demonstrate the post-close guard. This local fake backend illustrates
-the extension contract; it is not a production backend or a Prepare finalizer.
+Bind one [backend](../../glossary.md#backend)-specific [buffer](../../glossary.md#term-buffer) and workspace from a matching open state, execute once through
+direct typed fields, then demonstrate the post-close [guard](../../glossary.md#term-guard). This local fake backend illustrates
+the extension contract; it is not a production backend or a [Prepare](../../glossary.md#prepare) finalizer.
 
 ```java
 import io.github.pho001.synaptik.runtime.execution.BoundInvocation;
@@ -143,12 +143,12 @@ state.close();
 ```
 
 <a id="cold-binding-result-and-interpretation"></a>
-### Cold-binding result and interpretation
+### Cold-[binding](../../glossary.md#term-binding) result and interpretation
 
 Both `calls` fields are `1`. Compatibility was checked during `bind`, and execution used the two
 direct concrete fields. Calling `invocation.execute()` after `state.close()` fails before either
-counter changes. This proves the current binding and lifecycle guard only; it does not allocate
-storage, finalize a backend analysis, schedule work, transfer values, or publish a result.
+counter changes. This proves the current binding and [lifecycle](../../glossary.md#lifecycle) [guard](../../glossary.md#term-guard) only; it does not allocate
+storage, finalize a [backend](../../glossary.md#backend) analysis, schedule work, transfer values, or publish a result.
 
 
 ---

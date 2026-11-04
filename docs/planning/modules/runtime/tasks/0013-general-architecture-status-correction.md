@@ -9,14 +9,14 @@ Complete
 Resolve audit finding `DOCUMENTATION-STATUS-001` through one bounded documentation-only
 correction. Replace the five exact stale implementation-status statements in three general
 architecture pages and the architecture-test developer guide with current wording grounded in
-the repository's implemented module and test surfaces.
+the repository's implemented [module](../../../../glossary.md#term-module) and test surfaces.
 
 The correction reports implementation state without changing, reinterpreting, or restating a new
 architecture rule. [`ARCHITECTURE.md`](../../../../../ARCHITECTURE.md) remains authoritative;
 the affected explanatory pages remain subordinate to it, and the
 [roadmap](../../../roadmap.md) remains the implementation delivery record.
 
-Mental model:
+[Mental model](../../../../glossary.md#term-mental-model):
 
 ```text
 authoritative architecture rules          current source, tests, and roadmap
@@ -27,7 +27,7 @@ authoritative architecture rules          current source, tests, and roadmap
                        without a new architecture rule
 ```
 
-## Scope
+## [Scope](../../../../glossary.md#term-scope)
 
 - Correct only the stale current-implementation statements identified by
   `DOCUMENTATION-STATUS-001` in:
@@ -41,15 +41,15 @@ authoritative architecture rules          current source, tests, and roadmap
 - Distinguish implemented contracts from an end-to-end runnable public lifecycle. Current Model,
   Backend Contract, Planning, Compiler, Runtime, and partial Prepare/Config/Trace work must not be
   collapsed into “initial Model foundations,” while absent Engine composition and concrete
-  backend execution must not be presented as current.
+  backend execution must not be presented as current.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle); [Model glossary](../../../../glossary.md#term-model); [Backend glossary](../../../../glossary.md#backend); [Planning glossary](../../../../glossary.md#term-planning); [Compiler glossary](../../../../glossary.md#term-compiler); [Prepare glossary](../../../../glossary.md#prepare); [Trace glossary](../../../../glossary.md#trace); [Engine glossary](../../../../glossary.md#term-engine); [concrete backend glossary](../../../../glossary.md#concrete-backend))</span>
 - State accurately that architecture tests currently contain focused Config, Planning, and
   conditional NN/Training dependency checks, while Runtime dependency and hot-path enforcement
-  remains absent and owned exclusively by Draft Runtime 0014.
+  remains absent and owned exclusively by Draft Runtime 0014.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 - Review source/module and architecture-test inventories, the Runtime 0011 durable audit, Runtime
   0012 evidence, current master plans, and the roadmap as implementation-status evidence. Do not
-  treat the affected explanatory documents as delivery authority.
+  treat the affected explanatory documents as delivery authority.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module))</span>
 - Record reasoned no-change conclusions for every review-only family named below.
-- Finalize this task's evidence and status, then synchronize the Runtime master plan and roadmap.
+- Finalize this task's evidence and status, then synchronize the [Runtime](../../../../glossary.md#term-runtime) master plan and roadmap.
 
 ## Exact correction contract
 
@@ -57,7 +57,7 @@ The implementation context must replace each complete stale statement below, not
 keyword or append a disclaimer.
 
 The quoted roadmap-link brackets use HTML entities only so this task's link validator does not
-resolve the implicated documents' relative targets from the task directory. This notation exists
+resolve the implicated documents' relative [targets](../../../../glossary.md#term-target) from the task directory. This notation exists
 only inside task 0013. During implementation, decode the encoded opening and closing brackets to
 literal square brackets in each target document while preserving the specified roadmap link text
 and target-relative destination. The resulting roadmap reference must remain a real clickable
@@ -71,42 +71,42 @@ Path: `docs/architecture/current-architecture-plan.md`
 
 Replace:
 
-> This index is current. The architecture describes the intended complete system, while the repository currently implements only the initial model foundations. The &#91;implementation roadmap&#93;(../planning/roadmap.md) is the source for delivery status.
+> This index is current. The architecture describes the intended complete system, while the repository currently implements only the initial model foundations. The &#91;implementation roadmap&#93;(../planning/roadmap.md) is the source for delivery status.<span data-glossary-navigation="true"> ([model glossary](../../../../glossary.md#term-model); [planning glossary](../../../../glossary.md#term-planning))</span>
 
 Replace with exactly:
 
-> This index is current. The architecture describes the intended complete system. The repository now has substantive Model, Backend Contract, Planning, Compiler, Runtime, and Prepare implementations, plus partial Config and Trace contracts; Engine, concrete backends, and higher-layer extensions and tools are not yet complete. The &#91;implementation roadmap&#93;(../planning/roadmap.md) records delivery status.
+> This index is current. The architecture describes the intended complete system. The repository now has substantive Model, Backend Contract, Planning, Compiler, Runtime, and Prepare implementations, plus partial Config and Trace contracts; Engine, concrete backends, and higher-layer extensions and tools are not yet complete. The &#91;implementation roadmap&#93;(../planning/roadmap.md) records delivery status.<span data-glossary-navigation="true"> ([Backend glossary](../../../../glossary.md#backend); [Compiler glossary](../../../../glossary.md#term-compiler); [Runtime glossary](../../../../glossary.md#term-runtime); [Prepare glossary](../../../../glossary.md#prepare); [Trace glossary](../../../../glossary.md#trace); [Engine glossary](../../../../glossary.md#term-engine))</span>
 
-### Lifecycle
+### [Lifecycle](../../../../glossary.md#lifecycle)
 
 Path: `docs/architecture/lifecycle.md`
 
 Replace:
 
-> These lifecycle stages are architecture contracts, not current runnable APIs. The repository currently implements only initial model value types; the &#91;roadmap&#93;(../planning/roadmap.md) tracks delivery.
+> These lifecycle stages are architecture contracts, not current runnable APIs. The repository currently implements only initial model value types; the &#91;roadmap&#93;(../planning/roadmap.md) tracks delivery.<span data-glossary-navigation="true"> ([model glossary](../../../../glossary.md#term-model); [planning glossary](../../../../glossary.md#term-planning))</span>
 
 Replace with exactly:
 
-> These lifecycle stages are architecture contracts, not a claim that the complete public lifecycle is runnable today. The repository implements the Model, Planning, and Compiler portions of compile, staged Prepare contracts through backend finalization, and Runtime prepared-execution and per-run orchestration contracts. It does not yet provide concrete backend execution or the Engine composition needed for an end-to-end runnable lifecycle. The &#91;roadmap&#93;(../planning/roadmap.md) records delivery status.
+> These lifecycle stages are architecture contracts, not a claim that the complete public lifecycle is runnable today. The repository implements the Model, Planning, and Compiler portions of compile, staged Prepare contracts through backend finalization, and Runtime prepared-execution and per-run orchestration contracts. It does not yet provide concrete backend execution or the Engine composition needed for an end-to-end runnable lifecycle. The &#91;roadmap&#93;(../planning/roadmap.md) records delivery status.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [compile glossary](../../../../glossary.md#compile); [Prepare glossary](../../../../glossary.md#prepare); [backend glossary](../../../../glossary.md#backend); [Runtime glossary](../../../../glossary.md#term-runtime); [run glossary](../../../../glossary.md#term-run); [concrete backend glossary](../../../../glossary.md#concrete-backend); [Engine glossary](../../../../glossary.md#term-engine))</span>
 
-Do not change the separate accurate statement that initial `TRAINING_STEP` compilation does not
-yet add optimizer-update graph work. That is a specific current-versus-planned lifecycle boundary,
+Do not change the separate accurate statement that initial `TRAINING_STEP` [compilation](../../../../glossary.md#compiler-engine-and-execution-stage-names) does not
+yet add [optimizer](../../../../glossary.md#term-optimizer)-update [graph](../../../../glossary.md#graph) work. That is a specific current-versus-planned lifecycle boundary,
 not part of `DOCUMENTATION-STATUS-001`.
 
-### Module boundaries
+### [Module](../../../../glossary.md#term-module) boundaries
 
 Path: `docs/architecture/module-boundaries.md`
 
 Replace:
 
-> The boundaries apply as modules are implemented. Most modules currently contain only build structure and a placeholder module marker; the &#91;roadmap&#93;(../planning/roadmap.md) identifies the active implementation frontier.
+> The boundaries apply as modules are implemented. Most modules currently contain only build structure and a placeholder module marker; the &#91;roadmap&#93;(../planning/roadmap.md) identifies the active implementation frontier.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning))</span>
 
 Replace with exactly:
 
-> The boundaries apply to both implemented and planned modules. Model, Backend Contract, Planning, Compiler, Runtime, and the first Prepare contracts have substantive implementations; Config and Trace are partial. Engine, concrete backends, and most extensions and tools remain planned or placeholder-only. The &#91;roadmap&#93;(../planning/roadmap.md) records exact delivery status.
+> The boundaries apply to both implemented and planned modules. Model, Backend Contract, Planning, Compiler, Runtime, and the first Prepare contracts have substantive implementations; Config and Trace are partial. Engine, concrete backends, and most extensions and tools remain planned or placeholder-only. The &#91;roadmap&#93;(../planning/roadmap.md) records exact delivery status.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Backend glossary](../../../../glossary.md#backend); [Compiler glossary](../../../../glossary.md#term-compiler); [Runtime glossary](../../../../glossary.md#term-runtime); [Prepare glossary](../../../../glossary.md#prepare); [Trace glossary](../../../../glossary.md#trace); [Engine glossary](../../../../glossary.md#term-engine))</span>
 
-Do not convert the surrounding ownership summaries into implementation-completion claims. They
-explain the architecture contract whether an owner is implemented or planned.
+Do not convert the surrounding [ownership](../../../../glossary.md#term-ownership-meanings) summaries into implementation-completion claims. They
+explain the [architecture contract](../../../../glossary.md#architecture-contract) whether an [owner](../../../../glossary.md#term-owner) is implemented or planned.
 
 ### Architecture-test guide
 
@@ -114,11 +114,11 @@ Path: `docs/developer-guide/architecture-tests.md`
 
 Replace the stale opening statement:
 
-> This guide explains which boundaries architecture tests must protect and how to run their Gradle module. The `testing/architecture-tests` project exists, but focused architecture-test implementations are not present yet.
+> This guide explains which boundaries architecture tests must protect and how to [run](../../../../glossary.md#term-run) their [Gradle](../../../../glossary.md#term-gradle) [module](../../../../glossary.md#term-module). The `testing/architecture-tests` project exists, but focused architecture-test implementations are not present yet.
 
 Replace with exactly:
 
-> This guide explains which boundaries architecture tests must protect and how to run their Gradle module. The `testing/architecture-tests` project contains focused dependency checks for Config and Planning plus a conditional NN-to-Training direction check. Coverage remains incomplete: Runtime dependency and hot-path enforcement named by `ARCHITECTURE.md` is not yet present and remains owned by Draft Runtime 0014.
+> This guide explains which boundaries architecture tests must protect and how to run their Gradle module. The `testing/architecture-tests` project contains focused [dependency](../../../../glossary.md#term-dependency) checks for Config and [Planning](../../../../glossary.md#term-planning) plus a conditional [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)-to-Training direction check. Coverage remains incomplete: [Runtime](../../../../glossary.md#term-runtime) dependency and hot-path enforcement named by `ARCHITECTURE.md` is not yet present and remains owned by Draft Runtime 0014.
 
 Replace the stale run-result statement:
 
@@ -131,44 +131,44 @@ Replace with exactly:
 Link `Runtime 0014` to the Runtime master plan's task list if a link improves navigation. Do not
 create or imply a Runtime 0014 detailed task specification.
 
-## Out of scope
+## Out of [scope](../../../../glossary.md#term-scope)
 
 - changing `ARCHITECTURE.md`, an architecture rule, module ownership, lifecycle, dependency
-  direction, repository layout, or public API contract
+  direction, repository layout, or public API contract<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [lifecycle glossary](../../../../glossary.md#lifecycle); [dependency direction glossary](../../../../glossary.md#java-platform-and-build-tools); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - repairing `ARCHITECTURE-ENFORCEMENT-001` or adding, changing, renaming, or executing new
   architecture-test logic
 - changing Java production or test source, Javadoc source, generated Javadocs, Gradle files,
-  dependencies, settings, modules, backends, extensions, or tools
-- changing Runtime behavior, including `RunState`, prepared execution, cleanup, publication,
-  result leasing, or hot-path traversal
+  dependencies, settings, modules, backends, extensions, or tools<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [Gradle glossary](../../../../glossary.md#term-gradle); [backends glossary](../../../../glossary.md#backend))</span>
+- changing [Runtime](../../../../glossary.md#term-runtime) behavior, including [`RunState`](../../../../glossary.md#run-state--runstate), prepared execution, cleanup, publication,
+  result leasing, or hot-path traversal<span data-glossary-navigation="true"> ([prepared execution glossary](../../../../glossary.md#prepared-execution--preparedexecution); [publication glossary](../../../../glossary.md#term-publication))</span>
 - changing ADRs, API guides, backend guides, user guides, glossary, documentation rules, or
   documentation profiles
 - claiming that Engine composition, a concrete backend, public result-value access, complete
-  Prepare orchestration, end-to-end execution, run tracing, run policy, or tuning is implemented
+  Prepare orchestration, end-to-end execution, run tracing, run policy, or tuning is implemented<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [concrete backend glossary](../../../../glossary.md#concrete-backend); [run glossary](../../../../glossary.md#term-run))</span>
 - changing the specific accurate `TRAINING_STEP` limitation in `lifecycle.md`
 - closing the Runtime milestone or changing the Runtime 0011 `BLOCKING_GAP` verdict
 - resolving or weakening `ARCHITECTURE-ENFORCEMENT-001`
 - creating `docs/planning/modules/runtime/tasks/0014-runtime-architecture-enforcement.md` or any
   other later task file
-- making Runtime 0014 Ready, creating another detailed specification, or advancing Prepare 0003
+- making Runtime 0014 [Ready](../../../../glossary.md#term-ready), creating another detailed specification, or advancing [Prepare](../../../../glossary.md#prepare) 0003
 - modifying completed Runtime 0011 or 0012 tasks, their durable evidence, Java changes,
-  explanatory changes, validation counts, completion summaries, or `Status: Complete` records
+  explanatory changes, validation counts, completion summaries, or <span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>`Status: Complete` records
 - unrelated wording, link, formatting, terminology, or status cleanup
 
 ## Architecture references
 
-- [Architecture contract](../../../../../ARCHITECTURE.md)
+- [Architecture contract](../../../../../ARCHITECTURE.md)<span data-glossary-navigation="true"> ([Architecture contract glossary](../../../../glossary.md#architecture-contract))</span>
 - [Current architecture index](../../../../architecture/current-architecture-plan.md)
-- [Lifecycle](../../../../architecture/lifecycle.md)
-- [Module boundaries](../../../../architecture/module-boundaries.md)
-- [Dependency rules](../../../../architecture/dependency-rules.md)
-- [Runtime, Prepare, and Backend boundary](../../../../architecture/runtime-prepare-backend-boundary.md)
+- [Lifecycle](../../../../architecture/lifecycle.md)<span data-glossary-navigation="true"> ([Lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+- [Module boundaries](../../../../architecture/module-boundaries.md)<span data-glossary-navigation="true"> ([Module glossary](../../../../glossary.md#term-module))</span>
+- [Dependency rules](../../../../architecture/dependency-rules.md)<span data-glossary-navigation="true"> ([Dependency glossary](../../../../glossary.md#term-dependency))</span>
+- [Runtime, Prepare, and Backend boundary](../../../../architecture/runtime-prepare-backend-boundary.md)<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [Prepare glossary](../../../../glossary.md#prepare); [Backend glossary](../../../../glossary.md#backend))</span>
 - [Architecture-test guide](../../../../developer-guide/architecture-tests.md)
 - [Documentation rules](../../../../developer-guide/documentation-rules.md)
 - [General style](../../../../developer-guide/documentation/general-style.md)
 - [Architecture style](../../../../developer-guide/documentation/architecture-style.md)
 - [Developer-guide style](../../../../developer-guide/documentation/developer-guide-style.md)
-- [Planning style](../../../../developer-guide/documentation/planning-style.md)
+- [Planning style](../../../../developer-guide/documentation/planning-style.md)<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning))</span>
 - [Planning guide](../../../planning-guide.md)
 - [Roadmap](../../../roadmap.md)
 - [Runtime master plan](../master-plan.md)
@@ -179,14 +179,14 @@ create or imply a Runtime 0014 detailed task specification.
 ## Architecture constraints
 
 - `ARCHITECTURE.md` is the only authoritative architecture contract. Explanatory status prose
-  must neither add a rule nor make the implementation define the architecture.
+  must neither add a rule nor make the implementation define the architecture.<span data-glossary-navigation="true"> ([architecture contract glossary](../../../../glossary.md#architecture-contract))</span>
 - The architecture describes the intended complete lifecycle even where implementation remains
-  incomplete. Current-status prose must explicitly preserve that distinction.
+  incomplete. Current-status prose must explicitly preserve that distinction.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - The roadmap and area master plans coordinate delivery status and remain non-authoritative for
-  architecture.
+  architecture.<span data-glossary-navigation="true"> ([coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
 - Runtime already owns prepared execution contracts and dynamic per-run state, but Engine and
   concrete backends remain separate incomplete owners. Documentation must not infer an
-  end-to-end runnable lifecycle from the implemented Runtime contracts.
+  end-to-end runnable lifecycle from the implemented Runtime contracts.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [prepared execution glossary](../../../../glossary.md#prepared-execution--preparedexecution); [run state glossary](../../../../glossary.md#run-state--runstate); [Engine glossary](../../../../glossary.md#term-engine); [backends glossary](../../../../glossary.md#backend))</span>
 - Existing architecture tests enforce only the rules they actually assert. Missing Runtime
   enforcement is a test-coverage finding, not permission to change or weaken the rule.
 - No architecture decision is required for this correction. If current evidence conflicts with
@@ -195,9 +195,9 @@ create or imply a Runtime 0014 detailed task specification.
 
 ## Package impact
 
-No Java package, type, source set, or generated artifact is added, changed, moved, or removed.
+No Java package, type, source set, or generated [artifact](../../../../glossary.md#term-artifact) is added, changed, moved, or removed.
 
-Implementation-status evidence is reviewed across existing modules and the
+Implementation-status evidence is reviewed across existing [modules](../../../../glossary.md#term-module) and the
 `testing/architecture-tests` source set only. Package descriptions in the affected architecture
 pages remain architecture explanations rather than package-completion records.
 
@@ -216,24 +216,24 @@ Exact authorized paths for execution — seven and only seven:
 Review without modification:
 
 - `AGENTS.md`, `ARCHITECTURE.md`, ADRs, and every other architecture document
-- `docs/api/runtime-api.md`, `docs/api/public-api.md`, backend and user guides, and
+- `docs/api/runtime-api.md`, `docs/api/public-api.md`, [backend](../../../../glossary.md#backend) and user guides, and
   `docs/glossary.md`
 - Runtime 0011's durable audit and completed task, Runtime 0012's completed task, final Runtime
-  source/test/Javadoc evidence, and every Runtime 0001-0010 task
+  source/test/Javadoc evidence, and every Runtime 0001-0010 task<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 - current source/build inventories for Model, Trace, Backend Contract, Config, Planning, Compiler,
-  Runtime, Prepare, Engine, concrete backends, extensions, tools, and test projects
+  Runtime, Prepare, Engine, concrete backends, extensions, tools, and test projects<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Trace glossary](../../../../glossary.md#trace); [Planning glossary](../../../../glossary.md#term-planning); [Compiler glossary](../../../../glossary.md#term-compiler); [Prepare glossary](../../../../glossary.md#prepare); [Engine glossary](../../../../glossary.md#term-engine))</span>
 - every file under `testing/architecture-tests`, including its three existing focused test suites
 
-## Maximum scope
+## Maximum [scope](../../../../glossary.md#term-scope)
 
 The execution task may modify exactly the seven authorized Markdown paths and no others. It adds
-no file: this Ready specification already exists and is finalized in place.
+no file: this [Ready](../../../../glossary.md#term-ready) specification already exists and is finalized in place.
 
-The shared working tree is expected to retain the nine pre-existing Runtime-0011/0012 paths. With
+The shared working tree is expected to retain the nine pre-existing [Runtime](../../../../glossary.md#term-runtime)-0011/0012 paths. With
 this task file and the four later status-document edits, the final shared tree is expected to
 contain fourteen legitimate paths, but Runtime 0013 owns only the seven paths listed above.
 
-If any correction needs an eighth owned path, executable change, test change, Gradle change,
+If any correction needs an eighth owned path, executable change, test change, [Gradle](../../../../glossary.md#term-gradle) change,
 architecture decision, terminology change, glossary entry, or detailed Runtime 0014 file, stop
 and report the required replan. Do not silently expand scope.
 
@@ -244,9 +244,9 @@ and report the required replan. Do not silently expand scope.
   `docs/architecture/`. Retain their authority statements and do not duplicate contract rules.
 - Apply Developer-guide style as the primary profile for
   `docs/developer-guide/architecture-tests.md`, limited to this focused status correction. Its
-  command, mental model, typical-mistakes table, and navigation must remain intact.
+  command, mental model, typical-mistakes table, and navigation must remain intact.<span data-glossary-navigation="true"> ([mental model glossary](../../../../glossary.md#term-mental-model))</span>
 - Apply Planning style to this task, the Runtime master plan, and roadmap. Keep the master plan
-  concise and the task self-contained.
+  concise and the task self-contained.<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
 - No example-format expansion is required: the task changes status prose, not an input/output
   calculation or procedural example.
 - Introduce no new reusable project term. Review the glossary and record a reasoned no-change
@@ -259,17 +259,17 @@ The final evidence must record each conclusion with a reason:
 - `ARCHITECTURE.md` and ADRs — no change because the finding concerns obsolete explanatory
   implementation status, not an architecture decision.
 - Dependency rules and focused Runtime/Prepare/backend architecture — no change because their
-  ownership and current-versus-planned boundaries are already accurate.
+  ownership and current-versus-planned boundaries are already accurate.<span data-glossary-navigation="true"> ([Dependency glossary](../../../../glossary.md#term-dependency); [Prepare glossary](../../../../glossary.md#prepare); [backend glossary](../../../../glossary.md#backend); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Runtime/Public APIs, backend guides, user guides, and glossary — no change because no API,
-  workflow, backend contract, or reusable terminology changes.
+  workflow, backend contract, or reusable terminology changes.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - Java/Javadoc and generated Javadocs — no change and no regeneration because no Java contract or
-  Javadoc source changes.
-- Runtime source/tests and task 0012 behavior — no change because `RUNTIME-CLEANUP-001` is already
+  Javadoc source changes.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
+- [Runtime](../../../../glossary.md#term-runtime) source/tests and task 0012 behavior — no change because `RUNTIME-CLEANUP-001` is already
   resolved and outside this status correction.
 - Architecture tests, Gradle, dependencies, and build structure — no change because Runtime 0014
-  exclusively owns `ARCHITECTURE-ENFORCEMENT-001`.
+  exclusively owns <span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle))</span>`ARCHITECTURE-ENFORCEMENT-001`.
 - Backend conformance and integration — not triggered because no backend behavior or end-to-end
-  Engine path changes.
+  Engine path changes.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance); [Engine glossary](../../../../glossary.md#term-engine))</span>
 - Completed Runtime 0001-0012 history and audit evidence — preserved because this task only
   corrects the later explanatory status finding.
 - Runtime milestone — remains open because Runtime 0014 is still Draft and the enforcement
@@ -280,33 +280,33 @@ The final evidence must record each conclusion with a reason:
 - All five stale statements identified under Exact correction contract are absent, and each is
   replaced with the specified exact current-status language, allowing only Markdown line reflow.
 - The replacements agree with current source/module inventories, the roadmap, the Runtime 0011
-  audit, Runtime 0012 completion evidence, and the three current architecture-test suites.
+  audit, Runtime 0012 completion evidence, and the three current architecture-test suites.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module))</span>
 - Each architecture page still identifies `ARCHITECTURE.md` as authoritative and does not present
-  the roadmap or implementation as an architecture contract.
+  the roadmap or implementation as an architecture contract.<span data-glossary-navigation="true"> ([architecture contract glossary](../../../../glossary.md#architecture-contract))</span>
 - Current implemented contracts are not reduced to initial Model foundations or placeholder
-  modules, and incomplete Engine/concrete-backend end-to-end execution is not claimed as current.
+  modules, and incomplete Engine/concrete-backend end-to-end execution is not claimed as current.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Engine glossary](../../../../glossary.md#term-engine); [backend glossary](../../../../glossary.md#backend))</span>
 - The architecture-test guide no longer says focused tests are absent or that success mainly
   proves project loading. It names only current Config, Planning, and conditional NN/Training
-  coverage and leaves Runtime enforcement absent.
+  coverage and leaves Runtime enforcement absent.<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span>
 - No architecture rule is added, removed, weakened, duplicated, or reinterpreted.
 - No Java, Javadoc, generated documentation, Gradle, dependency, test, ADR, API, glossary,
-  backend-guide, user-guide, or unrelated documentation path changes.
-- Runtime 0011 and 0012 remain Complete with their evidence unchanged.
-- Runtime 0013 is synchronized as Ready in this task, the Runtime master plan, and roadmap.
+  backend-guide, user-guide, or unrelated documentation path changes.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [Gradle glossary](../../../../glossary.md#term-gradle); [dependency glossary](../../../../glossary.md#term-dependency); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
+- [Runtime](../../../../glossary.md#term-runtime) 0011 and 0012 remain Complete with their evidence unchanged.
+- Runtime 0013 is synchronized as [Ready](../../../../glossary.md#term-ready) in this task, the Runtime master plan, and roadmap.
 - Runtime 0014 remains the next Draft frontier, depends on 0013, owns
   `ARCHITECTURE-ENFORCEMENT-001`, and has no detailed task file.
-- The Runtime milestone remains open and Prepare 0003 remains Draft without a specification.
+- The Runtime milestone remains open and [Prepare](../../../../glossary.md#prepare) 0003 remains Draft without a specification.
 - Markdown links, anchors, unique effective anchors, fences, final newlines, trailing whitespace,
-  exact scope, status order, completed-history preservation, and `git diff --check` pass.
+  exact scope, status order, completed-history preservation, and <span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope))</span>`git diff --check` pass.
 
-## Tests / validation
+## Tests / [validation](../../../../glossary.md#term-validation)
 
-Validation tier: documentation-only task validation. No Java behavior, dependency edge, build
-configuration, or architecture-test implementation changes, so do not run Java, Javadoc,
-repository, architecture, backend-conformance, or integration test tasks. Reuse Runtime 0011 and
+Validation tier: documentation-only task validation. No Java behavior, [dependency edge](../../../../glossary.md#term-dependency-edge), build
+configuration, or architecture-test implementation changes, so do not [run](../../../../glossary.md#term-run) Java, [Javadoc](../../../../glossary.md#term-javadoc),
+repository, architecture, [backend](../../../../glossary.md#backend)-[conformance](../../../../glossary.md#term-conformance), or [integration test](../../../../glossary.md#term-integration-test) tasks. Reuse [Runtime](../../../../glossary.md#term-runtime) 0011 and
 0012 evidence only as reviewed implementation-status evidence; do not report it as newly run.
 
-At execution start, capture the pre-existing completed-history content that must remain byte-for-
+At execution start, [capture](../../../../glossary.md#term-capture-meanings) the pre-existing completed-history content that must remain byte-for-
 byte unchanged:
 
 ```bash
@@ -345,7 +345,7 @@ test -z "$(find docs/planning/modules/runtime/tasks -maxdepth 1 -type f \
 ```
 
 If `/tmp/validate_synaptik_markdown.py` is absent, create an equivalent temporary validator
-outside the repository. It must check local link targets and anchors, unique effective heading
+outside the repository. It must check local link [targets](../../../../glossary.md#term-target) and anchors, unique effective heading
 anchors, balanced backtick and tilde fences, final newlines, and trailing whitespace for all seven
 changed Markdown files.
 
@@ -354,11 +354,11 @@ Inspect the final diff manually to confirm:
 - the four document corrections match the exact correction contract;
 - Runtime 0013 owns exactly seven paths and the shared tree contains only the fourteen expected
   Runtime-0011/0012/0013 paths;
-- the completed Runtime 0011/0012 content hashes still match;
+- the completed Runtime 0011/0012 content [hashes](../../../../glossary.md#term-hash) still match;
 - 0011 and 0012 are Complete, 0013 is Ready before execution and Complete only after execution,
-  and 0014 remains Draft;
+  and 0014 remains Draft;<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready))</span>
 - there is no 0014 task file; and
-- `ARCHITECTURE.md`, Java, tests, Gradle, dependencies, ADRs, and unrelated docs have no diff.
+- `ARCHITECTURE.md`, Java, tests, [Gradle](../../../../glossary.md#term-gradle), dependencies, ADRs, and unrelated docs have no diff.
 
 ## Stop conditions
 
@@ -367,33 +367,33 @@ Stop without editing or revert only this task's in-progress authorized edits if:
 - source, tests, or current plans disprove any required replacement meaning;
 - a replacement would contradict or need to change `ARCHITECTURE.md`;
 - correcting the finding requires Java, Javadoc, Gradle, dependency, architecture-test, ADR,
-  glossary, API, or another unlisted path;
-- the exact stale scope expands beyond the five statements in four implicated documents;
-- Runtime 0011/0012 evidence or pre-existing work cannot be preserved;
-- implementation would need to create or make Ready Runtime 0014; or
+  glossary, API, or another unlisted path;<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [Gradle glossary](../../../../glossary.md#term-gradle); [dependency glossary](../../../../glossary.md#term-dependency); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
+- the exact stale [scope](../../../../glossary.md#term-scope) expands beyond the five statements in four implicated documents;
+- [Runtime](../../../../glossary.md#term-runtime) 0011/0012 evidence or pre-existing work cannot be preserved;
+- implementation would need to create or make [Ready](../../../../glossary.md#term-ready) Runtime 0014; or
 - the seven-owned-path ceiling cannot be maintained.
 
-Report the exact conflict, affected path, completed work, and required replan using the canonical
+Report the exact conflict, affected path, completed work, and required replan using the [canonical](../../../../glossary.md#term-canonical-form)
 incomplete status. Do not invent new architecture or enforcement.
 
 ## Dependencies
 
-- Runtime 0011 — Complete; its durable audit defines `DOCUMENTATION-STATUS-001`, the four
+- [Runtime](../../../../glossary.md#term-runtime) 0011 — Complete; its durable audit defines `DOCUMENTATION-STATUS-001`, the four
   implicated documents, and the separate enforcement finding.
 - Runtime 0012 — Complete; it resolves `RUNTIME-CLEANUP-001` and preserves 0013/0014 as ordered
   Draft follow-ups.
 - Current implementation inventories and roadmap status for Model, Backend Contract, Config,
-  Planning, Compiler, Runtime, Prepare, Trace, Engine, concrete backends, extensions, and tools.
+  Planning, Compiler, Runtime, Prepare, Trace, Engine, concrete backends, extensions, and tools.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Backend glossary](../../../../glossary.md#backend); [Planning glossary](../../../../glossary.md#term-planning); [Compiler glossary](../../../../glossary.md#term-compiler); [Prepare glossary](../../../../glossary.md#prepare); [Trace glossary](../../../../glossary.md#trace); [Engine glossary](../../../../glossary.md#term-engine))</span>
 - The three current architecture-test suites for Config, Planning, and conditional NN/Training
-  direction.
+  direction.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span>
 
 ## Follow-up tasks
 
-- Runtime 0014 remains the next Draft frontier. It alone owns focused Runtime dependency and
-  `Operation`/`CompiledNode` hot-path enforcement for `ARCHITECTURE-ENFORCEMENT-001`.
+- [Runtime](../../../../glossary.md#term-runtime) 0014 remains the next Draft frontier. It alone owns focused Runtime [dependency](../../../../glossary.md#term-dependency) and
+  [`Operation`](../../../../glossary.md#operation)/`CompiledNode` hot-path enforcement for `ARCHITECTURE-ENFORCEMENT-001`.
 - Reassess Runtime milestone closure only after Runtime 0014 is separately planned, executed, and
   validated. Runtime 0013 must not close the milestone.
-- Prepare 0003 and all other downstream owners retain their current Draft status and scope.
+- [Prepare](../../../../glossary.md#prepare) 0003 and all other downstream [owners](../../../../glossary.md#term-owner) retain their current Draft status and [scope](../../../../glossary.md#term-scope).
 
 Do not create a detailed Runtime 0014 specification in this task.
 
@@ -402,7 +402,7 @@ Do not create a detailed Runtime 0014 specification in this task.
 Expected impact: None.
 
 This task corrects non-authoritative implementation-status prose to agree with current evidence.
-It changes no architecture contract, ownership, dependency, lifecycle, public API, or enforcement.
+It changes no [architecture contract](../../../../glossary.md#architecture-contract), [ownership](../../../../glossary.md#term-ownership-meanings), [dependency](../../../../glossary.md#term-dependency), [lifecycle](../../../../glossary.md#lifecycle), public [API](../../../../glossary.md#term-application-programming-interface-api), or enforcement.
 If execution discovers a required architecture decision, stop and report it without editing
 `ARCHITECTURE.md`.
 
@@ -442,47 +442,47 @@ Return the canonical completion summary and exact Status line.
 
 - The correction names implemented module families at a stable capability level and delegates
   exact task delivery to the roadmap. It does not copy task counts or completion history into
-  architecture explanations.
+  architecture explanations.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module))</span>
 - “Substantive implementation” is used only to refute the obsolete placeholder-only claim. It is
   not a synonym for module or milestone completion.
 - Lifecycle status names implemented compile/prepare/run contract portions and separately states
   that concrete backend plus Engine composition is absent, preventing an end-to-end execution
-  overclaim.
+  overclaim.<span data-glossary-navigation="true"> ([Lifecycle glossary](../../../../glossary.md#lifecycle); [compile glossary](../../../../glossary.md#compile); [prepare glossary](../../../../glossary.md#prepare); [run glossary](../../../../glossary.md#term-run); [concrete backend glossary](../../../../glossary.md#concrete-backend); [Engine glossary](../../../../glossary.md#term-engine))</span>
 - The architecture-test guide names its actual three focused suites and its known Runtime gap. It
-  does not claim broader enforcement and does not pre-design Runtime 0014.
+  does not claim broader enforcement and does not pre-design Runtime 0014.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime))</span>
 - Runtime 0013 is documentation-only and is itself the required clean documentation-focused
   context. A second pass would duplicate the same review without executable behavior separation.
 
 ## Known limitations
 
 - The replacement status is a bounded snapshot. The roadmap remains the detailed delivery record
-  and must be used for later frontier changes.
-- Architecture-test coverage remains incomplete. Runtime 0014 retains
+  and must be used for later frontier changes.<span data-glossary-navigation="true"> ([snapshot glossary](../../../../glossary.md#term-snapshot))</span>
+- Architecture-test coverage remains incomplete. [Runtime](../../../../glossary.md#term-runtime) 0014 retains
   `ARCHITECTURE-ENFORCEMENT-001`, so the Runtime milestone stays open after this correction.
 - Engine composition, concrete backend execution, public result-value access, complete Prepare
-  orchestration, Runtime tracing/policy, and tuning remain with their existing owners.
+  orchestration, Runtime tracing/policy, and tuning remain with their existing owners.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [concrete backend glossary](../../../../glossary.md#concrete-backend); [Prepare glossary](../../../../glossary.md#prepare))</span>
 
-## Validation evidence
+## [Validation](../../../../glossary.md#term-validation) evidence
 
 - Clean documentation context `019fc161-1298-72e1-a2bb-82ac8cbfb672` is this task's required
   documentation pass. Its initial
   working tree contained exactly ten paths: the six modified Runtime-0011/0012 implementation and
   documentation paths, the untracked 0011 audit and completed 0011/0012 task files, and this Ready
-  0013 specification. Before editing, it captured the seven required preservation hashes in
+  0013 specification. Before editing, it captured the seven required preservation hashes in<span data-glossary-navigation="true"> ([hashes glossary](../../../../glossary.md#term-hash))</span><span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready))</span>
   `/tmp/runtime0013-preserved.sha256`.
 - Source/module inventory found substantive Model (176 production files), Backend Contract (9),
   Planning (13), Compiler (40), Runtime (25), and Prepare (13) implementations, partial Config
   (5) and Trace (9) contracts, and only marker-level Engine, concrete-backend, higher-extension,
   and tool sources. The three architecture-test suites were read in full and confirm focused
   Config and Planning dependency checks plus a conditional NN/Training direction check, with no
-  Runtime dependency or hot-path suite.
+  Runtime dependency or hot-path suite.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module); [Model glossary](../../../../glossary.md#term-model); [Backend glossary](../../../../glossary.md#backend); [Planning glossary](../../../../glossary.md#term-planning); [Compiler glossary](../../../../glossary.md#term-compiler); [Prepare glossary](../../../../glossary.md#prepare); [Trace glossary](../../../../glossary.md#trace); [Engine glossary](../../../../glossary.md#term-engine); [dependency glossary](../../../../glossary.md#term-dependency); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span>
 - The Runtime 0011 durable audit, completed tasks 0011 and 0012, current master plans, roadmap,
   final Runtime source/test/generated-Javadoc evidence, and the existing shared diff were
-  reviewed. They corroborate the replacements and preserve the 0011 `BLOCKING_GAP` verdict,
-  resolved `RUNTIME-CLEANUP-001`, and separate `ARCHITECTURE-ENFORCEMENT-001` owner.
+  reviewed. They corroborate the replacements and preserve the 0011 <span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc))</span>`BLOCKING_GAP` verdict,
+  resolved `RUNTIME-CLEANUP-001`, and separate `ARCHITECTURE-ENFORCEMENT-001` [owner](../../../../glossary.md#term-owner).
 - Replaced exactly the stale current-status statement in each of
   `current-architecture-plan.md`, `lifecycle.md`, and `module-boundaries.md`. Replaced exactly the
-  stale opening and run-result statements in `architecture-tests.md`. Literal Markdown roadmap
+  stale opening and run-result statements in <span data-glossary-navigation="true"> ([run glossary](../../../../glossary.md#term-run))</span>`architecture-tests.md`. Literal Markdown roadmap
   links were retained, and the separate accurate `TRAINING_STEP` limitation is unchanged.
 - `python3 /tmp/validate_synaptik_markdown.py docs/architecture/current-architecture-plan.md
   docs/architecture/lifecycle.md docs/architecture/module-boundaries.md
@@ -492,7 +492,7 @@ Return the canonical completion summary and exact Status line.
   anchor, unique-effective-anchor, balanced-fence, final-newline, and trailing-whitespace checks
   for all seven owned Markdown files.
 - `shasum -a 256 -c /tmp/runtime0013-preserved.sha256` passed for the 0011 audit, completed
-  0011/0012 tasks, Runtime API, glossary, `RunState.java`, and `RunStateTest.java`.
+  0011/0012 tasks, Runtime API, glossary, <span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>`RunState.java`, and `RunStateTest.java`.
   `git diff --check` passed with no output. The final tracked/untracked union and
   `git status --short` contain exactly fourteen legitimate shared paths: the seven 0013-owned
   Markdown paths plus the seven preserved 0011/0012 paths.
@@ -504,28 +504,28 @@ Return the canonical completion summary and exact Status line.
 - `ARCHITECTURE.md` and ADRs need no change because the finding concerns obsolete explanatory
   implementation status, not an architecture decision. Dependency rules and the focused
   Runtime/Prepare/backend architecture need no change because their ownership and
-  current-versus-planned boundaries remain accurate.
+  current-versus-planned boundaries remain accurate.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Runtime/Public APIs, backend guides, user guides, and glossary need no change because no API,
   workflow, backend contract, or reusable terminology changes. Java/Javadoc and generated
   Javadocs need no change or regeneration because no Java contract or Javadoc source changes.
-- Runtime source/tests and task 0012 behavior need no change because `RUNTIME-CLEANUP-001` is
+- [Runtime](../../../../glossary.md#term-runtime) source/tests and task 0012 behavior need no change because `RUNTIME-CLEANUP-001` is
   resolved and outside this correction. Completed Runtime 0001-0012 history and audit evidence
   remain unchanged because this task corrects only the later explanatory status finding.
 - Architecture tests, Gradle, dependencies, and build structure need no change because Draft
-  Runtime 0014 exclusively owns `ARCHITECTURE-ENFORCEMENT-001`. Backend conformance and integration
+  Runtime 0014 exclusively owns <span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle))</span>`ARCHITECTURE-ENFORCEMENT-001`. Backend conformance and integration
   were not triggered because no backend behavior or end-to-end Engine path changes. Java,
   Javadoc, repository, architecture, backend-conformance, and integration test tasks were not run
-  under the required documentation-only validation tier.
+  under the required documentation-only validation tier.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance); [integration test glossary](../../../../glossary.md#term-integration-test))</span>
 - The Runtime milestone remains open because Runtime 0014 is Draft and its enforcement finding is
   unresolved. No environmental limitation or stop condition was encountered.
 
 ## Implementation notes
 
 - Applied only the five exact replacement passages in the four implicated explanatory documents;
-  no surrounding ownership summary or unrelated wording changed.
+  no surrounding ownership summary or unrelated wording changed.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Synchronized only this task, the Runtime master plan, and the roadmap after the correction and
   validation gates passed. Runtime 0014 remains a Draft row without a task file, and Prepare 0003
-  remains Draft without a specification.
+  remains Draft without a specification.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [validation glossary](../../../../glossary.md#term-validation); [Prepare glossary](../../../../glossary.md#prepare))</span>
 - Preserved every pre-existing Runtime 0011/0012 path and created no file beyond the already
   present 0013 task specification.
 
@@ -533,21 +533,21 @@ Return the canonical completion summary and exact Status line.
 
 - Completed changes: corrected the five stale status statements and synchronized Runtime 0013 as
   Complete while leaving Runtime 0014 Draft and the Runtime milestone open.
-- Files changed or created: exactly seven Runtime-0013-owned paths—
+- Files changed or created: exactly seven [Runtime](../../../../glossary.md#term-runtime)-0013-owned paths—
   `docs/architecture/current-architecture-plan.md`, `docs/architecture/lifecycle.md`,
   `docs/architecture/module-boundaries.md`, `docs/developer-guide/architecture-tests.md`, this
   task, `docs/planning/modules/runtime/master-plan.md`, and `docs/planning/roadmap.md`. The final
   shared tree has fourteen legitimate Runtime-0011/0012/0013 paths.
-- Tests and validation: the exact `python3 /tmp/validate_synaptik_markdown.py <seven owned paths>`,
+- Tests and [validation](../../../../glossary.md#term-validation): the exact `python3 /tmp/validate_synaptik_markdown.py <seven owned paths>`,
   `shasum -a 256 -c /tmp/runtime0013-preserved.sha256`, replacement/stale-text `rg`, tracked plus
-  untracked scope inventory, status/history/later-file `rg` and `find`, and `git diff --check`
+  untracked scope inventory, status/history/later-file <span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope))</span>`rg` and `find`, and `git diff --check`
   commands passed. Java, Javadoc, repository, architecture, backend-conformance, and integration
-  tasks were correctly deferred by the documentation-only validation tier.
+  tasks were correctly deferred by the documentation-only validation tier.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 - Documentation-agent review: clean context `019fc161-1298-72e1-a2bb-82ac8cbfb672`; this task is
   the documentation pass and no redundant second pass was used.
 - Documentation impact: corrected current implementation status in four explanatory documents
   and synchronized this task, Runtime master plan, and roadmap.
-- Javadoc review: No change; no Java contract or Javadoc source changed.
+- [Javadoc](../../../../glossary.md#term-javadoc) review: No change; no Java contract or Javadoc source changed.
 - Glossary impact: No change; no reusable term or established meaning changed.
 - Unresolved issues: ARCHITECTURE-ENFORCEMENT-001 remains owned by Draft Runtime 0014.
 - Follow-up required: Plan and execute Runtime 0014 separately; keep the Runtime milestone open.

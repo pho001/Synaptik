@@ -1,121 +1,121 @@
-# ADR 0037: Stored Model + TrainingState in an optional downstream adapter
+# [ADR](../../glossary.md#term-architecture-decision-record-adr) 0037: Stored [Model](../../glossary.md#term-model) + TrainingState in an optional downstream adapter
 
 ## Status
 
 Withdrawn Proposed direction — 2026-10-14; superseded as the primary product by
-[Proposed ADR 0038](0038-declarative-model-and-training-resume.md).
-Never accepted or implemented. The user revised direction to automatic usable-model load with
-inference or Training-owned resume; values + TrainingState alone cannot deliver that workflow.
+[Proposed ADR 0038](0038-declarative-model-and-training-resume.md)<span data-glossary-navigation="true"> ([ADR glossary](../../glossary.md#term-architecture-decision-record-adr))</span>.
+Never accepted or implemented. The user revised direction to automatic usable-[model](../../glossary.md#term-model) load with
+[inference](../../glossary.md#term-inference) or Training-owned [resume](../../glossary.md#schema-serialization-and-checkpoint); values + TrainingState alone cannot deliver that workflow.
 The original proposal below is retained as historical design evidence. Its linked 0006 brief is
-now revised, not an unchanged wire specification. Raw optimizer/group/slot/counter encoding,
-complete logical-byte comparison and bounded public-owner composition remain useful foundations.
-The unpublished training-checkpoint.v1 wire is not claimed compatible with 0038's new kind/content.
+now revised, not an unchanged wire specification. Raw [optimizer](../../glossary.md#term-optimizer)/group/slot/counter encoding,
+complete logical-byte comparison and bounded public-[owner](../../glossary.md#term-owner) composition remain useful foundations.
+The unpublished training-[checkpoint](../../glossary.md#term-checkpoint).v1 wire is not claimed compatible with 0038's new kind/content.
 Published model.v1/envelope APIs and current authoritative contracts remain unchanged.
 
 ## Context
 
-Applications need one durable file for the model and detached optimizer/session state. ModelCheckpoint
-already supplies supported envelope capture, inspection, canonical exact-path bytes and strict load;
-TrainingState already supports defensive reconstruction. Neither owner provides a cross-owner
-transaction. The selected product is stored-state restoration, not automatic exact continuation.
+Applications need one durable file for the [model](../../glossary.md#term-model) and [detached](../../glossary.md#detached-model-results) [optimizer](../../glossary.md#term-optimizer)/session state. ModelCheckpoint
+already supplies supported envelope [capture](../../glossary.md#term-capture-meanings), inspection, [canonical](../../glossary.md#term-canonical-form) exact-path bytes and strict load;
+TrainingState already supports defensive reconstruction. Neither [owner](../../glossary.md#term-owner) provides a cross-owner
+[transaction](../../glossary.md#term-transaction). The selected product is stored-state restoration, not automatic exact continuation.
 The optional adapter is currently reserved but absent and forbidden from build inclusion until its gate.
 
 ## Decision drivers
 
-- Keep model-only consumers independent of Training and retain each owner's validation authority.
-- Preserve current model/envelope formats and raw bytes without private model metadata parsing.
-- Reject incoherent parameter snapshots and bound encoded allocations before copies.
-- Keep application publication/exclusion explicit; avoid a general persistence framework.
+- Keep [model](../../glossary.md#term-model)-only consumers independent of Training and retain each [owner](../../glossary.md#term-owner)'s [validation](../../glossary.md#term-validation) authority.
+- Preserve current model/envelope formats and raw bytes without private model [metadata](../../glossary.md#term-metadata) parsing.
+- Reject incoherent [parameter](../../glossary.md#term-parameter) snapshots and bound encoded allocations before copies.
+- Keep application [publication](../../glossary.md#term-publication)/exclusion explicit; avoid a general [persistence](../../glossary.md#term-persistence) framework.
 
 ## Options considered
 
 1. Keep separate model file and application-specific Training serialization. This leaves applications
-   implementing bounded codecs and coherence checks, and offers no single-file publication.
+   implementing bounded codecs and coherence checks, and offers no single-file publication.<span data-glossary-navigation="true"> ([model glossary](../../glossary.md#term-model); [serialization glossary](../../glossary.md#term-serialization); [publication glossary](../../glossary.md#term-publication))</span>
 2. Put Training serialization in Checkpoint or file I/O in Training. This couples optional consumers
-   or reverses current ownership; reject it.
+   or reverses current ownership; reject it.<span data-glossary-navigation="true"> ([Checkpoint glossary](../../glossary.md#term-checkpoint); [ownership glossary](../../glossary.md#term-ownership-meanings))</span>
 3. Add generic participant/transaction/serializer APIs. This widens the settled product and would
-   require unsupported external-state schemas; reject it.
+   require unsupported external-state schemas; reject it.<span data-glossary-navigation="true"> ([transaction glossary](../../glossary.md#term-transaction); [schemas glossary](../../glossary.md#term-schema))</span>
 4. Add an optional downstream Model + TrainingState adapter over existing public APIs. Propose this
-   bounded option; no pure Training validator, shared transaction or core Artifact API extension.
+   bounded option; no pure Training validator, shared transaction or core Artifact API extension.<span data-glossary-navigation="true"> ([Artifact glossary](../../glossary.md#term-artifact); [API glossary](../../glossary.md#term-application-programming-interface-api))</span>
 
 ## Proposed decision
 
 Create optional `extensions/training-checkpoint`, package
-`io.github.pho001.synaptik.training.checkpoint`, with exactly public Training and Checkpoint project
-dependencies. Existing NN/Model/Engine public types are transitive; there are no reverse/lower/backend
-edges. The original 0037 facade proposed TrainingCheckpoint.save/read and a privately constructed
-immutable nested Snapshot with modelInspection/trainingState/loadModel/restoreTraining.
+`io.github.pho001.synaptik.training.checkpoint`, with exactly public Training and [Checkpoint](../../glossary.md#term-checkpoint) project
+dependencies. Existing [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)/[Model](../../glossary.md#term-model)/[Engine](../../glossary.md#term-engine) public types are transitive; there are no reverse/lower/[backend](../../glossary.md#backend)
+edges. The original 0037 [facade](../../glossary.md#term-facade) proposed TrainingCheckpoint.save/read and a privately constructed
+[immutable](../../glossary.md#term-immutable) nested [Snapshot](../../glossary.md#term-snapshot) with modelInspection/trainingState/loadModel/restoreTraining.
 The [revised brief](../../planning/extensions/checkpoint/tasks/0006-training-checkpoint-adapter.md#proposed-types-and-high-level-api)
 supersedes that primary facade; the original proposal added no other public production type.
 
-Use outer kind `training-checkpoint.v1` over unchanged ArtifactFile framing/publication. Copy existing
+Use outer kind `training-checkpoint.v1` over unchanged ArtifactFile [framing](../../glossary.md#term-framing)/[publication](../../glossary.md#term-publication). Copy existing
 model entry bytes into fixed `model/` names and reconstruct `model.v1` for public ModelCheckpoint
-validation/load. Do not inspect private ordinal metadata. A separate `training/schema` and fixed
-ordinal slot names encode explicit version/IDs, raw binary64 optimizer coefficients, ordered groups,
-ordered path/type/static-shape descriptors, lengths, second-slot presence and counters. Raw logical,
-master, momentum/moment and pending payload bytes are separate entries. The
+[validation](../../glossary.md#term-validation)/load. Do not inspect private ordinal [metadata](../../glossary.md#term-metadata). A separate `training/schema` and fixed
+ordinal slot names encode explicit version/IDs, raw [binary64](../../glossary.md#floating-point-precision-and-rounding) [optimizer](../../glossary.md#term-optimizer) coefficients, ordered groups,
+ordered path/type/static-[shape](../../glossary.md#shape) [descriptors](../../glossary.md#term-descriptor), lengths, second-slot presence and counters. Raw logical,
+master, [momentum](../../glossary.md#term-momentum)/moment and pending [payload](../../glossary.md#artifact-envelope-and-atomic-publication) bytes are separate entries. The
 [original wire proposal, now revised](../../planning/extensions/checkpoint/tasks/0006-training-checkpoint-adapter.md#proposed-canonical-wire-and-retained-foundation)
-was not implemented; neither model.v1 nor envelope v1 changes. Existing framing SHA-256
-protects all encoded bytes; preserve existing model fingerprints without another certificate layer.
+was not implemented; neither model.v1 nor envelope v1 changes. Existing framing [SHA-256](../../glossary.md#term-sha-256)
+protects all encoded bytes; preserve existing model fingerprints without another [certificate](../../glossary.md#formal-proof-certificate-and-trusted-assumptions) layer.
 
-Complete model parameter set/type/shape/logical-byte equality is required before save and before read
-returns Snapshot. Buffers stay model-owned, support all seven model types, and are not Training entries.
-Compare exact paths without Unicode normalization or resorting Training order. Decode structural
-Training values through public constructors: zero-element shapes and numerically invalid slots may
-be stored. Algorithm-specific slot validity, group membership/cross-group overlap, finite values,
-coefficient narrowing and session compatibility remain Training.restore authority. Read is not proof
+Complete model [parameter](../../glossary.md#term-parameter) set/type/shape/logical-byte equality is required before save and before read
+returns Snapshot. [Buffers](../../glossary.md#term-buffer) stay model-owned, support all seven model types, and are not Training entries.
+Compare exact paths without [Unicode normalization](../../glossary.md#term-unicode-normalization) or resorting Training order. Decode structural
+Training values through public constructors: zero-[element](../../glossary.md#term-element) shapes and numerically invalid slots may
+be stored. Algorithm-specific slot validity, group membership/cross-group overlap, [finite](../../glossary.md#term-finite) values,
+coefficient [narrowing](../../glossary.md#term-narrowing) and session compatibility remain Training.restore authority. Read is not proof
 that any session can restore the stored state.
 
-Preflight checked outer and reconstructed-model framing sizes and all existing ArtifactLimits before
+[Preflight](../../glossary.md#term-preflight) checked outer and reconstructed-model framing sizes and all existing ArtifactLimits before
 adapter payload copies. Nested metadata counts/ranks/paths are bounded from remaining bytes before
-allocation. Strict UTF-8 includes rejecting malformed surrogate input Strings. Public Entry and
-ParameterState constructors clone; no internal adopt shortcut or peak-heap promise is available.
-Format/limit/cross-component failures use ArtifactFormatException; I/O and owner/lifecycle failures
-retain existing API taxonomy. Reuse ArtifactFile for actual checksums and atomic file publication.
+allocation. Strict [UTF-8](../../glossary.md#term-utf-8) includes rejecting malformed surrogate input Strings. Public Entry and
+ParameterState constructors clone; no internal adopt shortcut or peak-[heap](../../glossary.md#term-heap) promise is available.
+Format/limit/cross-component failures use ArtifactFormatException; I/O and [owner](../../glossary.md#term-owner)/[lifecycle](../../glossary.md#lifecycle) failures
+retain existing [API](../../glossary.md#term-application-programming-interface-api) taxonomy. Reuse ArtifactFile for actual checksums and [atomic](../../glossary.md#resource-transaction-and-rollback) file publication.
 
 ## Rationale and recovery scenario
 
-An application captures session.state() and ModelCheckpoint.capture under one application exclusion,
-including model buffers, optimizer slots and counters; equality alone cannot prove quiescence. It
-then saves detached values. It reads a file, strict-loads a distinct private tree before opening a
-session, supplies supported native parameter storage and application contexts/objective, and opens
-the private session. Snapshot.restoreTraining calls privateSession.state(), compares complete logical
+An application [captures](../../glossary.md#term-capture-meanings) session.state() and ModelCheckpoint.[capture](../../glossary.md#term-capture-meanings) under one application exclusion,
+including [model](../../glossary.md#term-model) [buffers](../../glossary.md#term-buffer), [optimizer](../../glossary.md#term-optimizer) slots and counters; equality alone cannot prove [quiescence](../../glossary.md#term-quiescence). It
+then saves [detached](../../glossary.md#detached-model-results) values. It reads a file, strict-loads a distinct private tree before opening a
+session, supplies supported native [parameter](../../glossary.md#term-parameter) storage and application contexts/[objective](../../glossary.md#term-objective), and opens
+the private session. [Snapshot](../../glossary.md#term-snapshot).restoreTraining calls privateSession.state(), compares complete logical
 parameter facts, then delegates restore(saved). These are separately admitted operations; the caller
-excludes other candidate/session users across both, not through a new atomic admission or lock.
+excludes other candidate/session users across both, not through a new [atomic](../../glossary.md#resource-transaction-and-rollback) [admission](../../glossary.md#term-admission) or lock.
 The caller must loadModel onto that SAME tree before session open and retain its loaded buffers
-through restore/publication: restoreTraining checks only parameters, not tree identity or buffers.
-Read and Snapshot accessors do not prove whole-model installation. No token/registry API is added.
+through restore/[publication](../../glossary.md#term-publication): restoreTraining checks only parameters, not tree [identity](../../glossary.md#term-identity-meanings) or buffers.
+Read and Snapshot accessors do not prove whole-model installation. No [token](../../glossary.md#term-token)/[registry](../../glossary.md#term-registry) [API](../../glossary.md#term-application-programming-interface-api) is added.
 The caller publishes only the fully validated replacement, discarding it on failure. A model load
 while that tree's session is open remains forbidden. This preserves published state on candidate
-failure without inventing rollback for an already retired session.
+failure without inventing [rollback](../../glossary.md#term-rollback) for an already retired session.
 
 ## Consequences
 
 - One file has atomic live visibility under the existing temporary-file/force/atomic-move policy,
-  not universal power-loss durability, authentication, or a non-atomic fallback.
+  not universal power-loss durability, authentication, or a non-atomic fallback.<span data-glossary-navigation="true"> ([atomic glossary](../../glossary.md#resource-transaction-and-rollback); [loss glossary](../../glossary.md#loss); [durability glossary](../../glossary.md#term-durability); [authentication glossary](../../glossary.md#term-authentication))</span>
 - Detached values and public defensive copies may increase heap demand. Canonical encoded-byte
-  limits do not constitute a memory budget or large-model support evidence.
+  limits do not constitute a memory budget or large-model support evidence.<span data-glossary-navigation="true"> ([Detached glossary](../../glossary.md#detached-model-results); [heap glossary](../../glossary.md#term-heap); [Canonical glossary](../../glossary.md#term-canonical-form); [model glossary](../../glossary.md#term-model))</span>
 - Logical low-precision values remain distinct from F32 masters; all raw signed zeros/slot bits
-  survive encoding. Session validity is deliberately a later owner decision, not silently codec policy.
+  survive encoding. Session validity is deliberately a later owner decision, not silently codec policy.<span data-glossary-navigation="true"> ([precision glossary](../../glossary.md#term-precision); [F32 glossary](../../glossary.md#floating-point-precision-and-rounding); [owner glossary](../../glossary.md#term-owner); [codec glossary](../../glossary.md#term-codec))</span>
 - Modes, effective ForwardContexts, objective construction, input position/cursor/epoch, RNG,
   scheduler and scaler remain application-owned. No automatic exact continuation, changing graph
-  RNG stream, training-mode BatchNorm alignment, or cross-device bitwise identity is promised.
+  RNG stream, training-mode BatchNorm alignment, or cross-device bitwise identity is promised.<span data-glossary-navigation="true"> ([objective glossary](../../glossary.md#term-objective); [epoch glossary](../../glossary.md#term-epoch-meanings); [RNG glossary](../../glossary.md#graph-rng-state--graphrngstate); [graph glossary](../../glossary.md#graph); [alignment glossary](../../glossary.md#term-alignment); [device glossary](../../glossary.md#term-device); [identity glossary](../../glossary.md#term-identity-meanings))</span>
 - Approval and independently Class C-reviewed authoritative root/owning-contract update precede Ready. Clean
   implementation delivers project/build/tests and required explanatory docs in the same overall
   change, followed by independent review and coordinator acceptance; no coordinator code work or
   new prerequisite task. Until approval, 0006 stays Draft, the project is absent, and its current
-  absent-adapter test remains correct.
+  absent-adapter test remains correct.<span data-glossary-navigation="true"> ([Ready glossary](../../glossary.md#term-ready))</span>
 - Implementation requires clean execution and independent targeted Class C review/documentation,
   adapter/module raw-bit and bounds tests, durable private-candidate CPU next-input proof, bounded
   source-matched device smoke, and once-only coordinator repository gates. No broad performance
-  campaign is proposed.
+  campaign is proposed.<span data-glossary-navigation="true"> ([module glossary](../../glossary.md#term-module); [CPU glossary](../../glossary.md#term-cpu); [smoke glossary](../../glossary.md#term-smoke-test))</span>
 
 ## Related documentation
 
-- [Root dependency gate](../../../ARCHITECTURE.md#dependency-rules)
-- [Owning Checkpoint contract](../../architecture/contracts/extensions-training.md#extensionscheckpoint)
-- [Optimizer/training lifecycle](../../architecture/contracts/extensions-training.md#optimizertraining-lifecycle)
-- [Model-envelope boundary ADR 0036](0036-model-envelope-composition.md)
+- [Root dependency gate](../../../ARCHITECTURE.md#dependency-rules)<span data-glossary-navigation="true"> ([dependency glossary](../../glossary.md#term-dependency))</span>
+- [Owning Checkpoint contract](../../architecture/contracts/extensions-training.md#extensionscheckpoint)<span data-glossary-navigation="true"> ([Checkpoint glossary](../../glossary.md#term-checkpoint))</span>
+- [Optimizer/training lifecycle](../../architecture/contracts/extensions-training.md#optimizertraining-lifecycle)<span data-glossary-navigation="true"> ([Optimizer glossary](../../glossary.md#term-optimizer); [lifecycle glossary](../../glossary.md#lifecycle))</span>
+- [Model-envelope boundary ADR 0036](0036-model-envelope-composition.md)<span data-glossary-navigation="true"> ([Model glossary](../../glossary.md#term-model); [ADR glossary](../../glossary.md#term-architecture-decision-record-adr))</span>
 - [Private-candidate ADR 0035](0035-private-candidate-training-restore.md)
-- [Current module-boundary explanation](../../architecture/module-boundaries.md#extensionscheckpoint)
-- [Exact architecture-test cutover target](../../../testing/architecture-tests/src/test/java/io/github/pho001/synaptik/testing/architecture/CheckpointDependencyContractTest.java)
+- [Current module-boundary explanation](../../architecture/module-boundaries.md#extensionscheckpoint)<span data-glossary-navigation="true"> ([module glossary](../../glossary.md#term-module))</span>
+- [Exact architecture-test cutover target](../../../testing/architecture-tests/src/test/java/io/github/pho001/synaptik/testing/architecture/CheckpointDependencyContractTest.java)<span data-glossary-navigation="true"> ([target glossary](../../glossary.md#term-target))</span>

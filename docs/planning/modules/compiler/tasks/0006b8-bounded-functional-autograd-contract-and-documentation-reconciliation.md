@@ -1,4 +1,4 @@
-# Task 0006B8: Bounded functional autograd contract and documentation reconciliation
+# Task 0006B8: Bounded functional [autograd](../../../../glossary.md#autograd) contract and documentation reconciliation
 
 ## Status
 
@@ -6,49 +6,49 @@ Complete
 
 ## Change class
 
-Class C — this documentation-only repair changes the authoritative Compiler-owned automatic-
-differentiation contract and its user-visible explanation. It changes no Java behavior, API,
-dependency, module ownership, or execution path, but the normative boundary and workflow require
+Class C — this documentation-only repair changes the authoritative [Compiler](../../../../glossary.md#term-compiler)-owned automatic-
+differentiation contract and its user-visible explanation. It changes no Java behavior, [API](../../../../glossary.md#term-application-programming-interface-api),
+[dependency](../../../../glossary.md#term-dependency), [module](../../../../glossary.md#term-module) [ownership](../../../../glossary.md#term-ownership-meanings), or execution path, but the [normative](../../../../glossary.md#term-normative) boundary and workflow require
 a clean documentation implementation context and an independent clean review context.
 
 ## Goal
 
-Make the authoritative autograd contract, focused architecture explanation, user guide, and
-targeted glossary definition describe the already implemented bounded functional reverse-mode
+Make the authoritative [autograd](../../../../glossary.md#autograd) contract, focused architecture explanation, user guide, and
+targeted glossary definition describe the already implemented bounded functional [reverse-mode](../../../../glossary.md#primal-adjoint-and-differentiation-seed)
 behavior exactly, while preserving the narrower ordinary `Engine.backward(...)` convenience.
 
-## Scope
+## [Scope](../../../../glossary.md#term-scope)
 
 - Replace the obsolete future-only higher-derivative paragraph in the Compiler autograd contract
-  with the current bounded one/two-stage lifecycle.
+  with the current bounded one/two-stage lifecycle.<span data-glossary-navigation="true"> ([derivative glossary](../../../../glossary.md#term-derivative); [autograd glossary](../../../../glossary.md#autograd); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - Reconcile `training-graph.md` with current compile consumption, publication, derivative-order
-  metadata, and one combined capture.
+  metadata, and one combined capture.<span data-glossary-navigation="true"> ([compile glossary](../../../../glossary.md#compile); [publication glossary](../../../../glossary.md#term-publication); [metadata glossary](../../../../glossary.md#term-metadata); [capture glossary](../../../../glossary.md#term-capture-meanings))</span>
 - Rewrite the stale current-status and workflow portions of `user-guide/autograd.md` around the
   supported public ordinary and advanced entry points, with a current example and limitations.
-- Correct only the stale `Pre-capture Tensor-expression autograd` glossary definition; keep related entries aligned.
-- Synchronize this task, the Compiler master plan, and the roadmap when execution completes.
+- Correct only the stale [`Pre-capture Tensor-expression autograd`](../../../../glossary.md#pre-capture-tensor-expression-autograd) glossary definition; keep related entries aligned.
+- Synchronize this task, the [Compiler](../../../../glossary.md#term-compiler) master plan, and the roadmap when execution completes.
 
 The exact current boundary is:
 
 - a functional request contains exactly one or two stages with non-empty ordered outputs and
   output-aligned optional seeds; target lists are non-empty, ordered, identity-unique, and drawn
-  from the complete original forward inventory;
+  from the complete original forward inventory;<span data-glossary-navigation="true"> ([seeds glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - an absent seed is an exact typed one only for an eligible scalar output; a present seed must
-  match its output's exact Shape and floating type and must not request gradients;
-- `DisconnectedPolicy.ERROR` rejects a disconnected target, while `ZERO` returns an ordinary
+  match its output's exact Shape and floating type and must not request gradients;<span data-glossary-navigation="true"> ([seed glossary](../../../../glossary.md#term-seed); [scalar glossary](../../../../glossary.md#term-scalar); [Shape glossary](../../../../glossary.md#shape); [gradients glossary](../../../../glossary.md#term-gradient))</span>
+- `DisconnectedPolicy.ERROR` rejects a disconnected [target](../../../../glossary.md#term-target), while `ZERO` returns an ordinary
   exact typed zero expression that several target roles may share;
 - one stage requires stage-one `createGraph == false`; two stages require stage-one
   `createGraph == true` and stage-two `createGraph == false`;
 - stage one selects forward Tensor outputs, while stage two may select only generated first-stage
-  gradients through `FirstStageGradientReference(targetIndex)`;
+  gradients through <span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor))</span>`FirstStageGradientReference(targetIndex)`;
 - `createGraph` retains formulas only for the immediate second stage; it does not create an
   arbitrary persistent derivative chain;
 - derivative metadata uses only orders zero, one, and two, while gradient publication bindings
   use only orders one and two; bindings are ordered by derivative order then stage-local target
   index, retain target identity and the final gradient value, and remain target-distinct when
-  graph-output values are shared;
+  graph-output values are shared;<span data-glossary-navigation="true"> ([bindings glossary](../../../../glossary.md#term-binding); [graph glossary](../../../../glossary.md#graph))</span>
 - there is no third stage, derivative order greater than two, arbitrary nesting, persistent or
-  runtime tape, mutable Tensor gradient state, or `Tensor.backward()`;
+  runtime tape, mutable Tensor gradient state, or <span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [mutable glossary](../../../../glossary.md#term-mutable))</span>`Tensor.backward()`;
 - ordinary `Engine.backward(...)` always constructs one first-order stage with an absent scalar
   seed, `createGraph == false`, and `DisconnectedPolicy.ERROR`; the complete bounded request
   surface is available through the advanced compile boundary.
@@ -56,28 +56,28 @@ The exact current boundary is:
 ## Non-goals
 
 - No Java, test, Javadoc, Gradle, dependency, API-shape, semantic, numerical, publication,
-  preparation, runtime, backend, optimizer, or training-session behavior changes.
+  preparation, runtime, backend, optimizer, or training-session behavior changes.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [Gradle glossary](../../../../glossary.md#term-gradle); [dependency glossary](../../../../glossary.md#term-dependency); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [shape glossary](../../../../glossary.md#shape); [publication glossary](../../../../glossary.md#term-publication); [runtime glossary](../../../../glossary.md#term-runtime); [backend glossary](../../../../glossary.md#backend); [optimizer glossary](../../../../glossary.md#term-optimizer))</span>
 - No third derivative stage, general nested differentiation, persistent graph/tape lifecycle,
-  Tensor gradient field, new compile mode, or broadened derivative coverage.
+  Tensor gradient field, new compile mode, or broadened derivative coverage.<span data-glossary-navigation="true"> ([derivative glossary](../../../../glossary.md#term-derivative); [graph glossary](../../../../glossary.md#graph); [lifecycle glossary](../../../../glossary.md#lifecycle); [compile mode glossary](../../../../glossary.md#compile-mode--compilemode))</span>
 - No rewrite of the operation-family coverage matrix except removing claims made stale by current
-  source; link to the maintained Compile API where a large inventory would duplicate it.
+  source; link to the maintained Compile API where a large inventory would duplicate it.<span data-glossary-navigation="true"> ([matrix glossary](../../../../glossary.md#term-review-matrix))</span><span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [Compile glossary](../../../../glossary.md#compile))</span>
 - No root-contract, architecture decision record (ADR), architecture-test, conformance-test, or
-  integration-test change: ownership and dependency rules do not change, and
-  `ARCHITECTURE.md` already routes this concern correctly and prohibits Tensor gradient state.
+  integration-test change: ownership and dependency rules do not change, and<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#adr-ci-and-qualification))</span><span data-glossary-navigation="true"> ([architecture decision record glossary](../../../../glossary.md#term-architecture-decision-record-adr); [conformance glossary](../../../../glossary.md#term-conformance); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
+  `ARCHITECTURE.md` already routes this concern correctly and prohibits [Tensor](../../../../glossary.md#tensor) [gradient](../../../../glossary.md#term-gradient) state.
 - No edits to the current Compile, Public, Tensor, or Training API references. If source evidence
-  contradicts one of those references, stop and report the required scope expansion.
+  contradicts one of those references, stop and report the required scope expansion.<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope))</span>
 
 ## Contracts
 
 - [`ARCHITECTURE.md` heading `Authority, incorporation, and precedence`](../../../../../ARCHITECTURE.md#authority-incorporation-and-precedence)
   and [`Scope-indexed normative contracts`](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts)
-  — the incorporated Compiler contract is the sole scoped authority for this concern.
+  — the incorporated Compiler contract is the sole scoped authority for this concern.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler))</span>
 - [`ARCHITECTURE.md` heading `Core invariants`](../../../../../ARCHITECTURE.md#core-invariants)
   and [`Explicit non-goals`](../../../../../ARCHITECTURE.md#explicit-non-goals) — Tensor has no
-  gradient lifecycle state and the repair must not add one.
+  gradient lifecycle state and the repair must not add one.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [gradient glossary](../../../../glossary.md#term-gradient); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - [`compiler-autograd.md` heading `Compiler-owned automatic differentiation`](../../../../architecture/contracts/compiler-autograd.md#compiler-owned-automatic-differentiation)
   — reconcile the normative compile-time flow and bounded derivative lifecycle with current
-  source and tests.
+  source and tests.<span data-glossary-navigation="true"> ([normative glossary](../../../../glossary.md#term-normative); [compile glossary](../../../../glossary.md#compile); [derivative glossary](../../../../glossary.md#term-derivative))</span>
 
 If an applicable contract is missing or ambiguous, stop and report it.
 
@@ -86,11 +86,11 @@ If an applicable contract is missing or ambiguous, stop and report it.
 Execution may change exactly these seven paths:
 
 - `docs/architecture/contracts/compiler-autograd.md` — `Compiler-owned automatic differentiation`.
-- `docs/architecture/training-graph.md` — current combined graph and bounded derivative-order flow.
+- `docs/architecture/training-graph.md` — current combined [graph](../../../../glossary.md#graph) and bounded [derivative](../../../../glossary.md#term-derivative)-order flow.
 - `docs/user-guide/autograd.md` — current ordinary/advanced user workflow, example, errors, and
   limitations.
 - `docs/glossary.md` — only the targeted autograd definition and any directly necessary links to
-  already-current related entries.
+  already-current related entries.<span data-glossary-navigation="true"> ([autograd glossary](../../../../glossary.md#autograd))</span>
 - this task brief — status and compact result evidence only.
 - `docs/planning/modules/compiler/master-plan.md` — task row and frontier only.
 - `docs/planning/roadmap.md` — repository frontier only.
@@ -100,44 +100,44 @@ Read-only source and focused evidence:
 - `FunctionalGradientRequest`, `GraphCompiler`, `DerivativeGraphMetadata`, and
   `GradientPublicationBinding` in `modules/compiler`.
 - `Engine.backward(...)` and `AdvancedEngine.compile(...)` in `modules/engine`.
-- `FunctionalGradientRequestTest`, the two-stage and Hessian-vector-product cases in
+- `FunctionalGradientRequestTest`, the two-stage and [Hessian](../../../../glossary.md#term-hessian)-[vector](../../../../glossary.md#term-vector)-product cases in
   `GraphCompilerTest`, and the ordinary backward cases in `EngineTypedLifecycleTest`.
 - `docs/api/compile-api.md` headings `Current ordinary and advanced Engine compile boundaries`,
   `Current package-private pre-capture autograd`, and `Functional-gradient examples`.
 - Current relevant text in `docs/api/public-api.md`, `docs/api/tensor-api.md`, and
-  `docs/api/training-api.md`; these are comparison references, not edit targets.
+  `docs/api/training-api.md`; these are comparison references, not edit [targets](../../../../glossary.md#term-target).
 
 ## Acceptance criteria
 
 - Together, the four editable product documents state the exact one/two-stage, `createGraph`,
   output-reference, derivative-order, and immediate-next-stage boundaries above without
   contradiction or implying a third stage or persistent lifecycle. Explanatory documents do not
-  present themselves as authority or duplicate the contract unnecessarily.
-- The authoritative contract distinguishes derivative order from `GraphPhase`, preserves one
+  present themselves as authority or duplicate the contract unnecessarily.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+- The authoritative contract distinguishes [derivative](../../../../glossary.md#term-derivative) order from `GraphPhase`, preserves one
   combined capture, and retains the existing prohibitions on Tensor state, a runtime tape, a
-  second gradient algebra, model-owned rules, and backend-owned global autograd.
+  second gradient algebra, model-owned rules, and backend-owned global autograd.<span data-glossary-navigation="true"> ([capture glossary](../../../../glossary.md#term-capture-meanings); [Tensor glossary](../../../../glossary.md#tensor); [runtime glossary](../../../../glossary.md#term-runtime); [gradient glossary](../../../../glossary.md#term-gradient); [model glossary](../../../../glossary.md#term-model); [backend glossary](../../../../glossary.md#backend); [autograd glossary](../../../../glossary.md#autograd))</span>
 - The architecture explanation no longer says compile modes or autograd are unconsumed or that
   higher derivatives are absent; it distinguishes current bounded second-stage construction from
-  still-unsupported arbitrary nesting and optimizer/training-session work.
+  still-unsupported arbitrary nesting and optimizer/training-session work.<span data-glossary-navigation="true"> ([compile glossary](../../../../glossary.md#compile); [optimizer glossary](../../../../glossary.md#term-optimizer))</span>
 - The user guide no longer claims that objective/target requests, seeds, disconnected-zero
   policy, gradient publication, public invocation, or bounded second-stage construction are
-  absent. It clearly separates ordinary `Engine.backward(...)`, ordinary explicit-seed compile,
-  and advanced functional requests.
+  absent. It clearly separates ordinary <span data-glossary-navigation="true"> ([objective glossary](../../../../glossary.md#term-objective); [target glossary](../../../../glossary.md#term-target); [seeds glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings); [publication glossary](../../../../glossary.md#term-publication))</span>`Engine.backward(...)`, ordinary explicit-seed compile,
+  and advanced functional requests.<span data-glossary-navigation="true"> ([seed glossary](../../../../glossary.md#term-seed))</span>
 - The user guide applies General, User-guide, and Example profiles. Any public example is current
   and runnable for the scope it claims, or is explicitly labeled conceptual; it states inputs,
-  meaningful steps, result metadata, interpretation, and an important failure or limitation.
-- The targeted glossary definition agrees with the already-current `Functional gradient
-  request`, `Gradient publication binding`, `Derivative graph metadata`, and one-shot backward
+  meaningful steps, result metadata, interpretation, and an important failure or limitation.<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope); [metadata glossary](../../../../glossary.md#term-metadata))</span>
+- The targeted glossary definition agrees with the already-current [`Functional gradient
+  request`](../../../../glossary.md#functional-gradient-request), [`Gradient publication binding`](../../../../glossary.md#gradient-publication-binding), [`Derivative graph metadata`](../../../../glossary.md#derivative-graph-metadata), and one-shot backward
   definitions. Targeted search records whether any additional glossary change is needed.
 - The current API references remain unchanged after comparison with source and tests. The result
   records reasoned no-change conclusions for Java/Javadoc, root architecture, ADRs, architecture
   tests, Compile/Public/Tensor/Training API references, other modules, conformance/integration,
-  and Gradle.
+  and Gradle.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [Javadoc glossary](../../../../glossary.md#term-javadoc); [modules glossary](../../../../glossary.md#term-module); [conformance glossary](../../../../glossary.md#term-conformance); [Gradle glossary](../../../../glossary.md#term-gradle))</span>
 - Only the seven allowed paths change; task/master/roadmap statuses remain synchronized; local
   links and anchors resolve, headings are unique, fences are balanced, files have final newlines
   and no trailing whitespace, and `git diff --check` passes.
 
-## Validation
+## [Validation](../../../../glossary.md#term-validation)
 
 The documentation implementation context runs the existing focused evidence once:
 
@@ -149,7 +149,7 @@ The documentation implementation context runs the existing focused evidence once
   --tests io.github.pho001.synaptik.engine.EngineTypedLifecycleTest
 ```
 
-After final documentation and planning edits:
+After final documentation and [planning](../../../../glossary.md#term-planning) edits:
 
 ```bash
 python3 /tmp/validate_synaptik_markdown.py \
@@ -170,17 +170,17 @@ must contain exactly the seven allowed paths. If the temporary Markdown validato
 create an equivalent validator outside the repository for changed-file local links and anchors,
 unique headings, balanced fences, final newlines, and trailing whitespace.
 
-Repository-wide validation is deferred to CI because this task changes no executable code,
-dependency, build configuration, or cross-module behavior. The independent review context reuses
+Repository-wide validation is deferred to [CI](../../../../glossary.md#term-continuous-integration-ci) because this task changes no executable code,
+[dependency](../../../../glossary.md#term-dependency), build configuration, or cross-[module](../../../../glossary.md#term-module) behavior. The independent review context reuses
 successful Java evidence and does not rerun it unless executable behavior changed or evidence is
 missing or stale.
 
 ## Dependencies and frontier verification
 
 - Compiler 0006's bounded functional request, publication, and derivative-order behavior is
-  Complete and is the source behavior being documented.
+  Complete and is the source behavior being documented.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [publication glossary](../../../../glossary.md#term-publication); [derivative glossary](../../../../glossary.md#term-derivative))</span>
 - Engine 0011 is Complete. The user explicitly authorized this reconciliation as the second
-  drift-remediation step after Engine 0011.
+  drift-remediation step after Engine 0011.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine))</span>
 - This is an explicit repository-order interleave bounded to the seven paths above and closed by
   synchronized task/master/roadmap status after independent review. Compiler 0006C and 0007
   remain Draft side branches and gain no implementation authorization from this task.
@@ -189,7 +189,7 @@ missing or stale.
 
 - The implementation context follows the documentation rules and the General, Architecture,
   User-guide, Planning, and Example profiles, compares every claim with source and focused tests,
-  and changes no Java or Javadoc.
+  and changes no Java or Javadoc.<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 - A separate clean independent review context is mandatory because this is Class C, changes an
   incorporated authoritative contract, and changes a supported user workflow explanation. It
   inspects the final diff and evidence, finalizes terminology/examples/links/glossary impact, and
@@ -197,20 +197,20 @@ missing or stale.
 
 ## Result
 
-The clean documentation implementation context reconciled the incorporated Compiler autograd
-contract, focused training-graph explanation, user guide, and targeted glossary definition with
-the implemented bounded one/two-stage request, one combined capture, derivative order versus
-phase, target-distinct publication, narrower `Engine.backward(...)`, and explicit lifecycle
-limits. Its focused Compiler request/graph tests and Engine typed-lifecycle test each passed once.
+The clean documentation implementation context reconciled the incorporated [Compiler](../../../../glossary.md#term-compiler) [autograd](../../../../glossary.md#autograd)
+contract, focused training-[graph](../../../../glossary.md#graph) explanation, user guide, and targeted glossary definition with
+the implemented bounded one/two-stage request, one combined [capture](../../../../glossary.md#term-capture-meanings), [derivative](../../../../glossary.md#term-derivative) order versus
+phase, [target](../../../../glossary.md#term-target)-distinct [publication](../../../../glossary.md#term-publication), narrower `Engine.backward(...)`, and explicit [lifecycle](../../../../glossary.md#lifecycle)
+limits. Its focused Compiler request/graph tests and [Engine](../../../../glossary.md#term-engine) typed-lifecycle test each passed once.
 
 The independent Class C review compared the seven-path diff with current source, focused tests,
-and the unchanged Compile/Public/Tensor/Training API references under the General, Architecture,
-User-guide, Planning, and Example profiles. It corrected graph-output wording for gradients that
-can equal an existing forward value and verified request structure, seeds, policies, stage
-references, capture, metadata, publication order, Engine convenience limits, and unsupported
+and the unchanged [Compile](../../../../glossary.md#compile)/Public/[Tensor](../../../../glossary.md#tensor)/Training [API](../../../../glossary.md#term-application-programming-interface-api) references under the General, Architecture,
+User-guide, [Planning](../../../../glossary.md#term-planning), and Example profiles. It corrected graph-output wording for [gradients](../../../../glossary.md#term-gradient) that
+can equal an existing forward value and verified request structure, [seeds](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings), policies, stage
+references, capture, [metadata](../../../../glossary.md#term-metadata), publication order, Engine convenience limits, and unsupported
 lifecycle boundaries. Markdown, stale-text, seven-path, executable/build-file, and whitespace
-checks passed. No Java, Javadoc, Gradle, root architecture, ADR, architecture test, other-module,
-conformance, integration, or additional glossary change is needed; repository-wide validation
-remains deferred to CI because executable behavior and dependencies are unchanged.
+checks passed. No Java, [Javadoc](../../../../glossary.md#term-javadoc), [Gradle](../../../../glossary.md#term-gradle), root architecture, [ADR](../../../../glossary.md#term-architecture-decision-record-adr), [architecture test](../../../../glossary.md#term-architecture-test), other-[module](../../../../glossary.md#term-module),
+[conformance](../../../../glossary.md#term-conformance), integration, or additional glossary change is needed; repository-wide [validation](../../../../glossary.md#term-validation)
+remains deferred to [CI](../../../../glossary.md#term-continuous-integration-ci) because executable behavior and dependencies are unchanged.
 
 Status: Complete

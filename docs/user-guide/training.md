@@ -1,75 +1,75 @@
-# Train a model
+# Train a [model](../glossary.md#term-model)
 
 ## Outcome
 
-This guide runs the implemented public backend-neutral training lifecycle: one scalar objective,
-one reusable compiled/prepared session, repeated SGD, Adam, or AdamW updates, optional gradient
-accumulation, and detached state. The worked example uses CPU through `Engine.standard()`; the
+This guide runs the implemented public [backend](../glossary.md#backend)-neutral training [lifecycle](../glossary.md#lifecycle): one [scalar objective](../glossary.md#loss),
+one reusable compiled/prepared session, repeated [SGD](../glossary.md#term-stochastic-gradient-descent-sgd), [Adam](../glossary.md#adaptive-optimizer--adam-adamw), or [AdamW](../glossary.md#adaptive-optimizer--adam-adamw) updates, optional [gradient
+accumulation](../glossary.md#term-gradient-accumulation), and [detached](../glossary.md#detached-model-results) state. The worked example uses [CPU](../glossary.md#term-cpu) through `Engine.standard()`; the
 session itself uses
-the ordinary Engine path rather than a training-specific executor. Supported Metal or mixed
-preparation follows the same lifecycle, but the low-parameter CPU qualification described here is
-not a claim of BFLOAT16/FLOAT16 Metal training support.
+the ordinary [Engine](../glossary.md#term-engine) path rather than a training-specific executor. Supported [Metal](../glossary.md#term-metal) or mixed
+preparation follows the same lifecycle, but the low-[parameter](../glossary.md#term-parameter) CPU [qualification](../glossary.md#term-qualification) described here is
+not a claim of [BFLOAT16](../glossary.md#term-bfloat16)/[FLOAT16](../glossary.md#term-float16) Metal training support.
 
-A **parameter** is stored model state an optimizer may change; a **feature** is an input
-measurement, and a **training target** supplies the desired answer. A **loss** measures prediction
-error; a **reduction** combines elementwise losses into the one scalar **objective** we minimize.
-A **gradient** measures that objective's local sensitivity to the parameters. The **learning
-rate** scales an optimizer's update, rather than measuring accuracy.
+A **parameter** is stored [model](../glossary.md#term-model) state an [optimizer](../glossary.md#term-optimizer) may change; a **[feature](../glossary.md#term-feature)** is an input
+measurement, and a **[training target](../glossary.md#loss)** supplies the desired answer. A **[loss](../glossary.md#loss)** measures [prediction](../glossary.md#term-prediction)
+error; a **reduction** combines [elementwise](../glossary.md#term-elementwise) losses into the one [scalar](../glossary.md#term-scalar) **[objective](../glossary.md#term-objective)** we minimize.
+A **[gradient](../glossary.md#term-gradient)** measures that objective's local [sensitivity](../glossary.md#term-sensitivity) to the parameters. The **[learning
+rate](../glossary.md#term-learning-rate)** scales an optimizer's update, rather than measuring accuracy.
 
-For the introductory numbers, follow the [bias-free FLOAT32 `[2,1]` journey](../tutorials/index.md#the-experiment-in-concrete-terms):
-input `[1,3]`, target `[2,6]`, weight `0`, summed squared error `40`, gradient `-40`,
+For the introductory numbers, follow the [bias-free FLOAT32 `[2,1]` journey](../tutorials/index.md#the-experiment-in-concrete-terms)<span data-glossary-navigation="true"> ([bias glossary](../glossary.md#term-bias); [FLOAT32 glossary](../glossary.md#term-float32))</span>:
+input `[1,3]`, [target](../glossary.md#term-target) `[2,6]`, [weight](../glossary.md#term-weight) `0`, summed squared error `40`, gradient `-40`,
 and SGD rate `0.05` give weight `2`. The existing examples below address additional session
-workflows with their own unchanged starting states. An **epoch** is one pass through a dataset;
-neither a loop iteration nor an accumulate-only run necessarily completes one.
+workflows with their own unchanged starting states. An **[epoch](../glossary.md#term-epoch-meanings)** is one pass through a [dataset](../glossary.md#term-dataset);
+neither a loop iteration nor an accumulate-only [run](../glossary.md#term-run) necessarily completes one.
 
-## Train an owned static Model
+## Train an owned static [Model](../glossary.md#term-model)
 
-For a supported static graph, `Model.defineTensor` or `Model.load` can own the working weights,
-native Arena and cached TrainingSession for you. Follow the complete
-[owned Model example](running-models.md#owned-static-model-workflow): compute predicts 6 from
-weight 2 and input 3, squared-error training against target 1 reports loss 25, SGD(0.1) changes
+For a supported static [graph](../glossary.md#graph), `Model.defineTensor` or `Model.load` can own the working [weights](../glossary.md#term-weight),
+native [Arena](../glossary.md#term-arena) and cached [TrainingSession](../glossary.md#training-session--trainingsession) for you. Follow the complete
+[owned Model example](running-models.md#owned-static-model-workflow)<span data-glossary-navigation="true"> ([owned Model glossary](../glossary.md#model-module-buffer-and-scan-distinctions))</span>: compute predicts 6 from
+weight 2 and input 3, squared-error training against [target](../glossary.md#term-target) 1 reports [loss](../glossary.md#loss) 25, [SGD](../glossary.md#term-stochastic-gradient-descent-sgd)(0.1) changes
 the private weight to -1, and restored compute on input 2 yields -2. External weight bytes remain 2.
 
-Supply a pure scalar FLOAT32/FLOAT64 objective builder once with `configureTraining`; the builder
-is invoked once per explicit attempt and is never retained for runtime. Do not capture arbitrary
-external state leaves. Configuration leaves eval mode unchanged and succeeds once. Subsequent
-`train(batch, target)` calls use fresh exact-signature values and `RESET_AND_STEP`; list forms
-also support explicit target prototypes. Training retains overlap, nonfinite and precommit checks.
+Supply a pure [scalar](../glossary.md#term-scalar) [FLOAT32](../glossary.md#term-float32)/[FLOAT64](../glossary.md#term-float64) [objective](../glossary.md#term-objective) builder once with `configureTraining`; the builder
+is invoked once per explicit attempt and is never retained for [runtime](../glossary.md#term-runtime). Do not [capture](../glossary.md#term-capture-meanings) arbitrary
+external state leaves. Configuration leaves [eval mode](../glossary.md#inference-and-evaluation) unchanged and succeeds once. Subsequent
+`train(batch, target)` calls use fresh exact-[signature](../glossary.md#term-signature) values and `RESET_AND_STEP`; list forms
+also support explicit target [prototypes](../glossary.md#term-prototype). Training retains overlap, nonfinite and [precommit](../glossary.md#term-precommit) checks.
 
-**Eval mode** is a Module behavior setting, distinct from **evaluation**, which assesses
-predictions, and **inference**, which computes predictions without an optimizer update.
+**Eval mode** is a [Module](../glossary.md#term-module) behavior setting, distinct from **[evaluation](../glossary.md#term-evaluation)**, which assesses
+[predictions](../glossary.md#term-prediction), and **[inference](../glossary.md#term-inference)**, which computes predictions without an [optimizer](../glossary.md#term-optimizer) update.
 Here configuring an update mechanism does not toggle that setting. A **pure objective builder**
-constructs the objective from the supplied prototypes without hidden mutable dependencies.
-**Cached** training setup retains reusable compilation and preparation, not a permanently fixed
-prediction or gradient.
+constructs the objective from the supplied prototypes without hidden [mutable](../glossary.md#term-mutable) dependencies.
+**Cached** training setup retains reusable [compilation](../glossary.md#compiler-engine-and-execution-stage-names) and preparation, not a permanently fixed
+prediction or [gradient](../glossary.md#term-gradient).
 
-Engine selection freezes before the first valid setup attempt, even on failure. A failed setup
+[Engine](../glossary.md#term-engine) selection freezes before the first valid setup attempt, even on failure. A failed setup
 may be retried explicitly on that selection without recopying successfully admitted native state.
-Model close releases the session before parameter memory; detached TrainingStep remains readable.
-Save records the current source/weights, not objective, optimizer history, RNG or input progress.
+Model close [releases](../glossary.md#commit-release-distribution-log-and-seed-meanings) the session before [parameter](../glossary.md#term-parameter) memory; [detached](../glossary.md#detached-model-results) TrainingStep remains readable.
+Save records the current source/weights, not objective, [optimizer history](../glossary.md#term-optimizer-history), [RNG](../glossary.md#graph-rng-state--graphrngstate) or input progress.
 For accumulation, parameter groups and detached optimizer-state restore, use the explicit session
-workflow below rather than assuming that model-only load is exact training continuation.
+workflow below rather than assuming that model-only load is [exact training continuation](../glossary.md#exact-training-continuation).
 
-## Copy an initialized Linear
+## Copy an initialized [Linear](../glossary.md#term-linear-meanings)
 
-An eager `Linear` initializes its weight and bias in Java heap storage. To train it without
-replacing those Tensor objects, construct the loss first, then explicitly copy its parameters
-into a caller-owned shared native arena before opening a session. `Arena.ofShared()` keeps those
-parameter segments accessible to the session's operation threads. The copy may allocate the
-entire parameter payload even if a later step fails; plan the Arena lifetime before calling it.
+An [eager](../glossary.md#term-eager-evaluation) `Linear` initializes its [weight](../glossary.md#term-weight) and [bias](../glossary.md#term-bias) in Java [heap](../glossary.md#term-heap) storage. To train it without
+replacing those [Tensor](../glossary.md#tensor) objects, construct the [loss](../glossary.md#loss) first, then explicitly copy its [parameters](../glossary.md#term-parameter)
+into a caller-owned shared native [arena](../glossary.md#term-arena) before opening a session. `Arena.ofShared()` keeps those
+parameter segments accessible to the session's [operation](../glossary.md#operation) threads. The copy may allocate the
+entire parameter [payload](../glossary.md#artifact-envelope-and-atomic-publication) even if a later step fails; plan the Arena [lifetime](../glossary.md#term-lifetime) before calling it.
 
-This complete example starts with a `FLOAT32` one-input, one-output `Linear` and a target of zero.
-The input and target have native storage too, because the CPU Engine needs live host inputs.
-`TrainingParameters` is a live ordered admission source. NN's `layer.trainingParameters()`
+This complete example starts with a [`FLOAT32`](../glossary.md#term-float32) one-input, one-output `Linear` and a [target](../glossary.md#term-target) of zero.
+The input and target have native storage too, because the [CPU](../glossary.md#term-cpu) [Engine](../glossary.md#term-engine) needs live [host](../glossary.md#term-host) inputs.
+[`TrainingParameters`](../glossary.md#live-parameter-source--trainingparameters) is a live ordered [admission](../glossary.md#term-admission) source. [NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context)'s `layer.trainingParameters()`
 retains the layer and its exact paths/wrappers/Tensors, revalidating the live tree rather than only
 a frozen list. It does not freeze storage associations, so this example reuses the same source
-after copying. For a non-NN owner, implement that boundary as shown in the
+after copying. For a non-NN [owner](../glossary.md#term-owner), implement that boundary as shown in the
 [generic admission example](../reference/training/parameters.md#generic-live-parameter-admission).
 
-**Native** memory is managed outside the Java heap. **Shareable** means the memory scope
+**Native** memory is managed outside the Java heap. **Shareable** means the memory [scope](../glossary.md#term-scope)
 permits the session's operation threads, not that concurrent unsynchronized writes are safe.
 A **storage association** binds a Tensor to its actual memory. Copying bytes into a new store
-while keeping Tensor identity is different from replacing the Tensor with another object.
+while keeping Tensor [identity](../glossary.md#term-identity-meanings) is different from replacing the Tensor with another object.
 The [ownership diagram](../explanation/ownership.md#a-result-is-not-always-an-independent-value)
 shows why caller parameter storage must outlive dependent work.
 
@@ -112,36 +112,36 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
 ```
 
 The second loss is lower than the first for this seeded example. The identity assertion shows
-that the original weight Tensor remains the graph input after copying; it does not claim that
-the old heap storage was closed or transferred. The caller retains ownership of both source and
+that the original weight Tensor remains the [graph](../glossary.md#graph) input after copying; it does not claim that
+the old heap storage was closed or transferred. The caller retains [ownership](../glossary.md#term-ownership-meanings) of both source and
 destination storage. Keep the shared Arena alive through session close, and never copy while a
-session is open or another caller uses the Module/storage. Without the copy, `TrainingSession.open`
-rejects the heap-backed parameters before compilation. A confined or closed destination Arena,
-uninitialized deferred layer, non-finite source value, aliased parameter regions, unsupported
-layout, or invalid source storage also fails before any parameter association changes. Already
+session is open or another caller uses the [Module](../glossary.md#term-module)/storage. Without the copy, `TrainingSession.open`
+rejects the heap-backed parameters before [compilation](../glossary.md#compiler-engine-and-execution-stage-names). A confined or closed destination Arena,
+uninitialized deferred layer, non-[finite](../glossary.md#term-finite) source value, aliased parameter regions, unsupported
+[layout](../glossary.md#layout), or invalid source storage also fails before any parameter association changes. Already
 consumed destination Arena capacity is not individually recovered after allocation failure.
 
-For details of raw-byte preservation and failure behavior, see the [Training API](../reference/training/parameters.md#explicit-native-parameter-copy)
+For details of raw-byte preservation and failure behavior, see the [Training API](../reference/training/parameters.md#explicit-native-parameter-copy)<span data-glossary-navigation="true"> ([API glossary](../glossary.md#term-application-programming-interface-api))</span>
 and [architecture explanation](../architecture/training-graph.md#optimizer-as-a-backend-agnostic-step).
 
-## Build a runnable scalar problem
+## Build a runnable [scalar](../glossary.md#term-scalar) problem
 
-The first optimizer domain requires exact-capacity writable **shareable native** parameter storage.
-Parameters may use `FLOAT64`, `FLOAT32`, `BFLOAT16`, or `FLOAT16`; the scalar objective remains
+The first [optimizer](../glossary.md#term-optimizer) domain requires exact-capacity writable **shareable native** [parameter](../glossary.md#term-parameter) storage.
+Parameters may use [`FLOAT64`](../glossary.md#term-float64), [`FLOAT32`](../glossary.md#term-float32), [`BFLOAT16`](../glossary.md#term-bfloat16), or [`FLOAT16`](../glossary.md#term-float16); the [scalar objective](../glossary.md#loss) remains
 `FLOAT32` or `FLOAT64`. The example uses `FLOAT32` for both parameter and input and therefore gives
-them an `Arena.ofShared()` lifetime. JVM-heap storage created by convenience Tensor factories is not
-an accepted parameter carrier in this lifecycle.
+them an `Arena.ofShared()` [lifetime](../glossary.md#term-lifetime). [JVM](../glossary.md#term-java-virtual-machine-jvm)-[heap](../glossary.md#term-heap) storage created by convenience [Tensor](../glossary.md#tensor) factories is not
+an accepted parameter [carrier](../glossary.md#term-storage-carrier) in this [lifecycle](../glossary.md#lifecycle).
 
-For BF16/FP16 parameter storage on CPU, cast the parameter explicitly to FLOAT32 before
-numerical graph operations, for example `weight.cast(DataType.FLOAT32)`. The private F32
-optimizer master preserves update precision; it does not silently convert a low graph or
+For [BF16](../glossary.md#floating-point-precision-and-rounding)/[FP16](../glossary.md#term-fp16) parameter storage on [CPU](../glossary.md#term-cpu), cast the parameter explicitly to FLOAT32 before
+numerical [graph](../glossary.md#graph) operations, for example `weight.cast(DataType.FLOAT32)`. The private [F32](../glossary.md#floating-point-precision-and-rounding)
+optimizer master preserves update [precision](../glossary.md#term-precision); it does not silently convert a low graph or
 bypass the [temporary numerical lock](../backend-guide/production-support.md#temporary-java-low-computation-lock).
 
-Each parameter must also fit the in-memory state format: its logical payload and its
+Each parameter must also fit the in-memory state format: its logical [payload](../glossary.md#artifact-envelope-and-atomic-publication) and its
 optimizer-width payload must each be no larger than `Integer.MAX_VALUE` bytes. The optimizer
-width is eight bytes per FLOAT64 element and four bytes per FLOAT32, BFLOAT16, or FLOAT16 element.
-An oversized parameter is rejected when the session opens, before its own update buffers, the
-private seed, or the compiled graph are created. Earlier parameters may already have been captured.
+width is eight bytes per FLOAT64 [element](../glossary.md#term-element) and four bytes per FLOAT32, BFLOAT16, or FLOAT16 element.
+An oversized parameter is rejected when the session opens, before its own update [buffers](../glossary.md#term-buffer), the
+private [seed](../glossary.md#term-seed), or the [compiled graph](../glossary.md#compiled-graph--compiledgraphmodel) are created. Earlier parameters may already have been captured.
 
 ```java
 final class ScalarModel extends Module {
@@ -172,8 +172,8 @@ static Tensor nativeScalar(Arena arena, float value, boolean requiresGrad) {
 }
 ```
 
-Create the forward/loss expression before opening the session. Here SGD learns the scalar target
-`2.5` from initial weight `-4.0`:
+Create the forward/[loss](../glossary.md#loss) expression before opening the session. Here [SGD](../glossary.md#term-stochastic-gradient-descent-sgd) learns the scalar [target](../glossary.md#term-target)
+`2.5` from initial [weight](../glossary.md#term-weight) `-4.0`:
 
 ```java
 TrainingStep last;
@@ -206,18 +206,18 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
 float finalLoss = last.objective().bytes().getFloat();
 ```
 
-`TrainingSession.open` performs the only gradient compile and the only preparation. Every `run`
-reuses that Engine `PreparedExecution` through `engine.run(prepared, inputs)`.
-Inputs to `run` may be supplied in any list order, but every identity listed by `training.inputs()`
-must occur exactly once with a compatible live storage association. For a new stored batch or
+`TrainingSession.open` performs the only [gradient](../glossary.md#term-gradient) [compile](../glossary.md#compile) and the only preparation. Every [`run`](../glossary.md#term-run)
+reuses that [Engine](../glossary.md#term-engine) [`PreparedExecution`](../glossary.md#prepared-execution--preparedexecution) through `engine.run(prepared, inputs)`.
+Inputs to `run` may be supplied in any list order, but every [identity](../glossary.md#term-identity-meanings) listed by `training.inputs()`
+must occur exactly once with a compatible live storage association. For a new stored [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) or
 target Tensor, use positional `runValues` instead, as shown below.
 
-## Train fresh batches and targets
+## Train fresh [batches](../glossary.md#term-batch-machine-learning-and-hyperparameters) and [targets](../glossary.md#term-target)
 
-Use the `ScalarModel` and `nativeScalar` definitions above with CPU `Engine.standard()`. Start
-with weight `2`, and build the squared-error objective `(weight * batch - target)^2` once. The
-batch and target prototypes fix descriptors, not the values of future runs. Fresh values must
-match dtype, fully static shape, layout presence/geometry and requiresGrad exactly.
+Use the `ScalarModel` and `nativeScalar` definitions above with [CPU](../glossary.md#term-cpu) `Engine.standard()`. Start
+with [weight](../glossary.md#term-weight) `2`, and build the squared-error [objective](../glossary.md#term-objective) `(weight * batch - target)^2` once. The
+batch and target [prototypes](../glossary.md#term-prototype) fix [descriptors](../glossary.md#term-descriptor), not the values of future runs. Fresh values must
+match [dtype](../glossary.md#data-type--datatype), fully static [shape](../glossary.md#shape), [layout](../glossary.md#layout) presence/geometry and requiresGrad exactly.
 
 ```java
 TrainingStep first;
@@ -257,44 +257,44 @@ try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
 assert first.objective().bytes().getFloat() == 25.0f;
 ```
 
-The first prediction is `2 * 3 = 6`, loss is `(6 - 1)^2 = 25`, and the gradient is
-`2 * (6 - 1) * 3 = 30`; SGD updates the same weight to `2 - 0.1 * 30 = -1`.
+The first [prediction](../glossary.md#term-prediction) is `2 * 3 = 6`, [loss](../glossary.md#loss) is `(6 - 1)^2 = 25`, and the [gradient](../glossary.md#term-gradient) is
+`2 * (6 - 1) * 3 = 30`; [SGD](../glossary.md#term-stochastic-gradient-descent-sgd) updates the same weight to `2 - 0.1 * 30 = -1`.
 The second fresh batch/target produce prediction `-1 * 2 = -2`, loss `(-2 + 3)^2 = 1`,
-gradient `2 * 1 * 2 = 4`, and weight `-1 - 0.1 * 4 = -1.4` (within FLOAT32 rounding).
-The mapping uses `session.inputs()` metadata, excluding parameters and the private seed; do not
+gradient `2 * 1 * 2 = 4`, and weight `-1 - 0.1 * 4 = -1.4` (within [FLOAT32](../glossary.md#term-float32) [rounding](../glossary.md#term-rounding)).
+The mapping uses `session.inputs()` [metadata](../glossary.md#term-metadata), excluding [parameters](../glossary.md#term-parameter) and the private [seed](../glossary.md#term-seed); do not
 assume expression construction order is final compiled order. Same-descriptor positions remain
-positional: swapping batch and target changes the computation, not their identities' mapping.
-The [CPU regression](../../testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/TrainingSessionCpuIntegrationTest.java)
-executes this workflow and checks unchanged prototype values, parameter storage identity, graph
-reuse and detached results. Repeating one nonempty Tensor in both positions rejects for overlap,
+positional: swapping batch and target changes the computation, not their [identities](../glossary.md#term-identity-meanings)' mapping.
+The [CPU regression](../../testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/TrainingSessionCpuIntegrationTest.java)<span data-glossary-navigation="true"> ([regression glossary](../glossary.md#term-regression))</span>
+executes this workflow and checks unchanged prototype values, parameter storage [identity](../glossary.md#term-identity-meanings), [graph](../glossary.md#graph)
+reuse and [detached](../glossary.md#detached-model-results) results. Repeating one nonempty [Tensor](../glossary.md#tensor) in both positions rejects for overlap,
 even when descriptors match. No prototype value is copied or rebound, and no new graph is built.
 
-## Configure an optimizer
+## Configure an [optimizer](../glossary.md#term-optimizer)
 
-`new Sgd(learningRate)` selects plain SGD. The constructor with every coefficient is:
+`new Sgd(learningRate)` selects plain [SGD](../glossary.md#term-stochastic-gradient-descent-sgd). The constructor with every coefficient is:
 
 ```java
 new Sgd(learningRate, momentum, dampening, weightDecay, nesterov)
 ```
 
-The four-argument convenience omits dampening and uses zero. Weight decay is coupled:
-`adjusted = gradient + weightDecay * parameter`. Momentum stores the adjusted gradient on the
+The four-[argument](../glossary.md#term-argument) convenience omits [dampening](../glossary.md#term-dampening) and uses zero. [Weight decay](../glossary.md#term-weight-decay) is coupled:
+`adjusted = gradient + weightDecay * parameter`. [Momentum](../glossary.md#term-momentum) stores the adjusted [gradient](../glossary.md#term-gradient) on the
 first update without applying dampening. Later updates store
-`momentum * previous + (1 - dampening) * adjusted`. Ordinary momentum uses the new slot; Nesterov
+`momentum * previous + (1 - dampening) * adjusted`. Ordinary momentum uses the new slot; [Nesterov](../glossary.md#term-nesterov)
 uses `adjusted + momentum * newSlot`. Dampening is in `[0, 1]`; Nesterov requires positive momentum
 and exactly zero dampening. The selected update is subtracted as `learningRate * selected`.
-FLOAT32, BFLOAT16, and FLOAT16 parameter sessions validate coefficients after narrowing to their
-private FLOAT32 arithmetic domain as well as before it; FLOAT64 uses the configured binary64 values.
+[FLOAT32](../glossary.md#term-float32), [BFLOAT16](../glossary.md#term-bfloat16), and [FLOAT16](../glossary.md#term-float16) [parameter](../glossary.md#term-parameter) sessions validate coefficients after [narrowing](../glossary.md#term-narrowing) to their
+private FLOAT32 arithmetic domain as well as before it; [FLOAT64](../glossary.md#term-float64) uses the configured [binary64](../glossary.md#floating-point-precision-and-rounding) values.
 
 **Momentum** retains a running direction from earlier gradients. **Dampening** reduces how
 much a new gradient enters that history after its initial update. **Weight decay** discourages
 large parameters; coupled decay enters the gradient calculation shown above.
 **Nesterov** combines the new gradient with a momentum contribution using the stated formula.
-These are choices beyond plain SGD, not additional learned model parameters.
+These are choices beyond plain SGD, not additional learned [model](../glossary.md#term-model) parameters.
 
-To give `weight` and `bias` different rates in the `Linear` example above, replace its session
-opening and run block with this variation after `copyToSharedNative` succeeds. A parameter group
-is an immutable ordered list of distinct paths from `layer.trainingParameters().entries()`
+To give [`weight`](../glossary.md#term-weight) and [`bias`](../glossary.md#term-bias) different rates in the [`Linear`](../glossary.md#term-linear-meanings) example above, replace its session
+opening and [run](../glossary.md#term-run) block with this variation after `copyToSharedNative` succeeds. A [parameter group](../glossary.md#parameter-group--parametergroup)
+is an [immutable](../glossary.md#term-immutable) ordered list of distinct paths from `layer.trainingParameters().entries()`
 plus one optimizer configuration. In this example the group's `weight` uses SGD rate `0.05`;
 unlisted `bias` uses the default SGD rate `0.1`:
 
@@ -312,14 +312,14 @@ try (TrainingSession session = TrainingSession.open(
 }
 ```
 
-The run uses one prepared graph and one global update step. Restore returns both parameters and
+The run uses one prepared [graph](../glossary.md#graph) and one global update step. Restore returns both parameters and
 the counter to their earlier state. Group list order and path order are part of restore
 compatibility even when reordered paths would have the same numerical updates. Unknown or
-overlapping paths fail during open before compilation; a group does not freeze a parameter or
+overlapping paths fail during open before [compilation](../glossary.md#compiler-engine-and-execution-stage-names); a group does not freeze a parameter or
 remove it from differentiation.
 
 For a mixed algorithm choice, use this alternative after the same native copy. Here `weight`
-uses decoupled-decay AdamW, while unlisted `bias` uses coupled-decay Adam. Both update on the
+uses decoupled-decay [AdamW](../glossary.md#adaptive-optimizer--adam-adamw), while unlisted `bias` uses coupled-decay [Adam](../glossary.md#adaptive-optimizer--adam-adamw). Both update on the
 same successful global step:
 
 ```java
@@ -333,37 +333,37 @@ try (TrainingSession session = TrainingSession.open(engine, layer.trainingParame
 }
 ```
 
-Both constructors accept `(learningRate, beta1, beta2, epsilon, weightDecay)`. Rates and epsilon
-must be finite and positive, betas finite in `[0, 1)`, and decay finite and non-negative. Adam
-adds decay to the gradient before updating its two moments; AdamW instead scales the master
-parameter by `1 - learningRate * weightDecay` before the adaptive update. Each moment is
-bias-corrected using the one-based global optimizer step. For FLOAT32, BFLOAT16, and FLOAT16
+Both constructors accept `(learningRate, beta1, beta2, epsilon, weightDecay)`. Rates and [epsilon](../glossary.md#epsilon)
+must be [finite](../glossary.md#term-finite) and positive, betas finite in `[0, 1)`, and decay finite and non-negative. Adam
+adds decay to the gradient before updating its two moments; AdamW instead scales the [master
+parameter](../glossary.md#term-master-parameter) by `1 - learningRate * weightDecay` before the adaptive update. Each moment is
+bias-corrected using the one-based global [optimizer step](../glossary.md#optimizer-and-stochastic-gradient-descent). For FLOAT32, BFLOAT16, and FLOAT16
 parameters, coefficients narrow once to FLOAT32 at open, and invalid narrowed values are
 rejected before compilation.
 
 **Adam**, adaptive moment estimation, tracks moving averages of gradients and squared gradients
 to scale updates. Its **first moment** summarizes gradient direction; its **second moment**
 summarizes squared magnitude. `beta1` and `beta2` control how strongly earlier values persist.
-**Bias correction** compensates for those averages starting at zero; it is unrelated to a
-layer's additive bias parameter. **Epsilon** is the small positive denominator constant.
+**[Bias correction](../glossary.md#term-bias-correction)** compensates for those averages starting at zero; it is unrelated to a
+layer's additive [bias parameter](../glossary.md#bias-and-activation). **Epsilon** is the small positive denominator [constant](../glossary.md#term-constant).
 **AdamW** applies weight decay separately from those gradient summaries, as described above.
 
 The adaptive subtraction is `(learningRate * correctedM) / (sqrt(correctedV) + epsilon)`,
 where `correctedM` and `correctedV` are the bias-corrected first and second moments. Multiplication
-by the learning rate happens before division, in the parameter's working precision. The scaled
+by the [learning rate](../glossary.md#term-learning-rate) happens before division, in the parameter's working [precision](../glossary.md#term-precision). The scaled
 numerator and the final update must each be finite; a non-finite intermediate rejects the whole
 run without committing parameters, moments, counters, or pending gradients.
 
-For example, start a FLOAT32 scalar at `1`, use learning rate and epsilon `1e-30`, beta1 `0.5`,
+For example, start a FLOAT32 [scalar](../glossary.md#term-scalar) at `1`, use learning rate and epsilon `1e-30`, beta1 `0.5`,
 beta2 `0`, no decay, and gradients `1e19` then `0`. The first update leaves the represented
-parameter at `1`; the second subtracts approximately `3.333333e18` and commits step `2` for
+parameter at `1`; the second subtracts approximately `3.333333e18` and [commits](../glossary.md#commit-release-distribution-log-and-seed-meanings) step `2` for
 either Adam or AdamW. Dividing the corrected first moment by epsilon before scaling would
-overflow, even though the documented multiply-before-divide update is finite.
+[overflow](../glossary.md#term-overflow), even though the documented multiply-before-divide update is finite.
 
-## Accumulate and clear gradients
+## Accumulate and clear [gradients](../glossary.md#term-gradient)
 
-- `RESET_AND_STEP` ignores older pending gradients, applies this run, and clears accumulation.
-- `ACCUMULATE` adds this run to the pending sum without updating parameters or momentum.
+- `RESET_AND_STEP` ignores older pending gradients, applies this [run](../glossary.md#term-run), and clears accumulation.
+- `ACCUMULATE` adds this run to the pending sum without updating [parameters](../glossary.md#term-parameter) or [momentum](../glossary.md#term-momentum).
 - `ACCUMULATE_AND_STEP` applies the pending sum plus this run and clears it.
 - `zeroGrad()` clears only the pending sum.
 
@@ -374,94 +374,94 @@ TrainingStep update = training.run(inputs, GradientMode.ACCUMULATE_AND_STEP);
 assert update.accumulatedGradientRuns() == 0;
 ```
 
-Execution numbers count every successful forward/backward run. Optimizer-step numbers count only
+Execution numbers count every successful forward/backward run. [Optimizer](../glossary.md#term-optimizer)-step numbers count only
 successful updates and are absent from an accumulate-only `TrainingStep`.
 
-Accumulation is a **sum**, not an implicit average. The objective reduction still matters:
-summing gradients from several batches does not silently normalize by their total sample count.
+Accumulation is a **sum**, not an implicit average. The [objective](../glossary.md#term-objective) reduction still matters:
+summing gradients from several [batches](../glossary.md#term-batch-machine-learning-and-hyperparameters) does not silently normalize by their total [sample](../glossary.md#term-sample-machine-learning-and-hyperparameters) count.
 The [existing reverse-gradient visual](../explanation/tensors-and-gradients.md) shows how sample
 contributions reach a shared parameter; accumulation adds contributions from separate runs
 before the chosen update.
 
-## Snapshot and restore
+## [Snapshot](../glossary.md#term-snapshot) and restore
 
-`TrainingState snapshot = training.state()` owns canonical logical-parameter, master-parameter,
-first-slot, optional second-moment, and pending-gradient bytes keyed by stable recursive parameter
+`TrainingState snapshot = training.state()` owns [canonical](../glossary.md#term-canonical-form) logical-[parameter](../glossary.md#term-parameter), master-parameter,
+first-slot, optional second-moment, and pending-[gradient](../glossary.md#term-gradient) bytes keyed by stable recursive parameter
 paths. Logical payloads
-use the declared parameter width: two bytes per BFLOAT16/FLOAT16 element, four for FLOAT32, and
-eight for FLOAT64. Master, optimizer-slot, and accumulation payloads use four bytes per element for
+use the declared parameter width: two bytes per [BFLOAT16](../glossary.md#term-bfloat16)/[FLOAT16](../glossary.md#term-float16) [element](../glossary.md#term-element), four for [FLOAT32](../glossary.md#term-float32), and
+eight for [FLOAT64](../glossary.md#term-float64). Master, [optimizer](../glossary.md#term-optimizer)-slot, and accumulation payloads use four bytes per element for
 BFLOAT16, FLOAT16, and FLOAT32 parameters and eight for FLOAT64. `training.restore(snapshot)`
-validates the complete optimizer configuration, including dampening, counters, paths, data types,
-Shapes, finite payload values, and exact payload lengths before installing any state. For grouped
+validates the complete optimizer configuration, including [dampening](../glossary.md#term-dampening), counters, paths, data types,
+[Shapes](../glossary.md#shape), [finite](../glossary.md#term-finite) [payload](../glossary.md#artifact-envelope-and-atomic-publication) values, and exact payload lengths before installing any state. For grouped
 sessions it also checks the exact default optimizer and ordered groups, including each path and
-algorithm configuration. `momentumBytes()` remains the first-slot accessor: SGD momentum or
-Adam/AdamW first moment. `firstMomentBytes()` aliases it; `secondMomentBytes()` is present only
-for Adam/AdamW. The returned views are fresh and read-only. `TrainingState.optimizer()` now
-returns `Optimizer`, not `Sgd` (a source and binary signature change); check/cast when using
+algorithm configuration. `momentumBytes()` remains the first-slot accessor: [SGD](../glossary.md#term-stochastic-gradient-descent-sgd) [momentum](../glossary.md#term-momentum) or
+[Adam](../glossary.md#adaptive-optimizer--adam-adamw)/[AdamW](../glossary.md#adaptive-optimizer--adam-adamw) first moment. [`firstMomentBytes()`](../glossary.md#first-optimizer-slot--firstmomentbytes) [aliases](../glossary.md#aliasing-and-arena) it; `secondMomentBytes()` is present only
+for Adam/AdamW. The returned [views](../glossary.md#term-view-meanings) are fresh and read-only. `TrainingState.optimizer()` now
+returns `Optimizer`, not `Sgd` (a source and [binary](../glossary.md#term-binary-descriptor-and-metadata) [signature](../glossary.md#term-signature) change); check/cast when using
 SGD-specific members. No `defaultOptimizer()` accessor was added. The snapshot remains readable
-after session and Engine close. It is an in-memory
-recovery handoff, not a file
-or checkpoint format.
+after session and [Engine](../glossary.md#term-engine) close. It is an in-memory
+recovery [handoff](../glossary.md#term-handoff), not a file
+or [checkpoint](../glossary.md#term-checkpoint) format.
 
 A **snapshot** records state at a particular point; **restore** reinstalls a compatible snapshot.
-A **master parameter** is the private working-precision value used by the optimizer when logical
+A **[master parameter](../glossary.md#term-master-parameter)** is the private working-[precision](../glossary.md#term-precision) value used by the optimizer when logical
 storage has less precision. Optimizer **slots** hold history such as momentum or moments.
-**Canonical** bytes follow the defined standard representation; **detached** means they are
-independent of the live session. Restoring this state still does not restore the caller's dataset
-cursor, random stream or epoch position.
+**Canonical** bytes follow the defined standard representation; **[detached](../glossary.md#detached-model-results)** means they are
+independent of the live session. Restoring this state still does not restore the caller's [dataset
+cursor](../glossary.md#term-dataset-cursor), [random stream](../glossary.md#graph-rng-state--graphrngstate) or [epoch](../glossary.md#term-epoch-meanings) position.
 
-## Lifetimes and concurrency
+## Lifetimes and [concurrency](../glossary.md#term-concurrency)
 
-The caller owns the Engine, live parameter source (including its Module when applicable), and
-parameter storage; these must outlive the session and any admitted operation. Fresh batch/target
-storage is borrowed only through its synchronous `runValues` call and internal result closure,
-not until session close. Exact-ID `run` likewise borrows its supplied external storage only for
+The caller owns the [Engine](../glossary.md#term-engine), [live parameter source](../glossary.md#live-parameter-source--trainingparameters) (including its [Module](../glossary.md#term-module) when applicable), and
+[parameter](../glossary.md#term-parameter) storage; these must outlive the session and any admitted [operation](../glossary.md#operation). Fresh [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters)/[target](../glossary.md#term-target)
+storage is [borrowed](../glossary.md#ownership-borrowing-and-lease) only through its [synchronous](../glossary.md#term-synchronous) `runValues` call and internal result closure,
+not until session close. Exact-ID [`run`](../glossary.md#term-run) likewise borrows its supplied external storage only for
 the call; keep every association used by that call usable and free from conflicting mutation.
-The session owns one Engine `PreparedExecution`, its private
-cotangent seed memory, optimizer slots, accumulation, and counters. It admits one operation at a
-time. Admission happens before argument validation: Engine closure wins first, then session
+The session owns one Engine [`PreparedExecution`](../glossary.md#prepared-execution--preparedexecution), its private
+[cotangent seed](../glossary.md#primal-adjoint-and-differentiation-seed) memory, [optimizer](../glossary.md#term-optimizer) slots, accumulation, and counters. It admits one operation at a
+time. [Admission](../glossary.md#term-admission) happens before [argument](../glossary.md#term-argument) [validation](../glossary.md#term-validation): Engine closure wins first, then session
 closing/closure, then a busy operation. Close rejects later admission, waits for already-admitted
 Training work to finish, attempts all owned cleanup once, and never closes caller-owned objects.
-It closes the prepared owner before its private seed arena, and each run result closes before
+It closes the prepared [owner](../glossary.md#term-owner) before its private [seed](../glossary.md#term-seed) [arena](../glossary.md#term-arena), and each [run result](../glossary.md#run-result--runresult) closes before
 that owner. Repeated close calls replay the retained cleanup result.
 
-A failed validation, Engine run, publication check, materialization, decode, non-finite arithmetic,
-represented overflow, or candidate calculation changes no parameter bytes, private masters,
-optimizer slots, counters, or pending gradients. BFLOAT16, FLOAT16, and FLOAT32 parameters use
-finite FLOAT32 masters, gradients, accumulation, momentum, intermediates, and candidates; FLOAT64
-uses FLOAT64. A successful low-precision update narrows the validated master candidate once to the
-declared logical type before commit. NaN and infinity are rejected, while negative and positive
-zero are both finite. Callers must not replace or concurrently mutate captured parameter wrappers,
-Tensor storage associations, or parameter bytes while the session is open.
+A failed validation, Engine run, [publication](../glossary.md#term-publication) check, [materialization](../glossary.md#materialization), decode, non-[finite](../glossary.md#term-finite) arithmetic,
+represented [overflow](../glossary.md#term-overflow), or candidate calculation changes no parameter bytes, private masters,
+optimizer slots, counters, or pending [gradients](../glossary.md#term-gradient). [BFLOAT16](../glossary.md#term-bfloat16), [FLOAT16](../glossary.md#term-float16), and [FLOAT32](../glossary.md#term-float32) parameters use
+finite FLOAT32 masters, gradients, accumulation, [momentum](../glossary.md#term-momentum), intermediates, and candidates; [FLOAT64](../glossary.md#term-float64)
+uses FLOAT64. A successful low-[precision](../glossary.md#term-precision) update narrows the validated master candidate once to the
+declared logical type before [commit](../glossary.md#term-commit). [NaN](../glossary.md#term-nan) and [infinity](../glossary.md#term-infinity) are rejected, while negative and [positive
+zero](../glossary.md#nan-infinity-and-signed-zero) are both finite. Callers must not replace or concurrently mutate captured parameter wrappers,
+[Tensor](../glossary.md#tensor) storage associations, or parameter bytes while the session is open.
 
 **Transactional** means the update is committed as a whole or not committed: a failed candidate
 does not leave only some parameters updated. A **candidate** is the proposed next parameter value
-before commit. **Finite** excludes infinity and NaN (“not a number”); **overflow** occurs when a
-calculated magnitude cannot fit the required representation. **Narrowing** rounds a working value
-to the logical storage type. These checks concern numerical validity, not whether the model's
-predictions are useful on independent data.
+before commit. **Finite** excludes infinity and NaN (“[not a number](../glossary.md#nan-infinity-and-signed-zero)”); **overflow** occurs when a
+calculated magnitude cannot fit the required representation. **[Narrowing](../glossary.md#term-narrowing)** rounds a working value
+to the logical storage type. These checks concern numerical validity, not whether the [model](../glossary.md#term-model)'s
+[predictions](../glossary.md#term-prediction) are useful on independent data.
 
 ## Common errors
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Open rejects parameter storage | It is heap, read-only, thread-confined, wrong-sized, a view, or not native/aligned. | Use exact-capacity writable shareable native `FLOAT64`, `FLOAT32`, `BFLOAT16`, or `FLOAT16` storage with a dense offset-zero non-view layout. |
-| Open rejects an empty/non-finite parameter | Its element count is zero or an initial value is NaN/infinite. | Supply a non-empty parameter with finite values before opening; rejection precedes compile. |
-| Open rejects a snapshot byte size | The logical or optimizer-width payload exceeds `Integer.MAX_VALUE` bytes for one parameter. | Use a smaller parameter; this in-memory session cannot snapshot a larger payload. |
-| Open rejects a parameter group | A path is blank, unknown, or repeated, or assigned optimizer coefficients cannot narrow for that parameter type. | Use the exact keys from `module.parametersRecursively()`, keep memberships disjoint, and choose dtype-compatible values. |
-| Run rejects non-finite optimizer arithmetic | A gradient, accumulation, momentum term, or candidate is NaN/infinite or overflowed. | Correct the objective/input scale; the failed run committed no parameter, optimizer state, or counter. |
-| Open rejects a target as disconnected | A discovered Module parameter does not contribute to the scalar objective. | Build the objective from the Module's complete intended trainable parameter set or use a Module containing only this session's parameters. |
-| `run` reports a missing or foreign input | The list does not contain every identity from `training.inputs()` exactly once. | Bind those exact Tensors in any order, or use `runValues` for fresh stored values. |
-| `runValues` reports a count or descriptor mismatch | Values do not match all `inputs()` positions exactly. | Include targets and other external leaves in compiled order with exact full static descriptors; omit parameters and seed. |
-| `runValues` reports overlapping storage | A nonempty value is repeated, external slices overlap, or an external aliases a parameter or seed. | Use distinct non-overlapping external stores; generic Engine's repeated-value permission does not apply to Training. |
-| Run reports a changed binding/storage | A `Parameter` or Tensor storage association changed after open. | Close the session, finish the Module change, rebuild the expression, and open a new session. |
-| A Metal/mixed run is unsupported | Current backend capability, transfer, preparation, or materialization does not cover the graph. | Use a supported Engine composition; Training never falls back or mutates before that failure. |
-| Another operation reports the session is busy | A run, state operation, restore, zero, or close race is active. | Serialize operations on that session or use independent sessions with independent Module/storage state. |
+| Open rejects [parameter](../glossary.md#term-parameter) storage | It is [heap](../glossary.md#term-heap), read-only, thread-confined, wrong-sized, a [view](../glossary.md#term-view-meanings), or not native/aligned. | Use exact-capacity writable shareable native [`FLOAT64`](../glossary.md#term-float64), [`FLOAT32`](../glossary.md#term-float32), [`BFLOAT16`](../glossary.md#term-bfloat16), or [`FLOAT16`](../glossary.md#term-float16) storage with a dense offset-zero non-view [layout](../glossary.md#layout). |
+| Open rejects an empty/non-[finite](../glossary.md#term-finite) parameter | Its [element](../glossary.md#term-element) count is zero or an initial value is [NaN](../glossary.md#term-nan)/infinite. | Supply a non-empty parameter with finite values before opening; rejection precedes [compile](../glossary.md#compile). |
+| Open rejects a [snapshot](../glossary.md#term-snapshot) byte size | The logical or [optimizer](../glossary.md#term-optimizer)-width [payload](../glossary.md#artifact-envelope-and-atomic-publication) exceeds `Integer.MAX_VALUE` bytes for one parameter. | Use a smaller parameter; this in-memory session cannot snapshot a larger payload. |
+| Open rejects a [parameter group](../glossary.md#parameter-group--parametergroup) | A path is blank, unknown, or repeated, or assigned optimizer coefficients cannot narrow for that parameter type. | Use the exact keys from `module.parametersRecursively()`, keep memberships disjoint, and choose [dtype](../glossary.md#data-type--datatype)-compatible values. |
+| [Run](../glossary.md#term-run) rejects non-finite optimizer arithmetic | A [gradient](../glossary.md#term-gradient), accumulation, [momentum](../glossary.md#term-momentum) term, or candidate is NaN/infinite or overflowed. | Correct the [objective](../glossary.md#term-objective)/input scale; the failed run committed no parameter, [optimizer state](../glossary.md#term-optimizer-state), or counter. |
+| Open rejects a [target](../glossary.md#term-target) as disconnected | A discovered [Module](../glossary.md#term-module) parameter does not contribute to the [scalar objective](../glossary.md#loss). | Build the objective from the Module's complete intended [trainable parameter](../glossary.md#trainable-parameter) set or use a Module containing only this session's parameters. |
+| `run` reports a missing or foreign input | The list does not contain every [identity](../glossary.md#term-identity-meanings) from `training.inputs()` exactly once. | Bind those exact [Tensors](../glossary.md#tensor) in any order, or use `runValues` for fresh stored values. |
+| `runValues` reports a count or [descriptor](../glossary.md#term-descriptor) mismatch | Values do not match all `inputs()` positions exactly. | Include targets and other external leaves in compiled order with exact full static descriptors; omit parameters and [seed](../glossary.md#term-seed). |
+| `runValues` reports overlapping storage | A nonempty value is repeated, external slices overlap, or an external [aliases](../glossary.md#aliasing-and-arena) a parameter or seed. | Use distinct non-overlapping external stores; generic [Engine](../glossary.md#term-engine)'s repeated-value permission does not apply to Training. |
+| Run reports a changed [binding](../glossary.md#term-binding)/storage | A `Parameter` or Tensor storage association changed after open. | Close the session, finish the Module change, rebuild the expression, and open a new session. |
+| A [Metal](../glossary.md#term-metal)/mixed run is unsupported | Current [backend capability](../glossary.md#backend-capability), transfer, preparation, or [materialization](../glossary.md#materialization) does not cover the [graph](../glossary.md#graph). | Use a supported Engine composition; Training never falls back or mutates before that failure. |
+| Another [operation](../glossary.md#operation) reports the session is busy | A run, state operation, restore, zero, or close [race](../glossary.md#term-race) is active. | Serialize operations on that session or use independent sessions with independent Module/storage state. |
 
 ## Related documentation
 
-- [Training API](../reference/training/index.md)
-- [Autograd](autograd.md)
-- [Training graph](../architecture/training-graph.md)
-- [Lifecycle](../architecture/lifecycle.md)
+- [Training API](../reference/training/index.md)<span data-glossary-navigation="true"> ([API glossary](../glossary.md#term-application-programming-interface-api))</span>
+- [Autograd](autograd.md)<span data-glossary-navigation="true"> ([Autograd glossary](../glossary.md#autograd))</span>
+- [Training graph](../architecture/training-graph.md)<span data-glossary-navigation="true"> ([Training graph glossary](../glossary.md#training-graph))</span>
+- [Lifecycle](../architecture/lifecycle.md)<span data-glossary-navigation="true"> ([Lifecycle glossary](../glossary.md#lifecycle))</span>
 - [Training master plan](../planning/extensions/training/master-plan.md)

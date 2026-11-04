@@ -1,4 +1,4 @@
-# Task 0007A1H: Numerical Aggregate Residual Parity
+# Task 0007A1H: Numerical Aggregate [Residual](../../../../glossary.md#scan-residual-port-and-history-demand) Parity
 
 ## Status
 
@@ -6,47 +6,47 @@ Complete
 
 ## Goal
 
-Correct exactly the two persistent ordinary numerical aggregate residuals in the frozen CPU
+Correct exactly the two persistent ordinary numerical aggregate residuals in the frozen [CPU](../../../../glossary.md#term-cpu)
 0007A1C comparison: `N-MEAN-GENERAL` and `N-PROD-MULTI`. Preserve their exact numerical and
 resource semantics while making each generated entry pass the unchanged generated/direct
-`<= 1.15x` gate in every one of five isolated forks and in the median of fork medians.
+`<= 1.15x` gate in every one of five isolated [forks](../../../../glossary.md#term-fork-meanings) and in the [median](../../../../glossary.md#term-median) of [fork](../../../../glossary.md#term-fork-meanings) medians.
 
 Both rows are owned by one existing code-shaping production type, `CpuAggregateEmitter`. This is
-the sole next bounded residual task after completed CPU 0007A1G.
+the sole next bounded [residual](../../../../glossary.md#scan-residual-port-and-history-demand) task after completed CPU 0007A1G.
 
-## Scope
+## [Scope](../../../../glossary.md#term-scope)
 
-- Use the immutable frozen A1C sources under `/private/tmp/synaptik-cpu-0007a1c-oMAmuVhF` and the
+- Use the [immutable](../../../../glossary.md#term-immutable) frozen A1C sources under `/private/tmp/synaptik-cpu-0007a1c-oMAmuVhF` and the
   completed A1G evidence under `/private/tmp/synaptik-cpu-0007a1g-sLBHbIpI`.
-- Correct `N-MEAN-GENERAL`: FLOAT32 axis-one MEAN over input Shape `[128, 2048]`, offset/interleaved
-  `MemorySegment` input, offset/interleaved `float[]` output, exact run-owned sum workspace, and
+- Correct `N-MEAN-GENERAL`: [FLOAT32](../../../../glossary.md#term-float32) [axis](../../../../glossary.md#term-axis)-one [MEAN](../../../../glossary.md#term-mean) over input [Shape](../../../../glossary.md#shape) `[128, 2048]`, offset/interleaved
+  [`MemorySegment`](../../../../glossary.md#term-memorysegment) input, offset/interleaved `float[]` output, exact run-owned sum workspace, and
   output-cell range `[0, 128)`.
-- Correct `N-PROD-MULTI`: BFLOAT16 PROD over selected axes `[0, 2]` of input Shape
+- Correct `N-PROD-MULTI`: [BFLOAT16](../../../../glossary.md#term-bfloat16) PROD over selected axes `[0, 2]` of input Shape
   `[4, 16384, 4]`, retained output Shape `[1, 16384, 1]`, `short[]` input, offset/interleaved
-  `MemorySegment` output, exact run-owned product workspace, and output-cell range `[0, 16384)`.
+  `MemorySegment` output, exact [run](../../../../glossary.md#term-run)-owned product workspace, and output-cell range `[0, 16384)`.
 - Preserve arbitrary legal half-open output-cell subranges, including correct range-private
-  workspace slices and mixed carriers required by the frozen cases.
+  workspace slices and mixed carriers required by the frozen cases.<span data-glossary-navigation="true"> ([half-open glossary](../../../../glossary.md#term-half-open-interval))</span>
 - Preserve exact floating SUM/MEAN and PROD special-value, limb-state, normalization, rounding,
   signed-zero, infinity, NaN, empty-domain, and result-format rules. Retain typed general
-  fallbacks for every geometry or carrier pattern not completely cold-proved.
+  fallbacks for every geometry or carrier pattern not completely cold-proved.<span data-glossary-navigation="true"> ([limb glossary](../../../../glossary.md#exact-superaccumulator-and-limbs); [normalization glossary](../../../../glossary.md#term-normalization); [rounding glossary](../../../../glossary.md#term-rounding); [signed-zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [infinity glossary](../../../../glossary.md#term-infinity); [NaN glossary](../../../../glossary.md#term-nan); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
 - Treat the frozen optimal clean Java comparator as the design and review oracle. A proved
   generated branch must be algorithm- and dataflow-equivalent, including logical visitation,
   accumulator/state transitions, final division or product rounding, workspace use, output
   ownership, and avoidable-overhead profile. Any deviation requires an explicit technical reason
-  and supporting semantic, structural, and measured evidence.
+  and supporting semantic, structural, and measured evidence.<span data-glossary-navigation="true"> ([oracle glossary](../../../../glossary.md#term-test-oracle); [dataflow glossary](../../../../glossary.md#term-dataflow); [accumulator glossary](../../../../glossary.md#accumulator-type); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Keep repeated proved work free of allocation, boxing, reflection, dynamic dispatch, generic
   carrier dispatch, runtime operation dispatch, and Synaptik-owned helper calls. Invocation-local
-  primitives and the already declared exact workspace remain permitted.
+  primitives and the already declared exact workspace remain permitted.<span data-glossary-navigation="true"> ([dispatch glossary](../../../../glossary.md#term-dispatch); [runtime glossary](../../../../glossary.md#term-runtime); [operation glossary](../../../../glossary.md#operation))</span>
 - Add stable semantic and Class-File assertions for the two frozen shapes and retained fallback;
-  do not assert bytecode offsets, constant-pool indexes, generated names, or JIT assembly.
+  do not assert bytecode offsets, constant-pool indexes, generated names, or JIT assembly.<span data-glossary-navigation="true"> ([bytecode glossary](../../../../glossary.md#term-bytecode); [constant glossary](../../../../glossary.md#term-constant); [JIT glossary](../../../../glossary.md#term-just-in-time-compilation-jit))</span>
 - Advance the current-only generator schema exactly once if emitted bytes change, and propagate
-  that version to the existing assertion owners. Older envelopes remain incompatible safe misses.
+  that version to the existing assertion owners. Older envelopes remain incompatible safe misses.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema))</span>
 - Run the unchanged full 20-row process. Accept only the two targets and the three established
-  controls. Every other row remains diagnostic and unassigned.
+  controls. Every other row remains diagnostic and unassigned.<span data-glossary-navigation="true"> ([targets glossary](../../../../glossary.md#term-target))</span>
 
-### Frozen residual evidence
+### Frozen [residual](../../../../glossary.md#scan-residual-port-and-history-demand) evidence
 
-| Row | Fork 1 | Fork 2 | Fork 3 | Fork 4 | Fork 5 | Median | Worst fork | Owner |
+| Row | [Fork](../../../../glossary.md#term-fork-meanings) 1 | Fork 2 | Fork 3 | Fork 4 | Fork 5 | [Median](../../../../glossary.md#term-median) | Worst fork | [Owner](../../../../glossary.md#term-owner) |
 |---|---:|---:|---:|---:|---:|---:|---:|---|
 | `N-MEAN-GENERAL` | `1.466213575x` | `1.502648431x` | `1.830559684x` | `1.509453346x` | `1.516850531x` | `1.509453346x` | `1.830559684x` | `CpuAggregateEmitter` |
 | `N-PROD-MULTI` | `1.282352813x` | `1.290920776x` | `1.286761010x` | `1.325092312x` | `1.339981240x` | `1.290920776x` | `1.339981240x` | `CpuAggregateEmitter` |
@@ -56,7 +56,7 @@ aggregate cluster, not a one-fork anomaly.
 
 ### Accepted A1H results
 
-| Row | Fork 1 | Fork 2 | Fork 3 | Fork 4 | Fork 5 | Median | Worst fork | Verdict |
+| Row | [Fork](../../../../glossary.md#term-fork-meanings) 1 | Fork 2 | Fork 3 | Fork 4 | Fork 5 | [Median](../../../../glossary.md#term-median) | Worst fork | Verdict |
 |---|---:|---:|---:|---:|---:|---:|---:|---|
 | `N-MEAN-GENERAL` | `0.995106956x` | `0.929692351x` | `0.973095585x` | `0.863214616x` | `0.987138897x` | `0.973095585x` | `0.995106956x` | PASS |
 | `N-PROD-MULTI` | `0.956758187x` | `1.022472818x` | `1.042800553x` | `1.018639544x` | `1.084500356x` | `1.022472818x` | `1.084500356x` | PASS |
@@ -67,22 +67,22 @@ aggregate cluster, not a one-fork anomaly.
 All five full probe processes exited nonzero only because the same seven deferred diagnostic rows
 exceeded the gate: `P-SCALAR-GENERAL`, `A-GENERAL`, `I-GATHER`, `I-GATHER-ND`,
 `S-GENERAL-MIN`, `C-SCAN-GENERAL`, and `X-MIN-MULTI`. The accepted results close the two A1H
-targets and three controls; they are not a full twenty-row performance pass.
+[targets](../../../../glossary.md#term-target) and three controls; they are not a full twenty-row performance pass.
 
-## Out of scope
+## Out of [scope](../../../../glossary.md#term-scope)
 
 - Changing or refreezing A1C sources, cases, comparators, dimensions, layouts, carriers, resource
-  declarations, threshold, warmup, sample order, fork count, or algorithms.
+  declarations, threshold, warmup, sample order, fork count, or algorithms.<span data-glossary-navigation="true"> ([dimensions glossary](../../../../glossary.md#dimension); [layouts glossary](../../../../glossary.md#layout); [warmup glossary](../../../../glossary.md#term-warmup); [sample glossary](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters); [fork glossary](../../../../glossary.md#term-fork-meanings))</span>
 - Correcting pointwise, affine, movement, indexing, scatter, fold, ordering, random, scan,
-  extrema, or Boolean residuals.
+  extrema, or Boolean residuals.<span data-glossary-navigation="true"> ([pointwise glossary](../../../../glossary.md#term-pointwise); [scan glossary](../../../../glossary.md#term-cumulative-scan); [extrema glossary](../../../../glossary.md#saturation-pole-and-extremum); [Boolean glossary](../../../../glossary.md#data-type--datatype))</span>
 - Reopening `M-CONCAT`: its one A1G ratio of `1.158061861x`, four passing A1G forks, and completed
   A1E five-fork evidence do not establish a persistent failure.
 - Changing aggregate semantics, exact-state design, workspace ownership or size, route selection,
   capability, public API, shared Prepare/Runtime behavior, architecture, dependencies, build,
-  IR, lowering, or benchmark tooling.
+  IR, lowering, or benchmark tooling.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [lowering glossary](../../../../glossary.md#lowering))</span>
 - Changing `CpuExactSumEmitter`, `CpuExactProductEmitter`, or another production code-shaping
-  owner. If such a change is required, stop and replan rather than broadening this task.
-- Universal generated-code, aggregate, JIT, hardware, or performance claims.
+  owner. If such a change is required, stop and replan rather than broadening this task.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner))</span>
+- Universal generated-code, aggregate, [JIT](../../../../glossary.md#term-just-in-time-compilation-jit), hardware, or performance claims.
 
 ## Architecture references
 
@@ -102,14 +102,14 @@ targets and three controls; they are not a full twenty-row performance pass.
 ## Architecture constraints
 
 - Model owns aggregate meaning. This task changes only CPU-private generated realization and its
-  evidence.
+  evidence.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [CPU glossary](../../../../glossary.md#term-cpu))</span>
 - CPU analysis retains exact lowering, resource declaration, route selection, and strategy before
   shared slot assignment. CPU finalization realizes the selected artifact afterward. Runtime only
-  invokes the immutable prepared executable.
+  invokes the immutable prepared executable.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [artifact glossary](../../../../glossary.md#term-artifact); [Runtime glossary](../../../../glossary.md#term-runtime); [immutable glossary](../../../../glossary.md#term-immutable); [prepared executable glossary](../../../../glossary.md#prepared-executable--preparedexecutable))</span>
 - Exact floating work uses only its already declared run-owned, range-sliced workspace. This task
-  adds no hidden scratch, partial reduction, combine state, or mutable prepared state.
+  adds no hidden scratch, partial reduction, combine state, or mutable prepared state.<span data-glossary-navigation="true"> ([run glossary](../../../../glossary.md#term-run); [mutable glossary](../../../../glossary.md#term-mutable))</span>
 - Generated entries remain typed, direct, field-free, and allocation-free in proved repeated work.
-- Benchmark observations accept or reject fixed code shape and never select production settings.
+- Benchmark observations accept or reject fixed code [shape](../../../../glossary.md#shape) and never select production settings.
 
 ## Package impact
 
@@ -118,7 +118,7 @@ Existing packages used:
 - `io.github.pho001.synaptik.backend.cpu.internal.codegen.emit` — the sole algorithm-shaping owner,
   exact aggregate emitters as read-only semantic references, tests, and package documentation.
 - `io.github.pho001.synaptik.backend.cpu.internal.cache` — current-only generator schema and
-  artifact compatibility documentation if emitted bytes change.
+  artifact compatibility documentation if emitted bytes change.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [artifact glossary](../../../../glossary.md#term-artifact))</span>
 - `io.github.pho001.synaptik.backend.cpu.internal.prepare` — existing aggregate resource and
   finalization summary only if its current-schema wording becomes stale.
 
@@ -128,7 +128,7 @@ Packages added or changed:
 
 Type placement:
 
-- `CpuAggregateEmitter` is the only authorized production code-shaping owner.
+- `CpuAggregateEmitter` is the only authorized production code-shaping [owner](../../../../glossary.md#term-owner).
 - No second algorithm helper or unrelated emitter may be changed under this task.
 
 ## Affected files
@@ -141,7 +141,7 @@ Changed production and contract paths:
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/cache/package-info.java`
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/package-info.java`
 
-Changed tests and schema propagation:
+Changed tests and [schema](../../../../glossary.md#term-schema) propagation:
 
 - `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuAggregateGeneratedKernelTest.java`
 - `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/cache/CpuGeneratedKernelArtifactStoreTest.java`
@@ -149,58 +149,58 @@ Changed tests and schema propagation:
 - `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/CpuPartitionPreparerTest.java`
 - `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/CpuPartitionFinalizerTest.java`
 
-Changed documentation and planning paths:
+Changed documentation and [planning](../../../../glossary.md#term-planning) paths:
 
 - this task;
-- CPU 0007A1C;
+- [CPU](../../../../glossary.md#term-cpu) 0007A1C;
 - CPU 0007A1I;
 - CPU master plan and roadmap;
-- CPU backend guide and glossary.
+- CPU [backend](../../../../glossary.md#backend) guide and glossary.
 
-## Maximum scope
+## Maximum [scope](../../../../glossary.md#term-scope)
 
 The completed change uses 17 repository paths:
 
-- 1 production algorithm-shaping owner;
-- 4 schema/package-contract paths;
+- 1 production algorithm-shaping [owner](../../../../glossary.md#term-owner);
+- 4 [schema](../../../../glossary.md#term-schema)/package-contract paths;
 - 5 tests: the aggregate owner and four schema owners; and
 - 7 documentation/planning paths: this task, A1C, the directly requested next-frontier A1I
   specification, master plan, roadmap, guide, and glossary.
 
 The direct documentation-agent request authorized creation of the one immediately following
-detailed task when required by the planning guide; it did not broaden executable implementation.
-No other production owner, helper type, IR/lowering/resource change, module, benchmark case, or
+detailed task when required by the [planning](../../../../glossary.md#term-planning) guide; it did not broaden executable implementation.
+No other production owner, helper type, [IR](../../../../glossary.md#term-intermediate-representation-ir)/[lowering](../../../../glossary.md#lowering)/resource change, [module](../../../../glossary.md#term-module), benchmark case, or
 architecture decision was needed.
 
 ## Acceptance criteria
 
 - Frozen semantic verification remains exactly `VERIFIED,20` against byte-identical A1C sources.
-- `N-MEAN-GENERAL` and `N-PROD-MULTI` each pass all five new isolated forks and their median at
+- `N-MEAN-GENERAL` and `N-PROD-MULTI` each pass all five new isolated [forks](../../../../glossary.md#term-fork-meanings) and their [median](../../../../glossary.md#term-median) at
   `<= 1.15x` under the unchanged protocol.
-- `P-VECTOR-SEGMENT`, `P-INTEGRAL-MIXED`, and `O-ARGSORT` pass every new fork and aggregate.
+- `P-VECTOR-SEGMENT`, `P-INTEGRAL-MIXED`, and `O-ARGSORT` pass every new [fork](../../../../glossary.md#term-fork-meanings) and aggregate.
 - Both generated target outputs match the frozen comparator bit-for-bit; inputs, canaries,
   workspace boundaries, range ownership, visitation order, exact-state transitions, and resource
-  declarations remain unchanged.
+  declarations remain unchanged.<span data-glossary-navigation="true"> ([target glossary](../../../../glossary.md#term-target); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Stable Class-File evidence proves the selected direct primitive shape and a retained typed
-  general fallback in the target classes.
+  general fallback in the target classes.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape))</span>
 - Generated/decompiled proved branches are algorithm- and dataflow-equivalent to optimal clean
   Java, including exact-state operations and final result rounding. Any deviation is explicitly
-  justified and measured.
+  justified and measured.<span data-glossary-navigation="true"> ([dataflow glossary](../../../../glossary.md#term-dataflow); [rounding glossary](../../../../glossary.md#term-rounding))</span>
 - Repeated proved work has no allocation, boxing, reflection, dynamic dispatch, generic bridge,
   runtime operation dispatch, or Synaptik-owned helper call. Each target class is a field-free
-  final class with exactly one typed static `invoke`, no constructor or bridge, no `Object`
-  descriptor, and no method handle, `invokedynamic`, dynamic constant, or bootstrap.
+  final class with exactly one typed static <span data-glossary-navigation="true"> ([dispatch glossary](../../../../glossary.md#term-dispatch); [runtime glossary](../../../../glossary.md#term-runtime); [operation glossary](../../../../glossary.md#operation))</span>`invoke`, no constructor or bridge, no `Object`
+  descriptor, and no method handle, <span data-glossary-navigation="true"> ([descriptor glossary](../../../../glossary.md#term-descriptor); [method handle glossary](../../../../glossary.md#term-method-handle))</span>`invokedynamic`, dynamic [constant](../../../../glossary.md#term-constant), or bootstrap.
 - If emitted bytes change, schema advances exactly once from 35 and all older envelopes remain
-  incompatible safe misses without migration, conversion, aliasing, or dual-schema reuse.
+  incompatible safe misses without migration, conversion, aliasing, or dual-schema reuse.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [aliasing glossary](../../../../glossary.md#term-aliasing))</span>
 - Only `CpuAggregateEmitter` changes generated algorithm shape. Semantics, public API, capability,
   resources, routes, Prepare/Runtime behavior, architecture, dependencies, and build remain
-  unchanged.
+  unchanged.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [Prepare glossary](../../../../glossary.md#prepare))</span>
 - A distinct clean documentation context independently finalizes affected Javadocs/package
-  summaries, evidence/status, guide/glossary impact, and documentation validation.
+  summaries, evidence/status, guide/glossary impact, and documentation validation.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
 
-## Tests / validation
+## Tests / [validation](../../../../glossary.md#term-validation)
 
-After executable Java stabilizes, run focused owners and one authoritative uncached CPU suite:
+After executable Java stabilizes, [run](../../../../glossary.md#term-run) focused [owners](../../../../glossary.md#term-owner) and one authoritative uncached [CPU](../../../../glossary.md#term-cpu) suite:
 
 ```bash
 ./gradlew :backends:cpu:test \
@@ -214,10 +214,10 @@ After executable Java stabilizes, run focused owners and one authoritative uncac
 ```
 
 Recompile unchanged A1C sources, run exact 20-row semantics, and run five sequential isolated
-`-Xms1g -Xmx1g` forks. Retain raw output, all row summaries, required target/control aggregates,
-all 20 generated classes, complete `javap -c -p` and `javap -v -p`, member/descriptor/forbidden-
+`-Xms1g -Xmx1g` [forks](../../../../glossary.md#term-fork-meanings). Retain raw output, all row summaries, required [target](../../../../glossary.md#term-target)/control aggregates,
+all 20 generated classes, complete `javap -c -p` and `javap -v -p`, member/[descriptor](../../../../glossary.md#term-descriptor)/forbidden-
 reference and allocation reports, clean-Java-equivalence analysis, environment, commands, exact
-changed paths, staged-state evidence, schema compatibility, and SHA-256 manifests in one new A1H
+changed paths, staged-state evidence, [schema](../../../../glossary.md#term-schema) compatibility, and [SHA-256](../../../../glossary.md#term-sha-256) manifests in one new A1H
 evidence directory. A nonzero full-probe process is acceptable only for named deferred rows and
 must not be reported as a full performance pass.
 
@@ -231,25 +231,25 @@ git status --short
 ```
 
 It also validates Markdown links, anchors, fences, final newlines, status/frontier consistency,
-exact path bounds, one Ready detailed task, schema propagation, immutable frozen sources, empty
+exact path bounds, one [Ready](../../../../glossary.md#term-ready) detailed task, schema propagation, [immutable](../../../../glossary.md#term-immutable) frozen sources, empty
 staged diff, direct-clean-Java equivalence evidence, and concurrent worktree preservation.
-Repository-wide, architecture, conformance, and integration suites remain deferred to CPU 0009
-or CI because this task must not change a shared contract.
+Repository-wide, architecture, [conformance](../../../../glossary.md#term-conformance), and integration suites remain deferred to CPU 0009
+or [CI](../../../../glossary.md#term-continuous-integration-ci) because this task must not change a shared contract.
 
 ## Dependencies
 
-- CPU 0007A1C supplies the immutable 20-row corpus and remains `Review needed`/Incomplete.
-- CPU 0007A1G is Complete at schema 35 and supplies the final five-fork residual evidence.
+- [CPU](../../../../glossary.md#term-cpu) 0007A1C supplies the [immutable](../../../../glossary.md#term-immutable) 20-row corpus and remains `Review needed`/Incomplete.
+- CPU 0007A1G is Complete at [schema](../../../../glossary.md#term-schema) 35 and supplies the final five-[fork](../../../../glossary.md#term-fork-meanings) [residual](../../../../glossary.md#scan-residual-port-and-history-demand) evidence.
 - CPU 0007A1 and CPU 0007A0F define the exact numerical aggregate semantics, resources, and
   direct generated bodies to preserve.
 - CPU 0007A1D remains `Review needed`/Incomplete; its stable schema-32 segment-layout hoisting is
-  retained but its incomplete performance claim is not inherited.
+  retained but its incomplete performance claim is not inherited.<span data-glossary-navigation="true"> ([layout glossary](../../../../glossary.md#layout))</span>
 
 ## Follow-up tasks
 
-- CPU 0007A1I is the sole next `Ready` task. It owns the persistent `I-GATHER` and `I-GATHER-ND`
-  residuals through one code-shaping owner, `CpuIndexingEmitter`.
-- Other residual families remain Draft and unassigned.
+- [CPU](../../../../glossary.md#term-cpu) 0007A1I is the sole next [`Ready`](../../../../glossary.md#term-ready) task. It owns the persistent `I-GATHER` and `I-GATHER-ND`
+  residuals through one code-shaping owner, <span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner))</span>`CpuIndexingEmitter`.
+- Other [residual](../../../../glossary.md#scan-residual-port-and-history-demand) families remain Draft and unassigned.
 - CPU 0007A1C resumes closure only after all corrective residual work is complete.
 - CPU 0007A2 remains blocked behind CPU 0007A1C and all corrective residual work.
 
@@ -257,8 +257,8 @@ or CI because this task must not change a shared contract.
 
 Expected impact: None.
 
-If implementation requires an architecture, dependency, public API, semantic, exact-resource,
-route, Prepare, Runtime, build, IR, or lowering change, stop and report the issue.
+If implementation requires an architecture, [dependency](../../../../glossary.md#term-dependency), public [API](../../../../glossary.md#term-application-programming-interface-api), semantic, exact-resource,
+route, [Prepare](../../../../glossary.md#prepare), [Runtime](../../../../glossary.md#term-runtime), build, [IR](../../../../glossary.md#term-intermediate-representation-ir), or [lowering](../../../../glossary.md#lowering) change, stop and report the issue.
 
 ## Implementation prompt
 
@@ -287,46 +287,46 @@ controls pass every required gate. Do not commit, push, or stage.
 
 ## Local decisions
 
-- The final A1G evidence shows both numerical rows fail all five forks and their aggregate.
+- The final A1G evidence shows both numerical rows fail all five [forks](../../../../glossary.md#term-fork-meanings) and their aggregate.
 - They share one code-shaping owner, exact-state resource model, output-cell execution domain,
   frozen evidence lifecycle, and generated/direct clean-Java requirement, so one cohesive task is
-  smaller and clearer than two mechanical tasks.
+  smaller and clearer than two mechanical tasks.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [model glossary](../../../../glossary.md#term-model); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - No other residual joins this task. In particular, extrema, scan, indexing, pointwise, and affine
-  rows have different owners or algorithms.
+  rows have different owners or algorithms.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand); [extrema glossary](../../../../glossary.md#saturation-pole-and-extremum); [scan glossary](../../../../glossary.md#term-cumulative-scan); [pointwise glossary](../../../../glossary.md#term-pointwise))</span>
 - The fixed clean Java comparators use the same exact numerical state machinery as production
   semantics; passing the gate may remove avoidable generated shape overhead but may not substitute
-  a simpler inexact accumulation algorithm.
+  a simpler inexact accumulation algorithm.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape))</span>
 
 ## Known limitations
 
 - Ratios apply only to the frozen cases, JVM, host, and protocol. They establish neither universal
-  aggregate parity nor a production tuning decision.
-- This task does not close CPU 0007A1C or authorize CPU 0007A2.
+  aggregate parity nor a production tuning decision.<span data-glossary-navigation="true"> ([JVM glossary](../../../../glossary.md#term-java-virtual-machine-jvm); [host glossary](../../../../glossary.md#term-host))</span>
+- This task does not close [CPU](../../../../glossary.md#term-cpu) 0007A1C or authorize CPU 0007A2.
 - Deferred rows may keep every full process nonzero and remain diagnostic.
 
-## Validation evidence
+## [Validation](../../../../glossary.md#term-validation) evidence
 
 Implementation context `01a020b0-0053-7f70-8c11-ede67b6ee1e9` retained complete evidence under
 `/private/tmp/synaptik-cpu-0007a1h-JFko4MLE`. The unchanged frozen sources recompiled and remained
-byte-identical; exact semantics reported `VERIFIED,20`. The exact focused owner command passed,
-and the authoritative uncached `./gradlew :backends:cpu:test --rerun-tasks` run passed 352 tests
-with zero failures, zero errors, and one expected opt-in skip. All two targets and three controls
-passed every one of five isolated forks and their medians at `<= 1.15x`; all processes exited one
+byte-identical; exact semantics reported `VERIFIED,20`. The exact focused [owner](../../../../glossary.md#term-owner) command passed,
+and the authoritative uncached `./gradlew :backends:cpu:test --rerun-tasks` [run](../../../../glossary.md#term-run) passed 352 tests
+with zero failures, zero errors, and one expected opt-in skip. All two [targets](../../../../glossary.md#term-target) and three controls
+passed every one of five isolated [forks](../../../../glossary.md#term-fork-meanings) and their medians at `<= 1.15x`; all processes exited one
 only because seven named deferred diagnostic rows failed.
 
 The retained evidence includes twenty generated classes; complete `javap -c -p` and
-`javap -v -p`; class/member/descriptor/allocation/forbidden-reference reports; direct-clean-Java
-equivalence analysis; schema compatibility; raw and summarized forks; environment, commands,
-exact implementation paths, staged-state evidence, and SHA-256 manifests. The two target classes
+`javap -v -p`; class/member/[descriptor](../../../../glossary.md#term-descriptor)/allocation/forbidden-reference reports; direct-clean-Java
+equivalence analysis; [schema](../../../../glossary.md#term-schema) compatibility; raw and summarized forks; environment, commands,
+exact implementation paths, staged-state evidence, and [SHA-256](../../../../glossary.md#term-sha-256) manifests. The two target classes
 are field-free final classes with exactly one typed static `invoke`, no constructor or bridge,
-and no allocation, reflection, dynamic construct, generic `Object` descriptor, or Synaptik runtime
-reference. Their proved hot-loop regions contain no packed-geometry lookup, division, or remainder;
+and no allocation, reflection, dynamic construct, generic `Object` descriptor, or Synaptik [runtime](../../../../glossary.md#term-runtime)
+reference. Their proved hot-loop regions contain no packed-geometry [lookup](../../../../glossary.md#term-lookup), division, or remainder;
 the complete classes retain those operations in guards and typed fallbacks.
 
 Clean documentation context `01a020db-ef9b-7e20-bf46-30937a980026` selected the General,
-API/Javadoc, Planning, and Backend Guide profiles. It independently reviewed the implementation
-diff, affected tests and Javadocs, package summaries, CPU guide, glossary, planning records,
-Compile API, Training API, capability baseline, architecture/current plan, conformance and
+[API](../../../../glossary.md#term-application-programming-interface-api)/[Javadoc](../../../../glossary.md#term-javadoc), [Planning](../../../../glossary.md#term-planning), and [Backend](../../../../glossary.md#backend) Guide profiles. It independently reviewed the implementation
+diff, affected tests and Javadocs, package summaries, [CPU](../../../../glossary.md#term-cpu) guide, glossary, planning records,
+[Compile](../../../../glossary.md#compile) API, Training API, capability baseline, architecture/current plan, [conformance](../../../../glossary.md#term-conformance) and
 integration boundaries, and retained implementation evidence. It changed no executable Java or
 test. CPU Javadoc, Markdown/link/anchor/fence/final-newline checks, schema/current-wording and
 status/frontier searches, exact 17-path and staged-state review, concurrent-work preservation,
@@ -335,22 +335,22 @@ did not change during this pass.
 
 ## Implementation notes
 
-- `N-MEAN-GENERAL` uses a complete runtime guard for the frozen FLOAT32 axis-one Shape
+- `N-MEAN-GENERAL` uses a complete [runtime](../../../../glossary.md#term-runtime) [guard](../../../../glossary.md#term-guard) for the frozen [FLOAT32](../../../../glossary.md#term-float32) [axis](../../../../glossary.md#term-axis)-one [Shape](../../../../glossary.md#shape)
   `[128, 2048]`, mixed carriers, exact five-limb/48-byte state, layout geometry, and legal range.
   Its proved body visits increasing cells and exactly 2,048 factors per cell, keeps exact state in
-  primitive locals, writes the identical final workspace state, and implements division by
+  primitive locals, writes the identical final workspace state, and implements division by<span data-glossary-navigation="true"> ([limb glossary](../../../../glossary.md#exact-superaccumulator-and-limbs); [layout glossary](../../../../glossary.md#layout))</span>
   `2048 == 2^11` through equivalent exact extraction and ties-to-even rounding. The typed general
-  fallback remains in the same class.
-- `N-PROD-MULTI` uses a complete runtime guard for the frozen BFLOAT16 Shape `[4, 16384, 4]`,
+  fallback remains in the same class.<span data-glossary-navigation="true"> ([ties-to-even glossary](../../../../glossary.md#term-ties-to-even); [rounding glossary](../../../../glossary.md#term-rounding))</span>
+- `N-PROD-MULTI` uses a complete runtime guard for the frozen [BFLOAT16](../../../../glossary.md#term-bfloat16) Shape `[4, 16384, 4]`,
   axes `[0, 2]`, retained Shape `[1, 16384, 1]`, mixed carriers, two-limb/40-byte state, and legal
   range. Its primitive geometry cursors visit the exact four-outer-by-four-inner factor order and
   retain unchanged `CpuExactProductEmitter` state transitions. The typed general fallback remains.
 - `CpuExactSumEmitter` and `CpuExactProductEmitter` source files are unchanged. Schema advanced
   exactly once from 35 to 36; older envelopes are incompatible safe misses with no migration,
-  conversion, alias, or dual-schema reuse.
+  conversion, alias, or dual-schema reuse.<span data-glossary-navigation="true"> ([Schema glossary](../../../../glossary.md#term-schema); [alias glossary](../../../../glossary.md#aliasing-and-arena))</span>
 - Only `CpuAggregateEmitter` changes generated algorithm shape. No public API, capability,
   resource size/ownership, lowering, route, Prepare/Runtime behavior, dependency, build,
-  conformance, integration, Compile API, or Training API contract changed.
+  conformance, integration, Compile API, or Training API contract changed.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [lowering glossary](../../../../glossary.md#lowering); [Prepare glossary](../../../../glossary.md#prepare); [dependency glossary](../../../../glossary.md#term-dependency); [conformance glossary](../../../../glossary.md#term-conformance); [Compile glossary](../../../../glossary.md#compile))</span>
 
 ## Completion summary
 
@@ -358,30 +358,30 @@ did not change during this pass.
   cache, code-generation, and prepare package summaries; documented the two guarded exact-state
   forms and bounded evidence in the CPU guide and glossary; recorded complete semantic,
   Class-File, schema, Java-test, and five-fork evidence; marked A1H Complete; and created CPU
-  0007A1I as the sole next Ready residual task.
+  0007A1I as the sole next Ready residual task.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [CPU glossary](../../../../glossary.md#term-cpu); [fork glossary](../../../../glossary.md#term-fork-meanings); [Ready glossary](../../../../glossary.md#term-ready); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>
 - Files changed or created by the documentation pass: `CpuGeneratorSchema.java`,
-  `CpuAggregateEmitter.java`, cache/codegen/prepare `package-info.java`, CPU backend guide,
+  `CpuAggregateEmitter.java`, [cache](../../../../glossary.md#term-cache)/codegen/[prepare](../../../../glossary.md#prepare) `package-info.java`, CPU backend guide,
   glossary, A1H, A1C, new A1I, CPU master plan, and roadmap. The two Java owners received
-  documentation-only edits; implementation behavior and tests were preserved.
+  documentation-only edits; implementation behavior and tests were preserved.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend))</span>
 - Tests and validation: reused the implementation context's passing focused owners, 352-test
-  uncached CPU suite, `VERIFIED,20`, Class-File reports, and five-fork evidence. The documentation
+  uncached CPU suite, <span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>`VERIFIED,20`, Class-File reports, and five-fork evidence. The documentation
   pass ran CPU Javadoc and documentation/scope/schema/status/staging/whitespace validation; it did
-  not rerun Java tests or timing.
+  not rerun Java tests or timing.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [scope glossary](../../../../glossary.md#term-scope))</span>
 - Documentation-agent review: clean context `01a020db-ef9b-7e20-bf46-30937a980026`.
 - Documentation impact: only CPU-private generated-code/schema, package, guide, glossary, and
   planning evidence changed. Architecture/current-plan, public API, capabilities, Compile API,
   Training API, conformance, integration, and build documentation remain accurate because no such
-  contract changed.
+  contract changed.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [Compile glossary](../../../../glossary.md#compile); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 - Javadoc review: affected type/member Javadocs document guarded geometry, exact state,
-  subranges, fallback, schema compatibility, parameters, and failure behavior; CPU Javadoc passes.
+  subranges, fallback, schema compatibility, parameters, and failure behavior; CPU Javadoc passes.<span data-glossary-navigation="true"> ([parameters glossary](../../../../glossary.md#term-parameter))</span>
 - Glossary impact: current generated-kernel/schema definitions advanced to schema 36; no new
-  reusable term was introduced.
+  reusable term was introduced.<span data-glossary-navigation="true"> ([kernel glossary](../../../../glossary.md#kernel))</span>
 - Concurrent-work preservation: the unrelated user-approved Conv1d/Conv3d edits in the six named
   planning files were preserved; only the smallest overlapping A1H/A1I CPU frontier sentences in
-  the CPU master plan and roadmap were changed by this pass.
+  the CPU master plan and roadmap were changed by this pass.<span data-glossary-navigation="true"> ([Conv3d glossary](../../../../glossary.md#conv3d--ncdhw))</span>
 - Unresolved issues: seven deferred performance rows remain; A1C and A1D remain `Review needed`/
   Incomplete, and A1H does not close the twenty-row comparison.
 - Follow-up required: execute CPU 0007A1I, then plan only later evidence-backed residual clusters;
-  resume A1C closure only after every persistent frozen failure closes. CPU 0007A2 remains blocked.
+  resume A1C closure only after every persistent frozen failure closes. CPU 0007A2 remains blocked.<span data-glossary-navigation="true"> ([resume glossary](../../../../glossary.md#schema-serialization-and-checkpoint))</span>
 
 Status: Complete

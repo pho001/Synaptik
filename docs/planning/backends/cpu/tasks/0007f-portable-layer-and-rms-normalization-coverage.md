@@ -1,4 +1,4 @@
-# Task 0007F: Portable Layer and RMS Normalization Coverage
+# Task 0007F: Portable Layer and [RMS Normalization](../../../../glossary.md#rms-normalization) Coverage
 
 ## Status
 
@@ -6,12 +6,12 @@ Complete
 
 ## Goal
 
-Execute exactly one fully static, resolved-layout, first-class `LAYER_NORM` or `RMS_NORM`
-occurrence on the portable CPU route. Cover every current no-affine, affine, no-scale, and scaled
-signature with direct deterministic trailing-slice generated loops whose semantic algorithm,
-pass/dataflow shape, and avoidable-overhead profile match optimal clean Java implementations.
+Execute exactly one fully static, resolved-[layout](../../../../glossary.md#layout), first-class `LAYER_NORM` or `RMS_NORM`
+[occurrence](../../../../glossary.md#term-occurrence) on the portable [CPU](../../../../glossary.md#term-cpu) route. Cover every current no-affine, affine, no-scale, and scaled
+[signature](../../../../glossary.md#term-signature) with direct deterministic trailing-[slice](../../../../glossary.md#slice) generated loops whose semantic algorithm,
+pass/[dataflow](../../../../glossary.md#term-dataflow) [shape](../../../../glossary.md#shape), and avoidable-overhead profile match optimal clean Java implementations.
 
-## Mental model
+## [Mental model](../../../../glossary.md#term-mental-model)
 
 ```text
 one explicit layer- or RMS-normalization node
@@ -23,12 +23,12 @@ one explicit layer- or RMS-normalization node
   -> scalar or complete-slice parallel-scalar execution
 ```
 
-The operation remains its first-class Model kind through lowering. CPU never recognizes a
-decomposed arithmetic/reduction graph as layer or RMS normalization.
+The [operation](../../../../glossary.md#operation) remains its first-class [Model](../../../../glossary.md#term-model) kind through [lowering](../../../../glossary.md#lowering). [CPU](../../../../glossary.md#term-cpu) never recognizes a
+decomposed arithmetic/reduction [graph](../../../../glossary.md#graph) as layer or [RMS normalization](../../../../glossary.md#rms-normalization).
 
-## Scope
+## [Scope](../../../../glossary.md#term-scope)
 
-- Recognize exactly one compiled `LayerNormKind.LAYER_NORM` occurrence with either:
+- Recognize exactly one compiled `LayerNormKind.LAYER_NORM` [occurrence](../../../../glossary.md#term-occurrence) with either:
   - `LayerNormAttrs` and ordered `[input] -> [output]`; or
   - `AffineLayerNormAttrs` and ordered `[input, scale, bias] -> [output]`.
 - Recognize exactly one compiled `RmsNormKind.RMS_NORM` occurrence with `RmsNormAttrs` and either:
@@ -36,26 +36,26 @@ decomposed arithmetic/reduction graph as layer or RMS normalization.
   - ordered `[input, scale] -> [output]`.
 - Preserve first-class semantic identity. Admit only the explicit kinds and exact attribute/input
   cardinality pairings; never infer, fuse, reconstruct, or relabel normalization from decomposed
-  graphs.
+  graphs.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [cardinality glossary](../../../../glossary.md#term-cardinality); [normalization glossary](../../../../glossary.md#term-normalization); [graphs glossary](../../../../glossary.md#graph))</span>
 - Accept every current BFLOAT16, FLOAT32, and FLOAT64 input combination. No-affine/no-scale forms
-  retain the input type. Affine Layer Norm promotes `input`, `scale`, then `bias` in occurrence
+  retain the input type. Affine Layer Norm promotes <span data-glossary-navigation="true"> ([BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [FLOAT32 glossary](../../../../glossary.md#term-float32); [FLOAT64 glossary](../../../../glossary.md#term-float64))</span>`input`, `scale`, then [`bias`](../../../../glossary.md#term-bias) in occurrence
   order; scaled RMS Norm promotes `input`, then `scale`. Require output and typed epsilon to equal
   that exact result type, and require output gradient eligibility to equal the Model-defined input
   eligibility or ordered-input logical OR. Promotion is generated conversion at reads and final
-  stores, not inserted Model casts.
-- Require a fully static rank-positive input Shape and non-empty static `normalizedShape` that
+  stores, not inserted Model casts.<span data-glossary-navigation="true"> ([gradient glossary](../../../../glossary.md#term-gradient); [Model glossary](../../../../glossary.md#term-model))</span>
+- Require a fully static [rank](../../../../glossary.md#term-rank)-positive input [Shape](../../../../glossary.md#shape) and non-empty static `normalizedShape` that
   exactly equals the trailing input Shape. Require scale and bias Shape, when present, to equal
   `normalizedShape`. Require fully resolved non-negative layouts, checked representable spans, and
-  an injective writable output with the exact input Shape.
+  an injective writable output with the exact input Shape.<span data-glossary-navigation="true"> ([layouts glossary](../../../../glossary.md#layout); [injective glossary](../../../../glossary.md#term-injective))</span>
 - Treat any zero leading or normalized extent as an empty output. Perform no divisor, statistic,
   input read, output write, workspace use, generated invocation, or worker submission. Otherwise
-  require the checked normalized-domain count and leading slice count to be positive `long`
+  require the checked normalized-domain count and leading slice count to be positive <span data-glossary-navigation="true"> ([extent glossary](../../../../glossary.md#term-extent); [statistic glossary](../../../../glossary.md#term-statistic); [slice glossary](../../../../glossary.md#slice))</span>`long`
   values before resource declaration.
 - Traverse leading slices in canonical logical row-major order and each normalized trailing slice
   in canonical logical row-major order. Reuse scale/bias normalized coordinates for every leading
-  slice. Flattened generated `start`/`end` bounds count complete leading slices and never divide a
+  slice. Flattened generated <span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [row-major glossary](../../../../glossary.md#term-row-major); [coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>`start`/`end` bounds count complete leading slices and never divide a
   normalized slice.
-- Layer Norm uses population correction zero and epsilon inside the square root:
+- Layer [Norm](../../../../glossary.md#term-norm) uses population correction zero and [epsilon](../../../../glossary.md#epsilon) inside the [square root](../../../../glossary.md#norms-elementary-functions-and-probability-distributions):
 
   ```text
   mean           = sum_i(x_i) / N
@@ -67,17 +67,17 @@ decomposed arithmetic/reduction graph as layer or RMS normalization.
 
 - Implement finite nonconstant Layer Norm with three direct passes. Pass one classifies the slice,
   detects a finite constant slice, and uses the existing exact-sum generation owner plus one final
-  result-computation-format rounding to obtain `mean`. Pass two accumulates deviations and squared
-  deviations using primitive compensated binary64 sums, applies
+  result-computation-format rounding to obtain <span data-glossary-navigation="true"> ([finite glossary](../../../../glossary.md#term-finite); [constant glossary](../../../../glossary.md#term-constant); [owner glossary](../../../../glossary.md#term-owner); [rounding glossary](../../../../glossary.md#term-rounding))</span>[`mean`](../../../../glossary.md#term-mean). Pass two accumulates deviations and squared
+  deviations using primitive compensated binary64 sums, applies<span data-glossary-navigation="true"> ([binary64 glossary](../../../../glossary.md#floating-point-precision-and-rounding))</span>
   `sumSquares - sumDeviation * sumDeviation / N`, clamps only a negative roundoff residue to
-  positive zero, and divides by `N`. Pass three standardizes and applies the optional affine
+  positive zero, and divides by <span data-glossary-navigation="true"> ([positive zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>`N`. Pass three standardizes and applies the optional affine
   multiply/add in the result type.
 - Preserve Layer Norm special classes exactly: any NaN or either infinity in the input slice makes
   every standardized value NaN and affine arithmetic cannot suppress it; every finite constant
   slice, including mixed signed zeros, produces exact positive-zero standardized values before
   affine arithmetic; all other overflow, underflow, signed-zero, infinity, and NaN outcomes follow
   the specified result-format operations. Do not add a variance clamp beyond the negative
-  roundoff-residue correction above.
+  roundoff-residue correction above.<span data-glossary-navigation="true"> ([NaN glossary](../../../../glossary.md#term-nan); [infinity glossary](../../../../glossary.md#term-infinity); [overflow glossary](../../../../glossary.md#term-overflow); [underflow glossary](../../../../glossary.md#term-underflow); [signed-zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [variance glossary](../../../../glossary.md#term-variance))</span>
 - RMS Norm uses uncentered population mean square and epsilon inside the square root:
 
   ```text
@@ -96,7 +96,7 @@ decomposed arithmetic/reduction graph as layer or RMS normalization.
   input infinity makes the root positive infinity, finite inputs produce same-signed zero, and
   infinite inputs produce NaN; all-finite zero inputs preserve their sign before optional scale;
   finite overflow to a positive-infinite root produces same-signed zero numerators; optional scale
-  follows ordinary result-format NaN, infinity, and signed-zero multiplication.
+  follows ordinary result-format NaN, infinity, and signed-zero multiplication.<span data-glossary-navigation="true"> ([positive infinity glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [signed zero glossary](../../../../glossary.md#term-signed-zero))</span>
 - For both families, treat input values as the result type before numerical work. BFLOAT16 and
   FLOAT32 results use at least FLOAT32 computation and FLOAT64 results use FLOAT64 computation.
   Reuse CPU 0007D's equal-or-wider exact-sum, compensated-sum, and scaled-square precedents, narrow
@@ -105,67 +105,67 @@ decomposed arithmetic/reduction graph as layer or RMS normalization.
   FLOAT64. Do not fuse the affine multiply/add. Encode BFLOAT16 once at the final output store;
   FLOAT32/FLOAT64 use their ordinary primitive operation boundaries. Make generated/direct
   traversal and rounding identical. This equal-or-wider BFLOAT16 policy is a CPU-private
-  conforming reassociation, not a public promotion or cross-backend bitwise promise.
+  conforming reassociation, not a public promotion or cross-backend bitwise promise.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [operation glossary](../../../../glossary.md#operation); [reassociation glossary](../../../../glossary.md#term-reassociation); [backend glossary](../../../../glossary.md#backend))</span>
 - Declare ordered logical inputs exactly as captured. If multiple semantic input positions refer
   to the same exact logical value, declare that boundary once in first-occurrence order and retain
   an immutable position-to-boundary map; do not duplicate physical resources. Declare exactly one
   output. Input/input alias is harmless read sharing; reject every output/input overlap before
-  mutation or submission.
-- Support each boundary's matching typed heap array or native-order `MemorySegment` carrier:
+  mutation or submission.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [alias glossary](../../../../glossary.md#aliasing-and-arena))</span>
+- Support each boundary's matching typed [heap](../../../../glossary.md#term-heap) array or native-order [`MemorySegment`](../../../../glossary.md#term-memorysegment) [carrier](../../../../glossary.md#term-storage-carrier):
   `short[]`, `float[]`, or `double[]` according to its own data type. Support every heap/segment
   combination for the unique ordered boundaries and output, arbitrary legal offsets and positive
   or zero input strides, and arbitrary injective output strides. Generated hot work uses concrete
-  typed entries after one cold carrier binding and contains no storage discovery or carrier switch.
+  typed entries after one cold carrier binding and contains no storage discovery or carrier switch.<span data-glossary-navigation="true"> ([data type glossary](../../../../glossary.md#data-type--datatype); [strides glossary](../../../../glossary.md#term-stride); [binding glossary](../../../../glossary.md#term-binding))</span>
 - Use primitive locals for classification, compensated sums, scaled squares, roots, coordinates,
-  counts, and addresses. Layer Norm alone may use the existing alignment-eight
+  counts, and addresses. Layer Norm alone may use the existing alignment-eight<span data-glossary-navigation="true"> ([alignment glossary](../../../../glossary.md#term-alignment))</span>
   `AGGREGATE_EXACT_STATE` workspace for the exact-mean pass: exactly one disjoint maximum-size
   slice per simultaneously used range. RMS Norm uses zero workspace. Add no resource kind,
-  materialization, partial value, combine state, saved statistic, or hidden scratch.
+  materialization, partial value, combine state, saved statistic, or hidden scratch.<span data-glossary-navigation="true"> ([materialization glossary](../../../../glossary.md#materialization); [saved statistic glossary](../../../../glossary.md#saved-statistic))</span>
 - Reuse existing bounded scalar/parallel-scalar orchestration. Declare no worker, executor,
-  thread-local, or scheduling resource: worker count and `start`/`end` ranges remain cold
+  thread-local, or scheduling resource: worker count and <span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar))</span>`start`/`end` ranges remain cold
   invocation facts, and generated code creates or submits no workers. Exact-state slice count is
   derived from the maximum number of simultaneously executing Layer ranges, not requested worker
   count or a hidden thread-local assumption.
 - Add one focused trailing-normalization IR and one focused trailing-Shape lowering owner. Add
   separate Layer Norm and RMS Norm emitters and one independent reference owner. Reuse existing
   CPU-private access, exact-sum emission, carrier, loop, route, preparation, binding, and artifact
-  seams without adding either kind to aggregate/softmax IR or growing a god emitter.
+  seams without adding either kind to aggregate/softmax IR or growing a god emitter.<span data-glossary-navigation="true"> ([IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [lowering glossary](../../../../glossary.md#lowering); [artifact glossary](../../../../glossary.md#term-artifact); [softmax glossary](../../../../glossary.md#softmax--log-softmax))</span>
 - Emit one deterministic final, field-free, constructor-free generated class per specialization
-  with one public static typed `invoke` entry. Advance `CpuGeneratorSchema.CURRENT_VERSION`
+  with one public static typed <span data-glossary-navigation="true"> ([specialization glossary](../../../../glossary.md#term-specialization))</span>`invoke` entry. Advance `CpuGeneratorSchema.CURRENT_VERSION`
   exactly once from 47 to 48 because the new family, multi-input carrier identity, numerical
   bodies, and workspace facts change artifact meaning. Schema 47 and earlier artifacts are safe
-  incompatible misses; retained historical evidence remains immutable.
+  incompatible misses; retained historical evidence remains immutable.<span data-glossary-navigation="true"> ([Schema glossary](../../../../glossary.md#term-schema))</span>
 - Use well-written optimal clean Java loops with identical validation work, pass count, traversal,
   exact-state/scaled-square arithmetic, carrier/layout addressing, conversions, and stores as the
-  generated/direct oracle. Generated code may call only required JDK primitive/raw-bit,
+  generated/direct oracle. Generated code may call only required JDK primitive/raw-bit,<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [oracle glossary](../../../../glossary.md#term-test-oracle); [JDK glossary](../../../../glossary.md#term-java-development-kit-jdk))</span>
   `Math`/`StrictMath`, and typed `MemorySegment` operations and must call no Synaptik numerical,
   validation, or reference helper.
 
-## Out of scope
+## Out of [scope](../../../../glossary.md#term-scope)
 
-- `BATCH_NORM_INFERENCE`, which belongs to Draft CPU 0007F1, and `BATCH_NORM_TRAINING`, which
+- `BATCH_NORM_INFERENCE`, which belongs to Draft [CPU](../../../../glossary.md#term-cpu) 0007F1, and `BATCH_NORM_TRAINING`, which
   belongs to Draft CPU 0007F2. This task has no channel-axis geometry, running statistics,
-  momentum, saved statistics, statistic transitions, or five-output binding.
+  momentum, saved statistics, statistic transitions, or five-output binding.<span data-glossary-navigation="true"> ([channel glossary](../../../../glossary.md#term-channel); [axis glossary](../../../../glossary.md#term-axis); [momentum glossary](../../../../glossary.md#term-momentum); [statistic glossary](../../../../glossary.md#term-statistic); [binding glossary](../../../../glossary.md#term-binding))</span>
 - Training/evaluation flags, mutable state, parameter/layer ownership, backward execution, saved
   means/inverse standard deviations, gradient-policy changes, or special execution for
   compiler-generated gradients. Layer/RMS forward occurrences have no mode distinction; ordinary
-  compiler-generated gradient graphs remain ordinary graph work.
+  compiler-generated gradient graphs remain ordinary graph work.<span data-glossary-navigation="true"> ([evaluation glossary](../../../../glossary.md#term-evaluation); [mutable glossary](../../../../glossary.md#term-mutable); [parameter glossary](../../../../glossary.md#term-parameter); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [gradient glossary](../../../../glossary.md#term-gradient); [compiler glossary](../../../../glossary.md#term-compiler); [graphs glossary](../../../../glossary.md#graph))</span>
 - Group, instance, local-response, weight, spectral, partial RMS, or other normalization; bias in
   RMS Norm; bias-only Layer Norm; broadcast scale/bias; default or Tensor epsilon; configurable
-  correction, accumulator, approximation, clamp, sentinel, or relaxed-math policy.
+  correction, accumulator, approximation, clamp, sentinel, or relaxed-math policy.<span data-glossary-navigation="true"> ([weight glossary](../../../../glossary.md#term-weight); [normalization glossary](../../../../glossary.md#term-normalization); [bias glossary](../../../../glossary.md#term-bias); [Norm glossary](../../../../glossary.md#term-norm); [Tensor glossary](../../../../glossary.md#tensor); [epsilon glossary](../../../../glossary.md#epsilon); [accumulator glossary](../../../../glossary.md#accumulator-type))</span>
 - Decomposition of a first-class kind; recognition or fusion of decomposed graphs; fusion with
-  adjacent work; native/vendor or Vector API routes; runtime kind/signature dispatch.
+  adjacent work; native/vendor or Vector API routes; runtime kind/signature dispatch.<span data-glossary-navigation="true"> ([Decomposition glossary](../../../../glossary.md#term-decomposition); [fusion glossary](../../../../glossary.md#term-fusion); [Vector API glossary](../../../../glossary.md#term-vector-api); [runtime glossary](../../../../glossary.md#term-runtime); [signature glossary](../../../../glossary.md#term-signature); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
 - Dynamic or symbolic Shapes, unresolved layouts, runtime normalized axes/Shapes, scalar inputs,
   FLOAT16, integral/BOOL/quantized/complex data, a count/span that fails checked representation,
-  output aliasing, negative resolved strides, or non-injective output layouts.
+  output aliasing, negative resolved strides, or non-injective output layouts.<span data-glossary-navigation="true"> ([Shapes glossary](../../../../glossary.md#shape); [layouts glossary](../../../../glossary.md#layout); [scalar glossary](../../../../glossary.md#term-scalar); [FLOAT16 glossary](../../../../glossary.md#term-float16); [BOOL glossary](../../../../glossary.md#data-type--datatype); [aliasing glossary](../../../../glossary.md#term-aliasing); [strides glossary](../../../../glossary.md#term-stride); [injective glossary](../../../../glossary.md#term-injective))</span>
 - Partial normalized slices, partial reductions, combine trees, per-element tasks, workspace for
-  RMS Norm, materialized affine operands, saved standardized values, or new resource kinds.
+  RMS Norm, materialized affine operands, saved standardized values, or new resource kinds.<span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element))</span>
 - Generated calls to CPU validation/reference implementations or Synaptik arithmetic helpers;
-  allocation, boxing, reflection, method handles, `invokedynamic`, generic `Object` descriptors,
-  collection/map/string lookup, or avoidable virtual/semantic dispatch in generated hot work.
+  allocation, boxing, reflection, method handles, <span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>`invokedynamic`, generic `Object` descriptors,
+  collection/map/string lookup, or avoidable virtual/semantic dispatch in generated hot work.<span data-glossary-navigation="true"> ([lookup glossary](../../../../glossary.md#term-method-handle-lookup))</span><span data-glossary-navigation="true"> ([descriptors glossary](../../../../glossary.md#term-descriptor))</span>
 - Public/shared API, Model, Compiler, Training, Runtime, Prepare contract, backend-contract,
   dependency, module-boundary, Gradle/toolchain, architecture, conformance, integration, tracing,
-  tuning, or persistence-format changes beyond the CPU-private generator schema.
+  tuning, or persistence-format changes beyond the CPU-private generator schema.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [Model glossary](../../../../glossary.md#term-model); [Prepare glossary](../../../../glossary.md#prepare); [backend glossary](../../../../glossary.md#backend); [dependency glossary](../../../../glossary.md#term-dependency); [module glossary](../../../../glossary.md#term-module); [Gradle glossary](../../../../glossary.md#term-gradle); [toolchain glossary](../../../../glossary.md#term-toolchain); [conformance glossary](../../../../glossary.md#term-conformance); [persistence glossary](../../../../glossary.md#term-persistence); [schema glossary](../../../../glossary.md#term-schema))</span>
 - Reopening CPU 0007A1D or creating detailed specifications for CPU 0007F1 or any later task.
 
 ## Architecture references
@@ -192,35 +192,35 @@ decomposed arithmetic/reduction graph as layer or RMS normalization.
 - Model owns first-class kinds, exact signatures, trailing normalized Shape, formulas, epsilon,
   promotion, Shape, gradient eligibility, and special-value classes. Compiler owns capture,
   inference/revalidation, and gradients. CPU owns only truthful forward admission, static lowering,
-  concrete numerical algorithm, access/resource validation, and generated realization.
+  concrete numerical algorithm, access/resource validation, and generated realization.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [signatures glossary](../../../../glossary.md#term-signature); [normalized Shape glossary](../../../../glossary.md#normalized-shape); [epsilon glossary](../../../../glossary.md#epsilon); [Shape glossary](../../../../glossary.md#shape); [gradient glossary](../../../../glossary.md#term-gradient); [Compiler glossary](../../../../glossary.md#term-compiler); [capture glossary](../../../../glossary.md#term-capture-meanings); [inference glossary](../../../../glossary.md#term-inference); [CPU glossary](../../../../glossary.md#term-cpu); [admission glossary](../../../../glossary.md#term-admission); [lowering glossary](../../../../glossary.md#lowering); [validation glossary](../../../../glossary.md#term-validation))</span>
 - CPU analysis must select only explicit Layer/RMS occurrences. Neither CPU nor Compiler may infer
-  first-class normalization from an equivalent-looking decomposed graph.
+  first-class normalization from an equivalent-looking decomposed graph.<span data-glossary-navigation="true"> ([normalization glossary](../../../../glossary.md#term-normalization); [graph glossary](../../../../glossary.md#graph))</span>
 - The existing Model and Compiler contracts are complete for this task: all four admitted forms,
   result descriptors, typed epsilon rules, finite targets, special classes, and gradient formulas
-  are settled. Implementation must stop rather than revise those contracts.
+  are settled. Implementation must stop rather than revise those contracts.<span data-glossary-navigation="true"> ([descriptors glossary](../../../../glossary.md#term-descriptor); [finite glossary](../../../../glossary.md#term-finite); [targets glossary](../../../../glossary.md#term-target))</span>
 - CPU analysis/lowering computes all static eligibility and exact resources before shared slot
   assignment. CPU executable binding validates carriers, thread access, spans, alignment,
   injectivity, and overlap before mutation or worker submission. Shared Prepare remains CPU-blind;
-  Runtime invokes the cold-bound recipe without operation dispatch.
+  Runtime invokes the cold-bound recipe without operation dispatch.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding); [alignment glossary](../../../../glossary.md#term-alignment); [injectivity glossary](../../../../glossary.md#storage-mapping-contiguity-and-injectivity); [Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime); [operation glossary](../../../../glossary.md#operation); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
 - Generated code must preserve the optimal clean Java semantic algorithm, hot-loop/pass/dataflow
   shape, and avoidable-overhead profile. A generic bridge, reference call, per-element callback,
-  packed runtime kind switch, or decomposed realization is not a specialized implementation.
+  packed runtime kind switch, or decomposed realization is not a specialized implementation.<span data-glossary-navigation="true"> ([dataflow glossary](../../../../glossary.md#term-dataflow); [element glossary](../../../../glossary.md#term-element); [callback glossary](../../../../glossary.md#term-callback))</span>
 - Any needed public/shared/build/architecture/conformance/integration change, new resource kind,
   materialization, partial/combine protocol, unresolved semantic decision, or batch-normalization
-  implementation is a stop/replan condition.
+  implementation is a stop/replan condition.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance); [materialization glossary](../../../../glossary.md#materialization); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>
 
 ## Package impact
 
-Existing CPU-private packages changed:
+Existing [CPU](../../../../glossary.md#term-cpu)-private packages changed:
 
-- `io.github.pho001.synaptik.backend.cpu` — exact capability admission.
-- `io.github.pho001.synaptik.backend.cpu.internal.ir` — immutable trailing-normalization identity.
+- `io.github.pho001.synaptik.backend.cpu` — exact capability [admission](../../../../glossary.md#term-admission).
+- `io.github.pho001.synaptik.backend.cpu.internal.ir` — [immutable](../../../../glossary.md#term-immutable) trailing-[normalization](../../../../glossary.md#term-normalization) [identity](../../../../glossary.md#term-identity-meanings).
 - `io.github.pho001.synaptik.backend.cpu.internal.lowering` — static trailing-slice geometry and
-  exact resource derivation.
+  exact resource derivation.<span data-glossary-navigation="true"> ([slice glossary](../../../../glossary.md#slice))</span>
 - `io.github.pho001.synaptik.backend.cpu.internal.codegen.emit` — separate direct Layer/RMS bodies.
-- `io.github.pho001.synaptik.backend.cpu.internal.reference` — independent differential oracle.
-- existing `route.portable`, `prepare`, `executable`, and `cache` packages — realization,
-  declaration, cold validation/invocation, and schema-48 compatibility.
+- `io.github.pho001.synaptik.backend.cpu.internal.reference` — independent differential [oracle](../../../../glossary.md#term-test-oracle).
+- existing `route.portable`, [`prepare`](../../../../glossary.md#prepare), `executable`, and [`cache`](../../../../glossary.md#term-cache) packages — realization,
+  declaration, cold validation/invocation, and schema-48 compatibility.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [schema glossary](../../../../glossary.md#term-schema))</span>
 
 Packages added: None.
 
@@ -228,33 +228,33 @@ Type placement:
 
 - Add `CpuTrailingNormalizationIr` in `internal.ir` for exact kind/signature, each boundary type,
   typed epsilon raw bits, normalized rank, algorithm version, pass/resource identity, access
-  patterns, and structural specialization facts.
+  patterns, and structural specialization facts.<span data-glossary-navigation="true"> ([signature glossary](../../../../glossary.md#term-signature); [epsilon glossary](../../../../glossary.md#epsilon); [raw bits glossary](../../../../glossary.md#storage-mapping-contiguity-and-injectivity); [rank glossary](../../../../glossary.md#term-rank); [specialization glossary](../../../../glossary.md#term-specialization))</span>
 - Add `CpuTrailingNormalizationLowering` in `internal.lowering` for exact Shape/layout, leading
   slice count, normalized-domain count, canonical coordinate mapping, first-occurrence unique
-  boundary mapping, checked spans, and exact Layer-only workspace derivation.
+  boundary mapping, checked spans, and exact Layer-only workspace derivation.<span data-glossary-navigation="true"> ([Shape glossary](../../../../glossary.md#shape); [layout glossary](../../../../glossary.md#layout); [canonical glossary](../../../../glossary.md#term-canonical-form); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 - Add `CpuLayerNormEmitter` and `CpuRmsNormEmitter` in `internal.codegen.emit`; each owns only its
-  direct numerical body and is selected at generation time without runtime semantic dispatch.
+  direct numerical body and is selected at generation time without runtime semantic dispatch.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
 - Add `CpuTrailingNormalizationReferenceKernel` in `internal.reference`; it independently derives
   coordinates and mathematical expectations without production lowering, emission, binding, or
-  generated helpers.
+  generated helpers.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [binding glossary](../../../../glossary.md#term-binding))</span>
 - Add no validator type because every represented input value has defined Model behavior and the
   existing cold structural validation is sufficient. Add no facade, manager, registry, generic
-  normalization interpreter, or aggregate/softmax owner change.
+  normalization interpreter, or aggregate/softmax owner change.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [facade glossary](../../../../glossary.md#term-facade); [registry glossary](../../../../glossary.md#term-registry); [softmax glossary](../../../../glossary.md#softmax--log-softmax); [owner glossary](../../../../glossary.md#term-owner))</span>
 
 ## Affected files
 
-Expected production/Javadoc paths:
+Expected production/[Javadoc](../../../../glossary.md#term-javadoc) paths:
 
-- `CpuCapabilityProvider.java` and CPU package Javadoc;
+- `CpuCapabilityProvider.java` and [CPU](../../../../glossary.md#term-cpu) package Javadoc;
 - `internal/ir/CpuPortableKernelIr.java`, new `CpuTrailingNormalizationIr.java`, and IR package
-  Javadoc;
+  Javadoc;<span data-glossary-navigation="true"> ([IR glossary](../../../../glossary.md#term-intermediate-representation-ir))</span>
 - `internal/lowering/CpuPartitionLowering.java`, new `CpuTrailingNormalizationLowering.java`, and
-  lowering package Javadoc;
+  lowering package Javadoc;<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering))</span>
 - `internal/codegen/emit/CpuClassFileKernelGenerator.java`, new `CpuLayerNormEmitter.java`, new
   `CpuRmsNormEmitter.java`, the existing exact-sum/carrier/loop emission seams only where required,
-  and emitter package Javadoc;
+  and emitter package Javadoc;<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
 - `internal/cache/CpuGeneratorSchema.java`, `CpuKernelSpecialization.java` only if exact emitted
-  identity requires it, and cache package Javadoc;
+  identity requires it, and cache package Javadoc;<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [cache glossary](../../../../glossary.md#term-cache))</span>
 - `internal/route/portable/CpuPortableRoutePlan.java` and package Javadoc;
 - `internal/prepare/CpuPartitionPreparationPlan.java`, `CpuPartitionPreparer.java`,
   `CpuPartitionFinalizer.java`, and package Javadoc;
@@ -270,35 +270,35 @@ Expected test paths:
   `CpuTrailingNormalizationReferenceTest`;
 - generated-class shape/member, specialization/cache, portable route, prepare/finalization,
   executable, and reference-differential tests only where their exact inventories or behavior
-  change; and
+  change; and<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [specialization glossary](../../../../glossary.md#term-specialization); [prepare glossary](../../../../glossary.md#prepare))</span>
 - the historical pointwise-ledger test only if a current-schema assertion requires it; its
-  historical evidence resource must not change.
+  historical evidence resource must not change.<span data-glossary-navigation="true"> ([pointwise glossary](../../../../glossary.md#term-pointwise); [schema glossary](../../../../glossary.md#term-schema))</span>
 
-Expected documentation/planning paths:
+Expected documentation/[planning](../../../../glossary.md#term-planning) paths:
 
 - `docs/backend-guide/cpu-backend.md`, `docs/glossary.md`, this task, the CPU master plan, and the
   global roadmap. Architecture, public Tensor/Compile/Training APIs, Model/Compiler plans,
   shared Prepare, backend-contract, conformance, integration, and build files are review-only
-  unless a stop condition is reached.
+  unless a stop condition is reached.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [Compile glossary](../../../../glossary.md#compile); [Model glossary](../../../../glossary.md#term-model); [Compiler glossary](../../../../glossary.md#term-compiler); [backend glossary](../../../../glossary.md#backend); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 
-## Maximum scope
+## Maximum [scope](../../../../glossary.md#term-scope)
 
 The complete implementation, tests, and documentation may modify or create at most 49 repository
-paths: at most 29 production/Javadoc paths, 15 test paths, and exactly the five named documentation
-and planning paths. Exactly five new CPU-private production types are permitted: the IR, lowerer,
-two numerical emitters, and independent reference owner listed above.
+paths: at most 29 production/[Javadoc](../../../../glossary.md#term-javadoc) paths, 15 test paths, and exactly the five named documentation
+and [planning](../../../../glossary.md#term-planning) paths. Exactly five new [CPU](../../../../glossary.md#term-cpu)-private production types are permitted: the [IR](../../../../glossary.md#term-intermediate-representation-ir), lowerer,
+two numerical emitters, and independent reference [owner](../../../../glossary.md#term-owner) listed above.
 
 This exceeds the planning guide's ordinary file-count guardrail only because one truthful CPU
-family must update existing capability, sealed IR, generator, schema/cache, route, prepare,
+family must update existing capability, [sealed](../../../../glossary.md#term-sealed) IR, generator, [schema](../../../../glossary.md#term-schema)/[cache](../../../../glossary.md#term-cache), route, [prepare](../../../../glossary.md#prepare),
 executable, package-Javadoc, and inventory/differential seams atomically. The behavioral core is
-still five focused new types in one module. Splitting those mechanical integrations from the IR
+still five focused new types in one [module](../../../../glossary.md#term-module). Splitting those mechanical integrations from the IR
 and emitters would temporarily advertise, persist, or prepare a family that cannot execute and
-would duplicate final module/evidence validation; Layer/RMS themselves share the exact
-trailing-slice/resource boundary that makes this one cohesive implementation session.
+would duplicate final module/evidence [validation](../../../../glossary.md#term-validation); Layer/RMS themselves share the exact
+trailing-[slice](../../../../glossary.md#slice)/resource boundary that makes this one cohesive implementation session.
 
-A 50th path, a sixth production type, another numerical emitter/validator, a generic normalization
-owner, an aggregate/softmax semantic change, a public/shared/build/architecture/conformance/
-integration path, RMS workspace, materialization, or partial/combine state is a stop/replan
+A 50th path, a sixth production type, another numerical emitter/validator, a generic [normalization](../../../../glossary.md#term-normalization)
+owner, an aggregate/[softmax](../../../../glossary.md#softmax--log-softmax) semantic change, a public/shared/build/architecture/[conformance](../../../../glossary.md#term-conformance)/
+integration path, RMS workspace, [materialization](../../../../glossary.md#materialization), or partial/combine state is a stop/replan
 condition. An omitted expected path does not authorize an unrelated one.
 
 ## Acceptance criteria
@@ -306,80 +306,80 @@ condition. An omitted expected path does not authorize an unrelated one.
 - Capability admits exactly the four explicit forms and full current BFLOAT16/FLOAT32/FLOAT64
   promotion matrix, with exact attributes, ordered input counts, static Shapes, result descriptor,
   epsilon type, eligibility, resolved layouts, checked spans, and injective output. Every excluded
-  occurrence fails closed.
+  occurrence fails closed.<span data-glossary-navigation="true"> ([BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [FLOAT32 glossary](../../../../glossary.md#term-float32); [FLOAT64 glossary](../../../../glossary.md#term-float64); [matrix glossary](../../../../glossary.md#term-matrix-meanings); [descriptor glossary](../../../../glossary.md#term-descriptor); [epsilon glossary](../../../../glossary.md#epsilon); [layouts glossary](../../../../glossary.md#layout); [injective glossary](../../../../glossary.md#term-injective); [occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 - Source-backed tests construct equivalent decomposed arithmetic/reduction graphs and prove they
-  remain ordinary nodes and never become `CpuTrailingNormalizationIr`.
+  remain ordinary nodes and never become <span data-glossary-navigation="true"> ([graphs glossary](../../../../glossary.md#graph); [nodes glossary](../../../../glossary.md#node))</span>`CpuTrailingNormalizationIr`.
 - Lowering records exact kind/form, every operand/result type, normalized Shape/rank/count, leading
   slice count, position-to-unique-boundary map, logical traversal, access/carrier facts,
   algorithm/pass identity, and exact Layer-only workspace. Checked count/address arithmetic
-  precedes resource declaration.
+  precedes resource declaration.<span data-glossary-navigation="true"> ([Lowering glossary](../../../../glossary.md#lowering); [rank glossary](../../../../glossary.md#term-rank); [slice glossary](../../../../glossary.md#slice); [carrier glossary](../../../../glossary.md#term-storage-carrier); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Semantic/differential coverage includes all four forms and all three result types; same-type and
   mixed floating operands; normalized rank one and higher; rank-equal and leading dimensions;
   normalized extent one and larger; leading/normalized zero extents; dense/general/zero-stride
   inputs; non-contiguous injective outputs; offsets; repeated logical inputs where Shape permits;
-  and representative all-heap, all-segment, and mixed multi-boundary carrier patterns.
+  and representative all-heap, all-segment, and mixed multi-boundary carrier patterns.<span data-glossary-navigation="true"> ([dimensions glossary](../../../../glossary.md#dimension); [extent glossary](../../../../glossary.md#term-extent); [stride glossary](../../../../glossary.md#term-stride); [contiguous glossary](../../../../glossary.md#term-contiguous); [heap glossary](../../../../glossary.md#term-heap))</span>
 - Layer tests cover population variance, epsilon inside root, affine reuse, finite constants,
   mixed signed zeros, cancellation, subnormals, raw NaNs, both infinities, finite accumulator
-  overflow/underflow, NaN scale/bias, infinite scale/bias, and ordinary affine sign/class rules.
+  overflow/underflow, NaN scale/bias, infinite scale/bias, and ordinary affine sign/class rules.<span data-glossary-navigation="true"> ([population variance glossary](../../../../glossary.md#population-variance); [finite glossary](../../../../glossary.md#term-finite); [constants glossary](../../../../glossary.md#term-constant); [cancellation glossary](../../../../glossary.md#term-cancellation); [subnormals glossary](../../../../glossary.md#term-subnormal); [infinities glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [accumulator glossary](../../../../glossary.md#accumulator-type); [overflow glossary](../../../../glossary.md#term-overflow); [underflow glossary](../../../../glossary.md#term-underflow); [NaN glossary](../../../../glossary.md#term-nan); [bias glossary](../../../../glossary.md#term-bias))</span>
 - RMS tests cover uncentered mean square, epsilon inside root, scaled operand reuse, zeros of both
   signs, nonzero finite constants, subnormals, raw NaNs, either infinity, mixed finite/infinite
-  slices, finite square/sum overflow pressure, and NaN/infinite/zero scale behavior.
+  slices, finite square/sum overflow pressure, and NaN/infinite/zero scale behavior.<span data-glossary-navigation="true"> ([uncentered mean square glossary](../../../../glossary.md#uncentered-mean-square); [infinity glossary](../../../../glossary.md#term-infinity))</span>
 - Mathematical accuracy uses an independent high-precision or StrictMath-based oracle and a frozen
   table: FLOAT64 Layer results are within 16 result ulps and RMS results within 8 result ulps;
   FLOAT32 results are within 4 result ulps; BFLOAT16 results are within one represented BFLOAT16
   ulp. Exact special-value classes, infinities, and zero signs use class/raw-sign assertions rather
-  than tolerance. Generated/direct results for the identical algorithm are raw-bit equal.
+  than tolerance. Generated/direct results for the identical algorithm are raw-bit equal.<span data-glossary-navigation="true"> ([precision glossary](../../../../glossary.md#term-precision); [oracle glossary](../../../../glossary.md#term-test-oracle); [tolerance glossary](../../../../glossary.md#term-tolerance))</span>
 - Resource declarations list unique logical inputs in first-occurrence order and exactly one
-  output. Layer Norm alone declares one existing alignment-eight `AGGREGATE_EXACT_STATE` slice per
+  output. Layer Norm alone declares one existing alignment-eight <span data-glossary-navigation="true"> ([Norm glossary](../../../../glossary.md#term-norm); [alignment glossary](../../../../glossary.md#term-alignment))</span>`AGGREGATE_EXACT_STATE` slice per
   simultaneously used range, sized from the exact maximum admitted normalized domain. RMS Norm
   declares zero workspace. Neither declares materialization, partial values, combine state, saved
-  statistics, or hidden scratch.
+  statistics, or hidden scratch.<span data-glossary-navigation="true"> ([materialization glossary](../../../../glossary.md#materialization))</span>
 - Empty outputs retain truthful existing boundary declarations but do no input read, output write,
   scratch use, generated call, or worker submission.
 - Cold execution validates concrete carrier compatibility, liveness/thread access, native order,
   alignment, full accessed spans, output writability/injectivity, output/input overlap, and
   workspace/buffer overlap before mutation/submission. Failures leave output, scratch, inputs, and
-  canaries unchanged and submit no work.
+  canaries unchanged and submit no work.<span data-glossary-navigation="true"> ([liveness glossary](../../../../glossary.md#term-liveness); [injectivity glossary](../../../../glossary.md#storage-mapping-contiguity-and-injectivity); [buffer glossary](../../../../glossary.md#term-buffer))</span>
 - Scalar and parallel-scalar results are raw-bit deterministic across legal complete-slice ranges,
   worker counts, repeated runs, and concurrent runs. No range divides a normalized slice and every
-  simultaneous Layer range receives disjoint scratch.
+  simultaneous Layer range receives disjoint scratch.<span data-glossary-navigation="true"> ([Scalar glossary](../../../../glossary.md#term-scalar))</span>
 - Generated classes are deterministic, final, field-free, constructor-free, and expose one typed
   static `invoke` with concrete unique input/output carriers, optional Layer scratch, packed
   primitive geometry, and `long start/end`; no `Object`, bridge descriptor, kind argument, or
-  validation/reference call exists.
+  validation/reference call exists.<span data-glossary-navigation="true"> ([argument glossary](../../../../glossary.md#term-argument); [validation glossary](../../../../glossary.md#term-validation))</span>
 - Complete `javap -c -p` and `javap -v -p` inspection proves direct pass counts, inline typed
   carrier/address work, one final store per output position, generation-time family/form/type
-  specialization, scale/bias reuse, and absence of allocation, boxing, reflection, method handles,
+  specialization, scale/bias reuse, and absence of allocation, boxing, reflection, method handles,<span data-glossary-navigation="true"> ([specialization glossary](../../../../glossary.md#term-specialization))</span>
   `invokedynamic`, collections/maps/strings, semantic dispatch, and avoidable coordinate/address
-  recomputation.
+  recomputation.<span data-glossary-navigation="true"> ([dispatch glossary](../../../../glossary.md#term-dispatch); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
 - A reviewed complete member allowlist permits only required primitive/raw-bit operations,
-  `Math`/`StrictMath.sqrt`, and typed `MemorySegment` access. Any unexpected generated member is a
+  `Math`/`StrictMath.sqrt`, and typed [`MemorySegment`](../../../../glossary.md#term-memorysegment) access. Any unexpected generated member is a
   failure; generated classes reference no Synaptik numerical/reference helper.
 - Specialization/cache identity distinguishes kind, exact signature/form, every boundary/result
   type, exact typed epsilon raw bits, normalized-rank and code-shaping geometry, algorithm/pass
   version, exact-state requirement, and carrier/access patterns. Epsilon is an emitted constant,
   so two occurrences with different exact epsilon bits are incompatible specializations. Runtime
   bases, offsets, compatible extents/strides, ranges, slots, buffers, workers, graph/run identities,
-  and Tensor values remain cold unless they change emitted bytes.
+  and Tensor values remain cold unless they change emitted bytes.<span data-glossary-navigation="true"> ([cache glossary](../../../../glossary.md#term-cache); [signature glossary](../../../../glossary.md#term-signature); [raw bits glossary](../../../../glossary.md#storage-mapping-contiguity-and-injectivity); [Runtime glossary](../../../../glossary.md#term-runtime); [run glossary](../../../../glossary.md#term-run); [Tensor glossary](../../../../glossary.md#tensor))</span>
 - Schema advances exactly 47 to 48. Schema-47 and earlier envelopes safely miss; all earlier
-  retained evidence/resources remain immutable and explicitly historical.
-- Freeze fourteen bounded performance targets over Shape `[128, 2048]` and normalized Shape
+  retained evidence/resources remain immutable and explicitly historical.<span data-glossary-navigation="true"> ([Schema glossary](../../../../glossary.md#term-schema); [immutable glossary](../../../../glossary.md#term-immutable))</span>
+- Freeze fourteen bounded performance [targets](../../../../glossary.md#term-target) over [Shape](../../../../glossary.md#shape) `[128, 2048]` and [normalized Shape](../../../../glossary.md#normalized-shape)
   `[2048]`: all twelve dense heap-array family/form/result-type cases (no-affine and affine Layer,
   no-scale and scaled RMS across three result types), one mixed-type/mixed-carrier affine Layer
   case, and one mixed-type/mixed-carrier scaled RMS case with frozen legal general layouts. Freeze
-  three unchanged-family controls for FLOAT32 `VARIANCE`, `SOFTMAX`, and pointwise `ADD`.
+  three unchanged-family controls for FLOAT32 [`VARIANCE`](../../../../glossary.md#term-variance), [`SOFTMAX`](../../../../glossary.md#softmax--log-softmax), and [pointwise](../../../../glossary.md#term-pointwise) `ADD`.
 - Every target and control passes generated/direct `<= 1.15x` in each of five isolated forks and
   for the median of fork medians. The optimal clean Java oracle performs identical validation,
   useful arithmetic, pass/dataflow shape, address work, conversions, and stores; it is frozen
-  before timing and is never slowed, padded, or routed through production helpers.
+  before timing and is never slowed, padded, or routed through production helpers.<span data-glossary-navigation="true"> ([median glossary](../../../../glossary.md#term-median); [fork glossary](../../../../glossary.md#term-fork-meanings); [dataflow glossary](../../../../glossary.md#term-dataflow))</span>
 - Focused tests, one final uncached CPU suite, Javadoc, retained semantic/Class-File/decompilation/
   member/checksum/five-fork evidence, exact scope, status, and whitespace gates pass. A distinct
   clean documentation context then finalizes affected Javadocs, CPU guide, glossary impact, task,
-  master plan, and roadmap without repeating stable Java/performance work.
+  master plan, and roadmap without repeating stable Java/performance work.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [Javadoc glossary](../../../../glossary.md#term-javadoc); [decompilation glossary](../../../../glossary.md#term-decompilation); [checksum glossary](../../../../glossary.md#term-checksum); [scope glossary](../../../../glossary.md#term-scope))</span>
 
-## Tests / validation
+## Tests / [validation](../../../../glossary.md#term-validation)
 
-The implementation context runs focused tests after stabilization, then one final CPU suite:
+The implementation context runs focused tests after stabilization, then one final [CPU](../../../../glossary.md#term-cpu) suite:
 
 ```bash
 ./gradlew :backends:cpu:test \
@@ -395,14 +395,14 @@ The implementation context runs focused tests after stabilization, then one fina
 ./gradlew :backends:cpu:test --rerun-tasks
 ```
 
-Retain one immutable evidence bundle outside the repository containing exact source/probe inputs,
-environment/JVM facts, all fourteen targets and three controls, specializations, full
-`javap -c -p` and `javap -v -p`, complete member reports, semantic/accuracy/range/alias/canary
-results, five isolated `-Xms1g -Xmx1g` fork outputs, rejected whole samples, summaries, inventory,
-and a SHA-256 manifest. Each fork uses at least five randomized warmups, nine randomized measured
-rounds, adaptive batches of at least 25 ms, deterministic inputs, randomized generated/direct
-order, and raw/checksum verification. Reject and retain a whole fork if any target, control,
-checksum, semantic, accuracy, environment, resource, or scope gate fails.
+Retain one [immutable](../../../../glossary.md#term-immutable) evidence bundle outside the repository containing exact source/probe inputs,
+environment/[JVM](../../../../glossary.md#term-java-virtual-machine-jvm) facts, all fourteen [targets](../../../../glossary.md#term-target) and three controls, specializations, full
+`javap -c -p` and `javap -v -p`, complete member reports, semantic/accuracy/range/[alias](../../../../glossary.md#aliasing-and-arena)/[canary](../../../../glossary.md#term-canary)
+results, five isolated `-Xms1g -Xmx1g` [fork](../../../../glossary.md#term-fork-meanings) outputs, rejected whole [samples](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters), summaries, inventory,
+and a [SHA-256](../../../../glossary.md#term-sha-256) [manifest](../../../../glossary.md#term-manifest). Each fork uses at least five randomized warmups, nine randomized measured
+rounds, adaptive [batches](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) of at least 25 ms, deterministic inputs, randomized generated/direct
+order, and raw/[checksum](../../../../glossary.md#term-checksum) verification. Reject and retain a whole fork if any target, control,
+checksum, semantic, accuracy, environment, resource, or [scope](../../../../glossary.md#term-scope) gate fails.
 
 The documentation-focused context receives the stabilized diff, final CPU XML, and retained
 evidence and reuses successful Java/performance evidence unless executable behavior changes or a
@@ -416,62 +416,62 @@ git status --short -uall
 ```
 
 It also inspects rendered Javadocs and validates Markdown links/anchors/fences/newlines/whitespace,
-exact path/type ceilings, schema 48 and historical-evidence wording, CPU 0007A1D Review needed,
+exact path/type ceilings, [schema](../../../../glossary.md#term-schema) 48 and historical-evidence wording, CPU 0007A1D Review needed,
 CPU 0007D/0007E Complete, CPU 0007F Complete only after every gate, CPU 0007F1 and all later tasks
 Draft without detailed specifications, and empty staging. Repository-wide, architecture,
-backend-conformance, and integration suites remain deferred to CPU 0009 or CI because no shared
+[backend](../../../../glossary.md#backend)-[conformance](../../../../glossary.md#term-conformance), and integration suites remain deferred to CPU 0009 or [CI](../../../../glossary.md#term-continuous-integration-ci) because no shared
 boundary changes.
 
 Validation tiers are therefore explicit: focused tests during implementation plus one final
-uncached CPU module suite are task validation; the clean documentation/Javadoc pass closes the
+uncached CPU [module](../../../../glossary.md#term-module) suite are task validation; the clean documentation/[Javadoc](../../../../glossary.md#term-javadoc) pass closes the
 same task; repository-wide, architecture, backend-conformance, and integration validation is the
-CPU 0009 capability-checkpoint or CI tier unless implementation reaches a stop condition that
+CPU 0009 capability-[checkpoint](../../../../glossary.md#term-checkpoint) or CI tier unless implementation reaches a stop condition that
 changes a shared boundary.
 
 ## Dependencies
 
 - Complete Model 0021 owns Layer Norm's two exact signatures, trailing Shape, population formula,
-  affine rules, promotion, epsilon, metadata, and special-value classes.
+  affine rules, promotion, epsilon, metadata, and special-value classes.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Norm glossary](../../../../glossary.md#term-norm); [signatures glossary](../../../../glossary.md#term-signature); [Shape glossary](../../../../glossary.md#shape); [epsilon glossary](../../../../glossary.md#epsilon); [metadata glossary](../../../../glossary.md#term-metadata))</span>
 - Complete Model 0021A owns RMS Norm's exact ranged signature, trailing Shape, uncentered formula,
   optional scale, promotion, epsilon, metadata, and special-value classes.
 - Complete Model 0021B/0021C prove batch inference and batch training are distinct semantic and
   lifecycle families; they justify CPU 0007F1/0007F2 ordering but are not implementation inputs to
-  this task.
-- Complete Compiler 0005B and current `ReductionNormalizationInference`/
+  this task.<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [inference glossary](../../../../glossary.md#term-inference); [lifecycle glossary](../../../../glossary.md#lifecycle); [CPU glossary](../../../../glossary.md#term-cpu))</span>
+- Complete [Compiler](../../../../glossary.md#term-compiler) 0005B and current `ReductionNormalizationInference`/
   `NormalizationGradientRules` own exact normalization signature revalidation and gradients. They
-  preserve first-class Layer/RMS occurrences and require no forward CPU contract change.
+  preserve first-class Layer/RMS occurrences and require no forward CPU contract change.<span data-glossary-navigation="true"> ([normalization glossary](../../../../glossary.md#term-normalization); [gradients glossary](../../../../glossary.md#term-gradient))</span>
 - Complete CPU 0007D supplies exact floating-sum workspace, corrected two-pass statistics,
   scaled-sum-of-squares, mixed-carrier, direct-emitter, Class-File/member, and five-fork evidence
   precedents. Complete CPU 0007E supplies the schema-47 frontier and complete-slice multi-pass
-  execution precedent. Neither existing IR owns normalization.
+  execution precedent. Neither existing IR owns normalization.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [fork glossary](../../../../glossary.md#term-fork-meanings); [schema glossary](../../../../glossary.md#term-schema); [slice glossary](../../../../glossary.md#slice); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir))</span>
 - Existing shared Prepare/Runtime contracts can carry the unique input/output boundaries and
   optional existing exact-state workspace unchanged. CPU 0007A1D remains historical Review needed
-  and is not a dependency.
+  and is not a dependency.<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime); [carry glossary](../../../../glossary.md#term-carry); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 
 All dependencies and semantics are settled; there is no architectural or semantic blocker to
-implementation within this task's fail-closed static scope.
+implementation within this task's [fail-closed](../../../../glossary.md#term-fail-closed) static [scope](../../../../glossary.md#term-scope).
 
 ## Follow-up tasks
 
-- CPU 0007F1 remains Draft for stateless, coordinatewise, five-input/one-output
+- [CPU](../../../../glossary.md#term-cpu) 0007F1 remains Draft for stateless, coordinatewise, five-input/one-output
   `BATCH_NORM_INFERENCE` with arbitrary normalized channel axis and zero reduction workspace. It
-  receives no detailed specification here.
+  receives no detailed specification here.<span data-glossary-navigation="true"> ([channel glossary](../../../../glossary.md#term-channel); [axis glossary](../../../../glossary.md#term-axis))</span>
 - CPU 0007F2 remains Draft after 0007F1 for five-input/five-output `BATCH_NORM_TRAINING`, including
   non-channel reductions, biased forward variance, unbiased running-variance transition, momentum,
   saved statistics, mixed output Shapes, workspace, and multi-output binding. It receives no
-  detailed specification here.
+  detailed specification here.<span data-glossary-navigation="true"> ([variance glossary](../../../../glossary.md#term-variance); [momentum glossary](../../../../glossary.md#term-momentum); [Shapes glossary](../../../../glossary.md#shape); [binding glossary](../../../../glossary.md#term-binding))</span>
 - CPU 0008 follows CPU 0007F2 for the remaining heavy portable families. CPU 0008B must preserve
-  the prohibition on recognizing decomposed normalization as a first-class semantic kernel.
-- CPU 0009 or CI retains repository-wide portable coverage, conformance, and integration closure.
+  the prohibition on recognizing decomposed normalization as a first-class semantic kernel.<span data-glossary-navigation="true"> ([normalization glossary](../../../../glossary.md#term-normalization); [kernel glossary](../../../../glossary.md#kernel))</span>
+- CPU 0009 or [CI](../../../../glossary.md#term-continuous-integration-ci) retains repository-wide portable coverage, [conformance](../../../../glossary.md#term-conformance), and integration closure.
 - CPU 0007A1D remains historical Review needed; its evidence gap is independent.
 
 ## Architecture impact
 
 Expected impact: None.
 
-This task adds a CPU-private generated forward family behind unchanged Model, Compiler, Prepare,
-and Runtime contracts. If implementation requires a public/shared numerical contract, dependency,
-module, resource kind, architecture rule, or build change, stop and report rather than editing
+This task adds a [CPU](../../../../glossary.md#term-cpu)-private generated forward family behind unchanged [Model](../../../../glossary.md#term-model), [Compiler](../../../../glossary.md#term-compiler), [Prepare](../../../../glossary.md#prepare),
+and [Runtime](../../../../glossary.md#term-runtime) contracts. If implementation requires a public/shared numerical contract, [dependency](../../../../glossary.md#term-dependency),
+[module](../../../../glossary.md#term-module), resource kind, architecture rule, or build change, stop and report rather than editing
 that boundary.
 
 ## Implementation prompt
@@ -511,62 +511,62 @@ pass. Do not commit, push, or stage.
 
 - Preserve one shared trailing-normalization structural boundary while keeping separate Layer and
   RMS numerical emitters. This keeps Shape/range/carrier/resource mechanics shared without
-  creating a generic run-time normalization interpreter.
+  creating a generic run-time normalization interpreter.<span data-glossary-navigation="true"> ([normalization glossary](../../../../glossary.md#term-normalization); [Shape glossary](../../../../glossary.md#shape); [carrier glossary](../../../../glossary.md#term-storage-carrier); [run glossary](../../../../glossary.md#term-run))</span>
 - Deduplicate exact repeated logical inputs in first-occurrence order and carry an immutable
   semantic-position map. Generated signatures therefore expose concrete unique carriers while
-  preserving semantic operand order and type promotion.
+  preserving semantic operand order and type promotion.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence); [carry glossary](../../../../glossary.md#term-carry); [immutable glossary](../../../../glossary.md#term-immutable); [signatures glossary](../../../../glossary.md#term-signature))</span>
 - Use the existing `AGGREGATE_EXACT_STATE` workspace only for Layer's exact-mean pass. Size one
   disjoint slice from the maximum admitted normalized domain for each simultaneous range; RMS
-  remains zero-workspace.
+  remains zero-workspace.<span data-glossary-navigation="true"> ([mean glossary](../../../../glossary.md#term-mean); [slice glossary](../../../../glossary.md#slice))</span>
 - Freeze typed native-order `ValueLayout` constants in generated segment access and omit shared
   invocation-local layout preparation for trailing normalization. This removes preparation work
-  from each generated call without changing carrier, alignment, or native-order validation.
+  from each generated call without changing carrier, alignment, or native-order validation.<span data-glossary-navigation="true"> ([constants glossary](../../../../glossary.md#term-constant); [layout glossary](../../../../glossary.md#layout); [alignment glossary](../../../../glossary.md#term-alignment); [validation glossary](../../../../glossary.md#term-validation))</span>
 - Treat the optimal clean Java implementation as the algorithmic and avoidable-overhead oracle:
   validation, useful arithmetic, pass/dataflow shape, addressing, conversions, and stores match
-  the generated cases rather than being padded for the timing gate.
+  the generated cases rather than being padded for the timing gate.<span data-glossary-navigation="true"> ([oracle glossary](../../../../glossary.md#term-test-oracle); [dataflow glossary](../../../../glossary.md#term-dataflow))</span>
 
 ## Known limitations
 
 - Only fully static resolved-layout scalar/parallel-scalar Layer/RMS forward execution is planned.
   Dynamic Shapes, vector/native routes, fusion, partial/combine execution, and batch normalization
-  remain unsupported by this task.
+  remain unsupported by this task.<span data-glossary-navigation="true"> ([layout glossary](../../../../glossary.md#layout); [scalar glossary](../../../../glossary.md#term-scalar); [Shapes glossary](../../../../glossary.md#shape); [vector glossary](../../../../glossary.md#term-vector); [fusion glossary](../../../../glossary.md#term-fusion); [batch normalization glossary](../../../../glossary.md#batch-normalization--batch-normalization-inference-and-training))</span>
 - Finite results follow the selected CPU algorithm and tolerance table. Only generated/direct
-  identity is raw-bit evidence; no cross-backend bitwise promise is added.
+  identity is raw-bit evidence; no cross-backend bitwise promise is added.<span data-glossary-navigation="true"> ([Finite glossary](../../../../glossary.md#term-finite); [CPU glossary](../../../../glossary.md#term-cpu); [tolerance glossary](../../../../glossary.md#term-tolerance); [identity glossary](../../../../glossary.md#term-identity-meanings); [backend glossary](../../../../glossary.md#backend))</span>
 - The performance gate covers only the frozen bounded matrix and environment; it is not a general
-  tuning or throughput claim.
+  tuning or throughput claim.<span data-glossary-navigation="true"> ([matrix glossary](../../../../glossary.md#term-matrix-meanings); [throughput glossary](../../../../glossary.md#term-throughput))</span>
 
-## Validation evidence
+## [Validation](../../../../glossary.md#term-validation) evidence
 
-- Implementation context final CPU validation: `./gradlew :backends:cpu:test --rerun-tasks`
+- Implementation context final [CPU](../../../../glossary.md#term-cpu) validation: `./gradlew :backends:cpu:test --rerun-tasks`
   passed 76 suites/449 tests with zero failures or errors. The focused post-fix validation passed
   10 suites/119 tests with zero failures or errors. This mandatory distinct clean documentation
   context reused those results because it changed comments/Javadocs/documentation only and found
   no stale executable-evidence risk.
 - The retained evidence root
   `/private/tmp/synaptik-cpu-0007f-retained-evidence-20260825-final` verifies 241 files through
-  `SHA256SUMS`; `SHA256SUMS.sha256` contains digest
+  `SHA256SUMS`; `SHA256SUMS.sha256` contains [digest](../../../../glossary.md#term-digest)
   `a7ca999336d73dbf2fee3d2414ff31f0339a5048ec7e2b5ab804b1c5186829c9`. Its summaries record all
-  semantic, accuracy, range, alias, canary, and source-identity gates.
-- Five isolated forks passed all 85 per-fork and 17 aggregate generated/optimal-clean-Java
+  semantic, accuracy, range, alias, canary, and source-identity gates.<span data-glossary-navigation="true"> ([alias glossary](../../../../glossary.md#aliasing-and-arena); [canary glossary](../../../../glossary.md#term-canary); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
+- Five isolated [forks](../../../../glossary.md#term-fork-meanings) passed all 85 per-[fork](../../../../glossary.md#term-fork-meanings) and 17 aggregate generated/optimal-clean-Java
   `<= 1.15x` gates. The worst fork ratio was `1.136183168x`; the worst aggregate ratio was
-  `1.113266704x`, both BFLOAT16 RMS.
+  `1.113266704x`, both [BFLOAT16](../../../../glossary.md#term-bfloat16) RMS.
 - All 17 retained Java 26 generated classes are final, field-free, constructor-free, and expose
   exactly one typed static `invoke`. Complete `javap -c -p`, `javap -v -p`, member, and opcode
   scans passed; no forbidden generated member or opcode was found. Inspection confirms direct
   three-pass Layer and two-pass RMS bodies, typed constant-layout segment access, and one final
-  store per result position.
+  store per result position.<span data-glossary-navigation="true"> ([opcode glossary](../../../../glossary.md#term-opcode); [constant glossary](../../../../glossary.md#term-constant); [layout glossary](../../../../glossary.md#layout))</span>
 - Documentation profile: General style plus API/Javadoc, Backend Guide, Planning, and Example
   profiles. This clean documentation context reviewed every changed production Javadoc and test,
-  finalized `docs/backend-guide/cpu-backend.md`, `docs/glossary.md`, this task, the CPU master plan,
+  finalized <span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [Javadoc glossary](../../../../glossary.md#term-javadoc); [Backend glossary](../../../../glossary.md#backend); [Planning glossary](../../../../glossary.md#term-planning))</span>`docs/backend-guide/cpu-backend.md`, `docs/glossary.md`, this task, the CPU master plan,
   and the roadmap, and made no executable Java change.
 - `./gradlew :backends:cpu:javadoc` passed after the final Javadoc edits. The only two warnings are
   the expected Java 26 incubating Vector API module warnings. Rendered pages for the trailing IR,
   lowerer, both emitters, and prepared executable contain the finalized descriptions, parameters,
-  results, failures, ownership, range, carrier, and workspace boundaries.
+  results, failures, ownership, range, carrier, and workspace boundaries.<span data-glossary-navigation="true"> ([Vector API glossary](../../../../glossary.md#term-vector-api); [module glossary](../../../../glossary.md#term-module); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [prepared executable glossary](../../../../glossary.md#prepared-executable--preparedexecutable); [parameters glossary](../../../../glossary.md#term-parameter); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
 - Final documentation/scope validation passed for Markdown link targets and anchors, balanced
   fences, terminal newlines, whitespace, exact schema/status/history wording, exactly five new
   production types, 35 total changed paths (16 production/Javadoc, 14 tests, and exactly five
-  documentation/planning), and empty staging. `git diff --check`, `git diff --cached --check`, and
+  documentation/planning), and empty staging. <span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope); [targets glossary](../../../../glossary.md#term-target); [schema glossary](../../../../glossary.md#term-schema))</span>`git diff --check`, `git diff --cached --check`, and
   `git status --short -uall` supplied the final recorded worktree evidence.
 - No-change conclusions: `ARCHITECTURE.md`, focused architecture documentation, ADRs, and
   architecture tests remain correct because ownership, dependencies, and lifecycle boundaries did
@@ -574,51 +574,51 @@ pass. Do not commit, push, or stage.
   remain correct because this is CPU-private forward adoption of already-settled first-class
   semantics. Shared Prepare/backend-contract, conformance/integration suites, Gradle/build files,
   and unrelated modules remain unchanged because existing staged resource declaration, cold
-  binding, and runtime invocation contracts carry the family without a shared-contract change.
+  binding, and runtime invocation contracts carry the family without a shared-contract change.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle); [Tensor glossary](../../../../glossary.md#tensor); [Compile glossary](../../../../glossary.md#compile); [Model glossary](../../../../glossary.md#term-model); [Compiler glossary](../../../../glossary.md#term-compiler); [Prepare glossary](../../../../glossary.md#prepare); [conformance glossary](../../../../glossary.md#term-conformance); [Gradle glossary](../../../../glossary.md#term-gradle); [binding glossary](../../../../glossary.md#term-binding); [runtime glossary](../../../../glossary.md#term-runtime); [carry glossary](../../../../glossary.md#term-carry))</span>
 
 ## Implementation notes
 
-- Added exact capability admission for the four first-class forms and a CPU-private
+- Added exact capability [admission](../../../../glossary.md#term-admission) for the four first-class forms and a [CPU](../../../../glossary.md#term-cpu)-private
   `CpuTrailingNormalizationIr` plus `CpuTrailingNormalizationLowering` with checked static Shape,
-  unique-boundary, access, promotion, epsilon, pass, and Layer-only resource identity.
+  unique-boundary, access, promotion, epsilon, pass, and Layer-only resource identity.<span data-glossary-navigation="true"> ([Shape glossary](../../../../glossary.md#shape); [epsilon glossary](../../../../glossary.md#epsilon); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Added separate direct `CpuLayerNormEmitter` and `CpuRmsNormEmitter` bodies and the independent
   `CpuTrailingNormalizationReferenceKernel`. Existing generator, route, preparation, finalization,
-  executable, and cache seams now carry the new mutually exclusive geometry.
+  executable, and cache seams now carry the new mutually exclusive geometry.<span data-glossary-navigation="true"> ([cache glossary](../../../../glossary.md#term-cache); [carry glossary](../../../../glossary.md#term-carry))</span>
 - Layer uses exact represented-value mean, compensated deviation/square sums, and a final
   standardization/optional affine pass. RMS uses scaled sum of squares and a final
   normalization/optional scale pass. Scalar and parallel-scalar ranges own complete leading
-  slices and are raw-bit deterministic for identical prepared inputs.
+  slices and are raw-bit deterministic for identical prepared inputs.<span data-glossary-navigation="true"> ([mean glossary](../../../../glossary.md#term-mean); [normalization glossary](../../../../glossary.md#term-normalization); [Scalar glossary](../../../../glossary.md#term-scalar))</span>
 - Carrier binding supports matching typed heap arrays and native-order segments for every unique
   input and output. Static typed layouts replace invocation-local layout construction; cold
-  validation still precedes mutation or worker submission. Schema advanced exactly 47 to 48.
+  validation still precedes mutation or worker submission. Schema advanced exactly 47 to 48.<span data-glossary-navigation="true"> ([Carrier glossary](../../../../glossary.md#term-storage-carrier); [binding glossary](../../../../glossary.md#term-binding); [heap glossary](../../../../glossary.md#term-heap); [layouts glossary](../../../../glossary.md#layout); [validation glossary](../../../../glossary.md#term-validation); [Schema glossary](../../../../glossary.md#term-schema))</span>
 - Independent executable review corrected RMS overflow behavior, BFLOAT16 computation boundaries,
   IR invariants, and coverage. Performance review corrected invocation-local native-order layout
-  construction and unnecessary shared layout preparation for trailing normalization.
+  construction and unnecessary shared layout preparation for trailing normalization.<span data-glossary-navigation="true"> ([overflow glossary](../../../../glossary.md#term-overflow); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir))</span>
 - No package-info file required a change: the existing CPU, IR, lowering, emitter, reference,
   prepare, route, cache, and executable package summaries already describe their stable owners;
-  affected type/member Javadocs now carry the family-specific contract.
+  affected type/member Javadocs now carry the family-specific contract.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [prepare glossary](../../../../glossary.md#prepare))</span>
 
 ## Completion summary
 
 - Completed changes: first-class static Layer/RMS CPU admission, lowering, direct generated
   execution, reference verification, schema-48 compatibility, deterministic complete-slice
-  orchestration, and finalized documentation/Javadocs.
+  orchestration, and finalized documentation/Javadocs.<span data-glossary-navigation="true"> ([admission glossary](../../../../glossary.md#term-admission); [lowering glossary](../../../../glossary.md#lowering); [schema glossary](../../../../glossary.md#term-schema); [slice glossary](../../../../glossary.md#slice))</span>
 - Files changed or created: 35 total—16 production/Javadoc, 14 tests, and exactly five
-  documentation/planning paths; exactly five new CPU-private production types.
+  documentation/planning paths; exactly five new CPU-private production types.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [planning glossary](../../../../glossary.md#term-planning))</span>
 - Tests and validation: reused the final 76-suite/449-test and focused 10-suite/119-test passes;
   retained semantic/Class-File/member/manifest and five-fork performance evidence passes; final
-  CPU Javadoc and documentation/scope/whitespace/staging gates pass.
+  CPU Javadoc and documentation/scope/whitespace/staging gates pass.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [manifest glossary](../../../../glossary.md#term-manifest); [fork glossary](../../../../glossary.md#term-fork-meanings); [scope glossary](../../../../glossary.md#term-scope))</span>
 - Documentation-agent review: completed in this mandatory distinct clean documentation-focused
   context; no executable behavior was changed and Java/performance work was not repeated.
 - Documentation impact: CPU guide, glossary, task, CPU master plan, and roadmap finalized with
   current/planned boundaries and exact evidence.
 - Javadoc review: all 16 affected production paths reviewed; contract-relevant descriptions,
-  inputs, results, failures, ownership, layouts, carriers, ranges, and workspace rules finalized.
+  inputs, results, failures, ownership, layouts, carriers, ranges, and workspace rules finalized.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings); [layouts glossary](../../../../glossary.md#layout))</span>
 - Glossary impact: existing Layer/RMS entries now state the stable CPU execution boundary; no new
   glossary heading was needed because normalized Shape, population variance, uncentered mean
   square, root mean square, epsilon, affine transform, and accumulator/computation format already
-  have stable definitions.
-- Unresolved issues: None for CPU 0007F. CPU 0007A1D remains independently Review needed.
+  have stable definitions.<span data-glossary-navigation="true"> ([normalized Shape glossary](../../../../glossary.md#normalized-shape); [population variance glossary](../../../../glossary.md#population-variance); [uncentered mean square glossary](../../../../glossary.md#uncentered-mean-square); [root mean square glossary](../../../../glossary.md#root-mean-square); [epsilon glossary](../../../../glossary.md#epsilon); [affine transform glossary](../../../../glossary.md#affine-transform); [accumulator glossary](../../../../glossary.md#accumulator-type))</span>
+- Unresolved issues: None for [CPU](../../../../glossary.md#term-cpu) 0007F. CPU 0007A1D remains independently Review needed.
 - Follow-up required: None for CPU 0007F. CPU 0007F1 and all later CPU work remain Draft without
   detailed specifications.
 

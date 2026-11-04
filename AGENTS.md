@@ -6,7 +6,7 @@ These instructions apply to the entire repository unless a more specific `AGENTS
 
 ## Required reading
 
-Reading is indexed by role and actual change scope. Every contributor or agent reads:
+Reading is indexed by role and actual change [scope](docs/glossary.md#term-scope). Every contributor or agent reads:
 
 - this `AGENTS.md`;
 - the current task brief or user request;
@@ -15,13 +15,13 @@ Reading is indexed by role and actual change scope. Every contributor or agent r
 
 Planners and coordinators that create, reorder, or materially update plans also read
 `docs/planning/planning-guide.md`, `docs/planning/roadmap.md`, and the relevant active master-plan
-section. Before launching an executor, they verify the task is `Ready`, is at an authorized
-frontier, and has satisfied dependencies, then record that verification in the task brief.
+section. Before launching an executor, they verify the task is [`Ready`](docs/glossary.md#term-ready), is at an [authorized
+frontier](docs/glossary.md#term-authorized-frontier), and has satisfied dependencies, then record that verification in the task brief.
 
-Executors do not read the full planning guide, full roadmap, completed predecessor tasks, task
+Executors do not read the full [planning](docs/glossary.md#term-planning) guide, full roadmap, completed predecessor tasks, task
 histories, the full glossary, unrelated architecture sections, or prior completion evidence by
 default. They use the scope index in `ARCHITECTURE.md`, then read the exact root and incorporated
-scoped-contract headings identified by the task brief for every affected module or boundary. If
+scoped-contract headings identified by the task brief for every affected [module](docs/glossary.md#term-module) or boundary. If
 an applicable contract is missing or ambiguous, stop and ask for clarification rather than
 inventing architecture.
 
@@ -30,7 +30,7 @@ task narratives. Read a predecessor task only when unresolved historical evidenc
 needed.
 
 `ARCHITECTURE.md` is the authoritative architecture root and sole authority index. Only the six
-scoped files it explicitly incorporates are normative, and only within their stated scopes. All
+scoped files it explicitly incorporates are [normative](docs/glossary.md#term-normative), and only within their stated scopes. All
 other files under `docs/` are explanatory or coordinative and cannot override the contract.
 
 ## Change classification and task isolation
@@ -42,8 +42,8 @@ Classify work by actual impact, not Java visibility. If uncertain, classify upwa
   concurrency; persistence or application binary interface (ABI); backend capability; dependency
   direction; cross-module workflow; or a hot-path contract. One context is sufficient, and the
   main coordination context may implement it directly. The implementer performs the targeted
-  documentation and Javadoc impact review.
-- **Class B — Capability or public API:** a module capability, public or supported API,
+  documentation and Javadoc impact review.<span data-glossary-navigation="true"> ([ABI glossary](docs/glossary.md#application-binary-interface-and-native-bridge))</span><span data-glossary-navigation="true"> ([lifecycle glossary](docs/glossary.md#lifecycle); [ownership glossary](docs/glossary.md#term-ownership-meanings); [concurrency glossary](docs/glossary.md#term-concurrency); [persistence glossary](docs/glossary.md#term-persistence); [application binary interface glossary](docs/glossary.md#term-application-binary-interface-abi); [backend capability glossary](docs/glossary.md#backend-capability); [dependency direction glossary](docs/glossary.md#java-platform-and-build-tools); [module glossary](docs/glossary.md#term-module); [Javadoc glossary](docs/glossary.md#term-javadoc))</span>
+- **Class B — Capability or public [API](docs/glossary.md#term-application-programming-interface-api):** a module capability, public or supported API,
   user-visible behavior, or lasting module-local lifecycle contract. Non-trivial work uses a clean
   implementation context. An independent documentation or review context is required when public
   API, user workflow or behavior, terminology, or a durable contract changes; otherwise record a
@@ -53,14 +53,14 @@ Classify work by actual impact, not Java visibility. If uncertain, classify upwa
   composition, generated-code or hot-path invariant, or a similarly high-risk cross-module
   contract. A clean implementation context and an independent targeted review/documentation
   context are mandatory, together with ADR, architecture, conformance, or integration validation
-  where applicable.
+  where applicable.<span data-glossary-navigation="true"> ([Runtime glossary](docs/glossary.md#term-runtime); [Prepare glossary](docs/glossary.md#prepare); [resource lifetime glossary](docs/glossary.md#ownership-borrowing-and-lease); [backend composition glossary](docs/glossary.md#backend-composition); [invariant glossary](docs/glossary.md#term-invariant); [ADR glossary](docs/glossary.md#term-architecture-decision-record-adr); [conformance glossary](docs/glossary.md#term-conformance))</span>
 
 A private method is not automatically Class A. A behavior-changing bug fix is at least Class B
 and may be Class C.
 
 The main context coordinates Classes B and C and may directly implement Class A. Give every clean
-execution context a compact packet containing the exact goal, relevant files and symbols, exact
-contract links or headings, acceptance criteria, validation, documentation impact, and completion
+[execution context](docs/glossary.md#term-execution-context) a compact packet containing the exact goal, relevant files and symbols, exact
+contract links or headings, acceptance criteria, [validation](docs/glossary.md#term-validation), documentation impact, and completion
 status format. The task brief plus a standard short launcher is the execution packet; do not rely
 on remembered conversation context.
 
@@ -102,7 +102,7 @@ A task should only be marked complete when the requested work has been implement
 
 If architectural uncertainty appears during implementation, the implementation agent must stop, explain the uncertainty, and request clarification instead of inventing new architecture.
 
-## Architecture contract
+## [Architecture contract](docs/glossary.md#architecture-contract)
 
 All changes must preserve the architecture contract indexed by `ARCHITECTURE.md`, including its
 global rules and the one incorporated scoped contract that owns the affected concern.
@@ -117,19 +117,19 @@ When an architectural decision changes, update all relevant files in the same ch
 
 1. `ARCHITECTURE.md` and the one owning scoped contract
 2. the relevant explanatory document under `docs/architecture/`
-3. an ADR under `docs/design/decisions/`, when the decision is significant
-4. architecture tests under `testing/architecture-tests/`, when dependency rules change
+3. an [ADR](docs/glossary.md#term-architecture-decision-record-adr) under `docs/design/decisions/`, when the decision is significant
+4. architecture tests under `testing/architecture-tests/`, when [dependency](docs/glossary.md#term-dependency) rules change
 
 ## Documentation discipline
 
 Documentation review is risk-based. A separate clean documentation/review context is mandatory
-when work changes public or supported API, user-visible behavior or workflow, architecture or
-module boundaries, project terminology, a cross-module contract, a lasting module-local lifecycle
+when work changes public or supported [API](docs/glossary.md#term-application-programming-interface-api), user-visible behavior or workflow, architecture or
+[module](docs/glossary.md#term-module) boundaries, project terminology, a cross-module contract, a lasting module-local [lifecycle](docs/glossary.md#lifecycle)
 or other durable contract, or any Class C boundary. It is not mandatory for ordinary internal
 changes. In that case, the implementer reviews affected explanatory documentation and Javadocs
 and records `Documentation impact: none; <reason>` when no update is needed.
 
-An implementation agent may draft Javadoc while coding. When an independent pass is required, it
+An implementation agent may draft [Javadoc](docs/glossary.md#term-javadoc) while coding. When an independent pass is required, it
 finalizes affected Javadoc, explanatory documentation, examples, links, and glossary impact in the
 same overall change. The pass is targeted to the actual diff and relevant contracts. It reuses
 successful executable-test evidence unless it changes executable behavior or identifies a concrete
@@ -164,11 +164,11 @@ When adding or changing architecture-related behavior, update documentation in t
 
 After every code change, review the affected documentation. Update or extend it in the same change when public APIs, behavior, configuration, architecture, module boundaries, workflows, or examples have changed. If no documentation update is needed, state that explicitly in the completion summary.
 
-Every Java code change must be reflected in the Javadoc for the affected API or implementation contract. In the same change, add or update Javadoc whenever behavior, invariants, ownership, lifecycle, side effects, threading, nullability, parameters, return values, or failure modes change. Do not add Javadoc that merely restates the implementation. If the affected Javadoc remains accurate without modification, review it and state that explicitly in the completion summary.
+Every Java code change must be reflected in the Javadoc for the affected API or implementation contract. In the same change, add or update Javadoc whenever behavior, invariants, [ownership](docs/glossary.md#term-ownership-meanings), lifecycle, side effects, threading, [nullability](docs/glossary.md#term-nullability), [parameters](docs/glossary.md#term-parameter), return values, or failure modes change. Do not add Javadoc that merely restates the implementation. If the affected Javadoc remains accurate without modification, review it and state that explicitly in the completion summary.
 
 Javadoc must always provide a meaningful, detailed description of the documented type, constructor, or method. Constructor and method Javadoc must document every input with `@param`, including relevant constraints, units, nullability, ownership, or mutation behavior. Every non-`void` method must document its result with `@return`, including result semantics and nullability. Document expected failure conditions with `@throws`. Constructors and `void` methods do not use `@return`.
 
-## Planning discipline
+## [Planning](docs/glossary.md#term-planning) discipline
 
 Implementation plans and task briefs live under `docs/planning/`. Planners that create, reorder,
 or materially update them read the planning guide, roadmap, and relevant active master-plan
@@ -176,38 +176,38 @@ section. Executors use the verified brief and scoped contracts rather than re-re
 history.
 
 Planning documents are not authoritative architecture contracts. If a planning document conflicts
-with the root or an incorporated scoped contract, the architecture contract wins and
+with the root or an incorporated scoped contract, the [architecture contract](docs/glossary.md#architecture-contract) wins and
 implementation must stop until the conflict is resolved.
 
 Represent non-trivial implementation work as cohesive compact task briefs under the relevant
-`tasks/` directory. A task should normally deliver one complete capability inside one module
-rather than split its semantic type, public facade, tests, and documentation into separate
+`tasks/` directory. A task should normally deliver one complete capability inside one [module](docs/glossary.md#term-module)
+rather than split its semantic type, public [facade](docs/glossary.md#term-facade), tests, and documentation into separate
 mechanical tasks. Follow the compact format and size guardrails in the planning guide. Existing
 completed task specifications remain historical records, need no retrospective rewrite, and are
 not current authority.
 
-Master plans are explicit dependency directed acyclic graphs (DAGs). Each independent workstream
-may expose one authorized frontier, so planners may prepare and run multiple `Ready` tasks when
+Master plans are explicit [dependency](docs/glossary.md#term-dependency) directed acyclic [graphs](docs/glossary.md#graph) (DAGs). Each independent workstream
+may expose one [authorized frontier](docs/glossary.md#term-authorized-frontier), so planners may [prepare](docs/glossary.md#prepare) and [run](docs/glossary.md#term-run) multiple [`Ready`](docs/glossary.md#term-ready) tasks when
 their dependencies are satisfied. Every such task records `Depends on`, `Conflicts with`,
 `Parallel group`, `Common base revision`, `Integration order`, `Integration validation`, and
-`Shared-document integration owner` metadata. Parallel work requires a stable common contract and
-base revision plus both disjoint write scope and disjoint semantic ownership. Resolve shared
-contracts first; serialize changes to the same API,
-architecture or lifecycle contract, generated format, or shared authoritative document.
+`Shared-document integration owner` [metadata](docs/glossary.md#term-metadata). Parallel work requires a stable common contract and
+base revision plus both disjoint write [scope](docs/glossary.md#term-scope) and disjoint semantic [ownership](docs/glossary.md#term-ownership-meanings). Resolve shared
+contracts first; serialize changes to the same [API](docs/glossary.md#term-application-programming-interface-api),
+architecture or [lifecycle](docs/glossary.md#lifecycle) contract, generated format, or shared authoritative document.
 
 Concurrent write tasks use isolated Git worktrees; read-only audits do not require one. A parallel
-group has one integration owner for shared documentation. Workers run focused and affected-module
-validation; after ordered integration, the integration owner runs the recorded cross-module or
+group has one integration [owner](docs/glossary.md#term-owner) for shared documentation. Workers run focused and affected-module
+[validation](docs/glossary.md#term-validation); after ordered integration, the integration owner runs the recorded cross-module or
 full validation once. The change-class rules above still determine clean context and independent
 review requirements, and each executor keeps the scoped reading packet described above.
 
 ## Legacy implementation reference
 
-The `legacy/pre-rewrite` branch is a read-only reference for capabilities, observable behavior, tests, and historical context. Implement the new architecture from scratch. Do not copy or import legacy source files, internal package structure, dependency direction, runtime coupling, or implementation shortcuts into the new project. Reproduce only explicitly selected capabilities, expressed through new designs that comply with `ARCHITECTURE.md` and verified by new or adapted tests.
+The `legacy/pre-rewrite` branch is a read-only reference for capabilities, observable behavior, tests, and historical context. Implement the new architecture from scratch. Do not copy or import legacy source files, internal package structure, [dependency direction](docs/glossary.md#java-platform-and-build-tools), [runtime](docs/glossary.md#term-runtime) coupling, or implementation shortcuts into the new project. Reproduce only explicitly selected capabilities, expressed through new designs that comply with `ARCHITECTURE.md` and verified by new or adapted tests.
 
 ## Testing expectations
 
-Use the validation tiers defined in `docs/planning/planning-guide.md`. A normal task validates the affected module and its documentation once. Run repository-wide validation at a recorded capability checkpoint, in CI, or when a change affects dependencies, architecture boundaries, shared build configuration, or multiple modules. Do not repeat a successful validation command in a second agent merely to reproduce the same evidence.
+Use the [validation](docs/glossary.md#term-validation) tiers defined in `docs/planning/planning-guide.md`. A normal task validates the affected [module](docs/glossary.md#term-module) and its documentation once. [Run](docs/glossary.md#term-run) repository-wide validation at a recorded capability [checkpoint](docs/glossary.md#term-checkpoint), in [CI](docs/glossary.md#term-continuous-integration-ci), or when a change affects dependencies, architecture boundaries, shared build configuration, or multiple modules. Do not repeat a successful validation command in a second agent merely to reproduce the same evidence.
 
 When changing module boundaries or dependencies, add or update architecture tests under:
 
@@ -215,7 +215,7 @@ When changing module boundaries or dependencies, add or update architecture test
 testing/architecture-tests/
 ```
 
-When changing backend behavior, add or update backend conformance tests under:
+When changing [backend](docs/glossary.md#backend) behavior, add or update backend [conformance](docs/glossary.md#term-conformance) tests under:
 
 ```text
 testing/backend-conformance/
@@ -229,19 +229,19 @@ testing/integration-tests/
 
 ## Code discipline
 
-Prefer small, focused, readable classes, and split classes that own multiple concepts. Do not create god classes, catch-all managers, broad facades, or vague utilities; place each responsibility in its owning module and layer. Keep public APIs minimal, prefer explicit domain names over generic `Manager`, `Helper`, `Util`, `Processor`, or `Service` names, and avoid unrelated refactors.
+Prefer small, focused, readable classes, and split classes that own multiple concepts. Do not create god classes, catch-all managers, broad facades, or vague utilities; place each responsibility in its owning [module](docs/glossary.md#term-module) and layer. Keep public APIs minimal, prefer explicit domain names over generic `Manager`, `Helper`, `Util`, `Processor`, or `Service` names, and avoid unrelated refactors.
 
-Add abstractions and interfaces only for a concrete current need, a real boundary, multiple implementations, a test seam, or an architecture contract. Do not conceal architecture violations behind facades, adapters, registries, or service locators.
+Add abstractions and interfaces only for a concrete current need, a real boundary, multiple implementations, a test seam, or an [architecture contract](docs/glossary.md#architecture-contract). Do not conceal architecture violations behind facades, adapters, registries, or service locators.
 
 ## Performance discipline
 
-Treat performance as a design priority, especially on runtime hot paths. Keep code readable without adding avoidable overhead per tensor element, operation, graph node, or execution step, and move expensive decisions to compile or prepare time when possible.
+Treat performance as a design priority, especially on [runtime](docs/glossary.md#term-runtime) hot paths. Keep code readable without adding avoidable overhead per [tensor](docs/glossary.md#tensor) [element](docs/glossary.md#term-element), [operation](docs/glossary.md#operation), [graph](docs/glossary.md#graph) [node](docs/glossary.md#node), or execution step, and move expensive decisions to [compile](docs/glossary.md#compile) or [prepare](docs/glossary.md#prepare) time when possible.
 
-Avoid unnecessary allocation, boxing, reflection, string dispatch, map lookup, synchronization, and virtual indirection in hot paths. Do not obscure code for speculative optimization; document necessary optimizations that reduce readability and add tests or benchmarks when appropriate.
+Avoid unnecessary allocation, boxing, reflection, string [dispatch](docs/glossary.md#term-dispatch), map [lookup](docs/glossary.md#term-lookup), [synchronization](docs/glossary.md#term-synchronization), and virtual indirection in hot paths. Do not obscure code for speculative optimization; document necessary optimizations that reduce readability and add tests or benchmarks when appropriate.
 
-For every generated-code implementation, use a well-written, optimal clean Java implementation of the same specialized case as the design and review oracle. Directly generated bytecode must preserve that reference's semantic algorithm, hot-loop and dataflow shape, and avoidable-overhead profile. This does not require generating Java source and invoking `javac`, literal byte-for-byte Class-File identity, or guaranteed identical just-in-time compiler assembly. Any deviation requires an explicit technical reason and supporting evidence.
+For every generated-code implementation, use a well-written, optimal clean Java implementation of the same specialized case as the design and review [oracle](docs/glossary.md#term-test-oracle). Directly generated [bytecode](docs/glossary.md#term-bytecode) must preserve that reference's semantic algorithm, hot-loop and [dataflow](docs/glossary.md#term-dataflow) [shape](docs/glossary.md#shape), and avoidable-overhead profile. This does not require generating Java source and invoking `javac`, literal byte-for-byte Class-File [identity](docs/glossary.md#term-identity-meanings), or guaranteed identical just-in-time [compiler](docs/glossary.md#term-compiler) assembly. Any deviation requires an explicit technical reason and supporting evidence.
 
-Validate generated code proportionately with semantic tests, generated Class-File or decompilation inspection, checks for hidden helper calls and avoidable allocation, boxing, reflection, or dispatch, and generated-versus-direct performance evidence for hot paths. A safe generic fallback may remain when specialization cannot be proved, but a proved specialized hot path must not silently inherit the fallback's avoidable overhead.
+Validate generated code proportionately with semantic tests, generated Class-File or [decompilation](docs/glossary.md#term-decompilation) inspection, checks for hidden helper calls and avoidable allocation, boxing, reflection, or dispatch, and generated-versus-direct performance evidence for hot paths. A safe generic fallback may remain when [specialization](docs/glossary.md#term-specialization) cannot be proved, but a proved specialized [hot path](docs/glossary.md#term-hot-path) must not silently inherit the fallback's avoidable overhead.
 
 ## Change discipline
 

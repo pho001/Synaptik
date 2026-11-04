@@ -6,101 +6,101 @@ Complete
 
 ## Goal
 
-Add deterministic factory population for exclusive-end integer ranges and for tensors populated
+Add deterministic factory population for exclusive-end integer ranges and for [tensors](../../../../glossary.md#tensor) populated
 from a strict or cyclic prefix of a typed flat Java primitive array. Every result is a new
-dense-contiguous leaf tensor whose descriptor, storage, and identity are produced through the
-completed model factory paths.
+dense-[contiguous](../../../../glossary.md#term-contiguous) [leaf](../../../../glossary.md#term-leaf) tensor whose [descriptor](../../../../glossary.md#term-descriptor), storage, and [identity](../../../../glossary.md#term-identity-meanings) are produced through the
+completed [model](../../../../glossary.md#term-model) factory paths.
 
-This task preserves the useful legacy range and fixture-data capabilities while replacing legacy
-implicit `double[]` conversion with exact carrier-to-`DataType` matching. It does not add general
-fill, conversion, typed tensor access, or an executable Range operation.
+This task preserves the useful legacy range and [fixture](../../../../glossary.md#term-fixture)-data capabilities while replacing legacy
+implicit `double[]` conversion with exact [carrier](../../../../glossary.md#term-storage-carrier)-to-[`DataType`](../../../../glossary.md#data-type--datatype) matching. It does not add general
+fill, conversion, typed tensor access, or an executable Range [operation](../../../../glossary.md#operation).
 
-## Scope
+## [Scope](../../../../glossary.md#term-scope)
 
-- Add `INT32` and `INT64` exclusive-end integer range creation with non-zero positive or negative
+- Add [`INT32`](../../../../glossary.md#data-type--datatype) and [`INT64`](../../../../glossary.md#data-type--datatype) exclusive-end integer range creation with non-zero positive or negative
   steps.
 - Reject empty ranges and step directions that cannot advance from the inclusive start toward the
   exclusive end.
-- Calculate range length without signed overflow and reject results above the Java array limit.
+- Calculate range length without signed [overflow](../../../../glossary.md#term-overflow) and reject results above the Java array limit.
 - Add strict flat-prefix creation for all six primitive carriers. A strict source may contain
-  extra values, but it must contain at least the requested logical element count.
+  extra values, but it must contain at least the requested logical element count.<span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element))</span>
 - Add cyclic flat-prefix creation for all six primitive carriers. A short non-empty source repeats
   from its beginning until the requested logical element count is reached.
 - Accept an empty source for an empty cyclic result because no value must be repeated.
 - Require a fully static caller-supplied shape for prefix creation and synthesize only canonical
-  dense-contiguous layout.
+  dense-contiguous layout.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [canonical glossary](../../../../glossary.md#term-canonical-form); [contiguous glossary](../../../../glossary.md#term-contiguous); [layout glossary](../../../../glossary.md#layout))</span>
 - Preserve numeric values and raw BFLOAT16 bits; delegate BOOL normalization to the existing flat
-  import path.
+  import path.<span data-glossary-navigation="true"> ([BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [BOOL glossary](../../../../glossary.md#data-type--datatype); [normalization glossary](../../../../glossary.md#term-normalization))</span>
 - Preserve explicit optional label and gradient intent for prefix creation. Integer ranges are
-  always non-differentiable and therefore expose no `requiresGrad` argument.
+  always non-differentiable and therefore expose no <span data-glossary-navigation="true"> ([gradient glossary](../../../../glossary.md#term-gradient); [differentiable glossary](../../../../glossary.md#derivative-and-chain-rule))</span>`requiresGrad` [argument](../../../../glossary.md#term-argument).
 - Modify `TensorFactory`, add one package-private `TensorPopulations` helper, update the exact API
-  shape test, and add one focused population test.
+  shape test, and add one focused population test.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - During implementation, update the Tensor API, glossary, task evidence, model master plan, and
-  roadmap through the required separate clean-context documentation pass.
+  roadmap through the required separate clean-context documentation pass.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [model glossary](../../../../glossary.md#term-model))</span>
 
-## Out of scope
+## Out of [scope](../../../../glossary.md#term-scope)
 
-- floating-point, BFLOAT16, BOOL, date/time, inclusive-end, open-ended, lazy, or symbolic ranges
+- [floating-point](../../../../glossary.md#term-floating-point), [BFLOAT16](../../../../glossary.md#term-bfloat16), [BOOL](../../../../glossary.md#data-type--datatype), date/time, inclusive-end, open-ended, [lazy](../../../../glossary.md#term-lazy-evaluation), or symbolic ranges
 - an operation kind for range, compiler-generated ranges, ONNX Range mapping, graph capture,
-  provenance, or runtime generation
+  provenance, or runtime generation<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [compiler glossary](../../../../glossary.md#term-compiler); [ONNX glossary](../../../../glossary.md#term-onnx); [graph capture glossary](../../../../glossary.md#capture-graph-ports-and-reconstruction); [provenance glossary](../../../../glossary.md#provenance); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 - empty-range construction, automatic step-direction correction, default steps, default labels,
-  default data types, caller-selected integer `DataType`, or `requiresGrad` for integer ranges
-- implicit numeric conversion, widening, narrowing, floating promotion, `double[]` conversion to
+  default data types, caller-selected integer [`DataType`](../../../../glossary.md#data-type--datatype), or `requiresGrad` for integer ranges
+- implicit numeric conversion, [widening](../../../../glossary.md#term-widening), [narrowing](../../../../glossary.md#term-narrowing), floating promotion, `double[]` conversion to
   another data type, boxed values, generic public arrays, collections, iterators, streams, or
-  varargs
+  varargs<span data-glossary-navigation="true"> ([data type glossary](../../../../glossary.md#data-type--datatype))</span>
 - prefix shape inference, nested-prefix import, descriptor or layout input, offset/strided/
-  broadcast destination population, view scattering, alias-conflict policy, or source retention
+  broadcast destination population, view scattering, alias-conflict policy, or source retention<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [inference glossary](../../../../glossary.md#term-inference); [descriptor glossary](../../../../glossary.md#term-descriptor); [layout glossary](../../../../glossary.md#layout); [view glossary](../../../../glossary.md#term-view-meanings); [alias glossary](../../../../glossary.md#aliasing-and-arena))</span>
 - a general `fill`, arbitrary constant, linear spacing, logarithmic spacing, mask, repeat, tile, or
-  sequence operation
-- random creation or reproducibility policy from task 0012F
+  sequence operation<span data-glossary-navigation="true"> ([constant glossary](../../../../glossary.md#term-constant); [linear glossary](../../../../glossary.md#term-linear-meanings); [mask glossary](../../../../glossary.md#term-boolean-mask))</span>
+- random creation or [reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance) policy from task 0012F
 - typed Tensor reads/writes, bulk export, source Tensor population, mutation/version tracking,
-  backing-array exposure, or zero-copy ownership transfer
-- new storage types, native/off-heap/mapped allocation, `Arena`, deterministic close behavior,
-  pooling, runtime residency, or backend storage
+  backing-array exposure, or zero-copy ownership transfer<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
+- new storage types, native/[off-heap](../../../../glossary.md#term-off-heap-memory)/mapped allocation, [`Arena`](../../../../glossary.md#term-arena), deterministic close behavior,
+  pooling, runtime residency, or backend storage<span data-glossary-navigation="true"> ([pooling glossary](../../../../glossary.md#term-pooling); [residency glossary](../../../../glossary.md#residency); [backend glossary](../../../../glossary.md#backend))</span>
 - gradient state, trainable/publication behavior, provenance, operations, compiler, planning,
-  prepare, runtime, engine, backend, device, or execution behavior
-- dependencies, preview/incubator features, Gradle changes, architecture changes, or another module
+  prepare, runtime, engine, backend, device, or execution behavior<span data-glossary-navigation="true"> ([gradient glossary](../../../../glossary.md#term-gradient); [publication glossary](../../../../glossary.md#term-publication); [planning glossary](../../../../glossary.md#term-planning); [prepare glossary](../../../../glossary.md#prepare); [engine glossary](../../../../glossary.md#term-engine); [device glossary](../../../../glossary.md#term-device))</span>
+- dependencies, preview/incubator [features](../../../../glossary.md#term-software-feature), [Gradle](../../../../glossary.md#term-gradle) changes, architecture changes, or another [module](../../../../glossary.md#term-module)
 - a detailed specification for task 0012F, task 0013, or any later task
 
 ## Architecture references
 
-- [Architecture contract](../../../../../ARCHITECTURE.md), especially model ownership of public
-  Tensor construction and host storage and the exclusion of runtime/backend state
+- [Architecture contract](../../../../../ARCHITECTURE.md)<span data-glossary-navigation="true"> ([Architecture contract glossary](../../../../glossary.md#architecture-contract))</span>, especially model ownership of public
+  Tensor construction and host storage and the exclusion of runtime/backend state<span data-glossary-navigation="true"> ([model glossary](../../../../glossary.md#term-model); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [host storage glossary](../../../../glossary.md#host-storage); [runtime glossary](../../../../glossary.md#term-runtime); [backend glossary](../../../../glossary.md#backend))</span>
 - [Current architecture documentation](../../../../architecture/current-architecture-plan.md)
 - [Architecture overview](../../../../architecture/overview.md)
-- [Lifecycle](../../../../architecture/lifecycle.md)
-- [Module boundaries](../../../../architecture/module-boundaries.md)
-- [Dependency rules](../../../../architecture/dependency-rules.md)
+- [Lifecycle](../../../../architecture/lifecycle.md)<span data-glossary-navigation="true"> ([Lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+- [Module boundaries](../../../../architecture/module-boundaries.md)<span data-glossary-navigation="true"> ([Module glossary](../../../../glossary.md#term-module))</span>
+- [Dependency rules](../../../../architecture/dependency-rules.md)<span data-glossary-navigation="true"> ([Dependency glossary](../../../../glossary.md#term-dependency))</span>
 - [Documentation rules](../../../../developer-guide/documentation-rules.md)
-- [Planning guide](../../../planning-guide.md)
+- [Planning guide](../../../planning-guide.md)<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning))</span>
 - [Implementation roadmap](../../../roadmap.md)
 - [Model capability baseline](../capabilities.md), especially integer ranges and strict/cyclic
   prefix filling
 - [Model master plan](../master-plan.md)
 - [Task 0001](0001-data-type-model.md), which defines exact carrier data types and gradient
-  eligibility
-- [Task 0002](0002-shape-and-dimension-model.md), which defines static shapes and checked counts
-- [Task 0003](0003-layout-descriptor-model.md), which defines canonical dense layout
-- [Task 0007](0007-tensor-descriptor-model.md), which defines descriptor and gradient invariants
-- [Task 0011](0011-public-tensor-skeleton.md), which defines public Tensor state
-- [Task 0012](0012-tensor-factory.md), which defines construction and identity allocation
-- [Task 0012A](0012a-host-storage-allocation.md), which defines heap allocation
+  eligibility<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+- [Task 0002](0002-shape-and-dimension-model.md), which defines static [shapes](../../../../glossary.md#shape) and checked counts
+- [Task 0003](0003-layout-descriptor-model.md), which defines [canonical](../../../../glossary.md#term-canonical-form) dense [layout](../../../../glossary.md#layout)
+- [Task 0007](0007-tensor-descriptor-model.md), which defines [descriptor](../../../../glossary.md#term-descriptor) and [gradient](../../../../glossary.md#term-gradient) invariants
+- [Task 0011](0011-public-tensor-skeleton.md), which defines public [Tensor](../../../../glossary.md#tensor) state
+- [Task 0012](0012-tensor-factory.md), which defines construction and [identity](../../../../glossary.md#term-identity-meanings) allocation
+- [Task 0012A](0012a-host-storage-allocation.md), which defines [heap](../../../../glossary.md#term-heap) allocation
 - [Task 0012B](0012b-flat-typed-tensor-import.md), which defines exact typed copied population
 - [Task 0012D](0012d-constant-tensor-creation.md), which defines bounded synthesized descriptors
-- [Tensor API](../../../../api/tensor-api.md) and [glossary](../../../../glossary.md)
+- [Tensor API](../../../../api/tensor-api.md)<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api))</span> and [glossary](../../../../glossary.md)
 
 ## Legacy evidence and rejected coupling
 
-Read-only inspection of `TensorDataFactory`, `TensorDataFactoryTest`, the legacy Tensor range
+Read-only inspection of `TensorDataFactory`, `TensorDataFactoryTest`, the legacy [Tensor](../../../../glossary.md#tensor) range
 convenience, and numerics fixtures confirms three useful capabilities: an inclusive-start,
 exclusive-end integer arithmetic range with positive or negative non-zero step; strict copying of
-the requested prefix; and cyclic repetition when fixture input is shorter than the requested
+the requested prefix; and cyclic repetition when [fixture](../../../../glossary.md#term-fixture) input is shorter than the requested
 tensor.
 
-The new design rejects the legacy nullable label, positive-dimension-only shape, rank-one scalar
+The new design rejects the legacy nullable label, positive-[dimension](../../../../glossary.md#dimension)-only [shape](../../../../glossary.md#shape), [rank-one](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [scalar](../../../../glossary.md#term-scalar)
 convention, automatic `arange` label, caller-selected floating output for an integer range,
-`double[]`-to-arbitrary-dtype conversion, mutable metadata, direct Tensor construction, and raw
-array/storage exposure. It also rejects legacy implementation structure, runtime coupling, and
+`double[]`-to-arbitrary-[dtype](../../../../glossary.md#data-type--datatype) conversion, [mutable](../../../../glossary.md#term-mutable) [metadata](../../../../glossary.md#term-metadata), direct Tensor construction, and raw
+array/storage exposure. It also rejects legacy implementation structure, [runtime](../../../../glossary.md#term-runtime) coupling, and
 unrelated factory conveniences. Only the selected observable capabilities are retained.
 
 ## Architecture constraints
@@ -108,42 +108,42 @@ unrelated factory conveniences. Only the selected observable capabilities are re
 - Production remains in `io.github.pho001.synaptik.model.tensor`. Public methods belong to
   `TensorFactory`; deterministic population mechanics belong to one package-private helper in the
   same package.
-- Package direction remains `model.tensor` toward existing `datatype`, `shape`, `layout`, and
-  `storage` foundations. No reverse or cross-module dependency is introduced.
-- Range creation is eager model-owned leaf-data construction, not an `Operation`, graph node,
-  compiler pass, prepared executable, runtime generator, or backend kernel.
-- The primitive range overload determines the exact result type: `int` produces `INT32`, and
-  `long` produces `INT64`. No data-type argument or conversion policy is added.
+- Package direction remains `model.tensor` toward existing `datatype`, [`shape`](../../../../glossary.md#shape), [`layout`](../../../../glossary.md#layout), and
+  `storage` foundations. No reverse or cross-[module](../../../../glossary.md#term-module) [dependency](../../../../glossary.md#term-dependency) is introduced.
+- Range creation is [eager](../../../../glossary.md#term-eager-evaluation) [model](../../../../glossary.md#term-model)-owned [leaf](../../../../glossary.md#term-leaf)-data construction, not an [`Operation`](../../../../glossary.md#operation), graph node,
+  compiler pass, prepared executable, runtime generator, or backend kernel.<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [node glossary](../../../../glossary.md#node); [compiler glossary](../../../../glossary.md#term-compiler); [prepared executable glossary](../../../../glossary.md#prepared-executable--preparedexecutable); [runtime glossary](../../../../glossary.md#term-runtime); [backend glossary](../../../../glossary.md#backend); [kernel glossary](../../../../glossary.md#kernel))</span>
+- The primitive range overload determines the exact result type: `int` produces [`INT32`](../../../../glossary.md#data-type--datatype), and
+  `long` produces [`INT64`](../../../../glossary.md#data-type--datatype). No data-type [argument](../../../../glossary.md#term-argument) or conversion policy is added.
 - Range length is calculated exactly before a Java array is allocated. Signed subtraction,
-  absolute-value, or addition overflow must not change the result or validation outcome.
+  absolute-value, or addition overflow must not change the result or validation outcome.<span data-glossary-navigation="true"> ([overflow glossary](../../../../glossary.md#term-overflow); [validation glossary](../../../../glossary.md#term-validation))</span>
 - Prefix overloads determine data type from the exact primitive source carrier. They do not accept
-  a separate data type or convert between carriers.
+  a separate data type or convert between carriers.<span data-glossary-navigation="true"> ([data type glossary](../../../../glossary.md#data-type--datatype); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
 - Prefix creation synthesizes a descriptor only from the explicit shape, inferred exact data type,
   canonical dense-contiguous layout, and explicit gradient intent. It accepts no source layout or
-  descriptor.
+  descriptor.<span data-glossary-navigation="true"> ([descriptor glossary](../../../../glossary.md#term-descriptor); [canonical glossary](../../../../glossary.md#term-canonical-form); [contiguous glossary](../../../../glossary.md#term-contiguous); [gradient glossary](../../../../glossary.md#term-gradient))</span>
 - Range and prefix methods create one exact temporary destination carrier and delegate exactly
   once to the matching task-0012B `fromFlatArray(...)` overload. They do not allocate Tensor IDs,
-  construct Tensor/storage directly, or write through a public typed-access API.
+  construct Tensor/storage directly, or write through a public typed-access API.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - Strict and cyclic population copy values. Neither the complete source nor any source subrange is
   retained. Later caller mutation cannot change the tensor.
-- BOOL prefix input is semantic: downstream flat import canonicalizes zero to `0` and every
-  non-zero byte to `1`. BFLOAT16 `short[]` values remain raw bits.
+- [BOOL](../../../../glossary.md#data-type--datatype) prefix input is semantic: downstream flat import canonicalizes zero to `0` and every
+  non-zero byte to `1`. [BFLOAT16](../../../../glossary.md#term-bfloat16) `short[]` values remain [raw bits](../../../../glossary.md#storage-mapping-contiguity-and-injectivity).
 - A fully static zero-element shape is valid. Strict population needs zero source values. Cyclic
   population also accepts an empty source because no modulo/repetition is performed for an empty
-  result.
+  result.<span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element))</span>
 - If implementation needs conversion, scatter/view semantics, a public population-policy type,
   another production helper, a storage-contract change, architecture/dependency changes, or
-  another module, stop and report the conflict.
+  another module, stop and report the conflict.<span data-glossary-navigation="true"> ([view glossary](../../../../glossary.md#term-view-meanings))</span>
 
 ## Package impact
 
 Existing packages used:
 
 - `io.github.pho001.synaptik.model.tensor` — owns TensorFactory, descriptors, and deterministic
-  leaf-data construction.
+  leaf-data construction.<span data-glossary-navigation="true"> ([descriptors glossary](../../../../glossary.md#term-descriptor); [leaf glossary](../../../../glossary.md#term-leaf))</span>
 - `io.github.pho001.synaptik.model.datatype` — supplies exact data types.
-- `io.github.pho001.synaptik.model.shape` — supplies fully static result shapes.
-- `io.github.pho001.synaptik.model.layout` — supplies canonical dense-contiguous geometry.
+- `io.github.pho001.synaptik.model.shape` — supplies fully static result [shapes](../../../../glossary.md#shape).
+- `io.github.pho001.synaptik.model.layout` — supplies [canonical](../../../../glossary.md#term-canonical-form) dense-[contiguous](../../../../glossary.md#term-contiguous) geometry.
 
 Packages added or changed:
 
@@ -178,8 +178,8 @@ public static Tensor range(
         Optional<String> label)
 ```
 
-The `int` overload creates `INT32`; the `long` overload creates `INT64`. Both results have shape
-`Shape.of(elementCount)`, canonical dense-contiguous layout, and `requiresGrad == false`.
+The `int` overload creates [`INT32`](../../../../glossary.md#data-type--datatype); the `long` overload creates [`INT64`](../../../../glossary.md#data-type--datatype). Both results have [shape](../../../../glossary.md#shape)
+`Shape.of(elementCount)`, [canonical](../../../../glossary.md#term-canonical-form) dense-[contiguous](../../../../glossary.md#term-contiguous) [layout](../../../../glossary.md#layout), and `requiresGrad == false`.
 
 Values are exactly:
 
@@ -191,13 +191,13 @@ The exclusive bound is never emitted. Positive steps require `startInclusive < e
 Negative steps require `startInclusive > endExclusive`. Equality is an empty range and is rejected.
 The final emitted value may be less than one step from the exclusive bound.
 
-Do not add overloads without labels, a default step, caller-selected data type, floating values,
-`requiresGrad`, inclusive bounds, `arange` aliases, or automatic labels.
+Do not add overloads without labels, a default step, caller-selected [data type](../../../../glossary.md#data-type--datatype), floating values,
+`requiresGrad`, inclusive bounds, `arange` [aliases](../../../../glossary.md#aliasing-and-arena), or automatic labels.
 
-### Range validation and sizing
+### Range [validation](../../../../glossary.md#term-validation) and sizing
 
 Each public range method validates non-null `label` first with `Objects.requireNonNull(label,
-"label")`, before range validation, carrier allocation, destination allocation, or ID allocation.
+"label")`, before range validation, [carrier](../../../../glossary.md#term-storage-carrier) allocation, destination allocation, or ID allocation.
 The helper then validates in this order:
 
 1. If `step == 0`, throw `IllegalArgumentException` with exact message
@@ -207,25 +207,25 @@ The helper then validates in this order:
 3. If the step sign does not advance toward the end, throw `IllegalArgumentException` with exact
    message `range step direction does not advance toward end`.
 4. Calculate the mathematical positive distance and ceiling-divided element count without
-   overflowing the primitive carrier. `java.math.BigInteger` may be used inside the helper for
-   exact sizing; no arbitrary-precision value is exposed.
+   overflowing the primitive carrier. <span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element))</span>`java.math.BigInteger` may be used inside the helper for
+   exact sizing; no arbitrary-precision value is exposed.<span data-glossary-navigation="true"> ([precision glossary](../../../../glossary.md#term-precision))</span>
 5. If the count exceeds `Integer.MAX_VALUE`, throw `IllegalArgumentException` with exact message
    `range element count exceeds Java array limit: required=<required>, maximum=2147483647`.
 6. Create the rank-one static shape, canonical dense layout, and exact non-differentiable
-   descriptor.
+   descriptor.<span data-glossary-navigation="true"> ([rank-one glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [canonical glossary](../../../../glossary.md#term-canonical-form); [differentiable glossary](../../../../glossary.md#derivative-and-chain-rule))</span>
 7. Allocate exactly one matching primitive array and populate it in encounter order. Do not add a
    value after the final element merely to advance a loop; ordinary valid boundary ranges must not
-   fail from an unused post-final overflow.
+   fail from an unused post-final overflow.<span data-glossary-navigation="true"> ([overflow glossary](../../../../glossary.md#term-overflow))</span>
 8. Delegate exactly once to the matching flat-import overload with the supplied label.
 
-All range argument, direction, count, shape, layout, and descriptor failures occur before carrier,
-destination, or ID allocation. A blank label is rejected through existing Tensor validation after
+All range [argument](../../../../glossary.md#term-argument), direction, count, [shape](../../../../glossary.md#shape), [layout](../../../../glossary.md#layout), and [descriptor](../../../../glossary.md#term-descriptor) failures occur before carrier,
+destination, or ID allocation. A blank label is rejected through existing [Tensor](../../../../glossary.md#tensor) validation after
 the range carrier and destination storage are allocated and an ID is consumed, but before flat
 copying. Identifier exhaustion occurs after both carriers exist and before flat copying.
 
 ### Public strict flat-prefix methods
 
-Add exactly six public static `fromStrictFlatPrefix(...)` overloads, one for each source carrier:
+Add exactly six public static `fromStrictFlatPrefix(...)` overloads, one for each source [carrier](../../../../glossary.md#term-storage-carrier):
 
 ```java
 public static Tensor fromStrictFlatPrefix(
@@ -244,24 +244,24 @@ public static Tensor fromStrictFlatPrefix(
 
 The carrier mapping is the existing exact mapping:
 
-| Source | Data type | Semantics |
+| Source | [Data type](../../../../glossary.md#data-type--datatype) | Semantics |
 |---|---|---|
-| `double[]` | `FLOAT64` | binary64 values |
-| `float[]` | `FLOAT32` | binary32 values |
-| `short[]` | `BFLOAT16` | raw BFLOAT16 bits |
-| `int[]` | `INT32` | signed 32-bit values |
-| `long[]` | `INT64` | signed 64-bit values |
-| `byte[]` | `BOOL` | zero false; non-zero normalized downstream to one |
+| `double[]` | [`FLOAT64`](../../../../glossary.md#term-float64) | [binary64](../../../../glossary.md#floating-point-precision-and-rounding) values |
+| `float[]` | [`FLOAT32`](../../../../glossary.md#term-float32) | [binary32](../../../../glossary.md#floating-point-precision-and-rounding) values |
+| `short[]` | [`BFLOAT16`](../../../../glossary.md#term-bfloat16) | raw BFLOAT16 bits |
+| `int[]` | [`INT32`](../../../../glossary.md#data-type--datatype) | signed 32-bit values |
+| `long[]` | [`INT64`](../../../../glossary.md#data-type--datatype) | signed 64-bit values |
+| `byte[]` | [`BOOL`](../../../../glossary.md#data-type--datatype) | zero false; non-zero normalized downstream to one |
 
 Strict prefix requires `source.length >= logicalElementCount`. It copies exactly the first
 `logicalElementCount` values into a fresh exact-length carrier and ignores any remaining source
-tail. Equal-size input is still copied and is not retained. A zero-element shape accepts any
+tail. Equal-size input is still copied and is not retained. A zero-[element](../../../../glossary.md#term-element) [shape](../../../../glossary.md#shape) accepts any
 source length and creates an empty carrier.
 
 ### Public cyclic flat-prefix methods
 
-Add exactly six public static `fromCyclicFlatPrefix(...)` overloads with the same parameters and
-carrier mapping:
+Add exactly six public static `fromCyclicFlatPrefix(...)` overloads with the same [parameters](../../../../glossary.md#term-parameter) and
+[carrier](../../../../glossary.md#term-storage-carrier) mapping:
 
 ```java
 public static Tensor fromCyclicFlatPrefix(
@@ -280,23 +280,23 @@ public static Tensor fromCyclicFlatPrefix(
 
 For output index `i`, cyclic population copies `source[i % source.length]`. When the source is at
 least as long as the output, this is exactly its requested prefix. A non-empty output requires a
-non-empty source. A zero-element output accepts an empty source and performs no modulo operation.
+non-empty source. A zero-[element](../../../../glossary.md#term-element) output accepts an empty source and performs no modulo [operation](../../../../glossary.md#operation).
 The source is never retained.
 
-### Public prefix validation order
+### Public prefix [validation](../../../../glossary.md#term-validation) order
 
 Every strict and cyclic public overload validates in this order before helper delegation:
 
-1. Reject null `shape` with `NullPointerException` and exact message `shape`.
+1. Reject null [`shape`](../../../../glossary.md#shape) with `NullPointerException` and exact message `shape`.
 2. Reject null `label` with `NullPointerException` and exact message `label`.
 3. Reject null `source` with `NullPointerException` and exact message `source`.
 
-The helper then validates before creating the destination carrier, allocating Tensor storage, or
+The helper then validates before creating the destination [carrier](../../../../glossary.md#term-storage-carrier), allocating [Tensor](../../../../glossary.md#tensor) storage, or
 allocating an ID:
 
 1. If shape is not fully static, throw `IllegalArgumentException` with exact message
    `prefix tensor creation requires a fully static shape: <shape>`.
-2. Read `shape.knownElementCount()`. Checked multiplication overflow remains
+2. Read `shape.knownElementCount()`. Checked multiplication [overflow](../../../../glossary.md#term-overflow) remains
    `ArithmeticException`.
 3. If count exceeds `Integer.MAX_VALUE`, throw `IllegalArgumentException` with exact message
    `prefix tensor element count exceeds Java array limit: required=<required>, maximum=2147483647`.
@@ -311,11 +311,11 @@ allocating an ID:
 7. Create exactly one fresh matching output carrier of the logical count, populate it, and
    delegate exactly once to the matching flat-import overload.
 
-Null, shape, count, source-availability, layout, and descriptor/gradient failures consume no ID and
+Null, shape, count, source-availability, [layout](../../../../glossary.md#layout), and [descriptor](../../../../glossary.md#term-descriptor)/[gradient](../../../../glossary.md#term-gradient) failures consume no ID and
 allocate no output carrier or destination storage. A blank label passes prevalidation, then fails
 through existing Tensor validation after the output carrier, destination, and ID are allocated;
 the ID is consumed and no flat copy occurs. Unexpected population or flat-copy failures propagate
-without rollback.
+without [rollback](../../../../glossary.md#term-rollback).
 
 ### Package-private helper
 
@@ -323,19 +323,19 @@ Add one package-private final `TensorPopulations` class in `model.tensor`.
 
 It must:
 
-- have no fields, public/protected members, cache, registry, singleton, or mutable state;
-- have one private zero-argument constructor;
+- have no fields, public/protected members, [cache](../../../../glossary.md#term-cache), [registry](../../../../glossary.md#term-registry), [singleton](../../../../glossary.md#term-singleton), or [mutable](../../../../glossary.md#term-mutable) state;
+- have one private zero-[argument](../../../../glossary.md#term-argument) constructor;
 - expose package-private typed entry methods only for the two range overloads and the twelve
   strict/cyclic primitive-array prefix overloads;
 - use private shared implementation methods for exact range sizing, descriptor construction,
-  prefix count validation, and carrier population;
+  prefix count validation, and carrier population;<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
 - use no reflection, generic public API, backing-array retention, storage construction, Tensor
-  construction, or ID allocation;
-- allocate exactly one output carrier for every successful result; and
+  construction, or ID allocation;<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [Tensor glossary](../../../../glossary.md#tensor))</span>
+- allocate exactly one output [carrier](../../../../glossary.md#term-storage-carrier) for every successful result; and
 - delegate exactly once to the existing matching `TensorFactory.fromFlatArray(...)` overload.
 
 `BigInteger` is permitted only as a private exact range-count calculation detail. Do not add a
-public range descriptor, prefix mode, fill policy, sequence abstraction, scalar wrapper, stateful
+public range [descriptor](../../../../glossary.md#term-descriptor), prefix mode, fill policy, sequence abstraction, [scalar](../../../../glossary.md#term-scalar) wrapper, stateful
 factory, public helper, or production test hook.
 
 ## Valid and invalid scenarios
@@ -346,15 +346,15 @@ factory, public helper, or production test hook.
 | `range(5L, -2L, -2L, label)` | `INT64 [5, 3, 1, -1]` |
 | Range start equals end | Rejected as empty |
 | Positive step with descending bounds | Rejected as wrong direction |
-| Range count above Java array limit | Rejected before carrier/ID allocation |
-| Strict shape `[2,2]`, source `[1,2,3,4,5]` | Copies `[1,2,3,4]`; ignores `5` |
+| Range count above Java array limit | Rejected before [carrier](../../../../glossary.md#term-storage-carrier)/ID allocation |
+| Strict [shape](../../../../glossary.md#shape) `[2,2]`, source `[1,2,3,4,5]` | Copies `[1,2,3,4]`; ignores `5` |
 | Strict shape `[2,2]`, source `[1,2,3]` | Rejected before allocation |
 | Cyclic shape `[2,3]`, source `[1,2,3,4]` | Copies `[1,2,3,4,1,2]` |
-| Empty shape `[0,3]`, empty source | Valid empty strict or cyclic tensor |
-| BOOL source `[0,-4,3]` | Destination bytes `[0,1,1]` |
-| BFLOAT16 source | Raw prefix bits copied unchanged |
+| Empty shape `[0,3]`, empty source | Valid empty strict or cyclic [tensor](../../../../glossary.md#tensor) |
+| [BOOL](../../../../glossary.md#data-type--datatype) source `[0,-4,3]` | Destination bytes `[0,1,1]` |
+| [BFLOAT16](../../../../glossary.md#term-bfloat16) source | Raw prefix bits copied unchanged |
 | Dynamic prefix shape | Rejected before allocation |
-| Integral or BOOL prefix with `requiresGrad=true` | Existing descriptor rejection |
+| Integral or BOOL prefix with `requiresGrad=true` | Existing [descriptor](../../../../glossary.md#term-descriptor) rejection |
 | Source mutated after return | Tensor contents remain unchanged |
 
 ## Affected files
@@ -369,7 +369,7 @@ Expected test changes:
 - `modules/model/src/test/java/io/github/pho001/synaptik/model/tensor/TensorFactoryTest.java`
 - `modules/model/src/test/java/io/github/pho001/synaptik/model/tensor/TensorFactoryPopulationTest.java`
 
-Expected documentation and planning updates during implementation:
+Expected documentation and [planning](../../../../glossary.md#term-planning) updates during implementation:
 
 - `docs/api/tensor-api.md`
 - `docs/glossary.md`
@@ -377,65 +377,65 @@ Expected documentation and planning updates during implementation:
 - `docs/planning/modules/model/master-plan.md`
 - `docs/planning/roadmap.md`
 
-## Maximum scope
+## Maximum [scope](../../../../glossary.md#term-scope)
 
 This task may create or modify at most two production files, one existing test, one new focused
-test, and the five documentation/planning files above: nine paths total.
+test, and the five documentation/[planning](../../../../glossary.md#term-planning) files above: nine paths total.
 
-Do not modify another production/test file, Gradle, `AGENTS.md`, `ARCHITECTURE.md`, focused
-architecture documentation, architecture tests, `capabilities.md`, another module, or unrelated
+Do not modify another production/test file, [Gradle](../../../../glossary.md#term-gradle), `AGENTS.md`, `ARCHITECTURE.md`, focused
+architecture documentation, architecture tests, `capabilities.md`, another [module](../../../../glossary.md#term-module), or unrelated
 documentation. Do not create a task-0012F or task-0013 specification. Stop if another file, public
-type, conversion policy, population mode, view/scatter rule, or architecture clarification is
+type, conversion policy, population mode, [view](../../../../glossary.md#term-view-meanings)/scatter rule, or architecture clarification is
 required.
 
-## Javadoc requirements
+## [Javadoc](../../../../glossary.md#term-javadoc) requirements
 
 - Update `TensorFactory` type Javadoc to describe deterministic ranges and prefix population while
-  preserving identity, allocation, ownership, and deferred-capability boundaries.
+  preserving identity, allocation, ownership, and deferred-capability boundaries.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Document both range overloads fully: carrier/result data type, inclusive/exclusive bounds,
   positive/negative step, non-empty requirement, exact sizing, label, copying/delegation, result,
-  side effects, and every failure.
+  side effects, and every failure.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [data type glossary](../../../../glossary.md#data-type--datatype))</span>
 - Document all strict/cyclic overloads fully: carrier mapping, static shape and count, exact prefix
   or repetition semantics, source copying, BFLOAT16/BOOL behavior, explicit label/gradient intent,
-  result, side effects, and every failure.
+  result, side effects, and every failure.<span data-glossary-navigation="true"> ([BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [BOOL glossary](../../../../glossary.md#data-type--datatype); [gradient glossary](../../../../glossary.md#term-gradient))</span>
 - Document the package-private helper and each package-private entry. Private shared methods must
   explain validation and why exact range sizing or temporary generic implementation detail does
-  not create a public conversion contract.
+  not create a public conversion contract.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
 - Do not describe random creation, typed Tensor access/export, conversion, general fill, view
-  population, native/runtime/backend behavior, or complete factory parity as implemented.
-- Review existing `DataType`, `Shape`, `LayoutDescriptor`, `TensorDescriptor`, `Tensor`,
+  population, native/runtime/backend behavior, or complete factory parity as implemented.<span data-glossary-navigation="true"> ([view glossary](../../../../glossary.md#term-view-meanings); [runtime glossary](../../../../glossary.md#term-runtime); [backend glossary](../../../../glossary.md#backend))</span>
+- Review existing [`DataType`](../../../../glossary.md#data-type--datatype), [`Shape`](../../../../glossary.md#shape), `LayoutDescriptor`, `TensorDescriptor`, [`Tensor`](../../../../glossary.md#tensor),
   `TensorFactory`, and storage Javadocs and record why unchanged contracts remain accurate or stop
-  if an out-of-scope correction is required.
+  if an out-of-scope correction is required.<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope))</span>
 
 ## Acceptance criteria
 
 - `TensorFactory` adds exactly two typed integer range methods, six strict-prefix overloads, and
-  six cyclic-prefix overloads with the specified signatures and no other public API.
+  six cyclic-prefix overloads with the specified signatures and no other public API.<span data-glossary-navigation="true"> ([signatures glossary](../../../../glossary.md#term-signature))</span>
 - Existing create, allocate, flat/nested import, constants, fields, allocator, and behavior remain
-  unchanged; no current test is weakened or removed.
-- `int` range produces only `INT32`; `long` range produces only `INT64`; both are rank one,
-  dense-contiguous, non-differentiable, inclusive-start, and exclusive-end.
+  unchanged; no current test is weakened or removed.<span data-glossary-navigation="true"> ([constants glossary](../../../../glossary.md#term-constant))</span>
+- `int` range produces only [`INT32`](../../../../glossary.md#data-type--datatype); `long` range produces only [`INT64`](../../../../glossary.md#data-type--datatype); both are rank one,
+  dense-contiguous, non-differentiable, inclusive-start, and exclusive-end.<span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank); [contiguous glossary](../../../../glossary.md#term-contiguous); [differentiable glossary](../../../../glossary.md#derivative-and-chain-rule))</span>
 - Range validates label, non-zero step, non-empty bounds, direction, and exact Java-array-limited
-  count in the specified order without primitive overflow.
+  count in the specified order without primitive overflow.<span data-glossary-navigation="true"> ([overflow glossary](../../../../glossary.md#term-overflow))</span>
 - Every strict prefix copies exactly the requested first values, ignores a source tail, rejects a
   short source, and never retains the source.
 - Every cyclic prefix repeats in encounter order, rejects an empty source only for non-empty
   output, and never retains the source.
 - All prefix methods require fully static shape, synthesize canonical dense layout, infer exact
-  data type from carrier, preserve raw numeric/BFLOAT16 values, and reuse flat BOOL normalization.
+  data type from carrier, preserve raw numeric/BFLOAT16 values, and reuse flat BOOL normalization.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [canonical glossary](../../../../glossary.md#term-canonical-form); [layout glossary](../../../../glossary.md#layout); [data type glossary](../../../../glossary.md#data-type--datatype); [carrier glossary](../../../../glossary.md#term-storage-carrier); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [BOOL glossary](../../../../glossary.md#data-type--datatype); [normalization glossary](../../../../glossary.md#term-normalization))</span>
 - All successful paths create one output carrier and delegate exactly once to matching flat import;
-  they never call `nextTensorId()`, construct Tensor/storage, or write through a public access API.
+  they never call `nextTensorId()`, construct [Tensor](../../../../glossary.md#tensor)/storage, or write through a public access [API](../../../../glossary.md#term-application-programming-interface-api).
 - Validation messages, allocation order, ID side effects, and blank-label/exhaustion behavior
   match the required contract.
 - Exact API/helper shape, imports, bytecode delegation, no reflection, no forbidden architecture
-  references, and the nine-path maximum scope are verified.
+  references, and the nine-path maximum scope are verified.<span data-glossary-navigation="true"> ([bytecode glossary](../../../../glossary.md#term-bytecode); [scope glossary](../../../../glossary.md#term-scope))</span>
 - Complete Javadoc, Tensor API, glossary, task/master/roadmap status, and separate documentation
-  review are finished in the same change.
-- Task 0012E is `Complete` only after all validation; task 0012F remains `Draft` without a spec.
+  review are finished in the same change.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
+- Task 0012E is `Complete` only after all [validation](../../../../glossary.md#term-validation); task 0012F remains `Draft` without a spec.
 
-## Tests / validation
+## Tests / [validation](../../../../glossary.md#term-validation)
 
-Run before and after the documentation pass:
+[Run](../../../../glossary.md#term-run) before and after the documentation pass:
 
 ```bash
 ./gradlew :modules:model:test --tests io.github.pho001.synaptik.model.tensor.TensorFactoryTest
@@ -448,36 +448,36 @@ git diff --check
 
 The focused population suite must cover both carriers; positive and negative steps; uneven final
 steps; primitive minimum/maximum boundary cases; zero step; equality; wrong direction; count above
-the array limit; exact labels/descriptors/storage values; all six strict and cyclic carriers;
-source tails; short strict source; repetition; empty shapes/sources; dynamic shapes; count overflow
-and limit; gradient eligibility; raw BFLOAT16; BOOL normalization; source isolation; validation
+the array limit; exact labels/[descriptors](../../../../glossary.md#term-descriptor)/storage values; all six strict and cyclic carriers;
+source tails; short strict source; repetition; empty [shapes](../../../../glossary.md#shape)/sources; dynamic shapes; count [overflow](../../../../glossary.md#term-overflow)
+and limit; [gradient](../../../../glossary.md#term-gradient) eligibility; raw [BFLOAT16](../../../../glossary.md#term-bfloat16); [BOOL](../../../../glossary.md#data-type--datatype) [normalization](../../../../glossary.md#term-normalization); source isolation; validation
 order; ID non-consumption and consumption; and permanent ID exhaustion. It must restore reflected
 allocator state in `finally` and must not introduce a production hook.
 
 Manually verify reflection and `javap -p -c -s` show the exact fourteen new public methods, exact
 package-private helper shape, unchanged factory allocator and prior methods, descriptor synthesis,
-one matching flat-import delegation per successful path, and no direct Tensor/storage/ID
-construction. Verify production imports contain only current model/JDK types and no reflection,
-streams, graph/runtime/backend types, Arena, or native access. Verify exact nine-path scope,
-links/anchors, fences, whitespace, status synchronization, and absence of task-0012F/task-0013
+one matching flat-import delegation per successful path, and no direct [Tensor](../../../../glossary.md#tensor)/storage/ID
+construction. Verify production imports contain only current [model](../../../../glossary.md#term-model)/[JDK](../../../../glossary.md#term-java-development-kit-jdk) types and no reflection,
+streams, [graph](../../../../glossary.md#graph)/[runtime](../../../../glossary.md#term-runtime)/[backend](../../../../glossary.md#backend) types, [Arena](../../../../glossary.md#term-arena), or native access. Verify exact nine-path [scope](../../../../glossary.md#term-scope),
+links/anchors, fences, whitespace, status [synchronization](../../../../glossary.md#term-synchronization), and absence of task-0012F/task-0013
 specifications.
 
 ## Dependencies
 
 - Task 0012B provides exact typed copied flat import and is complete.
-- Task 0012 provides identity allocation and public construction and is complete.
+- Task 0012 provides [identity](../../../../glossary.md#term-identity-meanings) allocation and public construction and is complete.
 - Tasks 0001, 0002, 0003, 0007, 0010, and 0011 provide data type, shape, layout, descriptor,
-  storage, and Tensor contracts.
+  storage, and Tensor contracts.<span data-glossary-navigation="true"> ([data type glossary](../../../../glossary.md#data-type--datatype); [shape glossary](../../../../glossary.md#shape); [layout glossary](../../../../glossary.md#layout); [descriptor glossary](../../../../glossary.md#term-descriptor); [Tensor glossary](../../../../glossary.md#tensor))</span>
 - Task 0012D provides the current synthesized-descriptor helper precedent and is complete; task
-  0012E does not depend on its constant methods for behavior.
+  0012E does not depend on its constant methods for behavior.<span data-glossary-navigation="true"> ([constant glossary](../../../../glossary.md#term-constant))</span>
 
 ## Follow-up tasks
 
 - Task 0012F will decide random-source ownership and reproducibility policy, then add normally
-  distributed floating tensor creation.
-- Task 0013 will define minimal Tensor provenance for future graph capture.
+  distributed floating tensor creation.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance))</span>
+- Task 0013 will define minimal [Tensor](../../../../glossary.md#tensor) [provenance](../../../../glossary.md#provenance) for future [graph capture](../../../../glossary.md#capture-graph-ports-and-reconstruction).
 - Later work owns typed access/export, mutation/version tracking, views/scatter, range operations,
-  ONNX Range mapping, compiler/runtime generation, and backend execution.
+  ONNX Range mapping, compiler/runtime generation, and backend execution.<span data-glossary-navigation="true"> ([views glossary](../../../../glossary.md#term-view-meanings); [ONNX glossary](../../../../glossary.md#term-onnx); [compiler glossary](../../../../glossary.md#term-compiler); [runtime glossary](../../../../glossary.md#term-runtime); [backend glossary](../../../../glossary.md#backend))</span>
 
 Do not create a detailed task-0012F or task-0013 specification as part of task 0012E.
 
@@ -485,10 +485,10 @@ Do not create a detailed task-0012F or task-0013 specification as part of task 0
 
 Expected impact: None.
 
-The architecture already assigns TensorFactory, public Tensor state, shape/data-type/layout model,
-and host storage to `modules/model`. This task adds eager copied leaf data only and changes no
-module boundary, dependency direction, lifecycle stage, storage ownership, graph semantics, or
-runtime/backend rule. If implementation reveals otherwise, stop before editing architecture files.
+The architecture already assigns TensorFactory, public [Tensor](../../../../glossary.md#tensor) state, [shape](../../../../glossary.md#shape)/data-type/[layout](../../../../glossary.md#layout) [model](../../../../glossary.md#term-model),
+and [host storage](../../../../glossary.md#host-storage) to `modules/model`. This task adds [eager](../../../../glossary.md#term-eager-evaluation) copied [leaf](../../../../glossary.md#term-leaf) data only and changes no
+[module](../../../../glossary.md#term-module) boundary, [dependency direction](../../../../glossary.md#java-platform-and-build-tools), [lifecycle](../../../../glossary.md#lifecycle) stage, storage [ownership](../../../../glossary.md#term-ownership-meanings), [graph](../../../../glossary.md#graph) semantics, or
+[runtime](../../../../glossary.md#term-runtime)/[backend](../../../../glossary.md#backend) rule. If implementation reveals otherwise, stop before editing architecture files.
 
 ## Implementation prompt
 
@@ -578,78 +578,78 @@ specification. Do not commit or push.
 
 ## Local decisions
 
-- Range is a typed eager factory capability, not an operation. The `int`/`long` overloads avoid a
-  caller-selected data type and the conversion ambiguity present in legacy code.
+- Range is a typed [eager](../../../../glossary.md#term-eager-evaluation) factory capability, not an [operation](../../../../glossary.md#operation). The `int`/`long` overloads avoid a
+  caller-selected data type and the conversion ambiguity present in legacy code.<span data-glossary-navigation="true"> ([data type glossary](../../../../glossary.md#data-type--datatype))</span>
 - Empty ranges remain rejected to preserve the selected legacy failure contract. Empty prefix
   outputs remain valid because the new shape/storage baseline explicitly supports zero-sized
-  dimensions.
+  dimensions.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [dimensions glossary](../../../../glossary.md#dimension))</span>
 - Range labels are explicit and never synthesized. Integer range results are non-differentiable by
-  construction, so no unusable `requiresGrad` parameter is exposed.
+  construction, so no unusable <span data-glossary-navigation="true"> ([differentiable glossary](../../../../glossary.md#derivative-and-chain-rule))</span>`requiresGrad` [parameter](../../../../glossary.md#term-parameter) is exposed.
 - Strict and cyclic prefix APIs are carrier-specific. This increases overload count but preserves
-  compile-time exact typing and avoids a public `Object`, policy enum, boolean mode, or conversion
-  contract.
+  compile-time exact typing and avoids a public <span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [compile glossary](../../../../glossary.md#compile))</span>`Object`, policy enum, boolean mode, or conversion
+  contract.<span data-glossary-navigation="true"> ([boolean glossary](../../../../glossary.md#data-type--datatype))</span>
 - Prefix creation takes a shape rather than a descriptor because it deliberately produces a new
   canonical dense leaf. Populating arbitrary layout geometry would require separate scatter and
-  alias semantics.
+  alias semantics.<span data-glossary-navigation="true"> ([descriptor glossary](../../../../glossary.md#term-descriptor); [canonical glossary](../../../../glossary.md#term-canonical-form); [leaf glossary](../../../../glossary.md#term-leaf); [layout glossary](../../../../glossary.md#layout); [alias glossary](../../../../glossary.md#aliasing-and-arena))</span>
 - A cyclic empty source is valid only for a zero-element result. This makes zero-sized shapes
-  composable without inventing a repeated value or performing modulo by zero.
+  composable without inventing a repeated value or performing modulo by zero.<span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element))</span>
 - The combined task is retained as one bounded deterministic-population concept because range and
   prefix share the same helper, exact carrier creation, flat-import delegation, affected files,
-  and validation evidence. It changes four Java files and remains within one isolated session.
+  and validation evidence. It changes four Java files and remains within one isolated session.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
 
 ## Known limitations
 
-- Range supports only eager `INT32` and `INT64` results and cannot produce an empty tensor.
-- Prefix creation supports only fully static canonical dense results and exact primitive carriers.
-- Prefix methods do not infer shape, convert values, retain source layout, or populate views.
+- Range supports only [eager](../../../../glossary.md#term-eager-evaluation) [`INT32`](../../../../glossary.md#data-type--datatype) and [`INT64`](../../../../glossary.md#data-type--datatype) results and cannot produce an empty [tensor](../../../../glossary.md#tensor).
+- Prefix creation supports only fully static [canonical](../../../../glossary.md#term-canonical-form) dense results and exact primitive carriers.
+- Prefix methods do not infer [shape](../../../../glossary.md#shape), convert values, retain source [layout](../../../../glossary.md#layout), or populate [views](../../../../glossary.md#term-view-meanings).
 - Java arrays limit every result to `Integer.MAX_VALUE` elements; practical memory limits may be
-  lower and `OutOfMemoryError` propagates.
+  lower and <span data-glossary-navigation="true"> ([elements glossary](../../../../glossary.md#term-element))</span>[`OutOfMemoryError`](../../../../glossary.md#memory-management-atomic-counters-and-complexity) propagates.
 - Population is not atomic with concurrent mutation of the source array. Callers must not mutate a
-  prefix source concurrently with construction.
+  prefix source concurrently with construction.<span data-glossary-navigation="true"> ([atomic glossary](../../../../glossary.md#resource-transaction-and-rollback))</span>
 - No typed Tensor access/export exists yet; focused tests inspect the existing raw host segment
-  only inside the model test package.
+  only inside the model test package.<span data-glossary-navigation="true"> ([host glossary](../../../../glossary.md#term-host); [model glossary](../../../../glossary.md#term-model))</span>
 
-## Validation evidence
+## [Validation](../../../../glossary.md#term-validation) evidence
 
-Planning read the architecture contract, planning/documentation rules, model capability baseline,
-completed shape/layout/descriptor/storage/Tensor/factory tasks, current factory source/tests, and
-read-only legacy `TensorDataFactory`, its tests, the Tensor range convenience, and numerics fixture
-uses. The resulting specification introduced no architecture, dependency, package, or build
+[Planning](../../../../glossary.md#term-planning) read the [architecture contract](../../../../glossary.md#architecture-contract), planning/documentation rules, [model](../../../../glossary.md#term-model) capability baseline,
+completed [shape](../../../../glossary.md#shape)/[layout](../../../../glossary.md#layout)/[descriptor](../../../../glossary.md#term-descriptor)/storage/[Tensor](../../../../glossary.md#tensor)/factory tasks, current factory source/tests, and
+read-only legacy `TensorDataFactory`, its tests, the Tensor range convenience, and numerics [fixture](../../../../glossary.md#term-fixture)
+uses. The resulting specification introduced no architecture, [dependency](../../../../glossary.md#term-dependency), package, or build
 decision.
 
 Implementation and documentation validation on 2026-07-04:
 
 - `./gradlew :modules:model:test --tests io.github.pho001.synaptik.model.tensor.TensorFactoryTest`
-  — passed, `BUILD SUCCESSFUL`; exact factory API-shape test remained green.
+  — passed, `BUILD SUCCESSFUL`; exact factory [API](../../../../glossary.md#term-application-programming-interface-api)-shape test remained green.
 - `./gradlew :modules:model:test --tests io.github.pho001.synaptik.model.tensor.TensorFactoryPopulationTest`
   — passed, `BUILD SUCCESSFUL`; all 9 focused population tests passed.
 - `./gradlew :modules:model:test` — passed, `BUILD SUCCESSFUL`; XML aggregation reported 205 tests,
   0 failures, 0 errors, and 0 skipped.
 - `./gradlew :modules:model:javadoc` — passed, `BUILD SUCCESSFUL`; generated TensorFactory Javadoc
   was inspected for both ranges and all twelve prefix overloads, including parameters, results,
-  failures, ownership, validation/allocation ordering, and ID side effects.
+  failures, ownership, validation/allocation ordering, and ID side effects.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [parameters glossary](../../../../glossary.md#term-parameter))</span>
 - `javadoc -quiet -private -d /private/tmp/synaptik-0012e-private-javadoc -classpath modules/model/build/classes/java/main modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/TensorPopulations.java`
   — passed with no diagnostics, independently validating the package-private helper documentation.
 - `./gradlew test` — passed, `BUILD SUCCESSFUL`; the final repeat reported 36 actionable tasks all
-  up-to-date (the preceding run reported 1 executed and 35 up-to-date).
+  up-to-date (the preceding run reported 1 executed and 35 up-to-date).<span data-glossary-navigation="true"> ([run glossary](../../../../glossary.md#term-run))</span>
 - The documentation example was compiled with
   `javac -cp modules/model/build/classes/java/main -d /private/tmp /private/tmp/DeterministicPopulationExample.java`
   and run with
   `java -cp modules/model/build/classes/java/main:/private/tmp DeterministicPopulationExample`.
-  It printed the documented `INT32`, `[1, 4, 7]`, `Shape[2, 2]`, strict-prefix values, and canonical
-  cyclic BOOL values.
+  It printed the documented [`INT32`](../../../../glossary.md#data-type--datatype), `[1, 4, 7]`, `Shape[2, 2]`, strict-prefix values, and canonical
+  cyclic BOOL values.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [BOOL glossary](../../../../glossary.md#data-type--datatype))</span>
 - `javap -p -s` confirmed the prior TensorFactory API plus exactly 14 new public methods and the
   unchanged private `importFlat` and `nextTensorId`; TensorPopulations has exactly 14 package-private
   typed entries, four private shared methods, one private constructor, and no fields.
 - `javap -p -c` confirmed each helper entry delegates exactly once to the matching typed
   `TensorFactory.fromFlatArray(...)` overload. Source/import inspection found no reflection,
-  streams, `Arena`, native allocation, direct Tensor/storage/ID construction, or architecture-layer
+  streams, [`Arena`](../../../../glossary.md#term-arena), native allocation, direct Tensor/storage/ID construction, or architecture-layer
   reference in TensorPopulations. The existing direct Tensor/storage/ID construction paths in
   TensorFactory were unchanged.
 - Manual test and source review confirmed exact range count/direction messages, no unused
   post-final primitive addition, prefix null and semantic validation order, canonical descriptor
   synthesis, source copying, BFLOAT16 preservation, downstream BOOL normalization, blank-label ID
-  consumption, permanent exhaustion, and allocator restoration.
+  consumption, permanent exhaustion, and allocator restoration.<span data-glossary-navigation="true"> ([BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [normalization glossary](../../../../glossary.md#term-normalization))</span>
 - Documentation-focused context
   `/root/implement_model_0012e/review_model_0012e_docs` independently applied General style,
   API/Javadoc style, Planning style, and Example format. It reviewed the final Java diff, tests,
@@ -660,55 +660,55 @@ Implementation and documentation validation on 2026-07-04:
   checker resolved 155 links and anchors with 0 failures; fence counts were even in all five
   touched Markdown files. Two initial checker invocations failed only from Ruby-script syntax/API
   compatibility and were corrected before the successful final check. Exact nine-path scope,
-  status synchronization, and absence of task-0012F/task-0013 specifications also passed.
+  status synchronization, and absence of task-0012F/task-0013 specifications also passed.<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope); [synchronization glossary](../../../../glossary.md#term-synchronization))</span>
 
-Existing Tensor, TensorDescriptor, DataType, Shape, LayoutDescriptor, HostTensorStorage, and
+Existing Tensor, TensorDescriptor, [DataType](../../../../glossary.md#data-type--datatype), Shape, LayoutDescriptor, HostTensorStorage, and
 MemorySegmentStorage Javadocs required no changes: deterministic population creates ordinary
-Tensor state through the existing descriptor, dense layout, copied flat-import, heap-storage, and
-factory-ID contracts without changing any of those types' ownership, validity, lifecycle, or
-failure semantics. Existing TensorFactory create/allocate/flat/nested/constant Javadocs also remain
+Tensor state through the existing descriptor, dense layout, copied flat-import, [heap](../../../../glossary.md#term-heap)-storage, and
+factory-ID contracts without changing any of those types' [ownership](../../../../glossary.md#term-ownership-meanings), validity, [lifecycle](../../../../glossary.md#lifecycle), or
+failure semantics. Existing TensorFactory create/allocate/flat/nested/[constant](../../../../glossary.md#term-constant) Javadocs also remain
 accurate because their implementations and contracts did not change.
 
-Architecture and cross-module review concluded that `ARCHITECTURE.md`, focused architecture
-documents, `capabilities.md`, ADRs, architecture tests, backend conformance, integration tests,
+Architecture and cross-[module](../../../../glossary.md#term-module) review concluded that `ARCHITECTURE.md`, focused architecture
+documents, `capabilities.md`, ADRs, architecture tests, [backend](../../../../glossary.md#backend) [conformance](../../../../glossary.md#term-conformance), integration tests,
 build configuration, and dependencies require no changes. The implementation stays inside
-`modules/model`, adds eager copied leaf-data conveniences only, preserves package and dependency
-direction, and changes no architecture, backend, runtime, end-to-end execution, or build rule.
+`modules/model`, adds [eager](../../../../glossary.md#term-eager-evaluation) copied [leaf](../../../../glossary.md#term-leaf)-data conveniences only, preserves package and [dependency
+direction](../../../../glossary.md#java-platform-and-build-tools), and changes no architecture, backend, [runtime](../../../../glossary.md#term-runtime), end-to-end execution, or build rule.
 
 ## Implementation notes
 
 - `TensorFactory` exposes exactly the two typed range overloads and twelve carrier-specific prefix
   overloads. Public methods own null-order checks and delegate deterministic mechanics to the one
-  package-private stateless helper.
+  package-private stateless helper.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
 - `TensorPopulations` confines exact `BigInteger` range sizing to one private method, synthesizes
   only canonical dense descriptors, creates one complete matching carrier, and delegates once to
-  the existing flat import. Range loops skip step addition after the final emitted element.
+  the existing flat import. Range loops skip step addition after the final emitted element.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [descriptors glossary](../../../../glossary.md#term-descriptor); [element glossary](../../../../glossary.md#term-element))</span>
 - Strict prefixes use `Arrays.copyOf` for the validated logical count. Cyclic prefixes fill by
   `source[index % source.length]`; zero output performs no modulo operation. Both paths leave BOOL
-  normalization in flat import and preserve raw BFLOAT16 bits.
+  normalization in flat import and preserve raw BFLOAT16 bits.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [BOOL glossary](../../../../glossary.md#data-type--datatype); [normalization glossary](../../../../glossary.md#term-normalization); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16))</span>
 - Focused tests cover helper/API shape, typed and primitive-boundary ranges, exact messages and ID
   effects, all six strict and cyclic carriers, source isolation, empty results, validation order,
-  gradient rules, permanent exhaustion, and reflected allocator restoration.
+  gradient rules, permanent exhaustion, and reflected allocator restoration.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [shape glossary](../../../../glossary.md#shape); [validation glossary](../../../../glossary.md#term-validation); [gradient glossary](../../../../glossary.md#term-gradient))</span>
 - The Tensor API and glossary now describe deterministic range/prefix population as current. A
   compiled and run complete API example demonstrates range typing, strict-tail handling, cyclic
-  BOOL normalization, and copied source ownership. Random creation remains the next Draft frontier.
+  BOOL normalization, and copied source ownership. Random creation remains the next Draft frontier.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [run glossary](../../../../glossary.md#term-run); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 
 ## Completion summary
 
 - Completed changes: added exact typed integer ranges and strict/cyclic flat-prefix population with
   overflow-safe sizing, canonical dense descriptors, copied ownership, and existing factory ID and
-  flat-import behavior.
+  flat-import behavior.<span data-glossary-navigation="true"> ([overflow glossary](../../../../glossary.md#term-overflow); [canonical glossary](../../../../glossary.md#term-canonical-form); [descriptors glossary](../../../../glossary.md#term-descriptor); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Files changed or created: exactly the two production files, two test files, Tensor API, glossary,
-  this task, model master plan, and roadmap listed in the nine-path maximum scope.
+  this task, model master plan, and roadmap listed in the nine-path maximum scope.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [model glossary](../../../../glossary.md#term-model); [scope glossary](../../../../glossary.md#term-scope))</span>
 - Tests and validation: both focused suites, aggregate model tests, generated model Javadoc, full
   repository tests, bytecode/API/import/manual checks, compiled documentation example, XML counts,
-  documentation checks, and `git diff --check` passed.
+  documentation checks, and <span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [Javadoc glossary](../../../../glossary.md#term-javadoc); [bytecode glossary](../../../../glossary.md#term-bytecode))</span>`git diff --check` passed.
 - Documentation-agent review: completed independently by
   `/root/implement_model_0012e/review_model_0012e_docs` using the required profiles and final
   implementation evidence.
 - Documentation impact: Tensor API, glossary, task evidence, model master plan, and roadmap were
   synchronized; architecture, capability, ADR, backend, integration, build, and dependency
-  documents required no change for the recorded reasons.
+  documents required no change for the recorded reasons.<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [backend glossary](../../../../glossary.md#backend); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 - Javadoc review: TensorFactory and TensorPopulations were finalized; existing related public and
   storage contracts remain accurate without edits for the recorded reasons.
 - Glossary impact: deterministic range and strict/cyclic flat-prefix population moved from planned

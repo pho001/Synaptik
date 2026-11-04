@@ -1,14 +1,14 @@
-# Internal lifecycle, failures and interpretation
+# Internal [lifecycle](../../glossary.md#lifecycle), failures and interpretation
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
-Read this lifecycle as a sequence of admission checks, not successive attempts to run the
-computation. An **occurrence** is one particular operation in the graph, even when another operation
-has the same kind and shapes. Owner selection names its responsible backend; later **route**
+Read this lifecycle as a sequence of [admission](../../glossary.md#term-admission) checks, not successive attempts to [run](../../glossary.md#term-run) the
+computation. An **[occurrence](../../glossary.md#term-occurrence)** is one particular [operation](../../glossary.md#operation) in the [graph](../../glossary.md#graph), even when another operation
+has the same kind and [shapes](../../glossary.md#shape). [Owner](../../glossary.md#term-owner) selection names its responsible [backend](../../glossary.md#backend); later **route**
 selection chooses how that backend implements it.
 
 <a id="current-internal-lifecycle-and-planned-public-failures"></a>
-## Current internal lifecycle and planned public failures
+## Current internal [lifecycle](../../glossary.md#lifecycle) and planned public failures
 
 ```text
 forward Tensor outputs
@@ -22,40 +22,40 @@ forward Tensor outputs
   -> CompileArtifacts
 ```
 
-The current internal entry rejects invalid shapes, data types, operations, graph structure,
-publication roles, planning composition, unsatisfied hard capability, partitions, memory, source
-roles, or diagnostics before returning an artifact. A no-hard-eligible occurrence becomes a
-compiler-owned `IllegalStateException` with node index, ID, and operation-kind context, while the
-Planning failure remains its cause. Provider runtime failures otherwise propagate unchanged.
-The integration port preserves the current compiler and Planning failure classes and identities;
-it performs no Engine exception translation. An ordinary-user Engine failure taxonomy remains
+The current internal entry rejects invalid [shapes](../../glossary.md#shape), data types, operations, [graph](../../glossary.md#graph) structure,
+[publication](../../glossary.md#term-publication) roles, [planning](../../glossary.md#term-planning) composition, unsatisfied hard capability, partitions, memory, source
+roles, or diagnostics before returning an [artifact](../../glossary.md#term-artifact). A no-hard-eligible [occurrence](../../glossary.md#term-occurrence) becomes a
+[compiler](../../glossary.md#term-compiler)-owned `IllegalStateException` with [node](../../glossary.md#node) index, ID, and [operation](../../glossary.md#operation)-kind context, while the
+Planning failure remains its cause. Provider [runtime](../../glossary.md#term-runtime) failures otherwise propagate unchanged.
+The [integration port](../../glossary.md#term-integration-port) preserves the current compiler and Planning failure classes and [identities](../../glossary.md#term-identity-meanings);
+it performs no [Engine](../../glossary.md#term-engine) exception translation. An ordinary-user Engine failure taxonomy remains
 planned.
 
 <a id="example-interpretation"></a>
 ## Example interpretation
 
-For an explicitly composed graph containing a matrix multiplication and a small elementwise operation,
-capability analysis may find both CPU and Metal valid. Backend-neutral scoring may assign both
-nodes to Metal to avoid a transfer boundary. The artifact records only `owner = Metal`; it does
-not record MPSGraph or a custom Metal kernel. Metal prepare makes that later choice.
+For an explicitly composed [graph](../../glossary.md#graph) containing a [matrix multiplication](../../glossary.md#matrix-multiplication--matmul) and a small [elementwise operation](../../glossary.md#elementwise-unary-binary-and-interval-vocabulary),
+capability analysis may find both [CPU](../../glossary.md#term-cpu) and [Metal](../../glossary.md#term-metal) valid. [Backend](../../glossary.md#backend)-neutral scoring may assign both
+[nodes](../../glossary.md#node) to Metal to avoid a transfer boundary. The [artifact](../../glossary.md#term-artifact) records only `owner = Metal`; it does
+not record [MPSGraph](../../glossary.md#term-mpsgraph) or a custom Metal [kernel](../../glossary.md#kernel). Metal [prepare](../../glossary.md#prepare) makes that later choice.
 
-Both CPU and Metal lifecycle integrations are current through explicit `Engine.builder()`
-composition and exact occurrence ownership; no discovery, retry or CPU fallback is implied.
+Both CPU and Metal [lifecycle](../../glossary.md#lifecycle) integrations are current through explicit `Engine.builder()`
+composition and exact [occurrence](../../glossary.md#term-occurrence) [ownership](../../glossary.md#term-ownership-meanings); no discovery, retry or CPU fallback is implied.
 Current `GraphCompilationPort` can invoke package-private `GraphCompiler` to construct and
 validate its bounded forward-only or combined first-order graph, query explicitly supplied
-providers, select backend ownership, derive partitions and logical memory, and return
-`CompileArtifacts`. `AdvancedEngine` uses that port but keeps the artifacts opaque. The ordinary
-`Engine.standard()` facade also keeps artifacts opaque while providing its fixed forward-only and
-explicitly seeded first-order compile overloads; typed binding, publication metadata, and explicit
-detached host materialization continue through the
-[Runtime API](../runtime/engine-boundary.md#current-ordinary-engine-boundary).
+providers, select [backend ownership](../../glossary.md#backend-ownership), derive partitions and logical memory, and return
+`CompileArtifacts`. `AdvancedEngine` uses that port but keeps the artifacts [opaque](../../glossary.md#term-opaque). The ordinary
+`Engine.standard()` [facade](../../glossary.md#term-facade) also keeps artifacts opaque while providing its fixed forward-only and
+explicitly seeded first-order [compile](../../glossary.md#compile) overloads; typed [binding](../../glossary.md#term-binding), [publication](../../glossary.md#term-publication) [metadata](../../glossary.md#term-metadata), and explicit
+[detached](../../glossary.md#detached-model-results) [host](../../glossary.md#term-host) [materialization](../../glossary.md#materialization) continue through the
+[Runtime API](../runtime/engine-boundary.md#current-ordinary-engine-boundary)<span data-glossary-navigation="true"> ([Runtime glossary](../../glossary.md#term-runtime); [API glossary](../../glossary.md#term-application-programming-interface-api))</span>.
 
 <a id="related-contracts"></a>
 ## Related contracts
 
-- [Current Tensor and graph-model API](../tensor/index.md)
-- [Lifecycle](../../architecture/lifecycle.md)
-- [Partition scoring](../../architecture/partition-scoring.md)
+- [Current Tensor and graph-model API](../tensor/index.md)<span data-glossary-navigation="true"> ([Tensor glossary](../../glossary.md#tensor); [graph glossary](../../glossary.md#graph); [model glossary](../../glossary.md#term-model); [API glossary](../../glossary.md#term-application-programming-interface-api))</span>
+- [Lifecycle](../../architecture/lifecycle.md)<span data-glossary-navigation="true"> ([Lifecycle glossary](../../glossary.md#lifecycle))</span>
+- [Partition scoring](../../architecture/partition-scoring.md)<span data-glossary-navigation="true"> ([Partition glossary](../../glossary.md#partition))</span>
 - [Compiling graphs user guide](../../user-guide/compiling-graphs.md)
 - [Roadmap](../../planning/roadmap.md)
 

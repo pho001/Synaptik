@@ -1,4 +1,4 @@
-# Task 0030: Total Recursive ACCELERATOR Numerical Floor
+# Task 0030: Total Recursive [ACCELERATOR](../../../../glossary.md#term-accelerator) Numerical Floor
 
 ## Status
 
@@ -6,197 +6,197 @@ Complete
 
 ## Change class
 
-Class C — this replaces the cross-module numerical meaning of `ACCELERATOR`, supersedes an
-accepted architecture decision, and closes every current Model operation family under one
-recursive contract without changing the public profile vocabulary or backend capability.
+Class C — this replaces the cross-[module](../../../../glossary.md#term-module) numerical meaning of [`ACCELERATOR`](../../../../glossary.md#term-accelerator), supersedes an
+accepted architecture decision, and closes every current [Model](../../../../glossary.md#term-model) [operation](../../../../glossary.md#operation) family under one
+recursive contract without changing the public profile vocabulary or [backend capability](../../../../glossary.md#backend-capability).
 
 ## Goal
 
-Keep public `NumericalProfile` exactly `STRICT_IEEE` and `ACCELERATOR`, rest on completed Model
-0031's backend-independent strict unary baseline for BFLOAT16/FLOAT32/FLOAT64, and make
+Keep public `NumericalProfile` exactly `STRICT_IEEE` and [`ACCELERATOR`](../../../../glossary.md#term-accelerator), rest on completed [Model](../../../../glossary.md#term-model)
+0031's [backend](../../../../glossary.md#backend)-independent strict [unary](../../../../glossary.md#term-unary) baseline for [BFLOAT16](../../../../glossary.md#term-bfloat16)/[FLOAT32](../../../../glossary.md#term-float32)/[FLOAT64](../../../../glossary.md#term-float64), and make
 `ACCELERATOR` a total `FLOAT32` superset through
-three recursive floors: exact/discrete behavior, primitive floating evaluation, and
+three recursive floors: exact/discrete behavior, primitive floating [evaluation](../../../../glossary.md#term-evaluation), and
 all-terms-once aggregation. Composite operations inherit their existing Model formula. Add no
-determinism mode, conformance-envelope registry, or per-operation backend exception layer.
+determinism mode, [conformance](../../../../glossary.md#term-conformance)-envelope [registry](../../../../glossary.md#term-registry), or per-[operation](../../../../glossary.md#operation) backend exception layer.
 
-## Scope
+## [Scope](../../../../glossary.md#term-scope)
 
 - Replace the sole operation-row table with the recursive contract and add ADR 0021, superseding
   ADR 0019's closed-table choice while retaining its graph-wide identity, ownership, monotonicity,
-  and fail-closed capability decisions.
-- Audit every concrete `OperationKind` and public Tensor composition. Make each formula, guard,
+  and fail-closed capability decisions.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [graph glossary](../../../../glossary.md#graph); [identity glossary](../../../../glossary.md#term-identity-meanings); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [fail-closed glossary](../../../../glossary.md#term-fail-closed))</span>
+- Audit every concrete [`OperationKind`](../../../../glossary.md#operationkind) and public Tensor composition. Make each formula, guard,
   selection, identity, divisor, state transition, and special-value result explicit enough to
-  apply the floors without backend invention.
+  apply the floors without backend invention.<span data-glossary-navigation="true"> ([Tensor composition glossary](../../../../glossary.md#tensor-composition); [guard glossary](../../../../glossary.md#term-guard); [backend glossary](../../../../glossary.md#backend))</span>
 - State once that Compiler-generated gradients are ordinary public Tensor formulas captured under
   the same graph profile. Reconcile current explanations and affected Model/config Javadocs.
-  Change no executable behavior, enum shape, capability, lowering, or route.
+  Change no executable behavior, enum shape, capability, lowering, or route.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [gradients glossary](../../../../glossary.md#term-gradient); [Tensor glossary](../../../../glossary.md#tensor); [Model glossary](../../../../glossary.md#term-model); [shape glossary](../../../../glossary.md#shape); [lowering glossary](../../../../glossary.md#lowering))</span>
 
-### Normative recursive contract
+### [Normative](../../../../glossary.md#term-normative) recursive contract
 
 1. `STRICT_IEEE` is the explicit current per-operation allowed-result set, including completed
    Model 0031's exact-reference primitive bounds and recursive native/one-wider unary sets for
-   every accepted floating type. `ACCELERATOR` is that set union results constructed by these
-   `FLOAT32` rules. Other data types remain strict.
+   every accepted floating type. <span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [Model glossary](../../../../glossary.md#term-model); [unary glossary](../../../../glossary.md#term-unary))</span>[`ACCELERATOR`](../../../../glossary.md#term-accelerator) is that set union results constructed by these
+   [`FLOAT32`](../../../../glossary.md#term-float32) rules. Other data types remain strict.
 2. **Exact/discrete floor.** Preserve kind/attributes, arity/descriptors, shape/layout/axis mapping,
    contributor membership, mask/index/state/RNG transition, traversal, selected stored payload,
    cast/conversion, ordering, stability, tie, empty-domain, identity, divisor, and publication.
    Predicates gain no epsilon. DAZ may affect a comparison or extrema tie, but selection remains
    among original candidates under the Model tie rule; approximation cannot choose an index,
-   mask, winner, ordering, or state transition.
+   mask, winner, ordering, or state transition.<span data-glossary-navigation="true"> ([arity glossary](../../../../glossary.md#term-arity); [descriptors glossary](../../../../glossary.md#term-descriptor); [shape glossary](../../../../glossary.md#shape); [layout glossary](../../../../glossary.md#layout); [axis glossary](../../../../glossary.md#term-axis); [mask glossary](../../../../glossary.md#term-boolean-mask); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [identity glossary](../../../../glossary.md#term-identity-meanings); [publication glossary](../../../../glossary.md#term-publication); [epsilon glossary](../../../../glossary.md#epsilon); [DAZ glossary](../../../../glossary.md#term-daz); [extrema glossary](../../../../glossary.md#saturation-pole-and-extremum))</span>
 3. **Primitive `FLOAT32` floor.** At each arithmetic site in the Model formula, a subnormal
    operand may be read as same-signed zero (DAZ), and a finite subnormal site result may become
-   either signed zero (FTZ); stored inputs are unchanged. `ADD/SUB/MUL/DIV` still perform one
+   either signed zero (FTZ); stored inputs are unchanged. <span data-glossary-navigation="true"> ([signed zero glossary](../../../../glossary.md#term-signed-zero); [finite glossary](../../../../glossary.md#term-finite))</span>`ADD/SUB/MUL/DIV` still perform one
    round-to-nearest-even operation. A corresponding multiply/add with no observable intermediate
-   may use one FMA, never across graph nodes.
-4. Only an irreducible `POW`, `LOG`, `LOG1P`, `EXP`, `EXPM1`, `ERF`, `SQRT`, or `TANH` site has
-   an elementary allowance. For raw binary32 word `b`, the monotonic unsigned key is `~b` when the
+   may use one FMA, never across graph nodes.<span data-glossary-navigation="true"> ([round-to-nearest glossary](../../../../glossary.md#floating-point-precision-and-rounding); [FMA glossary](../../../../glossary.md#term-fused-multiply-add-fma); [graph glossary](../../../../glossary.md#graph); [nodes glossary](../../../../glossary.md#node))</span>
+4. Only an irreducible `POW`, [`LOG`](../../../../glossary.md#term-log), `LOG1P`, [`EXP`](../../../../glossary.md#term-expx), `EXPM1`, [`ERF`](../../../../glossary.md#term-erf), `SQRT`, or [`TANH`](../../../../glossary.md#term-tanh) site has
+   an elementary allowance. For raw binary32 word <span data-glossary-navigation="true"> ([binary32 glossary](../../../../glossary.md#floating-point-precision-and-rounding))</span>`b`, the monotonic unsigned key is `~b` when the
    sign bit is set and `b ^ 0x80000000` otherwise. Distance is the unsigned absolute key
    difference; reference distance is zero, `-0` and `+0` are adjacent, and every ceiling is
    inclusive. After DAZ and before FTZ, an ordinary finite non-subnormal correctly rounded exact
-   reference `r` admits only `distance(actual,r) <= 5`; a subnormal `r` is exact or FTZ.
+   reference <span data-glossary-navigation="true"> ([correctly rounded glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>`r` admits only `distance(actual,r) <= 5`; a [subnormal](../../../../glossary.md#term-subnormal) `r` is exact or [FTZ](../../../../glossary.md#term-ftz).
 5. An ordered-representation distance ceiling of five is conservative, not five ULP and not a
-   minimality claim. Java scalar and Vector `TANH` inherit the at-most-2.5-ULP exact-result
+   minimality claim. Java scalar and Vector <span data-glossary-navigation="true"> ([ULP glossary](../../../../glossary.md#term-unit-in-the-last-place-ulp); [scalar glossary](../../../../glossary.md#term-scalar); [Vector glossary](../../../../glossary.md#term-vector))</span>`TANH` inherit the at-most-2.5-ULP exact-result
    contract, and FLOAT32 lanes use the documented widen/evaluate/narrow adaptation. At a
    power-of-two binade boundary, smaller-side spacing is half the Java ULP, so that guarantee can
    span an ordered distance of five adjacent-representation steps; elsewhere the distance is at
-   most four. Java one-ULP log/exp contracts and retained Metal `EXP`/`SIGMOID` evidence fit within
+   most four. Java one-ULP log/exp contracts and retained Metal <span data-glossary-navigation="true"> ([lanes glossary](../../../../glossary.md#term-lane); [binade glossary](../../../../glossary.md#term-binade); [Metal glossary](../../../../glossary.md#term-metal))</span>`EXP`/[`SIGMOID`](../../../../glossary.md#term-sigmoid) evidence fit within
    ordered distance two and do not raise the ceiling.
 6. Domain and special classes remain formula-derived: NaN cannot become ordinary; finite cannot
    become NaN/infinity except through genuine overflow/domain after DAZ; required infinity/zero
    signs remain except explicit DAZ/FTZ, current extrema ties, or current final-zero freedom.
    Ordered distance never substitutes for class, domain, or sign checks and is a primitive-site
-   construction rule, not a final-output `allclose` envelope.
-7. **Aggregate floor.** After exact mapping, masking, padding, bounds, and selection, use every
-   declared contributor exactly once. Any binary tree may reassociate with per-step `FLOAT32`
+   construction rule, not a final-output <span data-glossary-navigation="true"> ([NaN glossary](../../../../glossary.md#term-nan); [infinity glossary](../../../../glossary.md#term-infinity); [overflow glossary](../../../../glossary.md#term-overflow))</span>`allclose` envelope.
+7. **[Aggregate floor](../../../../glossary.md#term-aggregate-floor).** After exact mapping, masking, padding, bounds, and selection, use every
+   declared contributor exactly once. Any binary tree may reassociate with per-step <span data-glossary-navigation="true"> ([padding glossary](../../../../glossary.md#padding); [binary glossary](../../../../glossary.md#term-binary-descriptor-and-metadata))</span>`FLOAT32`
    rounding, primitive DAZ/FTZ, and corresponding FMA while retaining exact empty/point identities
    and mandatory divisors. Never drop, duplicate, invent, pretruncate, or replace a term. This
    covers reductions, scans, overlap/scatter reductions, statistics/norms/losses, contractions,
-   recurrent cells, and average pooling; extrema/winners remain exact/discrete.
+   recurrent cells, and average pooling; extrema/winners remain exact/discrete.<span data-glossary-navigation="true"> ([rounding glossary](../../../../glossary.md#term-rounding); [losses glossary](../../../../glossary.md#loss); [pooling glossary](../../../../glossary.md#term-pooling))</span>
 8. **Composite inheritance.** Normalization, activation, loss, attention, pooling, convolution,
    random/dropout, recurrent, convenience composition, and generated gradients get no envelope.
    Evaluate exact guards and every site in the current Model formula through the floors. An opaque
    or first-class selector is eligible only when its complete output set over its complete
-   advertised domain is proved inside the recursive set; a sample or operation name is insufficient.
+   advertised domain is proved inside the recursive set; a sample or operation name is insufficient.<span data-glossary-navigation="true"> ([Normalization glossary](../../../../glossary.md#term-normalization); [activation glossary](../../../../glossary.md#term-activation); [convolution glossary](../../../../glossary.md#term-channels-first-convolution-layers); [dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [gradients glossary](../../../../glossary.md#term-gradient); [opaque glossary](../../../../glossary.md#term-opaque); [sample glossary](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters))</span>
 
 ### Closed primitive-site ledger
 
 | First-class composite | Primitive and aggregate sites |
 |---|---|
-| Unary | `RSQRT` is `SQRT` then division. Sigmoid uses the exact sign guard and its `EXP`/negation/add/divide branch. Exact GELU names typed `0.5`, `1`, `2`, `SQRT`, division, `ERF`, addition, and two multiplications. Tanh GELU names typed `0.5`, `1`, `2`, `pi`, `0.044715`, `x*x`, `x^2*x`, division/root, additions, remaining multiplications, and `TANH`. SiLU uses the exact sign guard, stable sigmoid branch, and final multiplication. None is one elementary site. |
-| Reductions/statistics | Mean is sum then exact divisor. Variance is mean, subtraction, `x*x`, sum, and `N-correction` division; standard deviation adds `SQRT`. L1 is `ABS` plus sum; L2 is `x*x`, sum, and `SQRT`; log-sum-exp is `EXP` per contributor, sum, then `LOG`. Scans and overlap/scatter reductions retain each declared contributor. |
-| Softmax/normalization | Softmax is per-value `EXP`, sum, then division; log-softmax is per-value `EXP`, sum, `LOG`, then subtraction. Layer/RMS/BatchNorm enumerate their documented sums/divisors, centered or uncentered `x*x`, epsilon/momentum constants, additions/subtractions, `SQRT`, typed-one division, affine multiply/adds, saved outputs, and state transitions. |
-| Loss | MSE is subtraction then `delta*delta`, reduction, and optional divisor. Categorical losses use exact max/target/ignore guards, score subtraction, `EXP`, sum, `LOG`, max addition, logit subtraction, target multiplication where declared, loss sum/negation, and optional divisor. |
-| Linear/spatial/attention | MATMUL and convolution use mapped multiplies plus all-terms-once contractions; convolution then applies its optional bias addition. Average pooling sums every fixed-divisor position then divides; max pooling is exact selection. Attention has query/key multiply-contraction, explicit or default typed-one/`SQRT(E)` scale, exact guards, literal softmax sites, and value-weight multiply-contraction. |
-| Dropout/recurrent | Kept dropout uses typed-one-minus-probability, typed-one division, and input multiplication; mask/state/drop result are exact. RNN/GRU/LSTM use their documented contractions, optional biases, gate additions, sigmoid branches, tanh sites, state multiplies/adds, exact traversal/valid-length guards, and exact published outputs/states. |
+| [Unary](../../../../glossary.md#term-unary) | `RSQRT` is `SQRT` then division. [Sigmoid](../../../../glossary.md#term-sigmoid) uses the exact sign [guard](../../../../glossary.md#term-guard) and its [`EXP`](../../../../glossary.md#term-expx)/negation/add/divide branch. Exact [GELU](../../../../glossary.md#gaussian-error-linear-unit--gelu) names typed `0.5`, `1`, `2`, `SQRT`, division, [`ERF`](../../../../glossary.md#term-erf), addition, and two multiplications. [Tanh](../../../../glossary.md#term-tanh) GELU names typed `0.5`, `1`, `2`, `pi`, `0.044715`, `x*x`, `x^2*x`, division/root, additions, remaining multiplications, and `TANH`. [SiLU](../../../../glossary.md#sigmoid-linear-unit--silu) uses the exact sign guard, stable sigmoid branch, and final multiplication. None is one elementary site. |
+| Reductions/statistics | [Mean](../../../../glossary.md#term-mean) is sum then exact divisor. [Variance](../../../../glossary.md#term-variance) is mean, subtraction, `x*x`, sum, and `N-correction` division; [standard deviation](../../../../glossary.md#term-standard-deviation) adds `SQRT`. [L1](../../../../glossary.md#term-l1) is `ABS` plus sum; [L2](../../../../glossary.md#term-l2) is `x*x`, sum, and `SQRT`; [log-sum-exp](../../../../glossary.md#log-sum-exp) is `EXP` per contributor, sum, then [`LOG`](../../../../glossary.md#term-log). Scans and overlap/scatter reductions retain each declared contributor. |
+| [Softmax](../../../../glossary.md#softmax--log-softmax)/[normalization](../../../../glossary.md#term-normalization) | Softmax is per-value `EXP`, sum, then division; [log-softmax](../../../../glossary.md#softmax--log-softmax) is per-value `EXP`, sum, `LOG`, then subtraction. Layer/RMS/BatchNorm enumerate their documented sums/divisors, centered or uncentered `x*x`, [epsilon](../../../../glossary.md#epsilon)/[momentum](../../../../glossary.md#term-momentum) [constants](../../../../glossary.md#term-constant), additions/subtractions, `SQRT`, typed-one division, affine multiply/adds, saved outputs, and state transitions. |
+| [Loss](../../../../glossary.md#loss) | [MSE](../../../../glossary.md#mean-squared-error--mse) is subtraction then `delta*delta`, reduction, and optional divisor. Categorical losses use exact max/[target](../../../../glossary.md#term-target)/ignore guards, score subtraction, `EXP`, sum, `LOG`, max addition, [logit](../../../../glossary.md#logit) subtraction, target multiplication where declared, loss sum/negation, and optional divisor. |
+| [Linear](../../../../glossary.md#term-linear-meanings)/[spatial](../../../../glossary.md#term-spatial-axes)/attention | [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) and [convolution](../../../../glossary.md#term-channels-first-convolution-layers) use mapped multiplies plus all-terms-once contractions; convolution then applies its optional [bias](../../../../glossary.md#term-bias) addition. Average [pooling](../../../../glossary.md#term-pooling) sums every fixed-divisor position then divides; max pooling is exact selection. Attention has query/key multiply-[contraction](../../../../glossary.md#contraction-dimension), explicit or default typed-one/`SQRT(E)` scale, exact guards, literal softmax sites, and value-[weight](../../../../glossary.md#term-weight) multiply-contraction. |
+| [Dropout](../../../../glossary.md#dropout--inverted-dropout)/recurrent | Kept dropout uses typed-one-minus-probability, typed-one division, and input multiplication; [mask](../../../../glossary.md#term-boolean-mask)/state/drop result are exact. [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn)/[GRU](../../../../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../../../../glossary.md#term-long-short-term-memory-lstm) use their documented contractions, optional biases, gate additions, sigmoid branches, tanh sites, state multiplies/adds, exact traversal/valid-length guards, and exact published outputs/states. |
 
-Formula-named constants are rounded once to nearest-even `FLOAT32` before first use; exact typed
-attributes and stored inputs remain exact leaves. Visible compositions and generated gradients
-recurse through the actual Tensor operations they contain.
+Formula-named constants are rounded once to nearest-even [`FLOAT32`](../../../../glossary.md#term-float32) before first use; exact typed
+attributes and stored inputs remain exact [leaves](../../../../glossary.md#term-leaf). Visible compositions and generated [gradients](../../../../glossary.md#term-gradient)
+recurse through the actual [Tensor](../../../../glossary.md#tensor) operations they contain.
 
-Still excluded: reduced precision, reciprocal substitution for division, algebraic identities not
-in the Model formula, cross-node contraction, term loss, hidden-state changes, tolerance-based
-predicate/selection changes, and backend-specific semantics.
+Still excluded: reduced [precision](../../../../glossary.md#term-precision), reciprocal substitution for division, algebraic [identities](../../../../glossary.md#term-identity-meanings) not
+in the [Model](../../../../glossary.md#term-model) formula, cross-[node](../../../../glossary.md#node) contraction, term loss, hidden-state changes, [tolerance](../../../../glossary.md#term-tolerance)-based
+predicate/selection changes, and [backend](../../../../glossary.md#backend)-specific semantics.
 
-### Complete Model-family inventory
+### Complete [Model](../../../../glossary.md#term-model)-family inventory
 
 | Family | Required floor assignment |
 |---|---|
 | `BinaryArithmeticKind`, `ScalarElementwiseKind` | `ADD/SUB/MUL/DIV` use the primitive arithmetic floor, `POW` is an irreducible elementary site, and `MIN/MAX/CLAMP` retain exact candidate selection and ties. |
-| `UnaryElementwiseKind` | Exact/discrete rows plus irreducible log/exp/erf/sqrt/tanh sites; `RSQRT`, sigmoid, GELU, tanh GELU, and SiLU recurse through the complete ledger above. |
-| `BinaryComparisonKind`, `BooleanLogicalKind`, `FloatingClassificationKind`, `WhereSelectionKind`, `CastKind` | Comparisons may DAZ operands; Boolean logic, classification, `WHERE`, and all 36 `CAST` pairs remain exact/discrete. |
-| `AggregateReductionKind`, `CumulativeScanKind` | Ordinary/masked/sum-to-Shape reductions, extrema/arg-extrema, statistics/norms, Boolean folds, and cumulative sum/product use exact membership plus the applicable aggregate or selection floor. |
-| `ContiguousKind`, `ShapeTransformKind`, `AxisTransformKind`, `SliceKind`, `PadKind`, `TileKind`, `TensorCompositionKind`, `WindowTransformKind` | Preserve mapping/payload; overlap folds use the aggregate floor. |
+| `UnaryElementwiseKind` | Exact/discrete rows plus irreducible [log](../../../../glossary.md#term-log)/[exp](../../../../glossary.md#term-expx)/[erf](../../../../glossary.md#term-erf)/sqrt/[tanh](../../../../glossary.md#term-tanh) sites; `RSQRT`, [sigmoid](../../../../glossary.md#term-sigmoid), [GELU](../../../../glossary.md#gaussian-error-linear-unit--gelu), tanh GELU, and [SiLU](../../../../glossary.md#sigmoid-linear-unit--silu) recurse through the complete ledger above. |
+| `BinaryComparisonKind`, `BooleanLogicalKind`, `FloatingClassificationKind`, `WhereSelectionKind`, `CastKind` | Comparisons may [DAZ](../../../../glossary.md#term-daz) operands; [Boolean](../../../../glossary.md#data-type--datatype) logic, classification, `WHERE`, and all 36 `CAST` pairs remain exact/discrete. |
+| `AggregateReductionKind`, `CumulativeScanKind` | Ordinary/masked/[sum-to-Shape](../../../../glossary.md#sum-to-shape) reductions, [extrema](../../../../glossary.md#saturation-pole-and-extremum)/arg-extrema, statistics/norms, Boolean folds, and cumulative sum/product use exact membership plus the applicable aggregate or selection floor. |
+| `ContiguousKind`, `ShapeTransformKind`, `AxisTransformKind`, `SliceKind`, `PadKind`, `TileKind`, `TensorCompositionKind`, `WindowTransformKind` | Preserve mapping/[payload](../../../../glossary.md#artifact-envelope-and-atomic-publication); overlap folds use the [aggregate floor](../../../../glossary.md#term-aggregate-floor). |
 | `SelectKind`, `AxisGatherKind`, `GatherNdKind`, `OneHotKind`, `AxisScatterKind`, `ScatterNdKind` | Preserve indices/bounds/payload; only declared duplicate arithmetic aggregates. |
-| `MatmulKind`, `Conv2dKind`, `Conv3dKind`, `Pool2dKind`, `Pool3dKind` | Contractions aggregate; max pooling selects exactly; average pooling aggregates; Conv1d/Pool1d remain visible compositions. |
+| `MatmulKind`, `Conv2dKind`, `Conv3dKind`, `Pool2dKind`, `Pool3dKind` | Contractions aggregate; max [pooling](../../../../glossary.md#term-pooling) selects exactly; average pooling aggregates; Conv1d/Pool1d remain visible compositions. |
 | `SoftmaxKind`, `LayerNormKind`, `RmsNormKind`, `BatchNormKind`, `LossKind`, `ScaledDotProductAttentionKind` | Retain current guards/formulas and recurse through primitive/aggregate sites. |
-| `OrderingKind`, `TopKKind`, `GraphRngKind`, `DropoutKind`, `RecurrentScanKind` | Ordering/indices and RNG mask/state are exact; dropout scaling and recurrent cell arithmetic recurse while traversal/valid lengths/outputs/state remain exact. |
+| `OrderingKind`, `TopKKind`, `GraphRngKind`, `DropoutKind`, `RecurrentScanKind` | Ordering/indices and [RNG](../../../../glossary.md#graph-rng-state--graphrngstate) [mask](../../../../glossary.md#term-boolean-mask)/state are exact; [dropout](../../../../glossary.md#dropout--inverted-dropout) scaling and recurrent cell arithmetic recurse while traversal/valid lengths/outputs/state remain exact. |
 
-### Generated-gradient consequences
+### Generated-[gradient](../../../../glossary.md#term-gradient) consequences
 
-| Owner/family | Consequence under the selected graph profile |
+| [Owner](../../../../glossary.md#term-owner)/family | Consequence under the selected [graph](../../../../glossary.md#graph) profile |
 |---|---|
-| Elementwise | Generated arithmetic, elementary sites, comparisons, `WHERE`, casts, and `SUM_TO_SHAPE` use their ordinary floor; saved forward outputs are exact stored values. |
-| Reduction/normalization/loss | Generated shape edits, reductions/scans, arithmetic, extrema routing, `EXP/RSQRT`, softmax/log-softmax, one-hot, classification, and `WHERE` recurse. BatchNorm saved statistics remain exact auxiliaries. |
-| MATMUL/attention/Conv2d | Generated MATMUL/transposes/sum-to-Shape, attention formulas, and Conv2d unfold/fold/MATMUL/sums require capability for the complete generated topology, not only the forward kind. |
-| Pooling/index/layout/order/dropout | Saved/recomputed winners, indices, and masks remain exact; inverse movement, fold/scatter accumulation, and dropout scaling use assigned floors. |
-| Unsupported derivatives | Documented nondifferentiable outputs remain so; Conv3d and recurrent differentiation stay fail-closed. |
+| [Elementwise](../../../../glossary.md#term-elementwise) | Generated arithmetic, elementary sites, comparisons, `WHERE`, casts, and `SUM_TO_SHAPE` use their ordinary floor; saved forward outputs are exact stored values. |
+| Reduction/[normalization](../../../../glossary.md#term-normalization)/[loss](../../../../glossary.md#loss) | Generated [shape](../../../../glossary.md#shape) edits, reductions/scans, arithmetic, [extrema](../../../../glossary.md#saturation-pole-and-extremum) routing, `EXP/RSQRT`, [softmax](../../../../glossary.md#softmax--log-softmax)/[log-softmax](../../../../glossary.md#softmax--log-softmax), one-hot, classification, and `WHERE` recurse. BatchNorm saved statistics remain exact auxiliaries. |
+| [MATMUL](../../../../glossary.md#matrix-multiplication--matmul)/attention/[Conv2d](../../../../glossary.md#convolution--conv2d) | Generated MATMUL/transposes/[sum-to-Shape](../../../../glossary.md#sum-to-shape), attention formulas, and Conv2d unfold/fold/MATMUL/sums require capability for the complete generated [topology](../../../../glossary.md#term-topology), not only the forward kind. |
+| [Pooling](../../../../glossary.md#term-pooling)/index/[layout](../../../../glossary.md#layout)/order/[dropout](../../../../glossary.md#dropout--inverted-dropout) | Saved/recomputed winners, indices, and [masks](../../../../glossary.md#term-boolean-mask) remain exact; inverse movement, fold/scatter accumulation, and dropout scaling use assigned floors. |
+| Unsupported [derivatives](../../../../glossary.md#term-derivative) | Documented nondifferentiable outputs remain so; [Conv3d](../../../../glossary.md#conv3d--ncdhw) and recurrent differentiation stay [fail-closed](../../../../glossary.md#term-fail-closed). |
 
-### Metal reachability and migration ledger
+### [Metal](../../../../glossary.md#term-metal) reachability and migration ledger
 
 - This task removes semantic incompleteness, not implementation blockers. The recursive set can
-  reach retained `EXP`/`SIGMOID` FTZ results, comparison DAZ, extrema ties, scan FTZ,
+  reach retained [`EXP`](../../../../glossary.md#term-expx)/[`SIGMOID`](../../../../glossary.md#term-sigmoid) FTZ results, comparison DAZ, extrema ties, scan FTZ,
   softmax/BatchNorm FTZ, composite MSE/attention/recurrent arithmetic, and contractions only after
-  proof for the complete route and advertised domain.
+  proof for the complete route and advertised domain.<span data-glossary-navigation="true"> ([FTZ glossary](../../../../glossary.md#term-ftz); [DAZ glossary](../../../../glossary.md#term-daz); [extrema glossary](../../../../glossary.md#saturation-pole-and-extremum); [scan glossary](../../../../glossary.md#term-cumulative-scan); [softmax glossary](../../../../glossary.md#softmax--log-softmax); [MSE glossary](../../../../glossary.md#mean-squared-error--mse))</span>
 - Direct-route numerical failures still outside it include ordinary finite/infinity scalar
-  division, `RELU(NaN)`, `TANH(NaN)` and tanh negative-zero loss, max-pool NaN/winner loss, and
+  division, <span data-glossary-navigation="true"> ([finite glossary](../../../../glossary.md#term-finite); [infinity glossary](../../../../glossary.md#term-infinity); [scalar glossary](../../../../glossary.md#term-scalar))</span>`RELU(NaN)`, `TANH(NaN)` and tanh negative-zero loss, max-pool NaN/winner loss, and
   BFLOAT16 Gather payload canonicalization. Such selectors remain unusable; conforming
-  custom/composed routes still need structural and complete-subset proof.
+  custom/composed routes still need structural and complete-subset proof.<span data-glossary-navigation="true"> ([tanh glossary](../../../../glossary.md#term-tanh); [loss glossary](../../../../glossary.md#loss); [NaN glossary](../../../../glossary.md#term-nan); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [Gather glossary](../../../../glossary.md#gather); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [canonicalization glossary](../../../../glossary.md#occurrence-identity-and-canonical-form))</span>
 - Structural blockers include the one-output/FLOAT32-INT32-BOOL schema, no zero-input/general
   multi-output/state or INT64-local route, limited wires/ranks/layouts/transfers, hidden vendor
   RNG, recurrent valid-length/atomic validation, and absent Conv3d/recurrent gradient owners.
   Full Model-op Metal coverage is semantically specifiable, but not one current task or a
-  direct-MPSGraph-only assumption.
+  direct-MPSGraph-only assumption.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([FLOAT32 glossary](../../../../glossary.md#term-float32); [INT32 glossary](../../../../glossary.md#data-type--datatype); [BOOL glossary](../../../../glossary.md#data-type--datatype); [schema glossary](../../../../glossary.md#term-schema); [INT64 glossary](../../../../glossary.md#data-type--datatype); [layouts glossary](../../../../glossary.md#layout); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [atomic glossary](../../../../glossary.md#resource-transaction-and-rollback); [validation glossary](../../../../glossary.md#term-validation); [Conv3d glossary](../../../../glossary.md#conv3d--ncdhw); [gradient glossary](../../../../glossary.md#term-gradient); [Model glossary](../../../../glossary.md#term-model); [MPSGraph glossary](../../../../glossary.md#term-mpsgraph))</span>
 - Public enum/wire vocabulary, cold transport, Runtime/Trace, CPU schema 67/tuning schema 2, and
   current Metal versions do not change: existing realizations remain valid strict subsets. The
   first new Metal route must bump node schema 11→12, append unary wires 20/21, bump workload/
   default-route/candidate/compatibility/route-policy/codec 12→13, reject stale values, and retain
-  native ABI 4 and generic complete-plan wrapper schema 1.
+  native ABI 4 and generic complete-plan wrapper schema 1.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [Trace glossary](../../../../glossary.md#trace); [CPU glossary](../../../../glossary.md#term-cpu); [node glossary](../../../../glossary.md#node); [unary glossary](../../../../glossary.md#term-unary); [codec glossary](../../../../glossary.md#term-codec); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi))</span>
 
 ## Non-goals
 
-No executable Java/native change, new API/type, enum value, Config/Engine method, Runtime/Trace
-field, backend capability, cache/tuning behavior, device probe, operation decomposition, generic
-policy registry, full Metal implementation, FLOAT16 work, Conv3d gradient, or recurrent gradient.
+No executable Java/native change, new [API](../../../../glossary.md#term-application-programming-interface-api)/type, enum value, Config/[Engine](../../../../glossary.md#term-engine) method, [Runtime](../../../../glossary.md#term-runtime)/[Trace](../../../../glossary.md#trace)
+field, [backend capability](../../../../glossary.md#backend-capability), [cache](../../../../glossary.md#term-cache)/tuning behavior, [device](../../../../glossary.md#term-device) probe, [operation](../../../../glossary.md#operation) [decomposition](../../../../glossary.md#term-decomposition), generic
+policy [registry](../../../../glossary.md#term-registry), full [Metal](../../../../glossary.md#term-metal) implementation, [FLOAT16](../../../../glossary.md#term-float16) work, [Conv3d](../../../../glossary.md#conv3d--ncdhw) [gradient](../../../../glossary.md#term-gradient), or recurrent gradient.
 Historical completed/blocked task evidence is not rewritten.
 
 ## Contracts
 
-- [`ARCHITECTURE.md` — Core invariants](../../../../../ARCHITECTURE.md#core-invariants) — graph-wide cold identity, strict-subset monotonicity, and fail-closed capability.
-- [Foundational modules — Numerical profiles](../../../../architecture/contracts/foundational-modules.md#numerical-profiles) — sole allowed-result owner and the section replaced here.
-- [Compiler/autograd — Numerical-profile compile identity](../../../../architecture/contracts/compiler-autograd.md#numerical-profile-compile-identity) — generated Tensor expressions share one transported profile.
-- [Backend execution — Concrete backend modules](../../../../architecture/contracts/backend-execution.md#concrete-backend-modules) — backends prove/realize a subset, not define floors.
+- [`ARCHITECTURE.md` — Core invariants](../../../../../ARCHITECTURE.md#core-invariants) — [graph](../../../../glossary.md#graph)-wide cold [identity](../../../../glossary.md#term-identity-meanings), strict-subset monotonicity, and [fail-closed](../../../../glossary.md#term-fail-closed) capability.
+- [Foundational modules — Numerical profiles](../../../../architecture/contracts/foundational-modules.md#numerical-profiles)<span data-glossary-navigation="true"> ([modules glossary](../../../../glossary.md#term-module))</span> — sole allowed-result [owner](../../../../glossary.md#term-owner) and the section replaced here.
+- [Compiler/autograd — Numerical-profile compile identity](../../../../architecture/contracts/compiler-autograd.md#numerical-profile-compile-identity)<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [autograd glossary](../../../../glossary.md#autograd); [compile glossary](../../../../glossary.md#compile))</span> — generated [Tensor](../../../../glossary.md#tensor) expressions share one transported profile.
+- [Backend execution — Concrete backend modules](../../../../architecture/contracts/backend-execution.md#concrete-backend-modules)<span data-glossary-navigation="true"> ([Concrete backend glossary](../../../../glossary.md#concrete-backend))</span> — [backends](../../../../glossary.md#backend) prove/realize a subset, not define floors.
 
-If any operation lacks a complete formula, exact guard, special-class result, or floor assignment,
+If any [operation](../../../../glossary.md#operation) lacks a complete formula, exact [guard](../../../../glossary.md#term-guard), special-class result, or floor assignment,
 stop and report that named gap; do not add a backend-local envelope.
 
 ## Dependencies and integration
 
 - Depends on: completed Model 0031 strict unary baseline; Model 0027–0029; Config 0006; Engine
   0018; CPU 0017; Metal 0015/0019–0025 and retained blocker evidence through 0040; explicit
-  approval of this minimal recursive redesign.
-- Conflicts with: every concurrent edit to root/scoped architecture, numerical-profile ADRs, affected Model/config Javadocs, Compiler gradient wording, current API/glossary/backend guides, Model/Metal planning frontiers, or roadmap.
+  approval of this minimal recursive redesign.<span data-glossary-navigation="true"> ([unary glossary](../../../../glossary.md#term-unary); [Engine glossary](../../../../glossary.md#term-engine); [CPU glossary](../../../../glossary.md#term-cpu))</span>
+- Conflicts with: every concurrent edit to root/scoped architecture, numerical-profile ADRs, affected [Model](../../../../glossary.md#term-model)/config Javadocs, [Compiler](../../../../glossary.md#term-compiler) [gradient](../../../../glossary.md#term-gradient) wording, current [API](../../../../glossary.md#term-application-programming-interface-api)/glossary/[backend](../../../../glossary.md#backend) guides, Model/[Metal](../../../../glossary.md#term-metal) [planning](../../../../glossary.md#term-planning) frontiers, or roadmap.
 - Parallel group: None.
 - Common base revision: `6535c0ffdebeb38945050497bbe1c0fe261950ca`
 - Integration order: first; before any Metal 0051 implementation or reinterpretation of historical blocked tasks.
-- Integration validation: total-recursive-numerical-floor architecture checkpoint.
-- Shared-document integration owner: Main planner.
+- Integration [validation](../../../../glossary.md#term-validation): total-recursive-numerical-floor architecture [checkpoint](../../../../glossary.md#term-checkpoint).
+- Shared-document integration [owner](../../../../glossary.md#term-owner): Main planner.
 
 ## Files and symbols
 
-- Root/scoped architecture contracts — authority, floors, gradient consequence, backend proof.
-- ADR `0021-total-recursive-accelerator-numerical-floor.md` and ADR 0019 status/link — clean supersession, evidence, alternatives, migration.
-- Every concrete `model.operation/**/**Kind.java`, affected attrs, Tensor/composition Javadocs, and `NumericalProfile` — formula/floor reconciliation without executable changes.
-- Current Tensor/compile/public API, module/lifecycle/boundary, capability/CPU/Metal/preparer guides, and glossary — explanatory reconciliation.
-- Model/Metal masters and roadmap — status and serial successor only.
+- Root/scoped architecture contracts — authority, floors, [gradient](../../../../glossary.md#term-gradient) consequence, [backend](../../../../glossary.md#backend) proof.
+- [ADR](../../../../glossary.md#term-architecture-decision-record-adr) `0021-total-recursive-accelerator-numerical-floor.md` and ADR 0019 status/link — clean supersession, evidence, alternatives, migration.
+- Every concrete `model.operation/**/**Kind.java`, affected attrs, [Tensor](../../../../glossary.md#tensor)/composition Javadocs, and `NumericalProfile` — formula/floor reconciliation without executable changes.
+- Current Tensor/[compile](../../../../glossary.md#compile)/public [API](../../../../glossary.md#term-application-programming-interface-api), [module](../../../../glossary.md#term-module)/[lifecycle](../../../../glossary.md#lifecycle)/boundary, capability/[CPU](../../../../glossary.md#term-cpu)/[Metal](../../../../glossary.md#term-metal)/preparer guides, and glossary — explanatory reconciliation.
+- [Model](../../../../glossary.md#term-model)/Metal masters and roadmap — status and serial successor only.
 
 ## Acceptance criteria
 
 - The two-value public profile remains unchanged; completed Model 0031 owns backend-independent
-  strict unary semantics for every accepted floating type; `ACCELERATOR` is a total recursive
-  `FLOAT32` superset with no unassigned current family and no new policy layer.
+  strict unary semantics for every accepted floating type; <span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [backend glossary](../../../../glossary.md#backend); [unary glossary](../../../../glossary.md#term-unary))</span>[`ACCELERATOR`](../../../../glossary.md#term-accelerator) is a total recursive
+  [`FLOAT32`](../../../../glossary.md#term-float32) superset with no unassigned current family and no new policy layer.
 - The inclusive ordered-binary32 distance ceiling is defined exactly and conservatively derived
   from current Java scalar/Vector and retained Metal evidence without a minimality claim; special
   classes, domain, exact/discrete state, all contributors, and non-FLOAT32 behavior cannot be
-  relaxed by that bound.
+  relaxed by that bound.<span data-glossary-navigation="true"> ([ordered-binary32 distance glossary](../../../../glossary.md#ulp-and-numerical-tolerance); [scalar glossary](../../../../glossary.md#term-scalar); [Vector glossary](../../../../glossary.md#term-vector); [Metal glossary](../../../../glossary.md#term-metal))</span>
 - Every current operation family and generated-gradient consequence is covered; Model formulas,
   guards, identities, divisors, selections, states, and special values are sufficiently explicit
-  for backend conformance without per-backend invention.
+  for backend conformance without per-backend invention.<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [gradient glossary](../../../../glossary.md#term-gradient); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 - Existing CPU/Metal capabilities and identities do not change. Documentation clearly separates
-  semantic reachability from implemented coverage and preserves historical blocker records.
+  semantic reachability from implemented coverage and preserves historical blocker records.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>
 - No other task becomes Ready; Metal 0051 remains Draft until this task is Complete and
-  independently approved.
+  independently approved.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready))</span>
 
-## Validation
+## [Validation](../../../../glossary.md#term-validation)
 
 Worker validation:
 
@@ -205,58 +205,58 @@ Worker validation:
 git diff --check
 ```
 
-Inspect generated Javadocs for every operation family and `NumericalProfile`; validate changed
+Inspect generated Javadocs for every [operation](../../../../glossary.md#operation) family and `NumericalProfile`; validate changed
 Markdown links/anchors/fences/newlines, exhaustive family names, and absence of executable,
-enum-shape, backend-capability, or version changes.
+enum-[shape](../../../../glossary.md#shape), [backend](../../../../glossary.md#backend)-capability, or version changes.
 
-Integration/repository validation: architecture/documentation checkpoint after independent Class C
-review; no backend/device execution because capability is unchanged.
+Integration/repository validation: architecture/documentation [checkpoint](../../../../glossary.md#term-checkpoint) after independent Class C
+review; no backend/[device](../../../../glossary.md#term-device) execution because capability is unchanged.
 
 ## Follow-up
 
-- Metal 0051: accelerator-only FLOAT32 `EXP`/`SIGMOID`, seeded-gradient topologies, and fresh
+- [Metal](../../../../glossary.md#term-metal) 0051: [accelerator](../../../../glossary.md#term-accelerator)-only [FLOAT32](../../../../glossary.md#term-float32) [`EXP`](../../../../glossary.md#term-expx)/[`SIGMOID`](../../../../glossary.md#term-sigmoid), seeded-gradient topologies, and fresh
   recursive-floor certification for every candidate. Before capability becomes true, record the
   direct-MPSGraph versus fused-custom versus certified-composition choice using hot-run time,
   dispatch count, and temporary-memory evidence. Update provider, analysis/preflight, graph/native
   switch, candidates/tuning/codec, and focused tests only after that adjudication; add no runtime
-  checks, benchmark matrices, other unary, or policy.
+  checks, benchmark matrices, other unary, or policy.<span data-glossary-navigation="true"> ([matrices glossary](../../../../glossary.md#term-review-matrix))</span><span data-glossary-navigation="true"> ([gradient glossary](../../../../glossary.md#term-gradient); [MPSGraph glossary](../../../../glossary.md#term-mpsgraph); [fused glossary](../../../../glossary.md#specialization-and-fusion); [run glossary](../../../../glossary.md#term-run); [dispatch glossary](../../../../glossary.md#term-dispatch); [preflight glossary](../../../../glossary.md#term-preflight); [graph glossary](../../../../glossary.md#graph); [codec glossary](../../../../glossary.md#term-codec); [runtime glossary](../../../../glossary.md#term-runtime); [unary glossary](../../../../glossary.md#term-unary))</span>
 - Later serial Metal tasks requalify comparisons/extrema/scans, then cohesive composites/custom
-  kernels; structural schema/type/multi-output/state work remains separate.
-- CPU needs no migration: exact routes, artifacts, and session tuning remain valid strict members.
+  kernels; structural schema/type/multi-output/state work remains separate.<span data-glossary-navigation="true"> ([extrema glossary](../../../../glossary.md#saturation-pole-and-extremum); [kernels glossary](../../../../glossary.md#kernel); [schema glossary](../../../../glossary.md#term-schema))</span>
+- [CPU](../../../../glossary.md#term-cpu) needs no migration: exact routes, [artifacts](../../../../glossary.md#term-artifact), and session tuning remain valid strict members.
 
 ## Documentation and review impact
 
 - Coordinated architecture, ADR, public numerical contract, Javadoc, API, glossary, backend-guide,
-  and planning updates are mandatory; completed historical briefs remain unchanged.
+  and planning updates are mandatory; completed historical briefs remain unchanged.<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [Javadoc glossary](../../../../glossary.md#term-javadoc); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [backend glossary](../../../../glossary.md#backend); [planning glossary](../../../../glossary.md#term-planning))</span>
 - Independent Class C rereview verified completed Model 0031's exact-reference
   BFLOAT16/FLOAT32/FLOAT64 bounds and recursive native/one-wider sets, family/site coverage,
   accelerator ordered-distance derivation, exact/aggregate invariants, gradients, identity
-  conclusions, Metal reachability/blocker split, and no executable drift.
+  conclusions, Metal reachability/blocker split, and no executable drift.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [FLOAT32 glossary](../../../../glossary.md#term-float32); [FLOAT64 glossary](../../../../glossary.md#term-float64); [accelerator glossary](../../../../glossary.md#term-accelerator); [gradients glossary](../../../../glossary.md#term-gradient); [identity glossary](../../../../glossary.md#term-identity-meanings); [Metal glossary](../../../../glossary.md#term-metal))</span>
 
 ## Result
 
-Implemented the documentation-only clean cutover to the total recursive `ACCELERATOR` contract,
-based on completed Model 0031's backend-independent strict unary allowed-result baseline for every
+Implemented the documentation-only clean cutover to the total recursive [`ACCELERATOR`](../../../../glossary.md#term-accelerator) contract,
+based on completed [Model](../../../../glossary.md#term-model) 0031's [backend](../../../../glossary.md#backend)-independent strict [unary](../../../../glossary.md#term-unary) allowed-result baseline for every
 accepted floating type. That baseline now defines exact mathematical references, per-format
-ordered distance, explicit `ERF` absolute/relative bounds, special/domain rules, and recursive
+ordered distance, explicit [`ERF`](../../../../glossary.md#term-erf) absolute/relative bounds, special/domain rules, and recursive
 native/one-wider composites without implementation authority. The foundational authority and
-accepted ADR 0021 then define exact/discrete, primitive FLOAT32, all-contributors-once aggregate,
-and composite-inheritance accelerator floors. Accelerator ordered binary32 distance uses a
+accepted [ADR](../../../../glossary.md#term-architecture-decision-record-adr) 0021 then define exact/discrete, primitive [FLOAT32](../../../../glossary.md#term-float32), [all-contributors-once](../../../../glossary.md#rounding-sites-fma-and-aggregate-floor) aggregate,
+and composite-inheritance accelerator floors. Accelerator ordered [binary32](../../../../glossary.md#floating-point-precision-and-rounding) distance uses a
 monotonic raw-bit key and an inclusive `distance <= 5` exact-reference ceiling; retained Java
-2.5-ULP `TANH` evidence supplies the conservative binade-boundary rationale, without calling the
+2.5-[ULP](../../../../glossary.md#term-unit-in-the-last-place-ulp) [`TANH`](../../../../glossary.md#term-tanh) evidence supplies the conservative [binade](../../../../glossary.md#term-binade)-boundary rationale, without calling the
 bound five ULP or claiming empirical minimality.
 
-All forty concrete Model kinds, public Tensor profile/composition wording, `NumericalProfile`,
-Compiler gradient transport, Engine package status, current API/architecture/glossary/backend
-guides, and planning frontiers remain reconciled without changing executable statements, enum
-shape, capability, schema, ABI, native export, cache, tuning, or Runtime/Trace behavior. The
-closed ledger now enumerates constants, `x*x`/`x^2*x`, irreducible elementary sites, arithmetic,
-aggregates, guards, selections, and state for every first-class composite formula. Opaque routes
+All forty concrete Model kinds, public [Tensor](../../../../glossary.md#tensor) profile/composition wording, `NumericalProfile`,
+[Compiler](../../../../glossary.md#term-compiler) [gradient](../../../../glossary.md#term-gradient) transport, [Engine](../../../../glossary.md#term-engine) package status, current [API](../../../../glossary.md#term-application-programming-interface-api)/architecture/glossary/backend
+guides, and [planning](../../../../glossary.md#term-planning) frontiers remain reconciled without changing executable statements, enum
+[shape](../../../../glossary.md#shape), capability, [schema](../../../../glossary.md#term-schema), [ABI](../../../../glossary.md#term-application-binary-interface-abi), native export, [cache](../../../../glossary.md#term-cache), tuning, or [Runtime](../../../../glossary.md#term-runtime)/[Trace](../../../../glossary.md#trace) behavior. The
+closed ledger now enumerates [constants](../../../../glossary.md#term-constant), `x*x`/`x^2*x`, irreducible elementary sites, arithmetic,
+aggregates, guards, selections, and state for every first-class composite formula. [Opaque](../../../../glossary.md#term-opaque) routes
 require complete-domain recursive-subset proof.
 
-The focused Model test/Javadoc/architecture command is `BUILD SUCCESSFUL` with 23 actionable tasks
-(three executed, twenty up-to-date); validation of ten changed Markdown documents and 481 local
-links/anchors, fences, final newlines, and `git diff --check` also pass. Historical Metal tasks
+The focused Model test/[Javadoc](../../../../glossary.md#term-javadoc)/architecture command is `BUILD SUCCESSFUL` with 23 actionable tasks
+(three executed, twenty up-to-date); [validation](../../../../glossary.md#term-validation) of ten changed Markdown documents and 481 local
+links/anchors, fences, final newlines, and `git diff --check` also pass. Historical [Metal](../../../../glossary.md#term-metal) tasks
 retain their recorded statuses/evidence; current wording distinguishes recursively reachable
 arithmetic from remaining exact-selection, structural, schema, gradient, and route-proof blockers.
 The recursive-contract remediation is `2d95ab71683698753c9ac64d9373fde8301c9404`; strict-baseline

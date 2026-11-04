@@ -1,4 +1,4 @@
-# Task 0008N1: Generated Conv nested width-block loop/dataflow parity re-spike
+# Task 0008N1: Generated Conv nested width-block loop/[dataflow](../../../../glossary.md#term-dataflow) parity re-spike
 
 ## Status
 
@@ -6,121 +6,121 @@ Complete
 
 ## Goal
 
-Replace the rejected per-cell/per-block flat-ordinal decode with generated Conv2d/Conv3d nested
-loops that match an optimal specialized clean Java Vector API oracle in semantic algorithm,
-loop/dataflow shape, and avoidable-overhead profile. Select the existing output-width SIMD form
+Replace the rejected per-cell/per-block flat-ordinal decode with generated [Conv2d](../../../../glossary.md#convolution--conv2d)/[Conv3d](../../../../glossary.md#conv3d--ncdhw) nested
+loops that match an optimal specialized clean Java [Vector API](../../../../glossary.md#term-vector-api) [oracle](../../../../glossary.md#term-test-oracle) in semantic algorithm,
+loop/[dataflow](../../../../glossary.md#term-dataflow) [shape](../../../../glossary.md#shape), and avoidable-overhead profile. Select the existing output-width [SIMD](../../../../glossary.md#simd) form
 only after the fixed evidence gates pass. Stage A may generate a test/evidence-only provisional
-schema-63 class with an identity distinct from scalar while schema 62 remains current; it cannot
-be a production route or artifact. Otherwise retain the bounded scalar stop and schema 62.
+[schema](../../../../glossary.md#term-schema)-63 class with an [identity](../../../../glossary.md#term-identity-meanings) distinct from [scalar](../../../../glossary.md#term-scalar) while schema 62 remains current; it cannot
+be a production route or [artifact](../../../../glossary.md#term-artifact). Otherwise retain the bounded scalar stop and schema 62.
 
-## Scope
+## [Scope](../../../../glossary.md#term-scope)
 
-The candidate is same-typed dense direct `FLOAT32`/`FLOAT64` Conv2d/Conv3d, optional intrinsic
-bias, arrays, native-order segments, or ordered mixed carriers; Conv2d external epilogues are
-excluded. Width stride and dilation are one. Every preferred-species lane owns one output-width
+The candidate is same-typed dense direct [`FLOAT32`](../../../../glossary.md#term-float32)/[`FLOAT64`](../../../../glossary.md#term-float64) [Conv2d](../../../../glossary.md#convolution--conv2d)/[Conv3d](../../../../glossary.md#conv3d--ncdhw), optional intrinsic
+[bias](../../../../glossary.md#term-bias), arrays, native-order segments, or ordered mixed carriers; Conv2d external epilogues are
+excluded. Width [stride](../../../../glossary.md#term-stride) and [dilation](../../../../glossary.md#term-dilation) are one. Every preferred-species [lane](../../../../glossary.md#term-lane) owns one output-width
 cell and retains exactly increasing `channel -> kd -> kh -> kw` accumulation order (`kd` is absent
-for Conv2d): broadcast scalar bias/weight, vector-load input, multiply, then add. FMA,
-reassociation, horizontal reduction, mask, gather, scatter, lane extraction, callback, allocation,
-boxing, reflection, and dispatch are forbidden.
+for Conv2d): broadcast [scalar](../../../../glossary.md#term-scalar) bias/[weight](../../../../glossary.md#term-weight), [vector](../../../../glossary.md#term-vector)-load input, multiply, then add. [FMA](../../../../glossary.md#term-fused-multiply-add-fma),
+[reassociation](../../../../glossary.md#term-reassociation), horizontal reduction, [mask](../../../../glossary.md#term-boolean-mask), [gather](../../../../glossary.md#gather), scatter, lane extraction, [callback](../../../../glossary.md#term-callback), allocation,
+boxing, reflection, and [dispatch](../../../../glossary.md#term-dispatch) are forbidden.
 
-Generate `n`, group/output-channel, output-height, output-width loops for Conv2d, and `n`,
+Generate `n`, group/output-[channel](../../../../glossary.md#term-channel), output-height, output-width loops for Conv2d, and `n`,
 group/output-channel, output-depth, output-height, output-width loops for Conv3d. The one cold
-prologue decodes `start` in reverse row-major order: first `ow`, then `oh` (and `od` for Conv3d),
+prologue decodes `start` in reverse [row-major](../../../../glossary.md#term-row-major) order: first `ow`, then `oh` (and `od` for Conv3d),
 then global `oc`, then `n`; it derives `group = oc / outputChannelsPerGroup` and initializes every
-row/base address from those coordinates. `start == end` returns before any carrier access. The
-half-open worker range is authoritative even when it begins or ends mid-row: before every scalar
+row/base address from those [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix). `start == end` returns before any [carrier](../../../../glossary.md#term-storage-carrier) access. The
+[half-open](../../../../glossary.md#term-half-open-interval) worker range is authoritative even when it begins or ends mid-row: before every scalar
 cell or vector block, require the current ordinal to be below `end`.
 
 An inlined scalar cell advances `ow` by one and increments its width-local input/output bases. At
 `ow == outputWidth`, it resets `ow` and width bases, increments `oh`, and carries/reset through
 `od` (Conv3d), `oc`, and `n` in that order, recomputing only the new enclosing-row bases. It is
-used from a mid-row start through the next legal interior/vector boundary, for padding borders,
+used from a mid-row start through the next legal interior/vector boundary, for [padding](../../../../glossary.md#padding) borders,
 tails, and for a mid-row end. A full block is legal only when its lane count is within both the
 current row and `[currentOrdinal, end)`, and every lane is interior for every `kw`. It advances
 `ow`, current ordinal, and each input/output width base by exactly the preferred lane count; the
 next block reuses those incremented locals. Scalar padding borders, range fragments, and tails use
-that same inlined scalar cell body with no Synaptik hot-helper leakage. Preserve batch,
-groups/depthwise, bias, and non-width stride/dilation. Conv1d composition and BF16 remain
+that same inlined scalar cell body with no Synaptik hot-helper leakage. Preserve [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters),
+groups/depthwise, bias, and non-width stride/dilation. [Conv1d composition](../../../../glossary.md#conv1d-composition) and [BF16](../../../../glossary.md#floating-point-precision-and-rounding) remain
 scalar/deferred.
 
 Preload dynamic extents, strides, offsets, and bases from `long[] geometry` into locals once per
-invocation or the corresponding enclosing loop. They are cold facts, never class identity. Full
+invocation or the corresponding enclosing loop. They are cold facts, never class [identity](../../../../glossary.md#term-identity-meanings). Full
 interior width blocks contain no division/modulo, repeated geometry-array load, complete-coordinate
-reconstruction, range-object work, helper call, or dispatch. Existing cold lowering/binding checks
-must prove `0 <= start <= end <= outputElements`, coordinate products/sums, element and byte
-addresses, and segment byte-width multiplication without `long` overflow before entry. Heap-array
+reconstruction, range-object work, helper call, or dispatch. Existing cold [lowering](../../../../glossary.md#lowering)/[binding](../../../../glossary.md#term-binding) checks
+must prove `0 <= start <= end <= outputElements`, coordinate products/sums, [element](../../../../glossary.md#term-element) and byte
+addresses, and segment byte-width multiplication without `long` [overflow](../../../../glossary.md#term-overflow) before entry. [Heap](../../../../glossary.md#term-heap)-array
 `int` conversion is emitted only after the existing proof that every used address fits the selected
-array carrier's legal index; otherwise that occurrence remains scalar/general or is rejected by
-the existing owner. Segment addresses stay checked `long` element/byte addresses in native order.
-No generated increment may wrap; its loop guard and the cold proofs jointly bound it. Ordered mixed
+array carrier's legal index; otherwise that [occurrence](../../../../glossary.md#term-occurrence) remains scalar/general or is rejected by
+the existing [owner](../../../../glossary.md#term-owner). Segment addresses stay checked `long` element/byte addresses in native order.
+No generated increment may wrap; its [loop guard](../../../../glossary.md#control-flow-graph) and the cold proofs jointly bound it. Ordered mixed
 carriers remain direct. Retain accessibility, overlap, failure/join, reusable executable, and
-run-isolation behavior.
+[run](../../../../glossary.md#term-run)-isolation behavior.
 
-Stage A may add only the narrowly admitted provisional `classIdentitySchema=63` specialization
+Stage A may add only the narrowly admitted provisional `classIdentitySchema=63` [specialization](../../../../glossary.md#term-specialization)
 and generator path needed to generate and inspect that distinct candidate class in focused tests
 or outside-repository evidence. `CpuGeneratorSchema.CURRENT_VERSION` remains 62; production
-`CpuPartitionPreparer` must not select `VECTOR` or `PARALLEL_VECTOR` for Conv, and the artifact
-store/cache must neither publish nor reload schema-63 classes. The candidate must use its own
-schema-63 identity bytes, binary name, and key; it must never reuse scalar schema-52 bytes,
-schema-62 compatibility metadata, or either scalar cache key. Focused Stage A generation bypasses
+`CpuPartitionPreparer` must not select `VECTOR` or `PARALLEL_VECTOR` for Conv, and the [artifact](../../../../glossary.md#term-artifact)
+store/[cache](../../../../glossary.md#term-cache) must neither publish nor reload [schema](../../../../glossary.md#term-schema)-63 classes. The candidate must use its own
+schema-63 identity bytes, [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) name, and key; it must never reuse scalar schema-52 bytes,
+schema-62 compatibility [metadata](../../../../glossary.md#term-metadata), or either scalar [cache key](../../../../glossary.md#term-cache-key). Focused Stage A generation bypasses
 artifact-store/cache realization entirely. Only after Stage A and every
 inherited Stage B gate pass may the same task advance `CURRENT_VERSION` to 63 and enable
-production preparer selection and compatible schema-63 artifact publication/reload.
+production preparer selection and compatible schema-63 artifact [publication](../../../../glossary.md#term-publication)/reload.
 
 ## Exclusions
 
 - Model, Compiler, Training, shared Prepare, Runtime, public API, dependency, architecture,
-  Gradle, native-route, autotuning, or fixed-shape-class changes.
+  Gradle, native-route, autotuning, or fixed-shape-class changes.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Compiler glossary](../../../../glossary.md#term-compiler); [Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [dependency glossary](../../../../glossary.md#term-dependency); [Gradle glossary](../../../../glossary.md#term-gradle); [autotuning glossary](../../../../glossary.md#autotuning--model-autotuning); [shape glossary](../../../../glossary.md#shape))</span>
 - Conv1d-specific SIMD, BF16, mixed promotion, non-dense access, packing/materialization, width
-  stride/dilation other than one, horizontal/partial reductions, and external Conv suffixes.
+  stride/dilation other than one, horizontal/partial reductions, and external Conv suffixes.<span data-glossary-navigation="true"> ([SIMD glossary](../../../../glossary.md#simd); [BF16 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [materialization glossary](../../../../glossary.md#materialization); [stride glossary](../../../../glossary.md#term-stride); [dilation glossary](../../../../glossary.md#term-dilation))</span>
 - Threshold changes, invented measurements, retries/discards, or branch selection after a stop.
 
 ## Architecture constraints
 
-[`ARCHITECTURE.md`](../../../../../ARCHITECTURE.md) is authoritative. CPU analysis alone owns route
-predicate, carrier form, preferred species, strategy, and selective schema decision; CPU
-finalization alone realizes the immutable artifact after shared slots. Planning, shared Prepare,
-Runtime, Model, Compiler, and Training do not learn vector or Conv-route details. Direct generated
+[`ARCHITECTURE.md`](../../../../../ARCHITECTURE.md) is authoritative. [CPU](../../../../glossary.md#term-cpu) analysis alone owns route
+predicate, [carrier](../../../../glossary.md#term-storage-carrier) form, preferred species, strategy, and selective [schema](../../../../glossary.md#term-schema) decision; CPU
+finalization alone realizes the [immutable](../../../../glossary.md#term-immutable) [artifact](../../../../glossary.md#term-artifact) after shared slots. [Planning](../../../../glossary.md#term-planning), shared [Prepare](../../../../glossary.md#prepare),
+[Runtime](../../../../glossary.md#term-runtime), [Model](../../../../glossary.md#term-model), [Compiler](../../../../glossary.md#term-compiler), and Training do not learn [vector](../../../../glossary.md#term-vector) or Conv-route details. Direct generated
 entries retain typed carriers, `long[] geometry`, `long start`, and `long end`; hot work may not
-perform graph, operation, layout, worker, cache, or route lookup. Stop for an architecture decision
+perform [graph](../../../../glossary.md#graph), [operation](../../../../glossary.md#operation), [layout](../../../../glossary.md#layout), worker, [cache](../../../../glossary.md#term-cache), or route [lookup](../../../../glossary.md#term-lookup). Stop for an architecture decision
 if a shared/public boundary would need to change.
 
 ## Package impact
 
 No package is added or moved. Conditional work remains in
 `io.github.pho001.synaptik.backend.cpu.internal`: `ir` only for a code-shaping realization fact;
-`prepare` for exact eligibility/range-safe strategy; `cache` for schema/artifact compatibility;
-and `codegen.emit` for nested Conv/direct carrier/vector emission. Tests remain in their existing
-`cache`, `codegen.emit`, `lowering`, and `prepare` packages. Scalar IR encoding remains byte-stable.
+[`prepare`](../../../../glossary.md#prepare) for exact eligibility/range-safe strategy; [`cache`](../../../../glossary.md#term-cache) for [schema](../../../../glossary.md#term-schema)/[artifact](../../../../glossary.md#term-artifact) compatibility;
+and `codegen.emit` for nested Conv/direct [carrier](../../../../glossary.md#term-storage-carrier)/[vector](../../../../glossary.md#term-vector) emission. Tests remain in their existing
+`cache`, `codegen.emit`, [`lowering`](../../../../glossary.md#lowering), and `prepare` packages. [Scalar](../../../../glossary.md#term-scalar) [IR](../../../../glossary.md#term-intermediate-representation-ir) encoding remains byte-stable.
 
-## Schema decision
+## [Schema](../../../../glossary.md#term-schema) decision
 
 Schema 62 remains `CpuGeneratorSchema.CURRENT_VERSION` throughout Stage A. Stage A may admit only
-an explicit provisional `classIdentitySchema=63` `Compute.VECTOR` Conv specialization to the
-generator and focused test/evidence path, so actual vector bytes have an identity, binary name,
-and structural key distinct from scalar. This is not production selection: `CpuPartitionPreparer`
-cannot select Conv `VECTOR` or `PARALLEL_VECTOR`; the artifact store/cache has no schema-63
-publication, reload, or production compatibility; and no schema-63 envelope is written or read.
+an explicit provisional `classIdentitySchema=63` `Compute.VECTOR` Conv [specialization](../../../../glossary.md#term-specialization) to the
+generator and focused test/evidence path, so actual [vector](../../../../glossary.md#term-vector) bytes have an [identity](../../../../glossary.md#term-identity-meanings), [binary](../../../../glossary.md#term-binary-descriptor-and-metadata) name,
+and structural key distinct from [scalar](../../../../glossary.md#term-scalar). This is not production selection: `CpuPartitionPreparer`
+cannot select Conv `VECTOR` or `PARALLEL_VECTOR`; the [artifact](../../../../glossary.md#term-artifact) store/[cache](../../../../glossary.md#term-cache) has no schema-63
+[publication](../../../../glossary.md#term-publication), reload, or production compatibility; and no schema-63 envelope is written or read.
 The provisional candidate must never emit under schema 62 or reuse scalar schema bytes,
-compatibility metadata, binary names, or cache keys; its focused generation bypasses the
+compatibility [metadata](../../../../glossary.md#term-metadata), binary names, or cache keys; its focused generation bypasses the
 artifact-store/cache realization path entirely.
 
 Schema 63 becomes current and production-selectable only after Stage A and every inherited Stage B
-gate pass. Its exact static identity facts are direct Conv rank (2d or 3d), the
+gate pass. Its exact static identity facts are direct Conv [rank](../../../../glossary.md#term-rank) (2d or 3d), the
 `OUTPUT_WIDTH_LANE_PARALLEL_V1` nested-loop realization version, `Compute.VECTOR`, same typed
-FLOAT32 or FLOAT64 input/weight/optional-bias/result roles, intrinsic-bias presence, no external
-epilogue, compile-time Conv stride/padding/dilation/groups attributes, dense resolved access
-regime, ordered carrier pattern, and preferred-species bit size. These facts select the generated
+[FLOAT32](../../../../glossary.md#term-float32) or [FLOAT64](../../../../glossary.md#term-float64) input/[weight](../../../../glossary.md#term-weight)/optional-[bias](../../../../glossary.md#term-bias)/result roles, intrinsic-bias presence, no external
+[epilogue](../../../../glossary.md#term-epilogue), [compile](../../../../glossary.md#compile)-time Conv [stride](../../../../glossary.md#term-stride)/[padding](../../../../glossary.md#padding)/[dilation](../../../../glossary.md#term-dilation)/groups attributes, dense resolved access
+regime, ordered [carrier](../../../../glossary.md#term-storage-carrier) pattern, and preferred-species bit size. These facts select the generated
 bytes. Concrete extents/output width, offsets, strides/bases from geometry, carrier objects and
-addresses, start/end, worker ranges/counts, slots, run state, and the invocation's interior-block
+addresses, start/end, worker ranges/counts, slots, [run state](../../../../glossary.md#run-state--runstate), and the invocation's interior-block
 proof are dynamic facts and do not identify schema 63. On any Stage A or Stage B failure, remove
-every provisional production-source admission change, retain only outside-repository evidence and
-this planning record, preserve scalar bytes, and leave `CURRENT_VERSION` at 62. If the current
+every provisional production-source [admission](../../../../glossary.md#term-admission) change, retain only outside-repository evidence and
+this [planning](../../../../glossary.md#term-planning) record, preserve scalar bytes, and leave `CURRENT_VERSION` at 62. If the current
 constructors cannot represent the provisional identity without broader production changes, add
-only a scoped test-fixture seam within the inherited sixteen test/evidence paths or stop and
+only a scoped test-[fixture](../../../../glossary.md#term-fixture) seam within the inherited sixteen test/evidence paths or stop and
 re-plan; never emit the candidate under schema 62.
 
-## Affected files and defensible maximum scope
+## Affected files and defensible maximum [scope](../../../../glossary.md#term-scope)
 
 The conditional ceiling is exactly `9 production + 16 test/evidence + 3 planning = 28` paths:
 
@@ -133,80 +133,80 @@ The conditional ceiling is exactly `9 production + 16 test/evidence + 3 planning
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuConv3dEmitter.java`
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/ir/CpuConv2dIr.java`
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/ir/CpuConv3dIr.java`
-- The sixteen focused test/evidence paths in [CPU 0008N](0008n-measured-profitable-float32-float64-conv2d-conv3d-simd-accumulation.md#affected-files-and-maximum-scope), including its three Conv SIMD evidence/performance owners.
+- The sixteen focused test/evidence paths in [CPU 0008N](0008n-measured-profitable-float32-float64-conv2d-conv3d-simd-accumulation.md#affected-files-and-maximum-scope)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>, including its three Conv [SIMD](../../../../glossary.md#simd) evidence/performance [owners](../../../../glossary.md#term-owner).
 - This task, [`../master-plan.md`](../master-plan.md), and [`../../../roadmap.md`](../../../roadmap.md).
 
-Carrier direct-vector support is included because it may be necessary to remove hot overhead; all
+[Carrier](../../../../glossary.md#term-storage-carrier) direct-[vector](../../../../glossary.md#term-vector) support is included because it may be necessary to remove hot overhead; all
 shared/public owners are excluded, making this the smallest defensible ceiling.
 
 ## Acceptance criteria
 
 1. Both ranks have the stated nested progression, single cold start decode, exact end/zero-work
    handling, scalar fragments, and incremented width-local state; vector interiors contain no
-   prohibited ordinal/geometry/range/helper/dispatch work.
+   prohibited ordinal/geometry/range/helper/dispatch work.<span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar); [vector glossary](../../../../glossary.md#term-vector); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
 2. Every lane preserves existing scalar ordered accumulation and special-value semantics. All
-   borders, tails, fragments, and unsupported forms retain scalar behavior.
+   borders, tails, fragments, and unsupported forms retain scalar behavior.<span data-glossary-navigation="true"> ([lane glossary](../../../../glossary.md#term-lane))</span>
 3. Stage A uses an actual generated Conv2d F32 array exact-interior provisional schema-63 class,
    whose identity, bytes, binary name, and key are distinct from the current generated scalar,
-   versus that scalar and an independently `javac`-compiled direct vector oracle in the fixed
-   one-row fresh-fork protocol below. `CURRENT_VERSION` remains 62; production Conv selection and
-   schema-63 artifact-store publication/reload remain disabled. Every retained ratio requires
+   versus that scalar and an independently <span data-glossary-navigation="true"> ([Conv2d glossary](../../../../glossary.md#convolution--conv2d); [F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [schema glossary](../../../../glossary.md#term-schema); [identity glossary](../../../../glossary.md#term-identity-meanings); [binary glossary](../../../../glossary.md#term-binary-descriptor-and-metadata))</span>`javac`-compiled direct vector oracle in the fixed
+   one-row fresh-fork protocol below. <span data-glossary-navigation="true"> ([oracle glossary](../../../../glossary.md#term-test-oracle); [fork glossary](../../../../glossary.md#term-fork-meanings))</span>`CURRENT_VERSION` remains 62; production Conv selection and
+   schema-63 artifact-store publication/reload remain disabled. Every retained ratio requires<span data-glossary-navigation="true"> ([artifact glossary](../../../../glossary.md#term-artifact); [publication glossary](../../../../glossary.md#term-publication))</span>
    `V/S <= 0.90` and `V/D <= 1.15`; failure is a bounded stop, removal of provisional
-   production-source admission, and schema-62 retention.
+   production-source admission, and schema-62 retention.<span data-glossary-navigation="true"> ([admission glossary](../../../../glossary.md#term-admission))</span>
 4. Only after Stage A passes, execute inherited 0008N's 48 semantic rows, 24 structural dossiers,
    16 branch rows, 5 forks, 1,440 pairs, 5,760 timings, 160 fork medians, and 32 aggregates under
    the same gates. No retry, discard, replacement, threshold change, or unrecorded expansion.
 5. Retain actual generated class bytes, `javap`/decompilation, direct-oracle class, raw timings,
    calibration, commands, environment, checksums, and manifest outside the repository. Only after
-   the complete Stage B pass may `CURRENT_VERSION` advance to 63 and production preparer/cache
-   compatibility select, publish, or reload schema 63.
+   the complete Stage B pass may <span data-glossary-navigation="true"> ([decompilation glossary](../../../../glossary.md#term-decompilation); [manifest glossary](../../../../glossary.md#term-manifest))</span>`CURRENT_VERSION` advance to 63 and production preparer/cache
+   compatibility select, publish, or reload schema 63.<span data-glossary-navigation="true"> ([cache glossary](../../../../glossary.md#term-cache))</span>
 6. Complete separate clean implementation and documentation-focused passes; the latter reviews
    Javadocs/planning/glossary and records no-change conclusions without rerunning successful Java
-   suites unless it changes executable Java.
+   suites unless it changes executable Java.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning))</span>
 
-## Validation
+## [Validation](../../../../glossary.md#term-validation)
 
-Stage A is a separate admission experiment, not one row or fork of the inherited matrix. It fixes
+Stage A is a separate [admission](../../../../glossary.md#term-admission) experiment, not one row or [fork](../../../../glossary.md#term-fork-meanings) of the inherited [matrix](../../../../glossary.md#term-matrix-meanings). It fixes
 one actual-generated `Conv2d/FLOAT32/all-arrays/interior-exact-width/VECTOR` workload, independent
-`javac` compilation of the direct vector oracle, Java 26, recorded CPU/OS/JDK facts,
-`-Xms1g -Xmx1g -XX:-TieredCompilation -Xbatch`, and a deterministic row/order seed. Run five
-independent fresh JVM forks. In every fork, run five warmup symmetric `V-S-S-V`/`S-V-V-S` pairs and
+`javac` [compilation](../../../../glossary.md#compiler-engine-and-execution-stage-names) of the direct [vector](../../../../glossary.md#term-vector) [oracle](../../../../glossary.md#term-test-oracle), Java 26, recorded [CPU](../../../../glossary.md#term-cpu)/OS/[JDK](../../../../glossary.md#term-java-development-kit-jdk) facts,
+`-Xms1g -Xmx1g -XX:-TieredCompilation -Xbatch`, and a deterministic row/order [seed](../../../../glossary.md#term-seed). [Run](../../../../glossary.md#term-run) five
+independent fresh [JVM](../../../../glossary.md#term-java-virtual-machine-jvm) [forks](../../../../glossary.md#term-jvm-fork). In every fork, run five [warmup](../../../../glossary.md#term-warmup) symmetric `V-S-S-V`/`S-V-V-S` pairs and
 five warmup symmetric `V-D-D-V`/`D-V-V-D` pairs. Double one shared iteration count until the
 two-invocation aggregate for each of `S`, `V`, and `D` is at least 50 ms. Then retain exactly nine
 randomized symmetric pairs for each comparison, with no retry, discard, replacement, or asymmetric
 work; every one of the 360 timed sides is at least 25 ms.
 
 Thus Stage A retains `1 row * 5 forks * 9 pairs * 2 comparisons = 90 pairs`,
-`90 * 4 = 360 timings`, `1 * 5 * 2 = 10` fork medians, and `1 * 2 = 2` median-of-fork-median
+`90 * 4 = 360 timings`, `1 * 5 * 2 = 10` fork medians, and `1 * 2 = 2` [median](../../../../glossary.md#term-median)-of-fork-median
 aggregates. Require `V/S <= 0.90` and `V/D <= 1.15` for every retained pair, fork median, and
 aggregate. Retain the command, JVM/CPU/OS facts, seed/order, warmup, calibration, all timings and
-medians, actual generated schema-63 class bytes and identity/key evidence, and independently
-compiled oracle. Confirm `CURRENT_VERSION == 62`, scalar-only production Conv preparation, no
-schema-63 artifact publication/reload, and no scalar-schema bytes or keys reused by the candidate.
+medians, actual generated [schema](../../../../glossary.md#term-schema)-63 class bytes and [identity](../../../../glossary.md#term-identity-meanings)/key evidence, and independently
+compiled oracle. Confirm `CURRENT_VERSION == 62`, [scalar](../../../../glossary.md#term-scalar)-only production Conv preparation, no
+schema-63 [artifact](../../../../glossary.md#term-artifact) [publication](../../../../glossary.md#term-publication)/reload, and no scalar-schema bytes or keys reused by the candidate.
 Only a full Stage A pass permits the separate inherited 48/24/16-row matrix to begin.
 
 After Stage A, run inherited 0008N exactly: 48 raw-bit semantic rows; 24 Class-File dossiers; and
 16 branch rows with five fresh forks, nine retained symmetric pairs per comparison, four timings
 per pair, minimum 25 ms per timing, and every pair/median/aggregate at `V/S <= 0.90` and
-`V/D <= 1.15`. Inspect vector direct-carrier forms, broadcasts, multiply/add, forbidden overhead,
-and nested-loop parity through bytecode/decompilation.
+`V/D <= 1.15`. Inspect vector direct-[carrier](../../../../glossary.md#term-storage-carrier) forms, broadcasts, multiply/add, forbidden overhead,
+and nested-loop parity through [bytecode](../../../../glossary.md#term-bytecode)/[decompilation](../../../../glossary.md#term-decompilation).
 
-Run focused CPU tests, retained performance test with explicit evidence root, CPU Javadoc,
+Run focused CPU tests, retained performance test with explicit evidence root, CPU [Javadoc](../../../../glossary.md#term-javadoc),
 `git diff --check`, and `git diff --cached --check`. Check links/anchors/fences/headings/newlines/
 whitespace, `2*2*12=48`, `2*2*2*3=24`, `2*2*4=16`, `16*5*9*2=1440`, `1440*4=5760`,
-`16*5*2=160`, `16*2=32`, status/order/schema/scope, provisional-versus-production cache boundary,
-and empty index. CPU 0009/CI retains broad validation unless a forbidden boundary changes.
+`16*5*2=160`, `16*2=32`, status/order/schema/[scope](../../../../glossary.md#term-scope), provisional-versus-production [cache](../../../../glossary.md#term-cache) boundary,
+and empty index. CPU 0009/[CI](../../../../glossary.md#term-continuous-integration-ci) retains broad validation unless a forbidden boundary changes.
 
 ## Dependencies
 
 - CPU 0008N is Incomplete after its bounded scalar stop; its evidence is factual input, not
   acceptance evidence.
-- CPU 0008, 0008A, 0005C/0005I, 0007A0/0007A1A, 0008L, and 0008M are Complete.
-- Java 26 Vector API and current scalar Conv lowering/preparation/carrier/generated owners exist.
+- [CPU](../../../../glossary.md#term-cpu) 0008, 0008A, 0005C/0005I, 0007A0/0007A1A, 0008L, and 0008M are Complete.
+- Java 26 [Vector API](../../../../glossary.md#term-vector-api) and current [scalar](../../../../glossary.md#term-scalar) Conv [lowering](../../../../glossary.md#lowering)/preparation/[carrier](../../../../glossary.md#term-storage-carrier)/generated [owners](../../../../glossary.md#term-owner) exist.
 
 ## Follow-ups
 
-- CPU 0008O remains Draft and depends on 0008N1; it must not start first.
+- [CPU](../../../../glossary.md#term-cpu) 0008O remains Draft and depends on 0008N1; it must not start first.
 - CPU 0008P and CPU 0009 remain later. A stop may add a follow-up only if independently actionable;
   it does not advance 0008O.
 
@@ -232,36 +232,36 @@ Do not mark complete before that pass.
 
 ## Limitations
 
-Production schema 63 selects output-width `VECTOR` or `PARALLEL_VECTOR` only for direct,
-same-typed, dense `FLOAT32`/`FLOAT64` Conv2d/Conv3d with width stride and width dilation equal to
-one, a preferred species wider than one lane, and at least one full in-bounds width block.
-Non-width stride and dilation remain eligible. Scalar code handles borders, worker-range fragments,
-and tails. Arrays, native-order segments, and ordered mixed carriers are supported. BF16, external
-Conv2d epilogues, mixed element types, non-dense access, short/no-interior-block shapes, width
-stride or dilation other than one, non-width SIMD axes, and Conv1d composition remain scalar.
-Broad validation remains CPU 0009/CI scope.
+Production [schema](../../../../glossary.md#term-schema) 63 selects output-width [`VECTOR`](../../../../glossary.md#term-vector) or `PARALLEL_VECTOR` only for direct,
+same-typed, dense [`FLOAT32`](../../../../glossary.md#term-float32)/[`FLOAT64`](../../../../glossary.md#term-float64) [Conv2d](../../../../glossary.md#convolution--conv2d)/[Conv3d](../../../../glossary.md#conv3d--ncdhw) with width [stride](../../../../glossary.md#term-stride) and width [dilation](../../../../glossary.md#term-dilation) equal to
+one, a preferred species wider than one [lane](../../../../glossary.md#term-lane), and at least one full in-bounds width block.
+Non-width stride and dilation remain eligible. [Scalar](../../../../glossary.md#term-scalar) code handles borders, worker-range fragments,
+and tails. Arrays, native-order segments, and ordered mixed carriers are supported. [BF16](../../../../glossary.md#floating-point-precision-and-rounding), external
+Conv2d epilogues, mixed [element](../../../../glossary.md#term-element) types, non-dense access, short/no-interior-block [shapes](../../../../glossary.md#shape), width
+stride or dilation other than one, non-width [SIMD](../../../../glossary.md#simd) [axes](../../../../glossary.md#term-axis), and [Conv1d composition](../../../../glossary.md#conv1d-composition) remain scalar.
+Broad [validation](../../../../glossary.md#term-validation) remains [CPU](../../../../glossary.md#term-cpu) 0009/[CI](../../../../glossary.md#term-continuous-integration-ci) [scope](../../../../glossary.md#term-scope).
 
 ## Evidence
 
-Focused audit: current `CpuConv2dEmitter` is scalar-only, decodes output coordinates per ordinal
+Focused audit: current `CpuConv2dEmitter` is [scalar](../../../../glossary.md#term-scalar)-only, decodes output [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) per ordinal
 with `lrem`/`ldiv`, and loads geometry/address facts in its inner body; current `CpuConv3dEmitter`
-is scalar-only. `CpuCarrierEmitter` already has direct typed vector array/segment load/store forms,
-native segment order, and proved `intAddress` arrays. Current Conv IR keeps extents, offsets,
+is scalar-only. `CpuCarrierEmitter` already has direct typed [vector](../../../../glossary.md#term-vector) array/segment load/store forms,
+native segment order, and proved `intAddress` arrays. Current Conv [IR](../../../../glossary.md#term-intermediate-representation-ir) keeps extents, offsets,
 carriers, and ranges cold.
 
 `/tmp/synaptik-cpu-0008n-spike-20260906a/results/stop.txt` records `BOUNDED_SCALAR_STOP` for
-actual generated Conv2d/FLOAT32/all-arrays/interior-exact-width/VECTOR: 64 iterations, 12 warmup
+actual generated [Conv2d](../../../../glossary.md#convolution--conv2d)/[FLOAT32](../../../../glossary.md#term-float32)/all-arrays/interior-exact-width/VECTOR: 64 iterations, 12 [warmup](../../../../glossary.md#term-warmup)
 triplets, nine retained symmetric pairs, minimum `61,244,791 ns`, `V/S=0.265215012`, and failed
-`V/D=1.775769426 > 1.15`. XML records the same failure. The four-entry manifest covers transient
-Conv2d/Conv3d emitters, performance test, and XML. `javap` shows schema-63/VECTOR branches and
+`V/D=1.775769426 > 1.15`. XML records the same failure. The four-entry [manifest](../../../../glossary.md#term-manifest) covers transient
+Conv2d/[Conv3d](../../../../glossary.md#conv3d--ncdhw) emitters, performance test, and XML. `javap` shows [schema](../../../../glossary.md#term-schema)-63/VECTOR branches and
 vector setup in both transient emitters. This establishes the rejected design only; it neither
-proves a branch-wide result nor assigns the gap to an individual operation.
+proves a branch-wide result nor assigns the gap to an individual [operation](../../../../glossary.md#operation).
 
 ## Implementation notes
 
-Generated Conv2d/Conv3d now uses nested output-coordinate loops with scalar borders/fragments and
-output-width vector interiors. Selection, carrier realization, and persisted-artifact compatibility
-remain CPU-owned; no shared Prepare, Runtime, public API, dependency, or architecture boundary
+Generated [Conv2d](../../../../glossary.md#convolution--conv2d)/[Conv3d](../../../../glossary.md#conv3d--ncdhw) now uses nested output-[coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) loops with [scalar](../../../../glossary.md#term-scalar) borders/fragments and
+output-width [vector](../../../../glossary.md#term-vector) interiors. Selection, [carrier](../../../../glossary.md#term-storage-carrier) realization, and persisted-[artifact](../../../../glossary.md#term-artifact) compatibility
+remain [CPU](../../../../glossary.md#term-cpu)-owned; no shared [Prepare](../../../../glossary.md#prepare), [Runtime](../../../../glossary.md#term-runtime), public [API](../../../../glossary.md#term-application-programming-interface-api), [dependency](../../../../glossary.md#term-dependency), or architecture boundary
 changed.
 
 ## Completion summary
@@ -270,30 +270,30 @@ Stage B semantic/structural evidence at
 `/private/tmp/synaptik-cpu-0008n1-stage-b-20260906-owned` passed 48 semantic rows and 24 structural
 dossiers. Full performance evidence at
 `/private/tmp/synaptik-cpu-0008n1-stage-b-performance-20260906/cpu-conv-simd-performance/full-1788687867286-pid89091`
-passed 16 rows, five fresh forks, 1,440 pairs, 5,760 positive finite sides (minimum
-`30,135,541 ns`), 160 fork medians, 32 aggregates, and 1,803 verified manifest hashes. Maximum
+passed 16 rows, five fresh [forks](../../../../glossary.md#term-fork-meanings), 1,440 pairs, 5,760 positive [finite](../../../../glossary.md#term-finite) sides (minimum
+`30,135,541 ns`), 160 [fork](../../../../glossary.md#term-fork-meanings) medians, 32 aggregates, and 1,803 verified [manifest](../../../../glossary.md#term-manifest) [hashes](../../../../glossary.md#term-hash). Maximum
 pair ratios were `V/S=0.525369171498` and `V/D=0.959638121325`; maximum aggregate ratios were
 `V/S=0.403144684278` and `V/D=0.932440944620`, within the `0.90` and `1.15` limits.
 
-Production uses `CURRENT_VERSION=63`; eligible direct Conv2d/Conv3d routes select `VECTOR` or
-`PARALLEL_VECTOR`, schema-63 artifacts publish/reload, stale schema 62 is rejected, and scalar Conv
-retains historical schema 52. The focused integration suite passed 80 tests, CPU Javadoc passed,
-backend conformance reported `NO-SOURCE`, and diff checks passed. Javadoc reported 53 pre-existing
+Production uses `CURRENT_VERSION=63`; eligible direct [Conv2d](../../../../glossary.md#convolution--conv2d)/[Conv3d](../../../../glossary.md#conv3d--ncdhw) routes select [`VECTOR`](../../../../glossary.md#term-vector) or
+`PARALLEL_VECTOR`, [schema](../../../../glossary.md#term-schema)-63 [artifacts](../../../../glossary.md#term-artifact) publish/reload, stale schema 62 is rejected, and [scalar](../../../../glossary.md#term-scalar) Conv
+retains historical schema 52. The focused integration suite passed 80 tests, [CPU](../../../../glossary.md#term-cpu) [Javadoc](../../../../glossary.md#term-javadoc) passed,
+[backend](../../../../glossary.md#backend) [conformance](../../../../glossary.md#term-conformance) reported `NO-SOURCE`, and diff checks passed. Javadoc reported 53 pre-existing
 missing-`@param` warnings in unrelated records.
 
 The additional full CPU suite was not green: 751 tests yielded 725 passes, 24 intentional opt-in
-skips, and two unrelated failures. The historical default-running 0008B F64 NEG DAG case was
+skips, and two unrelated failures. The historical default-running 0008B [F64](../../../../glossary.md#floating-point-precision-and-rounding) NEG [DAG](../../../../glossary.md#term-directed-acyclic-graph-dag) case was
 semantically successful, but all fork-zero timing attempts were `1.1788` through `1.2251`, above
-`1.15`; the unchanged worker-close race failed once and passed in isolation. These require separate
-default-timing and worker-lifecycle reliability follow-up. No broad-suite pass is claimed; broad
-validation remains CPU 0009/CI scope.
+`1.15`; the unchanged worker-close [race](../../../../glossary.md#term-race) failed once and passed in isolation. These require separate
+default-timing and worker-[lifecycle](../../../../glossary.md#lifecycle) reliability follow-up. No broad-suite pass is claimed; broad
+[validation](../../../../glossary.md#term-validation) remains CPU 0009/[CI](../../../../glossary.md#term-continuous-integration-ci) [scope](../../../../glossary.md#term-scope).
 
 The historical Stage A root at `/private/tmp/synaptik-cpu-0008n1-stage-a-20260906b` remains failed
 structural evidence: its `stop.txt` records `decision=BOUNDED_SCALAR_STOP`,
 `structural_result=FAIL`, and `stage_b=NOT_RUN_AFTER_DECISIVE_STAGE_A_STOP`. It is explicitly
 superseded by the final Stage B `C2_F32_ARRAY` row, which strictly contains the intended Stage A
 proof. The passing structural dossier and full performance evidence contain the byte-identical
-final vector class SHA-256
+final vector class [SHA-256](../../../../glossary.md#term-sha-256)
 `6f5a183436eeeff189b1bb29812f65afe1c99f62872394276c8886e05e063c65` under schema-63 key
 `c05914f7b0aa747f48e0acc1a0015ef15157f03b7078e64b60d546d7b11a356f`. Its final performance row
 passed five forks, 90 pairs, and 360 positive finite sides with minimum `39,300,417 ns`, maximum
@@ -301,7 +301,7 @@ pair `V/S=0.150326995238421` and `V/D=0.896607513278599`, and aggregate
 `V/S=0.14074463702810028` and `V/D=0.8497156751688318`. No semantic or performance suite was
 rerun during evidence reconciliation.
 
-CPU 0008O is restored as the next Draft task. The historical default-timing and worker-close
-lifecycle reliability observations remain separate backlog concerns and do not block 0008N1.
+CPU 0008O is restored as the next Draft task. The historical default-timing and worker-[close
+lifecycle](../../../../glossary.md#ownership-borrowing-and-lease) reliability observations remain separate backlog concerns and do not block 0008N1.
 
 Status: Complete

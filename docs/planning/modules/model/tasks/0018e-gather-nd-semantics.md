@@ -1,4 +1,4 @@
-# Task 0018E: Gather-ND Semantics
+# Task 0018E: [Gather-ND](../../../../glossary.md#gather-nd) Semantics
 
 ## Status
 
@@ -6,74 +6,74 @@ Complete
 
 ## Goal
 
-Define the typed, backend-independent semantic identity and immutable normalized batch-dimension
-parameter for tuple-index `GATHER_ND`.
+Define the typed, [backend](../../../../glossary.md#backend)-independent semantic [identity](../../../../glossary.md#term-identity-meanings) and [immutable](../../../../glossary.md#term-immutable) normalized [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)-[dimension](../../../../glossary.md#dimension)
+[parameter](../../../../glossary.md#term-parameter) for tuple-index `GATHER_ND`.
 
-Gather-ND consumes ordered logical inputs `[data, indices]`. The final indices Dimension is the
-tuple depth `K`; each tuple selects `K` data axes after the shared leading batch dimensions. The
-conceptual result Shape is:
+[Gather-ND](../../../../glossary.md#gather-nd) consumes ordered logical inputs `[data, indices]`. The final indices Dimension is the
+[tuple depth](../../../../glossary.md#term-tuple-depth) `K`; each tuple selects `K` data [axes](../../../../glossary.md#term-axis) after the shared leading batch dimensions. The
+conceptual result [Shape](../../../../glossary.md#shape) is:
 
 ```text
 indices.shape[:-1] + data.shape[batchDimensions + K:]
 ```
 
-This task defines meaning and intrinsic `batchDimensions` only. Public Tensor methods, input ranks,
-batch compatibility, tuple-depth extraction, result Shape construction, index data type,
-provenance, gradients, compiler behavior, lowering, and execution remain later responsibilities.
+This task defines meaning and intrinsic `batchDimensions` only. Public [Tensor](../../../../glossary.md#tensor) methods, input ranks,
+batch compatibility, tuple-depth extraction, result Shape construction, index [data type](../../../../glossary.md#data-type--datatype),
+[provenance](../../../../glossary.md#provenance), [gradients](../../../../glossary.md#term-gradient), [compiler](../../../../glossary.md#term-compiler) behavior, [lowering](../../../../glossary.md#lowering), and execution remain later responsibilities.
 
-## Scope
+## [Scope](../../../../glossary.md#term-scope)
 
-- Add one public `GatherNdKind` enum implementing `OperationKind` with exactly `GATHER_ND`.
-- Add one public `GatherNdAttrs` record implementing `OperationAttrs` with exactly one
+- Add one public `GatherNdKind` enum implementing [`OperationKind`](../../../../glossary.md#operationkind) with exactly `GATHER_ND`.
+- Add one public `GatherNdAttrs` record implementing [`OperationAttrs`](../../../../glossary.md#operationattrs) with exactly one
   non-negative normalized `int batchDimensions` component.
 - Define ordered logical inputs as `[data, indices]`.
-- Define the final indices Dimension as tuple depth rather than storing tuple depth in attributes.
+- Define the final indices [Dimension](../../../../glossary.md#dimension) as [tuple depth](../../../../glossary.md#term-tuple-depth) rather than storing tuple depth in attributes.
 - Document shared leading batch dimensions, indexed axes, untouched data suffix, and exact
-  conceptual result formula.
+  conceptual result formula.<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [axes glossary](../../../../glossary.md#term-axis))</span>
 - Document exact `GATHER_ND` plus `GatherNdAttrs` composition without adding a generic validator.
-- Add one focused same-package structural, validation, value-semantics, and composition test.
+- Add one focused same-package structural, [validation](../../../../glossary.md#term-validation), value-semantics, and composition test.
 - Keep production in the existing `io.github.pho001.synaptik.model.operation.index` package.
 - Finalize Javadocs, Tensor API semantic reference, glossary, task evidence, master plan, and
-  roadmap through the mandatory independent documentation pass during implementation.
+  roadmap through the mandatory independent documentation pass during implementation.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 
-## Out of scope
+## Out of [scope](../../../../glossary.md#term-scope)
 
 - public `Tensor.gatherNd`, default/no-batch overload, expression helper, factory, or task-0018F
   implementation
-- axis gather, scalar select, scatter-ND, axis scatter, masks, slices, or another operation kind
+- [axis](../../../../glossary.md#term-axis) [gather](../../../../glossary.md#gather), [scalar select](../../../../glossary.md#scalar-select), [scatter-ND](../../../../glossary.md#scatter-nd), axis scatter, [masks](../../../../glossary.md#term-boolean-mask), slices, or another [operation](../../../../glossary.md#operation) kind
 - input Tensor, input count, data/index rank, Shape, Dimension, tuple depth, index data type,
-  result data type, descriptor, layout, requiresGrad, provenance, label, storage, or backend facts
+  result data type, descriptor, layout, requiresGrad, provenance, label, storage, or backend facts<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [rank glossary](../../../../glossary.md#term-rank); [Shape glossary](../../../../glossary.md#shape); [Dimension glossary](../../../../glossary.md#dimension); [tuple depth glossary](../../../../glossary.md#term-tuple-depth); [data type glossary](../../../../glossary.md#data-type--datatype); [descriptor glossary](../../../../glossary.md#term-descriptor); [layout glossary](../../../../glossary.md#layout); [provenance glossary](../../../../glossary.md#provenance); [backend glossary](../../../../glossary.md#backend))</span>
 - storing tuple depth or output Shape in attributes; tuple depth belongs to the final indices
-  Dimension of each operation occurrence
+  Dimension of each operation occurrence<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 - validating `batchDimensions` against data/indices rank, matching leading batch Dimensions,
   requiring static positive tuple depth, or checking tuple depth against remaining data rank
-- index-value normalization, bounds checks, negative-index policy, value access, or execution
-- a default constructor, factory, singleton, separate zero-batch kind, or sentinel batch count
+- index-value [normalization](../../../../glossary.md#term-normalization), bounds checks, negative-index policy, value access, or execution
+- a default constructor, factory, [singleton](../../../../glossary.md#term-singleton), separate zero-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) kind, or sentinel batch count
 - arity/result/cost/fusion/backend-support metadata, registries, parsers, visitors, maps, string
-  dispatch, or reflective discovery
+  dispatch, or reflective discovery<span data-glossary-navigation="true"> ([arity glossary](../../../../glossary.md#term-arity); [fusion glossary](../../../../glossary.md#term-fusion); [metadata glossary](../../../../glossary.md#term-metadata); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
 - gradients, repeated-index accumulation, scatter-ND backward, graph capture, compiler, planning,
-  prepare, runtime, backend, engine, trace, ONNX implementation, training, or execution behavior
+  prepare, runtime, backend, engine, trace, ONNX implementation, training, or execution behavior<span data-glossary-navigation="true"> ([gradients glossary](../../../../glossary.md#term-gradient); [graph capture glossary](../../../../glossary.md#capture-graph-ports-and-reconstruction); [compiler glossary](../../../../glossary.md#term-compiler); [planning glossary](../../../../glossary.md#term-planning); [prepare glossary](../../../../glossary.md#prepare); [runtime glossary](../../../../glossary.md#term-runtime); [engine glossary](../../../../glossary.md#term-engine); [trace glossary](../../../../glossary.md#trace); [ONNX glossary](../../../../glossary.md#term-onnx))</span>
 - changing existing Java/tests, dependencies, Gradle, architecture, another module, or creating a
-  task-0018F specification
+  task-0018F specification<span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle); [module glossary](../../../../glossary.md#term-module))</span>
 
 ## Architecture references
 
-- [Architecture contract](../../../../../ARCHITECTURE.md)
+- [Architecture contract](../../../../../ARCHITECTURE.md)<span data-glossary-navigation="true"> ([Architecture contract glossary](../../../../glossary.md#architecture-contract))</span>
 - [Current architecture documentation](../../../../architecture/current-architecture-plan.md)
 - [Architecture overview](../../../../architecture/overview.md)
-- [Lifecycle](../../../../architecture/lifecycle.md)
-- [Module boundaries](../../../../architecture/module-boundaries.md)
-- [Dependency rules](../../../../architecture/dependency-rules.md)
-- [Runtime / Prepare / Backend boundary](../../../../architecture/runtime-prepare-backend-boundary.md)
+- [Lifecycle](../../../../architecture/lifecycle.md)<span data-glossary-navigation="true"> ([Lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+- [Module boundaries](../../../../architecture/module-boundaries.md)<span data-glossary-navigation="true"> ([Module glossary](../../../../glossary.md#term-module))</span>
+- [Dependency rules](../../../../architecture/dependency-rules.md)<span data-glossary-navigation="true"> ([Dependency glossary](../../../../glossary.md#term-dependency))</span>
+- [Runtime / Prepare / Backend boundary](../../../../architecture/runtime-prepare-backend-boundary.md)<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [Prepare glossary](../../../../glossary.md#prepare); [Backend glossary](../../../../glossary.md#backend))</span>
 - [Documentation rules](../../../../developer-guide/documentation-rules.md)
 - [Documentation profile index](../../../../developer-guide/documentation/README.md)
 - [General documentation style](../../../../developer-guide/documentation/general-style.md)
-- [API and Javadoc style](../../../../developer-guide/documentation/api-and-javadoc-style.md)
-- [Planning style](../../../../developer-guide/documentation/planning-style.md)
+- [API and Javadoc style](../../../../developer-guide/documentation/api-and-javadoc-style.md)<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
+- [Planning style](../../../../developer-guide/documentation/planning-style.md)<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning))</span>
 - [Example format](../../../../developer-guide/documentation/example-format.md)
 - [Planning guide](../../../planning-guide.md)
 - [Implementation roadmap](../../../roadmap.md)
-- [Model capability baseline](../capabilities.md)
+- [Model capability baseline](../capabilities.md)<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model))</span>
 - [Model master plan](../master-plan.md)
 - [Task 0002](0002-shape-and-dimension-model.md)
 - [Task 0005](0005-operation-semantic-foundation.md)
@@ -81,52 +81,52 @@ provenance, gradients, compiler behavior, lowering, and execution remain later r
 - [Task 0018A](0018a-scalar-select-semantics.md)
 - [Task 0018C](0018c-axis-gather-semantics.md)
 - [Task 0018D](0018d-axis-gather-tensor-expressions.md)
-- [Tensor API](../../../../api/tensor-api.md)
-- [Compile API](../../../../api/compile-api.md)
+- [Tensor API](../../../../api/tensor-api.md)<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor))</span>
+- [Compile API](../../../../api/compile-api.md)<span data-glossary-navigation="true"> ([Compile glossary](../../../../glossary.md#compile))</span>
 - [Training API](../../../../api/training-api.md)
 - [Glossary](../../../../glossary.md)
 
 ## Capability origin
 
-The read-only legacy branch represents ONNX-style GatherND with one `GATHER_ND` identity and a
-non-negative `batchDims` value. It exposes both zero-batch and explicit-batch public requests.
+The read-only legacy branch represents [ONNX](../../../../glossary.md#term-onnx)-style GatherND with one `GATHER_ND` [identity](../../../../glossary.md#term-identity-meanings) and a
+non-negative `batchDims` value. It exposes both zero-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) and explicit-batch public requests.
 
-Its Shape rule treats the final indices extent as tuple depth `K`, requires shared leading batch
-Dimensions, and forms the result from the indices prefix plus the unindexed data suffix. The legacy
-implementation represents a scalar result as `[1]`; the current model instead uses canonical
-rank-zero scalar Shape, which task 0018F will construct when both formula parts are empty.
+Its [Shape](../../../../glossary.md#shape) rule treats the final indices [extent](../../../../glossary.md#term-extent) as [tuple depth](../../../../glossary.md#term-tuple-depth) `K`, requires shared leading batch
+[Dimensions](../../../../glossary.md#dimension), and forms the result from the indices prefix plus the unindexed data suffix. The legacy
+implementation represents a [scalar](../../../../glossary.md#term-scalar) result as `[1]`; the current [model](../../../../glossary.md#term-model) instead uses [canonical](../../../../glossary.md#term-canonical-form)
+[rank-zero](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) scalar Shape, which task 0018F will construct when both formula parts are empty.
 
 The new semantic value uses the descriptive component name `batchDimensions`. It does not copy
-legacy mutable Shapes, graph builders, gradient callbacks, scatter implementations, traits,
-lowering, kernels, or runtime/backend behavior.
+legacy [mutable](../../../../glossary.md#term-mutable) Shapes, [graph](../../../../glossary.md#graph) builders, [gradient](../../../../glossary.md#term-gradient) callbacks, scatter implementations, traits,
+[lowering](../../../../glossary.md#lowering), [kernels](../../../../glossary.md#kernel), or [runtime](../../../../glossary.md#term-runtime)/[backend](../../../../glossary.md#backend) behavior.
 
 ## Architecture constraints
 
-- Production remains in `modules/model`, which owns backend-neutral operation meanings.
+- Production remains in `modules/model`, which owns [backend](../../../../glossary.md#backend)-neutral [operation](../../../../glossary.md#operation) meanings.
 - `GatherNdKind` identifies tuple-index mathematical meaning only, not an occurrence, Tensor,
-  graph node, descriptor, executable, kernel, or backend route.
+  graph node, descriptor, executable, kernel, or backend route.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence); [Tensor glossary](../../../../glossary.md#tensor); [graph glossary](../../../../glossary.md#graph); [node glossary](../../../../glossary.md#node); [descriptor glossary](../../../../glossary.md#term-descriptor); [kernel glossary](../../../../glossary.md#kernel); [backend route glossary](../../../../glossary.md#backend-route))</span>
 - `GatherNdAttrs.batchDimensions` is already normalized and non-negative. It stores no rank and
-  cannot prove compatibility with a particular data or indices input.
+  cannot prove compatibility with a particular data or indices input.<span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank))</span>
 - Ordered input roles are semantically `[data, indices]`, but attributes store neither input.
 - Tuple depth is occurrence-specific Shape data from the final indices Dimension and must not be
-  duplicated in immutable semantic attributes.
-- The Shape formula is explanatory; these contracts perform no Shape inspection or calculation.
+  duplicated in immutable semantic attributes.<span data-glossary-navigation="true"> ([Tuple depth glossary](../../../../glossary.md#term-tuple-depth); [Dimension glossary](../../../../glossary.md#dimension); [immutable glossary](../../../../glossary.md#term-immutable))</span>
+- The [Shape](../../../../glossary.md#shape) formula is explanatory; these contracts perform no Shape inspection or calculation.
 - Generic `Operation` remains an open kind/attributes pair and does not validate family pairing,
-  arity, ranks, Shapes, data types, bounds, gradients, or backend support.
+  arity, ranks, Shapes, data types, bounds, gradients, or backend support.<span data-glossary-navigation="true"> ([arity glossary](../../../../glossary.md#term-arity); [gradients glossary](../../../../glossary.md#term-gradient))</span>
 - Package direction is `model.operation.index -> model.operation + java.base` only.
 - Stop if implementation requires Tensor, Shape, DataType, provenance, another production type,
-  another test, dependency, architecture change, or cross-layer behavior.
+  another test, dependency, architecture change, or cross-layer behavior.<span data-glossary-navigation="true"> ([DataType glossary](../../../../glossary.md#data-type--datatype); [provenance glossary](../../../../glossary.md#provenance); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 
 ## Package impact
 
 No package is added or moved.
 
 - `io.github.pho001.synaptik.model.operation.index.GatherNdKind` — exact tuple-index semantic
-  identity.
-- `io.github.pho001.synaptik.model.operation.index.GatherNdAttrs` — normalized leading batch count.
-- `GatherNdSemanticsTest` — same-package focused structural, validation, and composition test.
+  identity.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>
+- `io.github.pho001.synaptik.model.operation.index.GatherNdAttrs` — normalized leading [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) count.
+- `GatherNdSemanticsTest` — same-package focused structural, [validation](../../../../glossary.md#term-validation), and composition test.
 
-The existing index-operation package remains cohesive and independent of public Tensor and graph
+The existing index-[operation](../../../../glossary.md#operation) package remains cohesive and independent of public [Tensor](../../../../glossary.md#tensor) and [graph](../../../../glossary.md#graph)
 packages.
 
 ## Required contract
@@ -141,15 +141,15 @@ public enum GatherNdKind implements OperationKind {
 }
 ```
 
-The enum declares no project field, explicit constructor, method, nested type, per-constant body,
-alias, arity, batch count, tuple depth, Shape, data type, result, cost, fusion, route, or backend
-metadata. Inherited `Enum.name()` satisfies `OperationKind.name()`.
+The enum declares no project field, explicit constructor, method, nested type, per-[constant](../../../../glossary.md#term-constant) body,
+[alias](../../../../glossary.md#aliasing-and-arena), [arity](../../../../glossary.md#term-arity), [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) count, [tuple depth](../../../../glossary.md#term-tuple-depth), [Shape](../../../../glossary.md#shape), [data type](../../../../glossary.md#data-type--datatype), result, cost, [fusion](../../../../glossary.md#term-fusion), route, or [backend](../../../../glossary.md#backend)
+[metadata](../../../../glossary.md#term-metadata). Inherited `Enum.name()` satisfies `OperationKind.name()`.
 
-Javadoc must explain ordered `[data, indices]` inputs, final-dimension tuple depth, shared batch
-prefix, indexed data axes, remaining suffix, and the conceptual result formula. It must distinguish
-axis gather and scalar select without claiming validation or execution.
+[Javadoc](../../../../glossary.md#term-javadoc) must explain ordered `[data, indices]` inputs, final-[dimension](../../../../glossary.md#dimension) tuple depth, shared batch
+prefix, indexed data [axes](../../../../glossary.md#term-axis), remaining suffix, and the conceptual result formula. It must distinguish
+axis [gather](../../../../glossary.md#gather) and [scalar select](../../../../glossary.md#scalar-select) without claiming [validation](../../../../glossary.md#term-validation) or execution.
 
-### Normalized batch attributes
+### Normalized [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) attributes
 
 Create exactly:
 
@@ -157,9 +157,9 @@ Create exactly:
 public record GatherNdAttrs(int batchDimensions) implements OperationAttrs
 ```
 
-The record has exactly one component, one canonical constructor, one explicit documented accessor,
-and record-generated `equals`, `hashCode`, and `toString`. Add no tuple depth, rank, Shape, inputs,
-default constructor, factory, builder, nested type, or extra state/API.
+The record has exactly one component, one [canonical](../../../../glossary.md#term-canonical-form) constructor, one explicit documented accessor,
+and record-generated `equals`, [`hashCode`](../../../../glossary.md#hash-codes-and-content-digests), and `toString`. Add no [tuple depth](../../../../glossary.md#term-tuple-depth), [rank](../../../../glossary.md#term-rank), [Shape](../../../../glossary.md#shape), inputs,
+default constructor, factory, builder, nested type, or extra state/[API](../../../../glossary.md#term-application-programming-interface-api).
 
 Constructor behavior is exact:
 
@@ -179,27 +179,27 @@ GatherNdAttrs attrs = new GatherNdAttrs(1);
 Operation operation = new Operation(GatherNdKind.GATHER_ND, attrs);
 ```
 
-The exact attributes reference is retained. Generic Operation does not enforce the pairing. Add no
-operation factory, default attrs singleton, or compatibility matrix.
+The exact attributes reference is retained. Generic [Operation](../../../../glossary.md#operation) does not enforce the pairing. Add no
+operation factory, default attrs [singleton](../../../../glossary.md#term-singleton), or compatibility [matrix](../../../../glossary.md#term-review-matrix).
 
-### Shape terminology and examples
+### [Shape](../../../../glossary.md#shape) terminology and examples
 
-For data rank `R`, indices rank `Q`, batch count `B`, and final indices extent `K`:
+For data [rank](../../../../glossary.md#term-rank) `R`, indices rank `Q`, [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) count `B`, and final indices [extent](../../../../glossary.md#term-extent) `K`:
 
 - `Q >= 1`;
 - `0 <= B < Q`;
-- leading data and indices Dimensions `[0, B)` match;
+- leading data and indices [Dimensions](../../../../glossary.md#dimension) `[0, B)` match;
 - `1 <= K <= R - B`;
-- every tuple indexes data axes `[B, B + K)`;
+- every tuple indexes data [axes](../../../../glossary.md#term-axis) `[B, B + K)`;
 - result Shape is `indices.shape[0:Q-1] + data.shape[B+K:R]`.
 
-These are later input-aware validation rules, not constructor checks in this task.
+These are later input-aware [validation](../../../../glossary.md#term-validation) rules, not constructor checks in this task.
 
 Use these non-executable examples:
 
 - data `[2, 3, 4]`, indices `[5, 2]`, `B=0`, `K=2` gives result `[5, 4]`;
 - data `[2, 3, 4]`, indices `[2, 5, 1]`, `B=1`, `K=1` gives result `[2, 5, 4]`;
-- data `[2, 3]`, indices `[2]`, `B=0`, `K=2` gives canonical scalar result `[]`.
+- data `[2, 3]`, indices `[2]`, `B=0`, `K=2` gives [canonical](../../../../glossary.md#term-canonical-form) [scalar](../../../../glossary.md#term-scalar) result `[]`.
 
 No production code in this task stores or computes these Shapes.
 
@@ -216,47 +216,47 @@ Expected implementation change:
 - `docs/planning/modules/model/master-plan.md`
 - `docs/planning/roadmap.md`
 
-## Maximum scope
+## Maximum [scope](../../../../glossary.md#term-scope)
 
 This task may create or modify at most the eight paths listed above.
 
 If implementation requires another production type, another test, existing Java edits, public
-Tensor behavior, Compile API change, capability-baseline edit, dependency, build change,
-architecture document, another module, or more than eight paths, stop and propose a follow-up task.
+[Tensor](../../../../glossary.md#tensor) behavior, [Compile](../../../../glossary.md#compile) [API](../../../../glossary.md#term-application-programming-interface-api) change, capability-baseline edit, [dependency](../../../../glossary.md#term-dependency), build change,
+architecture document, another [module](../../../../glossary.md#term-module), or more than eight paths, stop and propose a follow-up task.
 
-## Javadoc requirements
+## [Javadoc](../../../../glossary.md#term-javadoc) requirements
 
-- Document every public type, enum constant, record component/accessor, and canonical constructor.
+- Document every public type, enum [constant](../../../../glossary.md#term-constant), record component/accessor, and [canonical](../../../../glossary.md#term-canonical-form) constructor.
 - Define data, indices, batch Dimensions, tuple depth, indexed axes, and untouched suffix before
-  using the formula.
-- Include all three concrete Shape examples and canonical scalar distinction.
-- Explain why tuple depth is not duplicated in attributes.
-- Explain why input rank/batch/tuple validation is deferred to task 0018F.
+  using the formula.<span data-glossary-navigation="true"> ([Dimensions glossary](../../../../glossary.md#dimension))</span>
+- Include all three concrete [Shape](../../../../glossary.md#shape) examples and canonical [scalar](../../../../glossary.md#term-scalar) distinction.
+- Explain why [tuple depth](../../../../glossary.md#term-tuple-depth) is not duplicated in attributes.
+- Explain why input [rank](../../../../glossary.md#term-rank)/[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)/tuple [validation](../../../../glossary.md#term-validation) is deferred to task 0018F.
 - State that future zero-batch convenience uses `GatherNdAttrs(0)` rather than another kind.
-- Distinguish Gather-ND from scalar select, axis gather, and scatter-ND.
-- Do not promise gradients, compiler capture, backend support, bounds checks, or execution.
+- Distinguish [Gather-ND](../../../../glossary.md#gather-nd) from [scalar select](../../../../glossary.md#scalar-select), [axis](../../../../glossary.md#term-axis) [gather](../../../../glossary.md#gather), and [scatter-ND](../../../../glossary.md#scatter-nd).
+- Do not promise [gradients](../../../../glossary.md#term-gradient), [compiler](../../../../glossary.md#term-compiler) [capture](../../../../glossary.md#term-capture-meanings), [backend](../../../../glossary.md#backend) support, bounds checks, or execution.
 
 ## Acceptance criteria
 
-- `GatherNdKind` is a public enum implementing `OperationKind` with exactly `GATHER_ND`.
-- The enum adds no project-declared state, methods, constructors, nested types, or metadata.
-- `GatherNdAttrs` is a public record implementing `OperationAttrs` with exactly one
+- `GatherNdKind` is a public enum implementing [`OperationKind`](../../../../glossary.md#operationkind) with exactly `GATHER_ND`.
+- The enum adds no project-declared state, methods, constructors, nested types, or [metadata](../../../../glossary.md#term-metadata).
+- `GatherNdAttrs` is a public record implementing [`OperationAttrs`](../../../../glossary.md#operationattrs) with exactly one
   `int batchDimensions` component.
 - Negative-count failure uses the exact exception type and message; valid values are unchanged.
 - Record-generated value semantics remain the object contract and the accessor is documented.
-- Exact `GATHER_ND` plus `GatherNdAttrs` composition works through unchanged `Operation`.
+- Exact `GATHER_ND` plus `GatherNdAttrs` composition works through unchanged [`Operation`](../../../../glossary.md#operation).
 - Javadocs explain ordered inputs, formula, tuple depth, batch meaning, examples, and deferred
-  validation without storing occurrence-specific facts.
+  validation without storing occurrence-specific facts.<span data-glossary-navigation="true"> ([tuple depth glossary](../../../../glossary.md#term-tuple-depth); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 - No Tensor, DataType, Shape, descriptor, provenance, graph, gradient, compiler, runtime, backend,
-  or execution behavior is introduced.
+  or execution behavior is introduced.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [DataType glossary](../../../../glossary.md#data-type--datatype); [Shape glossary](../../../../glossary.md#shape); [descriptor glossary](../../../../glossary.md#term-descriptor); [provenance glossary](../../../../glossary.md#provenance); [graph glossary](../../../../glossary.md#graph); [gradient glossary](../../../../glossary.md#term-gradient); [compiler glossary](../../../../glossary.md#term-compiler); [runtime glossary](../../../../glossary.md#term-runtime); [backend glossary](../../../../glossary.md#backend))</span>
 - Tensor API, glossary, task evidence, master plan, and roadmap are independently reviewed and
   synchronized. Compile API, Training API, capabilities, architecture, and related contracts
-  receive reasoned no-change conclusions.
-- All validation passes and the final diff contains exactly the eight permitted paths.
+  receive reasoned no-change conclusions.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [Compile glossary](../../../../glossary.md#compile))</span>
+- All [validation](../../../../glossary.md#term-validation) passes and the final diff contains exactly the eight permitted paths.
 
-## Tests / validation
+## Tests / [validation](../../../../glossary.md#term-validation)
 
-Run:
+[Run](../../../../glossary.md#term-run):
 
 ```bash
 ./gradlew :modules:model:test --tests \
@@ -267,26 +267,26 @@ Run:
 git diff --check
 ```
 
-Focused tests must verify exact enum/API shape, exact record component/type/accessor, zero/ordinary/
-maximum retention, negative validation/message, generated value semantics, exact typed Operation
-composition, distinction from axis-gather/select kinds, absence of extra kinds/state/APIs, and
-absence of Tensor/DataType/Shape/layout/graph/compiler/runtime/backend dependencies.
+Focused tests must verify exact enum/[API](../../../../glossary.md#term-application-programming-interface-api) [shape](../../../../glossary.md#shape), exact record component/type/accessor, zero/ordinary/
+maximum retention, negative validation/message, generated value semantics, exact typed [Operation](../../../../glossary.md#operation)
+composition, distinction from [axis](../../../../glossary.md#term-axis)-[gather](../../../../glossary.md#gather)/select kinds, absence of extra kinds/state/APIs, and
+absence of [Tensor](../../../../glossary.md#tensor)/[DataType](../../../../glossary.md#data-type--datatype)/Shape/[layout](../../../../glossary.md#layout)/[graph](../../../../glossary.md#graph)/[compiler](../../../../glossary.md#term-compiler)/[runtime](../../../../glossary.md#term-runtime)/[backend](../../../../glossary.md#backend) dependencies.
 
-Manual validation must inspect `javap -p -c -s`, reflection, imports, source, generated Javadoc,
-Markdown links/anchors/fences/whitespace, exact eight-path scope, synchronized status, and absence
+Manual validation must inspect `javap -p -c -s`, reflection, imports, source, generated [Javadoc](../../../../glossary.md#term-javadoc),
+Markdown links/anchors/fences/whitespace, exact eight-path [scope](../../../../glossary.md#term-scope), synchronized status, and absence
 of a task-0018F specification.
 
 ## Dependencies
 
-- Task 0005 defines minimal operation-kind and typed-attributes contracts.
-- Task 0006 defines the open immutable Operation pair.
-- Tasks 0018C–0018D establish the distinction from axis gather and the index package vocabulary.
-- Task 0018F depends on this task for public Gather-ND construction.
+- Task 0005 defines minimal [operation](../../../../glossary.md#operation)-kind and typed-attributes contracts.
+- Task 0006 defines the open [immutable](../../../../glossary.md#term-immutable) Operation pair.
+- Tasks 0018C–0018D establish the distinction from [axis](../../../../glossary.md#term-axis) [gather](../../../../glossary.md#gather) and the index package vocabulary.
+- Task 0018F depends on this task for public [Gather-ND](../../../../glossary.md#gather-nd) construction.
 
 ## Follow-up tasks
 
-- 0018F: public Gather-ND Tensor expressions with exact type/rank/batch/tuple/Shape validation.
-- 0018I: Scatter-ND semantics and reduction policy.
+- 0018F: public [Gather-ND](../../../../glossary.md#gather-nd) [Tensor](../../../../glossary.md#tensor) expressions with exact type/[rank](../../../../glossary.md#term-rank)/[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)/tuple/[Shape](../../../../glossary.md#shape) [validation](../../../../glossary.md#term-validation).
+- 0018I: [Scatter-ND](../../../../glossary.md#scatter-nd) semantics and reduction policy.
 
 Do not create either follow-up specification during this task.
 
@@ -294,8 +294,8 @@ Do not create either follow-up specification during this task.
 
 Expected impact: None.
 
-The task fills the existing model-owned operation vocabulary. If implementation requires a new
-architecture rule or cross-module dependency, stop and report the issue.
+The task fills the existing [model](../../../../glossary.md#term-model)-owned [operation](../../../../glossary.md#operation) vocabulary. If implementation requires a new
+architecture rule or cross-[module](../../../../glossary.md#term-module) [dependency](../../../../glossary.md#term-dependency), stop and report the issue.
 
 ## Implementation prompt
 
@@ -331,53 +331,53 @@ Complete until both passes succeed. Leave 0018F Draft without a specification. D
 
 ## Local decisions
 
-- Gather-ND is represented by the sole `GatherNdKind.GATHER_ND` identity and one
+- [Gather-ND](../../../../glossary.md#gather-nd) is represented by the sole `GatherNdKind.GATHER_ND` [identity](../../../../glossary.md#term-identity-meanings) and one
   `GatherNdAttrs(batchDimensions)` value. No zero-batch alias kind, default constructor, factory,
-  registry, or compatibility layer was added.
+  registry, or compatibility layer was added.<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [alias glossary](../../../../glossary.md#aliasing-and-arena); [registry glossary](../../../../glossary.md#term-registry))</span>
 - The attributes retain only an already normalized non-negative batch count. Tuple depth remains
-  the final indices Dimension because it varies with each `[data, indices]` occurrence and is not
-  intrinsic operation-attribute state.
+  the final indices Dimension because it varies with each <span data-glossary-navigation="true"> ([Tuple depth glossary](../../../../glossary.md#term-tuple-depth); [Dimension glossary](../../../../glossary.md#dimension))</span>`[data, indices]` occurrence and is not
+  intrinsic operation-attribute state.<span data-glossary-navigation="true"> ([occurrence glossary](../../../../glossary.md#term-occurrence); [operation glossary](../../../../glossary.md#operation))</span>
 - The canonical record constructor performs one exact negative check and retains every valid
   primitive unchanged. The explicit accessor returns the stored field directly, while generated
-  record equality, hashing, and diagnostic text remain the value contract.
+  record equality, hashing, and diagnostic text remain the value contract.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form))</span>
 - The submitted production Javadocs were retained unchanged after independent review because they
   already document every public type, constant, component, constructor, accessor, failure,
-  formula, example, distinction, and deferred boundary required by this task.
+  formula, example, distinction, and deferred boundary required by this task.<span data-glossary-navigation="true"> ([constant glossary](../../../../glossary.md#term-constant))</span>
 
 ## Known limitations
 
 - These types provide semantic identity and one intrinsic normalized parameter only. They do not
   inspect input ranks or Shapes, validate shared batch Dimensions, obtain or validate tuple depth,
   validate index type or values, construct a result Shape/Tensor/provenance, define gradients,
-  capture a graph, select a backend route, or execute indexing.
+  capture a graph, select a backend route, or execute indexing.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [parameter glossary](../../../../glossary.md#term-parameter); [Shapes glossary](../../../../glossary.md#shape); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [Dimensions glossary](../../../../glossary.md#dimension); [tuple depth glossary](../../../../glossary.md#term-tuple-depth); [Tensor glossary](../../../../glossary.md#tensor); [provenance glossary](../../../../glossary.md#provenance); [gradients glossary](../../../../glossary.md#term-gradient); [capture glossary](../../../../glossary.md#term-capture-meanings); [graph glossary](../../../../glossary.md#graph); [backend route glossary](../../../../glossary.md#backend-route))</span>
 - Task 0018F remains Draft without a detailed specification and owns future public Tensor
-  construction plus rank, batch-prefix, tuple-depth, index-type, and result-Shape validation.
+  construction plus rank, batch-prefix, tuple-depth, index-type, and result-Shape validation.<span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank); [validation glossary](../../../../glossary.md#term-validation))</span>
 
-## Validation evidence
+## [Validation](../../../../glossary.md#term-validation) evidence
 
 - Clean implementation context `/root/implement_model_0018e` created exactly `GatherNdKind`,
   `GatherNdAttrs`, and `GatherNdSemanticsTest`. Independent documentation context
   `/root/implement_model_0018e/review_model_0018e_docs` inspected the shared-tree diff, final
   source/test, generated Javadoc, related contracts, APIs, glossary, planning state, and build
-  configuration before finalizing documentation in the same overall change.
+  configuration before finalizing documentation in the same overall change.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [planning glossary](../../../../glossary.md#term-planning))</span>
 - The documentation pass applied General plus API/Javadoc style and Example format to the two
   production Javadocs, Tensor API, and glossary, and Planning style to this task, the model master
-  plan, and roadmap. It retained both production Javadocs unchanged after verifying ordered
+  plan, and roadmap. It retained both production Javadocs unchanged after verifying ordered<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [Tensor glossary](../../../../glossary.md#tensor); [model glossary](../../../../glossary.md#term-model))</span>
   `[data, indices]` roles, final-Dimension tuple depth, shared batch prefix, indexed axes,
   untouched suffix, both formula notations, all three exact examples, exact composition,
   constructor/accessor/failure behavior, zero-batch convention, family distinctions, and deferred
-  boundaries.
+  boundaries.<span data-glossary-navigation="true"> ([Dimension glossary](../../../../glossary.md#dimension); [tuple depth glossary](../../../../glossary.md#term-tuple-depth); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [axes glossary](../../../../glossary.md#term-axis))</span>
 - Reviewed architecture and process material included `AGENTS.md`, `ARCHITECTURE.md`, the focused
   current architecture, overview, lifecycle, module-boundary, dependency, and
   runtime/prepare/backend explanations; documentation rules and General/API-Javadoc/Planning/
   Example profiles; planning guide and roadmap; model capabilities/master plan; tasks 0002, 0005,
   0006, 0018A, 0018C, 0018D, and 0018E; Tensor, Compile, and Training API references; glossary;
   Java 26 root/model Gradle configuration; final implementation/tests; and generated model
-  Javadoc.
-- Related-contract review covered `OperationKind`, `OperationAttrs`, `Operation`, Shape/Dimension
-  terminology, `SelectKind`/`SelectAttrs`, `AxisGatherKind`/`IndexAxisAttrs`, their focused tests,
+  Javadoc.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle); [module glossary](../../../../glossary.md#term-module); [dependency glossary](../../../../glossary.md#term-dependency); [runtime glossary](../../../../glossary.md#term-runtime); [prepare glossary](../../../../glossary.md#prepare); [backend glossary](../../../../glossary.md#backend); [Compile glossary](../../../../glossary.md#compile); [Gradle glossary](../../../../glossary.md#term-gradle))</span>
+- Related-contract review covered [`OperationKind`](../../../../glossary.md#operationkind), [`OperationAttrs`](../../../../glossary.md#operationattrs), [`Operation`](../../../../glossary.md#operation), Shape/Dimension
+  terminology, <span data-glossary-navigation="true"> ([Shape glossary](../../../../glossary.md#shape))</span>`SelectKind`/`SelectAttrs`, `AxisGatherKind`/`IndexAxisAttrs`, their focused tests,
   and current Tensor/provenance boundaries. The new contracts implement the open typed roles
-  without changing generic kind/attributes compatibility or any existing family behavior.
+  without changing generic kind/attributes compatibility or any existing family behavior.<span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance))</span>
 - `./gradlew :modules:model:test --tests
   io.github.pho001.synaptik.model.operation.index.GatherNdSemanticsTest` — `BUILD SUCCESSFUL`; XML
   reports 9 tests with zero failures, errors, or skips.
@@ -385,19 +385,19 @@ Complete until both passes succeed. Leave 0018F Draft without a specification. D
   80 suites with zero failures, errors, or skips.
 - `./gradlew :modules:model:javadoc` — `BUILD SUCCESSFUL`; generated public pages contain the enum,
   constant, record component, canonical constructor, explicit accessor, exact failure, tuple/batch
-  model, formula, examples, composition, distinctions, and exclusions.
+  model, formula, examples, composition, distinctions, and exclusions.<span data-glossary-navigation="true"> ([constant glossary](../../../../glossary.md#term-constant); [canonical glossary](../../../../glossary.md#term-canonical-form))</span>
 - `./gradlew test` — `BUILD SUCCESSFUL`; all 36 root lifecycle tasks completed or were up-to-date
   with no failing task.
 - `javap -classpath modules/model/build/classes/java/main -p -c -s` confirmed exactly one enum
-  constant plus compiler-generated enum machinery. The record has exactly one private final
+  constant plus compiler-generated enum machinery. The record has exactly one private final<span data-glossary-navigation="true"> ([compiler glossary](../../../../glossary.md#term-compiler))</span>
   `int batchDimensions`, one public canonical constructor with one negative check and direct
-  assignment, one direct accessor, and generated `equals`, `hashCode`, and `toString`.
+  assignment, one direct accessor, and generated `equals`, [`hashCode`](../../../../glossary.md#hash-codes-and-content-digests), and `toString`.
 - Focused reflection, source, and import inspection confirmed exact public/package/interface
   structure, absence of project-declared enum API/state/nested types, exact record component and
   method set, exact validation message, generated value semantics, exact typed `Operation`
   composition, and only the permitted local `OperationKind`/`OperationAttrs` production imports.
   No Tensor, DataType, Shape, layout, provenance, graph, compiler, planning, prepare, runtime,
-  backend, training, or execution dependency or behavior was introduced.
+  backend, training, or execution dependency or behavior was introduced.<span data-glossary-navigation="true"> ([DataType glossary](../../../../glossary.md#data-type--datatype); [layout glossary](../../../../glossary.md#layout); [graph glossary](../../../../glossary.md#graph))</span>
 - Targeted Markdown validation resolved 403 local links, including 119 heading anchors, across the
   five changed documentation/planning files. All 230 code-fence markers are balanced, targeted
   trailing-whitespace scans found no matches, all eight paths have final newlines, and
@@ -409,52 +409,52 @@ Complete until both passes succeed. Leave 0018F Draft without a specification. D
 - Compile API remains accurate unchanged because this task adds no Tensor expression, graph
   capture, inference, validation, optimization, compile artifact, or engine behavior. Training API
   remains accurate unchanged because no gradient, autograd, parameter, optimizer, publication,
-  session, or training execution behavior changed. The capability baseline already lists
+  session, or training execution behavior changed. The capability baseline already lists<span data-glossary-navigation="true"> ([graph capture glossary](../../../../glossary.md#capture-graph-ports-and-reconstruction); [inference glossary](../../../../glossary.md#term-inference); [artifact glossary](../../../../glossary.md#term-artifact); [engine glossary](../../../../glossary.md#term-engine); [gradient glossary](../../../../glossary.md#term-gradient); [autograd glossary](../../../../glossary.md#autograd); [parameter glossary](../../../../glossary.md#term-parameter); [optimizer glossary](../../../../glossary.md#term-optimizer); [publication glossary](../../../../glossary.md#term-publication))</span>
   `gatherNd` with batch dimensions and separates model, public API, compiler, planning, backend,
   runtime, and test responsibilities, so it required no edit.
 - `ARCHITECTURE.md`, focused architecture explanations, ADRs, architecture tests,
   backend-conformance tests, integration tests, Gradle/dependencies, and other modules remain
   accurate unchanged because the task stays inside model-owned semantics and changes no module
-  boundary, dependency rule, backend behavior, end-to-end behavior, or build requirement.
+  boundary, dependency rule, backend behavior, end-to-end behavior, or build requirement.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance))</span>
 - Existing Operation, Shape, DataType, Tensor, provenance, select, axis-gather, and other
   operation-family contracts remain accurate unchanged because this task adds only independent
   immutable semantic values. Scatter-ND, gradients, compiler/backends, and every later task remain
-  deferred; no later specification was created.
+  deferred; no later specification was created.<span data-glossary-navigation="true"> ([gather glossary](../../../../glossary.md#gather); [immutable glossary](../../../../glossary.md#term-immutable); [Scatter-ND glossary](../../../../glossary.md#scatter-nd))</span>
 
 ## Implementation notes
 
-- Added `GatherNdKind` with exactly `GATHER_ND` and no project-declared behavior or metadata.
+- Added `GatherNdKind` with exactly `GATHER_ND` and no project-declared behavior or [metadata](../../../../glossary.md#term-metadata).
 - Added `GatherNdAttrs(int batchDimensions)` with exact non-negative validation, unchanged
-  retention, a documented direct accessor, and record-generated object methods.
+  retention, a documented direct accessor, and record-generated object methods.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
 - Added nine focused tests covering exact enum/record structure, retained values, exact failure,
-  generated value semantics, typed composition, family distinctions, and dependency boundaries.
+  generated value semantics, typed composition, family distinctions, and dependency boundaries.<span data-glossary-navigation="true"> ([dependency glossary](../../../../glossary.md#term-dependency))</span>
 - Finalized the Tensor API, glossary terminology and inventories, and synchronized planning
   evidence/status through the independent documentation pass. No production Javadoc correction
-  was required.
+  was required.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [planning glossary](../../../../glossary.md#term-planning); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 
 ## Completion summary
 
 - Completed changes: Implemented and documented first-class tuple-index `GATHER_ND` semantics and
-  immutable normalized shared-batch attributes without public Tensor or cross-layer behavior.
+  immutable normalized shared-batch attributes without public Tensor or cross-layer behavior.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [Tensor glossary](../../../../glossary.md#tensor))</span>
 - Files changed or created: Exactly the eight authorized production, test, API, glossary, task,
-  master-plan, and roadmap paths.
+  master-plan, and roadmap paths.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - Tests and validation: Focused 9-test and all 684-model-test/80-suite runs, model Javadoc, root
   tests, javap/reflection/import/source/generated-page review, 403-link/119-anchor checks,
-  fence/whitespace/newline checks, exact scope/status and no-0018F-spec checks, and
+  fence/whitespace/newline checks, exact scope/status and no-0018F-spec checks, and<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [model glossary](../../../../glossary.md#term-model); [Javadoc glossary](../../../../glossary.md#term-javadoc); [scope glossary](../../../../glossary.md#term-scope))</span>
   `git diff --check` passed.
 - Documentation-agent review: Clean context
   `/root/implement_model_0018e/review_model_0018e_docs` completed the required independent pass
-  with General, API/Javadoc, Planning, and Example profiles.
+  with General, API/Javadoc, Planning, and Example profiles.<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning))</span>
 - Documentation impact: Tensor API and glossary now explain Gather-ND ordered roles, tuple depth,
   batch prefix, indexed axes, untouched suffix, formula, examples, exact composition, family
   distinctions, and current-versus-planned boundaries. Compile API, Training API, capabilities,
   architecture/ADRs/tests, conformance/integration material, Gradle, dependencies, other modules,
-  and later tasks remain accurate unchanged for the recorded reasons.
+  and later tasks remain accurate unchanged for the recorded reasons.<span data-glossary-navigation="true"> ([tuple depth glossary](../../../../glossary.md#term-tuple-depth); [axes glossary](../../../../glossary.md#term-axis); [Compile glossary](../../../../glossary.md#compile); [conformance glossary](../../../../glossary.md#term-conformance); [Gradle glossary](../../../../glossary.md#term-gradle); [modules glossary](../../../../glossary.md#term-module))</span>
 - Javadoc review: Both new public types, the enum constant, record component, canonical
   constructor, accessor, failure, formula, examples, and exclusions are complete; no correction
-  was required.
-- Glossary impact: Added reusable Gather-ND terminology and synchronized `OperationKind` and
-  `OperationAttrs` current-family inventories.
+  was required.<span data-glossary-navigation="true"> ([constant glossary](../../../../glossary.md#term-constant); [canonical glossary](../../../../glossary.md#term-canonical-form))</span>
+- Glossary impact: Added reusable [Gather-ND](../../../../glossary.md#gather-nd) terminology and synchronized [`OperationKind`](../../../../glossary.md#operationkind) and
+  [`OperationAttrs`](../../../../glossary.md#operationattrs) current-family inventories.
 - Architecture impact: None.
 - Unresolved issues: None.
 - Follow-up required: None for task 0018E. Task 0018F remains Draft without a detailed

@@ -1,23 +1,23 @@
-# Backend identities and declarative requirements
+# [Backend](../glossary.md#backend) [identities](../glossary.md#term-identity-meanings) and declarative requirements
 
-[Reference goals](index.md) · [Javadoc and exact signatures](javadoc.md)
+[Reference goals](index.md) · [Javadoc and exact signatures](javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../glossary.md#term-javadoc); [signatures glossary](../glossary.md#term-signature))</span>
 
-A backend identity names the implementation responsible for computation; a device identity names
+A [backend identity](../glossary.md#backend-identity--backendid) names the implementation responsible for computation; a [device](../glossary.md#term-device) [identity](../glossary.md#term-identity-meanings) names
 one reported device within that implementation. Availability says that a device was reported at
-a particular moment, while capability says whether an exact operation can be supported. A
+a particular moment, while capability says whether an exact [operation](../glossary.md#operation) can be supported. A
 requirement filters acceptable choices; none of these data values opens a device or runs work.
 
 
 The implemented `modules:backend-contract` surface contains:
 
-- `BackendId`, an immutable open-string identity for a backend ownership domain; and
-- `BackendDeviceId`, an immutable composite identity for one opaque device token scoped by its
-  owning `BackendId`; and
-- `DeviceClass`, a coarse declarative category with exactly `CPU` and `ACCELERATOR`, in that
+- [`BackendId`](../glossary.md#backend-identity--backendid), an [immutable](../glossary.md#term-immutable) open-string identity for a [backend ownership](../glossary.md#backend-ownership) domain; and
+- [`BackendDeviceId`](../glossary.md#backend-device-identity--backenddeviceid), an immutable composite identity for one opaque device token scoped by its
+  owning <span data-glossary-navigation="true"> ([opaque glossary](../glossary.md#term-opaque))</span>`BackendId`; and
+- [`DeviceClass`](../glossary.md#device-class--deviceclass), a coarse declarative category with exactly [`CPU`](../glossary.md#term-cpu) and [`ACCELERATOR`](../glossary.md#term-accelerator), in that
   declaration order; and
-- `BackendAvailabilitySnapshot`, an immutable point-in-time association from one backend's
+- [`BackendAvailabilitySnapshot`](../glossary.md#backend-availability-snapshot--backendavailabilitysnapshot), an immutable point-in-time association from one backend's
   currently reported available device identities to their classes; and
-- the sealed, method-free `BackendRequirement` family, with one-component
+- the [sealed](../glossary.md#term-sealed), method-free [`BackendRequirement`](../glossary.md#backend-requirement--backendrequirement) family, with one-component
   `BackendIdRequirement`, `BackendDeviceIdRequirement`, and `DeviceClassRequirement` records.
 
 The current concepts have separate roles:
@@ -34,10 +34,10 @@ BackendRequirement
 
 The two identity records reject null components and blank string values. Every other identity
 component is retained by the exact caller-supplied reference, and string content keeps its case
-and surrounding whitespace; the records do not trim, normalize, intern, or resolve aliases.
+and surrounding whitespace; the records do not trim, normalize, intern, or resolve [aliases](../glossary.md#aliasing-and-arena).
 Ordinary record equality therefore compares the exact stored content, and the backend component
-prevents equal device tokens from different backends from colliding.
-`DeviceClass` is not stored in `BackendDeviceId`; the snapshot supplies the association without
+prevents equal device [tokens](../glossary.md#term-token) from different backends from colliding.
+`DeviceClass` is not stored in `BackendDeviceId`; the [snapshot](../glossary.md#term-snapshot) supplies the association without
 changing either identity or category. The enum declaration order supports stable identity and
 diagnostics, not preference, score, priority, capability, or fallback policy.
 
@@ -60,14 +60,14 @@ BackendAvailabilitySnapshot availability =
 
 The snapshot requires every device identity to have a `BackendId` equal to `cuda`. It retains the
 exact backend, device, and class references and uses an immutable structural copy of the map, so
-later changes to a mutable source map cannot change the snapshot. Map iteration order is
+later changes to a [mutable](../glossary.md#term-mutable) source map cannot change the snapshot. Map iteration order is
 unspecified. An empty map means that the supplying context reports no currently available device
 for that backend; the backend identity remains part of the snapshot.
 
-The snapshot does not discover devices, register a backend, monitor liveness, refresh itself,
-evaluate capability, choose ownership, or guarantee preparation or execution.
+The snapshot does not discover devices, register a backend, monitor [liveness](../glossary.md#term-liveness), refresh itself,
+evaluate capability, choose [ownership](../glossary.md#term-ownership-meanings), or guarantee preparation or execution.
 
-The requirement family records exactly one hard target. These inputs construct all three current
+The requirement family records exactly one hard [target](../glossary.md#term-target). These inputs construct all three current
 variants:
 
 ```java
@@ -90,14 +90,14 @@ message is that component's name and returns the exact supplied reference from i
 
 These values neither inspect `availability` nor prove that a target is registered, available,
 capable, or preparable. They contain no sentinel for absence, preference, fallback, combination,
-matcher, or score. Configuration owns whether a requirement is present. Current internal planning
+matcher, or score. Configuration owns whether a requirement is present. Current internal [planning](../glossary.md#term-planning)
 evaluates it with availability and capability facts; an empty hard-eligible result then fails in
 the internal selector with
 `IllegalStateException("no hard-eligible backend is available for ownership selection")`.
-That internal message is not the ordinary public compile failure contract. `Engine.standard()`
+That internal message is not the ordinary public [compile](../glossary.md#compile) failure contract. `Engine.standard()`
 supplies one CPU provider; `Engine.builder()` compiles against the frozen providers of explicitly
-registered CPU and/or Metal integrations. Generic plugin registration, other executable backends,
-and a public graph-wide Planning surface remain planned.
+registered CPU and/or [Metal](../glossary.md#term-metal) integrations. Generic [plugin](../glossary.md#term-plugin) registration, other executable backends,
+and a public [graph](../glossary.md#graph)-wide Planning surface remain planned.
 
 
 ---

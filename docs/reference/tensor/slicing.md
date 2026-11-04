@@ -1,31 +1,31 @@
-# Slices, functional updates and target-relative crops
+# Slices, functional updates and [target](../../glossary.md#term-target)-relative crops
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-**Reader model.** A **slice** selects a coordinate range on chosen axes.
-**Half-open** means the start is included and the end is excluded; conceptual start `1`,
+**[Reader model](../../glossary.md#term-reader-model).** A **[slice](../../glossary.md#slice)** selects a [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix) range on chosen [axes](../../glossary.md#term-axis).
+**[Half-open](../../glossary.md#term-half-open-interval)** means the start is included and the end is excluded; conceptual start `1`,
 end `6`, and step `2` select positions `1, 3, 5`. A negative step reverses traversal rather
-than making the selected extent negative. A negative axis counts from the final axis; a
+than making the selected [extent](../../glossary.md#term-extent) negative. A negative axis counts from the final axis; a
 negative bound counts relative to the selected axis's extent. These are different roles.
 **Functional update** describes a new base-shaped result with a selected region replaced;
 it does not mutate the base. A **crop** extracts a region, and its **prefix** states how many
-positions precede that region on each axis. Layout **stride** measures storage-element spacing,
+positions precede that region on each axis. [Layout](../../glossary.md#layout) **[stride](../../glossary.md#term-stride)** measures storage-[element](../../glossary.md#term-element) spacing,
 whereas slice **step** measures logical-coordinate spacing.
 
 <a id="slice-expressions"></a>
-### Slice expressions
+### [Slice](../../glossary.md#slice) expressions
 
 `Tensor.slice(long[] starts, long[] ends, int[] axes, long[] steps)` constructs a fresh general
-directional half-open slice expression. The four arrays are parallel: entry `i` supplies inclusive
-raw start `starts[i]`, directional exclusive raw end `ends[i]`, input axis `axes[i]`, and signed
-non-zero increment `steps[i]`. Positive steps select `start, start + step, ...` while the coordinate
+directional [half-open](../../glossary.md#term-half-open-interval) slice expression. The four arrays are parallel: entry `i` supplies inclusive
+raw start `starts[i]`, directional exclusive raw end `ends[i]`, input [axis](../../glossary.md#term-axis) `axes[i]`, and signed
+non-zero increment `steps[i]`. Positive steps select `start, start + step, ...` while the [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix)
 is below the end; negative steps select while it is above the end. Array lengths must match, and
 entry order is preserved. After checking the references and lengths, construction clones every
-array before inspecting elements; it neither mutates nor retains caller-owned arrays.
+array before inspecting [elements](../../glossary.md#term-element); it neither mutates nor retains caller-owned arrays.
 
-Each negative axis adds the input rank once and must then be in range. Axes must be distinct after
-normalization. Every selected dimension must be a `StaticDimension`; an unselected static or
-dynamic `Dimension` is retained by exact reference. For extent `D`, a negative bound adds `D`
+Each negative axis adds the input [rank](../../glossary.md#term-rank) once and must then be in range. Axes must be distinct after
+[normalization](../../glossary.md#term-normalization). Every selected [dimension](../../glossary.md#dimension) must be a `StaticDimension`; an unselected static or
+dynamic `Dimension` is retained by exact reference. For [extent](../../glossary.md#term-extent) `D`, a negative bound adds `D`
 exactly once. Positive-step start and end then clamp to `[0, D]`. For a negative step and non-zero
 `D`, the start clamps to `[0, D - 1]` and the exclusive end to `[-1, D - 1]`. Raw `-1` is still a
 relative coordinate and becomes `D - 1`; it is not an end sentinel. Selecting through coordinate
@@ -39,19 +39,19 @@ step < 0 and start > end: length = 1 - ((start - 1 - end) / step)
 otherwise:                length = 0
 ```
 
-Normalized `SliceAttrs` stores `start`, `length`, normalized axis, and unchanged signed step—not a
-normalized end. Empty entries use canonical start zero and length zero. A negative-step selected
+Normalized `SliceAttrs` stores `start`, `length`, [normalized axis](../../glossary.md#normalized-axis), and unchanged signed step—not a
+normalized end. Empty entries use [canonical](../../glossary.md#term-canonical-form) start zero and length zero. A negative-step selected
 zero extent is canonical empty without bound arithmetic. Result rank is unchanged, each selected
 axis receives a new static length, and every unselected Dimension reference remains exact.
 
-Four empty arrays are valid and create a fresh explicit identity slice, including for a scalar.
+Four empty arrays are valid and create a fresh explicit [identity](../../glossary.md#term-identity-meanings) slice, including for a [scalar](../../glossary.md#term-scalar).
 An empty selection is also valid and produces a zero extent. Empty results deliberately have
-unresolved layout: they reference no storage element, so recording one-past-end offset and stride
-facts would be arbitrary and could overflow without adding observable geometry.
+unresolved [layout](../../glossary.md#layout): they reference no storage element, so recording one-past-end offset and [stride](../../glossary.md#term-stride)
+facts would be arbitrary and could [overflow](../../glossary.md#term-overflow) without adding observable geometry.
 
 When input layout is unresolved, result layout remains unresolved. When input layout is resolved
 and the result is non-empty and every step is positive, every resolved input kind—dense
-contiguous, dense with offset, strided, or broadcast zero-stride—produces one new view-marked
+[contiguous](../../glossary.md#term-contiguous), dense with offset, strided, or broadcast zero-stride—produces one new [view](../../glossary.md#term-view-meanings)-marked
 logical `LayoutDescriptor`. Starting from the input offset and original strides, entry `i`
 performs checked calculations:
 
@@ -60,29 +60,29 @@ resultOffset       += normalizedStart[i] * originalInputStride[axis[i]]
 resultStride[axis]  = originalInputStride[axis[i]] * step[i]
 ```
 
-`LayoutDescriptor` reclassifies the resulting geometry and calculates its referenced element
-span. The view flag records logical view metadata only. Slice construction attaches no host
-storage and does not promise a physical alias, zero-copy route, or executable view.
-If any step is negative, the complete result layout is unresolved because the current descriptor
-forbids negative strides. That boundary chooses neither copying nor a reverse kernel.
+`LayoutDescriptor` reclassifies the resulting geometry and calculates its [referenced element
+span](../../glossary.md#referenced-element-span). The view flag records logical view [metadata](../../glossary.md#term-metadata) only. Slice construction attaches no [host
+storage](../../glossary.md#host-storage) and does not promise a physical [alias](../../glossary.md#aliasing-and-arena), zero-copy route, or executable view.
+If any step is negative, the complete result layout is unresolved because the current [descriptor](../../glossary.md#term-descriptor)
+forbids negative strides. That boundary chooses neither copying nor a reverse [kernel](../../glossary.md#kernel).
 
-Every successful result preserves the exact input data type and gradient eligibility, has no
+Every successful result preserves the exact input [data type](../../glossary.md#data-type--datatype) and [gradient](../../glossary.md#term-gradient) eligibility, has no
 label or host storage, and records `SliceKind.SLICE`, one normalized `SliceAttrs`, one
-identity-distinct producer with exact inputs `[input]`, one output descriptor, and provenance
+identity-distinct [producer](../../glossary.md#term-producer) with exact inputs `[input]`, one output descriptor, and [provenance](../../glossary.md#provenance)
 output index zero. Identity, repeated, and nested requests remain explicit and consume one fresh
-Tensor identifier each. Validation and checked arithmetic fail before allocation.
+[Tensor](../../glossary.md#tensor) identifier each. [Validation](../../glossary.md#term-validation) and checked arithmetic fail before allocation.
 
 `Tensor.sliceAxis(int, long, long)` uses one entry with step `1L`.
 `Tensor.sliceAxis(int, long, long, long)` uses one entry with the caller's signed step.
 `Tensor.flip(int... axes)` clones explicit axes in caller order and creates one SLICE producer with
 start `D - 1`, length `D`, and step `-1` per non-empty selected extent. A selected zero extent uses
-start and length zero. Duplicate normalized axes fail; empty axes mean identity rather than all
+start and length zero. Duplicate normalized axes fail; empty axes [mean](../../glossary.md#term-mean) identity rather than all
 axes and remain valid even for a scalar or unselected dynamic dimensions. There is no `FLIP` kind
-or per-axis operation chain.
+or per-axis [operation](../../glossary.md#operation) chain.
 
 The official [ONNX Slice contract](https://onnx.ai/onnx/operators/onnx__Slice.html) provides
 terminology evidence for signed steps and direction-dependent bound clamping. Synaptik retains
-explicit arrays, requires selected static dimensions, and stores selected lengths without ONNX's
+explicit arrays, requires selected static dimensions, and stores selected lengths without [ONNX](../../glossary.md#term-onnx)'s
 open-bound sentinel convention. The official [JAX flip reference](https://docs.jax.dev/en/latest/_autosummary/jax.numpy.flip.html)
 provides established axis-reversal terminology; Synaptik requires explicit axes and gives empty
 varargs identity meaning.
@@ -91,7 +91,7 @@ varargs identity meaning.
 #### Length-defined extraction
 
 `Tensor.sliceByLength(long[] starts, long[] lengths, int[] axes, long[] steps)` constructs the
-same normalized `SLICE`/`SliceAttrs` meaning without first interpreting raw half-open bounds.
+same normalized [`SLICE`](../../glossary.md#slice)/`SliceAttrs` meaning without first interpreting raw [half-open](../../glossary.md#term-half-open-interval) bounds.
 The arrays are parallel. Entry `i` directly requests:
 
 ```text
@@ -99,40 +99,40 @@ coordinate(k) = starts[i] + k * steps[i]
 0 <= k < lengths[i]
 ```
 
-Starts are already normalized non-negative logical coordinates, lengths are finite non-negative
-coordinate counts, axes may use caller-facing positive or negative syntax, and steps are signed
+Starts are already normalized non-negative logical [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix), lengths are [finite](../../glossary.md#term-finite) non-negative
+coordinate counts, [axes](../../glossary.md#term-axis) may use caller-facing positive or negative syntax, and steps are signed
 and non-zero. No start, length, or bound is clamped, shifted, wrapped, truncated, or inferred.
-After null and matching-length checks, all four arrays are cloned in parameter order and never
+After null and matching-length checks, all four arrays are cloned in [parameter](../../glossary.md#term-parameter) order and never
 retained or mutated.
 
-Entries are validated in caller order. For each entry, axis normalization and duplicate detection
+Entries are validated in caller order. For each entry, axis [normalization](../../glossary.md#term-normalization) and duplicate detection
 precede start, length, step, and coordinate checks. For non-zero length, checked arithmetic
 calculates `last = start + (length - 1) * step`; both start and last must be non-negative. A static
-selected input extent proves both coordinates below its size. If the selected extent is
-unresolved, only that upper-bound comparison is deferred. Model stores no hidden constraint
+selected input [extent](../../glossary.md#term-extent) proves both coordinates below its size. If the selected extent is
+unresolved, only that upper-bound comparison is deferred. [Model](../../glossary.md#term-model) stores no hidden constraint
 object. A zero length still requires a non-negative caller start and non-zero step, but it selects
-no coordinate, performs no input-bound proof, and stores canonical start zero.
+no coordinate, performs no input-bound proof, and stores [canonical](../../glossary.md#term-canonical-form) start zero.
 
-Result rank is unchanged. Every selected axis receives a new static Dimension equal to the
-requested length; every unaffected Dimension reference remains exact. The existing layout rule is
+Result [rank](../../glossary.md#term-rank) is unchanged. Every selected axis receives a new static [Dimension](../../glossary.md#dimension) equal to the
+requested length; every unaffected Dimension reference remains exact. The existing [layout](../../glossary.md#layout) rule is
 shared with raw slicing: resolved geometry exists only when the result is non-empty, the input
 layout is resolved, and every step is positive. Empty results, unresolved input geometry, and any
 negative step remain layout-unresolved.
 
-Every success preserves exact input type and gradient eligibility, has no label or storage, and
-records one fresh canonical output at provenance index zero with
-`SLICE`/`SliceAttrs`/`[input]`. Local validation, Shape calculation, and layout arithmetic precede
-the one final Tensor identifier allocation.
+Every success preserves exact input type and [gradient](../../glossary.md#term-gradient) eligibility, has no label or storage, and
+records one fresh canonical output at [provenance](../../glossary.md#provenance) index zero with
+`SLICE`/`SliceAttrs`/`[input]`. Local [validation](../../glossary.md#term-validation), [Shape](../../glossary.md#shape) calculation, and layout arithmetic precede
+the one final [Tensor](../../glossary.md#tensor) identifier allocation.
 
 <a id="complete-slice-expression-example"></a>
-#### Complete slice-expression example
+#### Complete [slice](../../glossary.md#slice)-expression example
 
 <a id="goal-and-inputs-29"></a>
 ##### Goal and inputs
 
-Create positive, negative, mixed-direction, empty, zero-extent, and flip expressions, then inspect
-their normalized metadata. The primary input has resolved canonical Shape `[2, 5]`; the example
-observes model metadata only.
+Create positive, negative, mixed-direction, empty, zero-[extent](../../glossary.md#term-extent), and flip expressions, then inspect
+their normalized [metadata](../../glossary.md#term-metadata). The primary input has resolved [canonical](../../glossary.md#term-canonical-form) [Shape](../../glossary.md#shape) `[2, 5]`; the example
+observes [model](../../glossary.md#term-model) metadata only.
 
 ```java
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -190,15 +190,15 @@ public final class SliceExpressionExample {
 <a id="meaningful-lines-and-intermediate-results-14"></a>
 ##### Meaningful lines and intermediate results
 
-- The positive request selects coordinates `[1, 3]`, so it stores start `1`, length `2`, and step
-  `2` and derives Shape `[2, 2]` with resolved view geometry.
+- The positive request selects [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix) `[1, 3]`, so it stores start `1`, length `2`, and step
+  `2` and derives [Shape](../../glossary.md#shape) `[2, 2]` with resolved [view](../../glossary.md#term-view-meanings) geometry.
 - The reverse request selects `[4, 3, 2, 1, 0]`. The explicit raw end `-1` instead normalizes to
-  coordinate `4`, so `(4, -1, -1)` is empty and stores canonical start and length zero.
+  coordinate `4`, so `(4, -1, -1)` is empty and stores [canonical](../../glossary.md#term-canonical-form) start and length zero.
 - The mixed request stores both axes in caller order and leaves layout unresolved because one step
-  is negative. `flip(1, 0)` stores both negative-step sequences in that same order under one
-  producer. The zero-extent flip stores canonical start and length zero.
-- Every result retains `FLOAT32` and true gradient eligibility and remains unlabeled and
-  storage-free.
+  is negative. <span data-glossary-navigation="true"> ([axes glossary](../../glossary.md#term-axis); [layout glossary](../../glossary.md#layout))</span>`flip(1, 0)` stores both negative-step sequences in that same order under one
+  producer. The zero-extent flip stores canonical start and length zero.<span data-glossary-navigation="true"> ([producer glossary](../../glossary.md#term-producer); [extent glossary](../../glossary.md#term-extent))</span>
+- Every result retains [`FLOAT32`](../../glossary.md#term-float32) and true gradient eligibility and remains unlabeled and
+  storage-free.<span data-glossary-navigation="true"> ([gradient glossary](../../glossary.md#term-gradient))</span>
 
 <a id="result-and-interpretation-29"></a>
 ##### Result and interpretation
@@ -219,38 +219,38 @@ true
 true
 ```
 
-The output demonstrates directional normalization, canonical empty state, exact Shape metadata,
-the positive-view/negative-unresolved layout boundary, and one-producer flip provenance. It does
-not demonstrate values, physical storage aliasing, gradients, compiler capture or
-canonicalization, materialization, backend lowering, ONNX mapping, or execution.
+The output demonstrates directional [normalization](../../glossary.md#term-normalization), [canonical](../../glossary.md#term-canonical-form) empty state, exact [Shape](../../glossary.md#shape) [metadata](../../glossary.md#term-metadata),
+the positive-[view](../../glossary.md#term-view-meanings)/negative-unresolved [layout](../../glossary.md#layout) boundary, and one-[producer](../../glossary.md#term-producer) flip [provenance](../../glossary.md#provenance). It does
+not demonstrate values, physical storage [aliasing](../../glossary.md#term-aliasing), [gradients](../../glossary.md#term-gradient), [compiler](../../glossary.md#term-compiler) [capture](../../glossary.md#term-capture-meanings) or
+[canonicalization](../../glossary.md#occurrence-identity-and-canonical-form), [materialization](../../glossary.md#materialization), [backend](../../glossary.md#backend) [lowering](../../glossary.md#lowering), [ONNX](../../glossary.md#term-onnx) mapping, or execution.
 
 <a id="failures-and-useful-variations-26"></a>
 ##### Failures and useful variations
 
 - A null request array fails with `NullPointerException` naming that parameter. Unequal lengths
-  fail before the arrays are cloned or the input descriptor is read.
+  fail before the arrays are cloned or the input descriptor is read.<span data-glossary-navigation="true"> ([parameter glossary](../../glossary.md#term-parameter); [descriptor glossary](../../glossary.md#term-descriptor))</span>
 - An axis outside rank after one normalization, the first repeated normalized axis, a zero step,
-  or selection of a dynamic dimension fails with `IllegalArgumentException`.
+  or selection of a dynamic dimension fails with <span data-glossary-navigation="true"> ([axis glossary](../../glossary.md#term-axis); [rank glossary](../../glossary.md#term-rank); [normalization glossary](../../glossary.md#term-normalization); [normalized axis glossary](../../glossary.md#normalized-axis); [dimension glossary](../../glossary.md#dimension))</span>`IllegalArgumentException`.
 - Every raw `long` bound is accepted, normalized once when negative, and clamped by direction.
-  Starts empty in the selected direction produce canonical empty state, not a failure.
+  Starts empty in the selected direction produce canonical empty state, not a failure.<span data-glossary-navigation="true"> ([canonical glossary](../../glossary.md#term-canonical-form))</span>
 - `flip` rejects its first invalid or duplicate normalized axis and any selected dynamic
-  Dimension. Empty flip axes select nothing and are valid identity semantics.
+  Dimension. Empty flip axes select nothing and are valid identity semantics.<span data-glossary-navigation="true"> ([identity glossary](../../glossary.md#term-identity-meanings))</span>
 - Result element-count, offset, stride, layout-classification, or referenced-span overflow
-  propagates as `ArithmeticException`. These local failures occur before Tensor identity
-  allocation.
+  propagates as <span data-glossary-navigation="true"> ([element glossary](../../glossary.md#term-element); [stride glossary](../../glossary.md#term-stride); [layout glossary](../../glossary.md#layout); [overflow glossary](../../glossary.md#term-overflow))</span>`ArithmeticException`. These local failures occur before Tensor identity
+  allocation.<span data-glossary-navigation="true"> ([Tensor glossary](../../glossary.md#tensor))</span>
 - Identifier exhaustion occurs only at final derived construction after normalized attributes,
-  Shape, and optional layout have been created.
+  Shape, and optional layout have been created.<span data-glossary-navigation="true"> ([Shape glossary](../../glossary.md#shape))</span>
 
 <a id="slice-update-and-target-relative-crop-expressions"></a>
-### Slice update and target-relative crop expressions
+### [Slice update](../../glossary.md#slice-update) and [target-relative crop](../../glossary.md#target-relative-crop) expressions
 
 `Tensor.sliceUpdate(Tensor update, long[] starts, int[] axes, long[] steps)` constructs a fresh
-functional replacement. The result has the exact base Shape: coordinates selected by the
+functional replacement. The result has the exact base [Shape](../../glossary.md#shape): [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix) selected by the
 normalized signed sequences come from `update`, while every coordinate outside that region keeps
 the base value. This is neither an in-place write nor an additive scatter.
 
-The three arrays are parallel and are cloned before descriptor inspection. Update and base must
-have the same data type and rank. Each selected update Dimension must be static; its size is the
+The three arrays are parallel and are cloned before [descriptor](../../glossary.md#term-descriptor) inspection. Update and base must
+have the same [data type](../../glossary.md#data-type--datatype) and [rank](../../glossary.md#term-rank). Each selected update [Dimension](../../glossary.md#dimension) must be static; its size is the
 corresponding `SliceAttrs.lengths` entry. Every unselected update Dimension must be structurally
 equal to the matching base Dimension. Entry `i` maps update coordinate `k` to:
 
@@ -258,11 +258,11 @@ equal to the matching base Dimension. Entry `i` maps update coordinate `k` to:
 normalizedStart[i] + k * steps[i], for 0 <= k < updateShape[normalizedAxis[i]]
 ```
 
-Axes normalize once and must be distinct; steps are signed and non-zero. A negative start adds
-one static base extent once. For a static base axis, the first and final mapped coordinates must
+[Axes](../../glossary.md#term-axis) normalize once and must be distinct; steps are signed and non-zero. A negative start adds
+one static base [extent](../../glossary.md#term-extent) once. For a static base axis, the first and final mapped coordinates must
 both be in bounds. An unresolved base axis accepts a non-negative start and defers only the upper-
-bound proof. A selected zero update extent uses canonical start zero and maps no coordinates.
-Three empty arrays mean explicit full-Shape replacement and still create a fresh occurrence.
+bound proof. A selected zero update extent uses [canonical](../../glossary.md#term-canonical-form) start zero and maps no coordinates.
+Three empty arrays [mean](../../glossary.md#term-mean) explicit full-Shape replacement and still create a fresh [occurrence](../../glossary.md#term-occurrence).
 
 `Tensor.sliceUpdate(Tensor update, Shape prefixShape)` instead places the complete update region
 after an exact per-axis prefix. Base, update, and prefix ranks must match, and base/update data
@@ -273,11 +273,11 @@ types must be identical. On axis `i`, the replacement interval is:
 ```
 
 The resulting `CropToShapeAttrs` retains the exact update Shape as `targetShape` and the exact
-caller prefix Shape. The result retains the exact base Shape; the target is the update region, not
+caller prefix Shape. The result retains the exact base Shape; the [target](../../glossary.md#term-target) is the update region, not
 the result descriptor. Axes are inspected in order. When base, prefix, and update extents are all
 static, checked addition proves `prefix + update <= base`. If any one is unresolved, the whole
-axis fit is deferred without partial arithmetic, expression evaluation, or a Model-owned
-constraint object. Scalar replacement and zero update extents are valid when all fully static
+axis fit is deferred without partial arithmetic, expression [evaluation](../../glossary.md#term-evaluation), or a [Model](../../glossary.md#term-model)-owned
+constraint object. [Scalar](../../glossary.md#term-scalar) replacement and zero update extents are valid when all fully static
 fits hold.
 
 `Tensor.cropToShape(Shape targetShape, Shape prefixShape)` constructs target-relative extraction.
@@ -289,57 +289,57 @@ The input, target, and prefix ranks must match. On axis `i`, the crop region is:
 
 The result and `CropToShapeAttrs` retain the exact supplied target Shape reference, while the
 attributes also retain the exact prefix Shape reference. A prefix Shape describes non-negative
-logical extents preceding the region on each axis; it is not a Tensor of indices, a storage
-offset, or an execution-time bound value. When input, prefix, and target extents are all static,
+logical extents preceding the region on each axis; it is not a [Tensor](../../glossary.md#tensor) of indices, a [storage
+offset](../../glossary.md#term-storage-offset), or an execution-time bound value. When input, prefix, and target extents are all static,
 checked addition proves the region fits. If any extent is unresolved, the inequality remains a
-later binding or execution obligation. Construction never clamps, shifts, truncates, or pads the
+later [binding](../../glossary.md#term-binding) or execution obligation. Construction never clamps, shifts, truncates, or pads the
 region.
 
-The operations occupy different parts of the indexing and layout vocabulary:
+The operations occupy different parts of the indexing and [layout](../../glossary.md#layout) vocabulary:
 
-| Operation | Current purpose | Coordinates or Shape source |
+| [Operation](../../glossary.md#operation) | Current purpose | Coordinates or Shape source |
 |---|---|---|
-| `slice` / `sliceAxis` / `flip` | Extract a raw-bound or reversal region | Caller bounds normalized against selected static input extents |
-| `sliceByLength` | Extract a finite normalized sequence, including across an unresolved selected extent | Caller starts/lengths/axes/steps |
+| [`slice`](../../glossary.md#slice) / `sliceAxis` / `flip` | Extract a raw-bound or reversal region | Caller bounds normalized against selected static input extents |
+| `sliceByLength` | Extract a [finite](../../glossary.md#term-finite) normalized sequence, including across an unresolved selected extent | Caller starts/lengths/axes/steps |
 | `sliceUpdate(update, starts, axes, steps)` | Functionally replace a signed multi-axis region | Caller starts/axes/steps plus selected static update extents |
 | `sliceUpdate(update, prefixShape)` | Functionally replace a complete target-relative update region | Exact update and prefix Shapes, including symbolic Dimensions |
 | `cropToShape` | Extract an exact target after a prefix | Exact target and prefix Shapes, including symbolic Dimensions |
 | `select` | Extract one scalar coordinate and remove its axis | One scalar index |
-| `pad` | Add constant-filled prefix and suffix regions | Rank-sized static widths |
+| `pad` | Add [constant](../../glossary.md#term-constant)-filled prefix and suffix regions | Rank-sized static widths |
 | Scatter families | Replace or combine tensor-indexed targets | Index Tensor values, with family-specific reduction rules |
 
 Every successful update leaves layout unresolved, preserves exact base Shape/type, combines
-base/update gradient eligibility, and records `SliceKind.SLICE_UPDATE`, ordered inputs
+base/update [gradient](../../glossary.md#term-gradient) eligibility, and records `SliceKind.SLICE_UPDATE`, ordered inputs
 `[base, update]`, and output index zero. The array form uses normalized `SliceAttrs`; the
 target-relative form uses exact `CropToShapeAttrs`. Every successful crop leaves layout
 unresolved, preserves input type/eligibility, and records `SliceKind.SLICE`, exact
 `CropToShapeAttrs`, input `[input]`, and output index zero. All results are fresh, canonical,
 unlabeled, and storage-free. Construction reads no values, mutates no input, and promises neither
-a view nor a copy. Length-defined extraction and target-relative placement are current Model
-expressions, and current compiler inference/preflight/autograd have adopted their retained
-constraints and floating cotangents. Materialization, lowering, backend support, and execution remain outside
+a [view](../../glossary.md#term-view-meanings) nor a copy. Length-defined extraction and target-relative placement are current Model
+expressions, and current [compiler](../../glossary.md#term-compiler) [inference](../../glossary.md#term-inference)/[preflight](../../glossary.md#term-preflight)/[autograd](../../glossary.md#autograd) have adopted their retained
+constraints and floating cotangents. [Materialization](../../glossary.md#materialization), [lowering](../../glossary.md#lowering), [backend](../../glossary.md#backend) support, and execution remain outside
 the current Model contract.
 
 The official [PyTorch `slice_scatter`](https://docs.pytorch.org/docs/stable/generated/torch.slice_scatter.html)
 reference supplies established functional slice-placement terminology. Synaptik's update is one
-metadata-only, signed, multi-axis operation rather than PyTorch's one-dimension call. The official
+[metadata](../../glossary.md#term-metadata)-only, signed, multi-axis operation rather than PyTorch's one-dimension call. The official
 [JAX `dynamic_update_slice`](https://docs.jax.dev/en/latest/_autosummary/jax.lax.dynamic_update_slice.html)
 also returns an updated array, but its start indices are array/scalar execution values and its
 documented fitting behavior may adjust a start; Synaptik stores normalized Java metadata and
 rejects a statically out-of-bounds region. The official
-[ONNX Slice](https://onnx.ai/onnx/operators/onnx__Slice.html) uses tensor inputs for starts, ends,
+[ONNX Slice](https://onnx.ai/onnx/operators/onnx__Slice.html)<span data-glossary-navigation="true"> ([ONNX glossary](../../glossary.md#term-onnx))</span> uses tensor inputs for starts, ends,
 axes, and steps. Synaptik's target-relative crop instead stores exact target/prefix Shape metadata
 and carries no dynamic bound input Tensor.
 
 <a id="complete-placement-metadata-example"></a>
-#### Complete placement-metadata example
+#### Complete placement-[metadata](../../glossary.md#term-metadata) example
 
 <a id="goal-and-inputs-30"></a>
 ##### Goal and inputs
 
-Create one signed two-axis update, one fully static crop, and one symbolic crop, then inspect only
-their model metadata. The update maps Shape `[3, 2]` into base Shape `[5, 6]`: axis zero visits
-coordinates `4, 2, 0`, while axis one visits `1, 3`. The symbolic crop extracts `[N]` after prefix
+Create one signed two-[axis](../../glossary.md#term-axis) update, one fully static crop, and one symbolic crop, then inspect only
+their [model](../../glossary.md#term-model) [metadata](../../glossary.md#term-metadata). The update maps [Shape](../../glossary.md#shape) `[3, 2]` into base Shape `[5, 6]`: axis zero visits
+[coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix) `4, 2, 0`, while axis one visits `1, 3`. The symbolic crop extracts `[N]` after prefix
 `[1]` from input Shape `[N + 3]`.
 
 ```java
@@ -399,14 +399,14 @@ public final class SlicePlacementExample {
 <a id="meaningful-lines-and-intermediate-results-15"></a>
 ##### Meaningful lines and intermediate results
 
-- The negative start `-1` on static extent five normalizes to four. With length three and step
-  `-2`, the first update axis maps to base coordinates `4`, `2`, and `0`.
+- The negative start `-1` on static [extent](../../glossary.md#term-extent) five normalizes to four. With length three and step
+  `-2`, the first update [axis](../../glossary.md#term-axis) maps to base [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix) `4`, `2`, and `0`.
 - Axis one starts at one, has update length two, and uses step two, so it maps to coordinates `1`
   and `3`. `SliceAttrs` retains both normalized sequences in caller order.
 - The static crop proves `[1, 1 + 2)` fits axis zero and `[2, 2 + 3)` fits axis one before result
-  identity allocation. Its descriptor retains the exact `staticTarget` reference.
+  identity allocation. Its descriptor retains the exact <span data-glossary-navigation="true"> ([identity glossary](../../glossary.md#term-identity-meanings); [descriptor glossary](../../glossary.md#term-descriptor))</span>`staticTarget` reference.
 - The symbolic crop cannot prove `1 + N <= N + 3` locally. It retains the exact target and prefix
-  Shape references and defers that inequality without evaluating or simplifying it.
+  Shape references and defers that inequality without evaluating or simplifying it.<span data-glossary-navigation="true"> ([target glossary](../../glossary.md#term-target); [Shape glossary](../../glossary.md#shape))</span>
 
 <a id="result-and-interpretation-30"></a>
 ##### Result and interpretation
@@ -424,9 +424,9 @@ true
 true
 ```
 
-The output proves normalization, exact Shape-reference retention, ordered provenance, and
-unresolved result layout. It does not prove replacement or crop values, a physical alias or copy,
-compiler adoption, binding, gradients, lowering, or execution.
+The output proves [normalization](../../glossary.md#term-normalization), exact [Shape](../../glossary.md#shape)-reference retention, ordered [provenance](../../glossary.md#provenance), and
+unresolved result [layout](../../glossary.md#layout). It does not prove replacement or crop values, a physical [alias](../../glossary.md#aliasing-and-arena) or copy,
+[compiler](../../glossary.md#term-compiler) adoption, [binding](../../glossary.md#term-binding), [gradients](../../glossary.md#term-gradient), [lowering](../../glossary.md#lowering), or execution.
 
 <a id="failures-and-useful-variations-27"></a>
 ##### Failures and useful variations
@@ -434,22 +434,22 @@ compiler adoption, binding, gradients, lowering, or execution.
 - Slice update rejects mismatched array lengths, type or rank, invalid or duplicate axes, zero
   steps, dynamic selected update extents, negative starts on unresolved base axes, static
   out-of-bounds coordinate sequences, and any complete update Shape mismatch. Checked coordinate
-  arithmetic can throw `ArithmeticException`. These failures consume no Tensor identifier.
+  arithmetic can throw <span data-glossary-navigation="true"> ([Slice update glossary](../../glossary.md#slice-update); [rank glossary](../../glossary.md#term-rank); [axes glossary](../../glossary.md#term-axis); [coordinate glossary](../../glossary.md#axis-rank-scalar-vector-and-matrix); [Shape glossary](../../glossary.md#shape))</span>`ArithmeticException`. These failures consume no [Tensor](../../glossary.md#tensor) identifier.
 - Crop rejects target or prefix rank mismatch and the first fully static out-of-bounds region.
-  Checked prefix-plus-target overflow throws `ArithmeticException`; unresolved inequalities are
-  accepted as deferred obligations. These failures also precede result identity allocation.
+  Checked prefix-plus-target overflow throws <span data-glossary-navigation="true"> ([target glossary](../../glossary.md#term-target); [overflow glossary](../../glossary.md#term-overflow))</span>`ArithmeticException`; unresolved inequalities are
+  accepted as deferred obligations. These failures also precede result identity allocation.<span data-glossary-navigation="true"> ([identity glossary](../../glossary.md#term-identity-meanings))</span>
 - Empty update arrays request full-Shape replacement. A zero selected update extent requests an
-  explicit empty placement. Scalar crop uses scalar target and prefix Shapes.
+  explicit empty placement. Scalar crop uses scalar target and prefix Shapes.<span data-glossary-navigation="true"> ([extent glossary](../../glossary.md#term-extent); [Scalar glossary](../../glossary.md#term-scalar))</span>
 
 <a id="complete-length-defined-and-symbolic-placement-metadata-example"></a>
-#### Complete length-defined and symbolic-placement metadata example
+#### Complete length-defined and symbolic-placement [metadata](../../glossary.md#term-metadata) example
 
 <a id="goal-and-inputs-31"></a>
 ##### Goal and inputs
 
 Create a static positive-step extraction, a dynamic positive-step extraction, a dynamic
-negative-step extraction, a zero-length extraction, and a symbolic target-relative placement.
-The program inspects Shapes, normalized attributes, layout state, and exact Shape-reference
+negative-step extraction, a zero-length extraction, and a symbolic [target](../../glossary.md#term-target)-relative placement.
+The program inspects [Shapes](../../glossary.md#shape), normalized attributes, [layout](../../glossary.md#layout) state, and exact Shape-reference
 retention only.
 
 ```java
@@ -522,13 +522,13 @@ public final class DynamicSliceMetadataExample {
 <a id="meaningful-lines-and-intermediate-results-16"></a>
 ##### Meaningful lines and intermediate results
 
-| Case | Input Shape | Public request | Stored attributes | Result Shape | Interpretation |
+| Case | Input [Shape](../../glossary.md#shape) | Public request | Stored attributes | Result Shape | Interpretation |
 |---|---|---|---|---|---|
-| Static | `[3, 8]` | start `[1]`, length `[3]`, axis `[1]`, step `[2]` | start `[1]`, length `[3]`, axis `[1]`, step `[2]` | `[3, 3]` | Coordinates `[1, 3, 5]` fit statically; resolved positive-step view geometry is available. |
+| Static | `[3, 8]` | start `[1]`, length `[3]`, [axis](../../glossary.md#term-axis) `[1]`, step `[2]` | start `[1]`, length `[3]`, axis `[1]`, step `[2]` | `[3, 3]` | [Coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix) `[1, 3, 5]` fit statically; resolved positive-step [view](../../glossary.md#term-view-meanings) geometry is available. |
 | Dynamic | `[N, 8]` | start `[2]`, length `[3]`, axis `[0]`, step `[2]` | unchanged normalized request | `[3, 8]` | The non-negative coordinates `[2, 4, 6]` are representable; only their upper bound against `N` is deferred. |
-| Negative step | `[N]` | start `[4]`, length `[3]`, axis `[0]`, step `[-2]` | unchanged normalized request | `[3]` | Coordinates `[4, 2, 0]` prove the lower bound; the upper bound against `N` is deferred and layout is unresolved. |
+| Negative step | `[N]` | start `[4]`, length `[3]`, axis `[0]`, step `[-2]` | unchanged normalized request | `[3]` | Coordinates `[4, 2, 0]` prove the lower bound; the upper bound against `N` is deferred and [layout](../../glossary.md#layout) is unresolved. |
 | Zero length | `[0, M]` | start `[99]`, length `[0]`, axis `[1]`, step `[-1]` | start `[0]`, length `[0]`, axis `[1]`, step `[-1]` | `[0, 0]` | No coordinate exists, so start canonicalizes to zero and no bound against `M` is inspected. |
-| Symbolic placement | base `[N + 3]`, update `[N]`, prefix `[1]` | `base.sliceUpdate(update, prefix)` | target is exact update Shape `[N]`; prefix is exact `[1]` | `[N + 3]` | Model retains exact region/base metadata and defers the unresolved fit; the result is not the target Shape. |
+| Symbolic placement | base `[N + 3]`, update `[N]`, prefix `[1]` | `base.sliceUpdate(update, prefix)` | [target](../../glossary.md#term-target) is exact update Shape `[N]`; prefix is exact `[1]` | `[N + 3]` | [Model](../../glossary.md#term-model) retains exact region/base [metadata](../../glossary.md#term-metadata) and defers the unresolved fit; the result is not the target Shape. |
 
 <a id="result-and-interpretation-31"></a>
 ##### Result and interpretation
@@ -555,23 +555,23 @@ true
 ```
 
 The output proves static requested lengths, deferred dynamic upper bounds, negative-step and
-empty-layout boundaries, zero-length canonicalization, exact symbolic target/prefix retention,
-base-Shape result retention, and ordered two-input placement provenance. It does not prove value
-selection or replacement, a physical view or copy, concrete binding, numerical gradients,
-lowering, backend behavior, or execution.
+empty-[layout](../../glossary.md#layout) boundaries, zero-length [canonicalization](../../glossary.md#occurrence-identity-and-canonical-form), exact symbolic [target](../../glossary.md#term-target)/prefix retention,
+base-[Shape](../../glossary.md#shape) result retention, and ordered two-input placement [provenance](../../glossary.md#provenance). It does not prove value
+selection or replacement, a physical [view](../../glossary.md#term-view-meanings) or copy, concrete [binding](../../glossary.md#term-binding), numerical [gradients](../../glossary.md#term-gradient),
+[lowering](../../glossary.md#lowering), [backend](../../glossary.md#backend) behavior, or execution.
 
 <a id="failures-and-useful-variations-28"></a>
 ##### Failures and useful variations
 
-- `sliceByLength` null-checks `starts`, `lengths`, `axes`, and `steps` in that order after its
-  receiver exists. Unequal lengths fail before cloning or descriptor inspection.
+- `sliceByLength` null-checks `starts`, `lengths`, [`axes`](../../glossary.md#term-axis), and `steps` in that order after its
+  receiver exists. Unequal lengths fail before cloning or descriptor inspection.<span data-glossary-navigation="true"> ([descriptor glossary](../../glossary.md#term-descriptor))</span>
 - At each entry, invalid axis and duplicate-axis failures precede negative start, negative length,
-  zero step, and coordinate-fit failures. Checked final-coordinate or layout arithmetic may throw
+  zero step, and coordinate-fit failures. Checked final-coordinate or layout arithmetic may throw<span data-glossary-navigation="true"> ([coordinate glossary](../../glossary.md#axis-rank-scalar-vector-and-matrix); [layout glossary](../../glossary.md#layout))</span>
   `ArithmeticException`. A negative final coordinate fails even for an unresolved selected
-  extent. These failures consume no Tensor identifier.
+  extent. These failures consume no Tensor identifier.<span data-glossary-navigation="true"> ([extent glossary](../../glossary.md#term-extent); [Tensor glossary](../../glossary.md#tensor))</span>
 - Target-relative placement checks update type, update rank, prefix rank, then fully static fits.
-  Checked `prefix + update` overflow throws `ArithmeticException`; any axis with an unresolved
-  base, prefix, or update extent defers its whole fit. Scalar Shapes form a valid replacement.
+  Checked <span data-glossary-navigation="true"> ([Target glossary](../../glossary.md#term-target); [rank glossary](../../glossary.md#term-rank))</span>`prefix + update` [overflow](../../glossary.md#term-overflow) throws `ArithmeticException`; any axis with an unresolved
+  base, prefix, or update extent defers its whole fit. Scalar Shapes form a valid replacement.<span data-glossary-navigation="true"> ([Scalar glossary](../../glossary.md#term-scalar); [Shapes glossary](../../glossary.md#shape))</span>
 
 
 ---

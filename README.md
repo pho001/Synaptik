@@ -1,51 +1,54 @@
 # Synaptik
 
-Build tensor computations and neural-network models in Java, then run them through an explicitly
-owned execution backend. Start with CPU; choose Metal or mixed execution only after checking the
-actual program's supported operations, types and layouts.
+Build [tensor](docs/glossary.md#tensor) computations and neural-network models in Java, then [run](docs/glossary.md#term-run) them through an explicitly
+owned execution [backend](docs/glossary.md#backend). Start with [CPU](docs/glossary.md#term-cpu); choose [Metal](docs/glossary.md#term-metal) or mixed execution only after checking the
+actual program's supported operations, types and [layouts](docs/glossary.md#layout).
+
+No prior machine-learning or [compiler](docs/glossary.md#term-compiler) vocabulary is required. Follow the linked definitions in the
+[glossary](docs/glossary.md), or start with the short [first-terms reading order](docs/terms.md).
 
 ## Start with your goal
 
 | You want to… | Start here |
 |---|---|
-| Run your first model and learn the required concepts | [The complete learning journey](docs/tutorials/index.md) |
-| Use existing ML knowledge with Java tensor/model APIs | [Task guides](docs/how-to/index.md) and [topic-sized reference](docs/reference/index.md) |
+| [Run](docs/glossary.md#term-run) your first [model](docs/glossary.md#term-model) and learn the required concepts | [The complete learning journey](docs/tutorials/index.md) |
+| Use existing [ML](docs/glossary.md#term-machine-learning-ml) knowledge with Java [tensor](docs/glossary.md#tensor)/model APIs | [Task guides](docs/how-to/index.md) and [topic-sized reference](docs/reference/index.md) |
 | Understand or contribute to the implementation | [One program through the framework](docs/explanation/framework.md), then the [package/native atlas](docs/explanation/packages/index.md) |
 
-The learning project is one commented, runnable application: construct a model, understand shapes,
-compute gradients, train, evaluate, save/close/load, and reuse execution. Its
-[setup and canonical source](docs/examples/README.md) use supported public APIs and a separate
-NN-only Maven consumer, not checkout classes or a hidden manual dependency list.
+The learning project is one commented, runnable application: construct a model, understand [shapes](docs/glossary.md#shape),
+compute [gradients](docs/glossary.md#term-gradient), train, evaluate, save/close/load, and reuse execution. Its
+[setup and canonical source](docs/examples/README.md)<span data-glossary-navigation="true"> ([canonical glossary](docs/glossary.md#term-canonical-form))</span> use supported public APIs and a separate
+[NN](docs/glossary.md#neural-network-module-parameter-buffer-and-forward-context)-only [Maven](docs/glossary.md#term-maven) consumer, not checkout classes or a hidden manual [dependency](docs/glossary.md#term-dependency) list.
 
 ## Current implementation status
 
-Tensor expressions describe meaning; compilation chooses supported ownership; preparation builds
-reusable execution; each run uses current inputs and publishes results. The
+[Tensor](docs/glossary.md#tensor) expressions describe meaning; [compilation](docs/glossary.md#compiler-engine-and-execution-stage-names) chooses supported [ownership](docs/glossary.md#term-ownership-meanings); preparation builds
+reusable execution; each [run](docs/glossary.md#term-run) uses current inputs and publishes results. The
 [framework explanation](docs/explanation/framework.md) connects these stages without requiring you
-to learn repository modules first.
+to learn repository [modules](docs/glossary.md#term-module) first.
 
-The [production support matrix](docs/backend-guide/production-support.md) is the single entry point
-for current operation/dtype/layout/derivative qualification. CPU and Metal have independent domains;
-CPU support is not a Metal capability promise. CUDA, ONNX and CLI markers are not usable products.
-Model persistence stores admitted source and current values, not prepared native executables or
-optimizer/application continuation.
+The [production support matrix](docs/backend-guide/production-support.md)<span data-glossary-navigation="true"> ([support matrix glossary](docs/glossary.md#term-review-matrix))</span><span data-glossary-navigation="true"> ([matrix glossary](docs/glossary.md#term-review-matrix))</span> is the single entry point
+for current [operation](docs/glossary.md#operation)/[dtype](docs/glossary.md#data-type--datatype)/[layout](docs/glossary.md#layout)/[derivative](docs/glossary.md#term-derivative) [qualification](docs/glossary.md#term-qualification). [CPU](docs/glossary.md#term-cpu) and [Metal](docs/glossary.md#term-metal) have independent domains;
+CPU support is not a Metal capability promise. [CUDA](docs/glossary.md#term-cuda), [ONNX](docs/glossary.md#term-onnx) and [CLI](docs/glossary.md#term-cli) markers are not usable products.
+[Model](docs/glossary.md#term-model) [persistence](docs/glossary.md#term-persistence) stores admitted source and current values, not prepared native executables or
+[optimizer](docs/glossary.md#term-optimizer)/application continuation.
 
-Distribution remains **private/internal**: no public project licence or redistribution grant has
-been selected, and no public upload is authorized. The sealed
+[Distribution](docs/glossary.md#term-distribution) remains **private/internal**: no public project licence or redistribution grant has
+been selected, and no public upload is authorized. The [sealed](docs/glossary.md#term-sealed)
 `0.1.0-public-audit.20261104` candidate has [source-matched audit evidence](docs/planning/public-release-audit-2026-11-04.md#result).
-This documentation uses those artifacts; it does not silently replace or requalify them.
+This documentation uses those [artifacts](docs/glossary.md#term-artifact); it does not silently replace or requalify them.
 
 ## Prerequisites
 
-- JDK 26.
-- Maven 3.9+ for the standalone learning project, plus the supplied private file Maven repository.
-- The checked-in Gradle wrapper for framework development; no separate Gradle installation.
+- [JDK](docs/glossary.md#term-java-development-kit-jdk) 26.
+- [Maven](docs/glossary.md#term-maven) 3.9+ for the standalone learning project, plus the supplied private file Maven repository.
+- The checked-in [Gradle](docs/glossary.md#term-gradle) wrapper for framework development; no separate Gradle installation.
 
-Follow [setup](docs/getting-started.md), then [first model](docs/tutorials/first-model.md).
-The default CPU route needs no GPU or third-party native library. Engine consumers enable FFM
-native access as shown in the runnable setup; explicit Metal requires its separately verified package.
+Follow [setup](docs/getting-started.md), then [first model](docs/tutorials/first-model.md)<span data-glossary-navigation="true"> ([model glossary](docs/glossary.md#term-model))</span>.
+The default [CPU](docs/glossary.md#term-cpu) route needs no [GPU](docs/glossary.md#term-gpu) or third-party [native library](docs/glossary.md#term-native-library). [Engine](docs/glossary.md#term-engine) consumers enable [FFM](docs/glossary.md#term-ffm)
+native access as shown in the runnable setup; explicit [Metal](docs/glossary.md#term-metal) requires its separately verified package.
 
-## Gradle commands
+## [Gradle](docs/glossary.md#term-gradle) commands
 
 From the framework source root:
 
@@ -56,14 +59,14 @@ From the framework source root:
 ```
 
 These are development commands, not a substitute for the tutorial's external-consumer setup or
-real-device qualification. Java preview features are not enabled globally; the learning project
-needs no preview or incubating Vector API flag.
+real-[device](docs/glossary.md#term-device) [qualification](docs/glossary.md#term-qualification). [Java preview features](docs/glossary.md#java-preview-incubator-modules-and-compiler-tiers) are not enabled globally; the learning project
+needs no preview or incubating [Vector API](docs/glossary.md#term-vector-api) flag.
 
 ## Contributor and maintenance navigation
 
 [Documentation home](docs/index.md) separates learning, tasks, explanation and reference.
-[Contributor guides](docs/developer-guide/index.md) lead to source navigation, debugging and release
+[Contributor guides](docs/developer-guide/index.md) lead to source navigation, debugging and [release](docs/glossary.md#term-release)
 mechanics. [ARCHITECTURE.md](ARCHITECTURE.md) is the sole architecture authority index;
 [AGENTS.md](AGENTS.md) defines automated-contributor workflow.
-[Planning](docs/planning/README.md), [design history](docs/design/README.md) and audit receipts are
-maintenance evidence, not prerequisites for a first prediction.
+[Planning](docs/planning/README.md)<span data-glossary-navigation="true"> ([Planning glossary](docs/glossary.md#term-planning))</span>, [design history](docs/design/README.md) and audit receipts are
+maintenance evidence, not prerequisites for a first [prediction](docs/glossary.md#term-prediction).

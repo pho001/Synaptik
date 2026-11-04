@@ -1,4 +1,4 @@
-# Task 0021A: Fixed Recurrent-Scan Architecture Decision
+# Task 0021A: Fixed Recurrent-[Scan](../../../../glossary.md#term-cumulative-scan) Architecture Decision
 
 ## Status
 
@@ -7,15 +7,15 @@ Complete
 ## Goal
 
 Make the explicit architecture decision required before Synaptik publishes or implements a
-runtime-valid-length recurrent API.
+[runtime](../../../../glossary.md#term-runtime)-valid-length recurrent [API](../../../../glossary.md#term-application-programming-interface-api).
 
-The decision must authorize one fixed first-class recurrent-scan operation family as an ordinary
-flat multi-output Model operation occurrence. It must explicitly decline a general user-defined
-control-flow region, callback body, captured subgraph, or loop intermediate representation at this
+The decision must authorize one fixed first-class recurrent-[scan](../../../../glossary.md#term-cumulative-scan) [operation](../../../../glossary.md#operation) family as an ordinary
+flat multi-output [Model](../../../../glossary.md#term-model) operation [occurrence](../../../../glossary.md#term-occurrence). It must explicitly decline a general user-defined
+control-flow region, [callback](../../../../glossary.md#term-callback) body, captured subgraph, or loop [intermediate representation](../../../../glossary.md#term-intermediate-representation-ir) at this
 frontier.
 
-The resulting architecture contract and ADR must make the later implementation sequence
-executable without leaving ownership or semantics to implementation-time invention:
+The resulting [architecture contract](../../../../glossary.md#architecture-contract) and [ADR](../../../../glossary.md#term-architecture-decision-record-adr) must make the later implementation sequence
+executable without leaving [ownership](../../../../glossary.md#term-ownership-meanings) or semantics to implementation-time invention:
 
 ```text
 one ordinary flat Tensor producer / compiled node
@@ -30,39 +30,39 @@ Backend Prepare lowers that occurrence once to a bounded recurrent loop plan.
 Runtime invokes only the prepared executable and never interprets recurrence.
 ```
 
-This task is architecture and documentation only. It creates no Java API, graph node, compiler
-rule, prepared recipe, runtime step, Engine binding, backend capability, kernel, numerical result,
-NN overload, Data adapter, build edge, or executable claim.
+This task is architecture and documentation only. It creates no Java API, [graph](../../../../glossary.md#graph) [node](../../../../glossary.md#node), [compiler](../../../../glossary.md#term-compiler)
+rule, prepared recipe, runtime step, [Engine](../../../../glossary.md#term-engine) [binding](../../../../glossary.md#term-binding), [backend capability](../../../../glossary.md#backend-capability), [kernel](../../../../glossary.md#kernel), numerical result,
+[NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) overload, Data adapter, build edge, or executable claim.
 
 ## Motivation
 
-The current architecture authorizes Model-owned operation semantics and flat immutable graphs,
-Compiler-owned capture/inference/autograd, backend-owned lowering, and Runtime execution of
+The current architecture authorizes [Model](../../../../glossary.md#term-model)-owned [operation](../../../../glossary.md#operation) semantics and flat [immutable](../../../../glossary.md#term-immutable) [graphs](../../../../glossary.md#graph),
+[Compiler](../../../../glossary.md#term-compiler)-owned [capture](../../../../glossary.md#term-capture-meanings)/[inference](../../../../glossary.md#term-inference)/[autograd](../../../../glossary.md#autograd), [backend-owned lowering](../../../../glossary.md#backend-owned-lowering), and [Runtime](../../../../glossary.md#term-runtime) execution of
 prepared schedules. It does not authorize a nested graph region, loop body, body capture, region
-identity, region ownership, or Runtime graph interpretation.
+[identity](../../../../glossary.md#term-identity-meanings), region [ownership](../../../../glossary.md#term-ownership-meanings), or Runtime graph interpretation.
 
 Publishing a Model body/region type now would therefore invent architecture and leave every
 consumer undefined. Publishing only a new operation kind would also be incomplete: Compiler's
 closed first-order inventory would reject the new family, captured inference would not adopt it,
-and no backend could execute it. Combining all of Model, Compiler, Engine, Runtime, and CPU
+and no [backend](../../../../glossary.md#backend) could execute it. Combining all of Model, Compiler, [Engine](../../../../glossary.md#term-engine), Runtime, and [CPU](../../../../glossary.md#term-cpu)
 implementation in one task would violate the repository's cross-layer task boundary.
 
 The smallest coherent prerequisite is consequently one focused architecture decision that fixes
-the semantic and lifecycle contract, after which owner-specific tasks can proceed in order.
+the semantic and [lifecycle](../../../../glossary.md#lifecycle) contract, after which [owner](../../../../glossary.md#term-owner)-specific tasks can proceed in order.
 
 ## Selected architecture decision
 
-### Fixed operation, not general control flow
+### Fixed [operation](../../../../glossary.md#operation), not general control flow
 
-- The first runtime recurrent scan is one fixed first-class Model operation family.
+- The first [runtime](../../../../glossary.md#term-runtime) recurrent [scan](../../../../glossary.md#term-cumulative-scan) is one fixed first-class [Model](../../../../glossary.md#term-model) operation family.
 - Its mathematical transition is part of the operation semantics. It is not supplied through a
-  Java callback, lambda, `Tensor` body, nested `CompiledGraphModel`, region, block, callable graph,
+  Java callback, lambda, <span data-glossary-navigation="true"> ([callback glossary](../../../../glossary.md#term-callback))</span>[`Tensor`](../../../../glossary.md#tensor) body, nested [`CompiledGraphModel`](../../../../glossary.md#compiled-graph--compiledgraphmodel), region, block, callable graph,
   or other user-defined body value.
-- One public call creates exactly one identity-distinct multi-output `TensorProducer`. Compiler
-  capture emits exactly one ordinary flat `CompiledNode` for that producer.
+- One public call creates exactly one [identity](../../../../glossary.md#term-identity-meanings)-distinct multi-output [`TensorProducer`](../../../../glossary.md#producer--tensorproducer). Compiler
+  capture emits exactly one ordinary flat <span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [capture glossary](../../../../glossary.md#term-capture-meanings))</span>`CompiledNode` for that [producer](../../../../glossary.md#term-producer).
 - The operation has no captured Tensor references beyond its ordered ordinary inputs. It owns no
   nested graph-local IDs, body inputs, body outputs, free-variable capture, region identity, or
-  cross-graph ownership rule.
+  cross-graph ownership rule.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - `Tensor`, `TensorProducer`, `Operation`, `CompiledNode`, and `CompiledGraphModel` retain their
   current flat meanings. A general control-flow or region system remains forbidden until another
   explicit architecture update.
@@ -77,12 +77,12 @@ runtime control flow
   = backend-internal prepared loop implementing that meaning
 ```
 
-Runtime never receives `Operation`, `CompiledNode`, a body graph, or a loop condition. It invokes
-one already prepared backend-owned bound action through the existing Runtime contracts.
+Runtime never receives `Operation`, `CompiledNode`, a body [graph](../../../../glossary.md#graph), or a loop condition. It invokes
+one already prepared [backend](../../../../glossary.md#backend)-owned bound action through the existing Runtime contracts.
 
 ### Exact semantic family
 
-The future Model task owns one family with exactly these semantic variants:
+The future [Model](../../../../glossary.md#term-model) task owns one family with exactly these semantic variants:
 
 ```text
 RNN_TANH
@@ -90,31 +90,31 @@ GRU_RESET_AFTER
 LSTM
 ```
 
-All three accept one immutable direction attribute:
+All three accept one [immutable](../../../../glossary.md#term-immutable) direction attribute:
 
 ```text
 FORWARD
 REVERSE
 ```
 
-No bidirectional, stacked, arbitrary-cell, configurable-gate, configurable-activation,
-peephole, projection, recurrent-dropout, residual, stateful, sparse, or quantized variant belongs
+No bidirectional, stacked, arbitrary-cell, configurable-gate, configurable-[activation](../../../../glossary.md#term-activation),
+peephole, projection, recurrent-[dropout](../../../../glossary.md#dropout--inverted-dropout), [residual](../../../../glossary.md#scan-residual-port-and-history-demand), stateful, sparse, or quantized variant belongs
 to the first family.
 
-The fixed cell equations and parameter packing exactly match the current NN cells:
+The fixed cell equations and [parameter](../../../../glossary.md#term-parameter) packing exactly match the current [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) cells:
 
 - `RNN_TANH` uses one tanh state transition, separate input and hidden weights, and one optional
-  shared input-side bias;
+  shared input-side bias;<span data-glossary-navigation="true"> ([tanh glossary](../../../../glossary.md#term-tanh); [weights glossary](../../../../glossary.md#term-weight); [bias glossary](../../../../glossary.md#term-bias))</span>
 - `GRU_RESET_AFTER` uses reset, update, candidate gate order, applies reset after the recurrent
   candidate projection, uses `candidate + update * (hidden - candidate)`, and has one optional
   packed input-side bias; and
-- `LSTM` uses input, forget, candidate, output gate order, explicit hidden and cell carried
-  states, the current fixed sigmoid/tanh equations, and one optional packed input-side bias.
+- [`LSTM`](../../../../glossary.md#term-long-short-term-memory-lstm) uses input, forget, candidate, output gate order, explicit hidden and cell carried
+  states, the current fixed sigmoid/tanh equations, and one optional packed input-side bias.<span data-glossary-navigation="true"> ([sigmoid glossary](../../../../glossary.md#term-sigmoid))</span>
 
-### Exact future public Model surface
+### Exact future public [Model](../../../../glossary.md#term-model) surface
 
 The later Model task must publish exactly one direction enum, one two-output result, one
-three-output LSTM result, and these six receiver methods in the existing Tensor package:
+three-output [LSTM](../../../../glossary.md#term-long-short-term-memory-lstm) result, and these six receiver methods in the existing [Tensor](../../../../glossary.md#tensor) package:
 
 ```java
 RecurrentScanResult rnnScan(
@@ -165,12 +165,12 @@ LstmRecurrentScanResult lstmScan(
         RecurrentDirection direction)
 ```
 
-The receiver is the time-major input Tensor. `RecurrentScanResult` exposes exactly
+The receiver is the [time-major](../../../../glossary.md#term-time-major) input Tensor. `RecurrentScanResult` exposes exactly
 `outputs, finalHidden`; `LstmRecurrentScanResult` exposes exactly
-`outputs, finalHidden, finalCell`. The result components are canonical output wrappers from one
-exact shared producer in that order. This is a planned surface, not current runnable API.
+`outputs, finalHidden, finalCell`. The result components are [canonical](../../../../glossary.md#term-canonical-form) output wrappers from one
+exact shared [producer](../../../../glossary.md#term-producer) in that order. This is a planned surface, not current runnable [API](../../../../glossary.md#term-application-programming-interface-api).
 
-The exact operation input order is:
+The exact [operation](../../../../glossary.md#operation) input order is:
 
 ```text
 RNN/GRU without bias:
@@ -193,222 +193,222 @@ RNN/GRU: [outputs, finalHidden]
 LSTM:    [outputs, finalHidden, finalCell]
 ```
 
-### Shape and type boundary
+### [Shape](../../../../glossary.md#shape) and type boundary
 
-The first executable capability is deliberately static-Shape and runtime-value-dynamic:
+The first executable capability is deliberately static-Shape and [runtime](../../../../glossary.md#term-runtime)-value-dynamic:
 
-- input is fully static rank three `[time, batch, inputSize]`;
-- valid lengths are a fully static rank-one `INT64` Tensor `[batch]` with
+- input is fully static [rank](../../../../glossary.md#term-rank) three `[time, batch, inputSize]`;
+- valid lengths are a fully static [rank-one](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) [`INT64`](../../../../glossary.md#data-type--datatype) [Tensor](../../../../glossary.md#tensor) `[batch]` with
   `requiresGrad == false`;
 - initial hidden is `[batch, hiddenSize]`;
-- initial cell, for LSTM, is `[batch, hiddenSize]`;
-- input weight is `[gateCount * hiddenSize, inputSize]`;
+- initial cell, for [LSTM](../../../../glossary.md#term-long-short-term-memory-lstm), is `[batch, hiddenSize]`;
+- input [weight](../../../../glossary.md#term-weight) is `[gateCount * hiddenSize, inputSize]`;
 - hidden weight is `[gateCount * hiddenSize, hiddenSize]`;
-- optional bias is `[gateCount * hiddenSize]`;
-- `gateCount` is one for RNN, three for GRU, and four for LSTM;
-- `inputSize` and `hiddenSize` are positive; `time` and `batch` may be zero; and
-- input, states, weights, and optional bias use one exact common floating data type.
+- optional [bias](../../../../glossary.md#term-bias) is `[gateCount * hiddenSize]`;
+- `gateCount` is one for [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn), three for [GRU](../../../../glossary.md#term-gated-recurrent-unit-gru), and four for LSTM;
+- `inputSize` and `hiddenSize` are positive; `time` and [`batch`](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) may be zero; and
+- input, states, weights, and optional bias use one exact common floating [data type](../../../../glossary.md#data-type--datatype).
 
 The dense output Shape is `[time, batch, hiddenSize]`. Final-state Shapes are
-`[batch, hiddenSize]`. Layout is unresolved at Model construction. Output gradient eligibility is
-the OR of the differentiable floating input/state/parameter roles; valid lengths never contribute.
+`[batch, hiddenSize]`. [Layout](../../../../glossary.md#layout) is unresolved at [Model](../../../../glossary.md#term-model) construction. Output [gradient](../../../../glossary.md#term-gradient) eligibility is
+the OR of the [differentiable](../../../../glossary.md#derivative-and-chain-rule) floating input/state/[parameter](../../../../glossary.md#term-parameter) roles; valid lengths never contribute.
 
-Dynamic or binding-dependent `time`, `batch`, `inputSize`, `hiddenSize`, parameter Shapes, or
-output Shapes are outside this first program. A later dynamic-Shape lifecycle must not be hidden
+Dynamic or [binding](../../../../glossary.md#term-binding)-dependent `time`, `batch`, `inputSize`, `hiddenSize`, parameter Shapes, or
+output Shapes are outside this first program. A later dynamic-Shape [lifecycle](../../../../glossary.md#lifecycle) must not be hidden
 inside runtime valid lengths. Prepared reuse is required across different valid-length values for
-the same compatible static descriptors, not across arbitrary Shapes.
+the same compatible static [descriptors](../../../../glossary.md#term-descriptor), not across arbitrary Shapes.
 
 ### Valid-length and traversal semantics
 
-For each original batch row `b`, execution validates one runtime length `L[b]` in
-`[0, time]`. Values are never inferred from input contents, padding values, zero, NaN, token IDs,
+For each original [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) row `b`, execution validates one [runtime](../../../../glossary.md#term-runtime) length `L[b]` in
+`[0, time]`. Values are never inferred from input contents, [padding](../../../../glossary.md#padding) values, zero, [NaN](../../../../glossary.md#term-nan), [token](../../../../glossary.md#term-token) IDs,
 labels, or storage.
 
-For `FORWARD`, row `b` applies the fixed transition at original time coordinates
+For `FORWARD`, row `b` applies the fixed transition at original time [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix)
 `0 .. L[b]-1`. For `REVERSE`, it applies the same transition at coordinates
 `L[b]-1 .. 0`. In both directions, the dense output is aligned to original time coordinates:
 
 - every valid coordinate stores the next hidden state produced after consuming that coordinate;
-- every padded coordinate `t >= L[b]` stores the exact positive zero of the common data type;
+- every padded coordinate `t >= L[b]` stores the exact [positive zero](../../../../glossary.md#nan-infinity-and-signed-zero) of the common [data type](../../../../glossary.md#data-type--datatype);
 - a zero-length row has positive-zero output at every time and returns its exact initial hidden
-  value semantically, plus its exact initial cell value for LSTM; and
+  value semantically, plus its exact initial cell value for LSTM; and<span data-glossary-navigation="true"> ([LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm))</span>
 - a zero-time request therefore requires every valid length to be zero and returns empty dense
-  outputs plus the initial final-state values semantically.
+  outputs plus the initial final-state values semantically.<span data-glossary-navigation="true"> ([valid length glossary](../../../../glossary.md#term-valid-length))</span>
 
-The operation never treats padding as a recurrent input. Reverse means reverse traversal of only
-the valid prefix, never whole-axis reversal through the padded suffix.
+The [operation](../../../../glossary.md#operation) never treats padding as a recurrent input. Reverse means reverse traversal of only
+the valid prefix, never whole-[axis](../../../../glossary.md#term-axis) reversal through the padded suffix.
 
-Before mutating any output representation, an executable backend must validate the complete
-length vector, including every bound and any representation-specific access preconditions.
-Invalid values fail the run without partially written published results. The architecture task
-does not select the public exception translation owned by the future Engine facade.
+Before mutating any output representation, an executable [backend](../../../../glossary.md#backend) must validate the complete
+length [vector](../../../../glossary.md#term-vector), including every bound and any representation-specific access preconditions.
+Invalid values fail the [run](../../../../glossary.md#term-run) without partially written published results. The architecture task
+does not select the public exception translation owned by the future [Engine](../../../../glossary.md#term-engine) [facade](../../../../glossary.md#term-facade).
 
-### Purity, ownership, and side effects
+### Purity, [ownership](../../../../glossary.md#term-ownership-meanings), and side effects
 
 - The operation is functionally pure and has no hidden module, compiler, prepared, or runtime
-  state.
-- All carried states are explicit operation inputs and final outputs.
-- It owns no RNG, mode, counter, Buffer, Parameter, mutation, callback, I/O, or external resource.
-- Different executions of one prepared recipe use isolated `RunState` instances under the current
+  state.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module); [compiler glossary](../../../../glossary.md#term-compiler); [runtime glossary](../../../../glossary.md#term-runtime))</span>
+- All carried states are explicit [operation](../../../../glossary.md#operation) inputs and final outputs.
+- It owns no [RNG](../../../../glossary.md#graph-rng-state--graphrngstate), mode, counter, [Buffer](../../../../glossary.md#term-buffer), [Parameter](../../../../glossary.md#term-parameter), mutation, [callback](../../../../glossary.md#term-callback), I/O, or external resource.
+- Different executions of one prepared recipe use isolated [`RunState`](../../../../glossary.md#run-state--runstate) instances under the current
   Runtime contract.
 - NN continues to own parameter wrappers and state paths; the operation consumes their current
-  Tensor bindings as ordinary inputs.
+  Tensor bindings as ordinary inputs.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [Tensor glossary](../../../../glossary.md#tensor); [bindings glossary](../../../../glossary.md#term-binding))</span>
 - NN state dictionaries contain parameter and persistent-buffer Tensor bindings. Future model
   checkpoint artifacts may persist the materialized values of those entries. The scan operation,
   compiler graph, prepared executable, runtime state, and backend artifacts are rebuilt and are
-  not serialized by this decision.
+  not serialized by this decision.<span data-glossary-navigation="true"> ([model glossary](../../../../glossary.md#term-model); [checkpoint glossary](../../../../glossary.md#term-checkpoint); [artifacts glossary](../../../../glossary.md#term-artifact); [scan glossary](../../../../glossary.md#term-cumulative-scan); [graph glossary](../../../../glossary.md#graph); [prepared executable glossary](../../../../glossary.md#prepared-executable--preparedexecutable); [backend glossary](../../../../glossary.md#backend))</span>
 
-### Compiler, Planning, Prepare, Runtime, Engine, and backend boundary
+### [Compiler](../../../../glossary.md#term-compiler), [Planning](../../../../glossary.md#term-planning), [Prepare](../../../../glossary.md#prepare), [Runtime](../../../../glossary.md#term-runtime), [Engine](../../../../glossary.md#term-engine), and [backend](../../../../glossary.md#backend) boundary
 
 - Model owns kind/attributes, exact semantics, validation visible from descriptors, result
-  metadata, canonical multi-output provenance, and the public Tensor surface.
+  metadata, canonical multi-output provenance, and the public Tensor surface.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [validation glossary](../../../../glossary.md#term-validation); [descriptors glossary](../../../../glossary.md#term-descriptor); [metadata glossary](../../../../glossary.md#term-metadata); [canonical glossary](../../../../glossary.md#term-canonical-form); [provenance glossary](../../../../glossary.md#provenance); [Tensor glossary](../../../../glossary.md#tensor))</span>
 - Compiler captures the producer as one ordinary flat node, owns descriptor inference and final
   validation, updates the exact operation inventory, and initially rejects every backward-capable
-  request reaching the family before constructing any gradient Tensor.
+  request reaching the family before constructing any gradient Tensor.<span data-glossary-navigation="true"> ([captures glossary](../../../../glossary.md#term-capture-meanings))</span><span data-glossary-navigation="true"> ([producer glossary](../../../../glossary.md#term-producer); [inference glossary](../../../../glossary.md#term-inference); [operation glossary](../../../../glossary.md#operation); [gradient glossary](../../../../glossary.md#term-gradient))</span>
 - Backpropagation through time is a later explicit Compiler task. This task chooses no saved-gate
   outputs, tape, checkpointing policy, recomputation policy, backward operation, or derivative
-  formula.
+  formula.<span data-glossary-navigation="true"> ([Backpropagation through time glossary](../../../../glossary.md#term-backpropagation-through-time-bptt); [derivative glossary](../../../../glossary.md#term-derivative))</span>
 - Planning uses the existing ordinary operation capability query and selects backend ownership.
   It does not interpret recurrence, direction, valid lengths, active rows, loop parameters, or a
-  route.
+  route.<span data-glossary-navigation="true"> ([operation capability query glossary](../../../../glossary.md#operation-capability-query--operationcapabilityquery); [backend ownership glossary](../../../../glossary.md#backend-ownership); [parameters glossary](../../../../glossary.md#term-parameter))</span>
 - Prepare uses the existing static-Shape partition projection, staged backend analysis,
   shared-resource declaration, slot assignment, and finalization lifecycle. The fixed operation
-  introduces no shared loop-body or control-flow contract.
+  introduces no shared loop-body or control-flow contract.<span data-glossary-navigation="true"> ([partition glossary](../../../../glossary.md#partition); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - Runtime uses the existing caller-input representation, prepared executable, cold binding,
   schedule, isolated run state, and bound invocation contracts. It does not select loop count,
-  inspect valid lengths, compact rows, or interpret the operation.
+  inspect valid lengths, compact rows, or interpret the operation.<span data-glossary-navigation="true"> ([prepared executable glossary](../../../../glossary.md#prepared-executable--preparedexecutable); [binding glossary](../../../../glossary.md#term-binding); [run state glossary](../../../../glossary.md#run-state--runstate); [bound invocation glossary](../../../../glossary.md#bound-invocation--boundinvocation))</span>
 - Engine owns the public mapping from typed logical caller inputs to ordered Runtime caller-input
   representations and from publication positions to typed outputs. Engine must not specialize or
-  rebuild the graph from valid-length values.
+  rebuild the graph from valid-length values.<span data-glossary-navigation="true"> ([publication glossary](../../../../glossary.md#term-publication); [graph glossary](../../../../glossary.md#graph))</span>
 - A concrete backend advertises support only for exact implemented variant/type/Shape/direction
   combinations. Backend analysis lowers the occurrence once, declares all resources before slot
-  assignment, and finalization constructs the reusable executable.
+  assignment, and finalization constructs the reusable executable.<span data-glossary-navigation="true"> ([concrete backend glossary](../../../../glossary.md#concrete-backend); [occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 
 The existing Planning, Prepare, and Runtime contracts are sufficient for the selected static-
-Shape ordinary-node design. No task in those modules is required merely to name recurrence.
+[Shape](../../../../glossary.md#shape) ordinary-[node](../../../../glossary.md#node) design. No task in those [modules](../../../../glossary.md#term-module) is required merely to name recurrence.
 Implementation must stop and produce evidence if a later backend proves an actual shared-contract
 gap instead of adding speculative control-flow types now.
 
 ### Performance contract
 
-- One Model scan occurrence remains one compiled graph node regardless of `time` and valid-length
-  values. Graph construction and compiler graph size are `O(1)` in `time` for that occurrence.
+- One [Model](../../../../glossary.md#term-model) [scan](../../../../glossary.md#term-cumulative-scan) [occurrence](../../../../glossary.md#term-occurrence) remains one [compiled graph](../../../../glossary.md#compiled-graph--compiledgraphmodel) [node](../../../../glossary.md#node) regardless of `time` and valid-length
+  values. Graph construction and compiler graph size are <span data-glossary-navigation="true"> ([Graph glossary](../../../../glossary.md#graph); [compiler glossary](../../../../glossary.md#term-compiler))</span>[`O(1)`](../../../../glossary.md#memory-management-atomic-counters-and-complexity) in `time` for that occurrence.
 - Backend analysis compiles or otherwise prepares the transition implementation once per selected
   occurrence/plan. It must not construct, compile, or retain one graph/node/executable body per
-  time step.
+  time step.<span data-glossary-navigation="true"> ([Backend glossary](../../../../glossary.md#backend); [compile glossary](../../../../glossary.md#compile))</span>
 - The runtime hot path performs no reflection, string dispatch, boxing per scalar element, graph
   inspection, operation dispatch, backend lookup, route selection, or per-step object-graph
-  growth.
+  growth.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [hot path glossary](../../../../glossary.md#term-hot-path); [dispatch glossary](../../../../glossary.md#term-dispatch); [scalar glossary](../../../../glossary.md#term-scalar); [element glossary](../../../../glossary.md#term-element); [operation glossary](../../../../glossary.md#operation); [lookup glossary](../../../../glossary.md#term-lookup))</span>
 - The first capability requires genuine skipped transition arithmetic for invalid coordinates.
   It does not require physical active-row compaction, sorting, a packed buffer, or a promise that
-  zero-initialization and length checks perform no work.
+  zero-initialization and length checks perform no work.<span data-glossary-navigation="true"> ([coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [buffer glossary](../../../../glossary.md#term-buffer))</span>
 - A backend may use a bounded branch-based row/time traversal and still satisfy the first
   capability if invalid coordinates execute no recurrent dot products, gates, or state update.
   Documentation must say exactly that; it must not claim compact memory traffic or skipped all
-  physical work without evidence.
+  physical work without evidence.<span data-glossary-navigation="true"> ([dot products glossary](../../../../glossary.md#linear-algebra-building-blocks))</span>
 - Physical active-row compaction, vectorized packed batches, workspace reuse, or other optimized
-  execution is a later backend route decision with truthful resource and performance evidence.
+  execution is a later backend route decision with truthful resource and performance evidence.<span data-glossary-navigation="true"> ([batches glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [backend route glossary](../../../../glossary.md#backend-route))</span>
 
-### NN compatibility and migration
+### [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) compatibility and migration
 
 - Current `RnnSequence`, `GruSequence`, `LstmSequence`, and the three bidirectional containers keep
   their current snapshotted Java `long[]`, compact-output-list, static-unroll, exact provenance,
-  and final-state contracts unchanged throughout 0021A and 0021B.
-- Model and Compiler work does not silently redirect those APIs to the new operation.
+  and final-state contracts unchanged throughout 0021A and 0021B.<span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance))</span>
+- [Model](../../../../glossary.md#term-model) and [Compiler](../../../../glossary.md#term-compiler) work does not silently redirect those APIs to the new [operation](../../../../glossary.md#operation).
 - NN 0022 later decides whether to add distinct runtime-length overloads, migrate current methods,
   retain them as compatibility APIs, or deprecate them. That decision must acknowledge the result
   shape difference: the new scan returns dense zero-padded original-time-aligned outputs, whereas
-  current static containers expose a list of compact per-step outputs.
+  current static containers expose a list of compact per-step outputs.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [shape glossary](../../../../glossary.md#shape); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
 - Bidirectional migration must preserve independent parameter ownership, valid-prefix-only
   reverse traversal, forward-first final-axis concatenation, original-time alignment, and
-  type-specific final hidden/cell states.
-- A host `long[]` adapter that constructs a different graph for each length pattern is not the
-  target runtime API and cannot be presented as implementation of this decision.
+  type-specific final hidden/cell states.<span data-glossary-navigation="true"> ([parameter glossary](../../../../glossary.md#term-parameter); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [axis glossary](../../../../glossary.md#term-axis); [alignment glossary](../../../../glossary.md#term-alignment))</span>
+- A [host](../../../../glossary.md#term-host) `long[]` adapter that constructs a different graph for each length pattern is not the
+  target runtime API and cannot be presented as implementation of this decision.<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [target glossary](../../../../glossary.md#term-target); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 
-## Scope
+## [Scope](../../../../glossary.md#term-scope)
 
 - Update the authoritative architecture contract with the fixed-operation/no-region decision,
   exact owner boundaries, static-Shape/runtime-value distinction, Runtime hot-path rule,
-  explicit-state/purity rule, initial BPTT boundary, and performance/migration invariants.
+  explicit-state/purity rule, initial BPTT boundary, and performance/migration invariants.<span data-glossary-navigation="true"> ([architecture contract glossary](../../../../glossary.md#architecture-contract); [operation glossary](../../../../glossary.md#operation); [owner glossary](../../../../glossary.md#term-owner); [Shape glossary](../../../../glossary.md#shape); [runtime glossary](../../../../glossary.md#term-runtime); [BPTT glossary](../../../../glossary.md#term-backpropagation-through-time-bptt))</span>
 - Add ADR 0012 recording alternatives, decision, consequences, rejected general-region and dense-
   masking approaches, and follow-up owner order.
 - Synchronize the focused lifecycle, module-boundary, training-graph, and Runtime/Prepare/backend
-  explanations with the same current-versus-planned distinction.
-- Link the ADR from the current architecture index and design-decision index.
+  explanations with the same current-versus-planned distinction.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle); [module glossary](../../../../glossary.md#term-module); [graph glossary](../../../../glossary.md#graph); [Prepare glossary](../../../../glossary.md#prepare); [backend glossary](../../../../glossary.md#backend))</span>
+- Link the [ADR](../../../../glossary.md#term-architecture-decision-record-adr) from the current architecture index and design-decision index.
 - Keep the NN, Model, and Compiler master plans synchronized with one Ready architecture task and
-  Draft owner-specific follow-ups only.
+  Draft owner-specific follow-ups only.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [Model glossary](../../../../glossary.md#term-model); [Compiler glossary](../../../../glossary.md#term-compiler); [Ready glossary](../../../../glossary.md#term-ready))</span>
 - Record reasoned no-change conclusions for dependency rules, architecture tests, Planning,
   Prepare, Runtime, Engine code, backend code, configuration, trace, Data/Text plans, public APIs,
-  glossary, build files, and the global roadmap.
+  glossary, build files, and the global roadmap.<span data-glossary-navigation="true"> ([dependency glossary](../../../../glossary.md#term-dependency); [Planning glossary](../../../../glossary.md#term-planning); [Engine glossary](../../../../glossary.md#term-engine); [trace glossary](../../../../glossary.md#trace))</span>
 
-## Out of scope
+## Out of [scope](../../../../glossary.md#term-scope)
 
 - Any production or test Java, Javadoc, package documentation, generated documentation, build
-  script, settings file, module dependency, or public API.
+  script, settings file, module dependency, or public API.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [module glossary](../../../../glossary.md#term-module); [dependency glossary](../../../../glossary.md#term-dependency); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - A Model operation kind, attributes type, direction enum, Tensor method, result carrier,
-  descriptor helper, producer, graph node, or source-backed capability update.
+  descriptor helper, producer, graph node, or source-backed capability update.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [operation glossary](../../../../glossary.md#operation); [Tensor glossary](../../../../glossary.md#tensor); [carrier glossary](../../../../glossary.md#term-storage-carrier); [descriptor glossary](../../../../glossary.md#term-descriptor); [producer glossary](../../../../glossary.md#term-producer); [graph glossary](../../../../glossary.md#graph); [node glossary](../../../../glossary.md#node))</span>
 - Compiler capture, inference, validation, optimization, first-order inventory, gradient rule,
-  BPTT, publication, or compile-artifact behavior.
-- Planning capability logic, scoring, ownership rules, partitioning, or logical memory changes.
-- Prepare projection, analysis, declaration, assignment, finalization, or schedule assembly.
+  BPTT, publication, or compile-artifact behavior.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [capture glossary](../../../../glossary.md#term-capture-meanings); [inference glossary](../../../../glossary.md#term-inference); [validation glossary](../../../../glossary.md#term-validation); [gradient glossary](../../../../glossary.md#term-gradient); [BPTT glossary](../../../../glossary.md#term-backpropagation-through-time-bptt); [publication glossary](../../../../glossary.md#term-publication); [compile glossary](../../../../glossary.md#compile); [artifact glossary](../../../../glossary.md#term-artifact))</span>
+- [Planning](../../../../glossary.md#term-planning) capability logic, scoring, [ownership](../../../../glossary.md#term-ownership-meanings) rules, partitioning, or logical memory changes.
+- [Prepare](../../../../glossary.md#prepare) projection, analysis, declaration, assignment, finalization, or schedule assembly.
 - Runtime representation, input, slot, executable, bound invocation, schedule, runner,
-  publication, result, or state behavior.
-- Engine facade or typed caller-input/output binding.
+  publication, result, or state behavior.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [bound invocation glossary](../../../../glossary.md#bound-invocation--boundinvocation))</span>
+- [Engine](../../../../glossary.md#term-engine) [facade](../../../../glossary.md#term-facade) or typed caller-input/output [binding](../../../../glossary.md#term-binding).
 - CPU or another backend capability, lowering, IR, generation, reference kernel, execution,
-  conformance, or performance evidence.
+  conformance, or performance evidence.<span data-glossary-navigation="true"> ([backend capability glossary](../../../../glossary.md#backend-capability); [lowering glossary](../../../../glossary.md#lowering); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [kernel glossary](../../../../glossary.md#kernel); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 - NN or Data runtime-valid-length API, migration, adapter, module behavior, state path, or static
-  container change.
+  container change.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span>
 - Dynamic Shapes, general loops, conditionals, arbitrary masks with holes, user-defined bodies,
-  nested regions, callable graphs, or serialization formats.
-- Editing the concurrent CPU master/task/source/test/guide work or the global roadmap.
+  nested regions, callable graphs, or serialization formats.<span data-glossary-navigation="true"> ([Shapes glossary](../../../../glossary.md#shape); [masks glossary](../../../../glossary.md#term-boolean-mask); [serialization glossary](../../../../glossary.md#term-serialization))</span>
+- Editing the concurrent [CPU](../../../../glossary.md#term-cpu) master/task/source/test/guide work or the global roadmap.
 - Creating a detailed specification for Model 0025E, Compiler 0006A, NN 0021B, Engine, backend,
-  NN 0022, or any later task.
+  NN 0022, or any later task.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend))</span>
 
 ## Architecture references
 
-- [Architecture contract](../../../../../ARCHITECTURE.md)
+- [Architecture contract](../../../../../ARCHITECTURE.md)<span data-glossary-navigation="true"> ([Architecture contract glossary](../../../../glossary.md#architecture-contract))</span>
 - [Current architecture index](../../../../architecture/current-architecture-plan.md)
-- [Lifecycle](../../../../architecture/lifecycle.md)
-- [Module boundaries](../../../../architecture/module-boundaries.md)
-- [Runtime / Prepare / Backend boundary](../../../../architecture/runtime-prepare-backend-boundary.md)
-- [Training graph](../../../../architecture/training-graph.md)
-- [ADR 0002: Backend-owned lowering](../../../../design/decisions/0002-backend-owned-lowering.md)
-- [ADR 0007: NN and Training boundary](../../../../design/decisions/0007-neural-network-module-and-training-boundary.md)
-- [ADR 0009: Compiler-owned pre-capture autograd](../../../../design/decisions/0009-compiler-owned-pre-capture-tensor-expression-autograd.md)
+- [Lifecycle](../../../../architecture/lifecycle.md)<span data-glossary-navigation="true"> ([Lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+- [Module boundaries](../../../../architecture/module-boundaries.md)<span data-glossary-navigation="true"> ([Module glossary](../../../../glossary.md#term-module))</span>
+- [Runtime / Prepare / Backend boundary](../../../../architecture/runtime-prepare-backend-boundary.md)<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [Prepare glossary](../../../../glossary.md#prepare); [Backend glossary](../../../../glossary.md#backend))</span>
+- [Training graph](../../../../architecture/training-graph.md)<span data-glossary-navigation="true"> ([Training graph glossary](../../../../glossary.md#training-graph))</span>
+- [ADR 0002: Backend-owned lowering](../../../../design/decisions/0002-backend-owned-lowering.md)<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [Backend-owned lowering glossary](../../../../glossary.md#backend-owned-lowering))</span>
+- [ADR 0007: NN and Training boundary](../../../../design/decisions/0007-neural-network-module-and-training-boundary.md)<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span>
+- [ADR 0009: Compiler-owned pre-capture autograd](../../../../design/decisions/0009-compiler-owned-pre-capture-tensor-expression-autograd.md)<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [capture glossary](../../../../glossary.md#term-capture-meanings); [autograd glossary](../../../../glossary.md#autograd))</span>
 - [ADR 0010: Staged backend preparation](../../../../design/decisions/0010-staged-backend-preparation.md)
-- [ADR 0011: Per-run Runtime ownership](../../../../design/decisions/0011-per-run-runtime-resource-ownership.md)
-- [Planning guide](../../../planning-guide.md)
+- [ADR 0011: Per-run Runtime ownership](../../../../design/decisions/0011-per-run-runtime-resource-ownership.md)<span data-glossary-navigation="true"> ([run glossary](../../../../glossary.md#term-run); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
+- [Planning guide](../../../planning-guide.md)<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning))</span>
 - [NN master plan](../master-plan.md)
-- [Model master plan](../../../modules/model/master-plan.md)
+- [Model master plan](../../../modules/model/master-plan.md)<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model))</span>
 - [Compiler master plan](../../../modules/compiler/master-plan.md)
 - [Prepare master plan](../../../modules/prepare/master-plan.md)
 - [Runtime master plan](../../../modules/runtime/master-plan.md)
-- [Engine master plan](../../../modules/engine/master-plan.md)
-- [CPU master plan](../../../backends/cpu/master-plan.md)
+- [Engine master plan](../../../modules/engine/master-plan.md)<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine))</span>
+- [CPU master plan](../../../backends/cpu/master-plan.md)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>
 - [Data master plan](../../data/master-plan.md)
 - [Text master plan](../../text/master-plan.md)
 - [Training master plan](../../training/master-plan.md)
-- [Completed static RNN task](0015-static-packed-rnn-sequence.md)
-- [Completed static GRU task](0016-static-packed-gru-sequence.md)
-- [Completed static LSTM task](0017-static-packed-lstm-sequence.md)
+- [Completed static RNN task](0015-static-packed-rnn-sequence.md)<span data-glossary-navigation="true"> ([RNN glossary](../../../../glossary.md#term-recurrent-neural-network-rnn))</span>
+- [Completed static GRU task](0016-static-packed-gru-sequence.md)<span data-glossary-navigation="true"> ([GRU glossary](../../../../glossary.md#term-gated-recurrent-unit-gru))</span>
+- [Completed static LSTM task](0017-static-packed-lstm-sequence.md)<span data-glossary-navigation="true"> ([LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm))</span>
 - [Completed automatic recurrent task](0020-automatic-recurrent-initialization-and-sequence-defaults.md)
 - [Completed bidirectional task](0020c-bidirectional-static-recurrent-composition.md)
 
 ## Architecture constraints
 
 - This task explicitly changes and clarifies the architecture contract through the coordinated
-  architecture process. Planning text alone cannot authorize the decision.
+  architecture process. Planning text alone cannot authorize the decision.<span data-glossary-navigation="true"> ([architecture contract glossary](../../../../glossary.md#architecture-contract); [Planning glossary](../../../../glossary.md#term-planning))</span>
 - Existing dependency directions remain unchanged. In particular, NN still depends only on
   Model; Runtime still does not depend on Model, Prepare, Engine, or concrete backends; and
-  concrete backends still do not depend on Engine.
-- The new rule must preserve `Tensor` as public model state rather than graph IR and preserve the
-  prohibition on `Operation` and `CompiledNode` in Runtime hot paths.
+  concrete backends still do not depend on Engine.<span data-glossary-navigation="true"> ([dependency glossary](../../../../glossary.md#term-dependency); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [Model glossary](../../../../glossary.md#term-model); [Prepare glossary](../../../../glossary.md#prepare); [Engine glossary](../../../../glossary.md#term-engine); [backends glossary](../../../../glossary.md#backend))</span>
+- The new rule must preserve [`Tensor`](../../../../glossary.md#tensor) as public model state rather than graph IR and preserve the
+  prohibition on <span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir))</span>[`Operation`](../../../../glossary.md#operation) and `CompiledNode` in [Runtime](../../../../glossary.md#term-runtime) hot paths.
 - The ADR and focused explanations must agree with the authoritative contract exactly. If a
   coherent decision would require nested graph regions, Runtime graph inspection, a new module,
   or a dependency reversal, stop and report the architecture blocker instead of weakening the
-  selected boundary.
+  selected boundary.<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [module glossary](../../../../glossary.md#term-module))</span>
 - No implementation status claim may be added. Every described Java name and method remains
-  explicitly planned until its owner task completes.
+  explicitly planned until its owner task completes.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner))</span>
 
 ## Package impact
 
@@ -416,12 +416,12 @@ Existing packages used: none. This task changes no Java package.
 
 Packages added, moved, renamed, or removed: none.
 
-The architecture decision reserves ownership, not Java source placement. Model 0025E must later
-confirm exact package placement before becoming Ready.
+The architecture decision reserves [ownership](../../../../glossary.md#term-ownership-meanings), not Java source placement. [Model](../../../../glossary.md#term-model) 0025E must later
+confirm exact package placement before becoming [Ready](../../../../glossary.md#term-ready).
 
 ## Affected files
 
-Expected exact implementation scope:
+Expected exact implementation [scope](../../../../glossary.md#term-scope):
 
 1. `ARCHITECTURE.md`
 2. `docs/architecture/current-architecture-plan.md`
@@ -436,10 +436,10 @@ Expected exact implementation scope:
 11. `docs/planning/modules/model/master-plan.md`
 12. `docs/planning/modules/compiler/master-plan.md`
 
-No other path is permitted. In particular, do not edit the global roadmap or the concurrent CPU
+No other path is permitted. In particular, do not edit the global roadmap or the concurrent [CPU](../../../../glossary.md#term-cpu)
 master plan.
 
-## Maximum scope
+## Maximum [scope](../../../../glossary.md#term-scope)
 
 This task may create or modify exactly the twelve paths above. Stop and propose a later focused
 follow-up if another path is necessary.
@@ -447,33 +447,33 @@ follow-up if another path is necessary.
 ## Acceptance criteria
 
 - `ARCHITECTURE.md` explicitly authorizes the fixed recurrent operation and explicitly does not
-  authorize a general body/region system.
+  authorize a general body/region system.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation))</span>
 - The exact variants, direction, input/output order, static Shape/type rules, dense output and
   final-state semantics, runtime valid-length validation, zero-length, zero-time, reverse, LSTM
   second state, purity, and side effects are unambiguous and consistent across the contract, ADR,
-  and focused explanations.
+  and focused explanations.<span data-glossary-navigation="true"> ([Shape glossary](../../../../glossary.md#shape); [runtime glossary](../../../../glossary.md#term-runtime); [validation glossary](../../../../glossary.md#term-validation); [LSTM glossary](../../../../glossary.md#term-long-short-term-memory-lstm); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
 - The exact planned Model public surface and the non-runnable status are recorded without adding
-  Java or claiming implementation.
+  Java or claiming implementation.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model))</span>
 - Model, Compiler, Planning, Prepare, Runtime, Engine, concrete backend, NN, Data, Training, and
-  checkpoint/serialization ownership are each explicit.
+  checkpoint/serialization ownership are each explicit.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [Planning glossary](../../../../glossary.md#term-planning); [Prepare glossary](../../../../glossary.md#prepare); [Engine glossary](../../../../glossary.md#term-engine); [concrete backend glossary](../../../../glossary.md#concrete-backend); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [checkpoint glossary](../../../../glossary.md#term-checkpoint); [serialization glossary](../../../../glossary.md#term-serialization); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Compiler forward adoption and the initial fail-closed BPTT boundary are explicit; no derivative
-  implementation or saved-state strategy is selected.
+  implementation or saved-state strategy is selected.<span data-glossary-navigation="true"> ([fail-closed glossary](../../../../glossary.md#term-fail-closed); [BPTT glossary](../../../../glossary.md#term-backpropagation-through-time-bptt); [derivative glossary](../../../../glossary.md#term-derivative))</span>
 - One-node/no-time-growth, one prepared transition, hot-path, genuine invalid-coordinate skip,
-  and no-active-compaction-promise performance rules are explicit.
+  and no-active-compaction-promise performance rules are explicit.<span data-glossary-navigation="true"> ([node glossary](../../../../glossary.md#node); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
 - Current static Java-`long[]` APIs and result-shape differences remain truthful and unchanged;
   migration is deferred to NN 0022.
 - Model 0025E and Compiler 0006A remain concise Draft rows without detailed specs. NN 0021A is the
-  sole Ready NN task; NN 0021B and later rows remain Draft.
+  sole Ready NN task; NN 0021B and later rows remain Draft.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready))</span>
 - Architecture links, headings, anchors, fences, final newlines, exact scope, no-index whitespace,
-  and whole-worktree whitespace checks pass.
+  and whole-worktree whitespace checks pass.<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope))</span>
 - Existing architecture dependency tests pass and no test change is required because dependency
-  directions and source inventories do not change.
+  directions and source inventories do not change.<span data-glossary-navigation="true"> ([dependency glossary](../../../../glossary.md#term-dependency))</span>
 - The documentation-focused architecture context records reasoned no-change conclusions and the
   final completion summary before marking the task Complete.
 
-## Tests / validation
+## Tests / [validation](../../../../glossary.md#term-validation)
 
-Run in the clean architecture/documentation implementation context:
+[Run](../../../../glossary.md#term-run) in the clean architecture/documentation implementation context:
 
 ```bash
 ./gradlew :testing:architecture-tests:test
@@ -486,59 +486,59 @@ Also validate:
 
 - every local Markdown link and anchor in the twelve-path set;
 - unique headings and balanced fenced code blocks;
-- the ADR index and current-architecture index links;
+- the [ADR](../../../../glossary.md#term-architecture-decision-record-adr) index and current-architecture index links;
 - exact terminology consistency for `recurrent scan`, `valid lengths`, `fixed operation`,
-  `body`, `region`, `FORWARD`, `REVERSE`, `BPTT`, and `active-row compaction`;
-- exact twelve-path scope while preserving concurrent CPU/backend/global-roadmap changes;
-- exactly one new task file and exactly one Ready NN row;
-- no detailed Model 0025E, Compiler 0006A, NN 0021B, backend, or later task file;
+  `body`, `region`, `FORWARD`, `REVERSE`, [`BPTT`](../../../../glossary.md#term-backpropagation-through-time-bptt), and `active-row compaction`;
+- exact twelve-path [scope](../../../../glossary.md#term-scope) while preserving concurrent [CPU](../../../../glossary.md#term-cpu)/[backend](../../../../glossary.md#backend)/global-roadmap changes;
+- exactly one new task file and exactly one [Ready](../../../../glossary.md#term-ready) [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) row;
+- no detailed [Model](../../../../glossary.md#term-model) 0025E, [Compiler](../../../../glossary.md#term-compiler) 0006A, NN 0021B, backend, or later task file;
 - no production/test/build/settings diff;
 - no-index whitespace for the new ADR and this task file;
 - terminal newline and trailing-whitespace checks; and
 - whole-worktree `git diff --check`.
 
-Repository-wide tests, Model/Compiler/Runtime/Prepare/Engine/backend tests, Javadocs,
-backend-conformance, and integration tests are not required because this task changes no Java,
-build, dependency, or executable behavior. The architecture test is the proportionate focused
-guard for unchanged dependency directions.
+Repository-wide tests, Model/Compiler/[Runtime](../../../../glossary.md#term-runtime)/[Prepare](../../../../glossary.md#prepare)/[Engine](../../../../glossary.md#term-engine)/backend tests, Javadocs,
+backend-[conformance](../../../../glossary.md#term-conformance), and integration tests are not required because this task changes no Java,
+build, [dependency](../../../../glossary.md#term-dependency), or executable behavior. The [architecture test](../../../../glossary.md#term-architecture-test) is the proportionate focused
+[guard](../../../../glossary.md#term-guard) for unchanged dependency directions.
 
 ## Dependencies
 
-- NN 0020C is Complete and fixes concrete RNN/GRU/LSTM directional/state semantics.
-- Current Model multi-output provenance and flat graph contracts are Complete.
+- [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) 0020C is Complete and fixes concrete [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn)/[GRU](../../../../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../../../../glossary.md#term-long-short-term-memory-lstm) directional/state semantics.
+- Current [Model](../../../../glossary.md#term-model) multi-output [provenance](../../../../glossary.md#provenance) and flat [graph](../../../../glossary.md#graph) contracts are Complete.
 - Compiler 0006 and its closed first-order inventory are Complete and reveal why a new kind cannot
-  land without an ordered Compiler adoption task.
+  land without an ordered Compiler adoption task.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler))</span>
 - Prepare 0003 and Runtime 0010/0014 are Complete and provide the current static partition,
-  caller-input representation, prepared executable, schedule, run-state, and hot-path boundaries.
+  caller-input representation, prepared executable, schedule, run-state, and hot-path boundaries.<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime); [partition glossary](../../../../glossary.md#partition); [prepared executable glossary](../../../../glossary.md#prepared-executable--preparedexecutable); [run glossary](../../../../glossary.md#term-run))</span>
 - Engine remains Draft; its existing 0001–0002 rows own lifecycle composition and typed input/output
-  mapping needed before a public runnable scan claim.
+  mapping needed before a public runnable scan claim.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [lifecycle glossary](../../../../glossary.md#lifecycle); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
 - No CPU, backend, Data, Text, Training, or Checkpoint implementation is a prerequisite for this
-  architecture decision.
+  architecture decision.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [backend glossary](../../../../glossary.md#backend); [Checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
 
 ## Follow-up tasks
 
-- Model 0025E, Draft only: implement the fixed semantic family and exact Tensor surface.
-- Compiler 0006A, Draft only: adopt forward capture/inference/inventory and fail BPTT closed.
+- [Model](../../../../glossary.md#term-model) 0025E, Draft only: implement the fixed semantic family and exact [Tensor](../../../../glossary.md#tensor) surface.
+- [Compiler](../../../../glossary.md#term-compiler) 0006A, Draft only: adopt forward [capture](../../../../glossary.md#term-capture-meanings)/[inference](../../../../glossary.md#term-inference)/inventory and fail [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt) closed.
 - A later concrete-backend task, not yet detailed: truthfully lower and execute supported static
-  variants with complete length prevalidation and skipped invalid-coordinate transition work.
-- Engine 0001–0002, already Draft: compose the lifecycle and map typed caller inputs/publications.
-- NN 0021B, Draft program row only: coordinate the owner-specific implementation checkpoint.
+  variants with complete length prevalidation and skipped invalid-coordinate transition work.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend))</span>
+- [Engine](../../../../glossary.md#term-engine) 0001–0002, already Draft: compose the [lifecycle](../../../../glossary.md#lifecycle) and map typed caller inputs/publications.
+- [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) 0021B, Draft program row only: [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) the [owner](../../../../glossary.md#term-owner)-specific implementation [checkpoint](../../../../glossary.md#term-checkpoint).
 - A later Compiler BPTT task only after the forward executable path is stable and its saved-versus-
   recompute contract is selected.
 - NN 0022, Draft only: add the Data-owned runtime-valid-length NN API and deliberate compatibility
-  migration after the complete prerequisite is executable.
+  migration after the complete prerequisite is executable.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - Dynamic Shapes, active-row compaction, arbitrary masks with holes, and a general region system
-  remain separate future decisions.
+  remain separate future decisions.<span data-glossary-navigation="true"> ([Shapes glossary](../../../../glossary.md#shape); [masks glossary](../../../../glossary.md#term-boolean-mask))</span>
 
 ## Architecture impact
 
 Expected impact: explicit architecture clarification and significant design decision.
 
-The task updates the authoritative contract, focused architecture explanations, and ADR together.
-It does not change a dependency direction or add a module, so architecture dependency tests
-require execution but no source update. If implementation discovers that the fixed ordinary-node
-design cannot preserve the current lifecycle boundaries, stop and report the conflicting rule and
-required decision instead of silently introducing regions or Runtime graph access.
+The task updates the authoritative contract, focused architecture explanations, and [ADR](../../../../glossary.md#term-architecture-decision-record-adr) together.
+It does not change a [dependency direction](../../../../glossary.md#java-platform-and-build-tools) or add a [module](../../../../glossary.md#term-module), so architecture [dependency](../../../../glossary.md#term-dependency) tests
+require execution but no source update. If implementation discovers that the fixed ordinary-[node](../../../../glossary.md#node)
+design cannot preserve the current [lifecycle](../../../../glossary.md#lifecycle) boundaries, stop and report the conflicting rule and
+required decision instead of silently introducing regions or [Runtime](../../../../glossary.md#term-runtime) [graph](../../../../glossary.md#graph) access.
 
 ## Implementation prompt
 
@@ -569,48 +569,48 @@ gate passes.
 ## Local decisions
 
 - The fixed operation is the sole authorized recurrent control-flow representation at this
-  frontier. Its backend-internal bounded loop is execution strategy, not graph structure.
+  frontier. Its backend-internal bounded loop is execution strategy, not graph structure.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [backend glossary](../../../../glossary.md#backend); [graph glossary](../../../../glossary.md#graph))</span>
 - The exact family, directions, ordered signatures, fully static descriptor boundary, runtime
   valid-length meaning, dense aligned output, final-state semantics, purity, failure atomicity,
-  owner boundaries, and performance rules are normative in `ARCHITECTURE.md` and summarized by
-  accepted ADR 0012.
+  owner boundaries, and performance rules are normative in <span data-glossary-navigation="true"> ([signatures glossary](../../../../glossary.md#term-signature); [descriptor glossary](../../../../glossary.md#term-descriptor); [runtime glossary](../../../../glossary.md#term-runtime); [failure atomicity glossary](../../../../glossary.md#term-failure-atomicity); [owner glossary](../../../../glossary.md#term-owner); [normative glossary](../../../../glossary.md#term-normative))</span>`ARCHITECTURE.md` and summarized by
+  accepted ADR 0012.<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
 - Existing Planning, Prepare, and Runtime contracts require no source or plan task merely to name
   recurrence. Later implementation must report evidence of a real shared-contract gap before
-  proposing a change.
+  proposing a change.<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning); [Prepare glossary](../../../../glossary.md#prepare))</span>
 - Model 0025E and Compiler 0006A remain concise Draft rows. NN 0021B remains the Draft coordinating
-  implementation program. No later detailed task was created.
+  implementation program. No later detailed task was created.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Compiler glossary](../../../../glossary.md#term-compiler); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span>
 
 ## Known limitations
 
 - This task authorizes and specifies architecture only; it adds no runnable Java API or execution
-  support.
+  support.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - The first selected capability supports runtime-changing valid-length values only for compatible
-  fully static descriptors.
+  fully static descriptors.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [descriptors glossary](../../../../glossary.md#term-descriptor))</span>
 - BPTT, dynamic Shapes, physical active-row compaction, arbitrary masks with holes, and general
-  user-defined control flow remain deferred.
+  user-defined control flow remain deferred.<span data-glossary-navigation="true"> ([BPTT glossary](../../../../glossary.md#term-backpropagation-through-time-bptt); [Shapes glossary](../../../../glossary.md#shape); [masks glossary](../../../../glossary.md#term-boolean-mask))</span>
 - Public Engine exception translation for an invalid runtime length remains intentionally
-  unselected.
+  unselected.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine))</span>
 
-## Validation evidence
+## [Validation](../../../../glossary.md#term-validation) evidence
 
 - Clean architecture/documentation context `/root/nn_0021a_architecture` read the authoritative
   contract, all five focused architecture documents, directly related ADRs, General/
   Architecture/ADR/Planning documentation profiles, planning guide and roadmap, relevant owner
   master plans and recurrent tasks, flat Model/Compiler graph contracts, Planning capability,
   staged Prepare, Runtime cold-binding/run-state, Engine frontier, concrete-backend capability,
-  and architecture-test sources before finalizing the decision.
+  and architecture-test sources before finalizing the decision.<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [Planning glossary](../../../../glossary.md#term-planning); [owner glossary](../../../../glossary.md#term-owner); [Model glossary](../../../../glossary.md#term-model); [Compiler glossary](../../../../glossary.md#term-compiler); [graph glossary](../../../../glossary.md#graph); [Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime); [binding glossary](../../../../glossary.md#term-binding); [run glossary](../../../../glossary.md#term-run); [Engine glossary](../../../../glossary.md#term-engine); [backend capability glossary](../../../../glossary.md#backend-capability))</span>
 - Independent final review context `/root/nn_0021a_docs_review` rechecked those contracts against
   current Model, Compiler, Planning, Prepare, Runtime, Engine, backend-capability, recurrent-NN,
   Data, state-dictionary, checkpoint, and architecture-test sources. It corrected one inaccurate
   parameter-only persistence sentence: current NN state dictionaries contain both parameter and
   persistent-buffer bindings, and future model checkpoints may persist materialized values from
-  both entry kinds. No other semantic, ownership, status, or scope defect remained.
+  both entry kinds. No other semantic, ownership, status, or scope defect remained.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [checkpoint glossary](../../../../glossary.md#term-checkpoint); [parameter glossary](../../../../glossary.md#term-parameter); [persistence glossary](../../../../glossary.md#term-persistence); [buffer glossary](../../../../glossary.md#term-buffer); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - `./gradlew :testing:architecture-tests:test` passed in the implementation context before the
   independent wording correction: `BUILD SUCCESSFUL`; all three Gradle tasks were up to date. The
   retained result set has four suites and six tests with zero failures, errors, or skips. The
   independent review reused this evidence because its documentation-only state/checkpoint wording
   correction changes no dependency direction, Runtime source inventory, or executable contract;
-  no architecture-test source changed.
+  no architecture-test source changed.<span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle); [dependency direction glossary](../../../../glossary.md#java-platform-and-build-tools))</span>
 - A Ruby twelve-file documentation check passed: unique headings, balanced fenced code blocks,
   terminal newlines, and no trailing whitespace. A Ruby local-link/anchor check passed for every
   Markdown link in the exact twelve-file set, including the ADR and current-architecture index
@@ -619,46 +619,46 @@ gate passes.
   two invocations exposed only validator compatibility defects, which were corrected outside the
   repository before the final pass.
 - Terminology inspection confirmed consistent use of `recurrent scan`, `valid lengths`, `fixed
-  operation`, `body`, `region`, `FORWARD`, `REVERSE`, `BPTT`, and `active-row compaction` across
+  operation`, `body`, `region`, `FORWARD`, `REVERSE`, [`BPTT`](../../../../glossary.md#term-backpropagation-through-time-bptt), and `active-row compaction` across
   the contract, ADR, focused explanations, task, and owner plans.
 - `git diff --no-index --check --quiet /dev/null` for the new ADR and this new task returned the
   expected status 1 for a present diff and emitted no whitespace diagnostic. Final whole-worktree
   `git diff --check` passed.
-- Scope inspection against the captured initial `git status --short` confirmed this task changed
+- [Scope](../../../../glossary.md#term-scope) inspection against the captured initial `git status --short` confirmed this task changed
   exactly the twelve authorized paths. It added exactly ADR 0012 and this task file; no Model
   0025E, Compiler 0006A, NN 0021B, backend, or later detailed task was created. Existing
   concurrent CPU source/test/guide/planning work, Data planning, and the global roadmap remained
-  outside this task and were neither staged nor altered by this context.
-- Status/frontier inspection confirmed NN 0021A transitioned `Ready` to `In progress` to
+  outside this task and were neither staged nor altered by this context.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>
+- Status/frontier inspection confirmed [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) 0021A transitioned [`Ready`](../../../../glossary.md#term-ready) to `In progress` to
   `Complete`; NN 0021B–0024, Model 0025E, and Compiler 0006A remain concise Draft rows with no
   detailed specifications and no executable implementation claim.
 - No production Java, tests, Javadoc, package documentation, Gradle/settings, dependency,
   Tensor/Compile/Training API guide, glossary, Trace, conformance, or integration path changed.
   No module/root/backend suite or Javadoc generation was required for this architecture-only
-  documentation task.
+  documentation task.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [dependency glossary](../../../../glossary.md#term-dependency); [Tensor glossary](../../../../glossary.md#tensor); [Compile glossary](../../../../glossary.md#compile); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [Trace glossary](../../../../glossary.md#trace); [conformance glossary](../../../../glossary.md#term-conformance); [module glossary](../../../../glossary.md#term-module))</span>
 
 ## Implementation notes
 
-- Canonical implementation context: `/root/nn_0021a_architecture`; canonical independent final
+- [Canonical](../../../../glossary.md#term-canonical-form) implementation context: `/root/nn_0021a_architecture`; canonical independent final
   review context: `/root/nn_0021a_docs_review`.
 - Updated the authoritative contract, five focused architecture explanations, current-
   architecture index, design-decision index, and new ADR 0012 as one coordinated architecture
-  change.
+  change.<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
 - Synchronized only the NN, Model, and Compiler planning frontiers. Existing concurrent CPU/
-  backend work and `docs/planning/roadmap.md` were preserved unchanged by this task.
+  backend work and <span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [Model glossary](../../../../glossary.md#term-model); [Compiler glossary](../../../../glossary.md#term-compiler); [planning glossary](../../../../glossary.md#term-planning); [CPU glossary](../../../../glossary.md#term-cpu); [backend glossary](../../../../glossary.md#backend))</span>`docs/planning/roadmap.md` were preserved unchanged by this task.
 - Dependency directions, Gradle structure, production APIs, Compiler/Planning/Prepare/Runtime/
   Engine/backend Java, NN behavior, Training/Data/Text behavior, Trace schemas, conformance tests,
   and integration tests do not change. Architecture-test sources remain accurate because no
-  dependency edge or reviewed Runtime source inventory changed.
+  dependency edge or reviewed Runtime source inventory changed.<span data-glossary-navigation="true"> ([Dependency glossary](../../../../glossary.md#term-dependency); [Gradle glossary](../../../../glossary.md#term-gradle); [Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime); [Engine glossary](../../../../glossary.md#term-engine); [Trace glossary](../../../../glossary.md#trace); [schemas glossary](../../../../glossary.md#term-schema); [conformance glossary](../../../../glossary.md#term-conformance); [dependency edge glossary](../../../../glossary.md#term-dependency-edge))</span>
 - Public Tensor, Compile, and Training API guides and Javadoc remain current because all named
   recurrent Java types and methods are explicitly planned and no declaration or executable
-  behavior exists. The glossary remains unchanged because the architecture documents define
+  behavior exists. The glossary remains unchanged because the architecture documents define<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [Compile glossary](../../../../glossary.md#compile); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
   `recurrent scan`, valid lengths, BPTT, and active-row compaction locally and the task's fixed
-  operation decision does not change an existing reusable glossary term.
+  operation decision does not change an existing reusable glossary term.<span data-glossary-navigation="true"> ([BPTT glossary](../../../../glossary.md#term-backpropagation-through-time-bptt); [operation glossary](../../../../glossary.md#operation))</span>
 - NN state dictionaries retain their existing parameter-and-buffer boundary; future model
   checkpoints may persist materialized values from both entry kinds. No checkpoint format or
   serialization contract is added. The CPU plan and global roadmap remain outside this task's
-  maximum scope.
+  maximum scope.<span data-glossary-navigation="true"> ([parameter glossary](../../../../glossary.md#term-parameter); [buffer glossary](../../../../glossary.md#term-buffer); [checkpoints glossary](../../../../glossary.md#term-checkpoint); [serialization glossary](../../../../glossary.md#term-serialization); [scope glossary](../../../../glossary.md#term-scope))</span>
 
 ## Completion summary
 
@@ -666,27 +666,27 @@ gate passes.
   exact semantics and planned Model surface, static-Shape/runtime-valid-length boundary, dense
   alignment and final states, complete pre-mutation validation, purity, lifecycle ownership,
   fail-closed initial BPTT boundary, one-node/one-prepared-transition performance contract, and
-  unchanged static-NN migration boundary; added ADR 0012 and synchronized focused explanations.
+  unchanged static-NN migration boundary; added ADR 0012 and synchronized focused explanations.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [Model glossary](../../../../glossary.md#term-model); [Shape glossary](../../../../glossary.md#shape); [runtime glossary](../../../../glossary.md#term-runtime); [alignment glossary](../../../../glossary.md#term-alignment); [validation glossary](../../../../glossary.md#term-validation); [lifecycle glossary](../../../../glossary.md#lifecycle); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [fail-closed glossary](../../../../glossary.md#term-fail-closed); [BPTT glossary](../../../../glossary.md#term-backpropagation-through-time-bptt); [node glossary](../../../../glossary.md#node); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
 - Files changed or created: exactly the twelve paths listed under Affected files.
 - Tests and validation: architecture tests and all specified Markdown, link/anchor, heading,
   fence, newline, whitespace, terminology, scope, inventory, and status checks passed as recorded
-  above.
+  above.<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope))</span>
 - Documentation-agent review: clean implementation context `/root/nn_0021a_architecture` and
   independent final review context `/root/nn_0021a_docs_review` completed the targeted passes; the
   latter corrected the state-dictionary/checkpoint wording. There was no executable implementation
-  context or Java behavior to hand off or retest.
+  context or Java behavior to hand off or retest.<span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
 - Documentation impact: the authoritative contract, five focused explanations, two indexes, ADR,
   and three owner plans are synchronized. Public API guides remain unchanged because the surface
-  is planned and non-runnable.
+  is planned and non-runnable.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - Javadoc review: no Java declaration or implementation changed; existing Javadoc remains
-  accurate.
+  accurate.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 - Glossary impact: no change; decision-specific terms are defined locally and no existing reusable
   glossary meaning changed.
 - Unresolved issues: BPTT, dynamic Shapes, public Engine exception translation, physical active-
   row compaction, arbitrary masks with holes, general regions, and static-API migration remain
-  intentionally deferred.
+  intentionally deferred.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [masks glossary](../../../../glossary.md#term-boolean-mask))</span>
 - Follow-up required: NN 0021B must coordinate Model 0025E, Compiler 0006A, Engine 0001–0002, and
   truthful concrete-backend implementation in owner order before any runnable recurrent-scan or
-  NN runtime-length claim.
+  NN runtime-length claim.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [backend glossary](../../../../glossary.md#backend))</span>
 
 Status: Complete

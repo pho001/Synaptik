@@ -1,42 +1,42 @@
-# ONNX Master Plan
+# [ONNX](../../../glossary.md#term-onnx) Master Plan
 
 ## Goal
 
-Provide isolated ONNX import, export, and mapping to and from the Synaptik model.
+Provide isolated [ONNX](../../../glossary.md#term-onnx) import, export, and mapping to and from the Synaptik [model](../../../glossary.md#term-model).
 
 ## Architecture references
 
-- [Architecture contract](../../../../ARCHITECTURE.md)
-- [Module boundaries](../../../architecture/module-boundaries.md)
-- [Dependency rules](../../../architecture/dependency-rules.md)
+- [Architecture contract](../../../../ARCHITECTURE.md)<span data-glossary-navigation="true"> ([Architecture contract glossary](../../../glossary.md#architecture-contract))</span>
+- [Module boundaries](../../../architecture/module-boundaries.md)<span data-glossary-navigation="true"> ([Module glossary](../../../glossary.md#term-module))</span>
+- [Dependency rules](../../../architecture/dependency-rules.md)<span data-glossary-navigation="true"> ([Dependency glossary](../../../glossary.md#term-dependency))</span>
 
-## Scope
+## [Scope](../../../glossary.md#term-scope)
 
-- ONNX import
+- [ONNX](../../../glossary.md#term-onnx) import
 - ONNX export
-- ONNX-to-model mapping
+- ONNX-to-[model](../../../glossary.md#term-model) mapping
 - model-to-ONNX mapping
 
-## Out of scope
+## Out of [scope](../../../glossary.md#term-scope)
 
-- runtime execution
-- backend lowering
-- kernel selection
-- runtime residency
+- [runtime](../../../glossary.md#term-runtime) execution
+- [backend](../../../glossary.md#backend) [lowering](../../../glossary.md#lowering)
+- [kernel](../../../glossary.md#kernel) selection
+- runtime [residency](../../../glossary.md#residency)
 
-## Module invariants
+## [Module](../../../glossary.md#term-module) invariants
 
-- ONNX remains outside the runtime hot path.
-- Mappings target backend-independent model contracts.
+- [ONNX](../../../glossary.md#term-onnx) remains outside the [runtime](../../../glossary.md#term-runtime) [hot path](../../../glossary.md#term-hot-path).
+- Mappings [target](../../../glossary.md#term-target) [backend](../../../glossary.md#backend)-independent [model](../../../glossary.md#term-model) contracts.
 
 ## Allowed dependencies
 
-- modules/model and explicitly required import/export libraries when approved
+- [modules](../../../glossary.md#term-module)/[model](../../../glossary.md#term-model) and explicitly required import/export libraries when approved
 
 ## Forbidden dependencies
 
-- runtime hot-path internals
-- concrete backend modules
+- [runtime](../../../glossary.md#term-runtime) hot-path internals
+- [concrete backend](../../../glossary.md#concrete-backend) [modules](../../../glossary.md#term-module)
 
 ## Task list
 
@@ -46,9 +46,9 @@ Provide isolated ONNX import, export, and mapping to and from the Synaptik model
 
 ## Milestones
 
-- Model mapping contracts
+- [Model](../../../glossary.md#term-model) mapping contracts
 - Importer
-- Exporter and compatibility validation
+- Exporter and compatibility [validation](../../../glossary.md#term-validation)
 
 ## Current status
 
@@ -62,13 +62,13 @@ This extension is not yet planned in detail. Detailed task specifications will b
 
 ## Decisions made
 
-- The implementation must follow the current architecture contract.
+- The implementation must follow the current [architecture contract](../../../glossary.md#architecture-contract).
 - Legacy code is capability evidence only; new implementation is written from scratch.
 
 ## Risks
 
-- Coupling interchange mapping to runtime or backend implementation details.
+- Coupling interchange mapping to [runtime](../../../glossary.md#term-runtime) or [backend](../../../glossary.md#backend) implementation details.
 
 ## Notes
 
-Keep this master plan concise. Put executable work in small task specifications under `tasks/` and follow [the planning guide](../../planning-guide.md).
+Keep this master plan concise. Put executable work in small task specifications under `tasks/` and follow [the planning guide](../../planning-guide.md)<span data-glossary-navigation="true"> ([planning glossary](../../../glossary.md#term-planning))</span>.

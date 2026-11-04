@@ -1,13 +1,13 @@
 # Flat and nested value import examples
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-**Reader model.** Flat import receives one linear primitive array and an explicit description
-of its shape and type. Nested import receives arrays of arrays and infers the rectangular shape
-from their structure. **Rectangular** means corresponding axes have consistent lengths, rather
-than rows of varying length. **Row-major** flattening visits the last axis fastest.
-Import creates an independent copy; wrapping borrowed storage would instead retain an existing
-region. BOOL **normalization** here means converting all nonzero source bytes to canonical
+**[Reader model](../../glossary.md#term-reader-model).** Flat import receives one [linear](../../glossary.md#term-linear-meanings) primitive array and an explicit description
+of its [shape](../../glossary.md#shape) and type. Nested import receives arrays of arrays and infers the rectangular shape
+from their structure. **Rectangular** means corresponding [axes](../../glossary.md#term-axis) have consistent lengths, rather
+than rows of varying length. **[Row-major](../../glossary.md#term-row-major)** flattening visits the last axis fastest.
+Import creates an independent copy; wrapping [borrowed](../../glossary.md#ownership-borrowing-and-lease) storage would instead retain an existing
+region. [BOOL](../../glossary.md#data-type--datatype) **[normalization](../../glossary.md#term-normalization)** here means converting all nonzero source bytes to [canonical](../../glossary.md#term-canonical-form)
 true byte `1`, not statistically rescaling numerical data.
 
 <a id="complete-flat-import-example"></a>
@@ -16,8 +16,8 @@ true byte `1`, not statistically rescaling numerical data.
 <a id="goal-and-inputs-12"></a>
 #### Goal and inputs
 
-Import three logical BOOL values from bytes `{0, -2, 3}`, verify canonical storage, and show that
-later source mutation does not affect the tensor.
+Import three logical [BOOL](../../glossary.md#data-type--datatype) values from bytes `{0, -2, 3}`, verify [canonical](../../glossary.md#term-canonical-form) storage, and show that
+later source mutation does not affect the [tensor](../../glossary.md#tensor).
 
 ```java
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -57,12 +57,12 @@ public final class FlatImportExample {
 <a id="meaningful-lines-9"></a>
 #### Meaningful lines
 
-- `LayoutDescriptor.contiguous(shape)` supplies the required resolved dense-contiguous geometry.
-- The `byte[]` carrier matches `BOOL`; import normalizes both non-zero values to canonical byte
+- `LayoutDescriptor.contiguous(shape)` supplies the required resolved dense-[contiguous](../../glossary.md#term-contiguous) geometry.
+- The `byte[]` [carrier](../../glossary.md#term-storage-carrier) matches [`BOOL`](../../glossary.md#data-type--datatype); import normalizes both non-zero values to [canonical](../../glossary.md#term-canonical-form) byte
   `1` while copying into a distinct factory-allocated array.
 - Mutating `source` after import demonstrates that the returned tensor does not retain that array.
   The raw heap-base inspection uses the already exposed storage segment only to make this example's
-  result observable; it is not a typed Tensor access API.
+  result observable; it is not a typed Tensor access API.<span data-glossary-navigation="true"> ([tensor glossary](../../glossary.md#tensor); [heap glossary](../../glossary.md#term-heap); [API glossary](../../glossary.md#term-application-programming-interface-api))</span>
 
 <a id="result-and-interpretation-12"></a>
 #### Result and interpretation
@@ -74,18 +74,18 @@ mask
 [0, 1, 1]
 ```
 
-The result proves BOOL normalization, copied ownership, label retention, and row-major order for a
-dense flat import. It does not demonstrate nested shape inference or provide public typed access
-or export, numeric conversion, view scattering, native allocation, runtime residency, or backend
+The result proves [BOOL](../../glossary.md#data-type--datatype) [normalization](../../glossary.md#term-normalization), copied [ownership](../../glossary.md#term-ownership-meanings), label retention, and [row-major](../../glossary.md#term-row-major) order for a
+dense flat import. It does not demonstrate nested [shape](../../glossary.md#shape) [inference](../../glossary.md#term-inference) or provide public typed access
+or export, numeric conversion, [view](../../glossary.md#term-view-meanings) scattering, native allocation, [runtime](../../glossary.md#term-runtime) [residency](../../glossary.md#residency), or [backend](../../glossary.md#backend)
 execution.
 
 <a id="failures-and-useful-variations-9"></a>
 #### Failures and useful variations
 
-- Using this `byte[]` with a descriptor other than BOOL or either FP8 type fails before destination or ID allocation.
-- An offset, strided, broadcast, or unresolved layout is rejected before source-length validation.
-- A source of length two or four fails because the shape has exactly three logical elements.
-- `short[]` imports raw BFLOAT16 bits; it does not convert Java `float` values.
+- Using this `byte[]` with a [descriptor](../../glossary.md#term-descriptor) other than [BOOL](../../glossary.md#data-type--datatype) or either [FP8](../../glossary.md#term-fp8) type fails before destination or ID allocation.
+- An offset, strided, broadcast, or unresolved [layout](../../glossary.md#layout) is rejected before source-length [validation](../../glossary.md#term-validation).
+- A source of length two or four fails because the [shape](../../glossary.md#shape) has exactly three logical [elements](../../glossary.md#term-element).
+- `short[]` imports raw [BFLOAT16](../../glossary.md#term-bfloat16) bits; it does not convert Java `float` values.
 
 <a id="complete-nested-import-example"></a>
 ### Complete nested-import example
@@ -93,9 +93,9 @@ execution.
 <a id="goal-and-inputs-13"></a>
 #### Goal and inputs
 
-Import the rectangular `float[][]` value `{{1, 2}, {3, 4}}`, infer its descriptor, preserve the
-gradient request, and verify that later source mutation does not affect the tensor. The source has
-declared rank two, exact `float` leaves, and two elements along each axis.
+Import the rectangular `float[][]` value `{{1, 2}, {3, 4}}`, infer its [descriptor](../../glossary.md#term-descriptor), preserve the
+[gradient](../../glossary.md#term-gradient) request, and verify that later source mutation does not affect the [tensor](../../glossary.md#tensor). The source has
+declared [rank](../../glossary.md#term-rank) two, exact `float` leaves, and two [elements](../../glossary.md#term-element) along each [axis](../../glossary.md#term-axis).
 
 ```java
 import io.github.pho001.synaptik.model.tensor.Tensor;
@@ -131,13 +131,13 @@ public final class NestedImportExample {
 #### Meaningful lines
 
 - Passing the nested primitive array as `Object` does not erase its runtime metadata: the factory
-  reads declared rank two and ultimate carrier `float`, which infer `FLOAT32` and shape `[2, 2]`.
-- `true` requests gradient eligibility on the inferred descriptor. `FLOAT32` permits that request;
-  an integral or BOOL carrier would reject it before destination or ID allocation.
+  reads declared rank two and ultimate carrier <span data-glossary-navigation="true"> ([runtime glossary](../../glossary.md#term-runtime); [metadata glossary](../../glossary.md#term-metadata); [rank glossary](../../glossary.md#term-rank); [carrier glossary](../../glossary.md#term-storage-carrier))</span>`float`, which infer [`FLOAT32`](../../glossary.md#term-float32) and [shape](../../glossary.md#shape) `[2, 2]`.
+- `true` requests [gradient](../../glossary.md#term-gradient) eligibility on the inferred [descriptor](../../glossary.md#term-descriptor). `FLOAT32` permits that request;
+  an integral or BOOL carrier would reject it before destination or ID allocation.<span data-glossary-navigation="true"> ([BOOL glossary](../../glossary.md#data-type--datatype))</span>
 - The factory flattens the two rows in encounter order and delegates the resulting `float[]` to
   flat import, which creates the independent destination array.
 - Mutating `firstRow` after return demonstrates source independence. The heap-base inspection is
-  only a way to observe this example's raw result; it is not a public typed Tensor access API.
+  only a way to observe this example's raw result; it is not a public typed Tensor access API.<span data-glossary-navigation="true"> ([heap glossary](../../glossary.md#term-heap); [Tensor glossary](../../glossary.md#tensor); [API glossary](../../glossary.md#term-application-programming-interface-api))</span>
 
 <a id="result-and-interpretation-13"></a>
 #### Result and interpretation
@@ -153,19 +153,19 @@ weights
 [1.0, 2.0, 3.0, 4.0]
 ```
 
-The result proves exact carrier inference, fully static dense shape and layout inference,
-row-major copying, label retention, gradient eligibility, and source independence. It does not
-promise a snapshot under concurrent source mutation, numeric conversion, dynamic-shape inference,
-view population, typed export, native allocation, or execution.
+The result proves exact [carrier](../../glossary.md#term-storage-carrier) [inference](../../glossary.md#term-inference), fully static dense [shape](../../glossary.md#shape) and [layout](../../glossary.md#layout) inference,
+[row-major](../../glossary.md#term-row-major) copying, label retention, [gradient](../../glossary.md#term-gradient) eligibility, and source independence. It does not
+promise a [snapshot](../../glossary.md#term-snapshot) under concurrent source mutation, numeric conversion, dynamic-shape inference,
+[view](../../glossary.md#term-view-meanings) population, typed export, native allocation, or execution.
 
 <a id="failures-and-useful-variations-10"></a>
 #### Failures and useful variations
 
-- `new int[2][0]` is valid and infers shape `[2, 0]`; `new int[0][2]` is rejected because axis 1 is
+- `new int[2][0]` is valid and infers [shape](../../glossary.md#shape) `[2, 0]`; `new int[0][2]` is rejected because axis 1 is
   not observable from the empty root.
-- `new float[][] {{1}, {2, 3}}` is rejected as ragged at axis `1`, path `[1]`.
+- `new float[][] {{1}, {2, 3}}` is rejected as ragged at [axis](../../glossary.md#term-axis) `1`, path `[1]`.
 - `new float[][] {null, {1}}` is rejected for a null subarray at path `[0]`.
-- `Integer[][]`, `boolean[][]`, and rank-one `float[]` values are outside this API.
+- `Integer[][]`, `boolean[][]`, and [rank-one](../../glossary.md#axis-rank-scalar-vector-and-matrix) `float[]` values are outside this [API](../../glossary.md#term-application-programming-interface-api).
 
 
 ---

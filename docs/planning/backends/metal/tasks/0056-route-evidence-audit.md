@@ -1,28 +1,28 @@
 # Task 0056 route-evidence audit
 
-Status: **Normative planning evidence for Task 0056**
+Status: **[Normative](../../../../glossary.md#term-normative) [planning](../../../../glossary.md#term-planning) evidence for Task 0056**
 
 This companion ledger closes the selector/source-evidence requirement for the
 [Task 0056 route catalog](0056-deterministic-dual-route-catalog-and-fixed-route-identity.md).
-It is descriptive planning evidence only: it authorizes no capability, route change, build, device
-probe, oracle run, benchmark, or performance claim.
+It is descriptive planning evidence only: it authorizes no capability, route change, build, [device](../../../../glossary.md#term-device)
+probe, [oracle](../../../../glossary.md#term-test-oracle) [run](../../../../glossary.md#term-run), benchmark, or performance claim.
 
-Every schema-13 operation wire occurs exactly once below. Each row gives:
+Every [schema](../../../../glossary.md#term-schema)-13 [operation](../../../../glossary.md#operation) wire occurs exactly once below. Each row gives:
 
-1. the closed MPSGraph catalog state from Task 0056;
+1. the closed [MPSGraph](../../../../glossary.md#term-mpsgraph) catalog state from Task 0056;
 2. one exact installed-SDK selector or a finite ordered composition of exact selectors, including
-   the header key that resolves to the installed absolute path; and
-3. the exact Model enum member plus its bounded `OperationSignature` shape. The Model key resolves
-   to the repository source that owns both the member's semantic Javadoc and its signatures.
+   the header key that resolves to the installed absolute path; and<span data-glossary-navigation="true"> ([SDK glossary](../../../../glossary.md#term-sdk))</span>
+3. the exact [Model](../../../../glossary.md#term-model) enum member plus its bounded `OperationSignature` shape. The Model key resolves
+   to the repository source that owns both the member's semantic Javadoc and its signatures.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [signatures glossary](../../../../glossary.md#term-signature))</span>
 
-Selector spelling omits Objective-C parameter types but retains every selector component. A `+`
-means all named primitives participate in the finite composition; `then` states result flow. Literal
-parameter tensors use `MEM::constantWithScalar:dataType:`,
+Selector spelling omits [Objective-C](../../../../glossary.md#native-packaging-and-platform-vocabulary) [parameter](../../../../glossary.md#term-parameter) types but retains every selector component. A `+`
+means all named primitives participate in the [finite](../../../../glossary.md#term-finite) composition; `then` states result flow. Literal
+parameter [tensors](../../../../glossary.md#tensor) use `MEM::constantWithScalar:dataType:`,
 `MEM::constantWithScalar:shape:dataType:`, or exact encoded bytes with
-`MEM::constantWithData:shape:dataType:`. Descriptors, normalized axes, shapes, and literal values
+`MEM::constantWithData:shape:dataType:`. [Descriptors](../../../../glossary.md#term-descriptor), normalized [axes](../../../../glossary.md#term-axis), [shapes](../../../../glossary.md#shape), and literal values
 come only from already-validated Model attributes; this ledger does not weaken those validations.
 
-## Installed SDK header keys
+## Installed [SDK](../../../../glossary.md#term-sdk) header keys
 
 The audited SDK root is exactly:
 
@@ -36,28 +36,28 @@ The audited SDK root is exactly:
 | `AR` | `MPSGraphArithmeticOps.h` |
 | `CONV` | `MPSGraphConvolutionOps.h` |
 | `CUM` | `MPSGraphCumulativeOps.h` |
-| `GATHER` | `MPSGraphGatherOps.h` |
+| [`GATHER`](../../../../glossary.md#gather) | `MPSGraphGatherOps.h` |
 | `IMCOL` | `MPSGraphImToColOps.h` |
-| `LOSS` | `MPSGraphLossOps.h` |
+| [`LOSS`](../../../../glossary.md#loss) | `MPSGraphLossOps.h` |
 | `MAT` | `MPSGraphMatrixMultiplicationOps.h` |
 | `MEM` | `MPSGraphMemoryOps.h` |
-| `NORM` | `MPSGraphNormalizationOps.h` |
+| [`NORM`](../../../../glossary.md#term-norm) | `MPSGraphNormalizationOps.h` |
 | `ONEHOT` | `MPSGraphOneHotOps.h` |
 | `POOL` | `MPSGraphPoolingOps.h` |
 | `RANDOM` | `MPSGraphRandomOps.h` |
 | `RED` | `MPSGraphReductionOps.h` |
-| `RNN` | `MPSGraphRNNOps.h` |
+| [`RNN`](../../../../glossary.md#term-recurrent-neural-network-rnn) | `MPSGraphRNNOps.h` |
 | `SCATTER` | `MPSGraphScatterNDOps.h` |
-| `SHAPE` | `MPSGraphTensorShapeOps.h` |
+| [`SHAPE`](../../../../glossary.md#shape) | `MPSGraphTensorShapeOps.h` |
 | `SORT` | `MPSGraphSortOps.h` |
 | `TOPK` | `MPSGraphTopKOps.h` |
 
 The evidence is intentionally tied to these installed headers. A future SDK replacement must rerun
 this audit rather than silently treating selector names from another SDK as current evidence.
 
-## Model semantic/signature source keys
+## [Model](../../../../glossary.md#term-model) semantic/[signature](../../../../glossary.md#term-signature) source keys
 
-Each link is the exact current source file whose enum Javadoc defines the semantics and whose
+Each link is the exact current source file whose enum [Javadoc](../../../../glossary.md#term-javadoc) defines the semantics and whose
 `signatures()` implementation owns the bounded input/output/attribute combinations cited per row.
 
 | Key | Current Model source |
@@ -106,9 +106,9 @@ Each link is the exact current source file whose enum Javadoc defines the semant
 Signature notation is `attrs; input-min..input-max -> output-min..output-max`; a single number is
 exact. Slash-separated attribute types are the source-owned alternative signatures for that kind.
 
-## Exhaustive per-wire selector/composition and Model evidence
+## Exhaustive per-wire selector/composition and [Model](../../../../glossary.md#term-model) evidence
 
-| Wire | Exact Model kind and state | Installed SDK selector or exact finite composition | Bounded Model source/signature evidence |
+| Wire | Exact Model kind and state | Installed [SDK](../../../../glossary.md#term-sdk) selector or exact [finite](../../../../glossary.md#term-finite) composition | Bounded Model source/[signature](../../../../glossary.md#term-signature) evidence |
 |---:|---|---|---|
 | 1 | `UnaryElementwiseKind.NEG`; `DIRECT` | `AR::negativeWithTensor:name:` | `M-UNARY::NEG`; `NoOperationAttrs; 1 -> 1` |
 | 2 | `BinaryArithmeticKind.ADD`; `DIRECT` | `AR::additionWithPrimaryTensor:secondaryTensor:name:` | `M-BINARY::ADD`; `NoOperationAttrs; 2 -> 1` |
@@ -120,15 +120,15 @@ exact. Slash-separated attribute types are the source-owned alternative signatur
 | 8 | `AxisTransformKind.PERMUTE`; `DIRECT` | `SHAPE::transposeTensor:permutation:name:` | `M-AXIS-XFORM::PERMUTE`; `PermutationAttrs; 1 -> 1` |
 | 9 | `AxisTransformKind.EXPAND_DIMS`; `DIRECT` | `SHAPE::expandDimsOfTensor:axes:name:` | `M-AXIS-XFORM::EXPAND_DIMS`; `AxisTransformAttrs; 1 -> 1` |
 | 10 | `AxisTransformKind.SQUEEZE`; `DIRECT` | `SHAPE::squeezeTensor:axes:name:` | `M-AXIS-XFORM::SQUEEZE`; `AxisTransformAttrs; 1 -> 1` |
-| 11 | `ContiguousKind.CONTIGUOUS`; `DIRECT` | `SHAPE::reshapeTensor:withShape:name:` with the already-validated identical logical shape | `M-CONTIG::CONTIGUOUS`; `NoOperationAttrs; 1 -> 1` |
+| 11 | `ContiguousKind.CONTIGUOUS`; `DIRECT` | `SHAPE::reshapeTensor:withShape:name:` with the already-validated identical logical [shape](../../../../glossary.md#shape) | `M-CONTIG::CONTIGUOUS`; `NoOperationAttrs; 1 -> 1` |
 | 12 | `UnaryElementwiseKind.ABS`; `DIRECT` | `AR::absoluteWithTensor:name:` | `M-UNARY::ABS`; `NoOperationAttrs; 1 -> 1` |
 | 13 | `AggregateReductionKind.SUM`; `DIRECT` | `RED::reductionSumWithTensor:axes:name:` | `M-AGG::SUM`; `NoOperationAttrs/AxisReductionAttrs/MultiAxisReductionAttrs/SumToShapeAttrs; 1 -> 1 / MaskedReductionAttrs; 2 -> 1` |
 | 14 | `AggregateReductionKind.MEAN`; `DIRECT` | `NORM::meanOfTensor:axes:name:` | `M-AGG::MEAN`; `NoOperationAttrs/AxisReductionAttrs/MultiAxisReductionAttrs; 1 -> 1 / MaskedReductionAttrs; 2 -> 1` |
 | 15 | `MatmulKind.MATMUL`; `DIRECT` | `MAT::matrixMultiplicationWithPrimaryTensor:secondaryTensor:name:` | `M-MATMUL::MATMUL`; `NoOperationAttrs; 2 -> 1` |
-| 16 | `AxisGatherKind.GATHER`; `DIRECT` | `GATHER::gatherWithUpdatesTensor:indicesTensor:axis:batchDimensions:name:` with batch dimensions zero | `M-GATHER::GATHER`; `IndexAxisAttrs; 2 -> 1` |
+| 16 | `AxisGatherKind.GATHER`; `DIRECT` | `GATHER::gatherWithUpdatesTensor:indicesTensor:axis:batchDimensions:name:` with [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) [dimensions](../../../../glossary.md#dimension) zero | `M-GATHER::GATHER`; `IndexAxisAttrs; 2 -> 1` |
 | 17 | `OneHotKind.ONE_HOT`; `DIRECT` | `ONEHOT::oneHotWithIndicesTensor:depth:axis:dataType:onValue:offValue:name:` | `M-ONEHOT::ONE_HOT`; `OneHotAttrs; 1 -> 1` |
 | 18 | `AxisScatterKind.SCATTER_ELEMENTS`; `DIRECT` | `SCATTER::scatterAlongAxis:withDataTensor:updatesTensor:indicesTensor:mode:name:` | `M-SCATTER::SCATTER_ELEMENTS`; `ScatterElementsAttrs; 3 -> 1` |
-| 19 | `WindowTransformKind.UNFOLD_AXIS`; `COMPOSED` | repeat `SHAPE::sliceTensor:starts:ends:strides:name:` for each validated window, `SHAPE::reshapeTensor:withShape:name:`, then `SHAPE::concatTensors:dimension:name:` in canonical position order | `M-WINDOW::UNFOLD_AXIS`; `UnfoldAxisAttrs; 1 -> 1` |
+| 19 | `WindowTransformKind.UNFOLD_AXIS`; `COMPOSED` | repeat `SHAPE::sliceTensor:starts:ends:strides:name:` for each validated window, `SHAPE::reshapeTensor:withShape:name:`, then `SHAPE::concatTensors:dimension:name:` in [canonical](../../../../glossary.md#term-canonical-form) position order | `M-WINDOW::UNFOLD_AXIS`; `UnfoldAxisAttrs; 1 -> 1` |
 | 20 | `BinaryComparisonKind.GREATER_THAN`; `DIRECT` | `AR::greaterThanWithPrimaryTensor:secondaryTensor:name:` | `M-COMPARE::GREATER_THAN`; `NoOperationAttrs; 2 -> 1` |
 | 21 | `BinaryComparisonKind.GREATER_OR_EQUAL`; `DIRECT` | `AR::greaterThanOrEqualToWithPrimaryTensor:secondaryTensor:name:` | `M-COMPARE::GREATER_OR_EQUAL`; `NoOperationAttrs; 2 -> 1` |
 | 22 | `BinaryComparisonKind.LESS_THAN`; `DIRECT` | `AR::lessThanWithPrimaryTensor:secondaryTensor:name:` | `M-COMPARE::LESS_THAN`; `NoOperationAttrs; 2 -> 1` |
@@ -139,13 +139,13 @@ exact. Slash-separated attribute types are the source-owned alternative signatur
 | 27 | `BinaryArithmeticKind.MAX`; `DIRECT` | `AR::maximumWithPrimaryTensor:secondaryTensor:name:` | `M-BINARY::MAX`; `NoOperationAttrs; 2 -> 1` |
 | 28 | `ScalarElementwiseKind.MIN`; `COMPOSED` | `MEM::constantWithScalar:dataType:` + `AR::minimumWithPrimaryTensor:secondaryTensor:name:` | `M-SCALAR::MIN`; `ScalarValueAttrs; 1 -> 1` |
 | 29 | `ScalarElementwiseKind.MAX`; `COMPOSED` | `MEM::constantWithScalar:dataType:` + `AR::maximumWithPrimaryTensor:secondaryTensor:name:` | `M-SCALAR::MAX`; `ScalarValueAttrs; 1 -> 1` |
-| 30 | `ScalarElementwiseKind.CLAMP`; `DIRECT` | materialize validated literal bounds with `MEM::constantWithScalar:dataType:`, then one `AR::clampWithTensor:minValueTensor:maxValueTensor:name:` operation selector | `M-SCALAR::CLAMP`; `ClampRangeAttrs; 1 -> 1` |
+| 30 | `ScalarElementwiseKind.CLAMP`; `DIRECT` | materialize validated literal bounds with `MEM::constantWithScalar:dataType:`, then one `AR::clampWithTensor:minValueTensor:maxValueTensor:name:` [operation](../../../../glossary.md#operation) selector | `M-SCALAR::CLAMP`; `ClampRangeAttrs; 1 -> 1` |
 | 31 | `AggregateReductionKind.MIN`; `DIRECT` | `RED::reductionMinimumWithTensor:axes:name:` | `M-AGG::MIN`; `NoOperationAttrs/AxisReductionAttrs/MultiAxisReductionAttrs; 1 -> 1` |
 | 32 | `AggregateReductionKind.MAX`; `DIRECT` | `RED::reductionMaximumWithTensor:axes:name:` | `M-AGG::MAX`; `NoOperationAttrs/AxisReductionAttrs/MultiAxisReductionAttrs; 1 -> 1` |
 | 33 | `CumulativeScanKind.CUM_SUM`; `DIRECT` | `CUM::cumulativeSumWithTensor:axis:exclusive:reverse:name:` | `M-SCAN::CUM_SUM`; `CumulativeScanAttrs; 1 -> 1` |
 | 34 | `CumulativeScanKind.CUM_PROD`; `DIRECT` | `CUM::cumulativeProductWithTensor:axis:exclusive:reverse:name:` | `M-SCAN::CUM_PROD`; `CumulativeScanAttrs; 1 -> 1` |
-| 35 | `ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION`; `DIRECT` | bounded base form: `MAT::scaledDotProductAttentionWithQueryTensor:keyTensor:valueTensor:scale:name:`; mask, causal, and weights-output forms remain excluded | `M-ATTN::SCALED_DOT_PRODUCT_ATTENTION`; `ScaledDotProductAttentionAttrs; 3..4 -> 1..2` |
-| 36 | `Conv2dKind.CONV2D`; `DIRECT` | bounded unbiased form: `CONV::convolution2DWithSourceTensor:weightsTensor:descriptor:name:`; optional bias remains excluded | `M-CONV2::CONV2D`; `Conv2dAttrs; 2..3 -> 1` |
+| 35 | `ScaledDotProductAttentionKind.SCALED_DOT_PRODUCT_ATTENTION`; `DIRECT` | bounded base form: `MAT::scaledDotProductAttentionWithQueryTensor:keyTensor:valueTensor:scale:name:`; [mask](../../../../glossary.md#term-boolean-mask), causal, and [weights](../../../../glossary.md#term-weight)-output forms remain excluded | `M-ATTN::SCALED_DOT_PRODUCT_ATTENTION`; `ScaledDotProductAttentionAttrs; 3..4 -> 1..2` |
+| 36 | `Conv2dKind.CONV2D`; `DIRECT` | bounded unbiased form: `CONV::convolution2DWithSourceTensor:weightsTensor:descriptor:name:`; optional [bias](../../../../glossary.md#term-bias) remains excluded | `M-CONV2::CONV2D`; `Conv2dAttrs; 2..3 -> 1` |
 | 37 | `Conv3dKind.CONV3D`; `DIRECT` | bounded unbiased form: `CONV::convolution3DWithSourceTensor:weightsTensor:descriptor:name:`; optional bias remains excluded | `M-CONV3::CONV3D`; `Conv3dAttrs; 2..3 -> 1` |
 | 38 | `BinaryArithmeticKind.POW`; `DIRECT` | `AR::powerWithPrimaryTensor:secondaryTensor:name:` | `M-BINARY::POW`; `NoOperationAttrs; 2 -> 1` |
 | 39 | `CastKind.CAST`; `DIRECT` | `SHAPE::castTensor:toType:name:` | `M-CAST::CAST`; `CastAttrs; 1 -> 1` |
@@ -155,7 +155,7 @@ exact. Slash-separated attribute types are the source-owned alternative signatur
 | 43 | `BooleanLogicalKind.AND`; `DIRECT` | `AR::logicalANDWithPrimaryTensor:secondaryTensor:name:` | `M-BOOL::AND`; `NoOperationAttrs; 2 -> 1` |
 | 44 | `BooleanLogicalKind.OR`; `DIRECT` | `AR::logicalORWithPrimaryTensor:secondaryTensor:name:` | `M-BOOL::OR`; `NoOperationAttrs; 2 -> 1` |
 | 45 | `BooleanLogicalKind.NOT`; `DIRECT` | `AR::notWithTensor:name:` | `M-BOOL::NOT`; `NoOperationAttrs; 1 -> 1` |
-| 46 | `ScalarElementwiseKind.ADD`; `COMPOSED` | exact four-byte raw scalar in rank-one `[1]` via `MEM::constantWithData:shape:dataType:` + `AR::additionWithPrimaryTensor:secondaryTensor:name:` with input primary and scalar secondary | `M-SCALAR::ADD`; `ScalarValueAttrs; 1 -> 1` |
+| 46 | `ScalarElementwiseKind.ADD`; `COMPOSED` | exact four-byte raw [scalar](../../../../glossary.md#term-scalar) in [rank-one](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) `[1]` via `MEM::constantWithData:shape:dataType:` + `AR::additionWithPrimaryTensor:secondaryTensor:name:` with input primary and scalar secondary | `M-SCALAR::ADD`; `ScalarValueAttrs; 1 -> 1` |
 | 47 | `ScalarElementwiseKind.SUB`; `COMPOSED` | exact four-byte raw scalar in rank-one `[1]` via `MEM::constantWithData:shape:dataType:` + `AR::subtractionWithPrimaryTensor:secondaryTensor:name:` with input primary and scalar secondary | `M-SCALAR::SUB`; `ScalarValueAttrs; 1 -> 1` |
 | 48 | `ScalarElementwiseKind.MUL`; `COMPOSED` | exact four-byte raw scalar in rank-one `[1]` via `MEM::constantWithData:shape:dataType:` + `AR::multiplicationWithPrimaryTensor:secondaryTensor:name:` with input primary and scalar secondary | `M-SCALAR::MUL`; `ScalarValueAttrs; 1 -> 1` |
 | 49 | `ScalarElementwiseKind.DIV`; `COMPOSED` | exact four-byte raw scalar in rank-one `[1]` via `MEM::constantWithData:shape:dataType:` + `AR::divisionWithPrimaryTensor:secondaryTensor:name:` with input primary and scalar secondary | `M-SCALAR::DIV`; `ScalarValueAttrs; 1 -> 1` |
@@ -182,7 +182,7 @@ exact. Slash-separated attribute types are the source-owned alternative signatur
 | 70 | `AxisScatterKind.SCATTER_ADD`; `DIRECT` | `SCATTER::scatterAlongAxis:withDataTensor:updatesTensor:indicesTensor:mode:name:` with add mode | `M-SCATTER::SCATTER_ADD`; `IndexAxisAttrs; 3 -> 1` |
 | 71 | `GatherNdKind.GATHER_ND`; `DIRECT` | `GATHER::gatherNDWithUpdatesTensor:indicesTensor:batchDimensions:name:` | `M-GATHER-ND::GATHER_ND`; `GatherNdAttrs; 2 -> 1` |
 | 72 | `ScatterNdKind.SCATTER_ND`; `DIRECT` | `SCATTER::scatterNDWithDataTensor:updatesTensor:indicesTensor:batchDimensions:mode:name:` | `M-SCATTER-ND::SCATTER_ND`; `ScatterNdAttrs; 3 -> 1` |
-| 73 | `SelectKind.SELECT`; `COMPOSED` | `SHAPE::sliceTensor:starts:ends:strides:name:` with unit selected extent, then `SHAPE::squeezeTensor:axis:name:` | `M-SELECT::SELECT`; `SelectAttrs; 1 -> 1` |
+| 73 | `SelectKind.SELECT`; `COMPOSED` | `SHAPE::sliceTensor:starts:ends:strides:name:` with unit selected [extent](../../../../glossary.md#term-extent), then `SHAPE::squeezeTensor:axis:name:` | `M-SELECT::SELECT`; `SelectAttrs; 1 -> 1` |
 | 74 | `PadKind.PAD`; `DIRECT` | `SHAPE::padTensor:withPaddingMode:leftPadding:rightPadding:constantValue:name:` | `M-PAD::PAD`; `PadAttrs; 1 -> 1` |
 | 75 | `SliceKind.SLICE`; `DIRECT` | `SHAPE::sliceTensor:starts:ends:strides:name:` | `M-SLICE::SLICE`; `SliceAttrs/CropToShapeAttrs; 1 -> 1` |
 | 76 | `SliceKind.SLICE_UPDATE`; `DIRECT` | `SHAPE::sliceUpdateDataTensor:updateTensor:starts:ends:strides:name:` | `M-SLICE::SLICE_UPDATE`; `SliceAttrs/CropToShapeAttrs; 2 -> 1` |
@@ -192,27 +192,27 @@ exact. Slash-separated attribute types are the source-owned alternative signatur
 | 80 | `WindowTransformKind.FOLD_AXIS`; `COMPOSED` | validated static geometry creates the complete destination map with `MEM::constantWithData:shape:dataType:`; `SHAPE::reshapeTensor:withShape:name:` aligns window updates, then `SCATTER::scatterAlongAxis:withDataTensor:updatesTensor:indicesTensor:mode:name:` accumulates every contributor in add mode | `M-WINDOW::FOLD_AXIS`; `FoldAxisAttrs; 1 -> 1` |
 | 81 | `WindowTransformKind.UNFOLD2D`; `DIRECT` | `IMCOL::imToColWithSourceTensor:descriptor:name:` | `M-WINDOW::UNFOLD2D`; `Window2dAttrs/Unfold2dAttrs; 1 -> 1` |
 | 82 | `WindowTransformKind.FOLD2D`; `DIRECT` | `IMCOL::colToImWithSourceTensor:outputShape:descriptor:name:` | `M-WINDOW::FOLD2D`; `Fold2dAttrs; 1 -> 1` |
-| 83 | `WindowTransformKind.UNFOLD3D`; `COMPOSED` | nested canonical NCDHW windows via repeated `SHAPE::sliceTensor:starts:ends:strides:name:`, `SHAPE::reshapeTensor:withShape:name:`, then `SHAPE::concatTensors:dimension:name:` | `M-WINDOW::UNFOLD3D`; `Window3dAttrs/Unfold3dAttrs; 1 -> 1` |
+| 83 | `WindowTransformKind.UNFOLD3D`; `COMPOSED` | nested canonical [NCDHW](../../../../glossary.md#conv3d--ncdhw) windows via repeated `SHAPE::sliceTensor:starts:ends:strides:name:`, `SHAPE::reshapeTensor:withShape:name:`, then `SHAPE::concatTensors:dimension:name:` | `M-WINDOW::UNFOLD3D`; `Window3dAttrs/Unfold3dAttrs; 1 -> 1` |
 | 84 | `WindowTransformKind.FOLD3D`; `COMPOSED` | validated static NCDHW geometry creates canonical destination tuples with `MEM::constantWithData:shape:dataType:`; `SHAPE::reshapeTensor:withShape:name:` aligns updates, then `SCATTER::scatterNDWithDataTensor:updatesTensor:indicesTensor:batchDimensions:mode:name:` accumulates every contributor in add mode | `M-WINDOW::FOLD3D`; `Fold3dAttrs; 1 -> 1` |
-| 85 | `LossKind.MEAN_SQUARED_ERROR`; `COMPOSED` | `AR::subtractionWithPrimaryTensor:secondaryTensor:name:` + `AR::multiplicationWithPrimaryTensor:secondaryTensor:name:`; reduction `NONE` is identity, `SUM` uses `RED::reductionSumWithTensor:axes:name:`, and `MEAN` additionally uses `MEM::constantWithScalar:dataType:` plus `AR::divisionWithPrimaryTensor:secondaryTensor:name:` for the exact contributor count | `M-LOSS::MEAN_SQUARED_ERROR`; `MeanSquaredErrorAttrs; 2 -> 1` |
+| 85 | `LossKind.MEAN_SQUARED_ERROR`; `COMPOSED` | `AR::subtractionWithPrimaryTensor:secondaryTensor:name:` + `AR::multiplicationWithPrimaryTensor:secondaryTensor:name:`; reduction `NONE` is [identity](../../../../glossary.md#term-identity-meanings), `SUM` uses `RED::reductionSumWithTensor:axes:name:`, and [`MEAN`](../../../../glossary.md#term-mean) additionally uses `MEM::constantWithScalar:dataType:` plus `AR::divisionWithPrimaryTensor:secondaryTensor:name:` for the exact contributor count | `M-LOSS::MEAN_SQUARED_ERROR`; `MeanSquaredErrorAttrs; 2 -> 1` |
 | 86 | `LossKind.DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS`; `DIRECT` | `LOSS::softMaxCrossEntropyWithSourceTensor:labelsTensor:axis:reductionType:name:` | `M-LOSS::DENSE_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS`; `DenseCategoricalCrossEntropyWithLogitsAttrs; 2 -> 1` |
-| 87 | `LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS`; `COMPOSED` | `ONEHOT::oneHotWithIndicesTensor:depth:axis:dataType:onValue:offValue:name:` + stable log-softmax using `RED::reductionMaximumWithTensor:axes:name:`, `SHAPE::expandDimsOfTensor:axes:name:`, `SHAPE::broadcastTensor:toShape:name:`, `AR::subtractionWithPrimaryTensor:secondaryTensor:name:`, `AR::exponentWithTensor:name:`, `RED::reductionSumWithTensor:axes:name:`, and `AR::logarithmWithTensor:name:`; then `AR::multiplicationWithPrimaryTensor:secondaryTensor:name:`, `RED::reductionSumWithTensor:axes:name:`, ignore masking via `AR::notEqualWithPrimaryTensor:secondaryTensor:name:` and `AR::selectWithPredicateTensor:truePredicateTensor:falsePredicateTensor:name:`, and final `RED::reductionSumWithTensor:axes:name:` or `MEM::constantWithScalar:dataType:` plus `AR::divisionWithPrimaryTensor:secondaryTensor:name:` as requested | `M-LOSS::INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS`; `IndexCategoricalCrossEntropyWithLogitsAttrs; 2 -> 1` |
+| 87 | `LossKind.INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS`; `COMPOSED` | `ONEHOT::oneHotWithIndicesTensor:depth:axis:dataType:onValue:offValue:name:` + stable [log-softmax](../../../../glossary.md#softmax--log-softmax) using `RED::reductionMaximumWithTensor:axes:name:`, `SHAPE::expandDimsOfTensor:axes:name:`, `SHAPE::broadcastTensor:toShape:name:`, `AR::subtractionWithPrimaryTensor:secondaryTensor:name:`, `AR::exponentWithTensor:name:`, `RED::reductionSumWithTensor:axes:name:`, and `AR::logarithmWithTensor:name:`; then `AR::multiplicationWithPrimaryTensor:secondaryTensor:name:`, `RED::reductionSumWithTensor:axes:name:`, ignore masking via `AR::notEqualWithPrimaryTensor:secondaryTensor:name:` and `AR::selectWithPredicateTensor:truePredicateTensor:falsePredicateTensor:name:`, and final `RED::reductionSumWithTensor:axes:name:` or `MEM::constantWithScalar:dataType:` plus `AR::divisionWithPrimaryTensor:secondaryTensor:name:` as requested | `M-LOSS::INDEX_CATEGORICAL_CROSS_ENTROPY_WITH_LOGITS`; `IndexCategoricalCrossEntropyWithLogitsAttrs; 2 -> 1` |
 | 88 | `BatchNormKind.BATCH_NORM_INFERENCE`; `DIRECT` | `NORM::normalizationWithTensor:meanTensor:varianceTensor:gammaTensor:betaTensor:epsilon:name:` | `M-BN::BATCH_NORM_INFERENCE`; `BatchNormInferenceAttrs; 5 -> 1` |
-| 89 | `BatchNormKind.BATCH_NORM_TRAINING`; `COMPOSED` | `NORM::meanOfTensor:axes:name:` + `NORM::varianceOfTensor:meanTensor:axes:name:` + `NORM::normalizationWithTensor:meanTensor:varianceTensor:gammaTensor:betaTensor:epsilon:name:`; saved inverse deviation and both unbiased running-statistic updates use typed `MEM::constantWithScalar:dataType:` values with `AR::additionWithPrimaryTensor:secondaryTensor:name:`, `AR::subtractionWithPrimaryTensor:secondaryTensor:name:`, `AR::multiplicationWithPrimaryTensor:secondaryTensor:name:`, `AR::divisionWithPrimaryTensor:secondaryTensor:name:`, and `AR::reciprocalSquareRootWithTensor:name:`, producing all five outputs | `M-BN::BATCH_NORM_TRAINING`; `BatchNormTrainingAttrs; 5 -> 5` |
-| 90 | `LayerNormKind.LAYER_NORM`; `COMPOSED` | trailing axes `NORM::meanOfTensor:axes:name:` + `NORM::varianceOfTensor:meanTensor:axes:name:`; `SHAPE::expandDimsOfTensor:axes:name:` and `SHAPE::broadcastTensor:toShape:name:` return statistics to input shape; then `MEM::constantWithScalar:dataType:` epsilon, `AR::additionWithPrimaryTensor:secondaryTensor:name:`, `AR::reciprocalSquareRootWithTensor:name:`, `AR::subtractionWithPrimaryTensor:secondaryTensor:name:`, and `AR::multiplicationWithPrimaryTensor:secondaryTensor:name:` normalize; the 3-input form adds affine `AR` multiplication and addition through those same exact selectors | `M-LAYER::LAYER_NORM`; `LayerNormAttrs; 1 -> 1 / AffineLayerNormAttrs; 3 -> 1` |
+| 89 | `BatchNormKind.BATCH_NORM_TRAINING`; `COMPOSED` | `NORM::meanOfTensor:axes:name:` + `NORM::varianceOfTensor:meanTensor:axes:name:` + `NORM::normalizationWithTensor:meanTensor:varianceTensor:gammaTensor:betaTensor:epsilon:name:`; saved inverse deviation and both unbiased running-[statistic](../../../../glossary.md#term-statistic) updates use typed `MEM::constantWithScalar:dataType:` values with `AR::additionWithPrimaryTensor:secondaryTensor:name:`, `AR::subtractionWithPrimaryTensor:secondaryTensor:name:`, `AR::multiplicationWithPrimaryTensor:secondaryTensor:name:`, `AR::divisionWithPrimaryTensor:secondaryTensor:name:`, and `AR::reciprocalSquareRootWithTensor:name:`, producing all five outputs | `M-BN::BATCH_NORM_TRAINING`; `BatchNormTrainingAttrs; 5 -> 5` |
+| 90 | `LayerNormKind.LAYER_NORM`; `COMPOSED` | trailing [axes](../../../../glossary.md#term-axis) `NORM::meanOfTensor:axes:name:` + `NORM::varianceOfTensor:meanTensor:axes:name:`; `SHAPE::expandDimsOfTensor:axes:name:` and `SHAPE::broadcastTensor:toShape:name:` return statistics to input shape; then `MEM::constantWithScalar:dataType:` [epsilon](../../../../glossary.md#epsilon), `AR::additionWithPrimaryTensor:secondaryTensor:name:`, `AR::reciprocalSquareRootWithTensor:name:`, `AR::subtractionWithPrimaryTensor:secondaryTensor:name:`, and `AR::multiplicationWithPrimaryTensor:secondaryTensor:name:` normalize; the 3-input form adds affine `AR` multiplication and addition through those same exact selectors | `M-LAYER::LAYER_NORM`; `LayerNormAttrs; 1 -> 1 / AffineLayerNormAttrs; 3 -> 1` |
 | 91 | `RmsNormKind.RMS_NORM`; `COMPOSED` | `AR::multiplicationWithPrimaryTensor:secondaryTensor:name:` (`x*x`) + trailing-axis `NORM::meanOfTensor:axes:name:`; `SHAPE::expandDimsOfTensor:axes:name:` and `SHAPE::broadcastTensor:toShape:name:` return mean square to input shape; then `MEM::constantWithScalar:dataType:` epsilon, `AR::additionWithPrimaryTensor:secondaryTensor:name:`, `AR::reciprocalSquareRootWithTensor:name:`, and `AR::multiplicationWithPrimaryTensor:secondaryTensor:name:` by `x` normalize; the optional scale input adds another multiplication through that exact selector | `M-RMS::RMS_NORM`; `RmsNormAttrs; 1..2 -> 1` |
 | 92 | `SoftmaxKind.SOFTMAX`; `DIRECT` | `ACT::softMaxWithTensor:axis:name:` | `M-SOFTMAX::SOFTMAX`; `SoftmaxAttrs; 1 -> 1` |
 | 93 | `SoftmaxKind.LOG_SOFTMAX`; `COMPOSED` | stable `RED::reductionMaximumWithTensor:axes:name:`, `SHAPE::expandDimsOfTensor:axes:name:`, and `SHAPE::broadcastTensor:toShape:name:` feed `AR::subtractionWithPrimaryTensor:secondaryTensor:name:`; then `AR::exponentWithTensor:name:`, `RED::reductionSumWithTensor:axes:name:`, another expand/broadcast through the same exact shape selectors, `AR::logarithmWithTensor:name:`, and final subtraction produce the original shape | `M-SOFTMAX::LOG_SOFTMAX`; `SoftmaxAttrs; 1 -> 1` |
-| 94 | `OrderingKind.SORT`; `DIRECT` | `SORT::sortWithTensor:axis:descending:name:`; stability/NaN/signed-zero parity remains a later proof obligation | `M-ORDER::SORT`; `SortAttrs; 1 -> 1` |
-| 95 | `OrderingKind.ARGSORT`; `COMPOSED` | `SORT::argSortWithTensor:axis:descending:name:` returns INT32, then `SHAPE::castTensor:toType:name:` produces required INT64 | `M-ORDER::ARGSORT`; `SortAttrs; 1 -> 1` |
+| 94 | `OrderingKind.SORT`; `DIRECT` | `SORT::sortWithTensor:axis:descending:name:`; stability/[NaN](../../../../glossary.md#term-nan)/[signed-zero](../../../../glossary.md#nan-infinity-and-signed-zero) parity remains a later proof obligation | `M-ORDER::SORT`; `SortAttrs; 1 -> 1` |
+| 95 | `OrderingKind.ARGSORT`; `COMPOSED` | `SORT::argSortWithTensor:axis:descending:name:` returns [INT32](../../../../glossary.md#data-type--datatype), then `SHAPE::castTensor:toType:name:` produces required [INT64](../../../../glossary.md#data-type--datatype) | `M-ORDER::ARGSORT`; `SortAttrs; 1 -> 1` |
 | 96 | `TopKKind.TOP_K`; `COMPOSED` | `TOPK::topKWithSourceTensor:axis:k:name:` (or `TOPK::bottomKWithSourceTensor:axis:k:name:` for the bounded direction), retain values, then `SHAPE::castTensor:toType:name:` converts index output from INT32 to required INT64 | `M-TOPK::TOP_K`; `TopKAttrs; 1 -> 2` |
-| 97 | `Pool2dKind.MAX_POOL2D`; `DIRECT` | `POOL::maxPooling2DWithSourceTensor:descriptor:name:` with explicit padding/data layout and validated ceil mode | `M-POOL2::MAX_POOL2D`; `MaxPool2dAttrs; 1 -> 1` |
+| 97 | `Pool2dKind.MAX_POOL2D`; `DIRECT` | `POOL::maxPooling2DWithSourceTensor:descriptor:name:` with explicit [padding](../../../../glossary.md#padding)/data [layout](../../../../glossary.md#layout) and validated ceil mode | `M-POOL2::MAX_POOL2D`; `MaxPool2dAttrs; 1 -> 1` |
 | 98 | `Pool2dKind.AVERAGE_POOL2D`; `DIRECT` | `POOL::avgPooling2DWithSourceTensor:descriptor:name:` with explicit padding, ceil mode, and `includeZeroPadToAverage` mapped from Model divisor semantics | `M-POOL2::AVERAGE_POOL2D`; `AveragePool2dAttrs; 1 -> 1` |
 | 99 | `Pool3dKind.MAX_POOL3D`; `COMPOSED` | canonical NCDHW windows via repeated `SHAPE::sliceTensor:starts:ends:strides:name:`, `SHAPE::reshapeTensor:withShape:name:`, and `SHAPE::concatTensors:dimension:name:`, then `RED::reductionMaximumWithTensor:axes:name:` | `M-POOL3::MAX_POOL3D`; `MaxPool3dAttrs; 1 -> 1` |
 | 100 | `Pool3dKind.AVERAGE_POOL3D`; `COMPOSED` | canonical NCDHW windows via repeated `SHAPE::sliceTensor:starts:ends:strides:name:`, `SHAPE::reshapeTensor:withShape:name:`, and `SHAPE::concatTensors:dimension:name:`, then `RED::reductionSumWithTensor:axes:name:` and exact validated divisor through `MEM::constantWithScalar:dataType:` + `AR::divisionWithPrimaryTensor:secondaryTensor:name:` | `M-POOL3::AVERAGE_POOL3D`; `AveragePool3dAttrs; 1 -> 1` |
-| 101 | `DropoutKind.DROPOUT`; `UNAVAILABLE` | blocker evidence: `RANDOM::dropoutTensor:rate:name:` returns only one tensor; stateful `RANDOM::randomTensorWithShape:descriptor:stateTensor:name:` returns random values plus opaque updated state, not Model output/mask/raw-state triplet | `M-DROPOUT::DROPOUT`; `DropoutAttrs; 2 -> 3` |
-| 102 | `GraphRngKind.INITIAL_STATE`; `UNAVAILABLE` | blocker evidence: `RANDOM::randomPhiloxStateTensorWithSeed:name:` and `RANDOM::randomPhiloxStateTensorWithCounterLow:counterHigh:key:name:` return opaque MPSGraph state, not Model raw INT64 `[key,counter]` | `M-RNG::INITIAL_STATE`; `GraphRngStateAttrs; 0 -> 1` |
-| 103 | `RecurrentScanKind.RNN_TANH`; `UNAVAILABLE` | blocker evidence: `RNN::singleGateRNNWithSourceTensor:recurrentWeight:inputWeight:bias:initState:descriptor:name:` has no runtime valid-length tensor or Model atomic skip/positive-zero-padding contract | `M-RECURRENT::RNN_TANH`; `RecurrentDirection; 5..6 -> 2` |
+| 101 | `DropoutKind.DROPOUT`; `UNAVAILABLE` | blocker evidence: `RANDOM::dropoutTensor:rate:name:` returns only one [tensor](../../../../glossary.md#tensor); stateful `RANDOM::randomTensorWithShape:descriptor:stateTensor:name:` returns random values plus [opaque](../../../../glossary.md#term-opaque) updated state, not Model output/mask/raw-state triplet | `M-DROPOUT::DROPOUT`; `DropoutAttrs; 2 -> 3` |
+| 102 | `GraphRngKind.INITIAL_STATE`; `UNAVAILABLE` | blocker evidence: `RANDOM::randomPhiloxStateTensorWithSeed:name:` and `RANDOM::randomPhiloxStateTensorWithCounterLow:counterHigh:key:name:` return opaque [MPSGraph](../../../../glossary.md#term-mpsgraph) state, not Model raw INT64 `[key,counter]` | `M-RNG::INITIAL_STATE`; `GraphRngStateAttrs; 0 -> 1` |
+| 103 | `RecurrentScanKind.RNN_TANH`; `UNAVAILABLE` | blocker evidence: `RNN::singleGateRNNWithSourceTensor:recurrentWeight:inputWeight:bias:initState:descriptor:name:` has no [runtime](../../../../glossary.md#term-runtime) valid-length tensor or Model [atomic](../../../../glossary.md#resource-transaction-and-rollback) skip/positive-zero-padding contract | `M-RECURRENT::RNN_TANH`; `RecurrentDirection; 5..6 -> 2` |
 | 104 | `RecurrentScanKind.GRU_RESET_AFTER`; `UNAVAILABLE` | blocker evidence: `RNN::GRUWithSourceTensor:recurrentWeight:inputWeight:bias:initState:mask:secondaryBias:descriptor:name:` has no runtime valid-length tensor or Model atomic skip/positive-zero-padding contract | `M-RECURRENT::GRU_RESET_AFTER`; `RecurrentDirection; 5..6 -> 2` |
 | 105 | `RecurrentScanKind.LSTM`; `UNAVAILABLE` | blocker evidence: `RNN::LSTMWithSourceTensor:recurrentWeight:inputWeight:bias:initState:initCell:descriptor:name:` has no runtime valid-length tensor or Model atomic skip/positive-zero-padding contract | `M-RECURRENT::LSTM`; `RecurrentDirection; 6..7 -> 3` |
 | 106 | `AggregateReductionKind.PROD`; `DIRECT` | `RED::reductionProductWithTensor:axes:name:` | `M-AGG::PROD`; `NoOperationAttrs/AxisReductionAttrs/MultiAxisReductionAttrs; 1 -> 1` |
@@ -231,14 +231,14 @@ exact. Slash-separated attribute types are the source-owned alternative signatur
 - The wire and exact-kind columns must remain byte-for-byte aligned with the primary Task 0056
   catalog. A documentation check must parse both tables and reject a missing, duplicate, reordered,
   or mismatched row.
-- The MPSGraph state totals are exactly `75 DIRECT + 35 COMPOSED + 5 UNAVAILABLE = 115`.
+- The [MPSGraph](../../../../glossary.md#term-mpsgraph) state totals are exactly `75 DIRECT + 35 COMPOSED + 5 UNAVAILABLE = 115`.
 - Every `DIRECT` row names the operation selector that structurally serves one bounded occurrence;
-  every `COMPOSED` row names every primitive family needed by a finite construction; every
+  every <span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [occurrence glossary](../../../../glossary.md#term-occurrence))</span>`COMPOSED` row names every primitive family needed by a [finite](../../../../glossary.md#term-finite) construction; every
   `UNAVAILABLE` row names the closest current SDK selector and the mandatory Model observable it
-  cannot expose.
+  cannot expose.<span data-glossary-navigation="true"> ([SDK glossary](../../../../glossary.md#term-sdk))</span>
 - Header evidence is structural only. It does not assert numerical parity, deterministic winner
-  behavior, dtype/rank breadth, capability, route approval, or production selection.
-- Model source is authoritative over shorthand in this ledger. If a linked enum member, Javadoc, or
+  behavior, dtype/rank breadth, capability, route approval, or production selection.<span data-glossary-navigation="true"> ([dtype glossary](../../../../glossary.md#data-type--datatype); [rank glossary](../../../../glossary.md#term-rank))</span>
+- [Model](../../../../glossary.md#term-model) source is authoritative over shorthand in this ledger. If a linked enum member, [Javadoc](../../../../glossary.md#term-javadoc), or
   `OperationSignature` changes, Task 0056 must be reviewed again before implementation.
 - The implementation catalog stores closed states/reasons only; it must not embed SDK paths,
-  selector strings, source links, or prose on a Runtime path.
+  selector strings, source links, or prose on a Runtime path.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime))</span>

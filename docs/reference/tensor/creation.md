@@ -1,39 +1,39 @@
-# Allocation, import and constant contracts
+# Allocation, import and [constant](../../glossary.md#term-constant) contracts
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
-**Reader model.** Choose among three different actions: `create` names a described Tensor,
+**[Reader model](../../glossary.md#term-reader-model).** Choose among three different actions: `create` names a described [Tensor](../../glossary.md#tensor),
 `allocate` reserves storage for resolved geometry, and import copies supplied values into new
-storage. A **carrier** is the Java primitive array holding values or raw encoded bits.
-**Row-major** order visits the last axis fastest. **Dense-contiguous** geometry stores that
-sequence without gaps, starting at offset zero. A **leaf** is a Tensor without expression
-provenance; having stored values does not automatically make it a compiler constant.
-For coordinate, span, and offset terminology, start with [layouts](layouts.md).
+storage. A **[carrier](../../glossary.md#term-storage-carrier)** is the Java primitive array holding values or raw encoded bits.
+**[Row-major](../../glossary.md#term-row-major)** order visits the last [axis](../../glossary.md#term-axis) fastest. **Dense-[contiguous](../../glossary.md#term-contiguous)** geometry stores that
+sequence without gaps, starting at offset zero. A **[leaf](../../glossary.md#term-leaf)** is a Tensor without expression
+[provenance](../../glossary.md#provenance); having stored values does not automatically make it a [compiler](../../glossary.md#term-compiler) constant.
+For [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix), span, and offset terminology, start with [layouts](layouts.md).
 
-Construction remains package-private so `Tensor` keeps one validation path. Code outside
+Construction remains package-private so `Tensor` keeps one [validation](../../glossary.md#term-validation) path. Code outside
 `model.tensor` creates tensors through the public static `TensorFactory`: `create(descriptor)`
 creates an unlabeled storage-free tensor, while the complete overload also accepts optional label
-text and optional existing borrowed host storage. Both overloads retain the exact descriptor, and
+text and optional existing [borrowed](../../glossary.md#ownership-borrowing-and-lease) [host storage](../../glossary.md#host-storage). Both overloads retain the exact [descriptor](../../glossary.md#term-descriptor), and
 the complete overload retains the exact compatible storage object. The factory does not construct
-descriptors or choose or resolve layouts; these two creation overloads do not import values.
+descriptors or choose or resolve [layouts](../../glossary.md#layout); these two creation overloads do not import values.
 
 For a descriptor whose layout is resolved, `allocate(descriptor)` and
-`allocate(descriptor, label)` allocate exactly `layout.referencedElementSpan()` elements. The
-factory maps `FLOAT64` to `double[]`, `FLOAT32` to `float[]`, both `BFLOAT16` and `FLOAT16` to raw
-`short[]`, `INT32` to `int[]`, `INT64` to `long[]`, and BOOL/both FP8 types to `byte[]`. The new array
-begins with the JVM's default all-zero raw representation. A span above `Integer.MAX_VALUE` is
+`allocate(descriptor, label)` allocate exactly `layout.referencedElementSpan()` [elements](../../glossary.md#term-element). The
+factory maps [`FLOAT64`](../../glossary.md#term-float64) to `double[]`, [`FLOAT32`](../../glossary.md#term-float32) to `float[]`, both [`BFLOAT16`](../../glossary.md#term-bfloat16) and [`FLOAT16`](../../glossary.md#term-float16) to raw
+`short[]`, [`INT32`](../../glossary.md#data-type--datatype) to `int[]`, [`INT64`](../../glossary.md#data-type--datatype) to `long[]`, and [BOOL](../../glossary.md#data-type--datatype)/both [FP8](../../glossary.md#term-fp8) types to `byte[]`. The new array
+begins with the [JVM](../../glossary.md#term-java-virtual-machine-jvm)'s default all-zero raw representation. A span above `Integer.MAX_VALUE` is
 rejected before array allocation, and an unresolved layout is rejected rather than inferred. These overloads do not
-provide typed access, copy or conversion, boolean normalization, value import, fill operations,
+provide typed access, copy or conversion, [boolean](../../glossary.md#data-type--datatype) [normalization](../../glossary.md#term-normalization), value import, fill operations,
 native allocation, or descriptor synthesis. The separate constant methods deliberately synthesize
-only canonical dense descriptors and reuse this allocation path for zeros.
+only [canonical](../../glossary.md#term-canonical-form) dense descriptors and reuse this allocation path for zeros.
 
 Flat typed import is the current value-population boundary. `fromFlatArray(descriptor, label,
 source)` has exactly six overloads and maps carriers without conversion:
 
-| Source carrier | Required data type | Imported meaning |
+| Source carrier | Required [data type](../../glossary.md#data-type--datatype) | Imported meaning |
 |---|---|---|
-| `double[]` | `FLOAT64` | IEEE 754 binary64 values copied bit-for-bit |
-| `float[]` | `FLOAT32` | IEEE 754 binary32 values copied bit-for-bit |
+| `double[]` | `FLOAT64` | [IEEE 754](../../glossary.md#term-ieee-754) [binary64](../../glossary.md#floating-point-precision-and-rounding) values copied bit-for-bit |
+| `float[]` | `FLOAT32` | IEEE 754 [binary32](../../glossary.md#floating-point-precision-and-rounding) values copied bit-for-bit |
 | `short[]` | `BFLOAT16` | Raw BFLOAT16 bits copied unchanged |
 | `int[]` | `INT32` | Signed 32-bit integer values |
 | `long[]` | `INT64` | Signed 64-bit integer values |
@@ -45,10 +45,10 @@ method, with the same dense-layout, exact-count and independent-copy requirement
 
 The descriptor must have the exact mapped data type and a resolved `DENSE_CONTIGUOUS` layout.
 Its known logical element count must equal the Java array length. The factory treats source order
-as logical row-major order, allocates a new matching heap array through the existing allocation
+as logical row-major order, allocates a new matching [heap](../../glossary.md#term-heap) array through the existing allocation
 path, and completely copies or normalizes the values before returning the tensor. The source
 array is neither retained nor mutated, so changing it after return cannot change the tensor.
-Rank-0 scalars require one source element, and empty dense tensors require an empty source array.
+[Rank](../../glossary.md#term-rank)-0 [scalars](../../glossary.md#term-scalar) require one source element, and empty dense tensors require an empty source array.
 
 Data-type, unresolved-layout, non-dense-layout, and length failures happen before destination or
 identifier allocation. A blank label reaches the existing allocation and Tensor-construction
@@ -56,32 +56,32 @@ path, so destination storage and an identifier are allocated before the label fa
 performed. Identifier exhaustion is also observed after destination allocation and before copy.
 Unexpected copy failures occur after identifier allocation and are not rolled back. Offset-dense,
 strided, broadcast, and unresolved descriptors remain unsupported because importing independent
-row-major values into those geometries requires a separate scatter or view policy.
+row-major values into those geometries requires a separate scatter or [view](../../glossary.md#term-view-meanings) policy.
 
-Nested typed import is the descriptor-inference boundary. The single
+Nested typed import is the descriptor-[inference](../../glossary.md#term-inference) boundary. The single
 `fromNestedArray(source, label, requiresGrad)` method accepts `Object` because Java gives each
-primitive-array rank a distinct runtime class and no finite overload family can express arbitrary
+primitive-array rank a distinct [runtime](../../glossary.md#term-runtime) class and no [finite](../../glossary.md#term-finite) overload family can express arbitrary
 rank. The runtime class must prove rank two or greater and an ultimate carrier of `double`,
 `float`, `short`, `int`, `long`, or `byte`; those carriers infer `FLOAT64`, `FLOAT32`, `BFLOAT16`,
-`INT32`, `INT64`, and `BOOL`, respectively. Boxed arrays, generic object arrays, rank-one arrays,
+`INT32`, `INT64`, and `BOOL`, respectively. Boxed arrays, generic object arrays, [rank-one](../../glossary.md#axis-rank-scalar-vector-and-matrix) arrays,
 and every other primitive carrier are rejected rather than converted or defaulted.
 
 The complete reachable structure is validated in depth-first row-major order before the
 intermediate flat carrier, destination, or tensor ID is allocated. Every corresponding axis must
 have the same length, and every required subarray must be non-null. Paths in diagnostics use
 zero-based bracket notation: `[]` names the root and `[1][2]` names its second child's third child.
-An empty final primitive axis is observable and valid, so `new int[2][0]` infers shape `[2, 0]`.
+An empty final primitive axis is observable and valid, so `new int[2][0]` infers [shape](../../glossary.md#shape) `[2, 0]`.
 An empty earlier axis is rejected because the remaining extents cannot be recovered from the
-runtime object graph.
+runtime object [graph](../../glossary.md#graph).
 
 After validation, nested import allocates a fresh matching primitive array and copies leaf arrays
 into it in logical row-major order. Numeric values and raw BFLOAT16 shorts are unchanged. BOOL
 bytes remain raw in that intermediate array and are normalized once by flat import while copying
 to destination storage. The inferred `TensorDescriptor` has the exact data type, fully static
 shape, canonical dense-contiguous layout, and requested `requiresGrad` flag; descriptor validation
-remains authoritative for gradient eligibility. No source level is retained or mutated, and later
+remains authoritative for [gradient](../../glossary.md#term-gradient) eligibility. No source level is retained or mutated, and later
 caller mutation cannot change the tensor. Callers must not mutate the source concurrently with
-import because inspection and flattening do not provide an atomic deep snapshot.
+import because inspection and flattening do not provide an [atomic](../../glossary.md#resource-transaction-and-rollback) deep [snapshot](../../glossary.md#term-snapshot).
 
 Structural, carrier, checked-count, Java-array-limit, and descriptor-eligibility failures consume
 no ID and allocate no destination. Descriptor eligibility is checked after the intermediate array
@@ -99,22 +99,22 @@ tensors:
 | `double` | `FLOAT64` | Exact binary64 bits |
 | `float` | `FLOAT32` | Exact binary32 bits |
 | `scalarBFloat16(float)` | `BFLOAT16` | `BFloat16Bits.fromFloat(value)` |
-| `scalarFloat16(float)` | `FLOAT16` | One numeric binary16 rounding |
-| `scalarFloat8E4m3(float)` | `FLOAT8_E4M3` | One numeric E4M3 rounding |
-| `scalarFloat8E5m2(float)` | `FLOAT8_E5M2` | One numeric E5M2 rounding |
+| `scalarFloat16(float)` | `FLOAT16` | One numeric [binary16](../../glossary.md#floating-point-precision-and-rounding) [rounding](../../glossary.md#term-rounding) |
+| `scalarFloat8E4m3(float)` | `FLOAT8_E4M3` | One numeric [E4M3](../../glossary.md#term-e4m3) rounding |
+| `scalarFloat8E5m2(float)` | `FLOAT8_E5M2` | One numeric [E5M2](../../glossary.md#term-e5m2) rounding |
 | `int` | `INT32` | Exact signed 32-bit value |
 | `long` | `INT64` | Exact signed 64-bit value |
 | `boolean` | `BOOL` | Canonical byte `0` or `1` |
 
 The BFLOAT16 method is named explicitly because it rounds a semantic binary32 input to BFLOAT16
-using round-to-nearest with ties to even; it is not the FLOAT32 overload and does not accept raw
+using [round-to-nearest](../../glossary.md#floating-point-precision-and-rounding) with ties to even; it is not the FLOAT32 overload and does not accept raw
 `short` bits. Every scalar descriptor uses `Shape.scalar()`, a resolved canonical
 dense-contiguous layout, exactly one logical element, and the caller's explicit `requiresGrad`
 request.
 
 `zeros(shape, dataType, label, requiresGrad)` and
 `ones(shape, dataType, label, requiresGrad)` accept every current data type. The shape must be
-fully static, but it may be rank zero or contain a zero-sized dimension. Both methods synthesize a
+fully static, but it may be rank zero or contain a zero-sized [dimension](../../glossary.md#dimension). Both methods synthesize a
 new canonical dense descriptor. Zeros allocate the destination once and rely on JVM primitive
 array initialization, so no source array or element fill is performed. Ones fill one exact typed
 source carrier with `1.0d`, `1.0f`, BFLOAT16 bits `0x3F80`, `1`, `1L`, or BOOL byte `1`, then copy
@@ -123,7 +123,7 @@ than one physical element.
 
 `zerosLike(template, label, requiresGrad)` and
 `onesLike(template, label, requiresGrad)` read only the template descriptor's shape and data type.
-They do not inspect or preserve the template layout, label, storage, storage liveness, identity,
+They do not inspect or preserve the template layout, label, storage, storage [liveness](../../glossary.md#term-liveness), [identity](../../glossary.md#term-identity-meanings),
 gradient request, or other state. Static unresolved, offset, strided, broadcast, and dense
 templates are all accepted; the result always has a newly synthesized canonical dense layout and
 uses the explicit result label and gradient request. Each successful call creates a new Tensor,
@@ -140,13 +140,13 @@ carrier. Identifier exhaustion is observed after destination allocation, with th
 carrier distinction. A JVM allocation failure that occurs before ID allocation consumes no ID.
 
 Full-value creation extends the same dense constant path without adding a generic conversion or
-mutable fill operation. The type-safe entries are:
+[mutable](../../glossary.md#term-mutable) fill [operation](../../glossary.md#operation). The type-safe entries are:
 
 | Factory value | Result data type | Stored value |
 |---|---|---|
-| `double` | `FLOAT64` | Exact binary64 value, including signed-zero and NaN payload bits |
+| `double` | `FLOAT64` | Exact binary64 value, including [signed-zero](../../glossary.md#nan-infinity-and-signed-zero) and [NaN payload](../../glossary.md#nan-infinity-and-signed-zero) bits |
 | `float` | `FLOAT32` | Exact binary32 value, including signed-zero and NaN payload bits |
-| `fullBFloat16(..., float, ...)` | `BFLOAT16` | One `BFloat16Bits.fromFloat(value)` conversion repeated as raw bits |
+| `fullBFloat16(..., float, ...)` | `BFLOAT16` | One `BFloat16Bits.fromFloat(value)` conversion repeated as [raw bits](../../glossary.md#storage-mapping-contiguity-and-injectivity) |
 | `fullFloat16(..., float, ...)` | `FLOAT16` | Once-rounded binary16 bits repeated |
 | `fullFloat8E4m3(..., float, ...)` | `FLOAT8_E4M3` | Once-rounded E4M3 byte repeated |
 | `fullFloat8E5m2(..., float, ...)` | `FLOAT8_E5M2` | Once-rounded E5M2 byte repeated |
@@ -154,20 +154,20 @@ mutable fill operation. The type-safe entries are:
 | `long` | `INT64` | Exact signed 64-bit value |
 | `boolean` | `BOOL` | Canonical false byte `0` or true byte `1` |
 
-Every `full` method requires a fully static caller shape, but rank-zero scalar and zero-element
+Every `full` method requires a fully static caller shape, but [rank-zero](../../glossary.md#axis-rank-scalar-vector-and-matrix) scalar and zero-element
 shapes are valid. It constructs one canonical dense descriptor, fills one exact primitive source
 carrier, and delegates once to matching flat import. The source is copied and not retained. The
 result has independent descriptor, layout, destination storage, Tensor identity, and empty
-provenance. The API deliberately has no boxed value, caller-selected conversion, raw BFLOAT16
+provenance. The [API](../../glossary.md#term-application-programming-interface-api) deliberately has no boxed value, caller-selected conversion, raw BFLOAT16
 scalar, `fullLike`, default-label overload, or post-construction mutation.
 
-`identityMatrix(rows, columns, dataType, label, requiresGrad)` creates a canonical dense rank-two
-matrix for any current Model data type. Both dimensions are non-negative `long` values, so
+`identityMatrix(rows, columns, dataType, label, requiresGrad)` creates a canonical dense [rank-two](../../glossary.md#axis-rank-scalar-vector-and-matrix)
+[matrix](../../glossary.md#term-matrix-meanings) for any current [Model](../../glossary.md#term-model) data type. Both dimensions are non-negative `long` values, so
 square, wide, tall, zero-row, and zero-column matrices are valid when their checked logical count
 fits a Java array. The method writes typed one only at coordinates `(i, i)` for
 `0 <= i < min(rows, columns)` and leaves every other position at typed zero. Its exact values are
 `1.0d`/`0.0d`, `1.0f`/`0.0f`, converted BFLOAT16 one bits/raw zero bits, `1`/`0`, `1L`/`0L`, or
-canonical BOOL `1`/`0`. `eye(...)` is only an unchanged-argument call to `identityMatrix(...)`.
+canonical BOOL `1`/`0`. `eye(...)` is only an unchanged-[argument](../../glossary.md#term-argument) call to `identityMatrix(...)`.
 Equal arguments therefore produce equal descriptors and values, while separate successful calls
 still return different Tensor, ID, descriptor, layout, storage, and backing-array objects.
 

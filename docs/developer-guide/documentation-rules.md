@@ -5,13 +5,13 @@
 This guide defines the required documentation workflow. Detailed writing rules live in the [documentation style profiles](documentation/README.md) so each rule has one clear home.
 
 [`ARCHITECTURE.md`](../../ARCHITECTURE.md) is the authoritative architecture root and sole
-authority index. Only the six scoped contracts it explicitly incorporates are normative within
+authority index. Only the six scoped contracts it explicitly incorporates are [normative](../glossary.md#term-normative) within
 their stated scopes. Documentation profiles and all other documentation control presentation and
-review; they do not create architecture, change module ownership, or override the contract.
+review; they do not create architecture, change [module](../glossary.md#term-module) [ownership](../glossary.md#term-ownership-meanings), or override the contract.
 
-Here **normative** means that a document states binding rules within its assigned scope;
+Here **normative** means that a document states [binding](../glossary.md#term-normative) rules within its assigned [scope](../glossary.md#term-scope);
 **explanatory** material helps readers understand those rules without creating new ones.
-An **API contract** describes what callers can rely on. **Javadoc** is Java's documentation
+An **[API](../glossary.md#term-application-programming-interface-api) contract** describes what callers can rely on. **[Javadoc](../glossary.md#term-javadoc)** is Java's documentation
 comment format and the tool-generated reference built from those comments.
 
 ## Select the document type
@@ -29,10 +29,10 @@ If a document genuinely serves two purposes, choose one primary profile and appl
 
 ## Risk-based documentation workflow
 
-Every change receives a targeted documentation and Javadoc impact review. A separate clean
-documentation/review context is mandatory only when the change affects public or supported API,
-user-visible behavior or workflow, architecture or module boundaries, project terminology, a
-cross-module contract, a lasting module-local lifecycle or other durable contract, or a Class C
+Every change receives a targeted documentation and [Javadoc](../glossary.md#term-javadoc) impact review. A separate clean
+documentation/review context is mandatory only when the change affects public or supported [API](../glossary.md#term-application-programming-interface-api),
+user-visible behavior or workflow, architecture or [module](../glossary.md#term-module) boundaries, project terminology, a
+cross-module contract, a lasting module-local [lifecycle](../glossary.md#lifecycle) or other durable contract, or a Class C
 boundary as defined in `AGENTS.md`. Required documentation lands in the same overall change before
 completion.
 
@@ -41,15 +41,15 @@ review. Update affected Javadocs and documents when needed; otherwise record
 `Documentation impact: none; <reason>`. A Java visibility modifier does not determine risk:
 durable internal lifecycle or behavior changes may still require an independent pass.
 
-A **clean review context** is a separate review pass with an explicit handoff, rather than the
+A **clean review context** is a separate review pass with an explicit [handoff](../glossary.md#term-handoff), rather than the
 implementer's own recollection of what changed. A **diff** is the set of changes being reviewed.
 The aim is to check the affected claims independently, not to repeat every historical check.
 
 Every review is targeted to the actual diff. Read the selected documentation profiles, affected
 source and focused tests, directly affected documentation, and exact authoritative contract
-headings named by the task brief. Start with the root scope index and read only the applicable
+headings named by the task brief. Start with the root [scope](../glossary.md#term-scope) index and read only the applicable
 root and incorporated scoped-contract headings for affected modules or boundaries. Do not require
-the full architecture contract,
+the full [architecture contract](../glossary.md#architecture-contract),
 roadmap, glossary, historical tasks, unrelated API guides, or unrelated modules by default. If the
 applicable contract is missing or ambiguous, stop rather than assume.
 
@@ -64,7 +64,7 @@ The handoff to that agent must include:
 - affected APIs, behavior, workflows, and architecture boundaries;
 - applicable architecture constraints;
 - documentation already drafted or expected; and
-- validation commands and required completion evidence.
+- [validation](../glossary.md#term-validation) commands and required completion evidence.
 
 An independent documentation/review context must:
 
@@ -79,28 +79,28 @@ An independent documentation/review context must:
 
 The implementation pass owns executable tests and hands their concise evidence to an independent
 review context. That context must not rerun a successful Java test suite unless it changes
-executable Java behavior after the run, the evidence is missing or stale, or the task identifies a
+executable Java behavior after the [run](../glossary.md#term-run), the evidence is missing or stale, or the task identifies a
 concrete cross-check risk. Javadoc-only edits do not require Java tests, but final Javadoc
 generation must occur after those edits.
 
 When an independent pass is required, the task remains incomplete until its result and evidence
 are present in the same overall change.
 
-## Validation and evidence
+## [Validation](../glossary.md#term-validation) and evidence
 
 Use the validation section in the selected profile. At minimum:
 
 - check local Markdown links and anchors;
 - search relevant terminology and anchors in the [glossary](../glossary.md);
 - verify examples against current behavior or label conceptual examples clearly;
-- generate Javadoc for affected Java modules after final Javadoc edits when Java APIs changed;
-- run `git diff --check` and check new files for trailing whitespace; and
+- generate [Javadoc](../glossary.md#term-javadoc) for affected Java [modules](../glossary.md#term-module) after final Javadoc edits when Java APIs changed;
+- [run](../glossary.md#term-run) `git diff --check` and check new files for trailing whitespace; and
 - review the final diff for accidental authority changes, duplicated rules, and unrelated edits.
 
 Evidence identifies the reviewer, selected profile, files or topics reviewed, and exact validation
-commands with outcomes. Name a separate context only when one was required. Keep detailed logs in
-CI or tool artifacts. A no-change conclusion must include a reason; `N/A` alone is not evidence.
+commands with outcomes. Name a separate context only when one was required. Keep detailed [logs](../glossary.md#commit-release-distribution-log-and-seed-meanings) in
+[CI](../glossary.md#term-continuous-integration-ci) or tool [artifacts](../glossary.md#term-artifact). A no-change conclusion must include a reason; `N/A` alone is not evidence.
 
-**Continuous integration (CI)** means automated checks run by the project's integration service.
+**[Continuous integration](../glossary.md#adr-ci-and-qualification) (CI)** means automated checks run by the project's integration service.
 CI logs can retain detailed evidence, but a job's success still applies only to the source,
 configuration and checks that job actually exercised.

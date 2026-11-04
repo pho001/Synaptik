@@ -1,4 +1,4 @@
-# Task 0010J: Supported Complete-Plan Candidate and Decision Producer
+# Task 0010J: Supported [Complete-Plan Candidate](../../../../glossary.md#complete-plan-candidate) and Decision [Producer](../../../../glossary.md#term-producer)
 
 ## Status
 
@@ -6,7 +6,7 @@ Complete
 
 ## Goal
 
-Add one bounded CPU-owned producer/consumer collaboration for the already retained CPU 0008D and
+Add one bounded [CPU](../../../../glossary.md#term-cpu)-owned [producer](../../../../glossary.md#term-producer)/consumer collaboration for the already retained CPU 0008D and
 0008E complete alternatives:
 
 ```text
@@ -20,32 +20,32 @@ one supported CompileArtifacts value with exactly one non-empty maximal CPU part
   -> one complete immutable PreparedExecution recipe
 ```
 
-This task is the smallest truthful owner prerequisite for later tools/tuning 0002. It produces and
+This task is the smallest truthful [owner](../../../../glossary.md#term-owner) prerequisite for later tools/tuning 0002. It produces and
 freshly prepares complete CPU alternatives; it does not execute them, measure them, compare elapsed
-time, apply user fallback policy, read or write a cache, or compose an Engine workflow.
+time, apply user fallback policy, read or write a [cache](../../../../glossary.md#term-cache), or compose an [Engine](../../../../glossary.md#term-engine) workflow.
 
 ## Current-state audit
 
-- The supported lifecycle accepts exactly one non-empty maximal CPU partition. For that domain,
-  `CompileArtifacts` contains the immutable compiled graph, the sole `PlannedPartition`, logical
-  memory, publication plan, constants, and diagnostics. `CpuBackendIntegration` supplies CPU
+- The supported [lifecycle](../../../../glossary.md#lifecycle) accepts exactly one non-empty maximal [CPU](../../../../glossary.md#term-cpu) [partition](../../../../glossary.md#partition). For that domain,
+  `CompileArtifacts` contains the [immutable](../../../../glossary.md#term-immutable) [compiled graph](../../../../glossary.md#compiled-graph--compiledgraphmodel), the sole `PlannedPartition`, logical
+  memory, publication plan, constants, and diagnostics. <span data-glossary-navigation="true"> ([publication plan glossary](../../../../glossary.md#publication-plan); [constants glossary](../../../../glossary.md#term-constant))</span>`CpuBackendIntegration` supplies CPU
   analysis/finalization, source-only constant resources, and the sole complete schedule assembler.
 - CPU 0008D already enumerates at most 64 complete legal topology candidates from the canonical
-  split using existing contraction legality. Its `CpuFusionDecision.LegalCandidate` values carry
+  split using existing contraction legality. Its <span data-glossary-navigation="true"> ([topology glossary](../../../../glossary.md#term-topology); [canonical glossary](../../../../glossary.md#term-canonical-form); [contraction glossary](../../../../glossary.md#contraction-dimension))</span>`CpuFusionDecision.LegalCandidate` values carry
   graph-identity-free topology, structural, resource, score, rank, canonical-split, and 0008B-
-  baseline facts. Legality rejections and incomplete enumeration are already explicit.
+  baseline facts. Legality rejections and incomplete enumeration are already explicit.<span data-glossary-navigation="true"> ([carry glossary](../../../../glossary.md#term-carry); [graph glossary](../../../../glossary.md#graph); [identity glossary](../../../../glossary.md#term-identity-meanings); [rank glossary](../../../../glossary.md#term-rank))</span>
 - CPU 0008E already retains, per legal topology, the direct variant, eligible one-source copies,
   and eligible disjoint-two-source copies. It rejects a pair as `CO_CONSUMED_PAIR` when one
   represented instruction consumes both sources. Its immutable variant identities carry exact
   copy/reuse/layout/workspace/generated-specialization facts, and its existing finalizer and
   executable paths can realize those candidates. Ordinary preparation intentionally selects the
-  0008D-selected direct form.
+  0008D-selected direct form.<span data-glossary-navigation="true"> ([layout glossary](../../../../glossary.md#layout); [specialization glossary](../../../../glossary.md#term-specialization))</span>
 - CPU 0010E and 0010I already expose and authenticate the current Phase-1 local route decision for
   the exact/default FLOAT32/FLOAT64 bare-MATMUL portable/OpenBLAS batch. Candidate order,
   compatibility, decision codecs, fresh selected preparation, provider/thread ownership, and
   session-versus-persistent reuse are CPU-owned. Current public Engine composition can select at
-  most one such occurrence, index 0 of partition 0 with weight 1.
-- Prepare 0004 already provides sufficient method-free `BackendTuningCandidateBatch` and
+  most one such occurrence, index 0 of partition 0 with weight 1.<span data-glossary-navigation="true"> ([FLOAT32 glossary](../../../../glossary.md#term-float32); [FLOAT64 glossary](../../../../glossary.md#term-float64); [MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul); [OpenBLAS glossary](../../../../glossary.md#term-openblas); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [Engine glossary](../../../../glossary.md#term-engine); [occurrence glossary](../../../../glossary.md#term-occurrence); [weight glossary](../../../../glossary.md#term-weight))</span>
+- [Prepare](../../../../glossary.md#prepare) 0004 already provides sufficient method-free `BackendTuningCandidateBatch` and
   `BackendTuningDecision` roles plus `BackendPartitionTuningHandoff<C,D>`. Shared Prepare neither
   needs nor is allowed to enumerate or interpret CPU plan fields.
 - The current preparer always runs 0008D/0008E selection internally and exposes only the selected
@@ -53,58 +53,58 @@ time, apply user fallback policy, read or write a cache, or compose an Engine wo
   variants, bind them to a Phase-1 result, or freshly prepare a specifically selected complete
   variant. Treating CPU 0010I local-route candidates as Phase-2 plans would repeat Phase-1 search.
 - Tools/tuning 0002 is therefore correctly `Blocked` and has no task specification. CPU 0016 is a
-  later cross-route local workload-cache generalization and is not this producer.
+  later cross-route local workload-cache generalization and is not this producer.<span data-glossary-navigation="true"> ([cache glossary](../../../../glossary.md#term-cache); [generalization glossary](../../../../glossary.md#term-generalization); [producer glossary](../../../../glossary.md#term-producer))</span>
 
-No architecture conflict was found. This task implements the already authorized concrete-backend
-candidate ownership and opaque Prepare handoff without changing `ARCHITECTURE.md`.
+No architecture conflict was found. This task implements the already authorized concrete-[backend](../../../../glossary.md#backend)
+candidate [ownership](../../../../glossary.md#term-ownership-meanings) and [opaque](../../../../glossary.md#term-opaque) Prepare [handoff](../../../../glossary.md#term-handoff) without changing `ARCHITECTURE.md`.
 
-## Scope
+## [Scope](../../../../glossary.md#term-scope)
 
 ### Supported collaboration
 
 - Add one retained supported root-package collaboration named
   `io.github.pho001.synaptik.backend.cpu.CpuCompletePlanTuning` and expose it through
   `CpuBackendIntegration.completePlanTuning()`.
-- Mirror the narrow shape proven by `CpuLocalWorkloadTuning`: one public final collaboration with
-  nested immutable opaque `CandidateBatch`, `Candidate`, `SelectedDecision`, `Compatibility`, and
+- Mirror the narrow [shape](../../../../glossary.md#shape) proven by `CpuLocalWorkloadTuning`: one public final collaboration with
+  nested immutable opaque <span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [opaque glossary](../../../../glossary.md#term-opaque))</span>`CandidateBatch`, `Candidate`, `SelectedDecision`, `Compatibility`, and
   `CandidateIdentity` values plus a `ReuseScope` enum. Constructors are not public.
-- Make the nested batch implement `BackendTuningCandidateBatch` and the nested decision implement
-  `BackendTuningDecision`. Use the existing Prepare handoff unchanged.
+- Make the nested [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) implement `BackendTuningCandidateBatch` and the nested decision implement
+  `BackendTuningDecision`. Use the existing [Prepare](../../../../glossary.md#prepare) [handoff](../../../../glossary.md#term-handoff) unchanged.
 - Retain exactly one collaboration for the owning `CpuBackendIntegration` lifetime. It owns no
-  provider, worker, cache, file, measurement session, Runtime state, or independent close method.
+  provider, worker, cache, file, measurement session, Runtime state, or independent close method.<span data-glossary-navigation="true"> ([lifetime glossary](../../../../glossary.md#term-lifetime); [cache glossary](../../../../glossary.md#term-cache); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
 
-### Complete-plan candidate set
+### [Complete-plan candidate](../../../../glossary.md#complete-plan-candidate) set
 
 - Generate candidates only from the existing complete 0008D `LegalCandidate` values and complete
   0008E `Variant` values. Reuse their identities, ranks, topology, legality, source eligibility,
   copy reuse, resource geometry, and hard ceilings; do not independently rediscover graph
-  patterns, duplicate legality formulas, or reinterpret a rejection.
+  patterns, duplicate legality formulas, or reinterpret a rejection.<span data-glossary-navigation="true"> ([topology glossary](../../../../glossary.md#term-topology); [graph glossary](../../../../glossary.md#graph))</span>
 - A candidate is complete only when it fixes all CPU-owned choices for the current supported
   lifecycle: the exact legal computation-unit topology, zero/one/eligible-disjoint-two 0008E
   external-read materializations, the already selected Phase-1 route/configuration when one is
   eligible, resulting CPU preparation plan and exact declarations, deterministic assignment and
   schedule shape, CPU finalization, source-only constant contribution, representation creation,
   and execution/publication order. Preparing that candidate freshly creates the plan-local slots,
-  finalized executable recipe, schedule, and immutable `PreparedExecution`.
+  finalized executable recipe, schedule, and immutable <span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [lifecycle glossary](../../../../glossary.md#lifecycle); [shape glossary](../../../../glossary.md#shape); [constant glossary](../../../../glossary.md#term-constant); [publication glossary](../../../../glossary.md#term-publication); [immutable glossary](../../../../glossary.md#term-immutable))</span>[`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution).
 - The batch order is stable: 0008D legal topology rank first, then direct, retained single-copy
   candidates in stable source order, then retained disjoint-pair candidates in lexicographic
-  source order. Deduplicate only by the exact existing typed variant identity.
+  source order. Deduplicate only by the exact existing typed variant identity.<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [rank glossary](../../../../glossary.md#term-rank); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Eligible zero-copy candidates include canonical split, the exact 0008B baseline when distinct,
   the 0008D ordinary selected topology, and every other retained legal fused/split topology.
   Eligible copied candidates are exactly the one-copy and disjoint-two-copy variants retained by
-  0008E for those topologies.
+  0008E for those topologies.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [fused glossary](../../../../glossary.md#specialization-and-fusion))</span>
 - Exclude every 0008D legality rejection, every 0008E rejection including `CO_CONSUMED_PAIR`, an
   unsupported source/type/access/carrier/layout, more than two copies, a partial topology, a
   topology or representation not already retained, and any candidate that cannot preserve the
-  supplied Phase-1 selection exactly.
+  supplied Phase-1 selection exactly.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [layout glossary](../../../../glossary.md#layout))</span>
 - Return an empty handoff for a valid artifact that has fewer than two distinct complete eligible
   Phase-2 alternatives. Return an empty handoff, rather than a partial batch, when 0008D or 0008E
   reports incomplete/uncertain enumeration such that the producer cannot prove it exposed the
-  complete bounded set. Invalid supported-lifecycle artifacts still fail as today.
+  complete bounded set. Invalid supported-lifecycle artifacts still fail as today.<span data-glossary-navigation="true"> ([handoff glossary](../../../../glossary.md#term-handoff); [artifact glossary](../../../../glossary.md#term-artifact); [producer glossary](../../../../glossary.md#term-producer))</span>
 - Candidate generation uses one versioned CPU-owned enumeration profile that enables the already
   implemented 0008E candidate path without authorizing ordinary promotion. The profile may use
   neutral diagnostic costs and the existing hard candidate/resource ceilings; those values are
-  included in compatibility but are never treated as measurement or a ranking result.
+  included in compatibility but are never treated as measurement or a ranking result.<span data-glossary-navigation="true"> ([ranking glossary](../../../../glossary.md#term-ranking))</span>
 
 ### Phase-1 decision reuse
 
@@ -113,116 +113,116 @@ candidate ownership and opaque Prepare handoff without changing `ARCHITECTURE.md
 - It freshly determines whether the current artifact has an eligible CPU 0010I Phase-1 handoff.
   If it does, an absent Phase-1 decision is rejected before complete-plan candidates escape. The
   supplied decision must belong to this exact integration, its batch must retain the same exact
-  artifacts and partition association, and fresh CPU 0010E matching must accept the decision.
+  artifacts and partition association, and fresh CPU 0010E matching must accept the decision.<span data-glossary-navigation="true"> ([artifact glossary](../../../../glossary.md#term-artifact); [CPU glossary](../../../../glossary.md#term-cpu); [handoff glossary](../../../../glossary.md#term-handoff); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [partition glossary](../../../../glossary.md#partition))</span>
 - If fresh analysis has no eligible Phase-1 handoff, absence is the authenticated no-local-choice
   state and complete-plan enumeration proceeds. A present Phase-1 decision in that state is
   rejected. CPU must not manufacture a portable-only Phase-1 batch.
 - Every complete-plan candidate retains the same authenticated Phase-1 state. Preparation injects
   that decision into fresh analysis and never re-enumerates, reranks, substitutes, or measures
   local route parameters. A candidate for which the selected local decision is no longer eligible
-  is rejected; CPU never silently falls back to the local heuristic inside selected preparation.
+  is rejected; CPU never silently falls back to the local heuristic inside selected preparation.<span data-glossary-navigation="true"> ([complete-plan candidate glossary](../../../../glossary.md#complete-plan-candidate); [parameters glossary](../../../../glossary.md#term-parameter); [heuristic glossary](../../../../glossary.md#term-heuristic))</span>
 - Fresh CPU analysis may regenerate the owning 0010E batch solely to perform its existing exact
   selected-decision compatibility check. That validation batch is not exposed as Phase-2
-  alternatives, is not timed or ranked again, and cannot change the supplied Phase-1 winner.
+  alternatives, is not timed or ranked again, and cannot change the supplied Phase-1 winner.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
 - Cross-integration, cross-artifact, cross-partition, cross-batch, stale, or mismatched Phase-1
   values fail before slot assignment, finalization, provider mutation, or recipe publication.
   Association authentication prevents accidental value mixing; it is not a cryptographic
-  security claim.
+  security claim.<span data-glossary-navigation="true"> ([publication glossary](../../../../glossary.md#term-publication); [authentication glossary](../../../../glossary.md#term-authentication))</span>
 
 ### Explicit complete-plan selection
 
-- Add one CPU-private immutable selected-plan input that contains the exact existing 0008E
+- Add one [CPU](../../../../glossary.md#term-cpu)-private [immutable](../../../../glossary.md#term-immutable) selected-plan input that contains the exact existing 0008E
   `VariantIdentity`, the complete-plan schema, and the Phase-1 selection fingerprint. It contains
-  no timing, objective, cache path, physical resource, slot, executable, or Runtime state.
+  no timing, objective, cache path, physical resource, slot, executable, or Runtime state.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [fingerprint glossary](../../../../glossary.md#term-fingerprint); [objective glossary](../../../../glossary.md#term-objective); [cache glossary](../../../../glossary.md#term-cache); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
 - Narrowly refactor the existing 0008D/0008E selectors so ordinary analysis remains byte-for-byte
   equivalent while explicit selected analysis finds one exact already-retained legal variant and
   records an exact explicit-selection reason. It must not rerun profitability ranking or create a
-  new topology/representation.
+  new topology/representation.<span data-glossary-navigation="true"> ([ranking glossary](../../../../glossary.md#term-ranking))</span><span data-glossary-navigation="true"> ([topology glossary](../../../../glossary.md#term-topology))</span>
 - Explicit selection recomputes internally consistent final `CpuFusionDecision.Selection` and
   `CpuRepresentationDecision.Selection` facts for the chosen retained variant. Do not relabel a
-  timing-selected plan as `PROFITABLE_FUSION`, `COPIED_PROFITABLE`, or another heuristic result.
+  timing-selected plan as `PROFITABLE_FUSION`, `COPIED_PROFITABLE`, or another [heuristic](../../../../glossary.md#term-heuristic) result.
 - `prepareTrial(batch, candidate)` and `prepareSelected(batch, decision)` each repeat fresh
   authoritative analysis, validate the exact Phase-1 and complete-plan identities, derive exact
   declarations, invoke ordinary shared assignment, finalize all selected CPU units, contribute
-  current source-only constants, assemble and validate the full schedule, and return a fresh
-  `PreparedExecution`.
+  current source-only constants, assemble and validate the full schedule, and return a fresh<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([constants glossary](../../../../glossary.md#term-constant))</span>
+  [`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution).
 - Selected preparation never falls back. Any changed legality, candidate set, resource geometry,
-  Phase-1 compatibility, provider qualification, schema, or target fact rejects the selection.
+  Phase-1 compatibility, provider qualification, schema, or target fact rejects the selection.<span data-glossary-navigation="true"> ([qualification glossary](../../../../glossary.md#term-qualification); [target glossary](../../../../glossary.md#term-target))</span>
 
-## Out of scope
+## Out of [scope](../../../../glossary.md#term-scope)
 
 - tools/tuning 0002 implementation or task specification; plan timing, warmups, samples, clocks,
-  objectives, constraints, budgets, ranking, winner selection, evidence, or correctness oracles
+  objectives, constraints, budgets, ranking, winner selection, evidence, or correctness oracles<span data-glossary-navigation="true"> ([ranking glossary](../../../../glossary.md#term-ranking))</span><span data-glossary-navigation="true"> ([samples glossary](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters))</span>
 - workload-cache or model-plan-cache lookup, parsing, mutation, persistence, atomic publication,
-  eviction, migration, or inspection; prepared-executable serialization
+  eviction, migration, or inspection; prepared-executable serialization<span data-glossary-navigation="true"> ([cache glossary](../../../../glossary.md#term-cache); [model glossary](../../../../glossary.md#term-model); [lookup glossary](../../../../glossary.md#term-lookup); [persistence glossary](../../../../glossary.md#term-persistence); [atomic publication glossary](../../../../glossary.md#term-atomic-publication); [serialization glossary](../../../../glossary.md#term-serialization))</span>
 - representative inputs, Runtime invocation, output comparison/materialization, result cleanup,
-  fallback policy, Config translation, Engine orchestration, or a public user-facing tuning API
+  fallback policy, Config translation, Engine orchestration, or a public user-facing tuning API<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [materialization glossary](../../../../glossary.md#materialization); [Engine glossary](../../../../glossary.md#term-engine); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - Compiler graph alternatives, Planning ownership/partition alternatives, multiple partitions,
-  mixed backends, zero-node/pass-through artifacts, or more than one Phase-1 occurrence
+  mixed backends, zero-node/pass-through artifacts, or more than one Phase-1 occurrence<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [graph glossary](../../../../glossary.md#graph); [Planning glossary](../../../../glossary.md#term-planning); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [partition glossary](../../../../glossary.md#partition); [backends glossary](../../../../glossary.md#backend); [node glossary](../../../../glossary.md#node); [artifacts glossary](../../../../glossary.md#term-artifact); [occurrence glossary](../../../../glossary.md#term-occurrence))</span>
 - any new fusion contraction, recognition, legality rule, pointwise source eligibility, copy form,
   generated algorithm, emitter branch, route, provider, numerical mode, relaxed mathematics,
-  BFLOAT16 OpenBLAS, or vendor-peer route
+  BFLOAT16 OpenBLAS, or vendor-peer route<span data-glossary-navigation="true"> ([fusion glossary](../../../../glossary.md#term-fusion); [contraction glossary](../../../../glossary.md#contraction-dimension); [pointwise glossary](../../../../glossary.md#term-pointwise); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [OpenBLAS glossary](../../../../glossary.md#term-openblas))</span>
 - changing ordinary `CpuBackendIntegration.prepare`, `preparations`, or
   `CpuLocalWorkloadTuning`; ordinary preparation remains direct by default for 0008E and keeps the
-  existing safe local-route heuristic
+  existing safe local-route heuristic<span data-glossary-navigation="true"> ([heuristic glossary](../../../../glossary.md#term-heuristic))</span>
 - widening Prepare marker roles or handoff, changing Runtime contracts, adding a generic backend
-  facade, exposing CPU internals, or using raw types, `Object` payloads, maps, reflection, string
-  dispatch, a registry, service locator, or Java serialization
+  facade, exposing CPU internals, or using raw types, <span data-glossary-navigation="true"> ([widening glossary](../../../../glossary.md#term-widening); [Prepare glossary](../../../../glossary.md#prepare); [handoff glossary](../../../../glossary.md#term-handoff); [facade glossary](../../../../glossary.md#term-facade); [CPU glossary](../../../../glossary.md#term-cpu))</span>`Object` payloads, maps, reflection, string
+  dispatch, a registry, service locator, or Java serialization<span data-glossary-navigation="true"> ([dispatch glossary](../../../../glossary.md#term-dispatch); [registry glossary](../../../../glossary.md#term-registry); [service locator glossary](../../../../glossary.md#term-service-locator))</span>
 - repurposing CPU 0016, changing module dependencies or Gradle, changing architecture/ADRs, or
-  adding backend-conformance/integration/architecture behavior
+  adding backend-conformance/integration/architecture behavior<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module); [Gradle glossary](../../../../glossary.md#term-gradle); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 
 ## Architecture references
 
 - [`ARCHITECTURE.md`](../../../../../ARCHITECTURE.md)
 - [Current architecture documentation](../../../../architecture/current-architecture-plan.md)
-- [Performance evidence and model autotuning](../../../../architecture/performance-evidence-and-tuning.md)
-- [Runtime, Prepare, and Backend boundary](../../../../architecture/runtime-prepare-backend-boundary.md)
-- [ADR 0008](../../../../design/decisions/0008-performance-evidence-and-tuning-boundaries.md)
-- [Planning guide](../../../planning-guide.md)
+- [Performance evidence and model autotuning](../../../../architecture/performance-evidence-and-tuning.md)<span data-glossary-navigation="true"> ([model autotuning glossary](../../../../glossary.md#autotuning--model-autotuning))</span>
+- [Runtime, Prepare, and Backend boundary](../../../../architecture/runtime-prepare-backend-boundary.md)<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [Prepare glossary](../../../../glossary.md#prepare); [Backend glossary](../../../../glossary.md#backend))</span>
+- [ADR 0008](../../../../design/decisions/0008-performance-evidence-and-tuning-boundaries.md)<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
+- [Planning guide](../../../planning-guide.md)<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning))</span>
 - [Roadmap](../../../roadmap.md)
-- [CPU master plan](../master-plan.md)
-- [CPU 0008B decomposition](0008b-general-partition-dag-computation-unit-decomposition-and-bounded-fusion.md)
+- [CPU master plan](../master-plan.md)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>
+- [CPU 0008B decomposition](0008b-general-partition-dag-computation-unit-decomposition-and-bounded-fusion.md)<span data-glossary-navigation="true"> ([decomposition glossary](../../../../glossary.md#term-decomposition))</span>
 - [CPU 0008C recognition](0008c-typed-specialized-subgraph-and-epilogue-recognition.md)
-- [CPU 0008D complete topology facts](0008d-bounded-fusion-profitability-and-typed-decision-facts.md)
+- [CPU 0008D complete topology facts](0008d-bounded-fusion-profitability-and-typed-decision-facts.md)<span data-glossary-navigation="true"> ([topology glossary](../../../../glossary.md#term-topology))</span>
 - [CPU 0008E representation alternatives](0008e-bounded-multi-input-materialization-and-representation-reuse.md)
-- [CPU 0008E1 shared DAG adoption](0008e1-shared-partition-dag-adoption-and-reconstruction-removal.md)
-- [CPU 0008F MATMUL execution](0008f-portable-matmul-execution-and-bounded-linear-epilogues.md)
+- [CPU 0008E1 shared DAG adoption](0008e1-shared-partition-dag-adoption-and-reconstruction-removal.md)<span data-glossary-navigation="true"> ([DAG glossary](../../../../glossary.md#term-directed-acyclic-graph-dag))</span>
+- [CPU 0008F MATMUL execution](0008f-portable-matmul-execution-and-bounded-linear-epilogues.md)<span data-glossary-navigation="true"> ([MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul))</span>
 - [CPU 0010E local candidates](0010e-float32-float64-openblas-tuning-candidates-and-compatible-decisions.md)
-- [CPU 0010F lifecycle integration](0010f-supported-cpu-lifecycle-integration-adapter.md)
+- [CPU 0010F lifecycle integration](0010f-supported-cpu-lifecycle-integration-adapter.md)<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - [CPU 0010I local tuning collaboration](0010i-supported-cpu-local-workload-tuning-composition-adapter.md)
-- [Prepare 0004 opaque handoff](../../../modules/prepare/tasks/0004-opaque-backend-candidate-batch-and-selected-decision-handoff.md)
+- [Prepare 0004 opaque handoff](../../../modules/prepare/tasks/0004-opaque-backend-candidate-batch-and-selected-decision-handoff.md)<span data-glossary-navigation="true"> ([opaque glossary](../../../../glossary.md#term-opaque); [handoff glossary](../../../../glossary.md#term-handoff))</span>
 - [Tuning 0001 local workflow](../../../tools/tuning/tasks/0001-exact-default-model-guided-workload-tuning-and-reusable-cache.md)
-- [Engine 0006A representative execution](../../../modules/engine/tasks/0006a-representative-tuning-execution-and-safe-fallback.md)
+- [Engine 0006A representative execution](../../../modules/engine/tasks/0006a-representative-tuning-execution-and-safe-fallback.md)<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine))</span>
 - [Engine 0007 optional composition](../../../modules/engine/tasks/0007-optional-model-autotuning-composition.md)
-- [Config 0006A request facade](../../../modules/config/tasks/0006a-model-autotuning-request-configuration.md)
+- [Config 0006A request facade](../../../modules/config/tasks/0006a-model-autotuning-request-configuration.md)<span data-glossary-navigation="true"> ([facade glossary](../../../../glossary.md#term-facade))</span>
 
 ## Architecture constraints
 
 - Planning continues to choose only CPU ownership. CPU alone owns complete CPU topology,
-  representation, route, exact-resource, finalization, and candidate compatibility semantics.
+  representation, route, exact-resource, finalization, and candidate compatibility semantics.<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning); [CPU glossary](../../../../glossary.md#term-cpu); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [topology glossary](../../../../glossary.md#term-topology))</span>
 - Shared Prepare transports the opaque typed values and performs ordinary assignment/validation;
   it does not inspect candidate fields. The existing method-free roles are sufficient. If
   implementation proves otherwise, stop and report the exact shared-contract gap instead of
-  widening Prepare in this task.
+  widening Prepare in this task.<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [opaque glossary](../../../../glossary.md#term-opaque); [validation glossary](../../../../glossary.md#term-validation); [widening glossary](../../../../glossary.md#term-widening))</span>
 - Phase 1 remains authoritative for local route/configuration choice. Phase 2 fixes surrounding
   complete-plan alternatives around that choice and must not repeat local search.
 - Analysis remains deterministic from explicit immutable inputs and performs no measurement,
   cache I/O, execution, or policy fallback. Finalization cannot change the selected route or add
-  an undeclared shared requirement.
+  an undeclared shared requirement.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [cache glossary](../../../../glossary.md#term-cache))</span>
 - Runtime sees only a complete prepared recipe. No candidate, decision, graph, cache, tuning, or
-  selection vocabulary enters Runtime or its hot path.
+  selection vocabulary enters Runtime or its hot path.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [graph glossary](../../../../glossary.md#graph); [hot path glossary](../../../../glossary.md#term-hot-path))</span>
 - Engine remains the composition root and later owns representative execution, cleanup, public
-  request translation, fallback, and final publication. CPU must not depend on Engine or tuning.
+  request translation, fallback, and final publication. CPU must not depend on Engine or tuning.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [composition root glossary](../../../../glossary.md#term-composition-root); [publication glossary](../../../../glossary.md#term-publication))</span>
 - A selected decision can choose only an exact candidate regenerated in the current complete
-  batch. It cannot grant legality, weaken semantics/determinism, or invent a resource.
+  batch. It cannot grant legality, weaken semantics/determinism, or invent a resource.<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>
 
-## Exact semantics, dataflow, lifecycle, failure, and identity contracts
+## Exact semantics, [dataflow](../../../../glossary.md#term-dataflow), [lifecycle](../../../../glossary.md#lifecycle), failure, and [identity](../../../../glossary.md#term-identity-meanings) contracts
 
-### Candidate and lifecycle boundary
+### Candidate and [lifecycle](../../../../glossary.md#lifecycle) boundary
 
 The term **complete plan candidate** in this task is deliberately narrower than the architecture's
-future multi-owner model-plan space. It is one complete executable alternative inside the current
-supported CPU-only lifecycle:
+future multi-[owner](../../../../glossary.md#term-owner) [model](../../../../glossary.md#term-model)-plan space. It is one complete executable alternative inside the current
+supported [CPU](../../../../glossary.md#term-cpu)-only lifecycle:
 
 ```text
 same CompileArtifacts
@@ -237,38 +237,38 @@ same CompileArtifacts
   -> one fresh immutable PreparedExecution
 ```
 
-It is not one local kernel, one route candidate, a partial partition, a bare analysis plan, or a
-serialized executable. Compile graph, Planning owner, partition boundary, logical memory, and
-publication semantics are fixed across this first candidate batch.
+It is not one local [kernel](../../../../glossary.md#kernel), one route candidate, a partial [partition](../../../../glossary.md#partition), a bare analysis plan, or a
+serialized executable. [Compile](../../../../glossary.md#compile) [graph](../../../../glossary.md#graph), [Planning](../../../../glossary.md#term-planning) owner, partition boundary, logical memory, and
+[publication](../../../../glossary.md#term-publication) semantics are fixed across this first [candidate batch](../../../../glossary.md#candidate-batch).
 
-### Canonical compatibility and identity
+### [Canonical](../../../../glossary.md#term-canonical-form) compatibility and [identity](../../../../glossary.md#term-identity-meanings)
 
 - Use a bounded, versioned CPU-owned canonical binary projection with fixed numeric tags and
-  explicit length/count prefixes. Do not use enum names, class names, Java serialization,
-  `toString`, native addresses, object identity, or map iteration order.
-- Batch compatibility includes at minimum:
-  - complete-plan compatibility schema and CPU candidate-schema versions;
+  explicit length/count prefixes. Do not use enum names, class names, Java serialization,<span data-glossary-navigation="true"> ([binary glossary](../../../../glossary.md#term-binary-descriptor-and-metadata); [serialization glossary](../../../../glossary.md#term-serialization))</span>
+  `toString`, native addresses, object [identity](../../../../glossary.md#term-reference-identity), or map iteration order.
+- [Batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) compatibility includes at minimum:
+  - complete-plan compatibility [schema](../../../../glossary.md#term-schema) and [CPU](../../../../glossary.md#term-cpu) candidate-schema versions;
   - CPU backend/device identity; portable generator/Class-File/Vector compatibility facts and
     exact selected species/strategy facts represented by the candidate set; applicable qualified
     provider/target/binary identity and reuse scope from Phase 1; and a per-integration nonce when
-    no stable persistent target projection exists;
+    no stable persistent target projection exists;<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [device glossary](../../../../glossary.md#term-device); [Vector glossary](../../../../glossary.md#term-vector); [target glossary](../../../../glossary.md#term-target); [scope glossary](../../../../glossary.md#term-scope))</span>
   - the sole-partition role and stable topological node count/connectivity using relative node,
-    input-port, and output-port coordinates rather than `NodeId` or `ValueId` magnitudes;
+    input-port, and output-port coordinates rather than <span data-glossary-navigation="true"> ([partition glossary](../../../../glossary.md#partition); [topological glossary](../../../../glossary.md#term-topological-order); [node glossary](../../../../glossary.md#node); [coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>[`NodeId`](../../../../glossary.md#nodeid) or [`ValueId`](../../../../glossary.md#logical-valueid-versus-physical-memory-slot) magnitudes;
   - exact boundary and output descriptors: data type, Shape, resolved layout offset/strides,
     stable external-input/source/publication roles, publication order and aliases, logical-memory
-    graph-output/constant roles, and canonical scalar constant bits where applicable;
+    graph-output/constant roles, and canonical scalar constant bits where applicable;<span data-glossary-navigation="true"> ([descriptors glossary](../../../../glossary.md#term-descriptor); [data type glossary](../../../../glossary.md#data-type--datatype); [Shape glossary](../../../../glossary.md#shape); [layout glossary](../../../../glossary.md#layout); [strides glossary](../../../../glossary.md#term-stride); [publication glossary](../../../../glossary.md#term-publication); [aliases glossary](../../../../glossary.md#aliasing-and-arena); [graph glossary](../../../../glossary.md#graph); [constant glossary](../../../../glossary.md#term-constant); [scalar glossary](../../../../glossary.md#term-scalar))</span>
   - the ordered complete 0008D legal identities, ordered retained 0008E variant identities,
     exact declarations/workspace geometry, source-only constant-resource facts, and the fixed
     candidate-enumeration profile; and
   - the authenticated Phase-1 state: either the exact canonical selected local decision and its
-    compatibility/scope, or the explicit freshly proved no-eligible-handoff tag.
+    compatibility/scope, or the explicit freshly proved no-eligible-handoff tag.<span data-glossary-navigation="true"> ([handoff glossary](../../../../glossary.md#term-handoff))</span>
 - Reuse existing CPU IR structural keys, relative member positions, boundary positions, access
   plans, specializations, and resource facts. Do not create a second operation-attribute encoder
-  when those typed CPU facts already carry the semantic distinction.
-- A candidate identity is the complete batch-compatibility digest plus the exact existing 0008E
+  when those typed CPU facts already carry the semantic distinction.<span data-glossary-navigation="true"> ([IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [operation glossary](../../../../glossary.md#operation); [carry glossary](../../../../glossary.md#term-carry))</span>
+- A candidate identity is the complete batch-compatibility [digest](../../../../glossary.md#term-digest) plus the exact existing 0008E
   `VariantIdentity` projection and Phase-1 fingerprint. It excludes graph-local numeric IDs,
   requirement IDs except normalized relative resource roles, assigned slots, generated class
-  objects, loaders, provider handles, workers, physical storage, timings, and runs.
+  objects, loaders, provider handles, workers, physical storage, timings, and runs.<span data-glossary-navigation="true"> ([fingerprint glossary](../../../../glossary.md#term-fingerprint))</span>
 - Persistent reuse is allowed only when every included target and Phase-1 fact has a stable
   persistent projection. Otherwise compatibility and decisions are `SESSION` scoped and include
   the owning integration nonce. A stable candidate decision may be decoded only against a freshly
@@ -278,39 +278,39 @@ publication semantics are fixed across this first candidate batch.
   live object. Malformed, truncated, trailing, unsupported, corrupt, wrong-session, stale-target,
   stale-graph, stale-resource, stale-Phase-1, or unknown-candidate bytes return empty without side
   effects. Nulls remain programmer errors. This checksum detects accidental corruption; it is not
-  a hostile-input cryptographic authorization boundary.
+  a hostile-input cryptographic authorization boundary.<span data-glossary-navigation="true"> ([integrity glossary](../../../../glossary.md#term-integrity); [checksum glossary](../../../../glossary.md#term-checksum))</span>
 
-### Preparation and ownership
+### Preparation and [ownership](../../../../glossary.md#term-ownership-meanings)
 
 - Candidate batches, candidates, compatibility values, identities, and decisions are immutable,
-  own no closeable resource, and borrow the exact integration/artifact association.
+  own no closeable resource, and borrow the exact integration/artifact association.<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([batches glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [immutable glossary](../../../../glossary.md#term-immutable); [artifact glossary](../../../../glossary.md#term-artifact))</span>
 - Each trial/final preparation constructs a new analysis, new shared assignments and memory plan,
-  newly finalized immutable executable recipe, new schedule, and new `PreparedExecution`. It
-  reuses no earlier `PreparedExecution`, slot plan, mutable run state, or physical representation.
-- Preparation executes no representative input. The later outer owner creates a fresh `RunState`
+  newly finalized immutable executable recipe, new schedule, and new [`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution). It
+  reuses no earlier `PreparedExecution`, slot plan, [mutable](../../../../glossary.md#term-mutable) [run state](../../../../glossary.md#run-state--runstate), or physical representation.
+- Preparation executes no representative input. The later outer [owner](../../../../glossary.md#term-owner) creates a fresh [`RunState`](../../../../glossary.md#run-state--runstate)
   per warmup/sample, validates publications, and closes each result and borrowed wrapper under the
-  Engine 0006A contract.
+  Engine 0006A contract.<span data-glossary-navigation="true"> ([warmup glossary](../../../../glossary.md#term-warmup); [sample glossary](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters); [borrowed glossary](../../../../glossary.md#ownership-borrowing-and-lease); [Engine glossary](../../../../glossary.md#term-engine))</span>
 - Current preparation acquires no run-owned physical resource. Generated-class reuse may use the
   existing CPU-owned compatible in-memory artifact cache, but the selected candidate and bytes do
-  not change. Existing preparation failure cleanup applies; no partial recipe escapes.
+  not change. Existing preparation failure cleanup applies; no partial recipe escapes.<span data-glossary-navigation="true"> ([run glossary](../../../../glossary.md#term-run); [CPU glossary](../../../../glossary.md#term-cpu); [cache glossary](../../../../glossary.md#term-cache))</span>
 - Prepared recipes borrow the owning integration's provider/coordinator lifetime and must not
   outlive it. Closing the integration prevents new candidate/codec/preparation operations;
-  admitted-call and close behavior remains the existing CPU 0010F/0010I contract.
+  admitted-call and close behavior remains the existing CPU 0010F/0010I contract.<span data-glossary-navigation="true"> ([lifetime glossary](../../../../glossary.md#term-lifetime); [codec glossary](../../../../glossary.md#term-codec))</span>
 
 ### Failure behavior
 
-- Invalid lifecycle artifacts fail before exposure, as in ordinary CPU preparation.
-- Valid but non-tunable complete-plan work returns an empty handoff.
+- Invalid [lifecycle](../../../../glossary.md#lifecycle) [artifacts](../../../../glossary.md#term-artifact) fail before exposure, as in ordinary [CPU](../../../../glossary.md#term-cpu) preparation.
+- Valid but non-tunable complete-plan work returns an empty [handoff](../../../../glossary.md#term-handoff).
 - Missing required Phase-1 selection, an unexpected Phase-1 selection, or any association mismatch
-  throws `IllegalArgumentException` before backend state changes.
+  throws `IllegalArgumentException` before [backend](../../../../glossary.md#backend) state changes.
 - A stale/incompatible encoded complete-plan decision decodes to empty. A live decision associated
-  with another batch/integration is rejected.
+  with another batch/integration is rejected.<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>
 - Fresh selected preparation rejects any incompatibility and never substitutes ordinary heuristic
-  preparation. Whether a later caller falls back is exclusively an Engine policy decision.
+  preparation. Whether a later caller falls back is exclusively an Engine policy decision.<span data-glossary-navigation="true"> ([heuristic glossary](../../../../glossary.md#term-heuristic); [Engine glossary](../../../../glossary.md#term-engine))</span>
 
 ## Package impact
 
-### Exact public API
+### Exact public [API](../../../../glossary.md#term-application-programming-interface-api)
 
 Existing supported package:
 
@@ -357,10 +357,10 @@ public final class CpuCompletePlanTuning {
 public CpuCompletePlanTuning completePlanTuning();
 ```
 
-It returns the same retained instance while open. Public opaque values expose only defensive
-compatibility/identity bytes, schema/scope accessors, association-safe equality needed for the
-future tool adapter, and redacted diagnostic text. They expose no CPU internal plan, route,
-topology, materialization, resource, provider, graph ID, slot, or executable accessor.
+It returns the same retained instance while open. Public [opaque](../../../../glossary.md#term-opaque) values expose only defensive
+compatibility/[identity](../../../../glossary.md#term-identity-meanings) bytes, [schema](../../../../glossary.md#term-schema)/[scope](../../../../glossary.md#term-scope) accessors, association-safe equality needed for the
+future tool adapter, and redacted diagnostic text. They expose no [CPU](../../../../glossary.md#term-cpu) internal plan, route,
+[topology](../../../../glossary.md#term-topology), [materialization](../../../../glossary.md#materialization), resource, provider, [graph](../../../../glossary.md#graph) ID, slot, or executable accessor.
 
 Existing internal packages changed:
 
@@ -368,28 +368,28 @@ Existing internal packages changed:
 - `internal.lowering` / `internal.ir` — reuse retained variants and record truthful explicit
   selection without changing ordinary selection;
 - `internal.route.nativeblas.openblas` — retained composition delegates the supported producer,
-  Phase-1 authentication, and complete fresh preparation.
+  Phase-1 authentication, and complete fresh preparation.<span data-glossary-navigation="true"> ([producer glossary](../../../../glossary.md#term-producer); [authentication glossary](../../../../glossary.md#term-authentication))</span>
 
-No package, module dependency, JPMS export, Prepare method, Runtime API, or Engine API is added.
+No package, [module](../../../../glossary.md#term-module) [dependency](../../../../glossary.md#term-dependency), [JPMS](../../../../glossary.md#term-java-platform-module-system-jpms) export, [Prepare](../../../../glossary.md#prepare) method, [Runtime](../../../../glossary.md#term-runtime) API, or [Engine](../../../../glossary.md#term-engine) API is added.
 
 ## Affected files
 
-Expected CPU production/Javadoc paths:
+Expected [CPU](../../../../glossary.md#term-cpu) production/[Javadoc](../../../../glossary.md#term-javadoc) paths:
 
 - new `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/CpuCompletePlanTuning.java`;
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/CpuBackendIntegration.java`;
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/CpuLocalWorkloadTuning.java`,
-  limited to package-private exact association/decision authentication for the new collaboration;
+  limited to package-private exact association/decision authentication for the new collaboration;<span data-glossary-navigation="true"> ([authentication glossary](../../../../glossary.md#term-authentication))</span>
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/package-info.java`;
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuBackendComposition.java`;
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/CpuPartitionAnalysisInputs.java`;
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/CpuPartitionPreparer.java`;
-- `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuFusionProfitabilitySelector.java` only if needed to apply an exact retained identity without reranking;
+- `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuFusionProfitabilitySelector.java` only if needed to apply an exact retained [identity](../../../../glossary.md#term-identity-meanings) without reranking;
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuRepresentationPlanner.java`;
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/ir/CpuFusionDecision.java`;
 - `backends/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/ir/CpuRepresentationDecision.java`.
 
-The private complete-plan input/codec must be nested in an affected cohesive owner. No second new
+The private complete-plan input/[codec](../../../../glossary.md#term-codec) must be nested in an affected cohesive [owner](../../../../glossary.md#term-owner). No second new
 top-level production type is allowed.
 
 Expected focused CPU test paths:
@@ -400,34 +400,34 @@ Expected focused CPU test paths:
 - `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeblas/openblas/CpuBackendCompositionTest.java`;
 - `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/CpuInternalPackageInventoryTest.java` only if a new internal type is added.
 
-Expected documentation and planning paths in the implementation change:
+Expected documentation and [planning](../../../../glossary.md#term-planning) paths in the implementation change:
 
 - `docs/backend-guide/cpu-backend.md`;
 - `docs/glossary.md` only if existing complete-plan candidate, candidate batch, and selected tuning
-  decision entries cannot describe the result accurately;
+  decision entries cannot describe the result accurately;<span data-glossary-navigation="true"> ([complete-plan candidate glossary](../../../../glossary.md#complete-plan-candidate); [candidate batch glossary](../../../../glossary.md#candidate-batch); [selected tuning decision glossary](../../../../glossary.md#selected-tuning-decision))</span>
 - this task;
 - `docs/planning/backends/cpu/master-plan.md`;
 - `docs/planning/tools/tuning/master-plan.md`;
 - `docs/planning/roadmap.md`.
 
 Review without modification unless a concrete contradiction is found: `ARCHITECTURE.md`, focused
-architecture pages and ADRs, Prepare source/tests/docs, tools/tuning 0001 source/tests, Engine,
-Config, Runtime, Compiler, Planning, Backend Contract, build/Gradle, architecture tests, backend-
-conformance tests, integration tests, generated emitters, and CPU 0011–0017 task rows.
+architecture pages and ADRs, [Prepare](../../../../glossary.md#prepare) source/tests/docs, tools/tuning 0001 source/tests, [Engine](../../../../glossary.md#term-engine),
+Config, [Runtime](../../../../glossary.md#term-runtime), [Compiler](../../../../glossary.md#term-compiler), Planning, [Backend](../../../../glossary.md#backend) Contract, build/[Gradle](../../../../glossary.md#term-gradle), architecture tests, backend-
+[conformance](../../../../glossary.md#term-conformance) tests, integration tests, generated emitters, and CPU 0011–0017 task rows.
 
-## Maximum scope
+## Maximum [scope](../../../../glossary.md#term-scope)
 
 - At most 11 CPU production/Javadoc paths, including exactly one new supported top-level type and
-  no new internal top-level type.
-- At most 5 focused CPU test paths, including exactly one new supported-surface test.
-- At most 2 explanatory documentation paths and exactly 4 planning paths.
+  no new internal top-level type.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
+- At most 5 focused [CPU](../../../../glossary.md#term-cpu) test paths, including exactly one new supported-surface test.
+- At most 2 explanatory documentation paths and exactly 4 [planning](../../../../glossary.md#term-planning) paths.
 - At most 22 total paths. Fewer are preferred; no headroom may be used for another module,
-  generated emitter, algorithm, route, shared contract, build file, or unrelated refactor.
+  generated emitter, algorithm, route, shared contract, build file, or unrelated refactor.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module))</span>
 - Preserve existing ceilings: 64 legal topologies, 256 topology attempts, 8 units, 64 topology
   boundary positions, 8 topology workspaces, 8 eligible representation sources, 36 non-direct
   copy choices per topology, 37 variants per topology, 2,368 variants, 2 copies per variant,
   16 consumer-use facts, 10 units/workspaces/artifacts including copies, 74 requirements, and
-  2,753 combined decision facts.
+  2,753 combined decision facts.<span data-glossary-navigation="true"> ([topology glossary](../../../../glossary.md#term-topology); [artifacts glossary](../../../../glossary.md#term-artifact))</span>
 
 If complete selection cannot be implemented by reusing the existing facts/finalizer inside this
 ceiling, stop and propose the smallest CPU-owned follow-up. Do not create multiple detailed tasks
@@ -435,39 +435,39 @@ or weaken this task's completeness.
 
 ## Acceptance criteria
 
-1. `CpuCompletePlanTuning` is the sole new supported top-level CPU type, is retained by
-   `CpuBackendIntegration`, and has exactly the public collaboration shape specified above.
+1. `CpuCompletePlanTuning` is the sole new supported top-level [CPU](../../../../glossary.md#term-cpu) type, is retained by
+   `CpuBackendIntegration`, and has exactly the public collaboration [shape](../../../../glossary.md#shape) specified above.
 2. Its nested batch/decision adopt the existing method-free Prepare roles; no shared Prepare
-   contract changes and no CPU internal type leaks through public signatures or Javadocs.
+   contract changes and no CPU internal type leaks through public signatures or Javadocs.<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [signatures glossary](../../../../glossary.md#term-signature))</span>
 3. A complete batch contains every and only retained eligible 0008D/0008E variant in exact stable
    order, or no batch is exposed when completeness cannot be proved or fewer than two alternatives
    exist.
 4. Direct, fused/split, one-copy, and eligible disjoint-two-copy cases are covered. Typed 0008D
-   legality and 0008E representation rejections remain excluded and are never reinterpreted.
+   legality and 0008E representation rejections remain excluded and are never reinterpreted.<span data-glossary-navigation="true"> ([fused glossary](../../../../glossary.md#specialization-and-fusion))</span>
 5. An eligible Phase-1 workload requires one exact authenticated selected local decision; a
    noneligible workload requires absence. Every plan candidate preserves that state without local
-   candidate enumeration, ranking, timing, or heuristic substitution during Phase-2 preparation.
+   candidate enumeration, ranking, timing, or heuristic substitution during Phase-2 preparation.<span data-glossary-navigation="true"> ([ranking glossary](../../../../glossary.md#term-ranking))</span><span data-glossary-navigation="true"> ([heuristic glossary](../../../../glossary.md#term-heuristic))</span>
 6. Cross-owner/batch/artifact/partition and stale Phase-1 or complete-plan decisions fail before
-   shared assignment, finalization, provider mutation, or publication of a recipe.
+   shared assignment, finalization, provider mutation, or publication of a recipe.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [artifact glossary](../../../../glossary.md#term-artifact); [partition glossary](../../../../glossary.md#partition); [publication glossary](../../../../glossary.md#term-publication))</span>
 7. Compatibility, candidate identity, and codec bytes are canonical, bounded, defensive,
    versioned, graph-ID-independent, target/graph/partition/layout/resource/Phase-1 complete, and
-   session-scoped whenever persistent target compatibility is unavailable.
+   session-scoped whenever persistent target compatibility is unavailable.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [codec glossary](../../../../glossary.md#term-codec); [canonical glossary](../../../../glossary.md#term-canonical-form); [graph glossary](../../../../glossary.md#graph); [target glossary](../../../../glossary.md#term-target); [layout glossary](../../../../glossary.md#layout))</span>
 8. Codec corruption/incompatibility returns empty without side effects; exact compatible
-   round-trip reconstructs a decision associated with the supplied fresh batch.
-9. Trial and final selection each produce a fresh full `PreparedExecution` through ordinary
+   round-trip reconstructs a decision associated with the supplied fresh batch.<span data-glossary-navigation="true"> ([round-trip glossary](../../../../glossary.md#schema-serialization-and-checkpoint))</span>
+9. Trial and final selection each produce a fresh full [`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution) through ordinary
    assignment/finalization/schedule validation and select exactly the requested retained variant.
-   No selected preparation falls back.
-10. Ordinary `prepare`, ordinary 0008D profitability choice, 0008E direct-by-default selection,
+   No selected preparation falls back.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
+10. Ordinary [`prepare`](../../../../glossary.md#prepare), ordinary 0008D profitability choice, 0008E direct-by-default selection,
     and CPU 0010I local tuning behavior remain unchanged.
 11. No representative execution, timing, cache I/O, persistence, fallback policy, Engine/Runtime
-    selection, new generated bytes, algorithm, route, dependency, or architecture change occurs.
+    selection, new generated bytes, algorithm, route, dependency, or architecture change occurs.<span data-glossary-navigation="true"> ([cache glossary](../../../../glossary.md#term-cache); [persistence glossary](../../../../glossary.md#term-persistence); [Engine glossary](../../../../glossary.md#term-engine); [Runtime glossary](../../../../glossary.md#term-runtime); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 12. Focused tests cover semantic set completeness, identity stability, Phase-1 presence/absence
     and mismatch, exact resources, fresh recipe identity, concurrency/close, codec failures, and
-    unchanged ordinary preparation.
+    unchanged ordinary preparation.<span data-glossary-navigation="true"> ([concurrency glossary](../../../../glossary.md#term-concurrency))</span>
 13. A separate clean documentation-focused context finalizes affected Javadocs, the CPU guide,
-    glossary impact, and all four planning paths before the task becomes Complete.
+    glossary impact, and all four planning paths before the task becomes Complete.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning))</span>
 
-## Tests / validation
+## Tests / [validation](../../../../glossary.md#term-validation)
 
 Implementation-focused tests:
 
@@ -480,17 +480,17 @@ Implementation-focused tests:
 ./gradlew :backends:cpu:test
 ```
 
-The focused matrix must include real supported fixtures for one direct-only non-tunable case, a
-vertical fused/direct pair, canonical/0008B split roles, one-copy, eligible disjoint-two-copy,
-`CO_CONSUMED_PAIR`, no eligible Phase 1, required eligible Phase 1, portable and OpenBLAS Phase-1
-selection, stale/mismatched decisions, source-only constants, and fresh selected preparation.
+The focused [matrix](../../../../glossary.md#term-matrix-meanings) must include real supported fixtures for one direct-only non-tunable case, a
+vertical [fused](../../../../glossary.md#specialization-and-fusion)/direct pair, [canonical](../../../../glossary.md#term-canonical-form)/0008B split roles, one-copy, eligible disjoint-two-copy,
+`CO_CONSUMED_PAIR`, no eligible Phase 1, required eligible Phase 1, portable and [OpenBLAS](../../../../glossary.md#term-openblas) Phase-1
+selection, stale/mismatched decisions, source-only [constants](../../../../glossary.md#term-constant), and fresh selected preparation.
 
-Manual/structural checks must prove the supported public signatures contain no `.internal` type,
-candidate and compatibility bytes contain no graph-local ID magnitude or live-object text, and
-ordinary and explicitly selected existing generated specialization/class identities are unchanged.
-No generated-code performance rerun, direct-Java oracle rerun, or new benchmark is required: this
+Manual/structural checks must prove the supported public [signatures](../../../../glossary.md#term-signature) contain no `.internal` type,
+candidate and compatibility bytes contain no [graph](../../../../glossary.md#graph)-local ID magnitude or live-object text, and
+ordinary and explicitly selected existing generated [specialization](../../../../glossary.md#term-specialization)/class [identities](../../../../glossary.md#term-identity-meanings) are unchanged.
+No generated-code performance rerun, direct-Java [oracle](../../../../glossary.md#term-test-oracle) rerun, or new benchmark is required: this
 task changes cold candidate exposure/selection only and must not change an algorithm, emitter,
-entry descriptor, structural key, generated schema, or generated class bytes. If any such byte
+entry [descriptor](../../../../glossary.md#term-descriptor), structural key, generated [schema](../../../../glossary.md#term-schema), or generated class bytes. If any such byte
 changes, stop and replan with the generated-code evidence required by `ARCHITECTURE.md`.
 
 The clean documentation-focused context reuses the successful Java evidence unless it changes
@@ -505,21 +505,21 @@ git status --short -uall
 
 It also validates changed Markdown links and same-file anchors, unique/canonical headings,
 balanced fences, LF/final newlines, no trailing whitespace, exact path ceiling, empty staging,
-Ready/Blocked ordering, and rendered Javadocs for ownership, nullability, lifetime, failures, and
+[Ready](../../../../glossary.md#term-ready)/Blocked ordering, and rendered Javadocs for [ownership](../../../../glossary.md#term-ownership-meanings), [nullability](../../../../glossary.md#term-nullability), [lifetime](../../../../glossary.md#term-lifetime), failures, and
 defensive bytes.
 
-Backend-conformance and integration tests are unnecessary because no backend semantic/execution
-contract or public Engine behavior changes. Architecture tests are unnecessary because no module
-edge or dependency rule changes. Repository-wide tests remain deferred to the later Phase-2
-capability checkpoint or CI.
+[Backend](../../../../glossary.md#backend)-[conformance](../../../../glossary.md#term-conformance) and integration tests are unnecessary because no backend semantic/execution
+contract or public [Engine](../../../../glossary.md#term-engine) behavior changes. Architecture tests are unnecessary because no [module](../../../../glossary.md#term-module)
+edge or [dependency](../../../../glossary.md#term-dependency) rule changes. Repository-wide tests remain deferred to the later Phase-2
+capability [checkpoint](../../../../glossary.md#term-checkpoint) or [CI](../../../../glossary.md#term-continuous-integration-ci).
 
 ## Dependencies
 
-- Complete CPU 0008B, 0008C, 0008D, 0008E, 0008E1, and 0008F.
+- Complete [CPU](../../../../glossary.md#term-cpu) 0008B, 0008C, 0008D, 0008E, 0008E1, and 0008F.
 - Complete CPU 0010E, 0010F, and 0010I.
-- Complete Prepare 0004 and tools/tuning 0001.
+- Complete [Prepare](../../../../glossary.md#prepare) 0004 and tools/tuning 0001.
 - Complete Engine 0006A and 0007 establish the outer Phase-1 lifecycle evidence but are not CPU
-  dependencies and are not changed here.
+  dependencies and are not changed here.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - Complete Config 0006A establishes current public Phase-1 request vocabulary but is not consumed
   or changed here.
 
@@ -530,70 +530,70 @@ repurpose broad future CPU 0016.
 ## Follow-up tasks
 
 - After CPU 0010J is Complete, re-audit tools/tuning 0002 against the implemented batch,
-  compatibility, codec, and fresh-preparation evidence. Keep 0002 `Blocked` and do not create its
+  compatibility, codec, and fresh-preparation evidence. Keep 0002 <span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [codec glossary](../../../../glossary.md#term-codec))</span>`Blocked` and do not create its
   detailed specification until that re-audit resolves the Phase-2 budget, correctness oracle,
-  model-plan record/cache, and tools-only scope.
+  model-plan record/cache, and tools-only scope.<span data-glossary-navigation="true"> ([oracle glossary](../../../../glossary.md#term-test-oracle); [model glossary](../../../../glossary.md#term-model); [cache glossary](../../../../glossary.md#term-cache); [scope glossary](../../../../glossary.md#term-scope))</span>
 - A later separate Engine task must compose representative complete-plan execution, result
   correctness checking, cleanup, Config Phase-2 translation, selected final preparation, and user
-  fallback policy. None of that follows automatically from this CPU producer.
+  fallback policy. None of that follows automatically from this CPU producer.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [producer glossary](../../../../glossary.md#term-producer))</span>
 - CPU 0016 remains the distinct later cross-route local workload-cache integration row for
   implemented vendor peers. CPU 0010J must not absorb it.
 
 ## Architecture impact
 
-Expected architecture impact: None. The root contract already permits concrete backends to
-generate complete valid backend-specific candidates, Prepare to transport them opaquely, tuning
-to measure them before Runtime, and CPU to finalize selected work. No dependency direction,
-module boundary, lifecycle order, ADR, or architecture test changes.
+Expected architecture impact: None. The root contract already permits concrete [backends](../../../../glossary.md#backend) to
+generate complete valid backend-specific candidates, [Prepare](../../../../glossary.md#prepare) to transport them opaquely, tuning
+to measure them before [Runtime](../../../../glossary.md#term-runtime), and [CPU](../../../../glossary.md#term-cpu) to finalize selected work. No [dependency direction](../../../../glossary.md#java-platform-and-build-tools),
+[module](../../../../glossary.md#term-module) boundary, [lifecycle](../../../../glossary.md#lifecycle) order, [ADR](../../../../glossary.md#term-architecture-decision-record-adr), or [architecture test](../../../../glossary.md#term-architecture-test) changes.
 
-### Documentation, Javadoc, and glossary impact
+### Documentation, [Javadoc](../../../../glossary.md#term-javadoc), and glossary impact
 
 Documentation impact: update `docs/backend-guide/cpu-backend.md` to explain the supported
-complete-plan producer, exact current one-partition meaning of complete, Phase-1 reuse, candidate-
-only materializations, fresh selected preparation, and the no-measurement/no-cache/no-Engine/no-
-Runtime-selection boundaries.
+complete-plan [producer](../../../../glossary.md#term-producer), exact current one-[partition](../../../../glossary.md#partition) meaning of complete, Phase-1 reuse, candidate-
+only materializations, fresh selected preparation, and the no-measurement/no-[cache](../../../../glossary.md#term-cache)/no-[Engine](../../../../glossary.md#term-engine)/no-
+[Runtime](../../../../glossary.md#term-runtime)-selection boundaries.
 
 Javadoc impact: every added or changed public/internal type and method must document semantics,
-inputs, nullability, association/lifetime, immutable ownership, defensive copies, return meaning,
-and expected failures. Javadoc must distinguish association authentication from security and
+inputs, [nullability](../../../../glossary.md#term-nullability), association/[lifetime](../../../../glossary.md#term-lifetime), [immutable](../../../../glossary.md#term-immutable) [ownership](../../../../glossary.md#term-ownership-meanings), defensive copies, return meaning,
+and expected failures. Javadoc must distinguish association [authentication](../../../../glossary.md#term-authentication) from security and
 trial preparation from trial execution.
 
-Glossary impact: independently review the existing complete-plan candidate, candidate batch,
-selected tuning decision, CPU portable preparation plan, and materialization entries. Update only
+Glossary impact: independently review the existing [complete-plan candidate](../../../../glossary.md#complete-plan-candidate), [candidate batch](../../../../glossary.md#candidate-batch),
+[selected tuning decision](../../../../glossary.md#selected-tuning-decision), [CPU portable preparation plan](../../../../glossary.md#cpu-portable-preparation-plan), and [materialization](../../../../glossary.md#materialization) entries. Update only
 entries made incomplete by the implemented supported producer; otherwise record a reasoned
-no-change conclusion. Do not invent a synonym for model-plan cache or claim that it exists.
+no-change conclusion. Do not invent a synonym for [model](../../../../glossary.md#term-model)-plan cache or claim that it exists.
 
-No-change review is required for architecture pages/ADRs, public Tensor/Compile/Training APIs,
-Prepare/Runtime APIs, Config, Engine user docs, provider docs, generated-code docs, other backend
-guides, and conformance/integration documentation unless implementation reveals a concrete
+No-change review is required for architecture pages/ADRs, public [Tensor](../../../../glossary.md#tensor)/[Compile](../../../../glossary.md#compile)/Training APIs,
+[Prepare](../../../../glossary.md#prepare)/Runtime APIs, Config, Engine user docs, provider docs, generated-code docs, other [backend](../../../../glossary.md#backend)
+guides, and [conformance](../../../../glossary.md#term-conformance)/integration documentation unless implementation reveals a concrete
 contradiction.
 
 ## Local decisions
 
 - Identifier `0010J` is selected because it is the next coherent CPU integration increment after
-  Complete 0010I and before unrelated vendor-peer 0011–0015 work.
+  Complete 0010I and before unrelated vendor-peer 0011–0015 work.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>
 - One supported `CpuCompletePlanTuning` collaboration parallels `CpuLocalWorkloadTuning`; a broad
-  facade or shared Prepare API would expose the wrong owner.
-- Phase-1 absence is proved by fresh analysis, not represented by a caller-created token.
+  facade or shared Prepare API would expose the wrong owner.<span data-glossary-navigation="true"> ([facade glossary](../../../../glossary.md#term-facade); [Prepare glossary](../../../../glossary.md#prepare); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [owner glossary](../../../../glossary.md#term-owner))</span>
+- Phase-1 absence is proved by fresh analysis, not represented by a caller-created [token](../../../../glossary.md#term-token).
 - A batch with fewer than two eligible complete alternatives is absent because there is nothing
-  for Phase 2 to compare.
+  for Phase 2 to compare.<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>
 - Complete candidate identity uses stable relative CPU facts and a canonical compile projection,
-  never raw graph-local ID magnitudes.
+  never raw graph-local ID magnitudes.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [canonical glossary](../../../../glossary.md#term-canonical-form); [compile glossary](../../../../glossary.md#compile); [graph glossary](../../../../glossary.md#graph))</span>
 - Session scope is mandatory whenever every target fact cannot be projected persistently. This is
-  safer than treating a caller/model label as target compatibility.
+  safer than treating a caller/model label as target compatibility.<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope); [target glossary](../../../../glossary.md#term-target); [model glossary](../../../../glossary.md#term-model))</span>
 - Ordinary heuristic preparation remains unchanged and direct by default. Only an explicit exact
-  complete-plan decision may select a candidate-only copied form.
+  complete-plan decision may select a candidate-only copied form.<span data-glossary-navigation="true"> ([heuristic glossary](../../../../glossary.md#term-heuristic))</span>
 
 ## Known limitations
 
 - The first producer covers only the current one-nonempty-CPU-partition lifecycle and at most one
-  current Phase-1 local workload. It does not produce Compiler graph or Planning ownership choices.
+  current Phase-1 local workload. It does not produce Compiler graph or Planning ownership choices.<span data-glossary-navigation="true"> ([producer glossary](../../../../glossary.md#term-producer); [CPU glossary](../../../../glossary.md#term-cpu); [partition glossary](../../../../glossary.md#partition); [lifecycle glossary](../../../../glossary.md#lifecycle); [Compiler glossary](../../../../glossary.md#term-compiler); [graph glossary](../../../../glossary.md#graph); [Planning glossary](../../../../glossary.md#term-planning); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - A portable-only target may remain session-scoped until a later owner establishes a stable
   cross-session CPU target fingerprint. This limits persistent model-plan reuse but not fresh
-  Phase-2 measurement or correctness.
+  Phase-2 measurement or correctness.<span data-glossary-navigation="true"> ([target glossary](../../../../glossary.md#term-target); [owner glossary](../../../../glossary.md#term-owner); [fingerprint glossary](../../../../glossary.md#term-fingerprint); [model glossary](../../../../glossary.md#term-model))</span>
 - Model-plan persistence, Phase-2 budgets, numerical equivalence checking, and Engine composition
-  remain unresolved follow-ups and keep tools/tuning 0002 Blocked after this specification.
-- Existing 0008D/0008E hard ceilings and unsupported materialization types/forms remain unchanged.
+  remain unresolved follow-ups and keep tools/tuning 0002 Blocked after this specification.<span data-glossary-navigation="true"> ([persistence glossary](../../../../glossary.md#term-persistence); [Engine glossary](../../../../glossary.md#term-engine))</span>
+- Existing 0008D/0008E hard ceilings and unsupported [materialization](../../../../glossary.md#materialization) types/forms remain unchanged.
 
 ## Implementation prompt
 
@@ -623,93 +623,93 @@ Update this task's evidence, notes, completion summary, and status only after ev
 criterion and the documentation pass succeed.
 ```
 
-## Validation evidence
+## [Validation](../../../../glossary.md#term-validation) evidence
 
 - Implementation context `01a0b857-47f3-7551-bae3-642d5a6c7d6f` ran
   `./gradlew :backends:cpu:test`: 1,022 tests, 28 skipped, zero failures. Its focused matrix passed
   45 tests with 1 skip and zero failures. The mandatory clean documentation review reused this
-  evidence because it changed only Javadoc, Markdown, and planning text after that run.
+  evidence because it changed only Javadoc, Markdown, and planning text after that run.<span data-glossary-navigation="true"> ([matrix glossary](../../../../glossary.md#term-matrix-meanings); [planning glossary](../../../../glossary.md#term-planning); [run glossary](../../../../glossary.md#term-run))</span>
 - The implementation context also passed `./gradlew :backends:cpu:javadoc` after correcting its
   newly introduced warning; recorded output retained 94 pre-existing missing-parameter warnings
-  in old constructors. It passed `git diff --check`, confirmed empty staging, verified exactly 11
+  in old constructors. It passed <span data-glossary-navigation="true"> ([parameter glossary](../../../../glossary.md#term-parameter))</span>`git diff --check`, confirmed empty staging, verified exactly 11
   production and 5 test paths, and found zero generated/emitter changes.
 - The implementation context's public-surface and source checks found no internal type in a
   supported signature and no Java serialization, filesystem, reflection, tools/tuning, or Engine
   dependency in the new collaboration. Codec/identity checks found no graph-local ID magnitude
-  or live-object text, and existing generated specialization/class identities remained unchanged.
+  or live-object text, and existing generated specialization/class identities remained unchanged.<span data-glossary-navigation="true"> ([signature glossary](../../../../glossary.md#term-signature); [serialization glossary](../../../../glossary.md#term-serialization); [Engine glossary](../../../../glossary.md#term-engine); [dependency glossary](../../../../glossary.md#term-dependency); [Codec glossary](../../../../glossary.md#term-codec); [identity glossary](../../../../glossary.md#term-identity-meanings); [graph glossary](../../../../glossary.md#graph); [specialization glossary](../../../../glossary.md#term-specialization))</span>
 - Mandatory clean documentation-focused review context
   `01a0b877-dfe5-7c11-8180-beac3ddc71b9` read the
   architecture contract, focused tuning/prepare architecture and ADR 0008, documentation rules
   and General/API-Javadoc/Planning/Backend-guide profiles, planning guide and synchronized plans,
   predecessor contracts, the complete worktree diff, all 11 changed production files, and all 5
-  changed/new tests. It reviewed actual source and tests rather than relying on the handoff.
+  changed/new tests. It reviewed actual source and tests rather than relying on the handoff.<span data-glossary-navigation="true"> ([architecture contract glossary](../../../../glossary.md#architecture-contract); [prepare glossary](../../../../glossary.md#prepare); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [Backend glossary](../../../../glossary.md#backend); [handoff glossary](../../../../glossary.md#term-handoff))</span>
 - Documentation context `01a0b877-dfe5-7c11-8180-beac3ddc71b9` ran
-  `./gradlew :backends:cpu:javadoc` after final Javadoc edits:
+  `./gradlew :backends:cpu:javadoc` after final [Javadoc](../../../../glossary.md#term-javadoc) edits:
   `BUILD SUCCESSFUL`; 94 warnings remain, all in the same unrelated old constructors in
   `CpuPartitionLowering` and `CpuPartitionPreparationPlan`. No new warning belongs to 0010J.
 - Documentation context `01a0b877-dfe5-7c11-8180-beac3ddc71b9` inspected the rendered
   `CpuCompletePlanTuning` and
   `CpuBackendIntegration` pages and their nested-value pages under
   `backends/cpu/build/docs/javadoc`; ownership, association, session scope, defensive bytes,
-  fresh preparation, failure behavior, and the no-execution boundary render correctly.
+  fresh preparation, failure behavior, and the no-execution boundary render correctly.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings); [scope glossary](../../../../glossary.md#term-scope))</span>
 - A targeted changed-Markdown validator passed for local targets, same-file and cross-file
   anchors, canonical unique headings, balanced fences, LF endings, final newlines, and trailing
-  whitespace. Final `git diff --check`, `git diff --cached --check`, empty-staging, exact-path,
+  whitespace. Final <span data-glossary-navigation="true"> ([targets glossary](../../../../glossary.md#term-target); [canonical glossary](../../../../glossary.md#term-canonical-form))</span>`git diff --check`, `git diff --cached --check`, empty-staging, exact-path,
   generated/emitter-zero, and `git status --short -uall` checks also passed.
 - Final scope is exactly 22 paths: 11 CPU production/Javadoc paths, 5 CPU test paths, 2
   explanatory documentation paths, and 4 planning paths. No Java test was rerun by the
-  documentation context `01a0b877-dfe5-7c11-8180-beac3ddc71b9` because it changed no executable
-  Java token or test.
+  documentation context <span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>`01a0b877-dfe5-7c11-8180-beac3ddc71b9` because it changed no executable
+  Java token or test.<span data-glossary-navigation="true"> ([token glossary](../../../../glossary.md#term-token))</span>
 
 ## Implementation notes
 
 - Added the retained `CpuCompletePlanTuning` collaboration and
   `CpuBackendIntegration.completePlanTuning()`. The batch is complete only for the same exact
   artifacts and sole CPU partition, one retained 0008D topology, one retained direct/single/
-  eligible-disjoint-pair 0008E representation, and the exact reused Phase-1 state.
+  eligible-disjoint-pair 0008E representation, and the exact reused Phase-1 state.<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [artifacts glossary](../../../../glossary.md#term-artifact); [CPU glossary](../../../../glossary.md#term-cpu); [partition glossary](../../../../glossary.md#partition); [topology glossary](../../../../glossary.md#term-topology))</span>
 - Compatibility and candidate identities use bounded canonical projections and defensive bytes.
   Current reuse is session-scoped. The bounded checksummed codec rejects malformed, corrupt,
-  stale, wrong-session, and incompatible encodings without side effects.
+  stale, wrong-session, and incompatible encodings without side effects.<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [codec glossary](../../../../glossary.md#term-codec))</span>
 - Trial and selected preparation repeat authoritative analysis and build fresh assignments,
-  finalization, schedules, and `PreparedExecution` recipes. They perform no execution or timing
-  and never fall back to ordinary heuristic selection.
+  finalization, schedules, and [`PreparedExecution`](../../../../glossary.md#prepared-execution--preparedexecution) recipes. They perform no execution or timing
+  and never fall back to ordinary heuristic selection.<span data-glossary-navigation="true"> ([heuristic glossary](../../../../glossary.md#term-heuristic))</span>
 - Ordinary preparation and Phase-1 behavior remain unchanged. Candidate-only materializations
   can be selected only through an exact complete-plan decision and are not automatically promoted.
 - Actual path deviations from the expected list were bounded and cohesive:
-  `CpuPartitionPreparationPlan.java` required a validation update, while the planned
+  `CpuPartitionPreparationPlan.java` required a [validation](../../../../glossary.md#term-validation) update, while the planned
   `CpuPartitionAnalysisInputs.java` did not. The narrower `CpuPartitionPreparerTest.java` and
   `CpuRepresentationPlannerTest.java` did not require edits; closed supported-surface/inventory/
-  decision-shape tests were updated instead. `CpuBackendCompositionTest.java` also remained
+  decision-shape tests were updated instead. <span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape))</span>`CpuBackendCompositionTest.java` also remained
   unchanged because its existing coverage and the new distinct-package public collaboration test
   covered the composition boundary. No second production type or broader package was added.
-- Documentation review selected the Backend guide profile for `cpu-backend.md`, API/Javadoc for
+- Documentation review selected the [Backend](../../../../glossary.md#backend) guide profile for `cpu-backend.md`, API/Javadoc for
   Java contracts, and Planning for the task/master-plan/roadmap files. It added the missing
   glossary entries for complete-plan candidate and candidate batch and corrected the selected
   tuning decision, CPU portable preparation plan, and materialization entries because their prior
-  local-only/future-only descriptions were materially incomplete.
+  local-only/future-only descriptions were materially incomplete.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [Javadoc glossary](../../../../glossary.md#term-javadoc); [Planning glossary](../../../../glossary.md#term-planning); [complete-plan candidate glossary](../../../../glossary.md#complete-plan-candidate); [candidate batch glossary](../../../../glossary.md#candidate-batch); [selected tuning decision glossary](../../../../glossary.md#selected-tuning-decision); [CPU portable preparation plan glossary](../../../../glossary.md#cpu-portable-preparation-plan); [materialization glossary](../../../../glossary.md#materialization))</span>
 - Architecture and ADR no-change conclusion: the implementation realizes existing concrete-
   backend candidate ownership and opaque Prepare transport without changing authority, module
-  boundaries, dependency direction, or lifecycle order.
+  boundaries, dependency direction, or lifecycle order.<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [opaque glossary](../../../../glossary.md#term-opaque); [Prepare glossary](../../../../glossary.md#prepare); [module glossary](../../../../glossary.md#term-module); [dependency direction glossary](../../../../glossary.md#java-platform-and-build-tools); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - Public Tensor/Compile/Training and shared Prepare/Runtime API no-change conclusion: the feature
-  consumes current `CompileArtifacts`, method-free tuning roles, assignment/finalization, and
-  `PreparedExecution` contracts without widening them or changing model/training semantics.
+  consumes current <span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [Compile glossary](../../../../glossary.md#compile); [Runtime glossary](../../../../glossary.md#term-runtime); [feature glossary](../../../../glossary.md#term-feature))</span>`CompileArtifacts`, method-free tuning roles, assignment/finalization, and
+  `PreparedExecution` contracts without [widening](../../../../glossary.md#term-widening) them or changing [model](../../../../glossary.md#term-model)/training semantics.
 - Config, Engine, provider, generated-code, other backend-guide, architecture-test,
   backend-conformance, integration, build/Gradle, and generated-emitter no-change conclusion:
   0010J owns no Phase-2 request, representative execution, correctness oracle, fallback, cache,
-  provider ABI, generated schema/bytes, route, dependency, or cross-module behavior.
+  provider ABI, generated schema/bytes, route, dependency, or cross-module behavior.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [conformance glossary](../../../../glossary.md#term-conformance); [Gradle glossary](../../../../glossary.md#term-gradle); [oracle glossary](../../../../glossary.md#term-test-oracle); [cache glossary](../../../../glossary.md#term-cache); [ABI glossary](../../../../glossary.md#term-application-binary-interface-abi); [schema glossary](../../../../glossary.md#term-schema); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 - Javadocs in all changed production files were reviewed. This pass finalized the new supported
   collaboration, integration accessor, Phase-1 authentication helpers, explicit selectors,
-  preparer values, and composition methods. Existing Javadocs in `package-info`, decision enums,
+  preparer values, and composition methods. Existing Javadocs in <span data-glossary-navigation="true"> ([authentication glossary](../../../../glossary.md#term-authentication))</span>`package-info`, decision enums,
   and `CpuPartitionPreparationPlan` remained accurate after review and required no further edit.
 - Tools/tuning 0002 remains `Blocked`. A fresh re-audit must resolve its Phase-2 budget,
   correctness oracle, model-plan record/cache, tools-only generic scope, and later Engine
-  composition before a detailed task may be created.
+  composition before a detailed task may be created.<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope))</span>
 
 ## Completion summary
 
 - Completed changes: implemented and documented the supported opaque CPU complete-plan producer,
   exact Phase-1 reuse, canonical session-scoped identity/codec boundary, and fresh exact recipe
-  preparation while preserving ordinary preparation.
+  preparation while preserving ordinary preparation.<span data-glossary-navigation="true"> ([opaque glossary](../../../../glossary.md#term-opaque); [producer glossary](../../../../glossary.md#term-producer); [canonical glossary](../../../../glossary.md#term-canonical-form); [identity glossary](../../../../glossary.md#term-identity-meanings); [codec glossary](../../../../glossary.md#term-codec))</span>
 - Files changed or created by the documentation pass: Javadocs in
   `CpuBackendIntegration.java`, `CpuCompletePlanTuning.java`, `CpuLocalWorkloadTuning.java`,
   `CpuFusionProfitabilitySelector.java`, `CpuRepresentationPlanner.java`,
@@ -719,19 +719,19 @@ criterion and the documentation pass succeed.
   exactly 22 changed/new paths.
 - Tests and validation: reused the implementation context's passing 1,022-test CPU suite and
   45-test focused matrix; final CPU Javadoc, rendered-page inspection, Markdown validation,
-  whitespace checks, exact-scope checks, and empty-staging checks passed.
+  whitespace checks, exact-scope checks, and empty-staging checks passed.<span data-glossary-navigation="true"> ([matrix glossary](../../../../glossary.md#term-review-matrix))</span><span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [Javadoc glossary](../../../../glossary.md#term-javadoc); [scope glossary](../../../../glossary.md#term-scope))</span>
 - Documentation-agent review: completed in mandatory clean documentation context
   `01a0b877-dfe5-7c11-8180-beac3ddc71b9` using the General, API/Javadoc, Planning, and Backend
-  guide profiles.
-- Documentation impact: CPU guide, glossary, and all four required planning paths are finalized.
+  guide profiles.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [Backend glossary](../../../../glossary.md#backend))</span>
+- Documentation impact: [CPU](../../../../glossary.md#term-cpu) guide, glossary, and all four required [planning](../../../../glossary.md#term-planning) paths are finalized.
 - Javadoc review: all 11 changed production paths were reviewed; seven received final Javadoc
   edits and four were confirmed accurate without further changes.
 - Glossary impact: five required concepts were reviewed; missing/incomplete complete-plan,
-  candidate-batch, decision, portable-plan, and materialization descriptions were updated.
+  candidate-batch, decision, portable-plan, and materialization descriptions were updated.<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [materialization glossary](../../../../glossary.md#materialization))</span>
 - Unresolved issues: Phase-2 orchestration, correctness checking, budgets, persistent model-plan
   records/cache, Compiler/Planning alternatives, multi-partition/mixed-backend plans, and Engine
-  composition remain deliberately unresolved under blocked tools/tuning 0002.
+  composition remain deliberately unresolved under blocked tools/tuning 0002.<span data-glossary-navigation="true"> ([model glossary](../../../../glossary.md#term-model); [cache glossary](../../../../glossary.md#term-cache); [Compiler glossary](../../../../glossary.md#term-compiler); [partition glossary](../../../../glossary.md#partition); [Engine glossary](../../../../glossary.md#term-engine))</span>
 - Follow-up required: perform the recorded fresh tools/tuning 0002 re-audit; do not create its
-  detailed specification until those unresolved contracts have owners and evidence.
+  detailed specification until those unresolved contracts have owners and evidence.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span>
 
 Status: Complete

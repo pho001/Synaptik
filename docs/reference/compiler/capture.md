@@ -1,16 +1,16 @@
-# Structural capture and model contracts
+# [Structural capture](../../glossary.md#term-structural-capture) and [model](../../glossary.md#term-model) contracts
 
-[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
+[Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
-**Capture** walks Tensor expression dependencies and records operations and their ordered inputs
-and outputs as a graph. **Provenance** is the association between a Tensor and the operation
-occurrence that produced it. A **port** is one input or output position of that occurrence, not a
+**[Capture](../../glossary.md#term-capture-meanings)** walks [Tensor](../../glossary.md#tensor) expression dependencies and records operations and their ordered inputs
+and outputs as a [graph](../../glossary.md#graph). **[Provenance](../../glossary.md#provenance)** is the association between a Tensor and the [operation](../../glossary.md#operation)
+[occurrence](../../glossary.md#term-occurrence) that produced it. A **port** is one input or output position of that occurrence, not a
 memory location; a multi-output operation can therefore have several distinct result ports.
 
 <a id="current-model-contracts"></a>
-## Current model contracts
+## Current [model](../../glossary.md#term-model) contracts
 
-Model type support is independent of backend availability. The temporary Java CPU low-computation lock is historical and superseded by the [CPU low-precision parity cutover](../../architecture/contracts/backend-execution.md#cpu-low-precision-parity-cutover). BFLOAT16, FLOAT16 and both FP8 formats reuse ordinary CPU numerical owners and shared Compiler first-order AD under the exact family, promotion, geometry and resource guards. This does not widen Metal admission; use the [current backend-qualified matrix](../../backend-guide/production-support.md).
+Model type support is independent of [backend](../../glossary.md#backend) availability. The temporary Java [CPU](../../glossary.md#term-cpu) low-computation lock is historical and superseded by the [CPU low-precision parity cutover](../../architecture/contracts/backend-execution.md#cpu-low-precision-parity-cutover)<span data-glossary-navigation="true"> ([precision glossary](../../glossary.md#term-precision))</span>. [BFLOAT16](../../glossary.md#term-bfloat16), [FLOAT16](../../glossary.md#term-float16) and both [FP8](../../glossary.md#term-fp8) formats reuse ordinary CPU numerical [owners](../../glossary.md#term-owner) and shared [Compiler](../../glossary.md#term-compiler) first-order [AD](../../glossary.md#autograd) under the exact family, promotion, geometry and resource guards. This does not widen [Metal](../../glossary.md#term-metal) [admission](../../glossary.md#term-admission); use the [current backend-qualified matrix](../../backend-guide/production-support.md)<span data-glossary-navigation="true"> ([matrix glossary](../../glossary.md#term-matrix-meanings))</span>.
 
 The `io.github.pho001.synaptik.model.operation`, `io.github.pho001.synaptik.model.tensor`, and
 `io.github.pho001.synaptik.model.graph` packages now provide compiler-neutral data that later
@@ -18,85 +18,85 @@ compiler work can produce and consume:
 
 | Current contract | Meaning | Deliberate boundary |
 |---|---|---|
-| `OperationSignature` | Exact attributes variant and inclusive local input/output-count bounds | Structural occurrence contract, not operand inference or executable support |
-| `TensorProducer` | Identity of one pre-capture expression occurrence with exact operation, ordered input Tensors, and ordered output descriptors | Public-expression origin, not `CompiledNode`, graph membership, or compiler state |
-| `TensorProvenance` | Exact producer plus one zero-based output index, with derived operation, inputs, and descriptor | Indexed result association, not `NodeId`, `ValueId`, or graph output binding |
-| `GraphRngState` | Opaque public wrapper around one explicit key/counter state-expression occurrence | Expression identity and threading boundary, not a generator, exposed numerical Tensor, runtime state, or bitstream |
-| `CompiledNode` | One operation occurrence with ordered input/output `ValueId` snapshots | Local list and signature-cardinality validation, not graph-wide closure or descriptor compatibility |
-| `CompiledGraphModel` | Immutable ordered graph values, topological nodes, declared input/output boundaries, and exact node phases | Structural graph state, not compiler passes, partitions, storage, or execution |
-| `GraphPhase` | Exactly `FORWARD` or `BACKWARD` compile-time node classification | Not a compile mode, optimizer phase, or runtime schedule |
-| `ForwardPublicationBinding` | Standalone `TensorId`-to-`ValueId` association used for requested forward outputs inside current compiler publication plans | Not an owning publication plan, a gradient binding, or a `CompiledGraphModel` component |
+| `OperationSignature` | Exact attributes variant and inclusive local input/output-count bounds | Structural [occurrence](../../glossary.md#term-occurrence) contract, not operand [inference](../../glossary.md#term-inference) or executable support |
+| [`TensorProducer`](../../glossary.md#producer--tensorproducer) | [Identity](../../glossary.md#term-identity-meanings) of one pre-[capture](../../glossary.md#term-capture-meanings) expression occurrence with exact [operation](../../glossary.md#operation), ordered input [Tensors](../../glossary.md#tensor), and ordered output [descriptors](../../glossary.md#term-descriptor) | Public-expression origin, not `CompiledNode`, [graph](../../glossary.md#graph) membership, or compiler state |
+| `TensorProvenance` | Exact [producer](../../glossary.md#term-producer) plus one zero-based output index, with derived operation, inputs, and descriptor | Indexed result association, not [`NodeId`](../../glossary.md#nodeid), [`ValueId`](../../glossary.md#logical-valueid-versus-physical-memory-slot), or graph output [binding](../../glossary.md#term-binding) |
+| [`GraphRngState`](../../glossary.md#graph-rng-state--graphrngstate) | [Opaque](../../glossary.md#term-opaque) public wrapper around one explicit key/counter state-expression occurrence | Expression identity and threading boundary, not a generator, exposed numerical Tensor, [runtime](../../glossary.md#term-runtime) state, or bitstream |
+| `CompiledNode` | One operation occurrence with ordered input/output `ValueId` snapshots | Local list and [signature](../../glossary.md#term-signature)-[cardinality](../../glossary.md#term-cardinality) [validation](../../glossary.md#term-validation), not graph-wide closure or descriptor compatibility |
+| [`CompiledGraphModel`](../../glossary.md#compiled-graph--compiledgraphmodel) | [Immutable](../../glossary.md#term-immutable) ordered graph values, [topological](../../glossary.md#term-topological-order) [nodes](../../glossary.md#node), declared input/output boundaries, and exact node phases | Structural graph state, not compiler passes, partitions, storage, or execution |
+| `GraphPhase` | Exactly `FORWARD` or `BACKWARD` [compile](../../glossary.md#compile)-time node classification | Not a [compile mode](../../glossary.md#compile-mode--compilemode), [optimizer](../../glossary.md#term-optimizer) phase, or runtime schedule |
+| `ForwardPublicationBinding` | Standalone [`TensorId`](../../glossary.md#tensorid)-to-`ValueId` association used for requested forward outputs inside current compiler [publication](../../glossary.md#term-publication) plans | Not an owning [publication plan](../../glossary.md#publication-plan), a [gradient](../../glossary.md#term-gradient) binding, or a `CompiledGraphModel` component |
 
 `CompiledGraphModel` validates structural closure when constructed. It snapshots its lists and
 phase map, requires resolvable references and topological node order, enforces producer and phase
 coverage rules, and stores no derived indexes. This validation does not capture an expression,
-infer descriptors, transform a graph, perform autograd, plan backend ownership, or make the model
+infer descriptors, transform a graph, perform [autograd](../../glossary.md#autograd), plan [backend ownership](../../glossary.md#backend-ownership), or make the model
 executable.
 
 <a id="current-package-private-structural-capture"></a>
-### Current package-private structural capture
+### Current package-private [structural capture](../../glossary.md#term-structural-capture)
 
-The compiler module now contains package-private `GraphCapture`. Its package-private static entry
+The [compiler](../../glossary.md#term-compiler) [module](../../glossary.md#term-module) now contains package-private `GraphCapture`. Its package-private static entry
 point accepts one non-null, non-empty ordered `List<Tensor>` and returns a
-`CompiledGraphModel`. This is an internal compiler implementation boundary, not a public compile
-API or a callable lifecycle facade.
+[`CompiledGraphModel`](../../glossary.md#compiled-graph--compiledgraphmodel). This is an internal compiler implementation boundary, not a public [compile](../../glossary.md#compile)
+[API](../../glossary.md#term-application-programming-interface-api) or a callable [lifecycle](../../glossary.md#lifecycle) [facade](../../glossary.md#term-facade).
 
-Capture traverses exact Tensor and `TensorProducer` references in requested-result order and
-producer-input order. A first-seen provenance-free Tensor becomes one graph input. A first-seen
+[Capture](../../glossary.md#term-capture-meanings) traverses exact [Tensor](../../glossary.md#tensor) and [`TensorProducer`](../../glossary.md#producer--tensorproducer) references in requested-result order and
+[producer](../../glossary.md#term-producer)-input order. A first-seen [provenance](../../glossary.md#provenance)-free Tensor becomes one [graph](../../glossary.md#graph) input. A first-seen
 producer is emitted once after its reachable input producers, and every ordered producer output
-descriptor becomes a graph value even when no public Tensor wrapper exposes that position.
+[descriptor](../../glossary.md#term-descriptor) becomes a [graph value](../../glossary.md#graph-value) even when no public Tensor wrapper exposes that position.
 Produced Tensors resolve through `TensorProvenance.outputIndex()`. Requested graph outputs retain
-caller order, while every captured node is classified `GraphPhase.FORWARD`.
+caller order, while every captured [node](../../glossary.md#node) is classified `GraphPhase.FORWARD`.
 
-`ValueId` and `NodeId` allocation restarts at zero for each call and follows deterministic
+[`ValueId`](../../glossary.md#logical-valueid-versus-physical-memory-slot) and [`NodeId`](../../glossary.md#nodeid) allocation restarts at zero for each call and follows deterministic
 depth-first postorder encounter. Capture preserves repeated operand positions, distinct
-identity-separated producer occurrences, exact operation and descriptor references, zero-input
-semantic source nodes, and reachable opaque RNG-state edges. The returned graph retains none of
-the traversed Tensor, producer, provenance, or `GraphRngState` references.
+[identity](../../glossary.md#term-identity-meanings)-separated producer occurrences, exact [operation](../../glossary.md#operation) and descriptor references, zero-input
+semantic source nodes, and reachable [opaque](../../glossary.md#term-opaque) [RNG](../../glossary.md#graph-rng-state--graphrngstate)-state edges. The returned graph retains none of
+the traversed Tensor, producer, provenance, or [`GraphRngState`](../../glossary.md#graph-rng-state--graphrngstate) references.
 
-The request rejects a null list, an empty list, a null element, a repeated exact Tensor reference,
+The request rejects a null list, an empty list, a null [element](../../glossary.md#term-element), a repeated exact Tensor reference,
 or distinct wrappers that resolve to one graph output value. No caller collection is mutated.
-The returned graph owns immutable collection snapshots through `CompiledGraphModel`.
+The returned graph owns [immutable](../../glossary.md#term-immutable) collection snapshots through `CompiledGraphModel`.
 
-An overload accepts a package-private immutable constant-ingress request. Each binding pairs one
-exact provenance-free, non-gradient Tensor leaf identity with one exact typed logical splat. A
-logical splat means that the same `ScalarValue` applies at every logical coordinate; it contains no
-Shape, dense payload, storage, Tensor, buffer, or backend value. Capture maps a binding only at the
+An overload accepts a package-private immutable [constant](../../glossary.md#term-constant)-ingress request. Each [binding](../../glossary.md#term-binding) pairs one
+exact provenance-free, non-[gradient](../../glossary.md#term-gradient) Tensor [leaf](../../glossary.md#term-leaf) identity with one exact typed [logical splat](../../glossary.md#logical-splat). A
+logical splat means that the same [`ScalarValue`](../../glossary.md#typed-scalar-value--scalarvalue) applies at every logical [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix); it contains no
+[Shape](../../glossary.md#shape), dense [payload](../../glossary.md#artifact-envelope-and-atomic-publication), storage, Tensor, [buffer](../../glossary.md#term-buffer), or [backend](../../glossary.md#backend) value. Capture maps a binding only at the
 existing Tensor-identity-to-`ValueId` boundary and rejects a binding that is not encountered as a
 reachable leaf. It does not read `Tensor.hostStorage()` or infer a constant from a factory method,
-descriptor, layout, label, storage contents, or the mere absence of provenance.
+descriptor, [layout](../../glossary.md#layout), label, storage contents, or the mere absence of provenance.
 
 The result of that overload is an internal immutable sidecar around the unchanged
 `CompiledGraphModel`. Every fixed source remains structurally a graph input. For every other
-captured leaf, the sidecar records only its immutable `TensorId` against the current graph-local
-`ValueId`; it retains no Tensor or provenance. Canonicalization and optimization remap this
-association with the graph inputs, and complete compilation projects it in final graph-input
+captured leaf, the sidecar records only its immutable [`TensorId`](../../glossary.md#tensorid) against the current graph-local
+`ValueId`; it retains no Tensor or provenance. [Canonicalization](../../glossary.md#occurrence-identity-and-canonical-form) and optimization remap this
+association with the graph inputs, and complete [compilation](../../glossary.md#compiler-engine-and-execution-stage-names) projects it in final graph-input
 order.
 Consequently an explicitly fixed source cannot also be supplied later as a caller input. An
 otherwise identical leaf absent from ingress remains bindable, including a leaf created by a
-scalar, zero, one, full, import, allocation, or random factory path. There is no public constant-
+[scalar](../../glossary.md#term-scalar), zero, one, full, import, allocation, or random factory path. There is no public constant-
 binding entry point; `GraphCompilationPort` deliberately supplies empty ingress.
 
 The original capture entries remain forward-only. One package-private combined entry receives
-forward outputs, ordered target/gradient roles, the exact identity set of original forward
+forward outputs, ordered [target](../../glossary.md#term-target)/gradient roles, the exact identity set of original forward
 producers, and merged explicit splat ingress. It traverses forward and gradient roots together,
 assigns graph-local IDs once, and classifies original producer occurrences as `FORWARD` and
 generated occurrences as `BACKWARD`. The graph-output boundary contains the distinct forward
-values first, then each gradient value absent from that prefix at its first role occurrence.
+values first, then each gradient value absent from that prefix at its first role [occurrence](../../glossary.md#term-occurrence).
 Target roles retain boundary ordinals, so two targets can share one gradient `ValueId` without an
 identity node.
 
-Capture itself performs no inference, transformation, or derivative-rule selection. The
+Capture itself performs no [inference](../../glossary.md#term-inference), transformation, or [derivative](../../glossary.md#term-derivative)-rule selection. The
 following package-private boundaries revalidate, canonicalize, and optionally optimize the
 captured graph. The original graph-stage entry stops there; the complete entry derives
-publication, invokes Planning, and constructs `CompileArtifacts` only after final graph
-validation. Neither entry prepares backends, allocates physical memory, or executes values.
+[publication](../../glossary.md#term-publication), invokes [Planning](../../glossary.md#term-planning), and constructs `CompileArtifacts` only after final graph
+[validation](../../glossary.md#term-validation). Neither entry prepares backends, allocates physical memory, or executes values.
 `GraphCompiler` and both implementation entries remain package-private. The public compile
-surfaces are ordinary `Engine.compile(...)`, which returns an owner-bound `CompiledGraph`, and
+surfaces are ordinary `Engine.compile(...)`, which returns an [owner](../../glossary.md#term-owner)-bound `CompiledGraph`, and
 `AdvancedEngine.compile(...)`, which returns an owner-bound `AdvancedCompiledGraph`.
-`GraphCompilationPort` remains the narrow constant-free integration SPI rather than the sole
+`GraphCompilationPort` remains the narrow constant-free integration [SPI](../../glossary.md#term-service-provider-interface-spi) rather than the sole
 public lifecycle facade. Only the bounded cold source capture below is public; no general
-validation, optimizer, or compile-configuration aggregate method exists.
+validation, [optimizer](../../glossary.md#term-optimizer), or compile-configuration aggregate method exists.
 
 
 ---

@@ -1,56 +1,56 @@
-# Compile API — migrated reference
+# [Compile](../glossary.md#compile) [API](../glossary.md#term-application-programming-interface-api) — migrated reference
 
-This reference now lives in topic-sized canonical pages. Start at [the reference goals](../reference/index.md) or [the area entry](../reference/compiler/batch-binding.md). Detailed contracts and examples are maintained there, not duplicated here.
+This reference now lives in topic-sized [canonical](../glossary.md#term-canonical-form) pages. Start at [the reference goals](../reference/index.md) or [the Compiler area](../reference/compiler/index.md)<span data-glossary-navigation="true"> ([Compiler glossary](../glossary.md#term-compiler))</span>. Detailed contracts and examples are maintained there, not duplicated here.
 
 ## Previous sections
 
 <a id="compile-api"></a>
-- [Compile API](../reference/compiler/batch-binding.md#compile-api)
+- [Compile API](../reference/compiler/batch-binding.md#compile-api)<span data-glossary-navigation="true"> ([Compile glossary](../glossary.md#compile); [API glossary](../glossary.md#term-application-programming-interface-api))</span>
 
 <a id="ordinary-named-batch-metadata-binding"></a>
-- [Ordinary named-batch metadata binding](../reference/compiler/batch-binding.md#ordinary-named-batch-metadata-binding)
+- [Ordinary named-batch metadata binding](../reference/compiler/batch-binding.md#ordinary-named-batch-metadata-binding)<span data-glossary-navigation="true"> ([batch glossary](../glossary.md#term-batch-machine-learning-and-hyperparameters); [metadata glossary](../glossary.md#term-metadata); [binding glossary](../glossary.md#term-binding))</span>
 
 <a id="purpose-and-implementation-status"></a>
 - [Purpose and implementation status](../reference/compiler/index.md#purpose-and-implementation-status)
 
 <a id="current-ordinary-and-advanced-engine-compile-boundaries"></a>
-- [Current ordinary and advanced Engine compile boundaries](../reference/compiler/entry-points.md#current-ordinary-and-advanced-engine-compile-boundaries)
+- [Current ordinary and advanced Engine compile boundaries](../reference/compiler/entry-points.md#current-ordinary-and-advanced-engine-compile-boundaries)<span data-glossary-navigation="true"> ([Engine glossary](../glossary.md#term-engine))</span>
 
 <a id="current-model-contracts"></a>
-- [Current model contracts](../reference/compiler/capture.md#current-model-contracts)
+- [Current model contracts](../reference/compiler/capture.md#current-model-contracts)<span data-glossary-navigation="true"> ([model glossary](../glossary.md#term-model))</span>
 
 <a id="current-package-private-structural-capture"></a>
-- [Current package-private structural capture](../reference/compiler/capture.md#current-package-private-structural-capture)
+- [Current package-private structural capture](../reference/compiler/capture.md#current-package-private-structural-capture)<span data-glossary-navigation="true"> ([structural capture glossary](../glossary.md#term-structural-capture))</span>
 
 <a id="current-cold-source-capture-and-reconstruction"></a>
 - [Current cold source capture and reconstruction](../reference/compiler/cold-source.md#current-cold-source-capture-and-reconstruction)
 
 <a id="current-package-private-verification-inference"></a>
-- [Current package-private verification inference](../reference/compiler/verification-scan.md#current-package-private-verification-inference)
+- [Current package-private verification inference](../reference/compiler/verification-scan.md#current-package-private-verification-inference)<span data-glossary-navigation="true"> ([inference glossary](../glossary.md#term-inference))</span>
 
 <a id="current-scoped-scan-capture-and-first-order-ad"></a>
-- [Current scoped scan capture and first-order AD](../reference/compiler/verification-scan.md#current-scoped-scan-capture-and-first-order-ad)
+- [Current scoped scan capture and first-order AD](../reference/compiler/verification-scan.md#current-scoped-scan-capture-and-first-order-ad)<span data-glossary-navigation="true"> ([capture glossary](../glossary.md#term-capture-meanings))</span><span data-glossary-navigation="true"> ([scan glossary](../glossary.md#term-cumulative-scan); [AD glossary](../glossary.md#autograd))</span>
 
 <a id="current-package-private-canonicalization-and-whole-graph-optimization"></a>
-- [Current package-private canonicalization and whole-graph optimization](../reference/compiler/optimization.md#current-package-private-canonicalization-and-whole-graph-optimization)
+- [Current package-private canonicalization and whole-graph optimization](../reference/compiler/optimization.md#current-package-private-canonicalization-and-whole-graph-optimization)<span data-glossary-navigation="true"> ([canonicalization glossary](../glossary.md#occurrence-identity-and-canonical-form); [graph optimization glossary](../glossary.md#forward-graph-optimization))</span>
 
 <a id="current-package-private-pre-capture-autograd"></a>
-- [Current package-private pre-capture autograd](../reference/compiler/autograd.md#current-package-private-pre-capture-autograd)
+- [Current package-private pre-capture autograd](../reference/compiler/autograd.md#current-package-private-pre-capture-autograd)<span data-glossary-navigation="true"> ([autograd glossary](../glossary.md#autograd))</span>
 
 <a id="functional-gradient-examples"></a>
-- [Functional-gradient examples](../reference/compiler/autograd.md#functional-gradient-examples)
+- [Functional-gradient examples](../reference/compiler/autograd.md#functional-gradient-examples)<span data-glossary-navigation="true"> ([gradient glossary](../glossary.md#term-gradient))</span>
 
 <a id="current-complete-artifact-compilation-and-integration-port"></a>
-- [Current complete artifact compilation and integration port](../reference/compiler/artifacts.md#current-complete-artifact-compilation-and-integration-port)
+- [Current complete artifact compilation and integration port](../reference/compiler/artifacts.md#current-complete-artifact-compilation-and-integration-port)<span data-glossary-navigation="true"> ([artifact glossary](../glossary.md#term-artifact); [compilation glossary](../glossary.md#compiler-engine-and-execution-stage-names); [integration port glossary](../glossary.md#term-integration-port))</span>
 
 <a id="current-compile-configuration-inputs"></a>
 - [Current compile-configuration inputs](../reference/compiler/configuration.md#current-compile-configuration-inputs)
 
 <a id="current-operation-capability-contracts"></a>
-- [Current operation-capability contracts](../reference/compiler/planning.md#current-operation-capability-contracts)
+- [Current operation-capability contracts](../reference/compiler/planning.md#current-operation-capability-contracts)<span data-glossary-navigation="true"> ([operation glossary](../glossary.md#operation))</span>
 
 <a id="current-planned-partition-recipe"></a>
-- [Current planned-partition recipe](../reference/compiler/planning.md#current-planned-partition-recipe)
+- [Current planned-partition recipe](../reference/compiler/planning.md#current-planned-partition-recipe)<span data-glossary-navigation="true"> ([partition glossary](../glossary.md#partition))</span>
 
 <a id="current-logical-memory-recipes"></a>
 - [Current logical-memory recipes](../reference/compiler/memory-output.md#current-logical-memory-recipes)
@@ -59,7 +59,7 @@ This reference now lives in topic-sized canonical pages. Start at [the reference
 - [Current expression input and compile output](../reference/compiler/memory-output.md#current-expression-input-and-compile-output)
 
 <a id="current-internal-lifecycle-and-planned-public-failures"></a>
-- [Current internal lifecycle and planned public failures](../reference/compiler/lifecycle.md#current-internal-lifecycle-and-planned-public-failures)
+- [Current internal lifecycle and planned public failures](../reference/compiler/lifecycle.md#current-internal-lifecycle-and-planned-public-failures)<span data-glossary-navigation="true"> ([lifecycle glossary](../glossary.md#lifecycle))</span>
 
 <a id="example-interpretation"></a>
 - [Example interpretation](../reference/compiler/lifecycle.md#example-interpretation)

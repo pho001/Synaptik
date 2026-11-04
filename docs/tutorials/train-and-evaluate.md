@@ -2,43 +2,43 @@
 
 ## Outcome and prerequisites
 
-Commit one SGD step that changes only the Model's private weight from `0` to `2`. Compute the
-new prediction `[2,6]`, and read both prediction and training objective after Model close.
+[Commit](../glossary.md#term-commit) one [SGD](../glossary.md#term-stochastic-gradient-descent-sgd) step that changes only the [Model](../glossary.md#term-model)'s private [weight](../glossary.md#term-weight) from `0` to `2`. Compute the
+new [prediction](../glossary.md#term-prediction) `[2,6]`, and read both prediction and training [objective](../glossary.md#term-objective) after Model close.
 Complete [setup](../examples/README.md#build-the-complete-project) and the
-[loss/gradient walkthrough](loss-and-gradients.md). Commands use JDK 26 and `LEARNING_CP` from
+[loss/gradient walkthrough](loss-and-gradients.md)<span data-glossary-navigation="true"> ([loss glossary](../glossary.md#loss); [gradient glossary](../glossary.md#term-gradient))</span>. Commands use [JDK](../glossary.md#term-java-development-kit-jdk) 26 and `LEARNING_CP` from
 the example project. No earlier process needs to be running.
 
 ## Configure what training means
 
-An **optimizer** turns derivatives into parameter updates. Plain stochastic gradient descent
-(SGD), as configured here without momentum or decay, uses `newWeight = oldWeight - rate*gradient`.
+An **[optimizer](../glossary.md#term-optimizer)** turns [derivatives](../glossary.md#term-derivative) into [parameter](../glossary.md#term-parameter) updates. Plain [stochastic gradient descent](../glossary.md#term-stochastic-gradient-descent-sgd)
+([SGD](../glossary.md#optimizer-and-stochastic-gradient-descent)), as configured here without [momentum](../glossary.md#term-momentum) or decay, uses `newWeight = oldWeight - rate*gradient`.
 The method `configureTraining` supplies three separate choices:
 
-- The target descriptor: FLOAT32 `[2,1]`, canonical contiguous, `requiresGrad=false`.
+- The [target](../glossary.md#term-target) [descriptor](../glossary.md#term-descriptor): [FLOAT32](../glossary.md#term-float32) `[2,1]`, [canonical](../glossary.md#term-canonical-form) [contiguous](../glossary.md#term-contiguous), `requiresGrad=false`.
 - A pure objective builder that constructs the scalar sum of squared errors from prediction and
-  target prototypes. It is a setup callback, not a callback invoked once per sample or batch.
-- `new Sgd(0.05)`, the immutable optimizer configuration.
+  target prototypes. It is a setup callback, not a callback invoked once per sample or batch.<span data-glossary-navigation="true"> ([objective glossary](../glossary.md#term-objective); [scalar glossary](../glossary.md#term-scalar); [prototypes glossary](../glossary.md#term-prototype); [callback glossary](../glossary.md#term-callback))</span>
+- `new Sgd(0.05)`, the [immutable](../glossary.md#term-immutable) optimizer configuration.
 
-The **learning rate**, `0.05`, multiplies the gradient to set the size of the update; it is a
-configuration choice, not a learned weight or a prediction-quality score. “Stochastic” refers
-to estimating updates from selected data batches; this deliberately fixed two-sample experiment
-does not randomly choose a batch. An **epoch** is one full pass over the chosen training dataset,
-whereas an **optimizer step** is one committed parameter update. This mode performs one step,
+The **[learning rate](../glossary.md#term-learning-rate)**, `0.05`, multiplies the [gradient](../glossary.md#term-gradient) to set the size of the update; it is a
+configuration choice, not a learned [weight](../glossary.md#term-weight) or a [prediction](../glossary.md#term-prediction)-quality score. “Stochastic” refers
+to estimating updates from selected data [batches](../glossary.md#term-batch-machine-learning-and-hyperparameters); this deliberately fixed two-[sample](../glossary.md#term-sample-machine-learning-and-hyperparameters) experiment
+does not randomly choose a batch. An **[epoch](../glossary.md#term-epoch-meanings)** is one full pass over the chosen training [dataset](../glossary.md#term-dataset),
+whereas an **[optimizer step](../glossary.md#optimizer-and-stochastic-gradient-descent)** is one committed parameter update. This mode performs one step,
 not an implicit multi-epoch training loop.
 
 Read `configure` and `train` in
 [LearningJourney.java](../examples/learning-journey/src/main/java/io/github/pho001/synaptik/examples/LearningJourney.java).
-The Model owns the working weight and cached session; Training owns optimizer mathematics and
-transaction admission. Configuration can copy private heap parameter storage into Model-owned
-shared native memory for the supported training path while preserving parameter Tensor identity.
-Do not retain a storage handle before configuration and assume it is still the current binding.
+The [Model](../glossary.md#term-model) owns the working weight and cached session; Training owns optimizer mathematics and
+[transaction](../glossary.md#term-transaction) [admission](../glossary.md#term-admission). Configuration can copy private [heap](../glossary.md#term-heap) parameter storage into Model-owned
+shared [native memory](../glossary.md#aliasing-and-arena) for the supported training path while preserving parameter [Tensor](../glossary.md#tensor) [identity](../glossary.md#term-identity-meanings).
+Do not retain a storage handle before configuration and assume it is still the current [binding](../glossary.md#term-binding).
 The program looks up live Model state only for inspection.
 
-Configuration succeeds once. It neither updates the weight by itself nor changes Module mode.
-Keep the Model's acquired evaluation mode: the owned source captures modes and other structural
-bindings. Calling inherited **no-argument** `model.train()` to toggle mode would change a frozen
+Configuration succeeds once. It neither updates the weight by itself nor changes [Module](../glossary.md#term-module) mode.
+Keep the Model's acquired [evaluation](../glossary.md#term-evaluation) mode: the owned source [captures](../glossary.md#term-structural-capture) modes and other structural
+bindings. Calling inherited **no-[argument](../glossary.md#term-argument)** `model.train()` to toggle mode would change a frozen
 source and invalidate this owned execution capability. The overloaded
-`model.train(input,target)` is the configured optimizer transaction; it is a different operation.
+`model.train(input,target)` is the configured optimizer transaction; it is a different [operation](../glossary.md#operation).
 Likewise, evaluation in this journey means `compute` without an optimizer update, not toggling
 mode around each batch. Larger custom Module forward workflows have their own mode use cases.
 
@@ -55,41 +55,41 @@ flowchart TD
     CONFIG --> BEFORE["compute(input) before training: [0,0], no update"]
 ```
 
-**Inference** obtains a prediction without an optimizer update. **Evaluation** uses predictions
-to assess the model, often against held-out targets. **Eval mode** is the separate Module setting
-that controls mode-dependent forward behavior. In this bias-free Linear example the multiplication
+**[Inference](../glossary.md#term-inference)** obtains a prediction without an optimizer update. **Evaluation** uses predictions
+to assess the model, often against held-out targets. **[Eval mode](../glossary.md#inference-and-evaluation)** is the separate Module setting
+that controls mode-dependent forward behavior. In this [bias](../glossary.md#term-bias)-free [Linear](../glossary.md#term-linear-meanings) example the multiplication
 itself has no train/eval-dependent branch; the owned-source mode still must remain unchanged.
 
 ## Work through the update
 
-The complete starting state is input `[1,3]`, target `[2,6]`, private weight `0`, no bias and SUM
-objective. The preceding chapter gave objective `40` and weight derivative `-40`.
+The complete starting state is input `[1,3]`, [target](../glossary.md#term-target) `[2,6]`, private [weight](../glossary.md#term-weight) `0`, no [bias](../glossary.md#term-bias) and SUM
+[objective](../glossary.md#term-objective). The preceding chapter gave objective `40` and weight [derivative](../glossary.md#term-derivative) `-40`.
 
-Conceptual optimizer pseudocode, not an API:
+Conceptual [optimizer](../glossary.md#term-optimizer) [pseudocode](../glossary.md#term-pseudocode), not an [API](../glossary.md#term-application-programming-interface-api):
 
 ```text
 w := 0 - 0.05*(-40) = 2
 p := [1*2, 3*2] = [2,6]
 ```
 
-`model.train(input(), target())` performs one forward/backward/update transaction. Its
-`TrainingStep.objective()` is the loss from the forward pass **before** the update: `40`.
-It is not a second evaluation of the fitted weight. `optimizerStep()` is `1`, recording the
+`model.train(input(), target())` performs one forward/backward/[update transaction](../glossary.md#resource-transaction-and-rollback). Its
+`TrainingStep.objective()` is the [loss](../glossary.md#loss) from the forward pass **before** the update: `40`.
+It is not a second [evaluation](../glossary.md#term-evaluation) of the fitted weight. `optimizerStep()` is `1`, recording the
 first committed update. A subsequent `model.compute(input())` observes the updated weight and
 predicts `[2,6]`, whose squared-error sum would be `0`.
 
-The example keeps the original supplied heap Tensor to check that its value is still `0`.
-Only the Model's private copy becomes `2`. Parameter inspection through `stateDictionary` is
-borrowed state, not a detached snapshot; read it only while the Model is live and without
-concurrent mutation. `TrainingStep` and `HostTensorValue`, in contrast, remain readable after
+The example keeps the original supplied [heap](../glossary.md#term-heap) [Tensor](../glossary.md#tensor) to check that its value is still `0`.
+Only the [Model](../glossary.md#term-model)'s private copy becomes `2`. [Parameter](../glossary.md#term-parameter) inspection through `stateDictionary` is
+[borrowed](../glossary.md#ownership-borrowing-and-lease) state, not a [detached](../glossary.md#detached-model-results) [snapshot](../glossary.md#term-snapshot); read it only while the Model is live and without
+concurrent mutation. `TrainingStep` and [`HostTensorValue`](../glossary.md#host-tensor-value--hosttensorvalue), in contrast, remain readable after
 all Model-owned execution/native resources close.
 
-A **binding** associates a required Tensor or input position with actual stored values.
+A **[binding](../glossary.md#term-binding)** associates a required Tensor or input position with actual stored values.
 Inspection of borrowed state sees the working parameter, not a frozen copy of its bytes.
-Use the [existing ownership visual](../explanation/ownership.md#a-result-is-not-always-an-independent-value)
+Use the [existing ownership visual](../explanation/ownership.md#a-result-is-not-always-an-independent-value)<span data-glossary-navigation="true"> ([ownership glossary](../glossary.md#term-ownership-meanings))</span>
 to distinguish that borrowed state from detached training and compute results.
 
-## Run and interpret
+## [Run](../glossary.md#term-run) and interpret
 
 ```bash
 java --enable-native-access=ALL-UNNAMED -cp "$LEARNING_CP" \
@@ -109,32 +109,32 @@ train.objective-after-model-close=[40.0]
 train.prediction-after-model-close=[2.0, 6.0]
 ```
 
-The old objective next to a new prediction is intentional. The final lines check lifetime,
-not another execution after close. Evaluation on the training batch checks the arithmetic;
+The old [objective](../glossary.md#term-objective) next to a new [prediction](../glossary.md#term-prediction) is intentional. The final lines check [lifetime](../glossary.md#term-lifetime),
+not another execution after close. [Evaluation](../glossary.md#term-evaluation) on the training [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) checks the arithmetic;
 it does not measure accuracy on independent real-world data. The later fresh `[2,4]` batch
-checks the learned rule on different values while keeping the exact input descriptor.
+checks the learned rule on different values while keeping the exact input [descriptor](../glossary.md#term-descriptor).
 
 ## Useful variation and relevant errors
 
-In an independent experiment use `Sgd(0.025)` with the same SUM loss. The derivative remains
-`-40`, so one step gives weight `1` and prediction `[1,3]`; post-step squared error is `10`.
+In an independent experiment use `Sgd(0.025)` with the same SUM [loss](../glossary.md#loss). The [derivative](../glossary.md#term-derivative) remains
+`-40`, so one step gives [weight](../glossary.md#term-weight) `1` and [prediction](../glossary.md#term-prediction) `[1,3]`; post-step squared error is `10`.
 Update the numerical assertions/expected output, then rebuild with the
 [setup command](../examples/README.md#build-the-complete-project). Restore `0.05` before running
-the canonical full journey. Learning rate and reduction must be considered together.
+the [canonical](../glossary.md#term-canonical-form) full journey. [Learning rate](../glossary.md#term-learning-rate) and reduction must be considered together.
 
 | Symptom | Meaning and correction |
 |---|---|
-| `IllegalStateException` before a training transaction | Training was not configured, was configured twice, or the Model/source lifecycle is invalid. Configure a fresh live Model once. |
-| Mode/source invalidation after no-argument `train()` | You changed captured Module mode, not performed the optimizer transaction. Rebuild a fresh Model and use `train(input,target)`. |
-| `IllegalArgumentException` for batch/target | Use exact declared descriptors and independent live stored inputs; do not alias them with parameter storage. |
-| `ArithmeticException` for nonfinite training values | The optimizer transaction rejected invalid numerical state. Inspect data/objective/gradient; do not suppress the error or report an uncommitted update. |
+| `IllegalStateException` before a training [transaction](../glossary.md#term-transaction) | Training was not configured, was configured twice, or the [Model](../glossary.md#term-model)/source [lifecycle](../glossary.md#lifecycle) is invalid. Configure a fresh live Model once. |
+| Mode/source invalidation after no-[argument](../glossary.md#term-argument) `train()` | You changed captured [Module](../glossary.md#term-module) mode, not performed the [optimizer](../glossary.md#term-optimizer) transaction. Rebuild a fresh Model and use `train(input,target)`. |
+| `IllegalArgumentException` for [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters)/[target](../glossary.md#term-target) | Use exact declared [descriptors](../glossary.md#term-descriptor) and independent live stored inputs; do not [alias](../glossary.md#aliasing-and-arena) them with [parameter](../glossary.md#term-parameter) storage. |
+| `ArithmeticException` for nonfinite training values | The optimizer transaction rejected invalid numerical state. Inspect data/[objective](../glossary.md#term-objective)/[gradient](../glossary.md#term-gradient); do not suppress the error or report an uncommitted update. |
 
 ## Source and next step
 
 See [`Model.configureTraining/train`](../../extensions/nn/src/main/java/io/github/pho001/synaptik/nn/module/Model.java),
 [`TrainingStep`](../../modules/training/src/main/java/io/github/pho001/synaptik/training/TrainingStep.java),
 [`Sgd`](../../modules/training/src/main/java/io/github/pho001/synaptik/training/Sgd.java),
-and the authoritative [owned-Model lifecycle](../architecture/contracts/extensions-training.md#owned-tensor-models)
-and [Training ownership](../architecture/contracts/extensions-training.md#modulestraining).
+and the authoritative [owned-Model lifecycle](../architecture/contracts/extensions-training.md#owned-tensor-models)<span data-glossary-navigation="true"> ([Model glossary](../glossary.md#term-model); [lifecycle glossary](../glossary.md#lifecycle))</span>
+and [Training ownership](../architecture/contracts/extensions-training.md#modulestraining)<span data-glossary-navigation="true"> ([ownership glossary](../glossary.md#term-ownership-meanings))</span>.
 
-Next: [save current graph/weights, close, and load a new Model](save-close-load.md).
+Next: [save current graph/weights, close, and load a new Model](save-close-load.md)<span data-glossary-navigation="true"> ([graph glossary](../glossary.md#graph); [weights glossary](../glossary.md#term-weight))</span>.

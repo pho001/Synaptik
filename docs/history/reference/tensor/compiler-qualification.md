@@ -1,70 +1,70 @@
-# Historical reference snapshot: Compiler qualification context
+# Historical reference [snapshot](../../../glossary.md#term-snapshot): [Compiler](../../../glossary.md#term-compiler) [qualification](../../../glossary.md#term-qualification) context
 
-This is an archived, composite qualification narrative preserved from the pre-redesign API reference at base `f3f7c2face52c1fa886e075a68faa6d11765cbd0`. Its task-era inventories were accumulated at different checkpoints: this is not a single release-wide capability statement. All quoted “current”, “planned”, “unsupported” and version/count claims below belong to those earlier checkpoints, not today's API.
+This is an archived, composite qualification narrative preserved from the pre-redesign [API](../../../glossary.md#term-application-programming-interface-api) reference at base `f3f7c2face52c1fa886e075a68faa6d11765cbd0`. Its task-era inventories were accumulated at different [checkpoints](../../../glossary.md#term-checkpoint): this is not a single [release](../../../glossary.md#term-release)-wide capability statement. All quoted “current”, “planned”, “unsupported” and version/count claims below belong to those earlier checkpoints, not today's API.
 
-**Known supersessions:** CPU low-precision parity, fixed-cell first-order BPTT, bounded static length-aware cold/owned Model workflows and wire versions through v7, shared normalization derivatives, and ordinary backend preparation/execution are implemented. The archive does not retract or widen any current qualification. Use [current reference goals](../../../reference/index.md), [Compiler AD](../../../reference/compiler/autograd.md), [owned Model execution](../../../reference/nn/owned-model.md), and [current backend qualification](../../../backend-guide/production-support.md) instead of the inventories below. Symbolic cold/wire, arbitrary PURE-body copying, higher-order recurrence and unqualified backend routes are not granted by these supersessions.
+**Known supersessions:** [CPU](../../../glossary.md#term-cpu) low-[precision](../../../glossary.md#term-precision) parity, fixed-cell first-order [BPTT](../../../glossary.md#term-backpropagation-through-time-bptt), bounded static length-aware cold/[owned Model](../../../glossary.md#model-module-buffer-and-scan-distinctions) workflows and wire versions through v7, shared [normalization](../../../glossary.md#term-normalization) [derivatives](../../../glossary.md#term-derivative), and ordinary [backend](../../../glossary.md#backend) preparation/execution are implemented. The archive does not retract or widen any current qualification. Use [current reference goals](../../../reference/index.md), [Compiler AD](../../../reference/compiler/autograd.md)<span data-glossary-navigation="true"> ([AD glossary](../../../glossary.md#autograd))</span>, [owned Model execution](../../../reference/nn/owned-model.md), and [current backend qualification](../../../backend-guide/production-support.md) instead of the inventories below. Symbolic cold/wire, arbitrary [PURE](../../../glossary.md#term-pure)-body copying, higher-order recurrence and unqualified backend routes are not granted by these supersessions.
 
 <a id="compiler-qualification-context"></a>
 
 ## Preserved historical text
 
-> **Compiler qualification context**
+> **[Compiler](../../../glossary.md#term-compiler) [qualification](../../../glossary.md#term-qualification) context**
 >
 > Completed model task 0025 supplies one narrow producer contract needed by pre-capture autograd:
 > every producer retains and returns the canonical exact Tensor wrapper for each ordered output
-> slot. `TensorFactory` constructs the producer, all wrappers, and their indexed provenance as one
+> slot. <span data-glossary-navigation="true"> ([producer glossary](../../../glossary.md#term-producer); [capture glossary](../../../glossary.md#term-capture-meanings); [autograd glossary](../../../glossary.md#autograd))</span>`TensorFactory` constructs the producer, all wrappers, and their indexed provenance as one
 > unpublished immutable occurrence before returning a result. The resulting
 > Tensor/provenance/producer/output cycle is ordinary collectable model metadata, not graph
-> membership or runtime ownership.
+> membership or runtime ownership.<span data-glossary-navigation="true"> ([provenance glossary](../../../glossary.md#provenance); [immutable glossary](../../../glossary.md#term-immutable); [occurrence glossary](../../../glossary.md#term-occurrence); [metadata glossary](../../../glossary.md#term-metadata); [graph glossary](../../../glossary.md#graph); [runtime glossary](../../../glossary.md#term-runtime); [ownership glossary](../../../glossary.md#term-ownership-meanings))</span>
 >
 > Compiler task 0004 is Complete. Package-private named gradient rules reuse existing public Tensor
 > expression methods directly on the original forward expression, and package-private
 > `GraphCompiler` captures forward outputs and generated gradient roots together once. This changes
 > no public Tensor method or ergonomic result carrier. Its mode-neutral internal
-> `GraphCompilation` is not a Tensor result carrier or the current `CompileArtifacts` aggregate. The
+> `GraphCompilation` is not a [Tensor](../../../glossary.md#tensor) result [carrier](../../../glossary.md#term-storage-carrier) or the current `CompileArtifacts` aggregate. The
 > implementation adds no
-> `Tensor.gradient`, `Tensor.backward`, mutable gradient state, placeholder Tensor for a captured
-> `ValueId`, or model-owned derivative rule.
+> `Tensor.gradient`, `Tensor.backward`, [mutable](../../../glossary.md#term-mutable) [gradient](../../../glossary.md#term-gradient) state, placeholder Tensor for a captured
+> [`ValueId`](../../../glossary.md#logical-valueid-versus-physical-memory-slot), or [model](../../../glossary.md#term-model)-owned [derivative](../../../glossary.md#term-derivative) rule.
 >
 > The current functional boundary accepts one or two stages with exact forward or generated
 > first-stage-gradient output references, aligned explicit seeds or exact typed scalar defaults,
 > and ordered identity-unique targets from the complete original forward inventory. The compiler
 > preflights each selected slice before creating any default seed or formula Tensor. Exact
 > target/producer object identity remains temporary compiler bookkeeping, not public Tensor state
-> or graph membership.
+> or graph membership.<span data-glossary-navigation="true"> ([identity glossary](../../../glossary.md#term-reference-identity))</span><span data-glossary-navigation="true"> ([seeds glossary](../../../glossary.md#commit-release-distribution-log-and-seed-meanings); [slice glossary](../../../glossary.md#slice); [seed glossary](../../../glossary.md#term-seed))</span>
 >
-> The closed matrix currently covers same-floating-type binary and exact-scalar
+> The closed [matrix](../../../glossary.md#term-matrix-meanings) currently covers same-floating-type [binary](../../../glossary.md#term-binary-descriptor-and-metadata) and exact-[scalar](../../../glossary.md#term-scalar)
 > `ADD`/`SUB`/`MUL`, same-type branch-only `WHERE`, same-type floating `CAST`,
-> `NEG`/`EXP`/`EXPM1`/`SIGMOID`/`TANH`, ordinary full/single-/multi-axis `SUM`, `CUM_SUM`,
-> `CONTIGUOUS`, `RESHAPE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, and `PERMUTE`. Generated BFLOAT16,
+> `NEG`/[`EXP`](../../../glossary.md#term-expx)/`EXPM1`/[`SIGMOID`](../../../glossary.md#term-sigmoid)/[`TANH`](../../../glossary.md#term-tanh), ordinary full/single-/multi-[axis](../../../glossary.md#term-axis) `SUM`, `CUM_SUM`,
+> [`CONTIGUOUS`](../../../glossary.md#term-contiguous), `RESHAPE`, `EXPAND`, `EXPAND_DIMS`, `SQUEEZE`, and `PERMUTE`. Generated BFLOAT16,
 > FLOAT32, and FLOAT64 positive-zero/one leaves are storage-free and explicitly registered as
 > logical splats. Everything else fails closed on a selected route until a follow-up selects the
 > required formula or tie, boundary, discontinuity, singularity, exceptional-value, empty-domain,
-> or mixed-floating conversion policy.
+> or mixed-floating conversion policy.<span data-glossary-navigation="true"> ([leaves glossary](../../../glossary.md#term-leaf))</span><span data-glossary-navigation="true"> ([BFLOAT16 glossary](../../../glossary.md#term-bfloat16); [FLOAT64 glossary](../../../glossary.md#term-float64))</span>
 >
 > The current semantic vocabulary also includes `BatchNormKind.BATCH_NORM_INFERENCE` and
 > `BATCH_NORM_TRAINING`. Inference has one output. Training has five ordered outputs: normalized
 > output, next running mean, next running variance, saved batch mean, and saved inverse standard
 > deviation. Only its first three Tensor wrappers are public results; all five descriptors and
-> output positions remain current producer metadata. The current semantic vocabulary also includes
+> output positions remain current producer metadata. The current semantic vocabulary also includes<span data-glossary-navigation="true"> ([Inference glossary](../../../glossary.md#term-inference); [variance glossary](../../../glossary.md#term-variance); [batch glossary](../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [standard deviation glossary](../../../glossary.md#term-standard-deviation); [descriptors glossary](../../../glossary.md#term-descriptor))</span>
 > `ContiguousKind.CONTIGUOUS`, a parameterless
-> request for logically equivalent canonical dense row-major, zero-offset result geometry. Public
+> request for logically equivalent canonical dense row-major, zero-offset result geometry. Public<span data-glossary-navigation="true"> ([row-major glossary](../../../glossary.md#term-row-major))</span>
 > `Tensor.contiguous()` now constructs that request without allocating or copying storage.
 > `ShapeTransformKind.RESHAPE` and `ShapeTransformKind.EXPAND` are also current semantic identities.
-> Both pair with `TargetShapeAttrs`, which stores an exact normalized model `Shape`.
+> Both pair with `TargetShapeAttrs`, which stores an exact normalized model [`Shape`](../../../glossary.md#shape).
 > `Tensor.reshape(long...)` normalizes raw dimensions and performs locally provable count
-> validation, while `Tensor.reshape(Shape)` retains an exact normalized target. The matching
+> validation, while <span data-glossary-navigation="true"> ([validation glossary](../../../glossary.md#term-validation))</span>`Tensor.reshape(Shape)` retains an exact normalized [target](../../../glossary.md#term-target). The matching
 > `Tensor.expand` overloads retain literal or exact target Shapes, validate directional
 > right-aligned compatibility, and derive logical view strides when geometry is resolved.
 > Package-private compiler verification of captured descriptors and retained reshape obligations is
-> current. The closed first-order matrix also currently reverses `CONTIGUOUS`, `RESHAPE`, `EXPAND`,
+> current. The closed first-order matrix also currently reverses <span data-glossary-navigation="true"> ([view glossary](../../../glossary.md#term-view-meanings); [strides glossary](../../../glossary.md#term-stride))</span>`CONTIGUOUS`, `RESHAPE`, `EXPAND`,
 > `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` through public Tensor metadata operations. Mandatory
 > graph-local ID canonicalization and whole-graph DCE plus phase-local CSE are current internal
 > behavior. CPU physical execution is current for its documented bounded affine units. Metal forward
-> execution has an exact occurrence baseline: canonical `FLOAT32` `NEG`, `ABS`,
-> `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; bounded canonical
-> `FLOAT32` `UNFOLD_AXIS`; canonical positive-rank `FLOAT32` data `GATHER` with canonical `INT32`
-> indices; positive-rank `INT32`-to-`BOOL` `ONE_HOT`; and canonical positive-rank
+> execution has an exact occurrence baseline: canonical <span data-glossary-navigation="true"> ([canonicalization glossary](../../../glossary.md#occurrence-identity-and-canonical-form); [DCE glossary](../../../glossary.md#term-dead-code-elimination-dce); [CSE glossary](../../../glossary.md#term-common-subexpression-elimination-cse); [CPU glossary](../../../glossary.md#term-cpu); [Metal glossary](../../../glossary.md#term-metal))</span>[`FLOAT32`](../../../glossary.md#term-float32) `NEG`, `ABS`,
+> `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, `SQUEEZE`, and `CONTIGUOUS`; bounded [canonical](../../../glossary.md#term-canonical-form)
+> `FLOAT32` `UNFOLD_AXIS`; canonical positive-[rank](../../../glossary.md#term-rank) `FLOAT32` data [`GATHER`](../../../glossary.md#gather) with canonical [`INT32`](../../../glossary.md#data-type--datatype)
+> indices; positive-rank `INT32`-to-[`BOOL`](../../../glossary.md#data-type--datatype) `ONE_HOT`; and canonical positive-rank
 > `FLOAT32`/`INT32`/`FLOAT32` `SCATTER_ELEMENTS/NONE`. Metal UNFOLD_AXIS accepts input rank 1..15,
 > size 1..16, a positive step, and size no larger than the selected extent. It materializes the
 > exact floor-count rank-plus-one Shape, repeats overlapping source representations, omits incomplete
@@ -83,22 +83,22 @@ This is an archived, composite qualification narrative preserved from the pre-re
 > fixed custom program. General FLOAT32 MATMUL also executes the Compiler-generated
 > explicitly seeded first-order formulas for both operands through exact local last-two-axis
 > transposes beneath the existing shape-restoration boundaries. This introduces no complete
-> window/indexing backward, implicit seeding, or unrestricted Metal training claim.
+> window/indexing backward, implicit seeding, or unrestricted Metal training claim.<span data-glossary-navigation="true"> ([extent glossary](../../../glossary.md#term-extent); [padding glossary](../../../glossary.md#padding); [dispatch glossary](../../../glossary.md#term-dispatch); [node glossary](../../../glossary.md#node); [publication glossary](../../../glossary.md#term-publication); [owner glossary](../../../glossary.md#term-owner); [rank-zero glossary](../../../glossary.md#axis-rank-scalar-vector-and-matrix); [layout glossary](../../../glossary.md#layout); [scan glossary](../../../glossary.md#term-cumulative-scan); [MATMUL glossary](../../../glossary.md#matrix-multiplication--matmul); [homogeneous glossary](../../../glossary.md#term-homogeneous); [FLOAT16 glossary](../../../glossary.md#term-float16); [rank-two glossary](../../../glossary.md#axis-rank-scalar-vector-and-matrix); [MPSGraph glossary](../../../glossary.md#term-mpsgraph))</span>
 >
-> `AxisTransformKind.PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` are current semantic identities.
-> `PermutationAttrs` stores a complete normalized output-to-input axis permutation, while
+> `AxisTransformKind.PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` are current semantic [identities](../../../glossary.md#term-identity-meanings).
+> `PermutationAttrs` stores a complete normalized output-to-input axis [permutation](../../../glossary.md#permutation), while
 > `AxisTransformAttrs` stores one normalized non-negative insertion or removal position. Public
 > `Tensor.permute` now owns input-rank checks, one-time negative-axis normalization, result
-> Shape/layout derivation, and provenance; rank-two `Tensor.transpose()` uses the same `PERMUTE`
+> Shape/layout derivation, and provenance; rank-two <span data-glossary-navigation="true"> ([normalization glossary](../../../glossary.md#term-normalization))</span>`Tensor.transpose()` uses the same `PERMUTE`
 > meaning with `[1, 0]`. Public `Tensor.expandDims` and `Tensor.squeeze` now own their distinct
 > insertion-position and existing-axis normalization, result Shape/layout derivation, static
-> singleton proof for removal, and provenance.
+> singleton proof for removal, and provenance.<span data-glossary-navigation="true"> ([singleton glossary](../../../glossary.md#term-singleton))</span>
 >
 > `SliceKind.SLICE` and `SLICE_UPDATE` are current extraction and functional-replacement identities.
-> `SliceAttrs` stores normalized finite signed coordinate sequences shared by both meanings, while
+> `SliceAttrs` stores normalized [finite](../../../glossary.md#term-finite) signed [coordinate](../../../glossary.md#axis-rank-scalar-vector-and-matrix) sequences shared by both meanings, while
 > `CropToShapeAttrs` stores exact target/prefix Shapes for target-relative extraction or placement.
 > Public general and single-axis slicing normalize raw directional half-open bounds against
-> selected static dimensions; `flip(int...)` constructs the same negative-step extraction directly.
+> selected static dimensions; <span data-glossary-navigation="true"> ([half-open glossary](../../../glossary.md#term-half-open-interval))</span>`flip(int...)` constructs the same negative-step extraction directly.
 > Public `sliceByLength` instead accepts normalized non-negative starts and explicit finite lengths,
 > so an unresolved selected extent can defer only its upper-bound proof. Positive non-empty
 > extraction may derive logical view geometry, while empty or negative-step extraction remains
@@ -109,16 +109,16 @@ This is an archived, composite qualification narrative preserved from the pre-re
 > adopted length-defined extraction and target-relative placement, including their retained
 > constraints and fail-closed preflight. Transformation, concrete binding,
 > materialization, backend lowering, ONNX mapping, and execution remain planned in their owning
-> layers.
+> layers.<span data-glossary-navigation="true"> ([fail-closed glossary](../../../glossary.md#term-fail-closed); [preflight glossary](../../../glossary.md#term-preflight); [binding glossary](../../../glossary.md#term-binding); [materialization glossary](../../../glossary.md#materialization); [backend glossary](../../../glossary.md#backend); [lowering glossary](../../../glossary.md#lowering); [ONNX glossary](../../../glossary.md#term-onnx))</span>
 >
 > `PadKind.PAD` with `PadAttrs` and `TileKind.TILE` with `TileAttrs` are current semantic contracts.
 > Padding attributes store immutable ordered before/after widths plus one exact typed scalar value.
 > Tiling attributes store immutable positive complete-pattern repeat counts. Empty lists
-> describe rank-zero scalar identity parameters. Public `Tensor.pad` and `Tensor.tile` now own exact
+> describe rank-zero scalar identity parameters. Public <span data-glossary-navigation="true"> ([typed scalar value glossary](../../../glossary.md#typed-scalar-value--scalarvalue); [Tiling glossary](../../../glossary.md#tiling); [parameters glossary](../../../glossary.md#term-parameter))</span>`Tensor.pad` and `Tensor.tile` now own exact
 > rank validation, checked result-Shape derivation, unresolved result layout, exact metadata
 > retention, and fresh one-input provenance. The semantic values themselves still do not construct
 > Tensors or define conversion of a padding constant, gradients, materialization, compiler or
-> backend behavior, ONNX mapping, or execution.
+> backend behavior, ONNX mapping, or execution.<span data-glossary-navigation="true"> ([constant glossary](../../../glossary.md#term-constant))</span>
 >
 > `TensorCompositionKind.CONCAT` and `STACK` are current semantic identities.
 > `CompositionAxisAttrs` stores one normalized non-negative axis shared by concat and stack, while
@@ -127,12 +127,12 @@ This is an archived, composite qualification narrative preserved from the pre-re
 > collection construction, and provenance attachment are current. Public unstack is an ordered
 > convenience over scalar `SELECT`, so every result has its own independent single-output producer
 > and provenance output index zero; compiler capture or decomposition, gradients,
-> materialization, and execution remain planned.
+> materialization, and execution remain planned.<span data-glossary-navigation="true"> ([decomposition glossary](../../../glossary.md#term-decomposition))</span>
 >
-> `SelectKind.SELECT` is a current scalar-index semantic identity. It pairs with
+> `SelectKind.SELECT` is a current scalar-index semantic [identity](../../../glossary.md#term-identity-meanings). It pairs with
 > `SelectAttrs(axis, index)`, whose normalized non-negative axis and scalar coordinate fix one
 > logical position on one source axis and remove that axis from the conceptual result. For source
-> Shape `[2, 3, 4]`, axis `1` and index `2` therefore mean conceptual result Shape `[2, 4]`.
+> Shape `[2, 3, 4]`, axis `1` and index `2` therefore [mean](../../../glossary.md#term-mean) conceptual result Shape `[2, 4]`.
 > The attributes contain no input Shape, so they cannot prove that the axis exists or that the index
 > is in bounds. Public `Tensor.select` now owns caller-facing negative normalization, local bounds
 > validation, result Shape/layout construction, and exact one-input provenance. Gradients, compiler
@@ -143,8 +143,8 @@ This is an archived, composite qualification narrative preserved from the pre-re
 > and each has ordered logical inputs `[data, indices]`. Their index alignment and conceptual result
 > Shapes deliberately differ. These semantic values do not inspect either
 > input, validate index data type or Shape compatibility, construct a Tensor or provenance, define
-> gradients, or execute indexing. Public `Tensor.gather` and `gatherElements` own raw-axis
-> normalization, exact `INT32`/`INT64` index representation, family-specific structural Shape checks
+> gradients, or execute indexing. Public <span data-glossary-navigation="true"> ([alignment glossary](../../../glossary.md#term-alignment); [data type glossary](../../../glossary.md#data-type--datatype))</span>`Tensor.gather` and `gatherElements` own raw-axis
+> normalization, exact `INT32`/[`INT64`](../../../glossary.md#data-type--datatype) index representation, family-specific structural Shape checks
 > and construction, and exact ordered two-input provenance. Both consume an existing index Tensor.
 > None of the methods interprets index values or checks their bounds.
 >
@@ -153,7 +153,7 @@ This is an archived, composite qualification narrative preserved from the pre-re
 > logical input `[indices]`. Public `Tensor.oneHot(depth)` requires exact INT32 or INT64 index
 > metadata, preserves every receiver Dimension reference, appends one fresh
 > `StaticDimension(depth)`, and constructs a fixed-BOOL, non-differentiable result. Construction
-> reads no values. Valid eventual execution requires every index `i` to satisfy `0 <= i < depth`;
+> reads no values. Valid eventual execution requires every index <span data-glossary-navigation="true"> ([differentiable glossary](../../../glossary.md#derivative-and-chain-rule))</span>`i` to satisfy `0 <= i < depth`;
 > invalid values do not wrap, clamp, select a default, or produce an all-false row. Compiler
 > capture, constant analysis, bounds enforcement, lowering, backend support, and execution are not
 > implemented by this model contract.
@@ -184,17 +184,17 @@ This is an archived, composite qualification narrative preserved from the pre-re
 > axis Gather would read for the same data and indices; the base and every addressed update
 > contribute, so duplicate indices accumulate. Public Tensor construction owns normalized axis,
 > exact index/data/update type and Shape checks, result metadata, gradient eligibility, and ordered
-> provenance. It does not mutate inputs, inspect index bounds, execute work, or construct gradients.
+> provenance. It does not mutate inputs, inspect index bounds, execute work, or construct gradients.<span data-glossary-navigation="true"> ([normalized axis glossary](../../../glossary.md#normalized-axis))</span>
 >
 > `ScatterNdKind.SCATTER_ND` is the current functional tuple-index scatter semantic identity. It
 > pairs with `ScatterNdAttrs(batchDimensions, reduction)`, which stores an already normalized
 > non-negative shared-batch count and one explicit `ScatterReduction`. Ordered logical inputs are
-> `[data, indices, updates]`; the final indices Dimension supplies tuple depth `K`, and updates have
+> `[data, indices, updates]`; the final indices [Dimension](../../../glossary.md#dimension) supplies [tuple depth](../../../glossary.md#term-tuple-depth) `K`, and updates have
 > the Shape that Gather-ND would read from the same data and indices. The conceptual result is a new
-> value with the exact data Shape, so the operation does not mutate `data`. Public Scatter-ND Tensor
+> value with the exact data Shape, so the operation does not mutate <span data-glossary-navigation="true"> ([Gather-ND glossary](../../../glossary.md#gather-nd); [operation glossary](../../../glossary.md#operation))</span>`data`. Public Scatter-ND Tensor
 > construction now owns exact index and update type checks, reduction eligibility, input-rank and
 > batch compatibility, structural batch-prefix equality, static positive tuple depth, exact updates-
-> Shape validation, result metadata, and ordered provenance. Index bounds, `NONE` duplicate
+> Shape validation, result metadata, and ordered provenance. Index bounds, <span data-glossary-navigation="true"> ([Scatter-ND glossary](../../../glossary.md#scatter-nd))</span>`NONE` duplicate
 > detection, gradients, compiler behavior, backend behavior, and execution remain planned or
 > separately owned.
 >

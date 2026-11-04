@@ -1,83 +1,83 @@
-# Task 0038: Current Metal Profile Capability Manifest Closure
+# Task 0038: Current [Metal](../../../../glossary.md#term-metal) Profile Capability [Manifest](../../../../glossary.md#term-manifest) Closure
 
 ## Status
 
 Complete
 
-Readiness was verified from Metal 0022–0025 Complete, every later evidence task through 0037
-finalized Blocked without capability, and a provider/schema audit that found documentation summary
-drift only. Execution preserved that boundary and leaves no Ready Metal frontier.
+Readiness was verified from [Metal](../../../../glossary.md#term-metal) 0022–0025 Complete, every later evidence task through 0037
+finalized Blocked without capability, and a provider/[schema](../../../../glossary.md#term-schema) audit that found documentation summary
+drift only. Execution preserved that boundary and leaves no [Ready](../../../../glossary.md#term-ready) Metal frontier.
 
 ## Change class
 
-Class A — documentation and audit only. The implemented capability, public API, native ABI, schema,
-identities, lifecycle, and observable behavior do not change. Public and incorporated architecture
+Class A — documentation and audit only. The implemented capability, public [API](../../../../glossary.md#term-application-programming-interface-api), native [ABI](../../../../glossary.md#term-application-binary-interface-abi), [schema](../../../../glossary.md#term-schema),
+[identities](../../../../glossary.md#term-identity-meanings), [lifecycle](../../../../glossary.md#lifecycle), and observable behavior do not change. Public and incorporated architecture
 summaries receive a targeted documentation review because they describe a supported boundary.
 
 ## Goal
 
-Freeze and synchronize the honest current `STRICT_IEEE` and `ACCELERATOR` Metal occurrence
-matrices. Record that strict capability is an accelerator subset, every operation not in the exact
-implemented lists remains fail-closed, and no Blocked task becomes capability. Close expansion
-until a separately authorized task supplies an exact route/custom kernel or a preceding Model
+Freeze and synchronize the honest current `STRICT_IEEE` and [`ACCELERATOR`](../../../../glossary.md#term-accelerator) [Metal](../../../../glossary.md#term-metal) [occurrence](../../../../glossary.md#term-occurrence)
+[matrices](../../../../glossary.md#term-matrix-meanings). Record that strict capability is an accelerator subset, every [operation](../../../../glossary.md#operation) not in the exact
+implemented lists remains [fail-closed](../../../../glossary.md#term-fail-closed), and no Blocked task becomes capability. Close expansion
+until a separately authorized task supplies an exact route/custom [kernel](../../../../glossary.md#kernel) or a preceding [Model](../../../../glossary.md#term-model)
 profile change.
 
-## Exact implemented manifest
+## Exact implemented [manifest](../../../../glossary.md#term-manifest)
 
-The common matrix under both profiles contains only:
+The common [matrix](../../../../glossary.md#term-matrix-meanings) under both profiles contains only:
 
-- parameterless canonical `FLOAT32` `NEG` and `ABS`;
+- parameterless [canonical](../../../../glossary.md#term-canonical-form) [`FLOAT32`](../../../../glossary.md#term-float32) `NEG` and `ABS`;
 - `RESHAPE`, `EXPAND`, `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE` affine transforms;
-- the explicit `CONTIGUOUS` canonicalization barrier;
+- the explicit [`CONTIGUOUS`](../../../../glossary.md#term-contiguous) [canonicalization](../../../../glossary.md#occurrence-identity-and-canonical-form) barrier;
 - bounded canonical `FLOAT32` `UNFOLD_AXIS`;
-- canonical positive-rank `FLOAT32` data `GATHER` with canonical `INT32` indices;
-- canonical positive-rank `INT32`-to-`BOOL` `ONE_HOT`; and
+- canonical positive-[rank](../../../../glossary.md#term-rank) `FLOAT32` data [`GATHER`](../../../../glossary.md#gather) with canonical [`INT32`](../../../../glossary.md#data-type--datatype) indices;
+- canonical positive-rank `INT32`-to-[`BOOL`](../../../../glossary.md#data-type--datatype) `ONE_HOT`; and
 - canonical positive-rank `FLOAT32`/`INT32`/`FLOAT32`
   `SCATTER_ELEMENTS/ScatterReduction.NONE`.
 
-`ACCELERATOR` additionally contains only:
+[`ACCELERATOR`](../../../../glossary.md#term-accelerator) additionally contains only:
 
-- canonical tensor `FLOAT32` `ADD`, `SUB`, `MUL`, and `DIV`;
-- canonical `FLOAT32` `SUM`, `MEAN`, and binding-resolved `SUM_TO_SHAPE`; and
-- positive static rank-two `FLOAT32` `MATMUL` with canonical or authenticated exact local
-  rank-two-transpose operands.
+- canonical [tensor](../../../../glossary.md#tensor) `FLOAT32` `ADD`, `SUB`, `MUL`, and `DIV`;
+- canonical `FLOAT32` `SUM`, [`MEAN`](../../../../glossary.md#term-mean), and [binding](../../../../glossary.md#term-binding)-resolved `SUM_TO_SHAPE`; and
+- positive static [rank-two](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) `FLOAT32` [`MATMUL`](../../../../glossary.md#matrix-multiplication--matmul) with canonical or authenticated exact local
+  rank-two-transpose operands.<span data-glossary-navigation="true"> ([transpose glossary](../../../../glossary.md#term-transpose))</span>
 
-Every common occurrence has the identical result contract in both profiles. Every strict-positive
-query is accelerator-positive. The profile table grants possible operation-local result freedoms;
-it does not require Metal support for a listed Model family.
+Every common [occurrence](../../../../glossary.md#term-occurrence) has the identical result contract in both profiles. Every strict-positive
+query is accelerator-positive. The profile table grants possible [operation](../../../../glossary.md#operation)-local result freedoms;
+it does not require [Metal](../../../../glossary.md#term-metal) support for a listed [Model](../../../../glossary.md#term-model) family.
 
-## Exact occurrence boundary
+## Exact [occurrence](../../../../glossary.md#term-occurrence) boundary
 
 - `MetalCapabilityProvider.supports(OperationCapabilityQuery)` is the public programmatic
-  inspection API. `MetalBackendIntegration.capabilityProvider()` exposes the stable immutable
-  provider. No enumerable manifest API or operation registry is added.
-- Every admitted occurrence has exactly one output. Shapes are fully static and positive rank
-  `1..16`, except a locally produced reduction result may be scalar.
-- Floating roles are exact `FLOAT32`; indexing roles are canonical `INT32`; `ONE_HOT` produces
-  local canonical `BOOL`. Operation-specific Shape, layout, and `requiresGrad` relationships remain
+  inspection API. <span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>`MetalBackendIntegration.capabilityProvider()` exposes the stable immutable
+  provider. No enumerable manifest API or operation registry is added.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [manifest glossary](../../../../glossary.md#term-manifest); [registry glossary](../../../../glossary.md#term-registry))</span>
+- Every admitted occurrence has exactly one output. [Shapes](../../../../glossary.md#shape) are fully static and positive [rank](../../../../glossary.md#term-rank)
+  `1..16`, except a locally produced reduction result may be [scalar](../../../../glossary.md#term-scalar).
+- Floating roles are exact [`FLOAT32`](../../../../glossary.md#term-float32); indexing roles are [canonical](../../../../glossary.md#term-canonical-form) [`INT32`](../../../../glossary.md#data-type--datatype); `ONE_HOT` produces
+  local canonical [`BOOL`](../../../../glossary.md#data-type--datatype). [Operation](../../../../glossary.md#operation)-specific Shape, [layout](../../../../glossary.md#layout), and `requiresGrad` relationships remain
   those already enforced by the provider.
-- Only affine/`CONTIGUOUS` inputs may be resolved zero-offset views at occurrence query time;
+- Only affine/[`CONTIGUOUS`](../../../../glossary.md#term-contiguous) inputs may be resolved zero-offset views at occurrence query time;
   partition analysis authenticates local affine provenance. MATMUL transpose candidates likewise
-  require exact local-producer authentication.
+  require exact local-producer authentication.<span data-glossary-navigation="true"> ([views glossary](../../../../glossary.md#term-view-meanings); [partition glossary](../../../../glossary.md#partition); [provenance glossary](../../../../glossary.md#provenance); [MATMUL glossary](../../../../glossary.md#matrix-multiplication--matmul); [transpose glossary](../../../../glossary.md#term-transpose); [producer glossary](../../../../glossary.md#term-producer); [authentication glossary](../../../../glossary.md#term-authentication))</span>
 - All other Model families, types, layouts, ranks, attributes, arities, and profile/operation pairs
-  remain false before route selection. No fallback, host repair, or capability inference occurs.
+  remain false before route selection. No fallback, host repair, or capability inference occurs.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [host glossary](../../../../glossary.md#term-host); [inference glossary](../../../../glossary.md#term-inference))</span>
 
 ## Frozen package and native state
 
-Current production remains ABI v4 with thirteen exports, the fixed 160-byte node record, node
-schema 11, operation wires `1..19`, attribute wires `0..6`, and workload, exact-policy, candidate,
-compatibility, route-policy, and codec identities 12. Schema 12, wire 20, attribute 7, INT64,
-ABI/export changes, and identity 13 remain conditional, unimplemented, and unreserved.
+Current production remains [ABI](../../../../glossary.md#term-application-binary-interface-abi) v4 with thirteen exports, the fixed 160-byte [node](../../../../glossary.md#node) record, node
+[schema](../../../../glossary.md#term-schema) 11, [operation](../../../../glossary.md#operation) wires `1..19`, attribute wires `0..6`, and workload, exact-policy, candidate,
+compatibility, route-policy, and [codec](../../../../glossary.md#term-codec) [identities](../../../../glossary.md#term-identity-meanings) 12. Schema 12, wire 20, attribute 7, [INT64](../../../../glossary.md#data-type--datatype),
+ABI/export changes, and [identity](../../../../glossary.md#term-identity-meanings) 13 remain conditional, unimplemented, and unreserved.
 
-`MetalMpsGraphProgram.NodeKind` has no blocked-operation row. Java native preflight accepts only the
-common node kinds for `STRICT_IEEE` and the current complete node vocabulary for `ACCELERATOR`.
-Native code receives only already-authenticated schema records and gains no profile or operation.
+`MetalMpsGraphProgram.NodeKind` has no blocked-operation row. Java native [preflight](../../../../glossary.md#term-preflight) accepts only the
+common node kinds for `STRICT_IEEE` and the current complete node vocabulary for [`ACCELERATOR`](../../../../glossary.md#term-accelerator).
+[Native code](../../../../glossary.md#native-numerical-library-and-instruction-architecture) receives only already-authenticated schema records and gains no profile or operation.
 
 ## Completed and Blocked evidence boundary
 
 Complete Tasks 0014, 0015, and 0019–0025 account for every implemented row. Historical strict
-binary/reduction/MATMUL work remains withdrawn or Blocked; separately proven accelerator Tasks
-0015, 0020, and 0021 own those current rows. Task 0019 owns common exact `ABS`; the remaining unary
+[binary](../../../../glossary.md#term-binary-descriptor-and-metadata)/reduction/[MATMUL](../../../../glossary.md#matrix-multiplication--matmul) work remains withdrawn or Blocked; separately proven [accelerator](../../../../glossary.md#term-accelerator) Tasks
+0015, 0020, and 0021 own those current rows. Task 0019 owns common exact `ABS`; the remaining [unary](../../../../glossary.md#term-unary)
 work stays Blocked.
 
 Tasks 0006–0007, 0009–0013, 0016–0018, 0026–0027, and 0030–0037 add no current capability.
@@ -86,40 +86,40 @@ capability-profile audit and must not mark, imply, wire, or document BatchNorm a
 
 ## Non-goals
 
-- Adding, removing, widening, or narrowing any capability answer.
-- Production, native, test, build-configuration, generated, ABI, schema, identity, or route changes.
+- Adding, removing, [widening](../../../../glossary.md#term-widening), or [narrowing](../../../../glossary.md#term-narrowing) any capability answer.
+- Production, native, test, build-configuration, generated, [ABI](../../../../glossary.md#term-application-binary-interface-abi), [schema](../../../../glossary.md#term-schema), [identity](../../../../glossary.md#term-identity-meanings), or route changes.
 - A second public manifest, enumerable operation registry, reflection scan, source-text test, or
-  duplicate capability implementation.
+  duplicate capability implementation.<span data-glossary-navigation="true"> ([manifest glossary](../../../../glossary.md#term-manifest); [operation glossary](../../../../glossary.md#operation); [registry glossary](../../../../glossary.md#term-registry); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
 - Reopening a Blocked task, transferring Model profile freedom to another operation, or inferring
-  implementation from MPSGraph/API availability.
-- Device probes, numerical or Shape matrices, benchmarks, native builds, or a full project build.
+  implementation from MPSGraph/API availability.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [MPSGraph glossary](../../../../glossary.md#term-mpsgraph); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
+- [Device](../../../../glossary.md#term-device) probes, numerical or [Shape](../../../../glossary.md#shape) [matrices](../../../../glossary.md#term-matrix-meanings), benchmarks, native builds, or a full project build.
 
 ## Contracts
 
 - [`ARCHITECTURE.md` — Core invariants](../../../../../ARCHITECTURE.md#core-invariants) keeps
-  capability truthful and Model as semantic owner.
+  capability truthful and Model as semantic owner.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [owner glossary](../../../../glossary.md#term-owner))</span>
 - [Numerical profiles](../../../../architecture/contracts/foundational-modules.md#numerical-profiles)
-  owns strict-subset monotonicity and the sole operation-family result-freedom table.
-- [Metal backend](../../../../architecture/contracts/backend-execution.md#metal-backend) and
-  [Numerical-profile backend identity](../../../../architecture/contracts/backend-execution.md#numerical-profile-backend-identity)
+  owns strict-subset monotonicity and the sole operation-family result-freedom table.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation))</span>
+- [Metal backend](../../../../architecture/contracts/backend-execution.md#metal-backend)<span data-glossary-navigation="true"> ([Metal glossary](../../../../glossary.md#term-metal); [backend glossary](../../../../glossary.md#backend))</span> and
+  [Numerical-profile backend identity](../../../../architecture/contracts/backend-execution.md#numerical-profile-backend-identity)<span data-glossary-navigation="true"> ([backend identity glossary](../../../../glossary.md#backend-identity--backendid))</span>
   own the implemented backend boundary.
-- [Prepare lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#prepare-lifecycle)
-  keeps profile-qualified route selection cold and Runtime profile-free.
+- [Prepare lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#prepare-lifecycle)<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+  keeps profile-qualified route selection cold and Runtime profile-free.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime))</span>
 
 ## Dependencies and integration
 
 - Depends on: Metal 0022–0025 Complete; finalized planning evidence through Metal 0037; Model
-  0027–0029; Config 0006; Engine 0018.
+  0027–0029; Config 0006; Engine 0018.<span data-glossary-navigation="true"> ([Metal glossary](../../../../glossary.md#term-metal); [Model glossary](../../../../glossary.md#term-model); [Engine glossary](../../../../glossary.md#term-engine))</span>
 - Conflicts with: every concurrent Metal capability/schema/native/candidate/codec documentation
-  scope and edits to the shared README, architecture, API, backend, user, master, or roadmap files.
+  scope and edits to the shared README, architecture, API, backend, user, master, or roadmap files.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [codec glossary](../../../../glossary.md#term-codec); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [backend glossary](../../../../glossary.md#backend))</span>
 - Parallel group: None.
 - Common base revision: `ec4499bd9e18ed863c9091baa9cfe82dbcf06a9b`.
-- Integration order: planning authorization commit, then one documentation/audit closure commit.
+- Integration order: [planning](../../../../glossary.md#term-planning) authorization [commit](../../../../glossary.md#term-commit), then one documentation/audit closure commit.
 - Integration validation: focused existing Metal capability/conformance checks, targeted architecture
-  checks, Markdown/link/terminology validation, `git diff --check`, and documentation-only scope.
-- Shared-document integration owner: Task 0038 executor.
+  checks, Markdown/link/terminology validation, <span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [conformance glossary](../../../../glossary.md#term-conformance))</span>`git diff --check`, and documentation-only [scope](../../../../glossary.md#term-scope).
+- Shared-document integration [owner](../../../../glossary.md#term-owner): Task 0038 executor.
 
-## Files and documentation ownership
+## Files and documentation [ownership](../../../../glossary.md#term-ownership-meanings)
 
 Create and complete this brief; synchronize:
 
@@ -134,26 +134,26 @@ Create and complete this brief; synchronize:
 - `docs/planning/backends/metal/master-plan.md`; and
 - `docs/planning/roadmap.md`.
 
-The already-exact provider, package Javadoc, schema/native code and guide, public API guide, Metal
-backend guide, module-boundary summary, partition-preparer guide, tests, and normative profile table
+The already-exact provider, package [Javadoc](../../../../glossary.md#term-javadoc), [schema](../../../../glossary.md#term-schema)/[native code](../../../../glossary.md#native-numerical-library-and-instruction-architecture) and guide, public [API](../../../../glossary.md#term-application-programming-interface-api) guide, [Metal](../../../../glossary.md#term-metal)
+[backend](../../../../glossary.md#backend) guide, [module](../../../../glossary.md#term-module)-boundary summary, [partition](../../../../glossary.md#partition)-preparer guide, tests, and [normative](../../../../glossary.md#term-normative) profile table
 remain unchanged.
 
 ## Acceptance criteria
 
 - Every changed current-facing summary names the complete common and accelerator-only lists above,
-  states strict-subset monotonicity, and leaves all unlisted occurrences fail-closed.
+  states strict-subset monotonicity, and leaves all unlisted occurrences fail-closed.<span data-glossary-navigation="true"> ([accelerator glossary](../../../../glossary.md#term-accelerator); [fail-closed glossary](../../../../glossary.md#term-fail-closed))</span>
 - Root README corrects both the omitted Tasks 0023–0025 rows and the false strict-only custom NEG
-  wording; an eligible singleton NEG route is available under either profile.
+  wording; an eligible singleton NEG route is available under either profile.<span data-glossary-navigation="true"> ([singleton glossary](../../../../glossary.md#term-singleton))</span>
 - The architecture summary matches the already-correct detailed Metal contract without converting
-  profile permission into capability.
-- ABI/schema/identity freeze and the absence of every Blocked row are explicit.
+  profile permission into capability.<span data-glossary-navigation="true"> ([Metal glossary](../../../../glossary.md#term-metal))</span>
+- [ABI](../../../../glossary.md#term-application-binary-interface-abi)/[schema](../../../../glossary.md#term-schema)/[identity](../../../../glossary.md#term-identity-meanings) freeze and the absence of every Blocked row are explicit.
 - Task 0027 BatchNorm and all other Blocked tasks remain Blocked. Task 0038 becomes Complete and no
-  Metal task remains Ready.
-- No production, native, test, build, generated, schema, identity, or probe artifact changes.
+  Metal task remains Ready.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready))</span>
+- No production, native, test, build, generated, schema, identity, or probe [artifact](../../../../glossary.md#term-artifact) changes.
 
-## Validation
+## [Validation](../../../../glossary.md#term-validation)
 
-Run only:
+[Run](../../../../glossary.md#term-run) only:
 
 ```bash
 ./gradlew :backends:metal:test \
@@ -167,15 +167,15 @@ Run only:
 ```
 
 Then validate changed Markdown links/anchors/fences/final newlines, exact terminology, final diff,
-and documentation-only scope. Run no device probe, native build, formatter, full test suite, or full
+and documentation-only [scope](../../../../glossary.md#term-scope). Run no [device](../../../../glossary.md#term-device) probe, native build, formatter, full test suite, or full
 build.
 
 ## Result
 
-Completed as a documentation/audit-only closure from planning commit `1bb2a0e5`. Root, architecture,
-API, backend, user, master, and roadmap summaries now publish the exact common and accelerator-only
-occurrence matrices, strict-subset monotonicity, fail-closed remainder, and frozen ABI/schema/
-identity boundary. Task 0027 BatchNorm and every other Blocked row remain unsupported. The three
-focused Gradle invocations passed; Markdown links, anchors, fences, final newlines, terminology,
-final diff, and documentation-only scope passed. No device probe, native build, full suite, or full
+Completed as a documentation/audit-only closure from [planning](../../../../glossary.md#term-planning) [commit](../../../../glossary.md#term-commit) `1bb2a0e5`. Root, architecture,
+[API](../../../../glossary.md#term-application-programming-interface-api), [backend](../../../../glossary.md#backend), user, master, and roadmap summaries now publish the exact common and [accelerator](../../../../glossary.md#term-accelerator)-only
+[occurrence](../../../../glossary.md#term-occurrence) [matrices](../../../../glossary.md#term-matrix-meanings), strict-subset monotonicity, [fail-closed](../../../../glossary.md#term-fail-closed) remainder, and frozen [ABI](../../../../glossary.md#term-application-binary-interface-abi)/[schema](../../../../glossary.md#term-schema)/
+[identity](../../../../glossary.md#term-identity-meanings) boundary. Task 0027 BatchNorm and every other Blocked row remain unsupported. The three
+focused [Gradle](../../../../glossary.md#term-gradle) invocations passed; Markdown links, anchors, fences, final newlines, terminology,
+final diff, and documentation-only [scope](../../../../glossary.md#term-scope) passed. No [device](../../../../glossary.md#term-device) probe, native build, full suite, or full
 build ran.

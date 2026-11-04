@@ -1,4 +1,4 @@
-# Task 0007A0F: Random and Dropout Generated-Loop Parity
+# Task 0007A0F: Random and [Dropout](../../../../glossary.md#dropout--inverted-dropout) Generated-Loop Parity
 
 ## Status
 
@@ -6,39 +6,39 @@ Complete
 
 ## Goal
 
-Replace the bridge-only generated work for the completed CPU explicit-state random family with
-carrier-, represented-type-, family-, access-, state-, value-, mask-, and loop-specialized bodies
-embedded in each generated class. `INITIAL_STATE` and FLOAT64/FLOAT32 `DROPOUT` must preserve
-every CPU 0006D semantic, carrier, layout, range, replay, resource, validation, parallelism, and
-lifecycle contract while independently gated dense heap-array FLOAT64 and FLOAT32 dropout cases
+Replace the bridge-only generated work for the completed [CPU](../../../../glossary.md#term-cpu) explicit-state random family with
+[carrier](../../../../glossary.md#term-storage-carrier)-, represented-type-, family-, access-, state-, value-, [mask](../../../../glossary.md#term-boolean-mask)-, and loop-specialized bodies
+embedded in each generated class. `INITIAL_STATE` and [FLOAT64](../../../../glossary.md#term-float64)/[FLOAT32](../../../../glossary.md#term-float32) [`DROPOUT`](../../../../glossary.md#dropout--inverted-dropout) must preserve
+every CPU 0006D semantic, carrier, [layout](../../../../glossary.md#layout), range, replay, resource, [validation](../../../../glossary.md#term-validation), parallelism, and
+[lifecycle](../../../../glossary.md#lifecycle) contract while independently gated dense [heap](../../../../glossary.md#term-heap)-array FLOAT64 and FLOAT32 dropout cases
 reach reproducible near-parity with equivalent direct primitive implementations.
 
 This is one cohesive CPU-private generated-code correction. Initializer and next-state prologues,
-the CPU-private V1 counter mapping, keep-mask production, finite-precision scaling, and five-
-boundary invocation share `CpuRandomIr`, `CpuRandomEmitter`, one generated artifact compatibility
-boundary, and the same explicit-state replay contract. The task changes generated code shape only;
+the CPU-private V1 counter mapping, keep-mask production, [finite](../../../../glossary.md#term-finite)-[precision](../../../../glossary.md#term-precision) scaling, and five-
+boundary invocation share `CpuRandomIr`, `CpuRandomEmitter`, one generated [artifact](../../../../glossary.md#term-artifact) compatibility
+boundary, and the same explicit-state replay contract. The task changes generated code [shape](../../../../glossary.md#shape) only;
 completed CPU 0006D capability, semantics, state representation, mapping, route, and observable
 behavior remain unchanged.
 
-## Scope
+## [Scope](../../../../glossary.md#term-scope)
 
 ### Mandatory pre-edit source and Class-File baseline
 
 - Before changing production Java, create one fresh isolated directory under `/private/tmp` and
   retain the current schema-27 source, generated classes, semantic checks, and raw timing for the
-  two exact performance cases below.
-- Also retain representative current classes for heap-array INITIAL_STATE, all-`MemorySegment`
+  two exact performance cases below.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema))</span>
+- Also retain representative current classes for [heap](../../../../glossary.md#term-heap)-array INITIAL_STATE, all-[`MemorySegment`](../../../../glossary.md#term-memorysegment)
   FLOAT64 DROPOUT, and mixed-carrier non-dense FLOAT32 DROPOUT so the baseline covers the zero-
   input initializer, three writable output roles, both value types, every carrier category, and
   both addressing categories.
 - Retain probe and summarizer source; exact compile, generation, definition, decompilation,
-  execution, and summary commands; complete environment facts; generated class bytes; complete
+  execution, and summary commands; complete environment facts; generated class bytes; complete<span data-glossary-navigation="true"> ([compile glossary](../../../../glossary.md#compile); [decompilation glossary](../../../../glossary.md#term-decompilation))</span>
   `javap -c -p` and `javap -v -p`; entry descriptors; class sizes; SHA-256 values; constant-pool
   member references; semantic verification; raw samples; per-fork summaries; and aggregate
-  summaries.
-- The planning source baseline is:
-  - heap FLOAT64 DROPOUT entry descriptor `([D[J[D[B[J[JJJ)V`;
-  - heap FLOAT32 DROPOUT entry descriptor `([F[J[F[B[J[JJJ)V`;
+  summaries.<span data-glossary-navigation="true"> ([SHA-256 glossary](../../../../glossary.md#term-sha-256); [constant glossary](../../../../glossary.md#term-constant); [samples glossary](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters); [fork glossary](../../../../glossary.md#term-fork-meanings))</span>
+- The [planning](../../../../glossary.md#term-planning) source baseline is:
+  - heap [FLOAT64](../../../../glossary.md#term-float64) [DROPOUT](../../../../glossary.md#dropout--inverted-dropout) entry [descriptor](../../../../glossary.md#term-descriptor) `([D[J[D[B[J[JJJ)V`;
+  - heap [FLOAT32](../../../../glossary.md#term-float32) DROPOUT entry descriptor `([F[J[F[B[J[JJJ)V`;
   - heap INITIAL_STATE entry descriptor `([J[JJJ)V`;
   - all-segment DROPOUT entry descriptor
     `(Ljava/lang/foreign/MemorySegment;Ljava/lang/foreign/MemorySegment;`
@@ -46,104 +46,104 @@ behavior remain unchanged.
     `Ljava/lang/foreign/MemorySegment;[JJJ)V`, and segment INITIAL_STATE descriptor
     `(Ljava/lang/foreign/MemorySegment;[JJJ)V`;
   - generated `CpuRandomEmitter.emit` loads the one or five carrier parameters, fills absent
-    positions with null, and calls
+    positions with null, and calls<span data-glossary-navigation="true"> ([parameters glossary](../../../../glossary.md#term-parameter))</span>
     `CpuRandomEmitter.execute(Object,Object,Object,Object,Object,long[],long,long,int,long,long,long)`;
   - the bridge resolves initializer versus dropout from a family ordinal, resolves the dropout
-    value type through `DataType.values()`, tests every carrier with `instanceof`, and calls
+    value type through `DataType.values()`, tests every [carrier](../../../../glossary.md#term-storage-carrier) with `instanceof`, and calls
     generic state/logical-address and read/write helpers during generated work; and
-  - the state prologue and element ranges are separate invocations, with the `[0,0)` prologue
-    writing initializer or next state and non-empty dropout ranges writing value and mask only.
+  - the state prologue and [element](../../../../glossary.md#term-element) ranges are separate invocations, with the `[0,0)` prologue
+    writing initializer or next state and non-empty dropout ranges writing value and mask only.<span data-glossary-navigation="true"> ([mask glossary](../../../../glossary.md#term-boolean-mask))</span>
 - Treat those observations as planning evidence, not retained implementation evidence. Reproduce
   the exact current descriptors, bytes, hashes, member references, semantics, and timing freshly
   before any production edit. If the fresh baseline differs materially, stop and update this
-  specification before implementation.
+  specification before implementation.<span data-glossary-navigation="true"> ([hashes glossary](../../../../glossary.md#term-hash))</span>
 - Time only the warmed state prologue plus complete element-range mapping, threshold, value, and
   mask work. Exclude lowering, generation, verification, class definition, artifact lookup,
   preparation/finalization, cold binding, geometry packing, carrier allocation, input/output
   initialization, expected-result construction, verification, summarization, and sink observation
-  from both generated and direct timed forms.
+  from both generated and direct timed forms.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [artifact glossary](../../../../glossary.md#term-artifact); [lookup glossary](../../../../glossary.md#term-lookup); [binding glossary](../../../../glossary.md#term-binding))</span>
 
-### Embedded typed initializer and dropout bodies
+### Embedded typed initializer and [dropout](../../../../glossary.md#dropout--inverted-dropout) bodies
 
 - Change `CpuClassFileKernelGenerator` and `CpuRandomEmitter` so every generated entry embeds the
   exact state prologue and, for dropout, the counter mapping, uniform conversion, threshold,
-  finite-precision scaling, canonical mask store, and value store. It must not call
+  finite-precision scaling, canonical mask store, and value store. It must not call<span data-glossary-navigation="true"> ([finite glossary](../../../../glossary.md#term-finite); [precision glossary](../../../../glossary.md#term-precision); [canonical glossary](../../../../glossary.md#term-canonical-form); [mask glossary](../../../../glossary.md#term-boolean-mask))</span>
   `CpuRandomEmitter.execute` or an equivalent generic helper bridge.
-- Pass the existing structural random IR to the focused emitter. Select at generation time:
+- Pass the existing structural random [IR](../../../../glossary.md#term-intermediate-representation-ir) to the focused emitter. Select at generation time:
   - family: `INITIAL_STATE` or `DROPOUT`;
-  - value type: INT64 initializer state, FLOAT64 dropout, or FLOAT32 dropout;
+  - value type: [INT64](../../../../glossary.md#data-type--datatype) initializer state, [FLOAT64](../../../../glossary.md#term-float64) dropout, or [FLOAT32](../../../../glossary.md#term-float32) dropout;
   - ordered boundary role and direct carrier form for state input/output, value input/output, and
-    canonical BOOL mask independently;
+    canonical BOOL mask independently;<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [BOOL glossary](../../../../glossary.md#data-type--datatype))</span>
   - baked initializer words or baked dropout probability raw bits and the unchanged V1 numeric,
-    mask, and state policies;
-  - proved dense heap-array integer addressing or typed general long addressing; and
-  - prologue-only versus non-empty element-range control flow.
+    mask, and state policies;<span data-glossary-navigation="true"> ([raw bits glossary](../../../../glossary.md#storage-mapping-contiguity-and-injectivity))</span>
+  - proved dense [heap](../../../../glossary.md#term-heap)-array integer addressing or typed general long addressing; and
+  - prologue-only versus non-empty [element](../../../../glossary.md#term-element)-range control flow.
 - Preserve the universal primitive `long start, long end` entry. `[0,0)` remains the sole state
   prologue sentinel. Every non-empty dropout range uses global row-major logical ordinals, and
-  arbitrary legal disjoint ranges remain valid without changing replay.
+  arbitrary legal disjoint ranges remain valid without changing replay.<span data-glossary-navigation="true"> ([row-major glossary](../../../../glossary.md#term-row-major))</span>
 - Hoist probability, denominator, state key/counter, key offset, element count, boundary ranks,
   packed-layout positions, bases, and other invocation-invariant values into primitive locals
-  before the element loop. Compute `keyOffset(key)` once per non-empty generated invocation, not
+  before the element loop. Compute <span data-glossary-navigation="true"> ([layout glossary](../../../../glossary.md#layout); [invariant glossary](../../../../glossary.md#term-invariant))</span>`keyOffset(key)` once per non-empty generated invocation, not
   per element. Do not read or write next state from non-empty range calls.
-- Generated hot bodies must contain no `Object` descriptor or cast, `DataType.values`, family/type/
+- Generated hot bodies must contain no `Object` [descriptor](../../../../glossary.md#term-descriptor) or cast, `DataType.values`, family/type/
   carrier ordinal dispatch, array-versus-segment test, reflection, map/string dispatch, graph/
   Runtime/backend/route/cache lookup, boxing, object array, or per-invocation/per-range/per-element
-  allocation.
+  allocation.<span data-glossary-navigation="true"> ([dispatch glossary](../../../../glossary.md#term-dispatch); [graph glossary](../../../../glossary.md#graph); [Runtime glossary](../../../../glossary.md#term-runtime); [backend glossary](../../../../glossary.md#backend); [cache glossary](../../../../glossary.md#term-cache); [lookup glossary](../../../../glossary.md#term-lookup))</span>
 - Eliminate avoidable hot helper calls. Dense heap-array classes should have no method reference.
-  General `MemorySegment` forms may reference only the exact predefined native-order primitive
+  General [`MemorySegment`](../../../../glossary.md#term-memorysegment) forms may reference only the exact predefined native-order primitive
   layout fields and matching primitive `MemorySegment.get`/`set` methods. Any additional primitive
   bit conversion must be closed, justified in evidence, and admitted by the class-specific member-
   reference allowlist. Repeated `ValueLayout` or byte-order construction is forbidden.
 
-### Exact CPU 0006D semantics
+### Exact [CPU](../../../../glossary.md#term-cpu) 0006D semantics
 
-- Preserve `SYNAPTIK_CPU_SPLITMIX64_COUNTER_V1` exactly: constants, modulo Java `long` arithmetic,
-  key translation, `mix64`, `word(key,counter,i)`, top-53-bit binary64 conversion, and keep rule
+- Preserve `SYNAPTIK_CPU_SPLITMIX64_COUNTER_V1` exactly: [constants](../../../../glossary.md#term-constant), modulo Java `long` arithmetic,
+  key translation, `mix64`, `word(key,counter,i)`, top-53-bit [binary64](../../../../glossary.md#floating-point-precision-and-rounding) conversion, and keep rule
   `uniform53(word) >= probability` remain unchanged.
-- Logical element `i` remains the global row-major ordinal, independent of physical layout,
+- Logical [element](../../../../glossary.md#term-element) `i` remains the global row-major ordinal, independent of physical layout,
   carrier, range, worker, and scheduling. Exactly one logical draw is associated with every value
-  element, including probability positive or negative zero and dropped exceptional inputs.
+  element, including probability positive or negative zero and dropped exceptional inputs.<span data-glossary-navigation="true"> ([row-major glossary](../../../../glossary.md#term-row-major); [layout glossary](../../../../glossary.md#layout); [carrier glossary](../../../../glossary.md#term-storage-carrier); [negative zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>
 - INITIAL_STATE writes raw key then counter bits to logical lanes zero and one and performs no
-  draw or advancement. DROPOUT retains the input key and writes `counter + N` modulo `2^64`
+  draw or advancement. DROPOUT retains the input key and writes <span data-glossary-navigation="true"> ([lanes glossary](../../../../glossary.md#term-lane); [DROPOUT glossary](../../../../glossary.md#dropout--inverted-dropout))</span>`counter + N` modulo `2^64`
   exactly once in the prologue, including empty `N == 0` execution.
-- Keep-mask storage remains canonical BOOL byte `1` or `0`. A dropped value remains represented
-  positive zero even for negative zero, NaN, or infinity input.
+- Keep-[mask](../../../../glossary.md#term-boolean-mask) storage remains [canonical](../../../../glossary.md#term-canonical-form) [BOOL](../../../../glossary.md#data-type--datatype) byte `1` or `0`. A dropped value remains represented
+  positive zero even for negative zero, NaN, or infinity input.<span data-glossary-navigation="true"> ([positive zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [NaN glossary](../../../../glossary.md#term-nan); [infinity glossary](../../../../glossary.md#term-infinity))</span>
 - Compute `denominator = 1.0d - probability` once per non-empty invocation. FLOAT64 performs one
   binary64 division. FLOAT32 widens the exact binary32 input, performs the same binary64 division,
   and narrows once. Do not substitute reciprocal multiplication, fused arithmetic, probability or
-  draw narrowing, vector math, or a changed evaluation order.
+  draw narrowing, vector math, or a changed evaluation order.<span data-glossary-navigation="true"> ([FLOAT64 glossary](../../../../glossary.md#term-float64); [FLOAT32 glossary](../../../../glossary.md#term-float32); [binary32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [fused glossary](../../../../glossary.md#specialization-and-fusion); [narrowing glossary](../../../../glossary.md#term-narrowing); [vector glossary](../../../../glossary.md#term-vector); [evaluation glossary](../../../../glossary.md#term-evaluation))</span>
 - Preserve the five independent V1 vectors and exact threshold-boundary cases from CPU 0006D.
   Tests must derive expected words, uniforms, masks, scaled values, and next state independently
   of production emitter helpers.
 
-### Dense and general carrier/layout forms
+### Dense and general [carrier](../../../../glossary.md#term-storage-carrier)/[layout](../../../../glossary.md#layout) forms
 
-- Dense heap-array dropout forms use `DENSE_HEAP_ARRAY_INT`. Narrow universal bounds, bases,
+- Dense [heap](../../../../glossary.md#term-heap)-array [dropout](../../../../glossary.md#dropout--inverted-dropout) forms use `DENSE_HEAP_ARRAY_INT`. Narrow universal bounds, bases,
   element count, state lanes, and every proved array address once before hot work; keep primitive
-  integer value/mask address state without repeated `l2i`, exact-arithmetic helpers, rank
-  decisions, division, or modulo when dense geometry makes them unnecessary.
-- Generate typed `GENERAL_LONG` forms for every supported `MemorySegment`, mixed-carrier,
+  integer value/mask address state without repeated <span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element); [lanes glossary](../../../../glossary.md#term-lane); [mask glossary](../../../../glossary.md#term-boolean-mask))</span>`l2i`, exact-arithmetic helpers, rank
+  decisions, division, or modulo when dense geometry makes them unnecessary.<span data-glossary-navigation="true"> ([rank glossary](../../../../glossary.md#term-rank))</span>
+- Generate typed `GENERAL_LONG` forms for every supported [`MemorySegment`](../../../../glossary.md#term-memorysegment), mixed-carrier,
   arbitrary non-negative layout, zero-stride value input, offset/strided injective output, large
   range, or otherwise unproved case. Retain only the checked long coordinate/address arithmetic
-  required by each selected boundary mapping.
+  required by each selected boundary mapping.<span data-glossary-navigation="true"> ([stride glossary](../../../../glossary.md#term-stride); [injective glossary](../../../../glossary.md#term-injective); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
 - A failed dense proof selects the general typed form and never narrows CPU 0006D support. The
   value input, state input, value output, mask output, and next-state output independently use
-  their matching primitive array or native-order `MemorySegment` carrier.
+  their matching primitive array or native-order <span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>`MemorySegment` carrier.
 - Exhaust the 32 ordered array/segment carrier patterns for each dropout value type in stable
   descriptor and bridge-rejection assertions. Semantic execution must cover all-array, all-
   segment, and mixed patterns that independently toggle each of the five boundary roles, plus
-  dense, offset, positive-strided, zero-stride-read, and injective non-dense-write layouts.
+  dense, offset, positive-strided, zero-stride-read, and injective non-dense-write layouts.<span data-glossary-navigation="true"> ([descriptor glossary](../../../../glossary.md#term-descriptor))</span>
 - Scalar and parallel-scalar prepared plans reuse the same compatible scalar artifact. Generated
-  classes retain no mutable state; all counter, address, and loop state is invocation-private.
+  classes retain no mutable state; all counter, address, and loop state is invocation-private.<span data-glossary-navigation="true"> ([Scalar glossary](../../../../glossary.md#term-scalar); [artifact glossary](../../../../glossary.md#term-artifact); [mutable glossary](../../../../glossary.md#term-mutable))</span>
 
-### Completed resources, validation, replay, and lifecycle
+### Completed resources, [validation](../../../../glossary.md#term-validation), replay, and [lifecycle](../../../../glossary.md#lifecycle)
 
-- Preserve exactly one lowered unit and one generated artifact. INITIAL_STATE boundaries remain
-  `[stateOutput]`; DROPOUT boundaries remain `[value,state,output,keepMask,nextState]` with the
+- Preserve exactly one lowered unit and one generated [artifact](../../../../glossary.md#term-artifact). INITIAL_STATE boundaries remain
+  `[stateOutput]`; [DROPOUT](../../../../glossary.md#dropout--inverted-dropout) boundaries remain `[value,state,output,keepMask,nextState]` with the
   first two reads and last three writes. Preserve zero workspace, zero materialization, and scalar
-  or parallel-scalar strategy.
+  or parallel-scalar strategy.<span data-glossary-navigation="true"> ([materialization glossary](../../../../glossary.md#materialization); [scalar glossary](../../../../glossary.md#term-scalar))</span>
 - Preserve the one generated prologue before any worker submission. Empty dropout runs only the
-  prologue and submits no element work. Non-empty scalar execution invokes `[0,N)` after the
+  prologue and submits no element work. Non-empty scalar execution invokes <span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element))</span>`[0,N)` after the
   prologue; parallel execution invokes deterministic disjoint global-ordinal ranges afterward.
 - Preserve complete physical overlap rejection for every dropout input/output and output/output
   pair before prologue, mutation, generated invocation, or worker submission. Preserve permitted
@@ -151,94 +151,94 @@ behavior remain unchanged.
 - Preserve carrier type, size, byte alignment, accessibility, read-only/writability, complete
   referenced-span, assignment, and range validation. Preserve distinct state lanes, writable
   layout injectivity, arbitrary legal disjoint ranges, deterministic replay, counter wrap,
-  concurrent-run isolation, and failure timing.
+  concurrent-run isolation, and failure timing.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [byte alignment glossary](../../../../glossary.md#term-byte-alignment); [lanes glossary](../../../../glossary.md#term-lane); [layout glossary](../../../../glossary.md#layout); [injectivity glossary](../../../../glossary.md#storage-mapping-contiguity-and-injectivity); [run glossary](../../../../glossary.md#term-run))</span>
 - Preserve scalar Shape, zero extent, singleton, probability boundary, signed-zero probability
   and values, finite values, NaNs, infinities, counter wrap, every legal layout/carrier pattern,
-  and bitwise scalar/parallel parity.
+  and bitwise scalar/parallel parity.<span data-glossary-navigation="true"> ([Shape glossary](../../../../glossary.md#shape); [extent glossary](../../../../glossary.md#term-extent); [singleton glossary](../../../../glossary.md#term-singleton); [signed-zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [finite glossary](../../../../glossary.md#term-finite); [infinities glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>
 - Preserve capability, lowering, route, specialization budget, preparation, finalization,
   executable binding, reference, optional persistence, and immutable prepared ownership unless an
-  allowlisted Javadoc or package summary must be finalized for the embedded body.
+  allowlisted Javadoc or package summary must be finalized for the embedded body.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [specialization glossary](../../../../glossary.md#term-specialization); [binding glossary](../../../../glossary.md#term-binding); [persistence glossary](../../../../glossary.md#term-persistence); [immutable glossary](../../../../glossary.md#term-immutable); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 - CPU analysis remains deterministic and measurement-free. Finalization generates or reuses the
   selected class only after shared slot assignment. Runtime receives an immutable prepared
   executable and performs no random interpretation, generation, specialization, lookup,
-  fallback, tuning, or benchmark-driven mutation.
+  fallback, tuning, or benchmark-driven mutation.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [Runtime glossary](../../../../glossary.md#term-runtime); [prepared executable glossary](../../../../glossary.md#prepared-executable--preparedexecutable); [lookup glossary](../../../../glossary.md#term-lookup))</span>
 
-### Structural identity and concrete invocation state
+### Structural [identity](../../../../glossary.md#term-identity-meanings) and concrete invocation state
 
 - Structural identity continues to include family, CPU-private generator/configuration constants
   and policy IDs, value and boundary types, ordered roles/access plans, baked initializer words or
   probability raw bits, finite-precision/mask/state policy, carrier pattern, scalar compute mode,
-  zero-scratch entry shape, and dense-versus-general emitted code shape.
+  zero-scratch entry shape, and dense-versus-general emitted code shape.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [constants glossary](../../../../glossary.md#term-constant); [raw bits glossary](../../../../glossary.md#storage-mapping-contiguity-and-injectivity); [finite glossary](../../../../glossary.md#term-finite); [precision glossary](../../../../glossary.md#term-precision); [mask glossary](../../../../glossary.md#term-boolean-mask); [carrier glossary](../../../../glossary.md#term-storage-carrier); [scalar glossary](../../../../glossary.md#term-scalar); [shape glossary](../../../../glossary.md#shape))</span>
 - Concrete dropout key/counter state, extents, element count, offsets, stride magnitudes, carrier-
   relative bases, carrier instances, slots, addresses, ranges/chunking, workers, graph/run
   identity, and artifact root remain cold invocation or lifecycle facts. They must not enter class
-  identity merely because the emitted body consumes them.
+  identity merely because the emitted body consumes them.<span data-glossary-navigation="true"> ([dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [element glossary](../../../../glossary.md#term-element); [stride glossary](../../../../glossary.md#term-stride); [graph glossary](../../../../glossary.md#graph); [run glossary](../../../../glossary.md#term-run); [artifact glossary](../../../../glossary.md#term-artifact); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - Compatible concrete geometries and states that have the same structural facts must reuse one
-  class. Any fact that changes emitted bytes or method descriptor must not alias.
+  class. Any fact that changes emitted bytes or method descriptor must not alias.<span data-glossary-navigation="true"> ([descriptor glossary](../../../../glossary.md#term-descriptor); [alias glossary](../../../../glossary.md#aliasing-and-arena))</span>
 
 ### Generated compatibility transition
 
 - Advance `CpuGeneratorSchema.CURRENT_VERSION` exactly from `27` to `28`. Schema 28 is the first
   compatibility version whose random classes embed typed initializer/state, mapping, threshold,
-  value, and mask bodies.
+  value, and mask bodies.<span data-glossary-navigation="true"> ([Schema glossary](../../../../glossary.md#term-schema); [mask glossary](../../../../glossary.md#term-boolean-mask))</span>
 - Treat schema 27 as an incompatible safe miss. Extend the artifact-store regression with an
   otherwise valid schema-27 envelope and current metadata/class bytes, prove it is not loaded,
   then prove lookup regenerates and publishes schema-28 bytes. Add no migration reader,
-  converter, compatibility alias, or legacy bridge.
+  converter, compatibility alias, or legacy bridge.<span data-glossary-navigation="true"> ([artifact glossary](../../../../glossary.md#term-artifact); [regression glossary](../../../../glossary.md#term-regression); [metadata glossary](../../../../glossary.md#term-metadata); [lookup glossary](../../../../glossary.md#term-lookup); [alias glossary](../../../../glossary.md#aliasing-and-arena))</span>
 - Preserve current-only persistence, deterministic class identity, shape-polymorphic reuse,
-  single-flight behavior, strong prepared ownership, and corruption rejection.
+  single-flight behavior, strong prepared ownership, and corruption rejection.<span data-glossary-navigation="true"> ([persistence glossary](../../../../glossary.md#term-persistence); [identity glossary](../../../../glossary.md#term-identity-meanings); [shape glossary](../../../../glossary.md#shape); [single-flight glossary](../../../../glossary.md#single-flight-and-least-recently-used-caching); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 
-### Stable semantic and Class-File evidence matrix
+### Stable semantic and Class-File evidence [matrix](../../../../glossary.md#term-review-matrix)
 
 - Add Java Class-File model assertions for INITIAL_STATE and both dropout types; both probability
   zero signs, exact threshold neighbors, ordinary probability, and counter wrap; all 32 ordered
   carrier patterns per dropout type; dense integer and general long forms; representative offset,
-  strided, zero-stride, empty, scalar, partial-range, and scalar/parallel artifact reuse forms.
+  strided, zero-stride, empty, scalar, partial-range, and scalar/parallel artifact reuse forms.<span data-glossary-navigation="true"> ([model glossary](../../../../glossary.md#term-model); [dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [carrier glossary](../../../../glossary.md#term-storage-carrier); [stride glossary](../../../../glossary.md#term-stride); [scalar glossary](../../../../glossary.md#term-scalar); [artifact glossary](../../../../glossary.md#term-artifact))</span>
 - Assert exact direct descriptors, embedded prologue/mix/uniform/threshold/value/mask loops,
-  ordered three-output stores, state isolation, and dense/general addressing. Reject
-  `CpuRandomEmitter.execute` and equivalent bridges, `Object` descriptors/casts,
+  ordered three-output stores, state isolation, and dense/general addressing. Reject<span data-glossary-navigation="true"> ([mask glossary](../../../../glossary.md#term-boolean-mask))</span>
+  `CpuRandomEmitter.execute` and equivalent bridges, `Object` [descriptors](../../../../glossary.md#term-descriptor)/casts,
   `DataType.values`, generic family/type/carrier dispatch, allocations, boxing, reflection,
   random services/classes, map/string dispatch, graph/Runtime/backend/cache references, and
-  avoidable helpers through Java Class-File model inspection rather than source matching.
+  avoidable helpers through Java Class-File model inspection rather than source matching.<span data-glossary-navigation="true"> ([dispatch glossary](../../../../glossary.md#term-dispatch); [graph glossary](../../../../glossary.md#graph); [Runtime glossary](../../../../glossary.md#term-runtime); [backend glossary](../../../../glossary.md#backend); [cache glossary](../../../../glossary.md#term-cache))</span>
 - Use a closed explicit member-reference allowlist for every representative class. Dense classes
   reject every member reference. Segment forms admit only their exact predefined layout fields and
-  matching typed `MemorySegment.get`/`set` calls, plus a separately justified closed primitive
+  matching typed <span data-glossary-navigation="true"> ([layout glossary](../../../../glossary.md#layout))</span>`MemorySegment.get`/`set` calls, plus a separately justified closed primitive
   conversion if direct emission is impossible.
 - Retain complete `javap` as audit evidence only. Durable gates use the Java Class-File API and
   stable structural assertions, not absolute bytecode offsets, planning-observed sizes, hashes,
-  or source-text tests.
+  or source-text tests.<span data-glossary-navigation="true"> ([hashes glossary](../../../../glossary.md#term-hash))</span><span data-glossary-navigation="true"> ([Class-File API glossary](../../../../glossary.md#term-class-file-api); [bytecode glossary](../../../../glossary.md#term-bytecode); [planning glossary](../../../../glossary.md#term-planning))</span>
 - Preserve independent semantic differentials against `CpuScalarReferenceKernel` or a test-local
   oracle that does not call or share the generated emitter mapping implementation. Cover the five
   CPU 0006D vectors, raw probability bits, threshold equality/successor, every state word,
   FLOAT64/FLOAT32 scaling order, raw input/output bits, canonical masks, modulo next state, general
   layouts, all carrier roles, partial/disjoint ranges, empty/scalar/singleton cases, complete
-  overlap/failure timing, allowed input alias, and scalar/parallel replay.
+  overlap/failure timing, allowed input alias, and scalar/parallel replay.<span data-glossary-navigation="true"> ([oracle glossary](../../../../glossary.md#term-test-oracle); [CPU glossary](../../../../glossary.md#term-cpu); [vectors glossary](../../../../glossary.md#term-vector); [FLOAT64 glossary](../../../../glossary.md#term-float64); [FLOAT32 glossary](../../../../glossary.md#term-float32); [canonical glossary](../../../../glossary.md#term-canonical-form); [singleton glossary](../../../../glossary.md#term-singleton); [alias glossary](../../../../glossary.md#aliasing-and-arena))</span>
 
 ### Independent fixed performance cases
 
-Use two independent dense heap-array cases. Each uses shape `[64,16384]` (1,048,576 logical
-elements), the complete logical range `[0,1048576)`, probability `0.25d`, key
+Use two independent dense [heap](../../../../glossary.md#term-heap)-array cases. Each uses [shape](../../../../glossary.md#shape) `[64,16384]` (1,048,576 logical
+[elements](../../../../glossary.md#term-element)), the complete logical range `[0,1048576)`, probability `0.25d`, key
 `0x0123456789abcdef`, and counter `0xfedcba9876543210`. Both generated and direct forms execute
-one next-state prologue followed by one complete element range and write value, canonical mask,
+one next-state prologue followed by one complete element range and write value, [canonical](../../../../glossary.md#term-canonical-form) [mask](../../../../glossary.md#term-boolean-mask),
 and next-state outputs.
 
-Initialize input element `i` once per fork with `selector = i % 257`:
+Initialize input element `i` once per [fork](../../../../glossary.md#term-fork-meanings) with `selector = i % 257`:
 
-- selector `0` is a quiet NaN whose sign alternates by `(i / 257) & 1`; FLOAT64 uses raw bits
-  `0x7ff8000000000000L | ((i + 1) & 0x0007ffffffffffffL)` plus that sign bit, and FLOAT32 uses
+- selector `0` is a [quiet NaN](../../../../glossary.md#nan-infinity-and-signed-zero) whose sign alternates by `(i / 257) & 1`; [FLOAT64](../../../../glossary.md#term-float64) uses [raw bits](../../../../glossary.md#storage-mapping-contiguity-and-injectivity)
+  `0x7ff8000000000000L | ((i + 1) & 0x0007ffffffffffffL)` plus that sign bit, and [FLOAT32](../../../../glossary.md#term-float32) uses
   `0x7fc00000 | ((i + 1) & 0x003fffff)` plus that sign bit;
-- selector `1` is represented negative zero, selector `2` is positive infinity, and selector `3`
-  is negative infinity; and
+- selector `1` is represented [negative zero](../../../../glossary.md#nan-infinity-and-signed-zero), selector `2` is [positive infinity](../../../../glossary.md#nan-infinity-and-signed-zero), and selector `3`
+  is negative infinity; and<span data-glossary-navigation="true"> ([negative infinity glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>
 - every other value is `((i * 37L + 19L) % 4093L - 2046L) * 0.125`, rounded once to the case's
   represented type.
 
 The FLOAT64 case uses `double[]` value input/output, `long[]` state/next-state, and `byte[]` mask.
-The FLOAT32 case uses the matching `float[]` value input/output with the same other carrier roles.
+The FLOAT32 case uses the matching `float[]` value input/output with the same other [carrier](../../../../glossary.md#term-storage-carrier) roles.
 Verify unchanged input/state, exact raw output bits, canonical mask bytes, and exact next-state
 words before and after timing.
 
 The direct body must use only primitive locals and arrays and must implement the exact same V1
-key offset, per-global-ordinal word mapping, top-53 conversion, binary64 threshold, denominator,
+key offset, per-global-ordinal word mapping, top-53 conversion, [binary64](../../../../glossary.md#floating-point-precision-and-rounding) threshold, denominator,
 FLOAT64 division or FLOAT32 widen/divide/narrow-once order, canonical mask, and modulo prologue.
 It must not call production random/emitter/reference helpers, precompute random words or masks,
 omit any output, fuse away the prologue, use another generator, use reciprocal multiplication,
@@ -247,58 +247,58 @@ or exploit fixed input values.
 ### Reproducible performance protocol and gate
 
 - Use one standalone direct-Java probe outside Gradle and JUnit. Run exactly five fresh JVM forks
-  with fixed `-Xms1g -Xmx1g`. Each fork runs at least five warmup batches and nine measurement
-  rounds per case, with adaptive repetitions making every timed sample at least 25 ms.
-- Randomize case order and generated/direct order within every batch with deterministic seed
+  with fixed <span data-glossary-navigation="true"> ([JVM forks glossary](../../../../glossary.md#java-preview-incubator-modules-and-compiler-tiers))</span><span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle); [JUnit glossary](../../../../glossary.md#term-junit); [Run glossary](../../../../glossary.md#term-run); [JVM glossary](../../../../glossary.md#term-java-virtual-machine-jvm))</span>`-Xms1g -Xmx1g`. Each fork runs at least five warmup batches and nine measurement
+  rounds per case, with adaptive repetitions making every timed sample at least 25 ms.<span data-glossary-navigation="true"> ([fork glossary](../../../../glossary.md#term-fork-meanings); [warmup glossary](../../../../glossary.md#term-warmup); [sample glossary](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters))</span>
+- Randomize case order and generated/direct order within every [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) with deterministic [seed](../../../../glossary.md#term-seed)
   `0x5A17D00D7A0F28L`, reset identically in each fork. Consume an observable sink only outside
   timed regions. Report both cases separately.
 - Report generated/direct medians and ratio for every fork. For each case compute the aggregate as
   the median of its generated per-fork medians divided by the median of its direct per-fork
-  medians. Every FLOAT64 fork ratio and its aggregate must be `<= 1.15x`; every FLOAT32 fork ratio
-  and its aggregate must independently be `<= 1.15x`.
+  medians. Every FLOAT64 fork ratio and its aggregate must be <span data-glossary-navigation="true"> ([median glossary](../../../../glossary.md#term-median); [FLOAT64 glossary](../../../../glossary.md#term-float64))</span>`<= 1.15x`; every FLOAT32 fork ratio
+  and its aggregate must independently be <span data-glossary-navigation="true"> ([FLOAT32 glossary](../../../../glossary.md#term-float32))</span>`<= 1.15x`.
 - Never average forks, drop an outlier, let one type or aggregate hide a failing fork, widen the
   threshold, change the fixed state/probability/shape/data/protocol after baseline, or replace the
-  equivalent direct body.
+  equivalent direct body.<span data-glossary-navigation="true"> ([outlier glossary](../../../../glossary.md#term-outlier))</span>
 - Use identical probe/summarizer source, commands, direct bodies, inputs, heap, seed, warmup/
   round/fork/adaptive protocol, verification, and sink rules for baseline and final evidence.
-  Record source SHA-256 and generated-class SHA-256 for both phases.
+  Record source SHA-256 and generated-class SHA-256 for both phases.<span data-glossary-navigation="true"> ([heap glossary](../../../../glossary.md#term-heap); [SHA-256 glossary](../../../../glossary.md#term-sha-256))</span>
 - Performance evidence is observational and must not select or mutate ordinary preparation or
-  Runtime behavior. If either type has one failing fork or aggregate, keep status `In progress` or
-  `Review needed`, inspect generated and just-in-time compiled shape, and correct implementation.
+  Runtime behavior. If either type has one failing fork or aggregate, keep status <span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime))</span>`In progress` or
+  `Review needed`, inspect generated and just-in-time compiled [shape](../../../../glossary.md#shape), and correct implementation.
 - Initializer, general layouts, segment/mixed carriers, partial ranges, empty cases, and parallel
-  orchestration remain semantic/Class-File gates rather than broader timing claims.
+  orchestration remain semantic/Class-File gates rather than broader timing claims.<span data-glossary-navigation="true"> ([layouts glossary](../../../../glossary.md#layout))</span>
 
-## Out of scope
+## Out of [scope](../../../../glossary.md#term-scope)
 
 - New Model semantics, generator algorithms or versions, operations, attributes, types, Shapes,
   probability rules, capability rows, public APIs, gradients, or cross-backend/cross-version
-  bitstream promises
+  bitstream promises<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Shapes glossary](../../../../glossary.md#shape); [gradients glossary](../../../../glossary.md#term-gradient); [backend glossary](../../../../glossary.md#backend))</span>
 - BFLOAT16/FLOAT16/integral/BOOL dropout values, vector random execution, other distributions,
   public RNG configuration, cryptographic/statistical certification, fusion, fixed-shape
-  specialization, unrolling, or relaxed numerical policy
+  specialization, unrolling, or relaxed numerical policy<span data-glossary-navigation="true"> ([BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [FLOAT16 glossary](../../../../glossary.md#term-float16); [BOOL glossary](../../../../glossary.md#data-type--datatype); [dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [vector glossary](../../../../glossary.md#term-vector); [distributions glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [fusion glossary](../../../../glossary.md#term-fusion); [specialization glossary](../../../../glossary.md#term-specialization); [unrolling glossary](../../../../glossary.md#term-unrolling))</span>
 - New routes, workspaces, materialization, replay/random buffers, mutable generator state,
-  representation policy, tuning controls/cache behavior, public configuration, or Runtime mutation
+  representation policy, tuning controls/cache behavior, public configuration, or Runtime mutation<span data-glossary-navigation="true"> ([materialization glossary](../../../../glossary.md#materialization); [buffers glossary](../../../../glossary.md#term-buffer); [mutable glossary](../../../../glossary.md#term-mutable); [cache glossary](../../../../glossary.md#term-cache); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
 - Pointwise, affine/movement, indexing, scatter, fold, ordering, scan, aggregate, reduction,
-  normalization, linear algebra, native-provider, or later semantic-family implementation
+  normalization, linear algebra, native-provider, or later semantic-family implementation<span data-glossary-navigation="true"> ([Pointwise glossary](../../../../glossary.md#term-pointwise); [scan glossary](../../../../glossary.md#term-cumulative-scan); [normalization glossary](../../../../glossary.md#term-normalization); [linear glossary](../../../../glossary.md#term-linear-meanings))</span>
 - Architecture, module/dependency, Model/Compiler/Planning/shared Prepare/Runtime, Config, Trace,
   Engine, other backend, NN, Training, Gradle/build, Java version, architecture-test, backend-
-  conformance, integration-test, or unrelated documentation changes
-- Detailed specification or implementation for CPU 0007A1 or any later task
+  conformance, integration-test, or unrelated documentation changes<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module); [dependency glossary](../../../../glossary.md#term-dependency); [Compiler glossary](../../../../glossary.md#term-compiler); [Planning glossary](../../../../glossary.md#term-planning); [Prepare glossary](../../../../glossary.md#prepare); [Trace glossary](../../../../glossary.md#trace); [Engine glossary](../../../../glossary.md#term-engine); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [Gradle glossary](../../../../glossary.md#term-gradle); [conformance glossary](../../../../glossary.md#term-conformance))</span>
+- Detailed specification or implementation for [CPU](../../../../glossary.md#term-cpu) 0007A1 or any later task
 - Object bridges, runtime family/type/carrier dispatch, reflection, boxing, hot allocation,
-  generic helper execution, hidden materialization, or unsupported scope in generated hot bodies
-- Commit, push, staging, revert, deletion, or modification of unrelated concurrent work
+  generic helper execution, hidden materialization, or unsupported scope in generated hot bodies<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
+- [Commit](../../../../glossary.md#term-commit), push, staging, revert, deletion, or modification of unrelated concurrent work
 
 ## Architecture references
 
-- [Architecture contract](../../../../../ARCHITECTURE.md)
+- [Architecture contract](../../../../../ARCHITECTURE.md)<span data-glossary-navigation="true"> ([Architecture contract glossary](../../../../glossary.md#architecture-contract))</span>
 - [Current architecture plan](../../../../architecture/current-architecture-plan.md)
-- [Lifecycle](../../../../architecture/lifecycle.md)
-- [Runtime / Prepare / Backend boundary](../../../../architecture/runtime-prepare-backend-boundary.md)
+- [Lifecycle](../../../../architecture/lifecycle.md)<span data-glossary-navigation="true"> ([Lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+- [Runtime / Prepare / Backend boundary](../../../../architecture/runtime-prepare-backend-boundary.md)<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [Prepare glossary](../../../../glossary.md#prepare); [Backend glossary](../../../../glossary.md#backend))</span>
 - [Performance evidence and tuning](../../../../architecture/performance-evidence-and-tuning.md)
-- [Planning guide](../../../planning-guide.md)
+- [Planning guide](../../../planning-guide.md)<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning))</span>
 - [Roadmap](../../../roadmap.md)
-- [CPU master plan](../master-plan.md)
-- [CPU 0006D explicit-state RNG and dropout](0006d-portable-explicit-state-rng-and-dropout.md)
+- [CPU master plan](../master-plan.md)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>
+- [CPU 0006D explicit-state RNG and dropout](0006d-portable-explicit-state-rng-and-dropout.md)<span data-glossary-navigation="true"> ([RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [dropout glossary](../../../../glossary.md#dropout--inverted-dropout))</span>
 - [CPU 0007A0 generated hot-path correction](0007a0-generated-hot-path-parity-correction.md)
 - [CPU 0007A0A affine/movement parity](0007a0a-affine-and-movement-generated-loop-parity.md)
 - [CPU 0007A0B indexing parity](0007a0b-indexing-generated-loop-parity.md)
@@ -311,50 +311,50 @@ or exploit fixed input values.
 
 - Model owns raw state meaning, ordered roles, probability domain, logical draw count, keep rule,
   ideal inverted-dropout meaning, and portable state advancement. CPU owns only its private V1
-  realization, structural IR, generated code, route, resources, and invocation.
+  realization, structural IR, generated code, route, resources, and invocation.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [CPU glossary](../../../../glossary.md#term-cpu); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir))</span>
 - Planning selects CPU ownership only. CPU analysis deterministically lowers and selects the
   supported route and declares exact buffers before CPU-blind assignment; CPU finalization
-  generates or reuses the exact artifact only after assignments exist.
+  generates or reuses the exact artifact only after assignments exist.<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [buffers glossary](../../../../glossary.md#term-buffer); [artifact glossary](../../../../glossary.md#term-artifact))</span>
 - Runtime hot execution receives direct typed carrier references and primitive geometry only. It
   performs no Operation/CompiledNode or graph inspection, map/string lookup, reflection, backend
-  discovery, route selection, cache work, random service access, or generator mutation.
+  discovery, route selection, cache work, random service access, or generator mutation.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [carrier glossary](../../../../glossary.md#term-storage-carrier); [Operation glossary](../../../../glossary.md#operation); [graph glossary](../../../../glossary.md#graph); [lookup glossary](../../../../glossary.md#term-lookup); [backend glossary](../../../../glossary.md#backend); [cache glossary](../../../../glossary.md#term-cache))</span>
 - Prepared recipes remain immutable and reusable. Explicit state plus logical ordinal completely
-  determines every draw, and concurrent runs keep invocation-private state under distinct
-  `RunState` values.
+  determines every draw, and concurrent runs keep invocation-private state under distinct<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable))</span>
+  [`RunState`](../../../../glossary.md#run-state--runstate) values.
 - Work remains inside `backends/cpu` plus its existing CPU guide, glossary, and planning records;
-  it adds no dependency, package, public type, resource kind, or architecture rule.
+  it adds no dependency, package, public type, resource kind, or architecture rule.<span data-glossary-navigation="true"> ([dependency glossary](../../../../glossary.md#term-dependency))</span>
 - Capability remains no broader than the completed CPU 0006D matrix. Stop if direct generation
   requires a Model/compiler/shared Prepare/Runtime change, new architecture, changed semantics or
-  state mapping, another route/resource, or any non-allowlisted repository path.
+  state mapping, another route/resource, or any non-allowlisted repository path.<span data-glossary-navigation="true"> ([matrix glossary](../../../../glossary.md#term-matrix-meanings); [compiler glossary](../../../../glossary.md#term-compiler); [Prepare glossary](../../../../glossary.md#prepare))</span>
 
 ## Package impact
 
 Existing packages used:
 
 - `io.github.pho001.synaptik.backend.cpu.internal.codegen.emit` — focused direct random Class-File
-  emission and generator dispatch.
+  emission and generator dispatch.<span data-glossary-navigation="true"> ([dispatch glossary](../../../../glossary.md#term-dispatch))</span>
 - `io.github.pho001.synaptik.backend.cpu.internal.cache` — current-only schema and structural
-  specialization identity.
-- `io.github.pho001.synaptik.backend.cpu.internal.ir` — exact random family and policy identity.
+  specialization identity.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [specialization glossary](../../../../glossary.md#term-specialization))</span>
+- `io.github.pho001.synaptik.backend.cpu.internal.ir` — exact random family and policy [identity](../../../../glossary.md#term-identity-meanings).
 - `io.github.pho001.synaptik.backend.cpu.internal.route.portable` — immutable selected random
-  realization passed to generation.
+  realization passed to generation.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable))</span>
 - Existing `.lowering`, `.prepare`, `.executable`, `.memory`, and `.reference` packages remain the
-  unchanged geometry, lifecycle, binding, and independent-oracle owners.
+  unchanged geometry, lifecycle, binding, and independent-oracle owners.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle); [binding glossary](../../../../glossary.md#term-binding); [oracle glossary](../../../../glossary.md#term-test-oracle))</span>
 
 Packages added or changed:
 
 - No package is added, removed, moved, exported, or made supported API. Only existing CPU-private
-  packages may receive focused implementation/Javadoc changes from the allowlist.
+  packages may receive focused implementation/Javadoc changes from the allowlist.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [CPU glossary](../../../../glossary.md#term-cpu); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 
 Type placement:
 
 - `CpuRandomEmitter` remains the sole focused owner of typed generated initializer and dropout
-  bytecode. It must no longer own or expose a generic execution bridge used by generated classes.
+  bytecode. It must no longer own or expose a generic execution bridge used by generated classes.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [bytecode glossary](../../../../glossary.md#term-bytecode))</span>
 - `CpuClassFileKernelGenerator` continues only to dispatch the already identified random IR to the
-  focused emitter.
+  focused emitter.<span data-glossary-navigation="true"> ([IR glossary](../../../../glossary.md#term-intermediate-representation-ir))</span>
 - `CpuRandomIr` remains the structural semantic/code-shaping identity. `CpuRandomLowering.Geometry`
   remains cold concrete invocation geometry and must not be copied into structural identity.
-- Add no random utility, service, registry, manager, facade, interpreter, or new public type.
+- Add no random utility, service, [registry](../../../../glossary.md#term-registry), manager, [facade](../../../../glossary.md#term-facade), interpreter, or new public type.
 
 ## Affected files
 
@@ -385,11 +385,11 @@ Exact implementation allowlist:
 
 Existing `CpuRandomLowering`, `CpuPartitionPreparationPlan`, `CpuPreparedExecutable` production
 code, `CpuScalarReferenceKernel`, capability code, their other focused tests, build files,
-architecture documents, shared modules, and completed task records are inspection-only. If a
-production change to an inspection-only owner is required, stop and replan rather than exchanging
+architecture documents, shared [modules](../../../../glossary.md#term-module), and completed task records are inspection-only. If a
+production change to an inspection-only [owner](../../../../glossary.md#term-owner) is required, stop and replan rather than exchanging
 an allowlisted path silently.
 
-## Maximum scope
+## Maximum [scope](../../../../glossary.md#term-scope)
 
 This task may modify at most 22 repository paths, all drawn from the exact allowlist above. It may
 create no production or test type and no later task specification. Temporary probe/evidence files
@@ -397,61 +397,61 @@ must remain inside the one fresh isolated `/private/tmp` directory and are not r
 
 If implementation requires any non-allowlisted repository path, more than 22 changed paths, a new
 type/package, a shared/public contract, or broader semantics, stop before editing and request a
-planning update. Do not use a follow-up to hide an incomplete random family or failing parity gate.
+[planning](../../../../glossary.md#term-planning) update. Do not use a follow-up to hide an incomplete random family or failing parity gate.
 
 ## Acceptance criteria
 
 - Fresh schema-27 source, initializer/dense/general generated classes, semantics, and both fixed
   timing cases are retained before production edits with exact source, commands, environment,
-  descriptors, bytes, SHA-256, complete `javap`, member references, raw samples, and summaries.
+  descriptors, bytes, SHA-256, complete <span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [descriptors glossary](../../../../glossary.md#term-descriptor); [SHA-256 glossary](../../../../glossary.md#term-sha-256))</span>`javap`, member references, raw [samples](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters), and summaries.
 - Every admitted INITIAL_STATE and FLOAT64/FLOAT32 DROPOUT specialization embeds typed state,
-  mapping, threshold, value, and mask work without a generic bridge or runtime dispatch.
+  mapping, threshold, value, and mask work without a generic bridge or runtime dispatch.<span data-glossary-navigation="true"> ([FLOAT32 glossary](../../../../glossary.md#term-float32); [DROPOUT glossary](../../../../glossary.md#dropout--inverted-dropout); [specialization glossary](../../../../glossary.md#term-specialization); [mask glossary](../../../../glossary.md#term-boolean-mask); [runtime glossary](../../../../glossary.md#term-runtime); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
 - Dense heap-array forms use cold-proved primitive integer state; every admitted segment, mixed-
   carrier, arbitrary-layout, zero-stride-read, strided-output, large-range, or unproved form
-  retains correct typed general-long execution.
+  retains correct typed general-long execution.<span data-glossary-navigation="true"> ([heap glossary](../../../../glossary.md#term-heap); [carrier glossary](../../../../glossary.md#term-storage-carrier); [layout glossary](../../../../glossary.md#layout); [stride glossary](../../../../glossary.md#term-stride))</span>
 - V1 vectors, uniform/threshold rules, raw initializer/state words, global logical draws, modulo
   counter advancement, FLOAT64/FLOAT32 numerical order, canonical masks, empty/scalar behavior,
-  arbitrary ranges, and scalar/parallel replay remain independently proved.
+  arbitrary ranges, and scalar/parallel replay remain independently proved.<span data-glossary-navigation="true"> ([vectors glossary](../../../../glossary.md#term-vector); [canonical glossary](../../../../glossary.md#term-canonical-form); [scalar glossary](../../../../glossary.md#term-scalar))</span>
 - Existing capability, exact ordered declarations, five-boundary/three-output binding, one-time
   prologue, zero workspace/materialization, complete overlap validation, worker ownership,
-  preparation/finalization, immutable ownership, and optional persistence remain unchanged.
+  preparation/finalization, immutable ownership, and optional persistence remain unchanged.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding); [materialization glossary](../../../../glossary.md#materialization); [validation glossary](../../../../glossary.md#term-validation); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [immutable glossary](../../../../glossary.md#term-immutable); [persistence glossary](../../../../glossary.md#term-persistence))</span>
 - Structural identity is distinct from concrete invocation geometry/state exactly as specified;
-  compatible states/geometries reuse one class and byte-changing facts do not alias.
+  compatible states/geometries reuse one class and byte-changing facts do not alias.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [alias glossary](../../../../glossary.md#aliasing-and-arena))</span>
 - Schema advances exactly from 27 to 28; schema-27 persistence is an incompatible safe miss that
   regenerates schema-28 bytes; no migration or legacy bridge is added.
 - Stable Java Class-File assertions cover the required family/type/probability/carrier/access/
   layout/range/lifecycle matrix and reject Object/generic dispatch, allocation, forbidden lookup,
-  random services, generic bridges, and avoidable helper references.
-- Every FLOAT64 fork and its aggregate independently pass `<= 1.15x`; every FLOAT32 fork and its
+  random services, generic bridges, and avoidable helper references.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle); [matrix glossary](../../../../glossary.md#term-matrix-meanings); [lookup glossary](../../../../glossary.md#term-lookup))</span>
+- Every [FLOAT64](../../../../glossary.md#term-float64) [fork](../../../../glossary.md#term-fork-meanings) and its aggregate independently pass `<= 1.15x`; every FLOAT32 fork and its
   aggregate independently pass `<= 1.15x`, using unchanged equivalent direct bodies and exact
   pre/post verification.
 - Baseline and final evidence remain under one fresh isolated `/private/tmp` directory and contain
   every required source, command, environment fact, class file, decompilation, checksum, member-
-  reference report, semantic result, raw timing sample, and summary.
+  reference report, semantic result, raw timing sample, and summary.<span data-glossary-navigation="true"> ([decompilation glossary](../../../../glossary.md#term-decompilation); [checksum glossary](../../../../glossary.md#term-checksum); [timing sample glossary](../../../../glossary.md#benchmark-measurement-vocabulary))</span>
 - Only allowlisted paths change, no more than 22 paths change, no GSD artifact exists, the index
-  remains unstaged, and no CPU 0007A1 or later detailed task specification exists.
+  remains unstaged, and no CPU 0007A1 or later detailed task specification exists.<span data-glossary-navigation="true"> ([artifact glossary](../../../../glossary.md#term-artifact); [CPU glossary](../../../../glossary.md#term-cpu))</span>
 - A distinct clean documentation-focused context independently reviews final source, tests,
   Class-File evidence, and timing evidence; finalizes affected Javadocs/package summaries, CPU
   guide, glossary impact, this task, master plan, and roadmap; and records reasoned no-change
   conclusions before completion.
 
-## Tests / validation
+## Tests / [validation](../../../../glossary.md#term-validation)
 
-Run focused tests for every changed test owner while iterating. The final focused command must name
-every changed test class and cover direct Class-File shape, initializer and both dropout types,
-five V1 vectors, probability and threshold boundaries, dense/general forms, every ordered carrier
-pattern, all-segment and role-toggled mixed carriers, layouts/ranges, raw special values, exact
-state/mask/value semantics, overlap timing, input alias, scalar/parallel replay, preparation/
-finalization/executable lifecycle, specialization, and schema/persistence compatibility.
+[Run](../../../../glossary.md#term-run) focused tests for every changed test [owner](../../../../glossary.md#term-owner) while iterating. The final focused command must name
+every changed test class and cover direct Class-File [shape](../../../../glossary.md#shape), initializer and both [dropout](../../../../glossary.md#dropout--inverted-dropout) types,
+five V1 [vectors](../../../../glossary.md#term-vector), probability and threshold boundaries, dense/general forms, every ordered [carrier](../../../../glossary.md#term-storage-carrier)
+pattern, all-segment and role-toggled mixed carriers, [layouts](../../../../glossary.md#layout)/ranges, raw special values, exact
+state/[mask](../../../../glossary.md#term-boolean-mask)/value semantics, overlap timing, input [alias](../../../../glossary.md#aliasing-and-arena), [scalar](../../../../glossary.md#term-scalar)/parallel replay, preparation/
+finalization/executable [lifecycle](../../../../glossary.md#lifecycle), [specialization](../../../../glossary.md#term-specialization), and [schema](../../../../glossary.md#term-schema)/[persistence](../../../../glossary.md#term-persistence) compatibility.
 
-After executable Java stabilizes, run exactly one authoritative affected-module command:
+After executable Java stabilizes, run exactly one authoritative affected-[module](../../../../glossary.md#term-module) command:
 
 ```bash
 ./gradlew :backends:cpu:test
 ```
 
-Run the isolated baseline/final probe separately from Gradle/JUnit with the exact five-fork,
-two-case protocol. Timing is retained observational evidence, not an ordinary unit test.
+Run the isolated baseline/final probe separately from [Gradle](../../../../glossary.md#term-gradle)/[JUnit](../../../../glossary.md#term-junit) with the exact five-[fork](../../../../glossary.md#term-fork-meanings),
+two-case protocol. Timing is retained observational evidence, not an ordinary [unit test](../../../../glossary.md#term-unit-test).
 
 The distinct clean documentation pass reuses successful Java and timing evidence unless it
 changes executable Java/probe behavior or records a concrete stale-evidence reason. It runs:
@@ -464,23 +464,23 @@ git diff --check
 It also inspects rendered affected Javadocs and validates local Markdown links and heading
 anchors, balanced fences, terminal newlines, carriage returns, trailing whitespace, exact changed-
 path allowlist/count, package/type placement, schema-28 history and schema-27 rejection, generated
-descriptors/member-reference allowlists, retained baseline/final source/checksums/protocol/ratios,
-task/master/roadmap status and dependency order, absence of later specs, preservation of
-concurrent scope, unstaged index, and absence of GSD artifacts.
+[descriptors](../../../../glossary.md#term-descriptor)/member-reference allowlists, retained baseline/final source/checksums/protocol/ratios,
+task/master/roadmap status and [dependency](../../../../glossary.md#term-dependency) order, absence of later specs, preservation of
+concurrent [scope](../../../../glossary.md#term-scope), unstaged index, and absence of GSD [artifacts](../../../../glossary.md#term-artifact).
 
-Repository-wide, architecture, backend-conformance, and integration validation remains deferred
-to CPU 0009 or continuous integration because this task changes one concrete backend realization
-and no shared or architecture contract. Stop and replan if implementation makes that conclusion
+Repository-wide, architecture, [backend](../../../../glossary.md#backend)-[conformance](../../../../glossary.md#term-conformance), and integration validation remains deferred
+to [CPU](../../../../glossary.md#term-cpu) 0009 or [continuous integration](../../../../glossary.md#term-continuous-integration-ci) because this task changes one [concrete backend](../../../../glossary.md#concrete-backend) realization
+and no shared or [architecture contract](../../../../glossary.md#architecture-contract). Stop and replan if implementation makes that conclusion
 false.
 
 ## Dependencies
 
-- [CPU 0006D](0006d-portable-explicit-state-rng-and-dropout.md) is `Complete` and owns the exact
+- [CPU 0006D](0006d-portable-explicit-state-rng-and-dropout.md)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span> is `Complete` and owns the exact
   random/dropout semantic, generator, type, boundary, layout, carrier, range, resource, replay,
-  validation, reference, worker, lifecycle, and schema-19 history preserved here.
+  validation, reference, worker, lifecycle, and schema-19 history preserved here.<span data-glossary-navigation="true"> ([dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [layout glossary](../../../../glossary.md#layout); [carrier glossary](../../../../glossary.md#term-storage-carrier); [validation glossary](../../../../glossary.md#term-validation); [lifecycle glossary](../../../../glossary.md#lifecycle); [schema glossary](../../../../glossary.md#term-schema))</span>
 - [CPU 0007A0](0007a0-generated-hot-path-parity-correction.md) is `Complete` and supplies shared
   typed carrier emission, dense integer proof, stable Class-File testing, and the retained five-
-  fork performance-evidence pattern.
+  fork performance-evidence pattern.<span data-glossary-navigation="true"> ([fork glossary](../../../../glossary.md#term-fork-meanings))</span>
 - [CPU 0007A0A](0007a0a-affine-and-movement-generated-loop-parity.md),
   [0007A0B](0007a0b-indexing-generated-loop-parity.md),
   [0007A0C](0007a0c-scatter-generated-loop-parity.md), and
@@ -490,23 +490,23 @@ false.
   schema 27, closed member-reference evidence, per-fork plus aggregate gates, and the latest
   implementation/documentation evidence pattern.
 - Current Java 26 Class-File API, shared Prepare/Runtime, CPU worker, direct carrier binding, and
-  generated-artifact store contracts are complete and unchanged.
+  generated-artifact store contracts are complete and unchanged.<span data-glossary-navigation="true"> ([Class-File API glossary](../../../../glossary.md#term-class-file-api); [Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime); [binding glossary](../../../../glossary.md#term-binding); [artifact glossary](../../../../glossary.md#term-artifact))</span>
 
 ## Follow-up tasks
 
-- CPU 0007A1 is the sole next ordered `Ready` semantic-family task and explicitly depends on
+- [CPU](../../../../glossary.md#term-cpu) 0007A1 is the sole next ordered [`Ready`](../../../../glossary.md#term-ready) semantic-family task and explicitly depends on
   completion of CPU 0007A0F. It remains without a detailed specification.
 - CPU 0009 retains the generated-coverage and conformance checkpoint, including the intentional
-  BFLOAT16 dropout and cross-backend bitstream boundaries.
+  BFLOAT16 dropout and cross-backend bitstream boundaries.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance); [checkpoint glossary](../../../../glossary.md#term-checkpoint); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [backend glossary](../../../../glossary.md#backend))</span>
 
 ## Architecture impact
 
 Expected impact: None.
 
-The task changes only CPU-owned generated random code shape and current-only artifact compatibility
-under the existing analysis/finalization/binding lifecycle. If implementation requires an
-architecture, public/shared contract, module, dependency, semantic, generator, route, resource,
-materialization, or Runtime-policy change, stop and report the conflict.
+The task changes only [CPU](../../../../glossary.md#term-cpu)-owned generated random code [shape](../../../../glossary.md#shape) and current-only [artifact](../../../../glossary.md#term-artifact) compatibility
+under the existing analysis/finalization/[binding](../../../../glossary.md#term-binding) [lifecycle](../../../../glossary.md#lifecycle). If implementation requires an
+architecture, public/shared contract, [module](../../../../glossary.md#term-module), [dependency](../../../../glossary.md#term-dependency), semantic, generator, route, resource,
+[materialization](../../../../glossary.md#materialization), or [Runtime](../../../../glossary.md#term-runtime)-policy change, stop and report the conflict.
 
 ## Implementation prompt
 
@@ -550,55 +550,55 @@ Complete or Status: Incomplete with Follow-up required: <specific follow-up>.
 
 - Keep INITIAL_STATE and DROPOUT together because one bridge-only emitter owns both prologue
   forms, and direct dropout generation must preserve the exact same state representation and
-  lifecycle. Only dense dropout receives timing gates.
+  lifecycle. Only dense dropout receives timing gates.<span data-glossary-navigation="true"> ([DROPOUT glossary](../../../../glossary.md#dropout--inverted-dropout); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - Advance exactly to schema 28 because generated random bodies change while schema 27 already
   identifies embedded ordering bodies. A schema-27 bridge-only random artifact must never satisfy
-  a schema-28 direct-body request.
+  a schema-28 direct-body request.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [artifact glossary](../../../../glossary.md#term-artifact))</span>
 - Use two 1,048,576-element dense heap-array cases with one exact state and probability to compare
-  equivalent full value/mask/state work while retaining shape-polymorphic production generation.
-- Require both every per-fork ratio and each type's aggregate to pass `<= 1.15x`; one type or
+  equivalent full value/mask/state work while retaining shape-polymorphic production generation.<span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element); [heap glossary](../../../../glossary.md#term-heap); [mask glossary](../../../../glossary.md#term-boolean-mask); [shape glossary](../../../../glossary.md#shape))</span>
+- Require both every per-[fork](../../../../glossary.md#term-fork-meanings) ratio and each type's aggregate to pass `<= 1.15x`; one type or
   aggregate cannot conceal a failing process.
 - Keep initializer, general layouts, segment/mixed carriers, partial ranges, empty cases, and
   parallel orchestration in stable semantic/Class-File gates. The two named performance claims do
-  not generalize beyond their exact cases.
+  not generalize beyond their exact cases.<span data-glossary-navigation="true"> ([layouts glossary](../../../../glossary.md#layout))</span>
 - Preserve current structural identity and keep concrete explicit dropout state and invocation
-  geometry cold; direct generation is not permission for fixed-state or fixed-shape artifacts.
+  geometry cold; direct generation is not permission for fixed-state or fixed-shape artifacts.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 
 ## Known limitations
 
 - Timing gates cover only the exact dense heap-array FLOAT64 and FLOAT32 dropout cases on the
   recorded environment. They make no parity claim for initializer, general layouts, segments,
-  mixed carriers, partial ranges, parallel orchestration, every probability/state, CPU, or JVM.
+  mixed carriers, partial ranges, parallel orchestration, every probability/state, CPU, or JVM.<span data-glossary-navigation="true"> ([heap glossary](../../../../glossary.md#term-heap); [FLOAT64 glossary](../../../../glossary.md#term-float64); [FLOAT32 glossary](../../../../glossary.md#term-float32); [dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [layouts glossary](../../../../glossary.md#layout); [CPU glossary](../../../../glossary.md#term-cpu); [JVM glossary](../../../../glossary.md#term-java-virtual-machine-jvm))</span>
 - General and unmeasured forms receive stable semantic and Class-File validation but no numerical
-  performance threshold.
+  performance threshold.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
 - Only the completed one-node fully static resolved-layout CPU random capability is corrected.
   BFLOAT16, dynamic geometry, fusion, vector/native random routes, other distributions, and public
-  or cross-backend bitstream contracts remain unsupported or deferred exactly as before.
+  or cross-backend bitstream contracts remain unsupported or deferred exactly as before.<span data-glossary-navigation="true"> ([node glossary](../../../../glossary.md#node); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [fusion glossary](../../../../glossary.md#term-fusion); [vector glossary](../../../../glossary.md#term-vector); [distributions glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings); [backend glossary](../../../../glossary.md#backend))</span>
 - The CPU-private V1 mapping and fixed finite-precision order remain intentionally unchanged; this
-  task neither certifies statistical quality nor claims cross-version replay.
+  task neither certifies statistical quality nor claims cross-version replay.<span data-glossary-navigation="true"> ([finite glossary](../../../../glossary.md#term-finite); [precision glossary](../../../../glossary.md#term-precision))</span>
 
-## Validation evidence
+## [Validation](../../../../glossary.md#term-validation) evidence
 
 Implementation, independent-review, and clean documentation evidence:
 
 - Clean implementation context `01a0194d-ff2e-78d3-9815-f0830065185b` retained all baseline and
   final evidence under `/private/tmp/synaptik-cpu-0007a0f-implementation.A9MuK9`. The recorded
-  environment is OpenJDK 26.0.1+8-34 on macOS 26.5.2 arm64, Darwin 25.5.0, repository commit
+  environment is OpenJDK 26.0.1+8-34 on macOS 26.5.2 arm64, Darwin 25.5.0, repository commit<span data-glossary-navigation="true"> ([arm64 glossary](../../../../glossary.md#native-packaging-and-platform-vocabulary); [commit glossary](../../../../glossary.md#term-commit))</span>
   `8b46df52d36fc5d08c4e4dd78b3ad8633f2160be`. CPU/processor sysctl facts were unavailable in the
-  managed sandbox and that limitation is retained verbatim in `environment.txt`.
-- The unchanged performance source SHA-256 values are
+  managed sandbox and that limitation is retained verbatim in <span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>`environment.txt`.
+- The unchanged performance source [SHA-256](../../../../glossary.md#term-sha-256) values are
   `b1dd6cd76912d7e9b7ec94c2d1d1ff719ad479a0ac4cd63850f71b52c63736c0` for
   `RandomPerformanceProbe.java` and
   `175e877e6e1f9a5a75f8f2332bfad7f49071a5095a479193f0fb17c5d3b03787` for the summarizer.
   `commands.txt` records the exact compile, generation, definition, decompilation, five-fork,
-  summary, focused-test, and authoritative-test commands.
+  summary, focused-test, and authoritative-test commands.<span data-glossary-navigation="true"> ([compile glossary](../../../../glossary.md#compile); [decompilation glossary](../../../../glossary.md#term-decompilation))</span>
 - Fresh schema-27 baseline classes had the planned direct descriptors and bridge-only shape:
-  heap INITIAL_STATE `([J[JJJ)V`, 485 bytes,
+  heap INITIAL_STATE <span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape))</span>`([J[JJJ)V`, 485 bytes,
   `2c00e7d8d8603d864d7557d9a5db5b1f61b2c26342268286a2821969c31767e2`; segment INITIAL_STATE
   `(Ljava/lang/foreign/MemorySegment;[JJJ)V`, 516 bytes,
-  `e70f76ef598892b686f6de46340110f33a01f5c21595d026f90e2f3136c3a921`; dense FLOAT64 DROPOUT
+  `e70f76ef598892b686f6de46340110f33a01f5c21595d026f90e2f3136c3a921`; dense [FLOAT64](../../../../glossary.md#term-float64) [DROPOUT](../../../../glossary.md#dropout--inverted-dropout)
   `([D[J[D[B[J[JJJ)V`, 485 bytes,
-  `284036b8e6dc2fca771cbccd3ac39f8946e1d8623bff16c9c3c9a2d4abdf16dc`; dense FLOAT32 DROPOUT
+  `284036b8e6dc2fca771cbccd3ac39f8946e1d8623bff16c9c3c9a2d4abdf16dc`; dense [FLOAT32](../../../../glossary.md#term-float32) DROPOUT
   `([F[J[F[B[J[JJJ)V`, 485 bytes,
   `94b15d30a10e435798d8abc5d0366c5ac02c6aeb61d369673d386dd6104159ba`; all-segment FLOAT64
   DROPOUT, 640 bytes, `8b488a6b8161031b6d6e84a0ff3817a3999f5a8a28f9a41d41111bb06a4116e0`;
@@ -607,11 +607,11 @@ Implementation, independent-review, and clean documentation evidence:
   `e1f92c60eadb67f0ed72a326f12065b37d48965c49a6d7c8d19f24f002564c47`. Every baseline class
   had exactly one member reference to the five-Object `CpuRandomEmitter.execute` bridge.
   Representative initializer/all-segment/mixed semantic checks passed.
-- Baseline FLOAT64 fork ratios were `2.829098412x`, `2.788332667x`, `2.780533770x`,
+- Baseline FLOAT64 [fork](../../../../glossary.md#term-fork-meanings) ratios were `2.829098412x`, `2.788332667x`, `2.780533770x`,
   `2.791680264x`, and `2.832401595x`, aggregate `2.806925374x`. Baseline FLOAT32 fork ratios were
   `2.843347014x`, `2.903399294x`, `2.904503815x`, `2.908505695x`, and `2.896042990x`, aggregate
   `2.871508342x`.
-- Final schema-28 descriptors are unchanged. Heap INITIAL_STATE is 345 bytes,
+- Final [schema](../../../../glossary.md#term-schema)-28 [descriptors](../../../../glossary.md#term-descriptor) are unchanged. [Heap](../../../../glossary.md#term-heap) INITIAL_STATE is 345 bytes,
   `29cd15f6c53c9745b14c64401a25bf167f11fece316699e6a069974837f43512`; segment INITIAL_STATE is
   650 bytes, `d67ade9bf4ae7204a6530580cf00a79b68aa9003856d764c13735b9edc5b7cad`; dense FLOAT64 DROPOUT is
   965 bytes, `9fa7a02bcdca03a23f9de862d62d86cbc841bbad5f887f7435b844994f40fa63`; dense FLOAT32 DROPOUT is
@@ -620,27 +620,27 @@ Implementation, independent-review, and clean documentation evidence:
   and mixed general FLOAT32 DROPOUT is 1,777 bytes,
   `9d50d5be1c536464f8b1452b7547eb832c292856990c063e0012346e8f5f80f0`.
 - Complete retained `javap -c -p` and `javap -v -p` show direct state, mix, uniform, threshold,
-  value, mask, and loop instructions without `Object` descriptors, generic bridges, allocation,
+  value, mask, and loop instructions without <span data-glossary-navigation="true"> ([mask glossary](../../../../glossary.md#term-boolean-mask))</span>`Object` descriptors, generic bridges, allocation,
   or runtime dispatch. Dense heap classes have zero member references. Segment forms reference
-  only exact `ValueLayout.JAVA_LONG_UNALIGNED`, `JAVA_DOUBLE_UNALIGNED`, `JAVA_BYTE`, and the
+  only exact <span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>`ValueLayout.JAVA_LONG_UNALIGNED`, `JAVA_DOUBLE_UNALIGNED`, `JAVA_BYTE`, and the
   matching typed `MemorySegment.get/set` methods needed by their carrier roles; the mixed class
-  uses only LONG and BYTE segment accesses because its FLOAT32 carriers are arrays.
+  uses only LONG and BYTE segment accesses because its FLOAT32 carriers are arrays.<span data-glossary-navigation="true"> ([carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
 - Final FLOAT64 fork ratios were `0.242432568x`, `0.240238314x`, `0.245355311x`,
   `0.242999122x`, and `0.241854555x`, aggregate `0.241451022x`. Final FLOAT32 fork ratios were
   `1.046430134x`, `1.063729192x`, `1.052403558x`, `1.060950642x`, and `1.053413773x`, aggregate
   `1.058174348x`. Every fork and both aggregates passed `<= 1.15x` with unchanged fixed inputs,
   direct bodies, state, probability, Shape, heap, seed, warmup, measurement, adaptive, verification,
-  case/form randomization, and sink rules.
+  case/form randomization, and sink rules.<span data-glossary-navigation="true"> ([seed glossary](../../../../glossary.md#term-seed); [warmup glossary](../../../../glossary.md#term-warmup))</span>
 - The final focused five-owner command passed 5 suites and 50 tests with zero failures, errors, or
-  skips. The exactly one authoritative `./gradlew :backends:cpu:test` passed 53 suites and 323
+  skips. The exactly one authoritative <span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner))</span>`./gradlew :backends:cpu:test` passed 53 suites and 323
   tests with zero failures/errors and one existing expected opt-in persistence skip. Executable
-  Java did not change afterward.
+  Java did not change afterward.<span data-glossary-navigation="true"> ([persistence glossary](../../../../glossary.md#term-persistence))</span>
 - Independent review orchestration context `01a0196a-0930-7521-972f-84021b85519b` and isolated
   review context `/root/cpu_0007a0f_review` found no production defect and changed tests only. Its
   `CpuClassFileKernelGeneratorTest` run passed 4 tests; its combined generator/random run passed
   15 tests. These are review-only focused results and are not combined with the authoritative
   323-test CPU-module result. Review added durable exact descriptor assertions and strengthened
-  all 32 ordered carrier-pattern/member-reference gates for each dropout value type.
+  all 32 ordered carrier-pattern/member-reference gates for each dropout value type.<span data-glossary-navigation="true"> ([run glossary](../../../../glossary.md#term-run); [module glossary](../../../../glossary.md#term-module))</span>
 - Review regenerated the six representative classes under `review-evidence/generated`. Every
   class is byte-identical to the corresponding final class: heap INITIAL_STATE 345 bytes,
   `29cd15f6c53c9745b14c64401a25bf167f11fece316699e6a069974837f43512`; segment INITIAL_STATE
@@ -652,34 +652,34 @@ Implementation, independent-review, and clean documentation evidence:
   FLOAT32 1,777 bytes, `9d50d5be1c536464f8b1452b7547eb832c292856990c063e0012346e8f5f80f0`.
   No production bytes changed in review, so the accepted timing evidence remained current. The
   retained JIT diagnostic independently supports the unusually low fixed-case FLOAT64 ratio and
-  the reviewer found no benchmark flaw; this remains observational evidence, not a speedup claim.
+  the reviewer found no benchmark flaw; this remains observational evidence, not a speedup claim.<span data-glossary-navigation="true"> ([JIT glossary](../../../../glossary.md#term-just-in-time-compilation-jit))</span>
 - Clean documentation context `01a01973-5ecf-75b0-ae50-09aebdd3ddf7` independently reviewed the
   final source, every changed CPU test, complete representative Class-File evidence, retained
   probe sources/commands/environment/checksums/descriptors/member references, raw and summarized
   timing, review diagnostic, and planning state. It changed no executable Java, Java test, or
   probe behavior and therefore reused all stabilized Java and timing evidence without rerunning
-  it.
+  it.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning))</span>
 - The documentation pass finalized the five affected production/package Javadocs and the CPU
   guide's schema-28 direct random/dropout boundary, dense/general carrier forms, `[0,0)` explicit-
   state prologue and range contract, structural-versus-invocation identity, schema-27 safe-miss
   persistence transition, limitations, and fixed-host/JVM performance evidence. Glossary review
   required no edit because direct generated-loop emission and schema 28 introduce no new reusable
-  project term or change to the existing bounded-replay/dropout definitions.
+  project term or change to the existing bounded-replay/dropout definitions.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [host glossary](../../../../glossary.md#term-host); [JVM glossary](../../../../glossary.md#term-java-virtual-machine-jvm))</span>
 - Reasoned no-change review: `CpuRandomIr` and its package summary remain accurate because the
   structural V1 identity and cold geometry boundary did not change; `CpuPortableRoutePlan` and
   its package summary remain accurate because route selection and encoded-IR ownership did not
-  change. `CpuRandomLowering`, `CpuPartitionPreparationPlan`, preparation/finalization,
+  change. <span data-glossary-navigation="true"> ([IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>`CpuRandomLowering`, `CpuPartitionPreparationPlan`, preparation/finalization,
   `CpuPreparedExecutable`, and `CpuScalarReferenceKernel` remain accurate because capability,
   lowering, one-unit/one-artifact/zero-workspace declarations, exact five-boundary binding,
   overlap validation, worker orchestration, lifecycle, and independent reference semantics were
   preserved. No capability, shared/public API, dependency, module boundary, build, architecture,
   ADR, architecture-test, backend-conformance, integration, Compiler, Runtime, Engine, other
-  backend, NN, or Training change is needed.
+  backend, NN, or Training change is needed.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [artifact glossary](../../../../glossary.md#term-artifact); [binding glossary](../../../../glossary.md#term-binding); [lifecycle glossary](../../../../glossary.md#lifecycle); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [dependency glossary](../../../../glossary.md#term-dependency); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [backend glossary](../../../../glossary.md#backend); [conformance glossary](../../../../glossary.md#term-conformance); [Compiler glossary](../../../../glossary.md#term-compiler); [Engine glossary](../../../../glossary.md#term-engine); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span>
 - `./gradlew :backends:cpu:javadoc` passed in the documentation context: 11 tasks completed, one
   executed and ten up-to-date, with only the two expected incubating-vector-module warnings and
-  no Javadoc warning or error. The rendered `CpuGeneratorSchema`, `CpuClassFileKernelGenerator`,
+  no Javadoc warning or error. The rendered <span data-glossary-navigation="true"> ([vector glossary](../../../../glossary.md#term-vector); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>`CpuGeneratorSchema`, `CpuClassFileKernelGenerator`,
   and `CpuRandomEmitter` type pages and the cache and emitter package-summary pages were inspected
-  for the finalized contract text and method/constructor `@param`, `@return`, and `@throws`
+  for the finalized contract text and method/constructor <span data-glossary-navigation="true"> ([cache glossary](../../../../glossary.md#term-cache))</span>`@param`, `@return`, and `@throws`
   sections.
 - Local Markdown link and heading-anchor resolution, balanced fences, terminal newlines, carriage
   returns, and trailing whitespace passed for the CPU guide, this task, CPU master plan, and
@@ -696,29 +696,29 @@ Implementation, independent-review, and clean documentation evidence:
 
 ## Implementation notes
 
-Schema 28 embeds typed initializer and dropout state prologues, direct CPU-private V1 mix/uniform/
-threshold work, exact FLOAT64 or widen-divide-narrow-once FLOAT32 values, canonical mask stores,
-and global-ordinal loops. Dense heap-array forms narrow bases and ranges once and keep integer
-address state; arbitrary layouts, zero-stride reads, segments, and mixed carriers retain typed
-general-long geometry. Existing lowering, route, preparation, finalization, executable binding,
-overlap validation, worker ownership, reference implementation, and lifecycle owners were left
+[Schema](../../../../glossary.md#term-schema) 28 embeds typed initializer and [dropout](../../../../glossary.md#dropout--inverted-dropout) state prologues, direct [CPU](../../../../glossary.md#term-cpu)-private V1 mix/uniform/
+threshold work, exact [FLOAT64](../../../../glossary.md#term-float64) or widen-divide-narrow-once [FLOAT32](../../../../glossary.md#term-float32) values, [canonical](../../../../glossary.md#term-canonical-form) [mask](../../../../glossary.md#term-boolean-mask) stores,
+and global-ordinal loops. Dense [heap](../../../../glossary.md#term-heap)-array forms narrow bases and ranges once and keep integer
+address state; arbitrary [layouts](../../../../glossary.md#layout), zero-[stride](../../../../glossary.md#term-stride) reads, segments, and mixed carriers retain typed
+general-long geometry. Existing [lowering](../../../../glossary.md#lowering), route, preparation, finalization, executable [binding](../../../../glossary.md#term-binding),
+overlap [validation](../../../../glossary.md#term-validation), worker [ownership](../../../../glossary.md#term-ownership-meanings), reference implementation, and [lifecycle](../../../../glossary.md#lifecycle) [owners](../../../../glossary.md#term-owner) were left
 unchanged.
 
 ## Completion summary
 
-CPU 0007A0F now embeds schema-28 direct typed INITIAL_STATE and FLOAT64/FLOAT32 DROPOUT generated
-bodies while preserving the completed explicit-state random semantics and surrounding lowering,
-route, preparation, execution, reference, lifecycle, and architecture contracts. Stable semantic,
-Class-File, descriptor, carrier/member-reference, cache-rejection, focused, authoritative-module,
-and fixed-case five-fork evidence passed; independent review found no production defect, changed
+[CPU](../../../../glossary.md#term-cpu) 0007A0F now embeds [schema](../../../../glossary.md#term-schema)-28 direct typed INITIAL_STATE and [FLOAT64](../../../../glossary.md#term-float64)/[FLOAT32](../../../../glossary.md#term-float32) [DROPOUT](../../../../glossary.md#dropout--inverted-dropout) generated
+bodies while preserving the completed explicit-state random semantics and surrounding [lowering](../../../../glossary.md#lowering),
+route, preparation, execution, reference, [lifecycle](../../../../glossary.md#lifecycle), and architecture contracts. Stable semantic,
+Class-File, [descriptor](../../../../glossary.md#term-descriptor), [carrier](../../../../glossary.md#term-storage-carrier)/member-reference, [cache](../../../../glossary.md#term-cache)-rejection, focused, authoritative-[module](../../../../glossary.md#term-module),
+and fixed-case five-[fork](../../../../glossary.md#term-fork-meanings) evidence passed; independent review found no production defect, changed
 tests only, and regenerated all six representative classes byte-identically.
 
 The distinct clean documentation context finalized the five affected production/package Javadocs,
 CPU guide, task, CPU master plan, and roadmap; reviewed glossary impact and directly relevant
-unchanged contracts; inspected the rendered Javadocs; and passed the prescribed Javadoc,
-Markdown, exact-scope, evidence, ordering, index, artifact, and whitespace validation without
-changing executable Java or tests. CPU 0007A1 is the sole next ordered `Ready` frontier and remains
+unchanged contracts; inspected the rendered Javadocs; and passed the prescribed [Javadoc](../../../../glossary.md#term-javadoc),
+Markdown, exact-[scope](../../../../glossary.md#term-scope), evidence, ordering, index, [artifact](../../../../glossary.md#term-artifact), and whitespace [validation](../../../../glossary.md#term-validation) without
+changing executable Java or tests. CPU 0007A1 is the sole next ordered [`Ready`](../../../../glossary.md#term-ready) frontier and remains
 without a detailed task specification. There are no unresolved issues; follow-up is CPU 0007A1
-planning and the existing CPU 0009 checkpoint.
+[planning](../../../../glossary.md#term-planning) and the existing CPU 0009 [checkpoint](../../../../glossary.md#term-checkpoint).
 
 Status: Complete

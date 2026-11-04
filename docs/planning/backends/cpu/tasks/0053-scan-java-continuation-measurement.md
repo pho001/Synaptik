@@ -1,9 +1,9 @@
-# Task CPU0053: Fresh Scan versus Java continuation measurement
+# Task CPU0053: Fresh [Scan](../../../../glossary.md#term-cumulative-scan) versus Java continuation measurement
 
 ## Status
 
 Cancelled — the user stopped this measurement campaign on 2026-10-28 after the sole untimed
-preflight rejected a historical generated-class pin. No measured body started. Retain the failed
+[preflight](../../../../glossary.md#term-preflight) rejected a historical generated-class pin. No measured body started. Retain the failed
 preflight and all preparation evidence; no retry or replacement is authorized.
 
 ## Change class
@@ -11,14 +11,14 @@ preflight and all preparation evidence; no retry or replacement is authorized.
 Class C conservatively: generated/direct performance comparability and frozen evidence review.
 Clean launcher implementation and independent targeted review; no production change is authorized.
 
-## Goal and scope
+## Goal and [scope](../../../../glossary.md#term-scope)
 
-Measure the remaining entry-inclusive symbolic-length actual reverse Scan gap against equivalent
+Measure the remaining entry-inclusive symbolic-length actual reverse [Scan](../../../../glossary.md#term-cumulative-scan) gap against equivalent
 optimal Java and unchanged literal Java. Reuse current independent fixtures, but create a fresh
 off-tree launcher and evidence root rather than reopening or modifying CPU0045.
-Witness: FLOAT32, original forward traversal/opposite reverse, T4/F3/H2, B7 then B32,
-length[row]=row%5 and joint seeds. Targets in fixed order: retained G4, current G5,
-runtime-T/scalar equivalent Java E and unchanged literal Java J.
+Witness: [FLOAT32](../../../../glossary.md#term-float32), original forward traversal/opposite reverse, T4/F3/H2, B7 then B32,
+length[row]=row%5 and joint [seeds](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings). [Targets](../../../../glossary.md#term-target) in fixed order: retained G4, current G5,
+[runtime](../../../../glossary.md#term-runtime)-T/[scalar](../../../../glossary.md#term-scalar) equivalent Java E and unchanged literal Java J.
 
 ## Non-goals
 
@@ -28,89 +28,89 @@ No pure-inner-loop, causal or universal parity claim. CPU0048–0052 remain queu
 
 ## Contracts
 
-Read [root authority/scope index](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts)
+Read [root authority/scope index](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts)<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope))</span>
 and [Core invariants](../../../../../ARCHITECTURE.md#core-invariants).
-Backend contract: [Performance evidence and optimization tooling](../../../../architecture/contracts/backend-execution.md#performance-evidence-and-optimization-tooling)
-and [CPU backend routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes).
-Scan contract: [Qualification, performance and migration gates](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates),
+[Backend](../../../../glossary.md#backend) contract: [Performance evidence and optimization tooling](../../../../architecture/contracts/backend-execution.md#performance-evidence-and-optimization-tooling)
+and [CPU backend routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>.
+[Scan](../../../../glossary.md#term-cumulative-scan) contract: [Qualification, performance and migration gates](../../../../architecture/contracts/recurrent-scan.md#qualification-performance-and-migration-gates)<span data-glossary-navigation="true"> ([Qualification glossary](../../../../glossary.md#term-qualification))</span>,
 [Actual first-order closure and arithmetic](../../../../architecture/contracts/recurrent-scan.md#actual-first-order-closure-and-arithmetic)
-and [Activity, raw identity and retained histories](../../../../architecture/contracts/recurrent-scan.md#activity-raw-identity-and-retained-histories).
+and [Activity, raw identity and retained histories](../../../../architecture/contracts/recurrent-scan.md#activity-raw-identity-and-retained-histories)<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>.
 
 ## Dependencies and integration
 
 - Depends on: CPU0045 and CPU0047 Complete; successful existing semantic/structural gates.
-- Conflicts with: any Scan/fixture/oracle/class writer or concurrent measurement.
+- Conflicts with: any [Scan](../../../../glossary.md#term-cumulative-scan)/[fixture](../../../../glossary.md#term-fixture)/[oracle](../../../../glossary.md#term-test-oracle)/class writer or concurrent measurement.
 - Parallel group: None for measured bodies. Read-only publication review and off-tree preparation
-  are disjoint; neither may start a benchmark while publication validation runs.
+  are disjoint; neither may start a benchmark while publication validation runs.<span data-glossary-navigation="true"> ([publication glossary](../../../../glossary.md#term-publication); [validation glossary](../../../../glossary.md#term-validation))</span>
 - Common base revision: published CPU0047 `07a281edd3086efde2853211b71b48288db027e1` plus the retained
   accepted local Scan source in `/private/tmp/synaptik-cpu-repairs.8TWk5O/cpu0047-accepted.json`;
   record a fresh exact source/class manifest before timing. The measured Scan remains local
-  uncommitted work, not a capability introduced by the CPU0047 commit.
+  uncommitted work, not a capability introduced by the CPU0047 commit.<span data-glossary-navigation="true"> ([manifest glossary](../../../../glossary.md#term-manifest); [commit glossary](../../../../glossary.md#term-commit))</span>
 - Integration order: isolate/publish CPU0047 → approve frozen launcher → one untimed preflight
-  if needed → three serial fresh JVMs → independent result review → MAIN closure.
+  if needed → three serial fresh JVMs → independent result review → MAIN closure.<span data-glossary-navigation="true"> ([preflight glossary](../../../../glossary.md#term-preflight))</span>
 - Integration validation: exact opt-in off-tree task, raw output/JUnit/JIT XML, source/class
-  pins, output equality, fixed schedule/call counts and protected historical-evidence hashes.
-- Shared-document integration owner: MAIN; workers do not edit roadmap/master or this brief.
+  pins, output equality, fixed schedule/call counts and protected historical-evidence hashes.<span data-glossary-navigation="true"> ([hashes glossary](../../../../glossary.md#term-hash))</span><span data-glossary-navigation="true"> ([JUnit glossary](../../../../glossary.md#term-junit); [JIT glossary](../../../../glossary.md#term-just-in-time-compilation-jit))</span>
+- Shared-document integration [owner](../../../../glossary.md#term-owner): MAIN; workers do not edit roadmap/master or this brief.
 
-Ready verification: MAIN checked completed predecessor results and current source owners,
+[Ready](../../../../glossary.md#term-ready) verification: MAIN checked completed predecessor results and current source owners,
 unchanged accepted source bytes, no competing writer/measurement, and the user's explicit change
 of priority ahead of remaining structural repairs. Historical measurement budgets stay closed.
 
-## Files and artifacts
+## Files and [artifacts](../../../../glossary.md#term-artifact)
 
 Write only `/private/tmp/synaptik-scan-continuation.ajgLjq/`: new Java test launcher, external
-Gradle init, protocol/manifest and fresh preflight/repeat-1/2/3 output directories.
-Read existing CPU `CpuGeneralScanTimingTest`, `CpuSymbolicLengthScanFixture`,
-`CpuSymbolicLengthScanEquivalentJavaOracle`, `CpuSymbolicLengthScanCleanJavaOracle`, generator/IR
-and retained v4 ABI resources. No repository Java type is added.
+[Gradle](../../../../glossary.md#term-gradle) init, protocol/[manifest](../../../../glossary.md#term-manifest) and fresh [preflight](../../../../glossary.md#term-preflight)/repeat-1/2/3 output directories.
+Read existing [CPU](../../../../glossary.md#term-cpu) `CpuGeneralScanTimingTest`, `CpuSymbolicLengthScanFixture`,
+`CpuSymbolicLengthScanEquivalentJavaOracle`, `CpuSymbolicLengthScanCleanJavaOracle`, generator/[IR](../../../../glossary.md#term-intermediate-representation-ir)
+and retained v4 [ABI](../../../../glossary.md#term-application-binary-interface-abi) resources. No repository Java type is added.
 
-## Acceptance and validation
+## Acceptance and [validation](../../../../glossary.md#term-validation)
 
 1. Pin JDK 26.0.1, normal tiered JVM, vector module, exact current source/classes and regenerated
-   G5 bytes. Preserve historical literal/E oracle and G4 bytes; independent packs/resources.
+   G5 bytes. Preserve historical literal/E oracle and G4 bytes; independent packs/resources.<span data-glossary-navigation="true"> ([JDK glossary](../../../../glossary.md#term-java-development-kit-jdk); [JVM glossary](../../../../glossary.md#term-java-virtual-machine-jvm); [vector glossary](../../../../glossary.md#term-vector); [oracle glossary](../../../../glossary.md#term-test-oracle))</span>
 2. Three serial JVMs; each B gets 100 warmup + 300 measured rounds, 100 calls/target/round,
-   target=(round+position)%4. Ceiling 320,000 clocked calls/JVM and 960,000 total.
+   target=(round+position)%4. Ceiling 320,000 clocked calls/JVM and 960,000 total.<span data-glossary-navigation="true"> ([warmup glossary](../../../../glossary.md#term-warmup); [target glossary](../../../../glossary.md#term-target))</span>
 3. Sixty seconds/body including cold checks/persistence; at most one separate untimed preflight.
-   No adaptive warmup, retry, replacement or extra campaign. Fail/censor honestly if a slot fails.
+   No adaptive warmup, retry, replacement or extra campaign. Fail/censor honestly if a slot fails.<span data-glossary-navigation="true"> ([persistence glossary](../../../../glossary.md#term-persistence); [preflight glossary](../../../../glossary.md#term-preflight))</span>
 4. Create evidence/XML directories before JVM start; use CREATE_NEW markers and new output paths.
-   Verify outputs outside timed batches before/after, retain raw targets/rounds and JIT brackets.
+   Verify outputs outside timed batches before/after, retain raw targets/rounds and JIT brackets.<span data-glossary-navigation="true"> ([batches glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [JIT glossary](../../../../glossary.md#term-just-in-time-compilation-jit))</span>
 5. Report G5/E and G5/J per JVM/B with absolute latency; G4 is a control. Separate cold setup,
    entry costs and any qualifying JIT windows. Missing phase evidence means raw timings only.
-   Do not attribute a ratio to MemorySegment, code size or a JIT mechanism without proof.
+   Do not attribute a ratio to MemorySegment, code size or a JIT mechanism without proof.<span data-glossary-navigation="true"> ([latency glossary](../../../../glossary.md#term-latency); [MemorySegment glossary](../../../../glossary.md#term-memorysegment))</span>
 
-Launcher command and hash freeze are recorded in the artifact protocol before MAIN release.
-Reuse existing semantic/module validation; no repeat of full passing suites or historical entries.
+Launcher command and [hash](../../../../glossary.md#term-hash) freeze are recorded in the [artifact](../../../../glossary.md#term-artifact) protocol before MAIN [release](../../../../glossary.md#term-release).
+Reuse existing semantic/[module](../../../../glossary.md#term-module) validation; no repeat of full passing suites or historical entries.
 
 ## Documentation and review impact
 
-Planning profile for this brief/master/roadmap; detailed evidence stays off-tree. Independent
-prelaunch and actual-result review are required. No API/Javadoc/architecture/glossary change:
+[Planning](../../../../glossary.md#term-planning) profile for this brief/master/roadmap; detailed evidence stays off-tree. Independent
+prelaunch and actual-result review are required. No [API](../../../../glossary.md#term-application-programming-interface-api)/[Javadoc](../../../../glossary.md#term-javadoc)/architecture/glossary change:
 production behavior and terminology are unchanged; explain benchmark limitations in Result.
 
 ## Result
 
 Status: Incomplete
 Follow-up required: only if separately requested, adapt the comparison to the actual current
-Compiler reverse, prove generated ClassFile/ABI equivalence, and obtain a fresh preflight release.
+[Compiler](../../../../glossary.md#term-compiler) reverse, prove generated ClassFile/[ABI](../../../../glossary.md#term-application-binary-interface-abi) equivalence, and obtain a fresh [preflight](../../../../glossary.md#term-preflight) [release](../../../../glossary.md#term-release).
 
 CPU0047 alone was committed/pushed as `07a281edd3086efde2853211b71b48288db027e1`: 15 isolated
-paths, clean-base CPU 49, conformance 16, Engine 2 and Javadoc passed; independent publication
-review approved. Other accepted Scan/Compiler changes stayed local and were not discarded.
+paths, clean-base [CPU](../../../../glossary.md#term-cpu) 49, [conformance](../../../../glossary.md#term-conformance) 16, [Engine](../../../../glossary.md#term-engine) 2 and [Javadoc](../../../../glossary.md#term-javadoc) passed; independent [publication](../../../../glossary.md#term-publication)
+review approved. Other accepted [Scan](../../../../glossary.md#term-cumulative-scan)/Compiler changes stayed local and were not discarded.
 The off-tree CPU0053 launcher compiled, and independent prelaunch review approved its fixed
-schedule/path/ownership configuration. All 1,204 fresh manifest inputs and 2,306 historical
+schedule/path/[ownership](../../../../glossary.md#term-ownership-meanings) configuration. All 1,204 fresh [manifest](../../../../glossary.md#term-manifest) inputs and 2,306 historical
 evidence files matched. No production Java or repository build file changed for this diagnostic.
 
-The single untimed preflight failed before target execution at launcher line 95: expected
-historical G5 SHA-256 `b119b85deb07068761d9755185b4d68758ddb90420b08eb7d0d7b19b1f79f02c`,
+The single untimed preflight failed before [target](../../../../glossary.md#term-target) execution at launcher line 95: expected
+historical G5 [SHA-256](../../../../glossary.md#term-sha-256) `b119b85deb07068761d9755185b4d68758ddb90420b08eb7d0d7b19b1f79f02c`,
 observed freshly generated SHA-256 `30477241d7603cfec1c2f46079739a5ac10c2b1292dba3fb58aeaa2b05884330`.
-JUnit: one failed preflight, no skip; body about 350 ms, validation failure rather than timeout.
+[JUnit](../../../../glossary.md#term-junit): one failed preflight, no skip; body about 350 ms, [validation](../../../../glossary.md#term-validation) failure rather than timeout.
 Measured slots used: 0/3; clocked comparison calls: 0/960,000. No new performance result exists.
 
-Compiler0016 had already changed reverse-graph metadata by removing redundant same-Shape
-SUM_TO_SHAPE nodes. Its retained noncombined disassembly evidence shows only binary-name changes,
+Compiler0016 had already changed reverse-[graph](../../../../glossary.md#graph) [metadata](../../../../glossary.md#term-metadata) by removing redundant same-[Shape](../../../../glossary.md#shape)
+SUM_TO_SHAPE [nodes](../../../../glossary.md#node). Its retained noncombined disassembly evidence shows only [binary](../../../../glossary.md#term-binary-descriptor-and-metadata)-name changes,
 but that does not prove combined length-mode ClassFile/ABI equivalence for this failed preflight.
 Reusing the historical full-class pin was an invalid launcher assumption, not evidence of a
-numerical/backend failure. Do not simply replace the pin or weaken identity/packing checks.
+numerical/[backend](../../../../glossary.md#backend) failure. Do not simply replace the pin or weaken [identity](../../../../glossary.md#term-identity-meanings)/packing checks.
 The user declined another untimed slot and requested stop/summary; all workers are closed.
 Evidence: `/private/tmp/synaptik-scan-continuation.ajgLjq/`, especially `preflight/report.txt`,
 `preflight/disposition.properties`, `preflight/junit-xml/`, frozen launcher and protocol.

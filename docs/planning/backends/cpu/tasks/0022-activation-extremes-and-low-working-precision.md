@@ -1,4 +1,4 @@
-# CPU 0022 — Correct activation extremes and low working precision
+# [CPU](../../../../glossary.md#term-cpu) 0022 — Correct [activation](../../../../glossary.md#term-activation) extremes and low working [precision](../../../../glossary.md#term-precision)
 
 ## Status
 
@@ -6,83 +6,83 @@ Complete
 
 ## Goal and class
 
-Class C generated-code/numerical repair for project-review C1/C5. CPU 0021 is independently
+Class C generated-code/numerical repair for project-review [C1](../../../../glossary.md#term-c1)/C5. [CPU](../../../../glossary.md#term-cpu) 0021 is independently
 approved and integrated; this is the sole authorized CPU implementation successor.
 
-## Scope
+## [Scope](../../../../glossary.md#term-scope)
 
-`CpuScalarEmitter`, `CpuVectorMath`, affected activation reference and generated compatibility
-identity, plus focused generation/conformance/public-execution tests and Javadoc/explanation.
-Worker owns CPU sources/tests and the focused CPU backend guide. Coordinator owns all shared
-root/scoped-contract/API/explanation/glossary version facts, integrated serially with Metal 0079.
-Advance generated CPU schema 69 → 70 in code/tests; list every shared current fact needing renewal
+`CpuScalarEmitter`, `CpuVectorMath`, affected [activation](../../../../glossary.md#term-activation) reference and generated compatibility
+[identity](../../../../glossary.md#term-identity-meanings), plus focused generation/[conformance](../../../../glossary.md#term-conformance)/public-execution tests and [Javadoc](../../../../glossary.md#term-javadoc)/explanation.
+Worker owns [CPU](../../../../glossary.md#term-cpu) sources/tests and the focused CPU [backend](../../../../glossary.md#backend) guide. Coordinator owns all shared
+root/scoped-contract/[API](../../../../glossary.md#term-application-programming-interface-api)/explanation/glossary version facts, integrated serially with [Metal](../../../../glossary.md#term-metal) 0079.
+Advance generated CPU [schema](../../../../glossary.md#term-schema) 69 → 70 in code/tests; list every shared current fact needing renewal
 without editing those shared documents. No second writer may edit the CPU backend guide.
 
 - Large finite ERF/GELU must not evaluate overflowing rational polynomials into NaN. Reproduced
   F64 +/-1e100 and F32 vector body 1e10 (scalar tail gives 1). Add a justified saturation guard
-  before unsafe evaluation, preserving NaN, infinities, sign, and required zero behavior.
+  before unsafe evaluation, preserving NaN, infinities, sign, and required zero behavior.<span data-glossary-navigation="true"> ([finite glossary](../../../../glossary.md#term-finite); [ERF glossary](../../../../glossary.md#term-erf); [GELU glossary](../../../../glossary.md#gaussian-error-linear-unit--gelu); [NaN glossary](../../../../glossary.md#term-nan); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [vector glossary](../../../../glossary.md#term-vector); [scalar tail glossary](../../../../glossary.md#term-scalar-tail); [saturation glossary](../../../../glossary.md#term-saturation); [guard glossary](../../../../glossary.md#term-guard); [evaluation glossary](../../../../glossary.md#term-evaluation); [infinities glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>
 - Homogeneous BF16/F16 activation composites require named FLOAT32 working sites, not an entire
-  DOUBLE expression followed by one conversion. BF16 GELU(-6) currently gives `0xb1cb` instead of
+  DOUBLE expression followed by one conversion. BF16 GELU(-6) currently gives <span data-glossary-navigation="true"> ([Homogeneous glossary](../../../../glossary.md#term-homogeneous); [BF16 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F16 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [FLOAT32 glossary](../../../../glossary.md#term-float32))</span>`0xb1cb` instead of
   the named-site zero. Round elementary results/constants at required F32 boundaries; do not
-  weaken Model semantics to match a shared defective reference.
+  weaken Model semantics to match a shared defective reference.<span data-glossary-navigation="true"> ([constants glossary](../../../../glossary.md#term-constant); [Model glossary](../../../../glossary.md#term-model))</span>
 - Review all supported activation composite paths using that emitter. No unrelated family,
   capability expansion, new math library, or copied third-party source.
 
 ## Contracts and acceptance
 
-Read AGENTS; root scope index/Core invariants/ownership/dependencies; foundational Model
-profile-free numerical semantics and activation family Javadocs; backend-execution Concrete
-backend modules, CPU backend routes, Profile-free backend capability and identity.
-Use optimal clean Java for each specialized case as semantic/dataflow/hot-loop oracle.
+Read AGENTS; root [scope](../../../../glossary.md#term-scope) index/Core invariants/[ownership](../../../../glossary.md#term-ownership-meanings)/dependencies; foundational [Model](../../../../glossary.md#term-model)
+[profile-free numerical semantics](../../../../glossary.md#profile-free-numerical-semantics) and [activation](../../../../glossary.md#term-activation) family Javadocs; [backend](../../../../glossary.md#backend)-execution [Concrete
+backend](../../../../glossary.md#concrete-backend) [modules](../../../../glossary.md#term-module), [CPU](../../../../glossary.md#term-cpu) backend routes, Profile-free [backend capability](../../../../glossary.md#backend-capability) and [identity](../../../../glossary.md#term-identity-meanings).
+Use optimal clean Java for each specialized case as semantic/[dataflow](../../../../glossary.md#term-dataflow)/hot-loop [oracle](../../../../glossary.md#term-test-oracle).
 
 - Independent exact/class/named-site tests cover large finite inputs, saturation boundary,
-  NaN/Inf/zero, F32/F64, BF16/F16, heap/native, scalar/vector body/tail where supported.
+  NaN/Inf/zero, F32/F64, BF16/F16, heap/native, scalar/vector body/tail where supported.<span data-glossary-navigation="true"> ([finite glossary](../../../../glossary.md#term-finite); [saturation glossary](../../../../glossary.md#term-saturation); [NaN glossary](../../../../glossary.md#term-nan); [F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [BF16 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F16 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [heap glossary](../../../../glossary.md#term-heap); [scalar glossary](../../../../glossary.md#term-scalar); [vector glossary](../../../../glossary.md#term-vector))</span>
 - Change generated identity atomically and test stale rejection. Preserve supported strategies.
 - Inspect emitted Class-File/decompilation for actual F32 sites and no hidden helper/allocation
   regression. Run small focused generated/direct diagnostic performance evidence for changed hot
-  paths; no broad historical five-fork program or performance-policy change.
+  paths; no broad historical five-fork program or performance-policy change.<span data-glossary-navigation="true"> ([decompilation glossary](../../../../glossary.md#term-decompilation); [regression glossary](../../../../glossary.md#term-regression); [Run glossary](../../../../glossary.md#term-run); [fork glossary](../../../../glossary.md#term-fork-meanings))</span>
 - Focused regressions then CPU test/Javadoc once; affected conformance/integration tests.
-  Independent Class C review reuses evidence and checks numeric boundary derivation/code shape.
-- Report files/commit/tests/doc impact/limitations and completion status; no push/shared plans.
+  Independent Class C review reuses evidence and checks numeric boundary derivation/code shape.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [conformance glossary](../../../../glossary.md#term-conformance); [shape glossary](../../../../glossary.md#shape))</span>
+- Report files/[commit](../../../../glossary.md#term-commit)/tests/doc impact/limitations and completion status; no push/shared plans.
 
 ## Dependencies and integration
 
-- Depends on: CPU 0021 and current Model semantics; source-confirmed C1/C5.
-- Conflicts with: all CPU generated schema, emitter, activation/reference and numeric writers.
+- Depends on: [CPU](../../../../glossary.md#term-cpu) 0021 and current [Model](../../../../glossary.md#term-model) semantics; source-confirmed [C1](../../../../glossary.md#term-c1)/C5.
+- Conflicts with: all CPU generated [schema](../../../../glossary.md#term-schema), emitter, [activation](../../../../glossary.md#term-activation)/reference and numeric writers.
 - Parallel group: PROJECT-REVIEW-2026-10-13-REPAIRS, after serial CPU predecessor.
 - Common base revision: main after CPU 0021 integration, recorded in the launch verification below.
-- Integration order: CPU 0021 → 0022 → combined checkpoint.
+- Integration order: CPU 0021 → 0022 → combined [checkpoint](../../../../glossary.md#term-checkpoint).
 - Integration validation: generated/semantic/targeted performance evidence, independent review,
-  coordinator's final checkpoint and diff checks.
-- Shared-document integration owner: coordinator.
+  coordinator's final checkpoint and diff checks.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
+- Shared-document integration [owner](../../../../glossary.md#term-owner): coordinator.
 
 Launch verified 2026-10-13: CPU 0021 implementation `ca21c80c` is integrated after independent
 Class C APPROVE plus glossary correction; 1,026 CPU tests passed, 28 optional tests skipped,
-two conformance and six public integration tests passed, Javadoc passed. Its only pending gate
-is the repair group's final combined checkpoint, intentionally run after both serial CPU tasks.
+two [conformance](../../../../glossary.md#term-conformance) and six public integration tests passed, [Javadoc](../../../../glossary.md#term-javadoc) passed. Its only pending gate
+is the repair group's final combined checkpoint, intentionally [run](../../../../glossary.md#term-run) after both serial CPU tasks.
 No CPU writer is active. Current Model named-site and special-value contracts already require
 these fixes; no architecture or new capability decision is needed. Use the clean main revision
-containing this Ready brief as the isolated worktree base. Metal 0079 has disjoint code and
+containing this [Ready](../../../../glossary.md#term-ready) brief as the isolated worktree base. [Metal](../../../../glossary.md#term-metal) 0079 has disjoint code and
 neither worker edits shared version documents.
 
 ## Integration record
 
 Implementation `a1e00857` integrated as `349709d6` after independent Class C APPROVE.
-Eight production files, forty tests/resources and the CPU guide changed; the shared compatibility
-facts and identity conformance assertion were integrated by the coordinator. CPU module:
+Eight production files, forty tests/resources and the [CPU](../../../../glossary.md#term-cpu) guide changed; the shared compatibility
+facts and [identity](../../../../glossary.md#term-identity-meanings) [conformance](../../../../glossary.md#term-conformance) assertion were integrated by the coordinator. CPU [module](../../../../glossary.md#term-module):
 1,033 passed / 29 opt-in skips; two conformance and two public integration tests passed.
-The conformance tests exercise 128 combinations, 96 with native storage. Javadoc passed with
+The conformance tests exercise 128 combinations, 96 with native storage. [Javadoc](../../../../glossary.md#term-javadoc) passed with
 94 existing warnings. Eighteen retained Class-Files and independent Java oracles cover the
-changed generated bodies; both low encodings were exhausted over five activation composites.
-Current TSV/seal expectations and one obsolete low-GELU structural oracle were corrected;
+changed generated bodies; both low encodings were exhausted over five [activation](../../../../glossary.md#term-activation) composites.
+Current TSV/seal expectations and one obsolete low-[GELU](../../../../glossary.md#gaussian-error-linear-unit--gelu) structural [oracle](../../../../glossary.md#term-test-oracle) were corrected;
 assertions and historical performance evidence were not weakened or relabeled.
 
-Bounded generated/direct diagnostics do not prove parity: vector ERF ratios were about 3.28x F32
-and 3.51x F64. CPU 0023 is a separate Draft shape follow-up. No numerical blocker remains in
-this repair; Model 0033's softmax contract decision is separate and still deferred.
+Bounded generated/direct diagnostics do not prove parity: [vector](../../../../glossary.md#term-vector) [ERF](../../../../glossary.md#term-erf) ratios were about 3.28x [F32](../../../../glossary.md#floating-point-precision-and-rounding)
+and 3.51x [F64](../../../../glossary.md#floating-point-precision-and-rounding). CPU 0023 is a separate Draft [shape](../../../../glossary.md#shape) follow-up. No numerical blocker remains in
+this repair; [Model](../../../../glossary.md#term-model) 0033's [softmax](../../../../glossary.md#softmax--log-softmax) contract decision is separate and still deferred.
 
-Completion checkpoint: [integrated review evidence](../../../project-review-2026-10-13-findings.md#final-integrated-checkpoint).
+Completion [checkpoint](../../../../glossary.md#term-checkpoint): [integrated review evidence](../../../project-review-2026-10-13-findings.md#final-integrated-checkpoint).
 Required independent code/Javadoc/documentation review and the combined `test javadoc` passed.
-No unresolved finding within this repair's scope.
+No unresolved finding within this repair's [scope](../../../../glossary.md#term-scope).
 
 Status: Complete

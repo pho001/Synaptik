@@ -1,4 +1,4 @@
-# Task 0011: Unary Tensor Module Composition and Sequential
+# Task 0011: [Unary](../../../../glossary.md#term-unary) [Tensor](../../../../glossary.md#tensor) [Module](../../../../glossary.md#term-module) Composition and Sequential
 
 ## Status
 
@@ -6,158 +6,158 @@ Complete
 
 ## Goal
 
-Add the smallest type-safe NN composition contract justified by one real consumer: an immutable
-ordered `Sequential` module that owns unary Tensor-to-Tensor child modules and forwards one Tensor
+Add the smallest type-safe [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) composition contract justified by one real consumer: an [immutable](../../../../glossary.md#term-immutable)
+ordered `Sequential` [module](../../../../glossary.md#term-module) that owns [unary](../../../../glossary.md#term-unary) [Tensor](../../../../glossary.md#tensor)-to-Tensor child modules and forwards one Tensor
 through them from left to right.
 
-The shared contract must preserve both facts at compile time: every accepted element is a
-`Module`, so existing exclusive child ownership, recursive mode propagation, state discovery, and
+The shared contract must preserve both facts at [compile](../../../../glossary.md#compile) time: every accepted [element](../../../../glossary.md#term-element) is a
+`Module`, so existing exclusive child [ownership](../../../../glossary.md#term-ownership-meanings), recursive mode propagation, state discovery, and
 state-dictionary paths apply; and every accepted element has exactly `Tensor forward(Tensor)`, so
-composition needs no cast, reflection, bridge accessor, method handle, or erased generic facade.
+composition needs no cast, reflection, bridge accessor, [method handle](../../../../glossary.md#term-method-handle), or erased generic [facade](../../../../glossary.md#term-facade).
 
 This task is declarative Tensor-expression composition. It does not evaluate a Tensor, calculate a
-numerical result, infer a whole pipeline ahead of each child, capture or optimize a graph, define a
-gradient, compile, prepare, lower, select a backend, allocate runtime storage, or execute work.
+numerical result, infer a whole pipeline ahead of each child, [capture](../../../../glossary.md#term-capture-meanings) or optimize a [graph](../../../../glossary.md#graph), define a
+[gradient](../../../../glossary.md#term-gradient), compile, [prepare](../../../../glossary.md#prepare), lower, select a [backend](../../../../glossary.md#backend), allocate [runtime](../../../../glossary.md#term-runtime) storage, or execute work.
 
-## Scope
+## [Scope](../../../../glossary.md#term-scope)
 
 - Add public abstract
   `io.github.pho001.synaptik.nn.module.UnaryTensorModule extends Module` with one protected
   constructor and one public abstract `Tensor forward(Tensor input)` contract.
-- Change only the three current mode-insensitive Tensor-to-Tensor layers to extend that base:
-  `Linear`, `LayerNorm`, and `Embedding`. Their constructors, declared fields, state, accessors,
+- Change only the three current mode-insensitive [Tensor](../../../../glossary.md#tensor)-to-Tensor layers to extend that base:
+  [`Linear`](../../../../glossary.md#term-linear-meanings), `LayerNorm`, and [`Embedding`](../../../../glossary.md#embedding). Their constructors, declared fields, state, accessors,
   validation, Model delegation, expression ordering, failure effects, and final class status remain
-  unchanged.
+  unchanged.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [Model glossary](../../../../glossary.md#term-model))</span>
 - Add final public `io.github.pho001.synaptik.nn.module.Sequential extends UnaryTensorModule`.
   Its sole constructor accepts `List<? extends UnaryTensorModule>`.
 - Snapshot the constructor list in encounter order, permanently register each exact child under its
-  zero-based canonical decimal index (`"0"`, `"1"`, and so on), and retain one private immutable
-  typed list for forward traversal. The inherited `children()` map is the sole public structural
+  zero-based canonical decimal index (<span data-glossary-navigation="true"> ([Snapshot glossary](../../../../glossary.md#term-snapshot); [canonical glossary](../../../../glossary.md#term-canonical-form))</span>`"0"`, `"1"`, and so on), and retain one private immutable
+  typed list for forward traversal. The inherited <span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable))</span>`children()` map is the sole public structural
   accessor.
-- Extend `Module` with one package-private, final indexed-child registration primitive used only by
+- Extend [`Module`](../../../../glossary.md#term-module) with one package-private, final indexed-child registration primitive used only by
   `Sequential`. It validates the complete candidate snapshot before changing the receiving
   module's child map or any candidate's parent, then installs all children in numeric order. Refactor
   private validation shared with `child(name, child)` only as needed; do not change the existing
   protected method's contract.
 - Permit an empty list. An empty `Sequential.forward(input)` validates non-null input and returns
-  that exact input reference without creating a Tensor, producer, wrapper, or identifier.
+  that exact input reference without creating a Tensor, producer, wrapper, or identifier.<span data-glossary-navigation="true"> ([producer glossary](../../../../glossary.md#term-producer))</span>
 - Define non-empty forward as an exact left fold: call child zero with the supplied input, call each
   later child with the exact prior output, and return the exact final output. `Sequential` itself
   creates no Tensor or expression wrapper.
 - Preserve ordinary partial-expression semantics. If a later child throws, earlier successful child
   calls and any Tensor expressions or identifiers they created remain; `Sequential` performs no
   rollback. A child that violates the non-null result contract is rejected at that position before a
-  later child is called.
+  later child is called.<span data-glossary-navigation="true"> ([rollback glossary](../../../../glossary.md#term-rollback))</span>
 - Cover construction atomicity, empty identity, ownership and numeric paths, nested composition,
   actual participating layers, forward order/reference flow, mode propagation, replacement and
-  state-dictionary behavior, and failure effects with focused NN tests.
+  state-dictionary behavior, and failure effects with focused NN tests.<span data-glossary-navigation="true"> ([atomicity glossary](../../../../glossary.md#term-atomicity); [identity glossary](../../../../glossary.md#term-identity-meanings); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span>
 - Update affected public and package Javadocs, the Training API's current NN description, the NN
   glossary entry, and the NN planning records in the same overall implementation change. Finalize
-  substantive documentation in a separate clean documentation-focused context.
+  substantive documentation in a separate clean documentation-focused context.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [planning glossary](../../../../glossary.md#term-planning))</span>
 
-## Out of scope
+## Out of [scope](../../../../glossary.md#term-scope)
 
-- Adding `forward` to `Module`, making every module unary, or renaming the existing base.
+- Adding `forward` to [`Module`](../../../../glossary.md#term-module), making every module [unary](../../../../glossary.md#term-unary), or renaming the existing base.
 - A public forward interface, sealed interface, adapter, wrapper, method-reference registry,
-  service/facade, reflective dispatch, or unsafe cast.
+  service/facade, reflective dispatch, or unsafe cast.<span data-glossary-navigation="true"> ([sealed glossary](../../../../glossary.md#term-sealed); [registry glossary](../../../../glossary.md#term-registry); [facade glossary](../../../../glossary.md#term-facade); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
 - A generic `Layer`, `Block`, `Container`, `Pipeline`, `Chain`, `Manager`, `Service`, or functional
   namespace.
 - Generic input/output type parameters, tuples, multiple inputs or outputs, optional values,
-  heterogeneous result carriers, automatic adaptation, or a context/state erasure mechanism.
+  heterogeneous result carriers, automatic adaptation, or a context/state erasure mechanism.<span data-glossary-navigation="true"> ([parameters glossary](../../../../glossary.md#term-parameter); [heterogeneous glossary](../../../../glossary.md#term-heterogeneous))</span>
 - Changing `BatchNorm`. Its exact `forward(Tensor, ForwardContext)` contract selects evaluation or
-  training and training installs two next-statistic buffer bindings; it is not unary Tensor-only.
-- Changing `Dropout` or `DropoutForwardResult`. Dropout requires explicit `GraphRngState` and
+  training and training installs two next-statistic buffer bindings; it is not unary Tensor-only.<span data-glossary-navigation="true"> ([evaluation glossary](../../../../glossary.md#term-evaluation); [statistic glossary](../../../../glossary.md#term-statistic); [buffer glossary](../../../../glossary.md#term-buffer); [bindings glossary](../../../../glossary.md#term-binding); [Tensor glossary](../../../../glossary.md#tensor))</span>
+- Changing [`Dropout`](../../../../glossary.md#dropout--inverted-dropout) or `DropoutForwardResult`. Dropout requires explicit [`GraphRngState`](../../../../glossary.md#graph-rng-state--graphrngstate) and
   `ForwardContext` and returns output plus next state; it must remain outside this contract.
 - A contextual or state-threading sequential container. Do not implicitly call
   `Module.forwardContext()`, synthesize a context, retain graph RNG state, discard a result carrier,
-  or hide buffer transitions.
+  or hide buffer transitions.<span data-glossary-navigation="true"> ([graph RNG state glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
 - Adding `BatchNorm`, `Dropout`, arbitrary `Module`, or non-`Module` functions to the accepted child
   type.
 - Varargs, array, stream, iterable, builder, factory, named-child map, add/remove/replace/move,
-  public module-list accessor, index accessor, size method, iterator, or mutable structure API.
-- Rejecting empty composition or manufacturing an identity operation for it.
+  public module-list accessor, index accessor, size method, iterator, or mutable structure API.<span data-glossary-navigation="true"> ([mutable glossary](../../../../glossary.md#term-mutable); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
+- Rejecting empty composition or manufacturing an [identity](../../../../glossary.md#term-identity-meanings) [operation](../../../../glossary.md#operation) for it.
 - Constructor-time shape, data-type, rank, layout, gradient, provenance, storage, or adjacent-child
   compatibility checking. Each child validates the exact Tensor it receives under its existing
-  contract.
+  contract.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [rank glossary](../../../../glossary.md#term-rank); [layout glossary](../../../../glossary.md#layout); [gradient glossary](../../../../glossary.md#term-gradient); [provenance glossary](../../../../glossary.md#provenance))</span>
 - Child detachment, renaming, reparenting, sharing, cloning, copying, or state duplication.
 - Fusing, flattening, canonicalizing, optimizing, compiling, lowering, scheduling, executing, or
-  benchmarking a sequence.
+  benchmarking a sequence.<span data-glossary-navigation="true"> ([lowering glossary](../../../../glossary.md#lowering); [benchmarking glossary](../../../../glossary.md#term-benchmarking))</span>
 - Numerical values, numerical algorithms, backend support, kernels, devices, ONNX, serialization,
-  persistent checkpoint formats, optimizer behavior, or training-session orchestration.
+  persistent checkpoint formats, optimizer behavior, or training-session orchestration.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [kernels glossary](../../../../glossary.md#kernel); [ONNX glossary](../../../../glossary.md#term-onnx); [serialization glossary](../../../../glossary.md#term-serialization); [checkpoint glossary](../../../../glossary.md#term-checkpoint); [optimizer glossary](../../../../glossary.md#term-optimizer))</span>
 - Any Model, training-extension, compiler, runtime, prepare, Engine, backend, build-dependency,
-  architecture-contract, global-roadmap, or CPU implementation change.
-- Detailed planning for a later NN task.
+  architecture-contract, global-roadmap, or CPU implementation change.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [compiler glossary](../../../../glossary.md#term-compiler); [runtime glossary](../../../../glossary.md#term-runtime); [prepare glossary](../../../../glossary.md#prepare); [Engine glossary](../../../../glossary.md#term-engine); [dependency glossary](../../../../glossary.md#term-dependency); [CPU glossary](../../../../glossary.md#term-cpu))</span>
+- Detailed [planning](../../../../glossary.md#term-planning) for a later [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) task.
 
 ## Architecture references
 
-- [Architecture contract](../../../../../ARCHITECTURE.md): NN stateful composition ownership,
-  Model Tensor identity, and one-way dependency rules.
+- [Architecture contract](../../../../../ARCHITECTURE.md)<span data-glossary-navigation="true"> ([Architecture contract glossary](../../../../glossary.md#architecture-contract))</span>: NN stateful composition ownership,
+  Model Tensor identity, and one-way dependency rules.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [Model glossary](../../../../glossary.md#term-model); [identity glossary](../../../../glossary.md#term-identity-meanings); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 - [Current architecture plan](../../../../architecture/current-architecture-plan.md).
-- [ADR 0007: Neural-network module and training boundary](../../../../design/decisions/0007-neural-network-module-and-training-boundary.md).
+- [ADR 0007: Neural-network module and training boundary](../../../../design/decisions/0007-neural-network-module-and-training-boundary.md)<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [module glossary](../../../../glossary.md#term-module))</span>.
 - [Dependency rules](../../../../architecture/dependency-rules.md).
-- [Training graph](../../../../architecture/training-graph.md).
-- [Planning guide](../../../planning-guide.md).
+- [Training graph](../../../../architecture/training-graph.md)<span data-glossary-navigation="true"> ([Training graph glossary](../../../../glossary.md#training-graph))</span>.
+- [Planning guide](../../../planning-guide.md)<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning))</span>.
 - [NN master plan](../master-plan.md).
 - [Task 0002](0002-module-tree-ownership-and-recursive-mode-propagation.md): exclusive child
   ownership, registration, numeric-path prerequisites, and recursive mode behavior.
 - [Task 0005](0005-linear-layer.md), [Task 0006](0006-layer-normalization-layer.md), and
-  [Task 0007](0007-embedding-layer.md): the three current unary Tensor-forward consumers.
+  [Task 0007](0007-embedding-layer.md): the three current [unary](../../../../glossary.md#term-unary) [Tensor](../../../../glossary.md#tensor)-forward consumers.
 - [Task 0008](0008-batch-normalization-layer.md) and [Task 0009](0009-dropout-layer.md): explicit
-  evidence against a universal signature.
+  evidence against a universal signature.<span data-glossary-navigation="true"> ([signature glossary](../../../../glossary.md#term-signature))</span>
 - [Task 0010](0010-state-dictionary-and-checkpoint-contract.md): deterministic owned-tree state
   export and strict path-keyed load.
 
 ## Architecture constraints
 
-- `extensions/nn` owns this stateful module-composition contract and continues to depend only on
+- `extensions/nn` owns this stateful [module](../../../../glossary.md#term-module)-composition contract and continues to depend only on
   `modules/model`.
 - `Module` remains the general state/tree/mode owner and deliberately retains no universal forward
-  method. Typed subclasses define only signatures that are truthful for them.
+  method. Typed subclasses define only signatures that are truthful for them.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [signatures glossary](../../../../glossary.md#term-signature))</span>
 - `UnaryTensorModule` is a narrow nominal intersection of existing Module ownership and one unary
   Tensor-forward shape. It does not own Tensor semantics, execution, autograd, context synthesis,
-  or explicit state threading.
+  or explicit state threading.<span data-glossary-navigation="true"> ([nominal glossary](../../../../glossary.md#term-nominal); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [unary glossary](../../../../glossary.md#term-unary); [Tensor glossary](../../../../glossary.md#tensor); [shape glossary](../../../../glossary.md#shape); [autograd glossary](../../../../glossary.md#autograd); [state threading glossary](../../../../glossary.md#state-threading))</span>
 - Model remains the sole owner of generic Tensor operations, descriptors, identities, provenance,
-  expression factories, and local expression validation. NN delegates to those contracts.
+  expression factories, and local expression validation. NN delegates to those contracts.<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [descriptors glossary](../../../../glossary.md#term-descriptor); [provenance glossary](../../../../glossary.md#provenance); [validation glossary](../../../../glossary.md#term-validation); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span>
 - Tensor objects remain immutable identities. A sequence passes exact references between child
-  calls; it neither mutates nor copies them.
+  calls; it neither mutates nor copies them.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable))</span>
 - Existing child ownership remains exclusive and permanent. Construction must complete all
   ordinary candidate validation before installing any child because a failed constructor cannot
-  expose a usable parent from which a partially attached prefix could be detached.
+  expose a usable parent from which a partially attached prefix could be detached.<span data-glossary-navigation="true"> ([detached glossary](../../../../glossary.md#detached-model-results))</span>
 - Numeric child names are stable local path segments derived from the immutable constructor order.
   They share the same namespace and dot-path rules as every other Module child.
 - `train()` and `eval()` remain the existing recursive structural mode operations. `Sequential`
-  neither overrides them nor changes their preflight/assignment semantics.
+  neither overrides them nor changes their preflight/assignment semantics.<span data-glossary-navigation="true"> ([preflight glossary](../../../../glossary.md#term-preflight))</span>
 - Current participating children are mode-insensitive. A future mode-sensitive or explicitly
   stateful module does not qualify merely because a container wants to call it.
 - No new project dependency, module boundary, architecture rule, ADR, architecture test, or build
-  structure is required.
+  structure is required.<span data-glossary-navigation="true"> ([dependency glossary](../../../../glossary.md#term-dependency); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [architecture test glossary](../../../../glossary.md#term-architecture-test))</span>
 
 ## Type-design decision
 
-| Candidate | Compile-time ownership | Compile-time unary forward | Decision |
+| Candidate | [Compile](../../../../glossary.md#compile)-time [ownership](../../../../glossary.md#term-ownership-meanings) | Compile-time [unary](../../../../glossary.md#term-unary) forward | Decision |
 |---|---|---|---|
-| Public interface implemented by Module subclasses | No: an interface cannot extend the `Module` class; accepting the interface loses child ownership, while accepting `Module` loses forward | Yes in isolation | Reject. Restoring both facts requires a cast, class-level intersection generic, sealed implementation list, or a leaky `module()` bridge. |
-| Abstract `Module` subclass | Yes | Yes | Select. It is the smallest nominal type accepted by a heterogeneous list and nested sequence without casts or extra accessors. |
-| Package-owned adapter around Module plus forward function | Only indirectly | Only indirectly | Reject. It creates a second identity, obscures which object owns state, and has no current consumer beyond avoiding the direct type contract. |
+| Public interface implemented by [Module](../../../../glossary.md#term-module) subclasses | No: an interface cannot extend the `Module` class; accepting the interface loses child ownership, while accepting `Module` loses forward | Yes in isolation | Reject. Restoring both facts requires a cast, class-level intersection generic, [sealed](../../../../glossary.md#term-sealed) implementation list, or a leaky `module()` bridge. |
+| Abstract `Module` subclass | Yes | Yes | Select. It is the smallest [nominal](../../../../glossary.md#term-nominal) type accepted by a [heterogeneous](../../../../glossary.md#term-heterogeneous) list and nested sequence without casts or extra accessors. |
+| Package-owned adapter around Module plus forward function | Only indirectly | Only indirectly | Reject. It creates a second [identity](../../../../glossary.md#term-identity-meanings), obscures which object owns state, and has no current consumer beyond avoiding the direct type contract. |
 
 Do not replace the selected class with a generic class such as
 `Sequential<M extends Module & UnaryForward>`. That surface is awkward for a heterogeneous list of
 final layer types, leaks an implementation constraint into every caller, and provides no benefit
 over the narrow abstract base.
 
-## Public API
+## Public [API](../../../../glossary.md#term-application-programming-interface-api)
 
-| Package/type | Visibility and shape | Exact task-owned contract |
+| Package/type | Visibility and [shape](../../../../glossary.md#shape) | Exact task-owned contract |
 |---|---|---|
-| `io.github.pho001.synaptik.nn.module.UnaryTensorModule` | `public abstract class UnaryTensorModule extends Module` | Nominal base only for Modules whose complete public forward signature is one non-null Tensor to one non-null Tensor. No fields, interfaces, nested types, factories, or other methods. |
+| `io.github.pho001.synaptik.nn.module.UnaryTensorModule` | `public abstract class UnaryTensorModule extends Module` | [Nominal](../../../../glossary.md#term-nominal) base only for [Modules](../../../../glossary.md#term-module) whose complete public forward [signature](../../../../glossary.md#term-signature) is one non-null [Tensor](../../../../glossary.md#tensor) to one non-null Tensor. No fields, interfaces, nested types, factories, or other methods. |
 | `UnaryTensorModule()` | `protected` | Creates the ordinary empty training-mode Module base by calling `super()`; creates no state or Tensor. |
 | `UnaryTensorModule.forward(Tensor input)` | `public abstract Tensor forward(Tensor input)` | Requires non-null input and promises a non-null exact expression/reference result under the concrete child's documented contract. It defines no shared shape, type, freshness, mode, state-mutation, or numerical rule. |
-| `io.github.pho001.synaptik.nn.module.Sequential` | `public final class Sequential extends UnaryTensorModule` | Structural ordered module owner. No interfaces, nested types, or public/protected fields. |
-| `Sequential(List<? extends UnaryTensorModule> modules)` | `public` | Takes one non-null ordered list, permits empty, validates/snapshots every exact child before ownership mutation, and registers child index `i` under `Integer.toString(i)`. |
-| `Sequential.forward(Tensor input)` | `public final` override | Non-null validation followed by exact left-to-right forwarding; empty returns exact input. It returns the exact final child output and creates no wrapper of its own. |
+| `io.github.pho001.synaptik.nn.module.Sequential` | `public final class Sequential extends UnaryTensorModule` | Structural ordered module [owner](../../../../glossary.md#term-owner). No interfaces, nested types, or public/protected fields. |
+| `Sequential(List<? extends UnaryTensorModule> modules)` | `public` | Takes one non-null ordered list, permits empty, validates/snapshots every exact child before [ownership](../../../../glossary.md#term-ownership-meanings) mutation, and registers child index `i` under `Integer.toString(i)`. |
+| `Sequential.forward(Tensor input)` | `public final` override | Non-null [validation](../../../../glossary.md#term-validation) followed by exact left-to-right forwarding; empty returns exact input. It returns the exact final child output and creates no wrapper of its own. |
 
 The implementation may retain exactly one private final `List<UnaryTensorModule>` field. The field
-contains the immutable registration snapshot and is used directly for ordered forward traversal.
+contains the [immutable](../../../../glossary.md#term-immutable) registration [snapshot](../../../../glossary.md#term-snapshot) and is used directly for ordered forward traversal.
 There is no public list accessor because inherited `children()` already exposes an immutable
 ordered structural snapshot, and inherited recursive state APIs expose the owned state.
 
@@ -168,39 +168,39 @@ final <T extends Module> List<T> registerIndexedChildren(List<? extends T> modul
 ```
 
 This is not public or protected API. It snapshots and validates the complete list, then registers
-the exact candidates under canonical decimal indices and returns the immutable typed snapshot.
+the exact candidates under [canonical](../../../../glossary.md#term-canonical-form) decimal indices and returns the immutable typed snapshot.
 It exists in `Module` because only that class can inspect and install private parent ownership
 atomically. `Sequential` is placed in the same `module` package so this current need does not widen
 the subclass API. The existing protected `child(String, T)` signature and behavior remain exact.
 
-`Linear`, `LayerNorm`, and `Embedding` keep their existing final public types and declared forward
+[`Linear`](../../../../glossary.md#term-linear-meanings), `LayerNorm`, and [`Embedding`](../../../../glossary.md#embedding) keep their existing final public types and declared forward
 signatures, but their direct superclass becomes `UnaryTensorModule` and their forward methods gain
-an ordinary `@Override`. `BatchNorm` and `Dropout` continue to extend `Module` directly.
+an ordinary `@Override`. `BatchNorm` and [`Dropout`](../../../../glossary.md#dropout--inverted-dropout) continue to extend `Module` directly.
 
-## Construction, ownership, and validation
+## Construction, [ownership](../../../../glossary.md#term-ownership-meanings), and [validation](../../../../glossary.md#term-validation)
 
 Validation and side effects are fixed in this order:
 
-1. Reject a null list with `NullPointerException` and message `modules`.
+1. Reject a null list with `NullPointerException` and message [`modules`](../../../../glossary.md#term-module).
 2. Traverse the supplied list once in encounter order into an independent immutable structural
-   snapshot. Reject the first null element with `NullPointerException` and a diagnostic identifying
-   `modules[index]`. Caller list identity is not retained or promised.
+   snapshot. Reject the first null element with <span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element))</span>`NullPointerException` and a diagnostic identifying
+   `modules[index]`. Caller list [identity](../../../../glossary.md#term-identity-meanings) is not retained or promised.
 3. Reject the first repeated module identity with `IllegalArgumentException`. Equality overrides
-   are irrelevant; duplicate detection is by object identity. An empty list succeeds.
-4. Preflight every candidate in index order using canonical names `"0"` through
+   are irrelevant; duplicate detection is by object identity. An empty list succeeds.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-reference-identity))</span>
+4. [Preflight](../../../../glossary.md#term-preflight) every candidate in index order using [canonical](../../../../glossary.md#term-canonical-form) names `"0"` through
    `Integer.toString(size - 1)`: shared-name availability, self/ancestor exclusion, and absence of
    an existing parent. The ordinary public constructor cannot supply its not-yet-created receiver
    as a child, but the ownership primitive keeps the established defensive cycle check.
 5. Only after all candidates pass, install child-map entries and parent links in increasing index
    order. Under caller-coordinated use, ordinary validation failure changes neither the receiver's
-   registry nor any candidate's parent.
-6. Retain the same immutable typed snapshot for forward traversal.
+   registry nor any candidate's parent.<span data-glossary-navigation="true"> ([registry glossary](../../../../glossary.md#term-registry))</span>
+6. Retain the same [immutable](../../../../glossary.md#term-immutable) typed [snapshot](../../../../glossary.md#term-snapshot) for forward traversal.
 
 An already-owned candidate fails with the existing `IllegalStateException` ownership category.
 A self/ancestor candidate fails with the existing `IllegalArgumentException` cycle category.
-There is no detach or rollback API. Like all Module mutation, constructor registration is not
-thread-safe or linearizable; validation-before-install does not promise atomic visibility to racing
-threads or recovery from JVM-fatal failure.
+There is no detach or [rollback](../../../../glossary.md#term-rollback) [API](../../../../glossary.md#term-application-programming-interface-api). Like all Module mutation, constructor registration is not
+[thread-safe](../../../../glossary.md#term-thread-safe) or linearizable; validation-before-install does not promise [atomic](../../../../glossary.md#resource-transaction-and-rollback) visibility to racing
+threads or recovery from [JVM](../../../../glossary.md#term-java-virtual-machine-jvm)-fatal failure.
 
 A duplicate or late-invalid candidate must not strand a valid prefix under an unreachable failed
 constructor. Focused tests must prove this by successfully attaching an earlier candidate to a
@@ -211,33 +211,33 @@ different sequence after the first construction fails.
 - `forward` first rejects null input with `NullPointerException` and message `input`, before any
   child is called.
 - Empty composition returns the exact input reference. It creates no Model occurrence and consumes
-  no Tensor identifier.
+  no Tensor identifier.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [occurrence glossary](../../../../glossary.md#term-occurrence); [Tensor glossary](../../../../glossary.md#tensor))</span>
 - Non-empty composition starts with `current = input`. For every retained child in numeric order,
   it calls `child.forward(current)` exactly once and assigns the exact returned reference to
   `current`.
 - A null child result violates `UnaryTensorModule`'s contract. `Sequential` rejects it immediately
   with `NullPointerException` identifying the child output/index; no later child is called.
 - The returned value is the exact final `current` reference. `Sequential` adds no identity,
-  producer, provenance, label, storage, descriptor, or expression node.
+  producer, provenance, label, storage, descriptor, or expression node.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [producer glossary](../../../../glossary.md#term-producer); [provenance glossary](../../../../glossary.md#provenance); [descriptor glossary](../../../../glossary.md#term-descriptor); [node glossary](../../../../glossary.md#node))</span>
 - The abstract base makes no blanket freshness promise. The three current participating layer
   calls each retain their existing fresh Model-expression behavior; empty composition is identity,
-  and a future truthful unary Module may itself document identity-preserving behavior.
+  and a future truthful unary Module may itself document identity-preserving behavior.<span data-glossary-navigation="true"> ([unary glossary](../../../../glossary.md#term-unary); [Module glossary](../../../../glossary.md#term-module))</span>
 - If child `i` throws or returns null, calls `0` through `i - 1` have already occurred. Their
   expressions, Tensor identifiers, retained references, and any child-local side effects remain.
-  The failing child controls its own validation and partial-construction semantics. `Sequential`
-  catches nothing and performs no expression, identifier, state, or mode rollback.
-- No whole-sequence prevalidation is attempted. For example, a `Linear` result is handed to a
+  The failing child controls its own validation and partial-construction semantics. <span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>`Sequential`
+  catches nothing and performs no expression, identifier, state, or mode rollback.<span data-glossary-navigation="true"> ([rollback glossary](../../../../glossary.md#term-rollback))</span>
+- No whole-sequence prevalidation is attempted. For example, a [`Linear`](../../../../glossary.md#term-linear-meanings) result is handed to a
   following `LayerNorm`, and that layer/Model contract validates the actual intermediate when its
   call occurs.
 
 ## Mode, state, and path behavior
 
-- `Sequential` starts in `TRAINING` through `Module`. Every registered child retains its own local
+- `Sequential` starts in `TRAINING` through [`Module`](../../../../glossary.md#term-module). Every registered child retains its own local
   initial mode after construction; construction does not normalize mode.
 - Calling `train()` or `eval()` on the sequence uses the existing Module-tree preflight and then
-  assigns the requested mode to the sequence and every descendant in deterministic preorder.
-- `Sequential.forward` does not read `mode()`, call `forwardContext()`, or alter a mode. `Linear`,
-  `LayerNorm`, and `Embedding` are mode-insensitive, so their local mode does not select a branch.
+  assigns the requested mode to the sequence and every descendant in deterministic preorder.<span data-glossary-navigation="true"> ([preflight glossary](../../../../glossary.md#term-preflight))</span>
+- `Sequential.forward` does not read `mode()`, call `forwardContext()`, or alter a mode. [`Linear`](../../../../glossary.md#term-linear-meanings),
+  `LayerNorm`, and [`Embedding`](../../../../glossary.md#embedding) are mode-insensitive, so their local mode does not select a branch.
   Nested sequences behave the same way.
 - Child names and state paths are stable numeric paths. A sequence containing `Linear` then
   `LayerNorm` exposes child names `0`, `1` and state paths such as `0.weight`, `0.bias`, `1.scale`,
@@ -245,10 +245,10 @@ different sequence after the first construction fails.
 - Inherited `parametersRecursively()`, `buffersRecursively()`, `stateDictionary()`, and
   `loadStateDictionary(...)` require no special case. They traverse numeric children in order.
   Strict load remains path-keyed and validate-before-install under task 0010.
-- A compatible replacement through a discovered `Parameter` or state-dictionary load changes the
+- A compatible replacement through a discovered [`Parameter`](../../../../glossary.md#term-parameter) or state-dictionary load changes the
   binding observed by a later child forward call. An expression already constructed from an older
-  binding remains unchanged. Sequence forward is not a joint state snapshot or transaction.
-- No child replacement is possible. Numeric path stability follows immutable permanent ownership.
+  binding remains unchanged. Sequence forward is not a joint state snapshot or transaction.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding); [snapshot glossary](../../../../glossary.md#term-snapshot); [transaction glossary](../../../../glossary.md#term-transaction))</span>
+- No child replacement is possible. Numeric path stability follows [immutable](../../../../glossary.md#term-immutable) permanent [ownership](../../../../glossary.md#term-ownership-meanings).
 
 ## Package impact
 
@@ -268,9 +268,9 @@ io.github.pho001.synaptik.nn/
     package-info.java              identifies participating and excluded layer signatures
 ```
 
-`Sequential` belongs under `module/`, not `layers/`: it owns no operation semantics, parameters,
-buffers, initialization policy, or numerical layer behavior. Its sole responsibility is structural
-Module ownership and ordered invocation. A new `container/` or `composition/` package for one type
+`Sequential` belongs under `module/`, not `layers/`: it owns no [operation](../../../../glossary.md#operation) semantics, [parameters](../../../../glossary.md#term-parameter),
+[buffers](../../../../glossary.md#term-buffer), initialization policy, or numerical layer behavior. Its sole responsibility is structural
+[Module](../../../../glossary.md#term-module) [ownership](../../../../glossary.md#term-ownership-meanings) and ordered invocation. A new `container/` or `composition/` package for one type
 would add unnecessary package surface.
 
 ## Affected files
@@ -297,43 +297,43 @@ Documentation-focused finalization paths:
 - `docs/planning/extensions/nn/master-plan.md`
 - `docs/planning/extensions/nn/tasks/0011-unary-tensor-module-composition-and-sequential.md`
 
-An implementation may reduce this set when a listed Javadoc/test remains exact without an edit,
+An implementation may reduce this set when a listed [Javadoc](../../../../glossary.md#term-javadoc)/test remains exact without an edit,
 but it must record the review. Adding a production type, public member, test helper in production,
-dependency/build path, architecture document, or unrelated documentation path requires stopping
+[dependency](../../../../glossary.md#term-dependency)/build path, architecture document, or unrelated documentation path requires stopping
 and justifying a revised plan before implementation.
 
-## Maximum scope
+## Maximum [scope](../../../../glossary.md#term-scope)
 
-- Two new production classes, one package-private `Module` support method plus private validation
+- Two new production classes, one package-private [`Module`](../../../../glossary.md#term-module) support method plus private validation
   refactoring, three direct-superclass changes, one new focused test class, necessary exact-surface
   updates to three existing tests, two package Javadoc files, Training API, glossary, and the two NN
-  planning records.
-- No other Java, test, documentation, Gradle, architecture, roadmap, module, or backend file.
+  planning records.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [Javadoc glossary](../../../../glossary.md#term-javadoc); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [planning glossary](../../../../glossary.md#term-planning))</span>
+- No other Java, test, documentation, [Gradle](../../../../glossary.md#term-gradle), architecture, roadmap, module, or [backend](../../../../glossary.md#backend) file.
 
 ## Acceptance criteria
 
-- `UnaryTensorModule` has exactly the selected public/protected surface and extends `Module`
+- `UnaryTensorModule` has exactly the selected public/protected surface and extends [`Module`](../../../../glossary.md#term-module)
   directly. It introduces no interface, field, nested type, generic parameter, default behavior,
-  or shared mode/state semantics.
-- `Linear`, `LayerNorm`, and `Embedding` extend it and retain every prior constructor, field,
+  or shared mode/state semantics.<span data-glossary-navigation="true"> ([parameter glossary](../../../../glossary.md#term-parameter))</span>
+- [`Linear`](../../../../glossary.md#term-linear-meanings), `LayerNorm`, and [`Embedding`](../../../../glossary.md#embedding) extend it and retain every prior constructor, field,
   declared public method, validation, Javadoc contract, and forward-expression behavior except the
-  intentional new superclass/override relationship.
-- `BatchNorm` and `Dropout` remain direct `Module` subclasses and are not assignable to
+  intentional new superclass/override relationship.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
+- `BatchNorm` and [`Dropout`](../../../../glossary.md#dropout--inverted-dropout) remain direct `Module` subclasses and are not assignable to
   `UnaryTensorModule`.
 - `Sequential` is final, extends `UnaryTensorModule`, has exactly one public List constructor and
   one declared public final forward override, and has no varargs/accessor/mutation surface.
 - Constructor null-list, null-element, identity-duplicate, already-owned, and defensive cycle
-  categories are deterministic and validate before any registration. Empty construction succeeds.
+  categories are deterministic and validate before any registration. Empty construction succeeds.<span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Caller list mutation after successful construction cannot change child membership, order, names,
   or forwarding. Child instances themselves are retained exactly.
-- Children are permanently registered in encounter order under canonical names `0`, `1`, ...;
+- Children are permanently registered in encounter order under [canonical](../../../../glossary.md#term-canonical-form) names `0`, `1`, ...;
   inherited direct/recursive snapshots and state dictionaries expose the corresponding deterministic
   numeric paths.
 - Failed construction leaves every valid candidate unattached and reusable under the ordinary
   caller-coordinated contract.
 - Empty forward validates input, returns the exact input, and creates no expression or identifier.
 - Non-empty forward calls each child exactly once left to right with exact reference handoff and
-  returns the exact final child result. It performs no ahead-of-child compatibility check.
+  returns the exact final child result. It performs no ahead-of-child compatibility check.<span data-glossary-navigation="true"> ([handoff glossary](../../../../glossary.md#term-handoff))</span>
 - Null input calls no child. A throwing/null-returning later child calls no suffix child; successful
   prefix work is not rolled back.
 - Nested sequences preserve numeric paths and left-to-right flattening behavior through ordinary
@@ -343,42 +343,42 @@ and justifying a revised plan before implementation.
 - Compatible parameter replacement and state-dictionary load are visible to later forward calls at
   stable numeric paths; earlier expressions remain unchanged.
 - No Model, BatchNorm, Dropout/result-carrier, ForwardContext, graph RNG, training, compiler,
-  runtime, prepare, Engine, backend, dependency, architecture, or build contract changes.
+  runtime, prepare, Engine, backend, dependency, architecture, or build contract changes.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [carrier glossary](../../../../glossary.md#term-storage-carrier); [graph glossary](../../../../glossary.md#graph); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [compiler glossary](../../../../glossary.md#term-compiler); [runtime glossary](../../../../glossary.md#term-runtime); [prepare glossary](../../../../glossary.md#prepare); [Engine glossary](../../../../glossary.md#term-engine); [backend glossary](../../../../glossary.md#backend); [dependency glossary](../../../../glossary.md#term-dependency))</span>
 - Javadocs fully document inputs, outputs, nullability, ownership, order, identity, failure,
   partial-expression, mode, mutation, and thread-safety boundaries without claiming execution or
-  numerical results.
+  numerical results.<span data-glossary-navigation="true"> ([nullability glossary](../../../../glossary.md#term-nullability); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - The Training API and glossary describe the implemented unary/Sequential boundary after code
-  lands and explicitly preserve the BatchNorm/Dropout exclusions.
+  lands and explicitly preserve the BatchNorm/Dropout exclusions.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [unary glossary](../../../../glossary.md#term-unary))</span>
 
-## Tests / validation
+## Tests / [validation](../../../../glossary.md#term-validation)
 
-Implementation validation tier: normal affected-module validation plus documentation and exact
-surface checks. Repository-wide validation is not required because no dependency, architecture,
+Implementation validation tier: normal affected-[module](../../../../glossary.md#term-module) validation plus documentation and exact
+surface checks. Repository-wide validation is not required because no [dependency](../../../../glossary.md#term-dependency), architecture,
 shared build, or multi-module executable contract changes.
 
 Focused tests must cover:
 
 - reflection of the exact abstract-base and final-container type/member surfaces;
-- existing layer superclass assertions updated only for `Linear`, `LayerNorm`, and `Embedding`,
-  with `BatchNorm`/`Dropout` exclusion asserted;
+- existing layer superclass assertions updated only for [`Linear`](../../../../glossary.md#term-linear-meanings), `LayerNorm`, and [`Embedding`](../../../../glossary.md#embedding),
+  with `BatchNorm`/[`Dropout`](../../../../glossary.md#dropout--inverted-dropout) exclusion asserted;
 - null list, late null element, repeated exact instance, and late already-owned candidate with no
-  partial ownership installation;
+  partial ownership installation;<span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - empty construction, immutable caller-list snapshot, numeric child names/order, exact references,
-  and absent public list/varargs/mutation APIs;
-- empty exact-reference identity and no Tensor-identifier allocation;
+  and absent public list/varargs/mutation APIs;<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [snapshot glossary](../../../../glossary.md#term-snapshot))</span>
+- empty exact-[reference identity](../../../../glossary.md#term-reference-identity) and no [Tensor](../../../../glossary.md#tensor)-identifier allocation;
 - custom test unary modules proving exact left-to-right inputs, one call per child, final output
   identity, null-result handling, exception propagation, suffix suppression, and retained prefix
-  effects;
+  effects;<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([unary glossary](../../../../glossary.md#term-unary))</span>
 - one real `Linear`/`LayerNorm` chain and one `Embedding`-starting chain using valid current Tensor
-  contracts, proving reachable provenance rather than numerical output;
+  contracts, proving reachable provenance rather than numerical output;<span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance))</span>
 - nested sequence order, child maps, recursive parameter paths, state-dictionary paths/order, and
-  strict load compatibility;
+  strict load compatibility;<span data-glossary-navigation="true"> ([parameter glossary](../../../../glossary.md#term-parameter))</span>
 - parameter replacement after sequence construction affecting a later expression while an earlier
-  expression retains its old exact binding;
+  expression retains its old exact binding;<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding))</span>
 - recursive train/eval propagation through nested sequences with unchanged mode-insensitive forward
   composition;
 - regression of all existing NN layer, ownership, traversal, replacement, and state-dictionary
-  tests.
+  tests.<span data-glossary-navigation="true"> ([regression glossary](../../../../glossary.md#term-regression))</span>
 
 Implementation context commands:
 
@@ -389,71 +389,71 @@ git diff --check
 ```
 
 The independent documentation context must review the unchanged final executable diff and reuse
-the successful NN suite evidence unless it changes Java behavior or finds a concrete reason to
-rerun. It must run:
+the successful [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) suite evidence unless it changes Java behavior or finds a concrete reason to
+rerun. It must [run](../../../../glossary.md#term-run):
 
 ```text
 ./gradlew :extensions:nn:javadoc
 git diff --check
 ```
 
-It must also inspect generated Javadoc for `Module`, `UnaryTensorModule`, `Sequential`, and the
+It must also inspect generated [Javadoc](../../../../glossary.md#term-javadoc) for `Module`, `UnaryTensorModule`, `Sequential`, and the
 three changed layer hierarchy pages; verify exact public/protected surface with reflection or
-`javap`; compile one external-package import/subclass/composition example; check Markdown local
+`javap`; [compile](../../../../glossary.md#compile) one external-package import/subclass/composition example; check Markdown local
 paths/anchors, balanced fences, one terminal newline, and trailing whitespace; and confirm the
-final exact path set. No numerical, compiler, backend-conformance, or integration test is required.
+final exact path set. No numerical, [compiler](../../../../glossary.md#term-compiler), [backend](../../../../glossary.md#backend)-[conformance](../../../../glossary.md#term-conformance), or [integration test](../../../../glossary.md#term-integration-test) is required.
 
 ## Dependencies
 
 - NN tasks 0001–0010 are Complete and provide the Module tree, mode, state, concrete layer, explicit
-  context/state, and state-dictionary contracts this task composes.
-- Completed Model Tensor expression contracts provide `linear`, `layerNorm`, and `embedding` and
-  their exact validation/provenance behavior.
-- ADR 0007 and the architecture contract already assign stateful neural-network composition to NN.
+  context/state, and state-dictionary contracts this task composes.<span data-glossary-navigation="true"> ([Module glossary](../../../../glossary.md#term-module))</span>
+- Completed [Model](../../../../glossary.md#term-model) [Tensor](../../../../glossary.md#tensor) expression contracts provide [`linear`](../../../../glossary.md#term-linear-meanings), `layerNorm`, and [`embedding`](../../../../glossary.md#embedding) and
+  their exact validation/provenance behavior.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [provenance glossary](../../../../glossary.md#provenance))</span>
+- [ADR](../../../../glossary.md#term-architecture-decision-record-adr) 0007 and the [architecture contract](../../../../glossary.md#architecture-contract) already assign stateful neural-network composition to [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context).
 - CPU, compiler, training, runtime, prepare, Engine, backend, and persistent checkpoint work are
-  not prerequisites.
+  not prerequisites.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [compiler glossary](../../../../glossary.md#term-compiler); [runtime glossary](../../../../glossary.md#term-runtime); [prepare glossary](../../../../glossary.md#prepare); [Engine glossary](../../../../glossary.md#term-engine); [backend glossary](../../../../glossary.md#backend); [checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
 
 ## Follow-up tasks
 
 - A contextual/state-threading container may be planned only when a concrete consumer can preserve
   `ForwardContext`, BatchNorm buffer transitions, graph RNG state, and result carriers explicitly.
-  This task does not reserve its name or signature.
+  This task does not reserve its name or signature.<span data-glossary-navigation="true"> ([buffer glossary](../../../../glossary.md#term-buffer); [graph RNG state glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [signature glossary](../../../../glossary.md#term-signature))</span>
 - Stateless NN functional conveniences remain a concise future master-plan concern only when a
-  concrete API is selected.
+  concrete API is selected.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - Persistent checkpoint encoding and training-session/optimizer coordination remain future work
-  owned by their concrete consumers.
-- Do not create another detailed NN task during implementation of 0011.
+  owned by their concrete consumers.<span data-glossary-navigation="true"> ([checkpoint glossary](../../../../glossary.md#term-checkpoint); [optimizer glossary](../../../../glossary.md#term-optimizer))</span>
+- Do not create another detailed [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) task during implementation of 0011.
 
 ## Documentation and no-change review
 
 - `UnaryTensorModule`, `Sequential`, the package contract, and changed layer Javadocs require an
-  independent documentation-focused final pass under the General and API/Javadoc profiles.
+  independent documentation-focused final pass under the General and API/Javadoc profiles.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 - `docs/api/training-api.md` must update its implementation-status/current-NN explanation because
   downstream training consumers now see stable numeric composition paths and a narrow public
-  module subtype. It must not invent optimizer or training-session use of Sequential.
+  module subtype. It must not invent optimizer or training-session use of Sequential.<span data-glossary-navigation="true"> ([NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [module glossary](../../../../glossary.md#term-module); [optimizer glossary](../../../../glossary.md#term-optimizer))</span>
 - `docs/glossary.md` must update the existing neural-network module entry and layer counts, define
   unary Tensor module and Sequential at first use, show one concise numeric-path/left-fold example,
-  and preserve the explicit BatchNorm/Dropout distinction. It must not imply numerical evaluation.
-- `docs/api/tensor-api.md` requires no change: no generic Tensor operation or Model contract changes.
+  and preserve the explicit BatchNorm/Dropout distinction. It must not imply numerical evaluation.<span data-glossary-navigation="true"> ([unary Tensor module and Sequential glossary](../../../../glossary.md#unary-tensor-module-and-sequential); [Dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [evaluation glossary](../../../../glossary.md#term-evaluation))</span>
+- `docs/api/tensor-api.md` requires no change: no generic [Tensor](../../../../glossary.md#tensor) [operation](../../../../glossary.md#operation) or [Model](../../../../glossary.md#term-model) contract changes.
 - `docs/api/compile-api.md`, `docs/api/runtime-api.md`, training graph, user training/autograd guides,
   and backend guides require no change because capture, gradient, execution, and backend behavior
-  remain untouched.
+  remain untouched.<span data-glossary-navigation="true"> ([training graph glossary](../../../../glossary.md#training-graph); [autograd glossary](../../../../glossary.md#autograd); [backend glossary](../../../../glossary.md#backend); [capture glossary](../../../../glossary.md#term-capture-meanings); [gradient glossary](../../../../glossary.md#term-gradient))</span>
 - `ARCHITECTURE.md`, current architecture plan, module boundaries, dependency rules, and ADR 0007
-  require no change because this realizes the already-authorized NN composition responsibility.
-- Architecture tests and Gradle files require no change because `extensions/nn` retains its sole
+  require no change because this realizes the already-authorized NN composition responsibility.<span data-glossary-navigation="true"> ([dependency glossary](../../../../glossary.md#term-dependency); [ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
+- Architecture tests and [Gradle](../../../../glossary.md#term-gradle) files require no change because `extensions/nn` retains its sole
   Model project dependency.
 - Backend conformance and integration tests require no change because this task constructs only NN
-  ownership and Model expressions.
+  ownership and Model expressions.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Preserve every unrelated/concurrent CPU planning, source, test, guide, roadmap, and glossary
-  change exactly. Documentation work must merge its targeted glossary edit with the live file.
+  change exactly. Documentation work must merge its targeted glossary edit with the live file.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [planning glossary](../../../../glossary.md#term-planning))</span>
 
 ## Architecture impact
 
 Expected impact: None.
 
-This task realizes the existing NN ownership/composition boundary with a narrow type needed by a
-real container. It does not alter module direction, public lifecycle ownership, Tensor semantics,
-or execution boundaries and therefore needs no architecture-contract, ADR, dependency, or
+This task realizes the existing [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [ownership](../../../../glossary.md#term-ownership-meanings)/composition boundary with a narrow type needed by a
+real container. It does not alter [module](../../../../glossary.md#term-module) direction, public [lifecycle](../../../../glossary.md#lifecycle) ownership, [Tensor](../../../../glossary.md#tensor) semantics,
+or execution boundaries and therefore needs no architecture-contract, [ADR](../../../../glossary.md#term-architecture-decision-record-adr), [dependency](../../../../glossary.md#term-dependency), or
 architecture-test change.
 
 ## Implementation prompt
@@ -487,96 +487,96 @@ stranding partially attached children on ordinary validation failure, or if arch
 must expand, stop and report the blocker rather than inventing behavior.
 ```
 
-## Documentation-agent handoff
+## Documentation-agent [handoff](../../../../glossary.md#term-handoff)
 
 The implementation context must provide the clean documentation context with:
 
 - the exact final executable diff and changed-path list;
-- focused and full NN test commands, counts, and results;
-- final exact public/protected surface and constructor validation order;
-- proof that constructor validation precedes ownership installation;
+- focused and full [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) test commands, counts, and results;
+- final exact public/protected surface and constructor [validation](../../../../glossary.md#term-validation) order;
+- proof that constructor validation precedes [ownership](../../../../glossary.md#term-ownership-meanings) installation;
 - participating/excluded layer list and unchanged behavioral contracts;
-- empty/non-empty/failure expression identity evidence;
+- empty/non-empty/failure expression [identity](../../../../glossary.md#term-identity-meanings) evidence;
 - numeric child/state-path, replacement/load, and recursive-mode evidence;
 - unresolved issues or explicit confirmation that none remain.
 
 The documentation context must independently read the final source/tests and directly relevant
 contracts. It may edit only task-owned documentation/Javadocs and must preserve live concurrent
-glossary work. It records reasoned no-change conclusions for Tensor, Compile, Runtime, architecture,
-training graph, dependency tests, conformance/integration, Gradle, and other modules.
+glossary work. It records reasoned no-change conclusions for [Tensor](../../../../glossary.md#tensor), [Compile](../../../../glossary.md#compile), [Runtime](../../../../glossary.md#term-runtime), architecture,
+[training graph](../../../../glossary.md#training-graph), [dependency](../../../../glossary.md#term-dependency) tests, [conformance](../../../../glossary.md#term-conformance)/integration, [Gradle](../../../../glossary.md#term-gradle), and other [modules](../../../../glossary.md#term-module).
 
 ## Local decisions
 
 - Select an abstract Module subclass because it alone gives a heterogeneous list both ownership
-  and forward capabilities at compile time without an adapter or cast.
+  and forward capabilities at compile time without an adapter or cast.<span data-glossary-navigation="true"> ([Module glossary](../../../../glossary.md#term-module); [heterogeneous glossary](../../../../glossary.md#term-heterogeneous); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [compile glossary](../../../../glossary.md#compile))</span>
 - Place Sequential in `nn.module` because it is structural composition with no layer operation or
-  state policy. This also keeps atomic registration support package-private.
+  state policy. This also keeps atomic registration support package-private.<span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [atomic glossary](../../../../glossary.md#resource-transaction-and-rollback))</span>
 - Admit exactly Linear, LayerNorm, and Embedding because their complete current public forward
   shape is Tensor-to-Tensor without explicit context or state. Embedding's integral-index input is
-  still a Tensor and its own Model contract retains exact type validation.
+  still a Tensor and its own Model contract retains exact type validation.<span data-glossary-navigation="true"> ([Linear glossary](../../../../glossary.md#term-linear-meanings); [Embedding glossary](../../../../glossary.md#embedding); [shape glossary](../../../../glossary.md#shape); [Tensor glossary](../../../../glossary.md#tensor); [Model glossary](../../../../glossary.md#term-model); [validation glossary](../../../../glossary.md#term-validation))</span>
 - Exclude BatchNorm and Dropout rather than hide their essential explicit context/state/result
-  semantics.
+  semantics.<span data-glossary-navigation="true"> ([Dropout glossary](../../../../glossary.md#dropout--inverted-dropout))</span>
 - Accept only a List. It covers fixed and programmatic construction while avoiding redundant array
   validation and overload precedence.
 - Allow empty as a useful immutable identity composition. Identity is an exact-reference bypass,
-  not a manufactured Model operation.
+  not a manufactured Model operation.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Expose no module-list accessor. Inherited children/state snapshots are the established structural
   inspection surface.
 - Preflight the whole list before installing parent links so failed construction cannot permanently
-  strand a prefix under an unreachable object.
+  strand a prefix under an unreachable object.<span data-glossary-navigation="true"> ([Preflight glossary](../../../../glossary.md#term-preflight))</span>
 - Keep numeric registration stable and nested rather than flattening, preserving Module ownership
   and state paths.
 
 ## Known limitations
 
 - Only unary Tensor-to-Tensor Modules compose. BatchNorm, Dropout, multiple inputs/outputs, explicit
-  contexts, and explicit threaded state require a different future design.
+  contexts, and explicit threaded state require a different future design.<span data-glossary-navigation="true"> ([unary glossary](../../../../glossary.md#term-unary); [Tensor glossary](../../../../glossary.md#tensor); [Modules glossary](../../../../glossary.md#term-module); [Dropout glossary](../../../../glossary.md#dropout--inverted-dropout))</span>
 - The base contract does not prove adjacent Shape/data-type compatibility. Failure may occur after
-  earlier children have created expressions.
+  earlier children have created expressions.<span data-glossary-navigation="true"> ([Shape glossary](../../../../glossary.md#shape))</span>
 - Forward, ownership mutation during construction, mode changes, replacement, traversal, and load
-  are not thread-safe or jointly transactional.
+  are not thread-safe or jointly transactional.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings); [thread-safe glossary](../../../../glossary.md#term-thread-safe))</span>
 - Numeric names are structural positions, not caller-defined semantic names. Reordering constructor
-  elements changes state paths by design.
+  elements changes state paths by design.<span data-glossary-navigation="true"> ([elements glossary](../../../../glossary.md#term-element))</span>
 - Empty identity and a future identity-preserving unary child may return an existing Tensor; the
-  abstract base provides no universal fresh-result guarantee.
+  abstract base provides no universal fresh-result guarantee.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Sequential does not flatten nested containers, fuse operations, or reduce call overhead.
 
-## Validation evidence
+## [Validation](../../../../glossary.md#term-validation) evidence
 
 - Clean planning context inspected the complete authoritative architecture and planning contracts,
   documentation rules/profiles, ADR 0007, NN master plan and tasks 0001–0010, final NN source/tests
   for Module state/tree/mode/dictionary and all five concrete layers, Model Tensor expression and
   explicit BatchNorm/Dropout/RNG result contracts, Training API, glossary, NN build dependency, and
-  the NN/training architecture test.
+  the NN/training architecture test.<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr); [Tensor glossary](../../../../glossary.md#tensor); [Dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [dependency glossary](../../../../glossary.md#term-dependency); [architecture test glossary](../../../../glossary.md#term-architecture-test))</span>
 - Repository search found no existing Sequential/container API or accepted universal forward
   interface. Earlier layer tasks deliberately deferred a shared contract until this exact consumer;
-  BatchNorm and Dropout tasks explicitly require preserving their context/state/result signatures.
-- Type analysis rejected a public interface because Java interfaces cannot extend `Module`, and
+  BatchNorm and Dropout tasks explicitly require preserving their context/state/result signatures.<span data-glossary-navigation="true"> ([signatures glossary](../../../../glossary.md#term-signature))</span>
+- Type analysis rejected a public interface because Java interfaces cannot extend [`Module`](../../../../glossary.md#term-module), and
   rejected an adapter because it would split state ownership from invocation. The selected abstract
-  subclass is compile-time safe for heterogeneous and nested composition without casts/reflection.
-- Planning inspection found that one-at-a-time `Module.child` registration is atomic per child but
+  subclass is compile-time safe for heterogeneous and nested composition without casts/reflection.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings); [compile glossary](../../../../glossary.md#compile); [heterogeneous glossary](../../../../glossary.md#term-heterogeneous))</span>
+- [Planning](../../../../glossary.md#term-planning) inspection found that one-at-a-time `Module.child` registration is atomic per child but
   cannot prevent a failed multi-child constructor from stranding an installed prefix. The selected
   package-private whole-list preflight/installation primitive closes that construction-only need
-  without changing public/protected Module API.
+  without changing public/protected Module API.<span data-glossary-navigation="true"> ([atomic glossary](../../../../glossary.md#resource-transaction-and-rollback); [preflight glossary](../../../../glossary.md#term-preflight))</span>
 - This planning pass changes only this new task specification and the NN master plan. It runs no
   Java, Gradle, Javadoc, numerical, compiler, backend, or repository-wide test because no executable
-  or explanatory API documentation is changed during planning.
+  or explanatory API documentation is changed during planning.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [compiler glossary](../../../../glossary.md#term-compiler); [backend glossary](../../../../glossary.md#backend))</span>
 - Planning validation passed local Markdown path resolution, required/canonical heading presence,
   balanced fences, one terminal newline, trailing-whitespace checks, exactly one NN Ready row/task,
-  and exactly the two permitted NN planning paths. Whole-worktree `git diff --check` passed with no
+  and exactly the two permitted NN planning paths. Whole-worktree <span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [Ready glossary](../../../../glossary.md#term-ready))</span>`git diff --check` passed with no
   output. The new-file `git diff --no-index --check` produced no whitespace diagnostic; its exit
   code was the expected `1` because the compared file is newly added rather than identical to
   `/dev/null`.
 - Clean implementation context `/root/nn_0011_implementation` found no architecture, final-API,
   dependency, package-placement, or task-scope conflict. It preserved all unrelated live CPU,
-  roadmap, glossary, and probe changes.
+  roadmap, glossary, and probe changes.<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope); [CPU glossary](../../../../glossary.md#term-cpu))</span>
 - `./gradlew :extensions:nn:test --tests io.github.pho001.synaptik.nn.module.SequentialTest` passed
   after executable implementation stabilized: one suite, 12 tests, zero failures, errors, or
   skips. Coverage locks exact type/member surfaces; participating and excluded superclasses;
   whole-list null/identity/name/cycle/ownership preflight and prefix reusability; immutable list
   snapshot; numeric/nested paths; exact empty and non-empty reference flow; null/throw failure
   effects; actual Linear/LayerNorm/Embedding provenance; state load/replacement snapshots; and
-  recursive mode behavior.
+  recursive mode behavior.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [immutable glossary](../../../../glossary.md#term-immutable); [snapshot glossary](../../../../glossary.md#term-snapshot); [Linear glossary](../../../../glossary.md#term-linear-meanings); [Embedding glossary](../../../../glossary.md#embedding); [provenance glossary](../../../../glossary.md#provenance))</span>
 - The affected-layer command selecting `LinearTest`, `LayerNormTest`, and `EmbeddingTest` passed:
   three suites and 20 tests with zero failures, errors, or skips. The only intended existing-layer
   contract change is their direct superclass and ordinary forward override relationship.
@@ -594,11 +594,11 @@ training graph, dependency tests, conformance/integration, Gradle, and other mod
 - An external-package Java 26 example importing `Sequential` and subclassing
   `UnaryTensorModule` compiled successfully against the final NN and Model class directories. It
   constructed the sole public List form and called the unary forward surface without casts,
-  reflection, adapters, or bridge accessors.
-- Production import and Gradle scans found only Model, existing NN, and JDK dependencies;
+  reflection, adapters, or bridge accessors.<span data-glossary-navigation="true"> ([unary glossary](../../../../glossary.md#term-unary))</span>
+- Production import and [Gradle](../../../../glossary.md#term-gradle) scans found only [Model](../../../../glossary.md#term-model), existing [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context), and [JDK](../../../../glossary.md#term-java-development-kit-jdk) dependencies;
   `extensions/nn` retains exactly its sole `implementation(project(":modules:model"))` edge. The
   new composition types import no ForwardContext, graph RNG/result carrier, training, compiler,
-  runtime, prepare, Engine, or backend contract.
+  runtime, prepare, Engine, or backend contract.<span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [carrier glossary](../../../../glossary.md#term-storage-carrier); [runtime glossary](../../../../glossary.md#term-runtime); [prepare glossary](../../../../glossary.md#prepare); [Engine glossary](../../../../glossary.md#term-engine))</span>
 - Implementation scope inspection found exactly 14 current NN implementation/planning paths:
   eight production/Javadoc paths, four tests, this task, and the NN master plan. The final
   documentation context is expected to add only the two remaining authorized explanatory paths,
@@ -614,10 +614,10 @@ training graph, dependency tests, conformance/integration, Gradle, and other mod
   Javadocs. The rendered contracts preserve Module's lack of a universal forward method, the
   narrow unary participation boundary, whole-list ownership preflight, exact empty/non-empty
   reference behavior, prefix failure effects, inherited numeric state/mode behavior, and absent
-  execution and concurrency guarantees. `./gradlew :extensions:nn:javadoc` then passed
+  execution and concurrency guarantees. <span data-glossary-navigation="true"> ([concurrency glossary](../../../../glossary.md#term-concurrency))</span>`./gradlew :extensions:nn:javadoc` then passed
   (`BUILD SUCCESSFUL`; three actionable tasks, two executed and one up-to-date), and inspection of
   the generated Module, UnaryTensorModule, Sequential, Linear, LayerNorm, Embedding, and package
-  pages found the intended hierarchy, links, signatures, parameters, returns, and failure terms.
+  pages found the intended hierarchy, links, signatures, parameters, returns, and failure terms.<span data-glossary-navigation="true"> ([parameters glossary](../../../../glossary.md#term-parameter))</span>
 - Final `javap -public` and private-member inspection reconfirmed that UnaryTensorModule is public
   abstract with only its protected constructor and public abstract forward declaration;
   Sequential is public final with only its List constructor and public final forward declaration;
@@ -629,7 +629,7 @@ training graph, dependency tests, conformance/integration, Gradle, and other mod
   turning it into training, context/RNG erasure, numerical evaluation, compilation, or execution.
   The glossary gives concise empty and two-child declarative examples and stable numeric state
   paths. Automated checking passed every local Markdown path and anchor, balanced fence, and
-  terminal newline in the four task-owned Markdown documents.
+  terminal newline in the four task-owned Markdown documents.<span data-glossary-navigation="true"> ([evaluation glossary](../../../../glossary.md#term-evaluation); [compilation glossary](../../../../glossary.md#compiler-engine-and-execution-stage-names))</span>
 - Final import and dependency scans found only JDK, Model, and existing NN references and retained
   exactly `implementation(project(":modules:model"))`. Scope checking found exactly the 16
   authorized task paths: eight production/Javadoc paths, four tests, Training API, glossary, task,
@@ -643,41 +643,41 @@ training graph, dependency tests, conformance/integration, Gradle, and other mod
 - Tensor API, Compile API, Runtime API, architecture contract/current plan/module boundaries,
   dependency rules, ADR 0007, training graph, architecture tests, backend conformance, integration
   tests, Gradle, and every other module require no change: this task adds only NN-owned declarative
-  composition over existing Tensor expressions and the already-authorized Model-only dependency.
+  composition over existing Tensor expressions and the already-authorized Model-only dependency.<span data-glossary-navigation="true"> ([architecture contract glossary](../../../../glossary.md#architecture-contract); [training graph glossary](../../../../glossary.md#training-graph); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 
 ## Implementation notes
 
 - Clean implementation context `/root/nn_0011_implementation` added the narrow abstract base,
   immutable numeric-child sequence, package-private whole-list registration primitive, three
   superclass changes, focused coverage, and draft Javadocs/package documentation. No Model,
-  context/RNG, execution, dependency, Gradle, architecture, backend, or unrelated behavior changed.
+  context/RNG, execution, dependency, Gradle, architecture, backend, or unrelated behavior changed.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [Model glossary](../../../../glossary.md#term-model); [RNG glossary](../../../../glossary.md#graph-rng-state--graphrngstate); [dependency glossary](../../../../glossary.md#term-dependency); [Gradle glossary](../../../../glossary.md#term-gradle); [backend glossary](../../../../glossary.md#backend))</span>
 - `registerIndexedChildren` traverses the caller list into an independent snapshot, rejects nulls,
   then rejects repeated identities, then preflights every numeric local name, cycle, and existing
   parent before installing any child-map entry or parent link. Focused late-invalid tests prove an
   earlier valid candidate remains reusable after null, duplicate, ownership, cycle, and name
-  failures.
+  failures.<span data-glossary-navigation="true"> ([snapshot glossary](../../../../glossary.md#term-snapshot); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - `Sequential.forward` null-checks the input, performs one exact-reference left fold over the
   retained immutable list, rejects a null result at its index, and preserves completed prefix work
-  on a later null or exception. Empty identity consumes no Tensor identifier.
+  on a later null or exception. Empty identity consumes no Tensor identifier.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings); [Tensor glossary](../../../../glossary.md#tensor))</span>
 - Preserve the live unrelated CPU source/test/guide/planning/roadmap/glossary work during the
   mandatory later documentation pass. Executable source and tests are stable; the separate pass
-  must not repeat the successful Java suites unless it changes executable Java behavior.
+  must not repeat the successful Java suites unless it changes executable Java behavior.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [planning glossary](../../../../glossary.md#term-planning))</span>
 
 ## Completion summary
 
 - Completed changes: added the exact UnaryTensorModule/Sequential contract, atomic indexed child
   registration, the three intended superclass overrides, focused tests, finalized Javadocs/package
-  documentation, Training API/glossary explanations, and synchronized NN planning evidence.
+  documentation, Training API/glossary explanations, and synchronized NN planning evidence.<span data-glossary-navigation="true"> ([atomic glossary](../../../../glossary.md#resource-transaction-and-rollback); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [planning glossary](../../../../glossary.md#term-planning))</span>
 - Files changed or created: exactly the 16 authorized paths listed under Affected files; unrelated
   concurrent paths were preserved.
 - Tests and validation: reused passing focused Sequential 1-suite/12-test, affected-layer
   3-suite/20-test, and authoritative NN 17-suite/110-test evidence with zero failures, errors, or
-  skips. Final Javadoc generation/page inspection, `javap`, independent reflection and external
+  skips. Final Javadoc generation/page inspection, <span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>`javap`, independent reflection and external
   compilation/run, Markdown, dependency/import, exact-scope, status, newline/whitespace, no-index,
-  and `git diff --check` gates passed.
+  and <span data-glossary-navigation="true"> ([compilation glossary](../../../../glossary.md#compiler-engine-and-execution-stage-names); [run glossary](../../../../glossary.md#term-run); [dependency glossary](../../../../glossary.md#term-dependency); [scope glossary](../../../../glossary.md#term-scope))</span>`git diff --check` gates passed.
 - Documentation impact: affected public/package Javadocs, Training API, glossary, task, and NN
   master plan are final. Tensor/Compile/Runtime APIs, architecture/training graph, dependency tests,
-  conformance/integration, Gradle, and other modules were reviewed and correctly remain unchanged.
+  conformance/integration, Gradle, and other modules were reviewed and correctly remain unchanged.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [Compile glossary](../../../../glossary.md#compile); [Runtime glossary](../../../../glossary.md#term-runtime); [training graph glossary](../../../../glossary.md#training-graph); [conformance glossary](../../../../glossary.md#term-conformance); [Gradle glossary](../../../../glossary.md#term-gradle); [modules glossary](../../../../glossary.md#term-module))</span>
 - Unresolved issues: None.
 - Required follow-up: None for task 0011.
 

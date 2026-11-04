@@ -1,4 +1,4 @@
-# Task 0005D: Materialization, Specialization, and Persistence Evidence Gate
+# Task 0005D: [Materialization](../../../../glossary.md#materialization), [Specialization](../../../../glossary.md#term-specialization), and [Persistence](../../../../glossary.md#term-persistence) Evidence Gate
 
 ## Status
 
@@ -6,27 +6,27 @@ Complete
 
 ## Goal
 
-Add one bounded CPU-private decision before shared resource assignment: compare direct universal
-access with at most one contiguous input materialization for the completed fully static FLOAT64
-`ADD -> exact GELU -> MUL` proving partition. The comparison accounts for the selected copy cost,
-the generated-kernel benefit, reuse and fan-out, expected repeated runs, additional memory, and
-portable-route eligibility. If materialization wins, CPU analysis records the copy as an immutable
-lowering fact and declares its exact workspace before shared Prepare assigns slots. The Model
-graph and backend-neutral logical memory remain unchanged.
+Add one bounded [CPU](../../../../glossary.md#term-cpu)-private decision before shared resource assignment: compare direct universal
+access with at most one [contiguous](../../../../glossary.md#term-contiguous) input [materialization](../../../../glossary.md#materialization) for the completed fully static [FLOAT64](../../../../glossary.md#term-float64)
+`ADD -> exact GELU -> MUL` proving [partition](../../../../glossary.md#partition). The comparison accounts for the selected copy cost,
+the generated-[kernel](../../../../glossary.md#kernel) benefit, reuse and [fan-out](../../../../glossary.md#term-fan-out), expected repeated runs, additional memory, and
+portable-route eligibility. If materialization wins, CPU analysis records the copy as an [immutable](../../../../glossary.md#term-immutable)
+[lowering](../../../../glossary.md#lowering) fact and declares its exact workspace before shared [Prepare](../../../../glossary.md#prepare) assigns slots. The [Model](../../../../glossary.md#term-model)
+[graph](../../../../glossary.md#graph) and [backend](../../../../glossary.md#backend)-neutral logical memory remain unchanged.
 
-At the same time, make the current generated specialization boundary explicit and bounded.
-Code-shaping structural facts remain in specialization and artifact identity; concrete extents,
-offsets, strides, assignments, carriers, workers, and run identity remain cold instance facts.
-Fixed-shape and unrolled variants remain disabled because this task supplies no evidence for them.
+At the same time, make the current generated [specialization](../../../../glossary.md#term-specialization) boundary explicit and bounded.
+Code-shaping structural facts remain in specialization and [artifact](../../../../glossary.md#term-artifact) [identity](../../../../glossary.md#term-identity-meanings); concrete extents,
+offsets, [strides](../../../../glossary.md#term-stride), assignments, carriers, workers, and [run](../../../../glossary.md#term-run) identity remain cold instance facts.
+Fixed-[shape](../../../../glossary.md#shape) and [unrolled](../../../../glossary.md#backpropagation-through-time-and-recurrent-state) variants remain disabled because this task supplies no evidence for them.
 
 Finally, run one reproducible, opt-in development evidence suite comparing verified in-memory
 generation with a verified trusted-root class-byte hit. This suite runs during CPU 0005D
-implementation, not for every model and never inside ordinary prepare or Runtime. Its report
+implementation, not for every model and never inside ordinary prepare or [Runtime](../../../../glossary.md#term-runtime). Its report
 records a policy verdict against the exact threshold below. Ordinary explicitly enabled
-persistence performs only bounded lookup, compatibility/integrity/corruption verification, load
-on hit, and generate with optional atomic store on miss. It never benchmarks or compares timing.
+[persistence](../../../../glossary.md#term-persistence) performs only bounded [lookup](../../../../glossary.md#term-lookup), compatibility/[integrity](../../../../glossary.md#term-integrity)/corruption verification, load
+on hit, and generate with optional [atomic](../../../../glossary.md#resource-transaction-and-rollback) store on miss. It never benchmarks or compares timing.
 
-The lifecycle is:
+The [lifecycle](../../../../glossary.md#lifecycle) is:
 
 ```text
 CPU analysis
@@ -44,22 +44,22 @@ separate opt-in development evidence suite
   -> write a report and KEEP_DISABLED or ENABLE_ELIGIBLE verdict
 ```
 
-## Scope
+## [Scope](../../../../glossary.md#term-scope)
 
-- Preserve the completed one-partition, one-unit, fully static FLOAT64
+- Preserve the completed one-[partition](../../../../glossary.md#partition), one-unit, fully static [FLOAT64](../../../../glossary.md#term-float64)
   `ADD -> exact GELU -> MUL` topology, exact/default numerical mode, fixed instruction order,
   four logical boundaries, two virtual intermediates, right-aligned access plans, ordered
-  heap/segment carrier specializations, and all four portable execution strategies.
-- Add a CPU-private immutable `MaterializationPolicy` to `CpuPartitionAnalysisInputs`. `DEFAULT`
+  heap/segment carrier specializations, and all four portable execution strategies.<span data-glossary-navigation="true"> ([topology glossary](../../../../glossary.md#term-topology); [heap glossary](../../../../glossary.md#term-heap); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+- Add a [CPU](../../../../glossary.md#term-cpu)-private [immutable](../../../../glossary.md#term-immutable) `MaterializationPolicy` to `CpuPartitionAnalysisInputs`. `DEFAULT`
   remains direct-only. An enabled policy carries non-negative `copyFixedCostUnits`,
   `copyCostUnitsPerElement`, `directKernelCostUnitsPerElement`, and
   `contiguousKernelCostUnitsPerElement`; positive `expectedRunCount`; non-negative
   `maximumAdditionalBytes` and `minimumNetBenefitCostUnits`; and a
   `minimumBenefitBasisPoints` value from 0 through 10,000. Cost units are dimensionless comparable
   evidence supplied on the cold analysis path; they are neither measured in prepare nor presented
-  as nanoseconds.
+  as nanoseconds.<span data-glossary-navigation="true"> ([prepare glossary](../../../../glossary.md#prepare))</span>
 - Derive reuse/fan-out from the lowered unit rather than accepting it as a caller assertion. The
-  current topology has one use for each materialized input. The selected formula for input `i` is:
+  current topology has one use for each materialized input. The selected formula for input <span data-glossary-navigation="true"> ([fan-out glossary](../../../../glossary.md#term-fan-out))</span>`i` is:
 
   ```text
   copyCost(i) = copyFixedCostUnits + elementCount * copyCostUnitsPerElement
@@ -79,62 +79,62 @@ separate opt-in development evidence suite
   candidate, so direct wins every tie. Admit at most one materialized read boundary. Never
   materialize the output, a scalar/all-zero input, an already dense-linear input, a value with no
   consumer, or a value whose selected consumer route cannot use canonical contiguous FLOAT64
-  segment access.
+  segment access.<span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar); [linear glossary](../../../../glossary.md#term-linear-meanings); [canonical glossary](../../../../glossary.md#term-canonical-form); [contiguous glossary](../../../../glossary.md#term-contiguous))</span>
 - Treat `GENERAL_ODOMETER`, `LAST_AXIS_BIAS`, and `BLOCK_OUTER` read inputs as eligible only when
   replacing that one access by canonical dense access preserves the exact operation semantics,
   referenced span, alias decision, and selected portable scalar/vector behavior. A selected copy
-  may make an otherwise scalar `GENERAL_ODOMETER` consumer vector-eligible, but route and strategy
+  may make an otherwise scalar <span data-glossary-navigation="true"> ([operation glossary](../../../../glossary.md#operation); [referenced span glossary](../../../../glossary.md#referenced-element-span); [alias glossary](../../../../glossary.md#aliasing-and-arena); [vector glossary](../../../../glossary.md#term-vector))</span>`GENERAL_ODOMETER` consumer vector-eligible, but route and strategy
   selection occurs once over each complete candidate; it is not changed after assignment.
 - Introduce `CpuMaterializationPlan` as the route-independent immutable selected copy fact. It
-  records the source boundary index and `ValueId`, source access binding, canonical contiguous
-  consumer binding, checked element/byte count, fixed analysis-local workspace requirement ID
-  `0`, alignment `Double.BYTES`, derived use count, expected runs, direct/copy/contiguous costs,
+  records the source boundary index and [`ValueId`](../../../../glossary.md#logical-valueid-versus-physical-memory-slot), source access binding, canonical contiguous
+  consumer binding, checked element/byte count, fixed analysis-local workspace requirement ID<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding); [element glossary](../../../../glossary.md#term-element))</span>
+  `0`, [alignment](../../../../glossary.md#term-alignment) `Double.BYTES`, derived use count, expected runs, direct/copy/contiguous costs,
   net benefit, and selection reason. An empty optional means direct access.
 - When a copy is selected, append exactly one
   `PreparationResourceRequirement.Workspace(0, elementCount * Double.BYTES, Double.BYTES)` after
   the four existing buffer declarations. Return it in the same analysis result before shared
-  assignment. Keep the original four graph-value buffer declarations and `LogicalMemoryPlan`
+  assignment. Keep the original four graph-value buffer declarations and <span data-glossary-navigation="true"> ([buffer glossary](../../../../glossary.md#term-buffer); [graph glossary](../../../../glossary.md#graph))</span>`LogicalMemoryPlan`
   unchanged; the workspace is CPU-private scratch and has no `ValueId`.
 - Retain the selected materialization plan, workspace declaration, adjusted generated-consumer
-  access bindings, route/strategy, and specialization opaquely in
+  access bindings, route/strategy, and specialization opaquely in<span data-glossary-navigation="true"> ([materialization glossary](../../../../glossary.md#materialization); [specialization glossary](../../../../glossary.md#term-specialization))</span>
   `CpuPartitionPreparationPlan`. Shared Prepare assigns the workspace without interpreting the
   CPU plan.
-- Add `CpuContiguousWorkspace`, a run-owned aligned shared-arena FLOAT64
-  `WorkspaceRepresentation`. It exposes one exact writable native `MemorySegment` only through
+- Add `CpuContiguousWorkspace`, a [run](../../../../glossary.md#term-run)-owned aligned shared-[arena](../../../../glossary.md#term-arena) FLOAT64
+  `WorkspaceRepresentation`. It exposes one exact writable native [`MemorySegment`](../../../../glossary.md#term-memorysegment) only through
   CPU-private cold binding, owns and closes its arena once, supports zero bytes, and is accessible
   to the selected worker group.
 - During finalization, resolve and validate every four-buffer assignment and the optional exact
   workspace assignment before the first artifact-store operation. A direct plan rejects an
   unexpected workspace; a copied plan requires exactly the declaration identity, assigned slot,
-  byte size, alignment, and workspace selection fixed during analysis.
+  byte size, alignment, and workspace selection fixed during analysis.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - During cold binding, validate the source buffer, workspace liveness/accessibility/size/alignment,
   and adjusted generated carrier pattern. The generated consumer sees the selected workspace as
-  one `MEMORY_SEGMENT` argument while the original source remains a read-only executable buffer
-  selection for the copy. No generated method gains a fifth boundary argument.
+  one <span data-glossary-navigation="true"> ([liveness glossary](../../../../glossary.md#term-liveness))</span>`MEMORY_SEGMENT` argument while the original source remains a read-only executable buffer
+  selection for the copy. No generated method gains a fifth boundary argument.<span data-glossary-navigation="true"> ([argument glossary](../../../../glossary.md#term-argument))</span>
 - Execute the selected copy exactly once per bound invocation on the invoking thread before any
   consumer chunk starts. Copy logical elements in canonical order from the already-normalized
-  source binding into dense workspace elements `[0, elementCount)`, using checked primitive
+  source binding into dense workspace elements <span data-glossary-navigation="true"> ([bound invocation glossary](../../../../glossary.md#bound-invocation--boundinvocation))</span>`[0, elementCount)`, using checked primitive
   address/carry arithmetic and no cursor allocation, reflection, map lookup, division, or modulo
   per element. Zero elements touch neither source nor workspace. Copy failure prevents consumer
-  execution; Runtime's existing executable failure behavior leaves the output invalid.
+  execution; Runtime's existing executable failure behavior leaves the output invalid.<span data-glossary-navigation="true"> ([carry glossary](../../../../glossary.md#term-carry); [lookup glossary](../../../../glossary.md#term-lookup); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
 - Preserve parallel execution ownership: the copy completes before worker submission, the
   writable workspace is visible to every selected worker, workers only read it, and existing
-  deterministic chunk/failure/interrupt/close behavior remains unchanged.
+  deterministic chunk/failure/interrupt/close behavior remains unchanged.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Add `CpuSpecializationBudget` in the cache package. Its current hard limits are four complete
   candidate plans per analysis, one realized artifact per analysis, zero fixed-shape variants,
   and zero unrolled variants. The direct candidate plus three possible one-input copy candidates
   exactly fits the candidate limit. Exceeding any limit fails analysis before declaration or
-  artifact work; it never silently emits an extra class.
+  artifact work; it never silently emits an extra class.<span data-glossary-navigation="true"> ([cache glossary](../../../../glossary.md#term-cache); [shape glossary](../../../../glossary.md#shape); [unrolled glossary](../../../../glossary.md#backpropagation-through-time-and-recurrent-state))</span>
 - Keep these code-shaping structural facts in `CpuKernelSpecialization` compatibility bytes and
-  structural identity: current schema, canonical adjusted `CpuKernelIr`, exact/default numerical
+  structural identity: current schema, canonical adjusted <span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema))</span>`CpuKernelIr`, exact/default numerical
   mode, scalar versus vector compute, exact vector species for vector compute, ordered generated
   carrier pattern, and direct versus selected materialization source position. The selected copy
-  changes the canonical consumer access structure and therefore the lowering fingerprint.
+  changes the canonical consumer access structure and therefore the lowering fingerprint.<span data-glossary-navigation="true"> ([vector species glossary](../../../../glossary.md#term-vector-species); [lowering glossary](../../../../glossary.md#lowering); [fingerprint glossary](../../../../glossary.md#term-fingerprint))</span>
 - Keep these instance facts out of specialization and generated-class identity: concrete
   compatible extents, element count, layout offsets and stride magnitudes within the same
-  structure, source and workspace objects, byte addresses, `ValueId`, declaration and slot
+  structure, source and workspace objects, byte addresses, <span data-glossary-navigation="true"> ([layout glossary](../../../../glossary.md#layout); [stride glossary](../../../../glossary.md#term-stride))</span>`ValueId`, declaration and slot
   identities, cost values, expected runs, memory limit, worker and chunk configuration, artifact
-  root, model/graph/run identity, and benchmark measurements.
+  root, model/graph/run identity, and benchmark measurements.<span data-glossary-navigation="true"> ([model glossary](../../../../glossary.md#term-model))</span>
 - Do not add fixed-shape or unrolled code in this task. A later task may raise either zero budget
   only with a reproducible benchmark showing a benefit for an exact eligible workload class and
   must add the baked shape/unroll fact to schema, specialization, verification, and invalidation.
@@ -142,12 +142,12 @@ separate opt-in development evidence suite
   realization performs at most one process-local weak-intern lookup and, when a trusted root is
   present, one envelope lookup. Reject an envelope larger than 2 MiB, metadata larger than 64 KiB,
   class bytes larger than 1 MiB, wrong schema/key/metadata/length/checksum, trailing bytes,
-  malformed class shape, or incompatible entry descriptor before definition.
+  malformed class shape, or incompatible entry descriptor before definition.<span data-glossary-navigation="true"> ([metadata glossary](../../../../glossary.md#term-metadata); [checksum glossary](../../../../glossary.md#term-checksum); [descriptor glossary](../../../../glossary.md#term-descriptor))</span>
 - Publish a miss as one complete envelope through a forced temporary file and atomic move under
   the explicit normalized trusted root; if atomic move is unavailable or any read/write/security
   operation fails, use the verified in-memory artifact and leave persistence non-critical. There
   is one current schema and no migration reader, converter, expiry, eviction, background service,
-  or attacker-authentication claim.
+  or attacker-authentication claim.<span data-glossary-navigation="true"> ([atomic move glossary](../../../../glossary.md#term-atomic-move); [persistence glossary](../../../../glossary.md#term-persistence); [authentication glossary](../../../../glossary.md#term-authentication))</span>
 - Keep the default finalizer constructor and `CpuPartitionAnalysisInputs.DEFAULT` persistence-free.
   A present explicit trusted root enables ordinary lookup/store behavior. Even an
   `ENABLE_ELIGIBLE` evidence verdict does not invent a default path or public policy in 0005D;
@@ -161,14 +161,14 @@ separate opt-in development evidence suite
   fixed mixed carrier pattern. Each fork performs 20 warm-up realizations and 50 measured
   realizations, alternates no-root/hit order, clears process-local weak interning before every
   measurement, pre-seeds and verifies the trusted-root envelope outside the timed hit sample, and
-  uses identical canonical IR and specialization inputs for both modes.
+  uses identical canonical IR and specialization inputs for both modes.<span data-glossary-navigation="true"> ([fork glossary](../../../../glossary.md#term-fork-meanings); [warm-up glossary](../../../../glossary.md#benchmark-measurement-vocabulary); [weak interning glossary](../../../../glossary.md#weak-reference-and-weak-interning); [seeds glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings); [sample glossary](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir))</span>
 - Measure elapsed nanoseconds for complete no-root emit + structural verification + definition and
   complete trusted-root envelope read + compatibility/integrity/class-shape verification +
   definition. Record per-fixture sample count, median, p95, median absolute saving, ratio, hit and
   fallback counts, generated class/envelope byte sizes, Java vendor/version, OS/architecture,
   available processors, command, schema, thresholds, and SHA-256 of the canonical report payload
-  excluding the hash field itself.
-- Write the untracked verdict artifact to
+  excluding the hash field itself.<span data-glossary-navigation="true"> ([integrity glossary](../../../../glossary.md#term-integrity); [fixture glossary](../../../../glossary.md#term-fixture); [median glossary](../../../../glossary.md#term-median); [SHA-256 glossary](../../../../glossary.md#term-sha-256); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [hash glossary](../../../../glossary.md#term-hash))</span>
+- Write the untracked verdict [artifact](../../../../glossary.md#term-artifact) to
   `backends/cpu/build/reports/evidence/cpu-0005d-persistence.json`. The verdict is
   `ENABLE_ELIGIBLE` only when every fixture has zero hit fallbacks, hit median at most 80% of
   no-root median, median absolute saving at least 200,000 ns, and hit p95 at most 90% of no-root
@@ -179,47 +179,47 @@ separate opt-in development evidence suite
 - Run that evidence suite during 0005D implementation and record its exact report hash, metrics,
   environment, and verdict in this task. Rerun it only after a material generator, generator
   schema, JDK, persistence-policy change, or deliberate performance evaluation. Never invoke it
-  for a model, from ordinary prepare/runtime, or as part of the final ordinary CPU suite.
+  for a model, from ordinary prepare/runtime, or as part of the final ordinary CPU suite.<span data-glossary-navigation="true"> ([metrics glossary](../../../../glossary.md#machine-learning-and-hyperparameters); [JDK glossary](../../../../glossary.md#term-java-development-kit-jdk); [evaluation glossary](../../../../glossary.md#term-evaluation))</span>
 - Keep generated class-byte persistence distinct from JVM just-in-time (JIT) machine code and
   profiling: a hit reuses verified class bytes only and still defines a fresh hidden class that
   the JVM may compile independently. Keep both distinct from the future workload tuning cache,
-  which records route/configuration decisions rather than executable class bytes.
+  which records route/configuration decisions rather than executable class bytes.<span data-glossary-navigation="true"> ([JVM glossary](../../../../glossary.md#term-java-virtual-machine-jvm); [JIT glossary](../../../../glossary.md#term-just-in-time-compilation-jit); [machine code glossary](../../../../glossary.md#term-machine-code); [hidden class glossary](../../../../glossary.md#term-hidden-class); [compile glossary](../../../../glossary.md#compile))</span>
 - Finalize affected Javadocs, package summaries, the CPU backend guide, glossary, and synchronized
   planning records in a separate clean documentation-focused context after executable Java and
-  the evidence report stabilize.
+  the evidence report stabilize.<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [planning glossary](../../../../glossary.md#term-planning))</span>
 
-## Out of scope
+## Out of [scope](../../../../glossary.md#term-scope)
 
 - Any data type, operation, topology, numerical policy, or capability beyond the completed fully
-  static resolved-layout FLOAT64 `ADD -> exact GELU -> MUL` proving partition.
+  static resolved-layout FLOAT64 <span data-glossary-navigation="true"> ([data type glossary](../../../../glossary.md#data-type--datatype); [operation glossary](../../../../glossary.md#operation); [topology glossary](../../../../glossary.md#term-topology); [layout glossary](../../../../glossary.md#layout); [FLOAT64 glossary](../../../../glossary.md#term-float64))</span>`ADD -> exact GELU -> MUL` proving [partition](../../../../glossary.md#partition).
 - More than one materialized input, output materialization, cross-partition materialization,
   packing, reorder, opaque/prepacked layouts, transfer, pooling, workspace reuse/aliasing, or
-  mutation of the Model graph or `LogicalMemoryPlan`.
+  mutation of the Model graph or <span data-glossary-navigation="true"> ([materialization glossary](../../../../glossary.md#materialization); [opaque glossary](../../../../glossary.md#term-opaque); [pooling glossary](../../../../glossary.md#term-pooling); [aliasing glossary](../../../../glossary.md#term-aliasing); [Model glossary](../../../../glossary.md#term-model); [graph glossary](../../../../glossary.md#graph))</span>`LogicalMemoryPlan`.
 - Vector gather, scatter, masked tails, new Vector species search, tiles, fixed shapes, unrolling,
-  broader pointwise coverage, reductions, scans, native/vendor routes, or CPU 0005E implementation.
+  broader pointwise coverage, reductions, scans, native/vendor routes, or CPU 0005E implementation.<span data-glossary-navigation="true"> ([Vector glossary](../../../../glossary.md#term-vector); [gather glossary](../../../../glossary.md#gather); [Vector species glossary](../../../../glossary.md#term-vector-species); [shapes glossary](../../../../glossary.md#shape); [unrolling glossary](../../../../glossary.md#term-unrolling); [pointwise glossary](../../../../glossary.md#term-pointwise); [CPU glossary](../../../../glossary.md#term-cpu))</span>
 - Per-model/workload measurement, autotuning, tuning-cache lookup or mutation, candidate search in
-  ordinary prepare, or benchmark-driven Runtime mutation. Those belong to future tools/tuning.
+  ordinary prepare, or benchmark-driven Runtime mutation. Those belong to future tools/tuning.<span data-glossary-navigation="true"> ([autotuning glossary](../../../../glossary.md#autotuning--model-autotuning); [cache glossary](../../../../glossary.md#term-cache); [lookup glossary](../../../../glossary.md#term-lookup); [prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
 - A public Config contract, CPU facade, persistence root discovery, default cache directory,
-  Engine/Runtime orchestration, global registry, service locator, or process-wide mutable policy.
+  Engine/Runtime orchestration, global registry, service locator, or process-wide mutable policy.<span data-glossary-navigation="true"> ([facade glossary](../../../../glossary.md#term-facade); [persistence glossary](../../../../glossary.md#term-persistence); [Engine glossary](../../../../glossary.md#term-engine); [registry glossary](../../../../glossary.md#term-registry); [service locator glossary](../../../../glossary.md#term-service-locator); [mutable glossary](../../../../glossary.md#term-mutable))</span>
 - Changes to Model, Compiler, Planning, shared Prepare, Runtime, Config, Backend Contract, Trace,
-  Engine, OpenBLAS provider, another backend, module dependencies, Gradle configuration,
+  Engine, OpenBLAS provider, another backend, module dependencies, Gradle configuration,<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [Planning glossary](../../../../glossary.md#term-planning); [Backend glossary](../../../../glossary.md#backend); [Trace glossary](../../../../glossary.md#trace); [OpenBLAS glossary](../../../../glossary.md#term-openblas); [module glossary](../../../../glossary.md#term-module); [Gradle glossary](../../../../glossary.md#term-gradle))</span>
   `ARCHITECTURE.md`, architecture explanations, ADRs, architecture tests, backend-conformance
-  tests, or integration tests.
+  tests, or integration tests.<span data-glossary-navigation="true"> ([conformance glossary](../../../../glossary.md#term-conformance))</span>
 - Creating a detailed CPU 0005E or later specification or changing completed CPU 0005A–0005C
   history.
 - Claiming that persistence preserves JIT machine code/profile, is always faster, is required for
-  correctness, authenticates hostile bytes, or is the workload tuning cache.
+  correctness, authenticates hostile bytes, or is the workload tuning cache.<span data-glossary-navigation="true"> ([JIT glossary](../../../../glossary.md#term-just-in-time-compilation-jit); [machine code glossary](../../../../glossary.md#term-machine-code))</span>
 
 ## Architecture references
 
 - [`ARCHITECTURE.md`](../../../../../ARCHITECTURE.md), especially core invariants, Prepare,
-  Runtime, concrete backends, performance evidence, and CPU routes.
+  Runtime, concrete backends, performance evidence, and CPU routes.<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime); [backends glossary](../../../../glossary.md#backend); [CPU glossary](../../../../glossary.md#term-cpu))</span>
 - [Current architecture documentation](../../../../architecture/current-architecture-plan.md).
 - [Runtime, Prepare, and Backend boundary](../../../../architecture/runtime-prepare-backend-boundary.md).
-- [Performance evidence and model autotuning](../../../../architecture/performance-evidence-and-tuning.md).
-- [ADR 0010: staged backend preparation](../../../../design/decisions/0010-staged-backend-preparation.md).
-- [ADR 0008: performance evidence and autotuning boundaries](../../../../design/decisions/0008-performance-evidence-and-tuning-boundaries.md).
-- [Planning guide](../../../planning-guide.md).
+- [Performance evidence and model autotuning](../../../../architecture/performance-evidence-and-tuning.md)<span data-glossary-navigation="true"> ([model autotuning glossary](../../../../glossary.md#autotuning--model-autotuning))</span>.
+- [ADR 0010: staged backend preparation](../../../../design/decisions/0010-staged-backend-preparation.md)<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>.
+- [ADR 0008: performance evidence and autotuning boundaries](../../../../design/decisions/0008-performance-evidence-and-tuning-boundaries.md)<span data-glossary-navigation="true"> ([autotuning glossary](../../../../glossary.md#autotuning--model-autotuning))</span>.
+- [Planning guide](../../../planning-guide.md)<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning))</span>.
 - [CPU backend master plan](../master-plan.md).
 - [Completed CPU 0005A](0005a-atomic-partition-kernel-architecture-reset.md).
 - [Completed CPU 0005B](0005b-universal-access-plans-and-right-aligned-broadcasting.md).
@@ -228,21 +228,21 @@ separate opt-in development evidence suite
 ## Architecture constraints
 
 - Planning continues to choose only CPU ownership. CPU analysis owns direct/materialized candidate
-  formation, route/strategy selection, specialization, and exact resource declarations.
+  formation, route/strategy selection, specialization, and exact resource declarations.<span data-glossary-navigation="true"> ([Planning glossary](../../../../glossary.md#term-planning); [CPU glossary](../../../../glossary.md#term-cpu); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [specialization glossary](../../../../glossary.md#term-specialization))</span>
 - Shared Prepare receives one opaque selected CPU plan and backend-neutral buffer/workspace
   declarations. It assigns slots but does not inspect CPU access, copy, cost, route, carrier,
-  specialization, persistence, or benchmark facts.
+  specialization, persistence, or benchmark facts.<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare); [opaque glossary](../../../../glossary.md#term-opaque); [backend glossary](../../../../glossary.md#backend); [buffer glossary](../../../../glossary.md#term-buffer); [carrier glossary](../../../../glossary.md#term-storage-carrier); [persistence glossary](../../../../glossary.md#term-persistence))</span>
 - Backend analysis is deterministic from explicit context and CPU inputs. It performs no timing,
-  persistence I/O, artifact realization, allocation, or Runtime work.
+  persistence I/O, artifact realization, allocation, or Runtime work.<span data-glossary-navigation="true"> ([artifact glossary](../../../../glossary.md#term-artifact); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
 - Finalization occurs only after every declaration is assigned. It verifies but does not change
   the selected copy, route, strategy, specialization, or resource set.
 - Runtime receives one immutable executable recipe. Per-run binding receives direct buffer and
   optional workspace references; execution performs only the prepared copy and prepared generated
-  kernel work, with no graph inspection, selection, lookup, persistence, or benchmark comparison.
+  kernel work, with no graph inspection, selection, lookup, persistence, or benchmark comparison.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [run glossary](../../../../glossary.md#term-run); [binding glossary](../../../../glossary.md#term-binding); [kernel glossary](../../../../glossary.md#kernel); [graph glossary](../../../../glossary.md#graph); [lookup glossary](../../../../glossary.md#term-lookup))</span>
 - Benchmarking is observational development evidence and does not mutate production settings.
-  Future per-model autotuning remains a separate explicit workflow and cache.
+  Future per-model autotuning remains a separate explicit workflow and cache.<span data-glossary-navigation="true"> ([Benchmarking glossary](../../../../glossary.md#term-benchmarking); [model autotuning glossary](../../../../glossary.md#autotuning--model-autotuning); [cache glossary](../../../../glossary.md#term-cache))</span>
 - Any required shared-module, lifecycle, dependency, build, or architecture change is a stop
-  condition rather than implied scope.
+  condition rather than implied scope.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module); [lifecycle glossary](../../../../glossary.md#lifecycle); [dependency glossary](../../../../glossary.md#term-dependency); [scope glossary](../../../../glossary.md#term-scope))</span>
 
 ## Package impact
 
@@ -251,17 +251,17 @@ Existing packages used:
 - `io.github.pho001.synaptik.backend.cpu.internal.prepare` — typed cold inputs, deterministic
   comparison, exact declarations, selected plan retention, and post-assignment verification.
 - `io.github.pho001.synaptik.backend.cpu.internal.lowering` — copy eligibility, reuse/fan-out,
-  adjusted canonical access facts, and the selected `CpuMaterializationPlan`.
+  adjusted canonical access facts, and the selected <span data-glossary-navigation="true"> ([fan-out glossary](../../../../glossary.md#term-fan-out); [canonical glossary](../../../../glossary.md#term-canonical-form))</span>`CpuMaterializationPlan`.
 - `io.github.pho001.synaptik.backend.cpu.internal.ir` — unchanged sole normalized access family
-  and canonical structural identity.
+  and canonical structural identity.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - `io.github.pho001.synaptik.backend.cpu.internal.memory` — run-owned contiguous workspace and
-  direct source/workspace carrier access.
+  direct source/workspace carrier access.<span data-glossary-navigation="true"> ([run glossary](../../../../glossary.md#term-run); [contiguous glossary](../../../../glossary.md#term-contiguous); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
 - `io.github.pho001.synaptik.backend.cpu.internal.cache` — bounded specialization identity,
-  current-schema envelope verification, optional persistence, and development evidence seam.
+  current-schema envelope verification, optional persistence, and development evidence seam.<span data-glossary-navigation="true"> ([specialization glossary](../../../../glossary.md#term-specialization); [schema glossary](../../../../glossary.md#term-schema); [persistence glossary](../../../../glossary.md#term-persistence))</span>
 - `io.github.pho001.synaptik.backend.cpu.internal.route.portable` — already-selected generated
   consumer realization facts.
 - `io.github.pho001.synaptik.backend.cpu.internal.executable` — cold copy/workspace binding and
-  copy-before-consumer execution.
+  copy-before-consumer execution.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding))</span>
 
 Packages added or changed:
 
@@ -271,17 +271,17 @@ Type placement:
 
 - `io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMaterializationPlan` — new immutable
   route-independent selected-copy fact because lowering owns semantic access replacement and
-  reuse/fan-out accounting.
+  reuse/fan-out accounting.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [lowering glossary](../../../../glossary.md#lowering))</span>
 - `io.github.pho001.synaptik.backend.cpu.internal.cache.CpuSpecializationBudget` — new immutable
-  code-generation ceiling because cache/specialization owns class-explosion control.
+  code-generation ceiling because cache/specialization owns class-explosion control.<span data-glossary-navigation="true"> ([cache glossary](../../../../glossary.md#term-cache))</span>
 - `io.github.pho001.synaptik.backend.cpu.internal.memory.CpuContiguousWorkspace` — new run-owned
-  CPU workspace because concrete backends own physical workspace implementations.
+  CPU workspace because concrete backends own physical workspace implementations.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [backends glossary](../../../../glossary.md#backend))</span>
 - `CpuPartitionAnalysisInputs.MaterializationPolicy` — nested CPU-private cold policy because it
   is consumed only by the current analysis input and does not justify public Config.
 - Existing `CpuPartitionPreparationPlan` retains the optional materialization, exact declarations,
-  adjusted bindings, and budget result through shared assignment.
+  adjusted bindings, and budget result through shared assignment.<span data-glossary-navigation="true"> ([materialization glossary](../../../../glossary.md#materialization))</span>
 - Existing `CpuPreparedExecutable` performs the already-selected copy and generated invocation; no
-  second executable, public transfer facade, or Runtime operation kind is added.
+  second executable, public transfer facade, or Runtime operation kind is added.<span data-glossary-navigation="true"> ([facade glossary](../../../../glossary.md#term-facade); [Runtime glossary](../../../../glossary.md#term-runtime); [operation glossary](../../../../glossary.md#operation))</span>
 
 ## Affected files
 
@@ -324,14 +324,14 @@ Expected test paths:
 - `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuShapePolymorphicArtifactTest.java`
 - `backends/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/reference/CpuReferenceDifferentialTest.java`
 
-Local scope correction: `CpuInternalPackageInventoryTest` replaces `CpuKernelIrTest` in the
+Local [scope](../../../../glossary.md#term-scope) correction: `CpuInternalPackageInventoryTest` replaces `CpuKernelIrTest` in the
 12-test allocation. The three required new production types necessarily change the exact internal
 type inventory, while the cohesive implementation leaves the `CpuKernelIr` contract unchanged and
 does not require a change to its existing focused test. This correction authorizes the required
 inventory update without increasing the 38-path ceiling and does not report implementation
 completion.
 
-Expected explanatory and planning paths:
+Expected explanatory and [planning](../../../../glossary.md#term-planning) paths:
 
 - `docs/backend-guide/cpu-backend.md`
 - `docs/glossary.md`
@@ -342,79 +342,79 @@ Expected explanatory and planning paths:
 The evidence report is generated under `backends/cpu/build/` and is not committed. No other path
 is authorized by default.
 
-## Maximum scope
+## Maximum [scope](../../../../glossary.md#term-scope)
 
 This task may create or modify at most 38 repository paths:
 
 | Category | Maximum | Path accounting |
 |---|---:|---|
-| CPU production | 21 | Eighteen existing production/package paths plus three new types |
+| [CPU](../../../../glossary.md#term-cpu) production | 21 | Eighteen existing production/package paths plus three new types |
 | CPU tests | 12 | Nine existing tests plus three new tests |
-| Explanatory documentation | 2 | CPU backend guide and glossary |
-| Planning/status | 3 | This task, CPU master plan, and roadmap |
+| Explanatory documentation | 2 | CPU [backend](../../../../glossary.md#backend) guide and glossary |
+| [Planning](../../../../glossary.md#term-planning)/status | 3 | This task, CPU master plan, and roadmap |
 | **Total** | **38** | **21 + 12 + 2 + 3** |
 
-The untracked evidence JSON does not count as a repository path. If implementation needs another
-path, a second materialization, a shared contract, Gradle wiring, or a new package, stop and revise
+The untracked evidence [JSON](../../../../glossary.md#term-json) does not count as a repository path. If implementation needs another
+path, a second [materialization](../../../../glossary.md#materialization), a shared contract, [Gradle](../../../../glossary.md#term-gradle) wiring, or a new package, stop and revise
 this specification before coding.
 
 ## Acceptance criteria
 
 - `CpuPartitionAnalysisInputs.DEFAULT` remains direct-only, scalar/single-thread, four-segment,
-  manifest-disabled, and persistence-free. Existing 0005A–0005C behavior remains compatible.
+  manifest-disabled, and persistence-free. Existing 0005A–0005C behavior remains compatible.<span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar); [manifest glossary](../../../../glossary.md#term-manifest); [persistence glossary](../../../../glossary.md#term-persistence))</span>
 - The candidate set is deterministically bounded to direct plus at most the three single-input
   copies. Direct wins ties; exactly one complete candidate is selected and one artifact is
-  realized after assignment.
+  realized after assignment.<span data-glossary-navigation="true"> ([artifact glossary](../../../../glossary.md#term-artifact))</span>
 - Focused tables prove every hard filter and cost term: copy cost, generated-kernel benefit,
   derived reuse/fan-out, expected repeated runs, additional memory, and route eligibility.
-  Checked overflow fails before declarations or artifact access.
+  Checked overflow fails before declarations or artifact access.<span data-glossary-navigation="true"> ([kernel glossary](../../../../glossary.md#kernel); [fan-out glossary](../../../../glossary.md#term-fan-out); [overflow glossary](../../../../glossary.md#term-overflow))</span>
 - Direct plans retain exactly four buffer declarations and no workspace. A selected copy retains
-  those four declarations and appends exactly workspace ID `0` with checked dense byte geometry
-  before assignment. The Model graph, `LogicalMemoryPlan`, boundary `ValueId` values, and virtual
+  those four declarations and appends exactly workspace ID <span data-glossary-navigation="true"> ([buffer glossary](../../../../glossary.md#term-buffer))</span>`0` with checked dense byte geometry
+  before assignment. The Model graph, <span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [graph glossary](../../../../glossary.md#graph))</span>`LogicalMemoryPlan`, boundary [`ValueId`](../../../../glossary.md#logical-valueid-versus-physical-memory-slot) values, and virtual
   intermediates are unchanged.
 - Finalization resolves all buffer/workspace assignments before one bounded artifact lookup. It
   cannot add, remove, or change the selected materialization, route, strategy, specialization, or
-  resource geometry.
+  resource geometry.<span data-glossary-navigation="true"> ([lookup glossary](../../../../glossary.md#term-lookup); [materialization glossary](../../../../glossary.md#materialization); [specialization glossary](../../../../glossary.md#term-specialization))</span>
 - Generated/reference differential tests cover direct and each eligible source position across
   general odometer, block/outer, and last-axis cases, zero elements, arbitrary ranges, all four
   strategies where eligible, heap/segment/mixed original carriers, and exact numerical/special-
-  value behavior.
+  value behavior.<span data-glossary-navigation="true"> ([axis glossary](../../../../glossary.md#term-axis); [elements glossary](../../../../glossary.md#term-element); [heap glossary](../../../../glossary.md#term-heap))</span>
 - A selected copy happens once before consumer work. Zero ranges touch nothing; copy failure
   prevents consumer work; parallel workers read only the completed contiguous workspace; output
-  validity and worker failure semantics remain unchanged.
+  validity and worker failure semantics remain unchanged.<span data-glossary-navigation="true"> ([contiguous glossary](../../../../glossary.md#term-contiguous))</span>
 - The generated entry still has exactly four direct arguments. Its selected copied position is a
   segment carrier and dense access. No fifth argument, hot carrier/access/route switch, cursor,
-  per-element division/modulo, reflection, lookup, or allocation is introduced.
+  per-element division/modulo, reflection, lookup, or allocation is introduced.<span data-glossary-navigation="true"> ([arguments glossary](../../../../glossary.md#term-argument); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
 - `CpuSpecializationBudget` enforces four candidate plans, one realized artifact, zero fixed-shape
   variants, and zero unrolled variants. Shape, extent, offset, stride magnitude, costs, expected
   runs, memory budget, resources, workers, roots, and benchmark measurements remain outside class
-  identity. Every actual code-shaping fact named in Scope remains inside identity.
+  identity. Every actual code-shaping fact named in Scope remains inside identity.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [unrolled glossary](../../../../glossary.md#backpropagation-through-time-and-recurrent-state); [extent glossary](../../../../glossary.md#term-extent); [stride glossary](../../../../glossary.md#term-stride); [identity glossary](../../../../glossary.md#term-identity-meanings); [Scope glossary](../../../../glossary.md#term-scope))</span>
 - The current-schema persistence envelope is size-bounded, complete, checksummed, structurally
   verified, atomically published, and safely ignored on absence, incompatibility, corruption,
   truncation, trailing data, malformed class, or I/O/security failure. No invalid bytes are
-  defined and no legacy schema is read.
+  defined and no legacy schema is read.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [truncation glossary](../../../../glossary.md#term-truncation-toward-zero))</span>
 - Explicit-root ordinary finalization performs no more than one weak-intern lookup and one
   envelope lookup, then load-on-hit or generate/optionally-store-on-miss. No timing, comparison,
-  tuning, model-specific search, or Runtime persistence work exists.
+  tuning, model-specific search, or Runtime persistence work exists.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime))</span>
 - Ordinary `./gradlew :backends:cpu:test` skips the performance measurement. The explicit evidence
   command runs the fixed six-fixture, seven-fork methodology, creates the exact JSON report, and
-  records an internally consistent `ENABLE_ELIGIBLE`, `KEEP_DISABLED`, or `INCONCLUSIVE` verdict.
+  records an internally consistent <span data-glossary-navigation="true"> ([fixture glossary](../../../../glossary.md#term-fixture); [fork glossary](../../../../glossary.md#term-fork-meanings); [JSON glossary](../../../../glossary.md#term-json))</span>`ENABLE_ELIGIBLE`, `KEEP_DISABLED`, or `INCONCLUSIVE` verdict.
 - The default remains disabled unless the recorded report satisfies every exact threshold. A pass
   is only evidence eligibility; 0005D still creates no default path or public/composition policy.
 - Documentation and Javadoc clearly distinguish generated class bytes from JIT machine code and
   profile, and both from the future workload tuning cache. They state the benchmark rerun triggers
-  and that ordinary prepare/runtime never benchmark.
+  and that ordinary prepare/runtime never benchmark.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [JIT glossary](../../../../glossary.md#term-just-in-time-compilation-jit); [machine code glossary](../../../../glossary.md#term-machine-code); [cache glossary](../../../../glossary.md#term-cache); [prepare glossary](../../../../glossary.md#prepare))</span>
 - No Java, test, build, architecture, dependency, shared-module, conformance, integration,
-  provider, native/vendor, or later-task change occurs outside the exact path map.
+  provider, native/vendor, or later-task change occurs outside the exact path map.<span data-glossary-navigation="true"> ([dependency glossary](../../../../glossary.md#term-dependency); [module glossary](../../../../glossary.md#term-module); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 - A separate clean documentation-focused pass finalizes affected Javadocs, package summaries, CPU
   guide, glossary, task evidence, master plan, and roadmap without repeating the final CPU test
-  suite or evidence benchmark unless executable Java or the benchmark harness changed afterward.
-- CPU 0005A–0005C remain `Complete`; CPU 0005D becomes `Complete` only after every gate passes;
+  suite or evidence benchmark unless executable Java or the benchmark harness changed afterward.<span data-glossary-navigation="true"> ([benchmark harness glossary](../../../../glossary.md#term-benchmark-harness))</span>
+- [CPU](../../../../glossary.md#term-cpu) 0005A–0005C remain `Complete`; CPU 0005D becomes `Complete` only after every gate passes;
   CPU 0005E and later remain `Draft` without detailed specifications.
 
-## Tests / validation
+## Tests / [validation](../../../../glossary.md#term-validation)
 
-Run focused tests while implementing:
+[Run](../../../../glossary.md#term-run) focused tests while implementing:
 
 ```bash
 ./gradlew :backends:cpu:test --tests '*CpuMaterializationPlanTest' --tests '*CpuPartitionPreparerTest'
@@ -422,15 +422,15 @@ Run focused tests while implementing:
 ./gradlew :backends:cpu:test --tests '*CpuGeneratedKernelArtifactStoreTest' --tests '*CpuKernelSpecializationTest'
 ```
 
-After executable Java stabilizes, run exactly one final ordinary CPU suite:
+After executable Java stabilizes, run exactly one final ordinary [CPU](../../../../glossary.md#term-cpu) suite:
 
 ```bash
 ./gradlew :backends:cpu:test
 ```
 
-The ordinary suite must report the evidence measurement as skipped and cover materialization
-selection, declaration/finalization order, copy execution/failure, specialization budgets and
-identity, persistence correctness, and all preserved CPU behavior.
+The ordinary suite must report the evidence measurement as skipped and cover [materialization](../../../../glossary.md#materialization)
+selection, declaration/finalization order, copy execution/failure, [specialization](../../../../glossary.md#term-specialization) budgets and
+[identity](../../../../glossary.md#term-identity-meanings), [persistence](../../../../glossary.md#term-persistence) correctness, and all preserved CPU behavior.
 
 Then run the development evidence suite once, separately from ordinary validation:
 
@@ -438,9 +438,9 @@ Then run the development evidence suite once, separately from ordinary validatio
 SYNAPTIK_CPU_PERSISTENCE_EVIDENCE=1 ./gradlew :backends:cpu:test --rerun-tasks --tests '*CpuGeneratedKernelPersistenceEvidenceTest'
 ```
 
-Record the exact environment, per-fixture metrics, report path/hash, and verdict. This command is
-not a final module validation command and is not rerun by the documentation context unless the
-harness, generator/schema/JDK/persistence policy changes or a deliberate performance evaluation
+Record the exact environment, per-[fixture](../../../../glossary.md#term-fixture) [metrics](../../../../glossary.md#machine-learning-and-hyperparameters), report path/[hash](../../../../glossary.md#term-hash), and verdict. This command is
+not a final [module](../../../../glossary.md#term-module) validation command and is not rerun by the documentation context unless the
+harness, generator/[schema](../../../../glossary.md#term-schema)/[JDK](../../../../glossary.md#term-java-development-kit-jdk)/persistence policy changes or a deliberate performance [evaluation](../../../../glossary.md#term-evaluation)
 is requested.
 
 The clean documentation-focused context reuses both sets of executable evidence unless its edits
@@ -453,24 +453,24 @@ git diff --check
 
 It also records exact commands/results for:
 
-- all local Markdown targets and explicit anchors in the five authorized Markdown files;
+- all local Markdown [targets](../../../../glossary.md#term-target) and explicit anchors in the five authorized Markdown files;
 - balanced fences, final newlines, and trailing whitespace;
 - the exact 21-production/12-test/five-Markdown inventory and 38-path ceiling;
 - no path outside `backends/cpu` except the five authorized Markdown files, and no Gradle/shared/
-  architecture/conformance/integration/native/vendor/later-spec change;
+  architecture/conformance/integration/native/vendor/later-spec change;<span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle))</span>
 - direct/materialized declaration order, exact workspace ID/geometry, assignment-before-artifact
-  order, and one-artifact budget;
-- structural-versus-instance identity membership and zero shape/unroll budgets;
+  order, and one-artifact budget;<span data-glossary-navigation="true"> ([artifact glossary](../../../../glossary.md#term-artifact))</span>
+- structural-versus-instance identity membership and zero [shape](../../../../glossary.md#shape)/unroll budgets;
 - bounded persistence envelope sizes/lookups, corruption fallbacks, single current schema, and no
-  benchmark call from production prepare/runtime;
+  benchmark call from production prepare/runtime;<span data-glossary-navigation="true"> ([lookups glossary](../../../../glossary.md#term-lookup))</span><span data-glossary-navigation="true"> ([prepare glossary](../../../../glossary.md#prepare); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 - ordinary-suite evidence skip, explicit-suite methodology/report/verdict, and default-policy
   coherence;
-- bytecode-versus-JIT-versus-workload-cache terminology; and
-- task/master/roadmap status synchronization with 0005D as the sole detailed frontier.
+- [bytecode](../../../../glossary.md#term-bytecode)-versus-[JIT](../../../../glossary.md#term-just-in-time-compilation-jit)-versus-workload-[cache](../../../../glossary.md#term-cache) terminology; and
+- task/master/roadmap status [synchronization](../../../../glossary.md#term-synchronization) with 0005D as the sole detailed frontier.
 
-Repository-wide validation is deferred to the portable generated-coverage closure checkpoint and
-CI. Architecture, backend-conformance, integration, and other-module suites are not run because
-this task changes only CPU-private behavior and documentation, with no dependency, shared
+Repository-wide validation is deferred to the portable generated-coverage closure [checkpoint](../../../../glossary.md#term-checkpoint) and
+[CI](../../../../glossary.md#term-continuous-integration-ci). Architecture, [backend](../../../../glossary.md#backend)-[conformance](../../../../glossary.md#term-conformance), integration, and other-module suites are not run because
+this task changes only CPU-private behavior and documentation, with no [dependency](../../../../glossary.md#term-dependency), shared
 contract, public end-to-end, or conformance claim.
 
 ## Dependencies
@@ -479,33 +479,33 @@ contract, public end-to-end, or conformance claim.
 - [CPU 0005B](0005b-universal-access-plans-and-right-aligned-broadcasting.md) is `Complete`.
 - [CPU 0005C](0005c-vector-and-parallel-portable-strategies.md) is `Complete`.
 - Current shared Prepare staged analysis/declaration/assignment/finalization and workspace
-  requirement contracts.
+  requirement contracts.<span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare))</span>
 - Current Runtime prepared workspace selection, per-run workspace ownership, cold binding,
-  execution failure, output validity, and cleanup contracts.
+  execution failure, output validity, and cleanup contracts.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [run glossary](../../../../glossary.md#term-run); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [binding glossary](../../../../glossary.md#term-binding))</span>
 - Current CPU normalized access, whole-partition lowering, scalar/reference/vector generation,
-  worker orchestration, specialization/schema, and optional trusted-root artifact store.
-- Java 26 Class-File and Vector API toolchain already configured for the CPU module.
+  worker orchestration, specialization/schema, and optional trusted-root artifact store.<span data-glossary-navigation="true"> ([partition glossary](../../../../glossary.md#partition); [lowering glossary](../../../../glossary.md#lowering); [scalar glossary](../../../../glossary.md#term-scalar); [vector glossary](../../../../glossary.md#term-vector); [specialization glossary](../../../../glossary.md#term-specialization); [schema glossary](../../../../glossary.md#term-schema); [artifact glossary](../../../../glossary.md#term-artifact))</span>
+- Java 26 Class-File and [Vector API](../../../../glossary.md#term-vector-api) [toolchain](../../../../glossary.md#term-toolchain) already configured for the [CPU](../../../../glossary.md#term-cpu) [module](../../../../glossary.md#term-module).
 
 ## Follow-up tasks
 
 - CPU 0005E remains Draft for broader exact portable pointwise types, carriers, comparisons,
-  selection, casts, and semantic families over the completed access/materialization architecture.
-- CPU 0005F and 0006–0017 remain Draft in existing master-plan order.
+  selection, casts, and semantic families over the completed access/materialization architecture.<span data-glossary-navigation="true"> ([pointwise glossary](../../../../glossary.md#term-pointwise); [materialization glossary](../../../../glossary.md#materialization))</span>
+- [CPU](../../../../glossary.md#term-cpu) 0005F and 0006–0017 remain Draft in existing master-plan order.
 - A later explicit specialization task may consider fixed shapes or unrolling only after evidence
   crosses a separately recorded workload-specific threshold and updates every identity/schema
-  boundary.
+  boundary.<span data-glossary-navigation="true"> ([specialization glossary](../../../../glossary.md#term-specialization); [shapes glossary](../../../../glossary.md#shape); [unrolling glossary](../../../../glossary.md#term-unrolling); [identity glossary](../../../../glossary.md#term-identity-meanings); [schema glossary](../../../../glossary.md#term-schema))</span>
 - Future tools/tuning owns per-model/workload autotuning and its distinct persistent workload
   tuning cache. It may consume compatible candidate evidence before prepare; it does not turn this
-  development persistence benchmark into ordinary model work.
+  development persistence benchmark into ordinary model work.<span data-glossary-navigation="true"> ([model glossary](../../../../glossary.md#term-model); [autotuning glossary](../../../../glossary.md#autotuning--model-autotuning); [cache glossary](../../../../glossary.md#term-cache); [prepare glossary](../../../../glossary.md#prepare); [persistence glossary](../../../../glossary.md#term-persistence))</span>
 
 ## Architecture impact
 
 Expected impact: None.
 
-This task implements CPU-private lowering, exact resource declaration, specialization, optional
-class-byte persistence, and observational development evidence already permitted by the current
-architecture. If implementation requires shared Prepare to interpret CPU facts, Runtime or Engine
-to select/copy/benchmark, a dependency/build change, or another architecture rule, stop and report
+This task implements [CPU](../../../../glossary.md#term-cpu)-private [lowering](../../../../glossary.md#lowering), exact resource declaration, [specialization](../../../../glossary.md#term-specialization), optional
+class-byte [persistence](../../../../glossary.md#term-persistence), and observational development evidence already permitted by the current
+architecture. If implementation requires shared [Prepare](../../../../glossary.md#prepare) to interpret CPU facts, [Runtime](../../../../glossary.md#term-runtime) or [Engine](../../../../glossary.md#term-engine)
+to select/copy/benchmark, a [dependency](../../../../glossary.md#term-dependency)/build change, or another architecture rule, stop and report
 the conflict.
 
 ## Implementation prompt
@@ -539,38 +539,38 @@ evidence stale.
 ## Local decisions
 
 - Direct plus at most one of three input copies is the complete current candidate set; direct wins
-  ties and one artifact is realized.
+  ties and one artifact is realized.<span data-glossary-navigation="true"> ([artifact glossary](../../../../glossary.md#term-artifact))</span>
 - Materialization cost evidence is explicit dimensionless cold input. Ordinary analysis computes
-  but never measures it; future tuning remains separate.
+  but never measures it; future tuning remains separate.<span data-glossary-navigation="true"> ([Materialization glossary](../../../../glossary.md#materialization))</span>
 - A selected copy uses one analysis-local workspace ID `0`, native contiguous FLOAT64 storage,
-  and copy-before-consumer execution. It does not create a graph value or Runtime operation kind.
-- Fixed-shape and unrolled specialization budgets are exactly zero in 0005D.
+  and copy-before-consumer execution. It does not create a graph value or Runtime operation kind.<span data-glossary-navigation="true"> ([contiguous glossary](../../../../glossary.md#term-contiguous); [FLOAT64 glossary](../../../../glossary.md#term-float64); [graph value glossary](../../../../glossary.md#graph-value); [Runtime glossary](../../../../glossary.md#term-runtime); [operation glossary](../../../../glossary.md#operation))</span>
+- Fixed-[shape](../../../../glossary.md#shape) and [unrolled](../../../../glossary.md#backpropagation-through-time-and-recurrent-state) [specialization](../../../../glossary.md#term-specialization) budgets are exactly zero in 0005D.
 - Persistence evidence uses six fixed current specializations, seven fresh JVM forks per mode, and
-  the exact all-fixtures threshold. Failure or noise keeps the default disabled.
+  the exact all-fixtures threshold. Failure or noise keeps the default disabled.<span data-glossary-navigation="true"> ([JVM forks glossary](../../../../glossary.md#java-preview-incubator-modules-and-compiler-tiers))</span><span data-glossary-navigation="true"> ([Persistence glossary](../../../../glossary.md#term-persistence); [JVM glossary](../../../../glossary.md#term-java-virtual-machine-jvm))</span>
 - Explicit-root ordinary persistence is bounded verified class-byte reuse. It preserves neither
-  JIT machine code/profile nor route-selection evidence.
+  JIT machine code/profile nor route-selection evidence.<span data-glossary-navigation="true"> ([JIT glossary](../../../../glossary.md#term-just-in-time-compilation-jit); [machine code glossary](../../../../glossary.md#term-machine-code))</span>
 
 ## Known limitations
 
 - Materialization remains limited to at most one read input of the exact current FLOAT64 proving
   unit and one CPU-private native workspace. There is no cross-unit, cross-partition, output,
-  packing, transfer, pooling, or broader-family materialization.
+  packing, transfer, pooling, or broader-family materialization.<span data-glossary-navigation="true"> ([Materialization glossary](../../../../glossary.md#materialization); [FLOAT64 glossary](../../../../glossary.md#term-float64); [CPU glossary](../../../../glossary.md#term-cpu); [partition glossary](../../../../glossary.md#partition); [pooling glossary](../../../../glossary.md#term-pooling))</span>
 - The cost model uses explicit comparable units and expected runs; it is not a production
-  autotuner or a claim that one fixed policy is optimal for every workload.
+  autotuner or a claim that one fixed policy is optimal for every workload.<span data-glossary-navigation="true"> ([cost model glossary](../../../../glossary.md#compiler-transformations-and-dominance))</span>
 - Engine composition remains absent, so no public persistence root, worker, workspace-creator, or
-  materialization policy surface is added.
+  materialization policy surface is added.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [persistence glossary](../../../../glossary.md#term-persistence))</span>
 - Persistence is optional and correctness-independent. Its evidence verdict is environment- and
-  JDK-specific and must be rerun after the recorded triggers.
+  JDK-specific and must be rerun after the recorded triggers.<span data-glossary-navigation="true"> ([JDK glossary](../../../../glossary.md#term-java-development-kit-jdk))</span>
 - Backend-conformance, integration, native/vendor, broader data type/operation, dynamic shape,
-  relaxed math, fixed-shape, unroll, and workload-tuning claims remain deferred.
+  relaxed math, fixed-shape, unroll, and workload-tuning claims remain deferred.<span data-glossary-navigation="true"> ([Backend glossary](../../../../glossary.md#backend); [conformance glossary](../../../../glossary.md#term-conformance); [data type glossary](../../../../glossary.md#data-type--datatype); [operation glossary](../../../../glossary.md#operation); [shape glossary](../../../../glossary.md#shape))</span>
 
-## Validation evidence
+## [Validation](../../../../glossary.md#term-validation) evidence
 
 Implementation context supplied the final executable evidence. No executable Java, test, or
 evidence-harness code changed afterward; clean documentation context `/root/cpu_0005d_docs`
 therefore reused it as required:
 
-- The focused combined matrix passed 11 suites and 40 tests with zero skips, failures, or errors:
+- The focused combined [matrix](../../../../glossary.md#term-matrix-meanings) passed 11 suites and 40 tests with zero skips, failures, or errors:
   `CpuInternalPackageInventoryTest`, `CpuMaterializationPlanTest`,
   `CpuContiguousWorkspaceTest`, `CpuPartitionPreparerTest`, `CpuPartitionFinalizerTest`,
   `CpuPreparedExecutableTest`, `CpuGeneratedKernelArtifactStoreTest`,
@@ -586,10 +586,10 @@ therefore reused it as required:
   skipped opt-in evidence measurement and zero failures or errors; `BUILD SUCCESSFUL` completed in
   1 second with 21 actionable tasks (1 executed, 20 up-to-date).
 
-The exact environment-prefixed evidence launch was first blocked before Gradle by sandbox access
-to the wrapper lock, and its approval channel failed. The same command then ran through the
-pre-approved narrow `/tmp/synaptik-clean-codex-exec` wrapper. Its first actual Gradle run failed
-before any fork, sample, or report because the harness assumed repository-root working directory
+The exact environment-prefixed evidence launch was first blocked before [Gradle](../../../../glossary.md#term-gradle) by sandbox access
+to the wrapper lock, and its approval [channel](../../../../glossary.md#term-channel) failed. The same command then ran through the
+pre-approved narrow `/tmp/synaptik-clean-codex-exec` wrapper. Its first actual Gradle [run](../../../../glossary.md#term-run) failed
+before any [fork](../../../../glossary.md#term-fork-meanings), [sample](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters), or report because the harness assumed repository-root working directory
 and could not find its scratch directory. The harness was corrected to locate `backends/cpu` from
 either working directory. No successful evidence run was repeated.
 
@@ -601,28 +601,28 @@ SYNAPTIK_CPU_PERSISTENCE_EVIDENCE=1 ./gradlew :backends:cpu:test --rerun-tasks -
 
 It passed 1 test with zero skips, failures, or errors; `BUILD SUCCESSFUL` completed in 20 seconds
 with 21 executed tasks. The untracked report is
-`backends/cpu/build/reports/evidence/cpu-0005d-persistence.json`. It records Oracle Corporation
-Java 26.0.1, Mac OS X 26.5.2, aarch64, 16 processors, schema 4, six fixtures, seven fresh JVM forks
-per mode, 20 warmups and 50 samples per fork, and 350 samples per mode/fixture. The canonical
-SHA-256 excluding `reportHash` is
+`backends/cpu/build/reports/evidence/cpu-0005d-persistence.json`. It records [Oracle](../../../../glossary.md#term-test-oracle) Corporation
+Java 26.0.1, Mac OS X 26.5.2, [aarch64](../../../../glossary.md#term-aarch64), 16 processors, [schema](../../../../glossary.md#term-schema) 4, six fixtures, seven fresh [JVM](../../../../glossary.md#term-java-virtual-machine-jvm) [forks](../../../../glossary.md#term-jvm-fork)
+per mode, 20 warmups and 50 samples per fork, and 350 samples per mode/[fixture](../../../../glossary.md#term-fixture). The [canonical](../../../../glossary.md#term-canonical-form)
+[SHA-256](../../../../glossary.md#term-sha-256) excluding `reportHash` is
 `0977061bba616421a23f69a7819ba0a85de9af072956d98c21a934af13ba6453`.
 
-| Fixture | No-root / hit median (ns) | No-root / hit p95 (ns) | Saving (ns) | Ratio | Hits / fallback | Class / envelope bytes |
+| Fixture | No-root / hit [median](../../../../glossary.md#term-median) (ns) | No-root / hit p95 (ns) | Saving (ns) | Ratio | Hits / fallback | Class / envelope bytes |
 |---|---:|---:|---:|---:|---:|---:|
-| scalar-all-segment | 583042 / 491625 | 951709 / 825042 | 91417 | 0.843207 | 350 / 0 | 1237 / 1521 |
-| scalar-all-heap | 519708 / 388417 | 812500 / 534041 | 131291 | 0.747375 | 350 / 0 | 557 / 833 |
+| [scalar](../../../../glossary.md#term-scalar)-all-segment | 583042 / 491625 | 951709 / 825042 | 91417 | 0.843207 | 350 / 0 | 1237 / 1521 |
+| scalar-all-[heap](../../../../glossary.md#term-heap) | 519708 / 388417 | 812500 / 534041 | 131291 | 0.747375 | 350 / 0 | 557 / 833 |
 | scalar-mixed | 586292 / 496292 | 1062333 / 748625 | 90000 | 0.846493 | 350 / 0 | 1141 / 1421 |
-| vector-all-segment | 689417 / 538917 | 1260750 / 879500 | 150500 | 0.781700 | 350 / 0 | 2017 / 2303 |
+| [vector](../../../../glossary.md#term-vector)-all-segment | 689417 / 538917 | 1260750 / 879500 | 150500 | 0.781700 | 350 / 0 | 2017 / 2303 |
 | vector-all-heap | 611625 / 528000 | 1098375 / 823500 | 83625 | 0.863274 | 350 / 0 | 1195 / 1473 |
 | vector-mixed | 665083 / 563958 | 1227000 / 942334 | 101125 | 0.847951 | 350 / 0 | 2010 / 2292 |
 
 The verdict is `KEEP_DISABLED`: every fixture had zero fallback, but every fixture missed the
 required 200,000 ns median saving and several missed the 0.80 median-ratio threshold. The default
-remains persistence-free; an explicit root only enables bounded ordinary lookup/store behavior.
+remains [persistence](../../../../glossary.md#term-persistence)-free; an explicit root only enables bounded ordinary [lookup](../../../../glossary.md#term-lookup)/store behavior.
 
 Clean documentation context `/root/cpu_0005d_docs` independently reviewed the complete diff,
-final source/tests, generated evidence JSON, architecture/planning contracts, completed CPU
-0005A–0005C, and the General, API/Javadoc, Backend Guide, Planning, and Example profiles. It
+final source/tests, generated evidence [JSON](../../../../glossary.md#term-json), architecture/[planning](../../../../glossary.md#term-planning) contracts, completed [CPU](../../../../glossary.md#term-cpu)
+0005A–0005C, and the General, [API](../../../../glossary.md#term-application-programming-interface-api)/[Javadoc](../../../../glossary.md#term-javadoc), [Backend](../../../../glossary.md#backend) Guide, Planning, and Example profiles. It
 finalized all 21 permitted production/package Javadocs plus the CPU guide, glossary, and three
 planning/status records without changing executable Java or tests. Its final documentation
 commands and audit results were:
@@ -635,15 +635,15 @@ commands and audit results were:
   no Javadoc error.
 - A repository-local read-only Markdown validator over the five authorized files checked 697
   local targets and 290 explicit anchors with zero errors. The same final pass found balanced
-  fences, final newlines, and no trailing whitespace.
+  fences, final newlines, and no trailing whitespace.<span data-glossary-navigation="true"> ([targets glossary](../../../../glossary.md#term-target))</span>
 - The exact-scope validator found 21 authorized production/package paths, 12 authorized tests,
   and five authorized Markdown paths: exactly 38 changed paths, with zero extra or missing paths
-  and no shared/Gradle/architecture/conformance/integration/native/vendor/later-spec path.
+  and no shared/Gradle/architecture/conformance/integration/native/vendor/later-spec path.<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 - Twelve source-structure checks passed for declaration/workspace order and geometry,
   assignment-before-artifact order, one-artifact and zero shape/unroll budgets, structural identity
   membership, bounded envelope/corruption fallback, no production measurement, evidence skip and
-  thresholds, and default-policy coherence.
-- The evidence-report hash was recomputed from the canonical payload excluding `reportHash` and
+  thresholds, and default-policy coherence.<span data-glossary-navigation="true"> ([artifact glossary](../../../../glossary.md#term-artifact); [shape glossary](../../../../glossary.md#shape); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
+- The evidence-report [hash](../../../../glossary.md#term-hash) was recomputed from the canonical [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) excluding `reportHash` and
   matched `0977061bba616421a23f69a7819ba0a85de9af072956d98c21a934af13ba6453`.
 - Status checks confirmed CPU 0005A–0005D `Complete`, CPU 0005E and later `Draft`, and zero later
   detailed specifications.
@@ -652,51 +652,51 @@ commands and audit results were:
 
 ## Implementation notes
 
-CPU analysis now compares direct access with the three possible one-input copies in deterministic
+[CPU](../../../../glossary.md#term-cpu) analysis now compares direct access with the three possible one-input copies in deterministic
 order, derives use count from the lowered unit, and appends one exact workspace only for the
-selected copy. Finalization resolves all declarations before one artifact realization. Cold
-binding keeps the original source for the copy, substitutes the workspace only in the generated
-carrier pattern, and executes one canonical-order copy before inline or parallel consumer work.
+selected copy. Finalization resolves all declarations before one [artifact](../../../../glossary.md#term-artifact) realization. Cold
+[binding](../../../../glossary.md#term-binding) keeps the original source for the copy, substitutes the workspace only in the generated
+[carrier](../../../../glossary.md#term-storage-carrier) pattern, and executes one [canonical](../../../../glossary.md#term-canonical-form)-order copy before inline or parallel consumer work.
 
-The direct and selected-copy generated structures have distinct compatibility identities; two
-compatible extents still share the same selected-copy bytes and loaded identity. Concrete extents,
-offsets, strides, assignments, carriers, resources, costs, workers, roots, and run identity remain
-instance facts. The hard budget is four candidate plans, one realized artifact, zero fixed-shape
-variants, and zero unrolled variants.
+The direct and selected-copy generated structures have distinct compatibility [identities](../../../../glossary.md#term-identity-meanings); two
+compatible extents still share the same selected-copy bytes and loaded [identity](../../../../glossary.md#term-identity-meanings). Concrete extents,
+offsets, [strides](../../../../glossary.md#term-stride), assignments, carriers, resources, costs, workers, roots, and [run](../../../../glossary.md#term-run) identity remain
+instance facts. The hard budget is four candidate plans, one realized artifact, zero fixed-[shape](../../../../glossary.md#shape)
+variants, and zero [unrolled](../../../../glossary.md#backpropagation-through-time-and-recurrent-state) variants.
 
-Optional persistence now uses one bounded current-schema envelope and safely falls back on every
-absence, incompatibility, corruption, malformed class, size, I/O, security, or publication
-failure. It is correctness-independent and disabled by default. Ordinary prepare and Runtime do
-not benchmark. Persisted class bytes, JVM JIT machine code/profile, and the future workload tuning
-cache remain three distinct artifacts/state roles.
+Optional [persistence](../../../../glossary.md#term-persistence) now uses one bounded current-[schema](../../../../glossary.md#term-schema) envelope and safely falls back on every
+absence, incompatibility, corruption, malformed class, size, I/O, security, or [publication](../../../../glossary.md#term-publication)
+failure. It is correctness-independent and disabled by default. Ordinary [prepare](../../../../glossary.md#prepare) and [Runtime](../../../../glossary.md#term-runtime) do
+not benchmark. Persisted class bytes, [JVM](../../../../glossary.md#term-java-virtual-machine-jvm) [JIT](../../../../glossary.md#term-just-in-time-compilation-jit) [machine code](../../../../glossary.md#term-machine-code)/profile, and the future workload tuning
+[cache](../../../../glossary.md#term-cache) remain three distinct artifacts/state roles.
 
-No Model, Compiler, Planning, shared Prepare, Runtime, Config, Backend Contract, Trace, Engine,
-OpenBLAS provider, Gradle, architecture, conformance, integration, native/vendor, or later-task
+No [Model](../../../../glossary.md#term-model), [Compiler](../../../../glossary.md#term-compiler), [Planning](../../../../glossary.md#term-planning), shared Prepare, Runtime, Config, [Backend](../../../../glossary.md#backend) Contract, [Trace](../../../../glossary.md#trace), [Engine](../../../../glossary.md#term-engine),
+[OpenBLAS](../../../../glossary.md#term-openblas) provider, [Gradle](../../../../glossary.md#term-gradle), architecture, [conformance](../../../../glossary.md#term-conformance), integration, native/vendor, or later-task
 change was required. `CpuInternalPackageInventoryTest` is the authorized replacement for
-`CpuKernelIrTest`; the existing kernel-IR implementation and focused contract needed no change.
+`CpuKernelIrTest`; the existing [kernel](../../../../glossary.md#kernel)-[IR](../../../../glossary.md#term-intermediate-representation-ir) implementation and focused contract needed no change.
 
 ## Completion summary
 
 - Completed changes: implemented and documented bounded one-input contiguous materialization,
   copy-before-consumer workspace execution, explicit specialization budgets, adjusted structural
-  identity, bounded optional current-schema class-byte persistence, and the opt-in evidence gate.
+  identity, bounded optional current-schema class-byte persistence, and the opt-in evidence gate.<span data-glossary-navigation="true"> ([contiguous glossary](../../../../glossary.md#term-contiguous); [materialization glossary](../../../../glossary.md#materialization); [specialization glossary](../../../../glossary.md#term-specialization); [identity glossary](../../../../glossary.md#term-identity-meanings); [schema glossary](../../../../glossary.md#term-schema); [persistence glossary](../../../../glossary.md#term-persistence))</span>
 - Files changed or created: exactly the authorized 21 CPU production/package paths, 12 CPU test
   paths, and five Markdown paths; 38 total at the task ceiling, with no path outside the map.
 - Tests and validation: reused the final 11-suite/40-test focused matrix, focused 8-, 13-, and
   7-test runs, sole final ordinary 21-suite/62-test CPU pass with one evidence skip, and sole
   successful 1-test explicit evidence report described above. CPU Javadoc, Markdown, exact-scope,
   structural/instance, declaration/order, persistence, status, terminology, and whitespace gates
-  passed in `/root/cpu_0005d_docs`.
+  passed in <span data-glossary-navigation="true"> ([matrix glossary](../../../../glossary.md#term-review-matrix))</span><span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [Javadoc glossary](../../../../glossary.md#term-javadoc); [scope glossary](../../../../glossary.md#term-scope))</span>`/root/cpu_0005d_docs`.
 - Documentation-agent review: `/root/cpu_0005d_docs` independently finalized affected Javadocs,
   package summaries, CPU guide, glossary, task evidence, CPU master plan, and roadmap.
 - Documentation impact: current materialization lifecycle, original/adjusted carrier patterns,
   budgets, persistence envelope, evidence verdict/rerun triggers, and class-byte/JIT/tuning-cache
-  distinctions are explicit without changing architecture authority.
+  distinctions are explicit without changing architecture authority.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle); [carrier glossary](../../../../glossary.md#term-storage-carrier); [JIT glossary](../../../../glossary.md#term-just-in-time-compilation-jit); [cache glossary](../../../../glossary.md#term-cache))</span>
 - Javadoc review: every permitted affected internal contract now documents inputs, results,
-  geometry, identity membership, ownership, lifecycle, failure, and persistence boundaries.
+  geometry, identity membership, ownership, lifecycle, failure, and persistence boundaries.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Glossary impact: CPU specialization, artifact store, preparation/executable, access plan, and
-  materialization terminology now reflects completed 0005D behavior.
+  materialization terminology now reflects completed 0005D behavior.<span data-glossary-navigation="true"> ([artifact glossary](../../../../glossary.md#term-artifact))</span>
 - Unresolved issues: None.
-- Follow-up required: None. CPU 0005E and later remain Draft without detailed specifications.
+- Follow-up required: None. [CPU](../../../../glossary.md#term-cpu) 0005E and later remain Draft without detailed specifications.
 
 Status: Complete

@@ -1,4 +1,4 @@
-# CPU 0007A1I: Indexing residual parity
+# [CPU](../../../../glossary.md#term-cpu) 0007A1I: Indexing [residual](../../../../glossary.md#scan-residual-port-and-history-demand) parity
 
 ## Status
 
@@ -7,28 +7,28 @@ Complete
 ## Goal
 
 Correct the two persistent generated/direct indexing residuals, `I-GATHER` and `I-GATHER-ND`,
-through their sole code-shaping owner, `CpuIndexingEmitter`. Preserve the frozen CPU 0007A1C
-semantics, complete validation-before-write behavior, mixed carriers, arbitrary legal output
-subranges, typed general fallbacks, and direct-clean-Java algorithm/dataflow equivalence.
+through their sole code-shaping [owner](../../../../glossary.md#term-owner), `CpuIndexingEmitter`. Preserve the frozen [CPU](../../../../glossary.md#term-cpu) 0007A1C
+semantics, complete [validation](../../../../glossary.md#term-validation)-before-write behavior, mixed carriers, arbitrary legal output
+subranges, typed general fallbacks, and direct-clean-Java algorithm/[dataflow](../../../../glossary.md#term-dataflow) equivalence.
 
 This was the sole next bounded corrective task after completed CPU 0007A1H.
 
 ## Frozen source evidence
 
-CPU 0007A1H retained the unchanged CPU 0007A1C sources and five isolated forks under
+[CPU](../../../../glossary.md#term-cpu) 0007A1H retained the unchanged CPU 0007A1C sources and five isolated [forks](../../../../glossary.md#term-fork-meanings) under
 `/private/tmp/synaptik-cpu-0007a1h-JFko4MLE`:
 
-| Row | Fork 1 | Fork 2 | Fork 3 | Fork 4 | Fork 5 | Median | Worst fork |
+| Row | [Fork](../../../../glossary.md#term-fork-meanings) 1 | Fork 2 | Fork 3 | Fork 4 | Fork 5 | [Median](../../../../glossary.md#term-median) | Worst fork |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | `I-GATHER` | `33.048517412x` | `33.206099806x` | `33.474847330x` | `33.455797576x` | `34.028446093x` | `33.455797576x` | `34.028446093x` |
 | `I-GATHER-ND` | `14.634271370x` | `14.509325631x` | `14.907752436x` | `14.585991239x` | `14.880011054x` | `14.634271370x` | `14.907752436x` |
 
-Both rows fail every fork and their aggregate. They form one persistent indexing-owner cluster,
+Both rows fail every fork and their aggregate. They form one persistent indexing-[owner](../../../../glossary.md#term-owner) cluster,
 not a one-fork anomaly.
 
 ## Accepted A1I results
 
-| Row | Fork 1 | Fork 2 | Fork 3 | Fork 4 | Fork 5 | Median | Worst fork | Verdict |
+| Row | [Fork](../../../../glossary.md#term-fork-meanings) 1 | Fork 2 | Fork 3 | Fork 4 | Fork 5 | [Median](../../../../glossary.md#term-median) | Worst fork | Verdict |
 |---|---:|---:|---:|---:|---:|---:|---:|---|
 | `I-GATHER` | `0.853338331x` | `0.851617604x` | `0.874533105x` | `0.847429053x` | `0.856840663x` | `0.853338331x` | `0.874533105x` | PASS |
 | `I-GATHER-ND` | `0.772532795x` | `0.745954874x` | `0.733345077x` | `0.734642354x` | `0.764566936x` | `0.745954874x` | `0.772532795x` | PASS |
@@ -38,209 +38,209 @@ not a one-fork anomaly.
 
 All five full probe processes exited nonzero only because the same five deferred diagnostic rows
 exceeded the gate: `P-SCALAR-GENERAL`, `A-GENERAL`, `S-GENERAL-MIN`, `C-SCAN-GENERAL`, and
-`X-MIN-MULTI`. The accepted result closes the two A1I targets and three controls; it is not a full
+`X-MIN-MULTI`. The accepted result closes the two A1I [targets](../../../../glossary.md#term-target) and three controls; it is not a full
 twenty-row performance pass.
 
-## Scope
+## [Scope](../../../../glossary.md#term-scope)
 
-- Inspect the frozen `GATHER` and `GATHER_ND` target classes and the equivalent clean Java
+- Inspect the frozen [`GATHER`](../../../../glossary.md#gather) and `GATHER_ND` target classes and the equivalent clean Java
   reference loops before changing code.
-- Add only fully runtime-guarded proved branches to `CpuIndexingEmitter`; retain the current typed
+- Add only fully [runtime](../../../../glossary.md#term-runtime)-guarded proved branches to `CpuIndexingEmitter`; retain the current typed
   general paths as fallbacks when any proof condition is absent.
 - Preserve all validation and failure behavior before the first destination write, including
   negative-index rejection, bounds checks, Shape/axis/batch-dimension rules, carrier
-  combinations, alias safety, and arbitrary legal output-cell subranges.
-- Keep generated target classes field-free with one typed static `invoke` and no allocation,
+  combinations, alias safety, and arbitrary legal output-cell subranges.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [Shape glossary](../../../../glossary.md#shape); [axis glossary](../../../../glossary.md#term-axis); [batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [dimension glossary](../../../../glossary.md#dimension); [carrier glossary](../../../../glossary.md#term-storage-carrier); [alias glossary](../../../../glossary.md#aliasing-and-arena))</span>
+- Keep generated [target](../../../../glossary.md#term-target) classes field-free with one typed static `invoke` and no allocation,
   reflection, dynamic construct, generic bridge, or Synaptik runtime reference.
 - Remove proved hot-loop coordinate division/remainder and packed-geometry lookup only where the
-  frozen geometry proves equivalent primitive cursors.
+  frozen geometry proves equivalent primitive cursors.<span data-glossary-navigation="true"> ([coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix); [lookup glossary](../../../../glossary.md#term-lookup))</span>
 - Advance the generator schema exactly once if generated bytes change; older envelopes must remain
-  incompatible safe misses with no migration or dual-schema reuse.
+  incompatible safe misses with no migration or dual-schema reuse.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema))</span>
 - Update affected Javadocs, CPU-private package documentation, guide/glossary current-schema
-  wording, this task, CPU 0007A1C, CPU master plan, and roadmap in the same overall change.
+  wording, this task, CPU 0007A1C, CPU master plan, and roadmap in the same overall change.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>
 
 ## Exclusions
 
 - Do not change the frozen probe source, cases, dimensions, carriers, comparators, timing method,
-  fork count, JVM flags, direct-clean-Java reference, or `1.15x` gate.
+  fork count, JVM flags, direct-clean-Java reference, or <span data-glossary-navigation="true"> ([dimensions glossary](../../../../glossary.md#dimension); [fork glossary](../../../../glossary.md#term-fork-meanings); [JVM glossary](../../../../glossary.md#term-java-virtual-machine-jvm))</span>`1.15x` gate.
 - Do not change public API, model semantics, lowering, resource ownership or size, Prepare/Runtime
-  routing, dependencies, build structure, conformance, integration, Compile API, or Training API.
-- Do not address scalar partition, affine, slice-update, scan, extrema, or other residual rows.
-- Do not create a generic indexing framework, helper hierarchy, new IR, or native route.
+  routing, dependencies, build structure, conformance, integration, Compile API, or Training API.<span data-glossary-navigation="true"> ([resource ownership glossary](../../../../glossary.md#term-resource-ownership))</span><span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [model glossary](../../../../glossary.md#term-model); [lowering glossary](../../../../glossary.md#lowering); [ownership glossary](../../../../glossary.md#term-ownership); [Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime); [conformance glossary](../../../../glossary.md#term-conformance); [Compile glossary](../../../../glossary.md#compile))</span>
+- Do not address [scalar](../../../../glossary.md#term-scalar) [partition](../../../../glossary.md#partition), affine, [slice](../../../../glossary.md#slice)-update, [scan](../../../../glossary.md#term-cumulative-scan), [extrema](../../../../glossary.md#saturation-pole-and-extremum), or other [residual](../../../../glossary.md#scan-residual-port-and-history-demand) rows.
+- Do not create a generic indexing framework, helper hierarchy, new [IR](../../../../glossary.md#term-intermediate-representation-ir), or native route.
 
 ## Architecture constraints
 
 - `ARCHITECTURE.md` remains authoritative. The generated portable CPU route stays the truthful
   supported baseline; unsupported or unproved cases continue to fail closed or use the existing
-  typed general implementation as already contracted.
-- `CpuIndexingEmitter` remains the sole generated algorithm-shaping owner for this task.
+  typed general implementation as already contracted.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [fail closed glossary](../../../../glossary.md#admission-preflight-and-fail-closed-validation))</span>
+- `CpuIndexingEmitter` remains the sole generated algorithm-shaping [owner](../../../../glossary.md#term-owner) for this task.
 - Complete validation-before-write and deterministic observable behavior are semantic contracts,
-  not optimization opportunities.
+  not optimization opportunities.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation))</span>
 - Generated code must match the specialized clean Java oracle in semantic algorithm, loop/dataflow
-  shape, and avoidable-overhead profile.
+  shape, and avoidable-overhead profile.<span data-glossary-navigation="true"> ([oracle glossary](../../../../glossary.md#term-test-oracle); [dataflow glossary](../../../../glossary.md#term-dataflow); [shape glossary](../../../../glossary.md#shape))</span>
 
 ## Package impact
 
 Existing packages used:
 
 - `io.github.pho001.synaptik.backend.cpu.internal.codegen.emit` — sole indexing code-shaping owner
-  and its generated-kernel test.
-- `io.github.pho001.synaptik.backend.cpu.internal.cache` — generator-schema compatibility.
+  and its generated-kernel test.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [kernel glossary](../../../../glossary.md#kernel))</span>
+- `io.github.pho001.synaptik.backend.cpu.internal.cache` — generator-[schema](../../../../glossary.md#term-schema) compatibility.
 - `io.github.pho001.synaptik.backend.cpu.internal.prepare` — current-schema finalization wording
   and existing schema assertion owners.
 
 Packages added or changed: None.
 
-Type placement remains unchanged. `CpuIndexingEmitter` owns only CPU-private generated indexing
-body shape; no public or shared type was added.
+Type placement remains unchanged. `CpuIndexingEmitter` owns only [CPU](../../../../glossary.md#term-cpu)-private generated indexing
+body [shape](../../../../glossary.md#shape); no public or shared type was added.
 
 ## Affected files
 
 Expected implementation paths are `CpuIndexingEmitter`, `CpuGeneratorSchema` if bytes change, the
-indexing generated-kernel owner test, the direct-evidence closure test only for a stable structural
-assertion that belongs there, and the four existing schema-assertion owners when the schema
-advances. Documentation is limited to directly affected CPU package Javadocs, the CPU backend
+indexing generated-[kernel](../../../../glossary.md#kernel) [owner](../../../../glossary.md#term-owner) test, the direct-evidence closure test only for a stable structural
+assertion that belongs there, and the four existing [schema](../../../../glossary.md#term-schema)-assertion owners when the schema
+advances. Documentation is limited to directly affected [CPU](../../../../glossary.md#term-cpu) package Javadocs, the CPU [backend](../../../../glossary.md#backend)
 guide, glossary, this task, CPU 0007A1C, CPU master plan, and roadmap.
 
-If another production owner, module, benchmark case, shared contract, or architecture decision is
+If another production owner, [module](../../../../glossary.md#term-module), benchmark case, shared contract, or architecture decision is
 needed, stop and report the conflict.
 
-## Maximum scope
+## Maximum [scope](../../../../glossary.md#term-scope)
 
-The completed implementation uses exactly nine Java/test paths: one algorithm-shaping owner, the
-schema owner, two package summaries, the indexing owner test, and four existing schema-assertion
-tests. Documentation/planning is limited to the CPU guide, glossary, A1I, A1C, CPU master plan,
-roadmap, and one detailed next-frontier task. No second production owner, IR/lowering/resource
-change, module, public API, or build path is authorized.
+The completed implementation uses exactly nine Java/test paths: one algorithm-shaping [owner](../../../../glossary.md#term-owner), the
+[schema](../../../../glossary.md#term-schema) owner, two package summaries, the indexing owner test, and four existing schema-assertion
+tests. Documentation/[planning](../../../../glossary.md#term-planning) is limited to the [CPU](../../../../glossary.md#term-cpu) guide, glossary, A1I, A1C, CPU master plan,
+roadmap, and one detailed next-frontier task. No second production owner, [IR](../../../../glossary.md#term-intermediate-representation-ir)/[lowering](../../../../glossary.md#lowering)/resource
+change, [module](../../../../glossary.md#term-module), public [API](../../../../glossary.md#term-application-programming-interface-api), or build path is authorized.
 
 ## Acceptance criteria
 
 - Exact semantics remain `VERIFIED,20` for the unchanged frozen source.
 - `I-GATHER` and `I-GATHER-ND` each pass `<= 1.15x` in every one of five isolated forks and in the
   median of those forks.
-- Controls `P-VECTOR-SEGMENT`, `P-INTEGRAL-MIXED`, and `O-ARGSORT` also pass every fork and median.
+- Controls `P-VECTOR-SEGMENT`, `P-INTEGRAL-MIXED`, and `O-ARGSORT` also pass every [fork](../../../../glossary.md#term-fork-meanings) and [median](../../../../glossary.md#term-median).
 - Generated target classes satisfy the structural constraints above, and complete disassembly
-  proves hot-loop parity without hiding guard/fallback operations.
-- The focused indexing/schema/closure owners pass, followed by the uncached CPU suite once.
-- Documentation/Javadoc validation, schema consistency, exact changed-path review,
+  proves hot-loop parity without hiding guard/fallback operations.<span data-glossary-navigation="true"> ([target glossary](../../../../glossary.md#term-target); [guard glossary](../../../../glossary.md#term-guard))</span>
+- The focused indexing/[schema](../../../../glossary.md#term-schema)/closure [owners](../../../../glossary.md#term-owner) pass, followed by the uncached [CPU](../../../../glossary.md#term-cpu) suite once.
+- Documentation/[Javadoc](../../../../glossary.md#term-javadoc) [validation](../../../../glossary.md#term-validation), schema consistency, exact changed-path review,
   `git diff --check`, and empty staged-state checks pass.
 - The evidence bundle records environment, exact commands, immutable inputs, generated classes,
   disassembly, structural reports, semantic results, raw forks, summaries, checksums, and both
-  implementation and documentation context identifiers.
+  implementation and documentation context identifiers.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable))</span>
 
-## Validation
+## [Validation](../../../../glossary.md#term-validation)
 
-Run the exact focused owners for `CpuIndexingGeneratedKernelTest`,
-`CpuGeneratedDirectEvidenceClosureTest`, and the four schema-assertion owners. Then run
+[Run](../../../../glossary.md#term-run) the exact focused [owners](../../../../glossary.md#term-owner) for `CpuIndexingGeneratedKernelTest`,
+`CpuGeneratedDirectEvidenceClosureTest`, and the four [schema](../../../../glossary.md#term-schema)-assertion owners. Then run
 `./gradlew :backends:cpu:test --rerun-tasks` once. Recompile the frozen direct-evidence source,
-verify byte identity, run exact semantics, inspect every generated target Class-File, and run five
+verify byte [identity](../../../../glossary.md#term-identity-meanings), run exact semantics, inspect every generated [target](../../../../glossary.md#term-target) Class-File, and run five
 fresh isolated full probe processes. A nonzero full-probe exit is acceptable only when the summary
 shows both targets and all three controls passed and the exit is caused solely by explicitly
 deferred diagnostic rows.
 
-Run CPU Javadoc and repository documentation checks after the required clean documentation pass.
+Run [CPU](../../../../glossary.md#term-cpu) [Javadoc](../../../../glossary.md#term-javadoc) and repository documentation checks after the required clean documentation pass.
 Do not repeat a successful Java suite in that pass unless executable Java behavior changes.
 
 ## Dependencies
 
 - CPU 0007A1C supplies the frozen comparison protocol and remains incomplete until all persistent
   failures close.
-- CPU 0007A1D supplies the stable native-order segment layout contract.
-- CPU 0007A1H is Complete and supplies the selected five-fork evidence.
-- Existing indexing semantics and validation contracts remain unchanged.
+- [CPU](../../../../glossary.md#term-cpu) 0007A1D supplies the stable native-order segment [layout](../../../../glossary.md#layout) contract.
+- CPU 0007A1H is Complete and supplies the selected five-[fork](../../../../glossary.md#term-fork-meanings) evidence.
+- Existing indexing semantics and [validation](../../../../glossary.md#term-validation) contracts remain unchanged.
 
 ## Follow-up tasks
 
-- Detailed Ready [CPU 0007A1J](0007a1j-cumulative-scan-residual-parity.md) is the sole next task.
+- Detailed [Ready](../../../../glossary.md#term-ready) [CPU 0007A1J](0007a1j-cumulative-scan-residual-parity.md) is the sole next task.
   It owns only persistent `C-SCAN-GENERAL` through `CpuScanEmitter`.
 - The other four persistent rows remain Draft and unassigned.
-- Resume CPU 0007A1C closure only after all persistent frozen failures close.
+- [Resume](../../../../glossary.md#schema-serialization-and-checkpoint) [CPU](../../../../glossary.md#term-cpu) 0007A1C closure only after all persistent frozen failures close.
 - CPU 0007A2 remains Draft and blocked behind CPU 0007A1C and all corrective residual work,
-  including CPU 0007A1J.
+  including CPU 0007A1J.<span data-glossary-navigation="true"> ([residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>
 
 ## Implementation prompt
 
 Work in a separate clean implementation context on the existing repository state. Read
-`AGENTS.md`, the architecture contract/current plan, planning guide/roadmap, CPU master plan,
-CPU 0007A1C, CPU 0007A1H, this task, relevant indexing/cache/package contracts, tests, and the
+`AGENTS.md`, the [architecture contract](../../../../glossary.md#architecture-contract)/current plan, [planning](../../../../glossary.md#term-planning) guide/roadmap, [CPU](../../../../glossary.md#term-cpu) master plan,
+CPU 0007A1C, CPU 0007A1H, this task, relevant indexing/[cache](../../../../glossary.md#term-cache)/package contracts, tests, and the
 complete A1H evidence bundle. Preserve the frozen probe and all indexing semantics. Implement only
 fully guarded proved `I-GATHER` and `I-GATHER-ND` branches in `CpuIndexingEmitter`, retain typed
 fallbacks, validate proportionately, retain complete evidence, and request a distinct clean
-documentation pass. Do not commit, push, or stage.
+documentation pass. Do not [commit](../../../../glossary.md#term-commit), push, or stage.
 
 ## Local decisions
 
-- Schema advances exactly once from 36 to 37 because both target generated classes change.
+- [Schema](../../../../glossary.md#term-schema) advances exactly once from 36 to 37 because both [target](../../../../glossary.md#term-target) generated classes change.
 - The guarded full GATHER_ND body emits its proved suffix length of 16 as a generation-time
   straight-line primitive sequence. This is code shape inside the one selected artifact, not a
-  separate fixed-shape/unrolled planner variant, cache identity, route, or Runtime choice.
+  separate fixed-shape/unrolled planner variant, cache identity, route, or Runtime choice.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [artifact glossary](../../../../glossary.md#term-artifact); [unrolled glossary](../../../../glossary.md#backpropagation-through-time-and-recurrent-state); [cache glossary](../../../../glossary.md#term-cache); [identity glossary](../../../../glossary.md#term-identity-meanings); [Runtime glossary](../../../../glossary.md#term-runtime))</span>
 - `C-SCAN-GENERAL` is selected next because it is a single-owner, zero-workspace scan cluster with
   completed semantic and generated-body dependencies. The larger scatter ratio does not outweigh
-  scatter's separate copy/update/reduction ownership concerns.
+  scatter's separate copy/update/reduction ownership concerns.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [scan glossary](../../../../glossary.md#term-cumulative-scan); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 
 ## Known limitations
 
 - Ratios apply only to the frozen cases, Java 26.0.1, recorded host, and protocol. They do not
-  establish universal indexing performance or select production settings.
-- Five persistent rows remain, so CPU 0007A1C remains incomplete and CPU 0007A2 remains blocked.
+  establish universal indexing performance or select production settings.<span data-glossary-navigation="true"> ([host glossary](../../../../glossary.md#term-host))</span>
+- Five persistent rows remain, so [CPU](../../../../glossary.md#term-cpu) 0007A1C remains incomplete and CPU 0007A2 remains blocked.
 
-## Validation evidence
+## [Validation](../../../../glossary.md#term-validation) evidence
 
 Implementation context `01a02320-8da5-70f0-a651-c90b1a327498` retained the complete bundle at
 `/private/tmp/synaptik-cpu-0007a1i-jNhVIZ7F`. Frozen source checksums verify, exact semantics report
-`VERIFIED,20`, the focused six-owner command passed 48 tests, and the authoritative uncached
-`./gradlew :backends:cpu:test --rerun-tasks` run passed 354 tests with zero failures, errors, or
-skips. CPU Javadoc passed in the implementation context.
+`VERIFIED,20`, the focused six-[owner](../../../../glossary.md#term-owner) command passed 48 tests, and the authoritative uncached
+`./gradlew :backends:cpu:test --rerun-tasks` [run](../../../../glossary.md#term-run) passed 354 tests with zero failures, errors, or
+skips. [CPU](../../../../glossary.md#term-cpu) [Javadoc](../../../../glossary.md#term-javadoc) passed in the implementation context.
 
-All two targets and three controls passed every required fork and cross-fork median at
+All two [targets](../../../../glossary.md#term-target) and three controls passed every required [fork](../../../../glossary.md#term-fork-meanings) and cross-fork [median](../../../../glossary.md#term-median) at
 `<= 1.15x`. Exactly five deferred rows remained in every fork. Both target generated classes are
 field-free final classes with exactly one typed static `invoke`, no constructor or bridge, and no
-allocation, reflection, dynamic construct, generic `Object` descriptor, Synaptik-runtime
+allocation, reflection, dynamic construct, generic `Object` [descriptor](../../../../glossary.md#term-descriptor), Synaptik-[runtime](../../../../glossary.md#term-runtime)
 reference, division, or remainder finding. Complete `javap -c -p`, `javap -v -p`, classes, raw
-forks, structural and hot-loop reports, immutable inputs, environment, commands, validation
-summary, implementation patch, inventory, and SHA-256 manifests are retained.
+forks, structural and hot-loop reports, [immutable](../../../../glossary.md#term-immutable) inputs, environment, commands, validation
+summary, implementation patch, inventory, and [SHA-256](../../../../glossary.md#term-sha-256) manifests are retained.
 
 Clean documentation context `01a02345-628c-78d1-8e94-db62730b207e` selected the General,
-API/Javadoc, Backend Guide, and Planning profiles. It independently reviewed the implementation,
+[API](../../../../glossary.md#term-application-programming-interface-api)/Javadoc, [Backend](../../../../glossary.md#backend) Guide, and [Planning](../../../../glossary.md#term-planning) profiles. It independently reviewed the implementation,
 tests, generated Javadoc, complete evidence bundle, guide, glossary, and planning contracts. It
 changed no executable Java or test and reused the accepted Java/timing evidence. Final CPU
-Javadoc, Markdown/link/anchor/fence/final-newline, schema/status/frontier, exact-path, staging,
-inventory/checksum, and whitespace results are recorded with the final evidence bundle.
+Javadoc, Markdown/link/anchor/fence/final-newline, [schema](../../../../glossary.md#term-schema)/status/frontier, exact-path, staging,
+inventory/[checksum](../../../../glossary.md#term-checksum), and whitespace results are recorded with the final evidence bundle.
 
 ## Implementation notes
 
 - The guarded FLOAT64 GATHER form uses primitive row/column and source/output cursors for the
-  frozen mixed segment/array/segment geometry and preserves arbitrary legal partial ranges.
+  frozen mixed segment/array/segment geometry and preserves arbitrary legal partial ranges.<span data-glossary-navigation="true"> ([FLOAT64 glossary](../../../../glossary.md#term-float64); [GATHER glossary](../../../../glossary.md#gather))</span>
 - The guarded FLOAT32 GATHER_ND form loads each tuple pair once per suffix block. Its full-range
   body emits 16 adjacent primitive load/store cursor steps; partial ranges use a bounded suffix
-  cursor loop. Every failed proof enters the existing typed general-long fallback.
+  cursor loop. Every failed proof enters the existing typed general-long fallback.<span data-glossary-navigation="true"> ([FLOAT32 glossary](../../../../glossary.md#term-float32))</span>
 - Complete validation remains outside and before generated output work. Capabilities, semantics,
   resources, lowering, routes, Prepare/Runtime behavior, public API, dependencies, and build are
-  unchanged.
+  unchanged.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [lowering glossary](../../../../glossary.md#lowering); [Prepare glossary](../../../../glossary.md#prepare); [Runtime glossary](../../../../glossary.md#term-runtime); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 
 ## Completion summary
 
 - Completed changes: added schema-37 guarded primitive cursor bodies for the two frozen indexing
   rows, preserved validation-before-write and typed fallbacks, finalized affected Javadocs and
   package summaries, documented bounded evidence and the variant-budget distinction, and
-  synchronized A1I/A1C/master/roadmap status.
+  synchronized A1I/A1C/master/roadmap status.<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [validation glossary](../../../../glossary.md#term-validation))</span>
 - Files changed or created by the documentation pass: `CpuGeneratorSchema.java`,
-  `CpuIndexingEmitter.java`, cache and prepare `package-info.java`, CPU backend guide, glossary,
+  `CpuIndexingEmitter.java`, [cache](../../../../glossary.md#term-cache) and [prepare](../../../../glossary.md#prepare) `package-info.java`, CPU backend guide, glossary,
   this task, A1C, CPU master plan, roadmap, and new A1J. No executable Java behavior or test was
-  changed by the documentation pass.
+  changed by the documentation pass.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [backend glossary](../../../../glossary.md#backend))</span>
 - Tests and validation: reused the implementation context's 48 focused tests, 354-test uncached
   CPU suite, `VERIFIED,20`, Class-File, and five-fork evidence; ran documentation-only validation
-  after the final edits.
+  after the final edits.<span data-glossary-navigation="true"> ([fork glossary](../../../../glossary.md#term-fork-meanings))</span>
 - Documentation-agent review: clean context `01a02345-628c-78d1-8e94-db62730b207e`.
 - Documentation impact: CPU-private generated indexing/schema behavior, package contracts, guide,
-  glossary, and planning evidence only.
+  glossary, and planning evidence only.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning))</span>
 - Javadoc review: affected type/member and package Javadocs remain meaningful and distinguish the
-  fixed emitted suffix body from planner-visible variants; CPU Javadoc passes.
+  fixed emitted suffix body from planner-visible variants; CPU Javadoc passes.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 - Glossary impact: current schema/artifact/indexing definitions advance to schema 37; no new
-  reusable term was introduced.
+  reusable term was introduced.<span data-glossary-navigation="true"> ([artifact glossary](../../../../glossary.md#term-artifact))</span>
 - Unresolved issues: five deferred performance rows remain; A1C and A1D remain `Review needed`/
   Incomplete, and this task does not close the twenty-row comparison.
 - Follow-up required: execute Ready CPU 0007A1J, then select only evidence-backed residual owner
-  clusters; resume A1C only after all five rows close. CPU 0007A2 remains blocked.
+  clusters; resume A1C only after all five rows close. CPU 0007A2 remains blocked.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand); [owner glossary](../../../../glossary.md#term-owner); [resume glossary](../../../../glossary.md#schema-serialization-and-checkpoint))</span>
 
 Status: Complete
