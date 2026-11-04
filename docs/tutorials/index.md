@@ -36,6 +36,17 @@ update; input and target data are not learned state. The learning rate `0.05` co
 of the stochastic gradient descent (SGD) update. These numbers were chosen so one step has an
 exact, inspectable answer, not to demonstrate general convergence.
 
+The **target** is the answer supplied for comparison, not a value the model already knows.
+The **weight** multiplies each input feature; the same weight is shared by both sample rows.
+A **bias** would add an adjustable constant after multiplication, but this model has none.
+FLOAT32 is Java-`float`-sized numerical storage; `[2,1]` means two rows with one value each,
+not one row with two features.
+
+Training changes the parameter; **inference** uses its current value to predict without an
+optimizer update. **Evaluation** assesses those predictions, for example by comparing them with
+targets. A complete pass through a chosen training dataset is an **epoch**. This journey performs
+one batch update; it does not introduce a dataset iterator or an automatic epoch loop.
+
 Read this flow left to right: data flows through the model into a comparison, and training uses
 the derivative of that comparison to update the private parameter.
 
@@ -48,6 +59,12 @@ x [1,3] -- model: p = x*w --> p [0,0] -- compare with t [2,6] --> L = 40
 Once `w=2`, the original batch predicts `[2,6]` and a fresh batch `[2,4]` predicts `[4,8]`.
 This demonstrates the learned multiplication, not statistical generalization: two synthetic
 points and a hand-selected model are not a validation dataset.
+
+For the existing [broadcast and reverse-gradient diagrams](../explanation/tensors-and-gradients.md),
+read the shape picture as a rule for matching coordinates and the gradient picture as the return
+path from one error measure to the shared weight. The
+[ownership diagram](../explanation/ownership.md#a-result-is-not-always-an-independent-value)
+separately shows which results need a live execution owner.
 
 ## Follow the chapters
 

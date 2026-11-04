@@ -8,6 +8,15 @@ Tensor expression. Synaptik currently offers a narrow one-shot scalar-objective 
 ordinary explicitly seeded first-order compile, and an advanced bounded one- or two-stage
 functional request.
 
+A **gradient** measures how a chosen result changes when selected input values change.
+**Forward** computes the original expression; **reverse mode** works backward through its
+dependencies to build those sensitivities. **First order** means a derivative of the original
+expression; **second order** differentiates a derivative. Computing either does not update a
+weight: that is the optimizer's separate job.
+For the concrete FLOAT32 `[2,1]`, no-bias learning case, start with the
+[loss `40` and weight gradient `-40`](../tutorials/loss-and-gradients.md) and follow the existing
+[reverse-gradient diagram](../explanation/tensors-and-gradients.md).
+
 ## Choose an entry point
 
 | Goal | Current entry point | Fixed boundary |
@@ -25,6 +34,11 @@ Start with an open Engine composition and Tensor expressions whose selected deri
 supported. Targets are always explicit: Synaptik does not infer which Tensors should receive
 gradients. Every target list is non-empty, ordered, unique by exact Tensor object identity, and
 drawn from the complete original forward expression inventory.
+
+Here a **target** is a Tensor with respect to which a derivative is requested, such as the
+weight. It is not necessarily a training target containing desired answers. **Identity** means
+the exact Java Tensor object, not another object with equal values. A **disconnected** target
+has no supported differentiable dependency path from the selected outputs.
 
 The snippets below are conceptual API-shape examples. They assume that the shown Tensors have
 compatible descriptors and live input storage and that `engine` or `advanced` is an open Engine.
@@ -66,6 +80,12 @@ This constructs the vector-Jacobian product selected by `cotangentSeed`. The see
 output's exact Shape and floating data type and must not request gradients. This overload still
 uses one stage, `createGraph == false`, and `DisconnectedPolicy.ERROR`; it does not expose the
 second-stage or disconnected-zero policy.
+
+A **cotangent seed** supplies a sensitivity for each output element. Reverse mode combines
+those sensitivities to ask how the selected weighted output depends on the targets.
+The **Jacobian** is the array of all output-to-input derivatives; a **vector-Jacobian product**
+combines its rows using the seed, without requiring a separately published full Jacobian.
+For a scalar loss, seed one asks for the loss's own derivative.
 
 The result is an owner-bound reusable compile handle, not computed gradient bytes. Open an
 ordinary inference session and run it, then inspect its forward and gradient publication
@@ -116,6 +136,11 @@ compile. It does not open a persistent derivative recording scope or authorize a
 Assume `x` is a floating Tensor of Shape `[2]`, `loss = sum(x * x)` is scalar, and `vector` is a
 non-gradient Tensor of exact Shape `[2]` and the same floating type as the first-stage gradient.
 The goal is to retain the first derivative and construct one second-stage vector-Jacobian product.
+
+The **Hessian** collects second derivatives of a scalar objective. A **Hessian-vector product**
+combines them along a supplied direction, rather than producing the entire second-derivative
+array. This advanced example teaches that separate concept; it is not an additional prerequisite
+or a replacement model for the one-weight learning journey.
 
 ### Meaningful steps
 

@@ -7,6 +7,12 @@ predictions and configure a **new** training session. Use JDK26 and the installe
 [the learning project setup](../examples/README.md). The `save-load` mode supplies the complete
 commented procedure; use its scratch output location, not a valuable existing file.
 
+A **parameter** is stored model state that training may change. An **optimizer** computes those
+changes, and its state can include more than the current parameter values. A **checkpoint**
+must be understood by its stated contents: saving this model is not saving every fact needed to
+continue a training process. **Detached** predictions own copied bytes; **owned** loaded state
+has a new responsible owner rather than borrowing the original Model's storage.
+
 ## Procedure
 
 1. Train the learning Model or run its save/load mode. The learned weight is two; the intended
@@ -33,6 +39,12 @@ The [canonical source](../examples/README.md) is the runnable example. The
 | Generated code, prepared schedule or native handles | No |
 | Training objective, optimizer configuration/moments/step or accumulation state | No |
 | Dataset position, epoch, random stream or Java callback | No |
+
+An **epoch** is a complete pass through the training dataset. Dataset position is progress within
+that pass; a **random stream** supplies successive random choices. Optimizer **moments** are
+running summaries of gradients used by algorithms such as Adam. Gradient **accumulation** is a
+pending sum awaiting an update. Those are independent pieces of progress, not quantities
+recoverable from the learned weight alone.
 
 A model file is not a Java object dump. Source persistence and backend execution have separate
 admission: a graph may be executable but outside the bounded wire inventory, or load successfully

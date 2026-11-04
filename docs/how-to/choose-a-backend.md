@@ -6,6 +6,13 @@ Choose an execution owner that supports your actual program without treating a d
 GPU presence or preferred native API as a capability guarantee. Start with the
 [CPU learning project](../examples/README.md) and its JDK26/private-artifact prerequisites.
 
+A **backend** supplies execution on a supported processor or device; a **route** is one concrete
+implementation within it. CPU is the central processor, while Metal provides the supported Apple
+GPU (graphics processor) integration. A **dtype** is an element's numerical type, such as FLOAT32.
+An **operation occurrence** is one particular operation with its actual inputs and attributes,
+not every possible use of its name. **Derivative order** distinguishes a first derivative from
+a derivative of a derivative. Check the needed order, not only forward prediction support.
+
 ## Decide from the program, not the device name
 
 1. List the operations, exact data types, layouts, shapes and required derivative order. Check
@@ -28,6 +35,13 @@ GPU presence or preferred native API as a capability guarantee. Start with the
 | Explicit oneDNN CPU | An exact external supported library/API configuration, qualified per occurrence | Native FP8 availability, F64 support or proof that every unit used oneDNN |
 | Explicit Metal | A supported Apple-silicon device/package and qualified Metal program | CPU parity, FP8 support or general FLOAT64 arithmetic |
 | Explicit CPU+Metal | Planning across registered owners with checked scheduled transfers | Automatic runtime recovery on another backend or implicit dtype conversion |
+
+**FP8**, **F64** and **FLOAT64** name numerical representations, not processors: FP8 stores a
+floating-point value in eight bits, while F64/FLOAT64 uses 64 bits. A **partition** groups work
+assigned to one backend. A **transfer** moves a value across the boundary between owners;
+it does not implicitly change its type. **Steady state** is the repeated-work period after setup.
+The [ownership picture](../explanation/ownership.md#a-result-is-not-always-an-independent-value)
+shows why retaining a prepared owner and retaining detached output have different lifetimes.
 
 ## Check what actually happened
 

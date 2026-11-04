@@ -19,6 +19,13 @@ The method `configureTraining` supplies three separate choices:
   target prototypes. It is a setup callback, not a callback invoked once per sample or batch.
 - `new Sgd(0.05)`, the immutable optimizer configuration.
 
+The **learning rate**, `0.05`, multiplies the gradient to set the size of the update; it is a
+configuration choice, not a learned weight or a prediction-quality score. “Stochastic” refers
+to estimating updates from selected data batches; this deliberately fixed two-sample experiment
+does not randomly choose a batch. An **epoch** is one full pass over the chosen training dataset,
+whereas an **optimizer step** is one committed parameter update. This mode performs one step,
+not an implicit multi-epoch training loop.
+
 Read `configure` and `train` in
 [LearningJourney.java](../examples/learning-journey/src/main/java/io/github/pho001/synaptik/examples/LearningJourney.java).
 The Model owns the working weight and cached session; Training owns optimizer mathematics and
@@ -34,6 +41,24 @@ source and invalidate this owned execution capability. The overloaded
 `model.train(input,target)` is the configured optimizer transaction; it is a different operation.
 Likewise, evaluation in this journey means `compute` without an optimizer update, not toggling
 mode around each batch. Larger custom Module forward workflows have their own mode use cases.
+
+Read the branches below as different actions available after configuration, not as mode changes.
+Both paths keep evaluation mode; only the training transaction updates the private parameter.
+
+```mermaid
+flowchart TD
+    accTitle: Training configuration, parameter updates and prediction are different actions
+    accDescr: Configuring the model leaves weight zero and evaluation mode unchanged. One training call reports pre-update loss forty and updates the weight to two. A later compute call predicts two and six without an update.
+    BUILT["Built Model: w=0, evaluation mode"] --> CONFIG["configureTraining: objective and SGD rate 0.05"]
+    CONFIG --> TRAIN["train(input,target): loss 40, then w=2"]
+    TRAIN --> COMPUTE["compute(input): predictions [2,6], no update"]
+    CONFIG --> BEFORE["compute(input) before training: [0,0], no update"]
+```
+
+**Inference** obtains a prediction without an optimizer update. **Evaluation** uses predictions
+to assess the model, often against held-out targets. **Eval mode** is the separate Module setting
+that controls mode-dependent forward behavior. In this bias-free Linear example the multiplication
+itself has no train/eval-dependent branch; the owned-source mode still must remain unchanged.
 
 ## Work through the update
 
@@ -58,6 +83,11 @@ Only the Model's private copy becomes `2`. Parameter inspection through `stateDi
 borrowed state, not a detached snapshot; read it only while the Model is live and without
 concurrent mutation. `TrainingStep` and `HostTensorValue`, in contrast, remain readable after
 all Model-owned execution/native resources close.
+
+A **binding** associates a required Tensor or input position with actual stored values.
+Inspection of borrowed state sees the working parameter, not a frozen copy of its bytes.
+Use the [existing ownership visual](../explanation/ownership.md#a-result-is-not-always-an-independent-value)
+to distinguish that borrowed state from detached training and compute results.
 
 ## Run and interpret
 

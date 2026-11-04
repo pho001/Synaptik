@@ -16,11 +16,22 @@ The input is FLOAT32 `[2,1]`: two samples, one feature each. The supplied weight
 `[1,1]`, value `0`, with `requiresGrad=true`. That flag makes the floating leaf eligible for
 requested differentiation; it is not a gradient buffer and does not initiate training.
 
+A **feature** is one input measurement: `1` for the first sample and `3` for the second.
+A **parameter** is model state that training may change; here it is the single weight, not either
+input number. A **leaf** is a Tensor with no producing expression, so the supplied weight already
+has stored values rather than instructions that must first be evaluated.
+
 `Model.builder().input(...).linear(supplied).build()` creates the rule `p = x @ transpose(w)`.
 The weight is `[output features,input features]`, so this case maps one feature to one feature.
 `linear(weight)` has **no bias**. A bias would add another parameter and change the equation.
 Build creates an evaluation-mode owned Model, but no Engine yet. A successful build copies the
 supplied stored leaf; it does not evaluate an arbitrary supplied weight expression.
+
+Here `@` denotes matrix multiplication, and transpose swaps the weight's row and column axes.
+With one weight this is just `p = x*w` for each row. A bias would instead give `p = x*w+b`;
+“no bias” means no such extra stored number, not a bias initialized to zero.
+**Evaluation mode** is a Module behavior setting, not a request to update parameters or assess
+prediction quality. This chapter performs inference: it computes predictions without training.
 
 Read `copiedModel` and `first` in the
 [complete Java source](../examples/learning-journey/src/main/java/io/github/pho001/synaptik/examples/LearningJourney.java).
@@ -44,6 +55,13 @@ This is why a tensor object, its storage and a detached result are not interchan
 | Supplied Tensor | Borrows caller native storage | Storage ends before compute |
 | Owned Model | Private state; lazily owned execution resources | Ends at try-with-resources close |
 | `HostTensorValue` | Independent canonical output bytes | Usable after Model close; no close method |
+
+**Owned** means the Model is responsible for releasing its private resources. **Borrowed** means
+another owner must keep storage alive; merely retaining a Java Tensor reference cannot keep a
+closed native Arena usable. **Detached** means output bytes were copied into an independent
+value. Follow the [ownership diagram](../explanation/ownership.md#a-result-is-not-always-an-independent-value)
+for these different lifetimes. Native storage is memory managed outside the ordinary Java heap;
+the Arena determines when this caller-supplied native memory stops being usable.
 
 The explicit `99` mutation is a copy-isolation experiment, not a recommended application pattern.
 Keep supplied storage live and exclude concurrent mutation during build.

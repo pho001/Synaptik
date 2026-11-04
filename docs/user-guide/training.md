@@ -10,6 +10,18 @@ the ordinary Engine path rather than a training-specific executor. Supported Met
 preparation follows the same lifecycle, but the low-parameter CPU qualification described here is
 not a claim of BFLOAT16/FLOAT16 Metal training support.
 
+A **parameter** is stored model state an optimizer may change; a **feature** is an input
+measurement, and a **training target** supplies the desired answer. A **loss** measures prediction
+error; a **reduction** combines elementwise losses into the one scalar **objective** we minimize.
+A **gradient** measures that objective's local sensitivity to the parameters. The **learning
+rate** scales an optimizer's update, rather than measuring accuracy.
+
+For the introductory numbers, follow the [bias-free FLOAT32 `[2,1]` journey](../tutorials/index.md#the-experiment-in-concrete-terms):
+input `[1,3]`, target `[2,6]`, weight `0`, summed squared error `40`, gradient `-40`,
+and SGD rate `0.05` give weight `2`. The existing examples below address additional session
+workflows with their own unchanged starting states. An **epoch** is one pass through a dataset;
+neither a loop iteration nor an accumulate-only run necessarily completes one.
+
 ## Train an owned static Model
 
 For a supported static graph, `Model.defineTensor` or `Model.load` can own the working weights,
@@ -23,6 +35,13 @@ is invoked once per explicit attempt and is never retained for runtime. Do not c
 external state leaves. Configuration leaves eval mode unchanged and succeeds once. Subsequent
 `train(batch, target)` calls use fresh exact-signature values and `RESET_AND_STEP`; list forms
 also support explicit target prototypes. Training retains overlap, nonfinite and precommit checks.
+
+**Eval mode** is a Module behavior setting, distinct from **evaluation**, which assesses
+predictions, and **inference**, which computes predictions without an optimizer update.
+Here configuring an update mechanism does not toggle that setting. A **pure objective builder**
+constructs the objective from the supplied prototypes without hidden mutable dependencies.
+**Cached** training setup retains reusable compilation and preparation, not a permanently fixed
+prediction or gradient.
 
 Engine selection freezes before the first valid setup attempt, even on failure. A failed setup
 may be retried explicitly on that selection without recopying successfully admitted native state.
@@ -46,6 +65,13 @@ retains the layer and its exact paths/wrappers/Tensors, revalidating the live tr
 a frozen list. It does not freeze storage associations, so this example reuses the same source
 after copying. For a non-NN owner, implement that boundary as shown in the
 [generic admission example](../reference/training/parameters.md#generic-live-parameter-admission).
+
+**Native** memory is managed outside the Java heap. **Shareable** means the memory scope
+permits the session's operation threads, not that concurrent unsynchronized writes are safe.
+A **storage association** binds a Tensor to its actual memory. Copying bytes into a new store
+while keeping Tensor identity is different from replacing the Tensor with another object.
+The [ownership diagram](../explanation/ownership.md#a-result-is-not-always-an-independent-value)
+shows why caller parameter storage must outlive dependent work.
 
 ```java
 static Tensor nativeMatrix(Arena arena, float value) {
@@ -260,6 +286,12 @@ and exactly zero dampening. The selected update is subtracted as `learningRate *
 FLOAT32, BFLOAT16, and FLOAT16 parameter sessions validate coefficients after narrowing to their
 private FLOAT32 arithmetic domain as well as before it; FLOAT64 uses the configured binary64 values.
 
+**Momentum** retains a running direction from earlier gradients. **Dampening** reduces how
+much a new gradient enters that history after its initial update. **Weight decay** discourages
+large parameters; coupled decay enters the gradient calculation shown above.
+**Nesterov** combines the new gradient with a momentum contribution using the stated formula.
+These are choices beyond plain SGD, not additional learned model parameters.
+
 To give `weight` and `bias` different rates in the `Linear` example above, replace its session
 opening and run block with this variation after `copyToSharedNative` succeeds. A parameter group
 is an immutable ordered list of distinct paths from `layer.trainingParameters().entries()`
@@ -309,6 +341,13 @@ bias-corrected using the one-based global optimizer step. For FLOAT32, BFLOAT16,
 parameters, coefficients narrow once to FLOAT32 at open, and invalid narrowed values are
 rejected before compilation.
 
+**Adam**, adaptive moment estimation, tracks moving averages of gradients and squared gradients
+to scale updates. Its **first moment** summarizes gradient direction; its **second moment**
+summarizes squared magnitude. `beta1` and `beta2` control how strongly earlier values persist.
+**Bias correction** compensates for those averages starting at zero; it is unrelated to a
+layer's additive bias parameter. **Epsilon** is the small positive denominator constant.
+**AdamW** applies weight decay separately from those gradient summaries, as described above.
+
 The adaptive subtraction is `(learningRate * correctedM) / (sqrt(correctedV) + epsilon)`,
 where `correctedM` and `correctedV` are the bias-corrected first and second moments. Multiplication
 by the learning rate happens before division, in the parameter's working precision. The scaled
@@ -338,6 +377,12 @@ assert update.accumulatedGradientRuns() == 0;
 Execution numbers count every successful forward/backward run. Optimizer-step numbers count only
 successful updates and are absent from an accumulate-only `TrainingStep`.
 
+Accumulation is a **sum**, not an implicit average. The objective reduction still matters:
+summing gradients from several batches does not silently normalize by their total sample count.
+The [existing reverse-gradient visual](../explanation/tensors-and-gradients.md) shows how sample
+contributions reach a shared parameter; accumulation adds contributions from separate runs
+before the chosen update.
+
 ## Snapshot and restore
 
 `TrainingState snapshot = training.state()` owns canonical logical-parameter, master-parameter,
@@ -357,6 +402,13 @@ SGD-specific members. No `defaultOptimizer()` accessor was added. The snapshot r
 after session and Engine close. It is an in-memory
 recovery handoff, not a file
 or checkpoint format.
+
+A **snapshot** records state at a particular point; **restore** reinstalls a compatible snapshot.
+A **master parameter** is the private working-precision value used by the optimizer when logical
+storage has less precision. Optimizer **slots** hold history such as momentum or moments.
+**Canonical** bytes follow the defined standard representation; **detached** means they are
+independent of the live session. Restoring this state still does not restore the caller's dataset
+cursor, random stream or epoch position.
 
 ## Lifetimes and concurrency
 
@@ -381,6 +433,13 @@ uses FLOAT64. A successful low-precision update narrows the validated master can
 declared logical type before commit. NaN and infinity are rejected, while negative and positive
 zero are both finite. Callers must not replace or concurrently mutate captured parameter wrappers,
 Tensor storage associations, or parameter bytes while the session is open.
+
+**Transactional** means the update is committed as a whole or not committed: a failed candidate
+does not leave only some parameters updated. A **candidate** is the proposed next parameter value
+before commit. **Finite** excludes infinity and NaN (“not a number”); **overflow** occurs when a
+calculated magnitude cannot fit the required representation. **Narrowing** rounds a working value
+to the logical storage type. These checks concern numerical validity, not whether the model's
+predictions are useful on independent data.
 
 ## Common errors
 

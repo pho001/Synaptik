@@ -17,6 +17,13 @@ initializers, modes, executable plans or persistent bytes.
 Read the arrows left to right: reconstruction establishes bindings and paths; strict
 loading supplies the exact value Tensor references before ordinary execution.
 
+**NN** means neural network: a parameterized composition of numerical operations.
+**Sequential** applies its layers in order. A **parameter** is model state that training may
+change; a **binding** connects a layer's required state position to a particular Tensor.
+Here **closed** means reconstruction accepts a fixed supported inventory of layer kinds, not
+that the source is a resource whose `close()` method has run. **Bound** means its state
+requirements are established; it does not necessarily mean numerical values are present.
+
 ## Prerequisites and concrete inputs
 
 Use Java 26 with the NN and Model modules. Keep the source and candidate quiescent:
@@ -24,6 +31,12 @@ do not replace parameters or load state concurrently with description or forward
 construction. The following complete example uses two FLOAT32 2-to-2 projections
 with the same weight Tensor and a RELU between them. Source initialization is
 explicit; reconstruction does not initialize weights.
+
+A **projection** here maps two input features to two output features by a Linear calculation.
+An **activation** adds a transformation between layers; RELU keeps positive values and replaces
+nonpositive values with zero. **Shared parameters** mean both paths use the exact same Tensor,
+not separate copies that happen to contain equal numbers. “Quiescent” means no concurrent
+state changes while the description or expression is being constructed.
 
 ```java
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -83,6 +96,11 @@ exact Tensors, not detached copies of their values. A persistence owner may inst
 load fresh value Tensors through the same fully bound target. Once values are loaded,
 construct a forward expression and use the ordinary
 [compile, prepare and run workflow](running-models.md#compile-and-prepare-once).
+
+A **shallow snapshot** copies the associations between names and Tensor references, not the
+underlying numerical bytes. A **detached snapshot** instead owns independent value bytes.
+Reconstruction and strict value loading here are therefore different from acquiring the private
+copied state in the [owned learning Model](../tutorials/first-model.md).
 
 ## Pool3d in the fluent Tensor Model builder
 

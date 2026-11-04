@@ -20,6 +20,15 @@ uses a 32-bit floating representation. A **layout** describes how logical coordi
 storage; canonical contiguous layout here has zero offset, no view and ordinary row-major
 ordering. A full **descriptor** combines dtype, shape, optional layout and gradient eligibility.
 
+An **axis** is one coordinate direction; in `[2,1]`, the first coordinate selects a sample and the
+second selects its sole feature. **Row-major** means all values of one row come before the next
+row. **Contiguous** means the values have no storage gaps; an **offset** would skip a prefix of
+storage, and a **view** would describe an existing store with another geometry. A **dtype** is
+the element's data type, here FLOAT32. These facts explain why `[1,2]` cannot replace `[2,1]`.
+For combining compatible but differently shaped operands, use the existing
+[broadcast illustration](../explanation/tensors-and-gradients.md); broadcasting is not a general
+permission to reshape a Model input.
+
 The `matrix`/`descriptor` helpers in
 [LearningJourney.java](../examples/learning-journey/src/main/java/io/github/pho001/synaptik/examples/LearningJourney.java)
 only spell out those public types; they do not add a data framework. `fromFlatArray` copies the
@@ -29,6 +38,9 @@ dense layout. Modifying the original Java array afterward does not modify the st
 There is no loader in this experiment: input and target are standalone stored data. Larger
 applications may load/batch data through separate data facilities before supplying exact Tensor
 values. The `data`, `text` and ONNX extensions are not required by this path.
+
+ONNX expands to Open Neural Network Exchange, a model-interchange format. Its mention here
+identifies a separate extension, not another dependency or import step for these two samples.
 
 ## Construction is not execution
 
@@ -44,6 +56,11 @@ records an elementwise operation that keeps positive numbers and maps nonpositiv
 zero. The mode checks that this combined result has no computed storage. It does not execute
 this extra composed graph or claim it trained another model. The canonical learning rule stays
 one bias-free Linear layer.
+
+**Cold** here means describing computation before execution resources are prepared.
+A **prototype** states the required type and geometry without supplying data. **Provenance**
+records which operation and inputs produced an expression. Thus the prototype, the expression
+and its later numerical result serve three different purposes even though all describe tensors.
 
 Conceptual pseudocode, not API calls:
 

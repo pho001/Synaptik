@@ -9,6 +9,19 @@ prepared execution repeatedly with current caller-owned input storage. Each run 
 ordered publication metadata and supports explicit copying into detached immutable
 `HostTensorValue` objects.
 
+**Inference** computes predictions without an optimizer update. **Eval mode** is a separate
+Module setting controlling mode-dependent forward behavior; it does not disable every gradient
+or mean prediction quality was measured. **Capture** records expression structure, **compile**
+validates meaning and chooses owners, **prepare** builds reusable executable resources, and
+**binding** supplies each run's actual input storage. A cache can retain setup, not the answer
+for every future batch.
+
+Start with the [one-weight tutorial](../tutorials/index.md#the-experiment-in-concrete-terms) if these
+distinctions are new. Its actual example remains FLOAT32 `[2,1]`, input `[1,3]`, target `[2,6]`,
+one `[1,1]` weight initially zero, no bias and summed squared error. One SGD update at learning
+rate `0.05` changes weight `0` to `2`. The independent examples below retain their own existing
+inputs and expected outputs; they are reference workflows, not replacements for that journey.
+
 ## JVM prerequisites
 
 Use JDK 26 and the runtime dependencies of the selected API. The default scalar CPU route does
@@ -52,6 +65,15 @@ the last seed set before build applies to the whole recipe. Appended step `i`, s
 uses `seed + 0x9E3779B97F4A7C15L * i` with Java long wraparound. Activations and transforms count
 as steps. Identical recipes, seeds and algorithms reproduce initialization bytes; this is not
 optimizer or random-stream checkpoint continuation.
+
+A **dense** layer combines every input feature with its output weights. A **feature** is one
+input measurement; a **parameter** is stored state training may update. A **bias** is an
+adjustable constant added to the weighted sum. An **activation**, such as RELU, transforms
+the result; RELU keeps positive values and maps nonpositive values to zero.
+**Initialization** chooses starting parameter values before learning. Glorot-uniform draws
+weights from a bounded uniform distribution with bounds based on the input and output widths.
+A **seed** controls the random generator's starting sequence; reproducing that sequence is
+different from resuming optimizer history.
 
 ### Train and save private supplied weights
 
@@ -116,6 +138,14 @@ These chains use the same imports and Model lifecycle. A convolutional neural ne
 channels-first input; convolution defaults are stride/dilation/groups 1, padding 0 and bias enabled.
 Maximum pooling uses stride equal to kernel, padding 0, dilation 1 and floor geometry:
 
+**Convolution** applies a shared weight pattern, called a **kernel**, at multiple positions.
+**Channels** identify separate feature maps, such as image color components. **Stride** is the
+step between kernel positions, **padding** adds boundary positions, and **dilation** spaces out
+positions within the kernel. **Groups** split the channel connections into independent sets.
+**Pooling** summarizes local windows, for example by their maximum. **Floor geometry** rounds
+the computed output extent downward. These terms describe axes and calculations, not a promise
+that every geometry is supported.
+
 ```java
 try (var cnn = Model.builder().input(DataType.FLOAT32, 32, 1, 28, 28).seed(42)
         .conv2d(32, 3, 3).relu().maxPool2d(2, 2)
@@ -143,6 +173,14 @@ adjoints in the [qualified static CPU F32/F64 and Metal F32 domains](../backend-
 `flatten()` requires rank at least two and preserves axis 0: `[axis0, product of other extents]`.
 For CNNs axis 0 is batch; for TBF `[T,B,H]` it is time, so flatten gives `[T,B*H]`.
 Use `lastTimeStep()` first when recurrent batch rows must remain separate.
+
+A **recurrent** layer carries state from one time step to the next. RNN expands to recurrent
+neural network; GRU to gated recurrent unit; LSTM to long short-term memory. Their **hidden state**
+is the working representation carried across steps; LSTM also carries **cell state**.
+**Unrolling** describes a separate operation sequence for each fixed step.
+**BPTT**, backpropagation through time, propagates sensitivities backward through those time
+dependencies. An **adjoint** here is the backward sensitivity calculation for an operation.
+Keeping states within one sequence does not imply keeping them across separate Model calls.
 
 Default Conv1d/2d/3d, MaxPool2d/flatten and static RNN/GRU/LSTM compositions save as their ordinary
 Tensor graphs, not layer recipes. Save before compute, close the original Model, cold-load through
@@ -174,6 +212,12 @@ F32/F64 `rnnScan` and qualified fixed recipes support first-order configured tra
 The list-typed `Model<List<Tensor>,List<Tensor>>` keeps inputs explicit, while `compute(values,
 validLengths)` returns the sole detached result. No prior forward is required, before or after load;
 this workflow has no Data dependency. The example below retains fixed GRU/LSTM inference.
+
+A **scan** repeatedly applies a body calculation while passing state, called **carry**, between
+iterations. **Runtime lengths** say how many leading time steps of each batch row are valid.
+**Padding** fills the remaining positions so rows can share one rectangular Tensor;
+**masking** excludes positions according to a stated rule. A scan that skips its own padding
+does not automatically make later layers or their loss ignore padding.
 
 The example below uses the same Java 26/NN/CPU prerequisites as the fluent examples
 above. It supplies canonical FLOAT32 `[4,3,2]` values and non-gradient INT64 `[3]` lengths
@@ -431,6 +475,12 @@ batch sizes. This does not change NN Model or Training session signatures, which
 With JDK 26 and the Engine module available, this complete example compiles a scalar loss and
 actual first-order gradients once, then supplies fresh canonical values in compiled input order:
 
+**Symbolic** batch size means the descriptor names a dimension `B` without fixing its numeric
+value until a run supplies concrete data. Time and feature widths can still be fixed.
+This is different from broadcasting, which matches compatible operand coordinates; use the
+existing [broadcast visual](../explanation/tensors-and-gradients.md). It also differs from
+rebuilding the owned tutorial Model, whose complete `[2,1]` signature stays fixed.
+
 ```java
 import io.github.pho001.synaptik.engine.Engine;
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -589,6 +639,12 @@ final MAIN acceptance remains pending. No new Engine API or per-batch preparatio
 This complete FLOAT64 example uses three steps of `next = h + step`, width two, and joint final/
 emission one seeds. The original carry and every original step are ROW(0): their leading coordinate
 is the same named B. Each call supplies new lengths and static storage in compiled input order.
+
+A **prefix** is the leading valid portion of each row's time sequence.
+**ROW(axis)** records a value whose named axis follows batch rows; **SHARED** denotes a value
+not split by that row axis. **Primal** means the original forward calculation, while
+**adjoint** refers to its reverse sensitivity calculation. A **seed** in this context supplies
+output sensitivities for differentiation, not a random-generator starting value.
 
 ```java
 import io.github.pho001.synaptik.engine.Engine;
@@ -775,6 +831,14 @@ same model. That selection freezes even if setup fails, and a closed selected En
 replaced. Without a selection, only execution opens a fresh model-owned CPU Engine. Close never
 closes a borrowed Engine; it waits for active work and closes session/preparation before native
 storage and an owned Engine, attempting all cleanup and replaying retained failures.
+
+**Owned** state has one responsible lifecycle owner; **borrowed** resources must remain usable
+under another owner's lifetime. **Detached** results contain independent copied bytes, so
+retaining them does not retain a right to run a closed Model. Read the
+[ownership visual](../explanation/ownership.md#a-result-is-not-always-an-independent-value)
+alongside the closure sequence above. A Java reference to a Tensor alone cannot keep a closed
+native Arena's memory usable.
+
 Fixed and mixed recurrent sources use this same setup ordering. Unsupported backend or derivative
 closure is not replaced by a separate inference-only NN guard or an implicit recipe conversion.
 
@@ -813,6 +877,13 @@ alternative. Original AD carries/sequences and emission boundaries remain ROW(0)
 and history ROW axes/ranks follow their proofs. Supported row-mixing materialization requires
 exactly the same length values, not Tensor identity. Structural absence differs from a present
 all-zero seed; cross-Scan materialization is explicit.
+
+A body **formal** is a placeholder local to the scan; an **actual** is the outer Tensor bound
+to it. An **invariant** is an explicit input available unchanged across steps.
+An **emission** is a per-step output, distinct from the final carried state.
+A **residual** is retained intermediate information needed by later work such as differentiation.
+An undeclared **free leaf** is an outside dependency used without an explicit body binding;
+making invariant bindings explicit prevents that hidden dependency.
 
 This complete FLOAT32 example acquires weight `0.5` privately once. The body computes
 `next = carry * weight + step` and emits the pre-step carry. Input `[1,2,3]`, initial carry `0`
@@ -1133,6 +1204,11 @@ run's result closes.
 bounded copy through the publication adapter captured during preparation. A detached
 `HostTensorValue` remains readable after the result, prepared handle, Engine, and input-storage arena close.
 
+A **lease** gives access while the responsible result remains open. **Materialization** makes
+an explicit numerical copy, not merely another Java reference to the same storage.
+**Canonical row-major** output puts one complete row before the next in the standard detached
+representation. The byte ceiling limits that copy, not all temporary execution memory.
+
 ## Run fresh values in compiled order
 
 **Goal and inputs.** Prepare negation of a storage-free FLOAT32 [2] prototype once, then supply
@@ -1191,6 +1267,12 @@ preparation, execution, materialization, and cleanup.
 Close the prepared handle when its reuse window ends. Close is idempotent, closes the one prepared
 execution exactly once, and immediately prevents later run admission. It does not close a
 `RunResult` that was already returned.
+
+**Idempotent close** means repeating close does not release the same resource again.
+An **in-flight** run has already begun admission; **admission** is permission to start after
+lifecycle checks. A **race** means close and run overlap in time, so which obtains permission
+first determines whether that run can proceed. These rules do not grant permission for
+conflicting mutations of shared input or Model storage.
 
 If close races a run, Runtime's existing prepared lease decides the race:
 

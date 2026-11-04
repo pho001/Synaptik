@@ -5,6 +5,13 @@ persistence and repeated execution. The [learning journey](../tutorials/index.md
 same project chapter by chapter. This is an external Maven consumer: it imports supported public
 APIs, not repository internals, and has one direct Synaptik dependency, `nn`.
 
+Here **prediction** means computing an answer from current weights; **training** changes those
+weights by comparing predictions with supplied answers. **Persistence** writes the supported
+model description and current values to a file. **Repeated execution** reuses prepared work with
+new input values; it does not mean reusing an old answer. The
+[experiment table](../tutorials/index.md#the-experiment-in-concrete-terms) fixes the actual
+FLOAT32 `[2,1]` data and the one bias-free weight used throughout the chapters.
+
 ## Prerequisites and artifact boundary
 
 - JDK **26** selected by both `java` and Maven, and Maven 3.9 or newer.
@@ -21,6 +28,14 @@ No data download, GPU, native BLAS installation, test framework, preview flag, o
 is needed. Enable native access: `Engine.standard()` can probe optional OpenBLAS through the
 Foreign Function and Memory API even when the numerical route uses portable Java. This flag is
 permission, not backend selection.
+
+An **artifact** is a built package, here a Maven JAR and its accompanying metadata. **Transitive**
+artifacts are dependencies required by that direct `nn` dependency. A file repository is a local
+directory arranged for Maven lookup, not an instruction to download a different release.
+**Native** libraries run machine code outside Java; the Foreign Function and Memory (FFM) API
+lets Java call that code and access non-heap memory. CPU means central processor, GPU means
+graphics processor, and BLAS expands to Basic Linear Algebra Subprograms, a numerical-library
+interface. These explanations do not add any installation requirement to this example.
 
 ## Build the complete project
 

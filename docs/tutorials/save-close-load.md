@@ -20,6 +20,12 @@ Engine, loaded native kernel or running session. For this body-free Linear graph
 smallest sufficient graph-model format is used; the example does not choose or implement a
 wire codec.
 
+A **graph** records operations and the dependencies connecting their inputs and outputs.
+**Persistence** stores an independently readable representation in a file. A **wire codec**
+encodes that representation as bytes and decodes it later; it is not the executable that performs
+matrix multiplication. “Body-free” means this example has no nested loop computation to encode.
+The saved parameter is the current `[1,1]` weight, while `[2,1]` input batches remain caller data.
+
 Read `saveLoad` in the
 [canonical Java source](../examples/learning-journey/src/main/java/io/github/pho001/synaptik/examples/LearningJourney.java).
 Its order matters:
@@ -43,6 +49,12 @@ changed signature.
 | Supported graph semantics and input/output descriptors | Cached compiled/prepared execution or backend eligibility |
 | Current named parameter/buffer/constant values | Objective callback or configured TrainingSession |
 | The rule needed to recompute predictions | Optimizer history, random-stream state or data cursor |
+
+An optimizer's **history** can include earlier update counts and running averages of gradients;
+it affects later updates even when two Models have the same current weights. A **data cursor**
+records which sample or batch to read next. A **random stream** supplies successive random
+choices. Neither that progress nor an epoch count (full passes through a dataset) follows from
+restoring weight `2`. This is why matching predictions do not establish exact training resume.
 
 The program deliberately calls `restored.train(input,target)` **before** reconfiguration and
 checks that it raises `IllegalStateException`. It then supplies the target descriptor, SUM

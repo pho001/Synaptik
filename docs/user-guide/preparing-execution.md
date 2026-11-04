@@ -8,6 +8,13 @@ shared logical slots plus deterministic owner-indexed physical representations, 
 executable and transfer recipes, and validates one complete schedule. It does not bind caller
 inputs or create per-run mutable state.
 
+Think of compile as fixing what to compute and prepare as making that plan executable.
+A **partition** groups operations assigned to one backend. A logical **slot** names a value's
+storage need; a physical **representation** specifies how that value will actually be stored.
+A **schedule** orders the already-selected computations and transfers. None of these is this
+run's input data or an already-computed answer. Use the
+[execution-stage visual](../explanation/packages/execution.md) to follow those handoffs.
+
 ## Prerequisites
 
 - One open `Engine.standard()`, or one open explicitly composed CPU/Metal Engine.
@@ -33,6 +40,12 @@ representation-position assignment, contribution coverage, schedule assembly, an
 and Metal own their concrete lowering, specialization, route choice, physical storage geometry,
 executable construction, and direct transfer endpoints. Runtime receives the completed recipe and
 does not repeat those decisions.
+
+**Lowering** translates operations into backend-specific work. **Specialization** fixes work for
+known types and geometry. A **route** is the concrete implementation chosen within a backend.
+**Rollback** releases partial setup when preparation fails; it does not mean retrying the
+calculation on another backend. Preparing once avoids repeating those setup decisions, not
+the numerical operations required for each fresh batch.
 
 <a id="prefer-an-inference-session-for-ordinary-repeated-runs"></a>
 
@@ -63,6 +76,13 @@ cannot complete; an allowed fallback uses a fresh safe ordinary preparation thro
 already-selected backend. This is not generic
 multiple-occurrence extraction, Compiler graph-alternative search, Planning owner or partition
 search, or mixed-backend tuning. Runtime performs no tuning.
+
+A **representative workload** is concrete input chosen to stand for later work during timing.
+A **candidate** is an allowed implementation being compared. A **cache** can reuse a compatible
+decision; it is not a saved prediction for future data. **Canonical publication bytes** are
+outputs copied into the standard comparison representation. A **heuristic fallback** uses a
+permitted rule-selected ordinary preparation when the request allows it, within the same owner.
+These are optional tuning concepts, not prerequisites for ordinary `prepare`.
 
 ## Expected result
 

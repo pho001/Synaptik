@@ -14,6 +14,12 @@ A **loss** measures how wrong a prediction is. For these two samples, subtractio
 number whose derivative guides updates. The choice of reduction defines what is being optimized:
 we use a **sum**, not a mean, and no implicit division by batch size occurs.
 
+The **target** supplies the desired outputs `[2,6]`; it is not a differentiation target in this
+calculation. A **reduction** combines several elements into fewer elements. SUM combines `4` and
+`36` into `40`; MEAN would divide that sum by two. A **scalar** is one number with no axes, not
+merely a one-element row. The objective is the scalar we choose to minimize, while the
+per-sample squared losses still describe the separate errors.
+
 Read `squaredErrorSum` and `gradients` in the
 [complete Java source](../examples/learning-journey/src/main/java/io/github/pho001/synaptik/examples/LearningJourney.java).
 The function constructs `error = prediction.sub(target)` and `error.mul(error).sum()`.
@@ -42,6 +48,12 @@ The negative sign says increasing the weight is the local downhill direction; it
 the squared loss is negative. The derivative has the parameter's shape `[1,1]`, not one weight
 per sample. Contributions from both rows add into that same parameter derivative.
 
+A **derivative** measures local sensitivity: approximately how much the objective changes per
+small change in the selected number. With many parameters the collection of those derivatives
+is the gradient. Follow the existing
+[reverse-gradient diagram](../explanation/tensors-and-gradients.md) from the loss back to the
+shared weight; both samples contribute to one weight derivative, not to two independent weights.
+
 ## What performs differentiation?
 
 The mode supplies a stored gradient-eligible weight and calls public
@@ -55,6 +67,12 @@ gradient uses `4 + 4` bytes. It does not bound the entire execution workspace. T
 convenience compiles/prepares per call; use [prepared execution](reusable-execution.md) when
 reuse is the goal. The result's objective and target-aligned gradients are detached values.
 Backward alone does not own an optimizer and does not mutate `w`.
+
+In this API, **differentiation target** means “the Tensor with respect to which a derivative is
+requested,” here `w`. In the loss builder, **training target** means the desired answer, here
+`[2,6]`. The same word does not give those Tensors the same role. A **workspace** is temporary
+memory needed to execute intermediate work; the output-copy ceiling limits returned bytes,
+not that temporary memory.
 
 ## Run and interpret
 

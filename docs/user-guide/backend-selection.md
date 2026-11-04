@@ -8,6 +8,13 @@ their registration order, capability providers, and availability snapshots. Comp
 one owner per operation; ordinary preparation can combine both registered owners through a
 validated shared schedule and explicit bounded transfers.
 
+A **backend** supplies execution for a supported processor or device. An **integration** is the
+opened Java-facing connection that Engine can own. A **partition** is a group of operations
+assigned to one backend; a **schedule** specifies their execution and any required value
+transfers. CPU means central processor; Metal is the supported Apple graphics-processor
+integration. Capability is support for the exact operation, type and geometry, not merely
+whether a device is present.
+
 ## Mental model
 
 ```text
@@ -25,6 +32,12 @@ result:   materializes each publication through its captured adapter
 
 CPU scalar, Java Vector API, generated JVM bytecode, and OpenBLAS are CPU-internal routes. They are
 not separate backends and are not selected through Engine ownership configuration.
+
+**Ownership transfer** makes Engine responsible for releasing an integration; it is not the
+same as borrowing an Engine while its caller remains responsible for closing it. The
+[existing ownership diagram](../explanation/ownership.md#a-result-is-not-always-an-independent-value)
+shows that resource relationship. A **captured adapter** is a connection routine fixed during
+setup so each run can bind input storage or copy output without rediscovering that routine.
 
 ## Use the ordinary composition
 
@@ -63,6 +76,12 @@ current transfer is exact native-host-staged in either direction for all seven c
 static rank-0..16 canonical or positive-stride non-overlapping layouts with checked physical spans.
 It performs no type/layout conversion or fallback.
 
+A **carrier** is the concrete representation holding elements. **Rank** counts axes; rank zero
+is a scalar. A **stride** is the storage distance between neighboring coordinates along an axis.
+**Non-overlapping** means different logical elements do not reuse the same storage positions;
+the **physical span** includes all referenced bytes, including gaps. **Host-staged** transfer
+moves through processor-accessible memory instead of implying a direct device-to-device copy.
+
 ## Use explicit advanced ownership
 
 Advanced integration code may transfer one supported CPU integration and pass the existing
@@ -100,6 +119,12 @@ partition 0, and weight 1. Metal decisions have session-only reuse and no persis
 Heterogeneous or multiple-partition plans fail before representative trial work. Cache lookup,
 measurements, ranking and explicit safe fallback stay inside the selected owner; tuning never
 selects another backend. Registering both backends does not make a single-owner plan heterogeneous.
+
+**Autotuning** compares allowed implementation candidates using a representative workload.
+A **cache** retains a compatible earlier decision, not earlier numerical outputs.
+**Session-only** reuse ends with its live owner; a **persistent cache** survives as stored data.
+A **heuristic** chooses by a rule rather than a new timing trial. Any allowed fallback here stays
+within the already-selected backend; it is not recovery by moving work to another device.
 
 ## Common errors
 

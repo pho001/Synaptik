@@ -22,6 +22,13 @@ The owned Model caches public preparation and a positional binding plan. Fresh i
 and values are allowed; per-batch builder calls, cold forward composition or graph rebinding
 are not required.
 
+**Capture** records expression operations and their connections as a graph; it does not record
+an already-computed prediction. **Compile** validates that meaning and fixes execution ownership.
+**Prepare** builds reusable execution resources from it. A **cache** retains setup for reuse,
+not the answer to every future input. **Binding** supplies this run's values to required input
+positions. Consequently `[2,4]` reaches the same prepared multiplication as `[1,3]` without
+reusing the earlier prediction `[2,6]`.
+
 The mode constructs `Engine.standard()` explicitly and selects it with `withEngine` before
 training/compute setup freezes Engine choice. The Model **borrows** this Engine; Model close
 will not close it. Without an explicit selection, the usual Model path lazily owns its standard
@@ -47,6 +54,12 @@ such a tiny graph.
    from `engine.run`, whose binding uses the exact compiled TensorIds.
 6. Materialize the sole publication with an `8`-byte ceiling: two FLOAT32 values. Close each
    `RunResult` before the next iteration. The detached copy is independent of that result.
+
+A **publication** is an output occurrence the run exposes, such as this prediction.
+**Materialization** copies its numerical bytes into an independent host value. “Host” means
+memory accessible from the Java process, as distinct from device-only storage. The
+[ownership diagram](../explanation/ownership.md#a-result-is-not-always-an-independent-value)
+shows why a live result is needed for copying but a detached copy can outlast it.
 
 Read the ownership stack from the inside out at closure:
 

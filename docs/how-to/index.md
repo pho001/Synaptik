@@ -3,6 +3,13 @@
 Choose a task once you know the [learning project's](../tutorials/index.md) basic lifecycle.
 These guides answer practical questions; they do not replace the precise [API reference](../reference/index.md).
 
+The lifecycle separates describing a calculation, preparing reusable execution resources, running
+with current data, and closing those resources. **Gradients** describe how an objective changes;
+an **optimizer** uses them to update parameters. **Accumulation** sums gradients from multiple
+runs before an update. Use the [learning vocabulary and concrete batch](../tutorials/index.md#the-experiment-in-concrete-terms)
+when those tasks are new; the table below is navigation, not a prerequisite to understand every
+advanced technique.
+
 | I want to… | Guide |
 |---|---|
 | Choose CPU, Metal or explicit mixed execution | [Choose a backend deliberately](choose-a-backend.md) |

@@ -17,6 +17,14 @@ The leaf owns stable logical metadata and borrows its associated host-storage ob
 Tensor records what to compute and from which exact input, but it has no computed values or host
 storage merely because the expression exists.
 
+A **tensor** is an ordered numerical value with one or more coordinate directions, or no
+directions for a scalar. Its **shape** lists the size of each axis; **rank** counts those axes.
+A **descriptor** combines those sizes with the element type, storage geometry when known, and
+gradient eligibility. A **leaf** has no producing operation; **provenance** records the producer
+and inputs of a derived expression. Negation changes a number's sign, but constructing `neg()`
+only records that rule. See the [expression and shape explanation](../explanation/tensors-and-gradients.md)
+for the existing coordinate and broadcast visual.
+
 ## Prerequisites
 
 - JDK 26.
@@ -29,6 +37,13 @@ storage merely because the expression exists.
 
 The input has data type `FLOAT32`, Shape `[2, 3]`, canonical dense row-major layout, no gradient
 request, label `input`, and the six row-major values `1.0, -2.0, 3.5, 4.0, 0.0, -6.0`.
+
+**Dense row-major** means values occupy consecutive storage positions, with one whole row before
+the next. FLOAT32 uses four bytes per element, like Java `float`; the six elements therefore need
+24 bytes. **Host** storage is accessible from the Java process. Borrowing that storage does not
+transfer responsibility for its lifetime; the
+[ownership visual](../explanation/ownership.md#a-result-is-not-always-an-independent-value)
+separates stored inputs from independent detached outputs.
 
 ```java
 import io.github.pho001.synaptik.model.datatype.DataType;
@@ -137,6 +152,15 @@ integer quantization: no scale, calibration, clipping or automatic loss scaling 
 Both FP8 types use one raw `byte` per element and a `byte[]` heap carrier, not `short[]`.
 Interpret a diagnostic raw byte as unsigned with `bits & 0xff`.
 
+Floating-point types encode a sign, a size scale (**exponent**) and significant digits
+(**fraction**). Fewer bits generally permit fewer distinct values and a smaller range.
+**Rounding** chooses a representable value when the exact number does not fit; ties-to-even
+chooses the candidate with an even final retained binary digit when exactly halfway between two.
+**Narrowing** converts to a smaller representation; **widening** converts to a larger one.
+A **subnormal** uses a special representation for tiny values near zero. **NaN** means “not a
+number”; infinity is a separate special value where the format supports it. **Overflow** means
+the result's magnitude is beyond the format's finite range.
+
 The public `io.github.pho001.synaptik.model.datatype.Float8E4M3Bits` and
 `Float8E5M2Bits` helpers each expose `toFloat(byte)`, `fromFloat(float)` and
 `fromDouble(double)`. Decoding accepts all 256 byte patterns; numeric encoding uses
@@ -146,6 +170,12 @@ non-saturating round-to-nearest, ties-to-even:
 |---|---|
 | E4M3 | Sign/exponent/fraction 1/4/3, bias 7, signed zeros and subnormals, finite maximum 448, no infinity. NaNs are `0x7f`/`0xff`; numeric NaN, infinity input and overflow become canonical `0x7f`. Magnitude 464 is the inclusive tie that rounds to 448; larger magnitudes become NaN. |
 | E5M2 | Sign/exponent/fraction 1/5/2, bias 15, signed zeros and subnormals, finite maximum 57344. Infinities are `0x7c`/`0xfc`; exponent 31 with nonzero fraction is NaN. Numeric NaN becomes `0x7e`; magnitude at or above the 61440 overflow tie becomes signed infinity. |
+
+In this table, **bias** is the fixed offset used to encode an exponent, not an adjustable
+neural-network bias parameter. A NaN **payload** is extra information in its fraction bits, not
+an ordinary numeric value. **Canonical** NaN means the chosen standard bit pattern used by
+numeric conversion; raw import instead preserves the exact supplied pattern.
+**Non-saturating** conversion does not clamp overflow to the largest finite value.
 
 `ScalarValue.float8E4m3(float)` and `float8E5m2(float)` encode numeric values.
 `ScalarValue.float8E4m3Bits(byte)` / `float8E5m2Bits(byte)` and the corresponding
@@ -178,6 +208,13 @@ CPU execution reuses existing families, shared Compiler AD, Scan and recurrent o
 their geometry and derivative constraints. Native oneDNN availability is separate; no conversion
 of FP8 inputs to FLOAT32 constitutes native FP8 execution. Metal retains its seven-carrier
 scope without FP8 and its independently qualified BFLOAT16/FLOAT16 restrictions.
+
+A **working value** is the representation used while calculating; an **accumulator** holds a
+running total. **Promotion** chooses a common calculation type for unlike operands. These rules
+explain why a low-storage result may be calculated using FLOAT32 without becoming a stored
+FLOAT32 Tensor. A **pole** is an input at which a formula becomes unbounded, and an **extremum**
+is a minimum or maximum. Those numerical words describe the result rules, not extra execution
+support on a backend.
 
 ## Common errors
 

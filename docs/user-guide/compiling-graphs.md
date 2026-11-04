@@ -7,6 +7,14 @@ This guide compiles current Tensor expressions into an immutable, Engine-owned
 convolution layouts, chooses ownership from the Engine's registered backends, and produces logical
 execution recipes. It does not allocate physical buffers or run the graph.
 
+A **graph** records operations and the dependencies linking their values. **Capture** translates
+the existing Tensor expression structure into that graph; it is not a recording of computed
+data. A **fully static** descriptor has every axis size known before execution. **Layout**
+describes how coordinates map to storage, so “closes a layout” here means resolves its previously
+unknown geometry. A logical **recipe** describes later work without performing it.
+The [framework stage diagram](../explanation/framework.md) shows where compile stops and prepare
+and run begin.
+
 ## Prerequisites
 
 - JDK 26 and the repository's `:modules:engine` and `:modules:model` projects.
@@ -33,10 +41,20 @@ try (Engine engine = Engine.standard()) {
 caller Tensor identity and final descriptor that a later `run(...)` must bind. The output order
 also defines forward publication order.
 
+An input **binding** later associates each required entry with usable stored data.
+A **publication** is an output occurrence exposed by a run; two occurrences can refer to a
+shared internal value without becoming the same publication. Compile fixes these boundaries,
+whereas prepare creates reusable execution resources and run supplies current values.
+
 ## Compile reusable gradients
 
 The reusable ordinary overload takes explicit output-aligned cotangent seeds and explicit ordered
 gradient targets:
+
+A **cotangent seed** assigns an output sensitivity to combine when computing derivatives.
+A **gradient target** names the Tensor whose sensitivity is requested, not the desired-answer
+Tensor used by a training loss. The [autograd explanation](autograd.md#compile-an-explicitly-seeded-first-order-graph)
+introduces the vector-Jacobian product and why seed and output must match.
 
 ```java
 CompiledGraph graph = engine.compile(
@@ -66,6 +84,12 @@ transfer, or a backend-specific unsupported partition.
 The result is an immutable owner-bound handle. Its metadata remains readable after Engine closure,
 but it cannot be prepared by another Engine or used to start work after its owner begins closing.
 It contains no caller Tensor storage reference and performs no execution.
+
+**Owner-bound** means the handle belongs to that exact Engine instance, not any Engine with the
+same configuration. The word “compiled” does not imply that caller data has been read or that
+results are cached. For the fixed FLOAT32 `[2,1]` one-weight case, the
+[reusable tutorial](../tutorials/reusable-execution.md) demonstrates fresh inputs under one
+compiled boundary without changing its mathematical rule.
 
 ## Common errors
 
@@ -112,6 +136,12 @@ image with type wires `1..7`, operation wires `1..115`, attributes `0..41`, and 
 Workload, exact-policy, candidate, compatibility, route-policy, and session-codec identities are
 version 39; earlier identities, including historical cutover 30 and superseded 31 through 38, fail
 closed. Registry presence does not widen capability; unsupported operations fail closed.
+
+Here **ABI** means application binary interface: the calling and representation agreement
+between Java and the native library. A **schema** defines the permitted structure of an encoded
+program, and **wire** numbers are identifiers in that representation. Versioned identity checks
+reject incompatible artifacts; the numbers above are compatibility facts, not parameters a
+caller should tune to enable missing operations.
 
 Model construction leaves Conv2d and Conv3d result layouts unresolved; Compiler closes
 only eligible fully static final convolution

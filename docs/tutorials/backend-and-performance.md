@@ -16,6 +16,12 @@ choices are not separate mathematical models. The Model operation families defin
 backend capability still depends on actual dtype, shape, layout and requested derivatives.
 A graph that can be described or saved is not thereby executable on every backend.
 
+**CPU** means the central processor running ordinary Java and supported native routes;
+**GPU** means a graphics processor that can also execute numerical work. **JVM** is the Java
+Virtual Machine. Java's **Vector API** expresses operations on several numerical lanes together.
+OpenBLAS and oneDNN are external CPU numerical libraries; Metal is Apple's device-computation
+interface. None of those names replaces checking whether the exact operation is supported.
+
 The canonical program uses `Engine.standard()`, which is CPU-only. Adding native-access
 permission neither selects Metal nor promises OpenBLAS use. The standard CPU owner can probe
 optional OpenBLAS even for a graph whose actual work uses portable Java. The project requires
@@ -48,6 +54,12 @@ JVM startup; `Engine.backward` is a one-shot compile/prepare path; printing and 
 copy output. None of those costs isolates repeated kernel execution. Two multiplications are
 also far too small to infer an accelerator benefit. Do not turn this chapter into a benchmark
 by timing one shell command and calling the number kernel latency.
+
+A **kernel** is the concrete numerical routine performing a piece of work. **Latency** is the
+time for one measured operation, so its measurement must say where timing starts and ends.
+**Warmup** runs work before measurement so startup and compilation effects are not mistaken for
+steady-state execution. **Materializing** results adds a copy. A correctness baseline establishes
+expected answers; a benchmark measures a stated workload under stated conditions.
 
 ## Choose the next question
 
