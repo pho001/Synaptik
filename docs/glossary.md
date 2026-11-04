@@ -9,6 +9,28 @@ New readers can use [First terms](terms.md) as a short reading-order guide, then
 worked [tensor geometry and gradient explanation](explanation/tensors-and-gradients.md).
 Definitions distinguish current capabilities from explicitly planned or historical material.
 
+## Grouped quick index
+
+Start with the foundation that matches your question, then use the existing detailed entries.
+Examples of arithmetic and data geometry below are conceptual unless an entry states a particular
+implemented route; they do not expand backend support.
+
+| Reader question | Start here | Related detailed homes |
+|---|---|---|
+| What do tensor coordinates mean? | [Axes, rank, scalars, vectors, matrices](#axis-rank-scalar-vector-and-matrix) | [Shape](#shape), [Dimension](#dimension), [Layout](#layout), [broadcasting](#broadcasting), [storage mapping](#storage-mapping-contiguity-and-injectivity) |
+| What is the model learning? | [Data vocabulary](#learning-data-vocabulary), [loss and objective](#loss), [bias and activation](#bias-and-activation) | [Parameters](#trainable-parameter), [optimizer and SGD](#optimizer-and-stochastic-gradient-descent), [training session](#training-session--trainingsession) |
+| How are derivatives built? | [Derivative and chain rule](#derivative-and-chain-rule), [Jacobian products](#jacobian-and-vector-jacobian-product) | [Autograd](#autograd), [primal and adjoint](#primal-adjoint-and-differentiation-seed), [cotangent](#cotangent), [Hessian](#hessian-and-higher-derivatives) |
+| What repeats through a sequence? | [Recurrent networks and BPTT](#backpropagation-through-time-and-recurrent-state) | [Scan distinctions](#model-module-buffer-and-scan-distinctions), [general scan](#general-differentiable-scan), [residuals and history](#scan-residual-port-and-history-demand) |
+| Which object must stay alive? | [Ownership, borrowing, lease](#ownership-borrowing-and-lease), [alias and arena](#aliasing-and-arena) | [RunResult](#run-result--runresult), [detached value](#host-tensor-value--hosttensorvalue), [transactions](#resource-transaction-and-rollback) |
+| How does a description become executable? | [Compile / prepare / run](#compile-versus-prepare-versus-run), [capture and ports](#capture-graph-ports-and-reconstruction) | [IR / DAG / SSA](#intermediate-representation-dag-and-ssa), [specialization and fusion](#specialization-and-fusion), [cache](#cache-and-memoization) |
+| Where does computation run? | [CPU / GPU / host / device](#cpu-gpu-host-and-device), [backend](#backend) | [Routes](#backend-route), [SIMD](#simd), [MPS / MPSGraph / OpenBLAS](#mps-mpsgraph-and-openblas), [native ABI](#application-binary-interface-and-native-bridge) |
+| Why can numerical answers differ? | [Precision and rounding](#floating-point-precision-and-rounding), [NaN / infinity / signed zero](#nan-infinity-and-signed-zero) | [Subnormal / DAZ / FTZ](#subnormal-daz-ftz-overflow-and-underflow), [ULP and tolerance](#ulp-and-numerical-tolerance), [conditioning](#conditioning-and-numerical-stability), [rounding sites and FMA](#rounding-sites-fma-and-aggregate-floor) |
+| What does a saved file preserve? | [Schema / serialization / checkpoint](#schema-serialization-and-checkpoint) | [Integrity vs authentication](#integrity-checksum-and-authentication), [atomic publication vs durability](#artifact-envelope-and-atomic-publication), [exact continuation](#exact-training-continuation) |
+| What do contributor abbreviations mean? | [API / SPI / DTO](#api-spi-and-dto), [Java and build tools](#java-platform-and-build-tools) | [ADR / CI / qualification](#adr-ci-and-qualification), [artifacts and provenance](#artifact-manifest-and-source-provenance), [measurement vocabulary](#benchmark-measurement-vocabulary), [native packaging](#native-packaging-and-platform-vocabulary), [text encodings](#text-encoding-and-file-boundaries) |
+
+Use [implementation status](#implementation-status-convention) to distinguish meaning from
+availability, and [common distinctions](#common-distinctions) to compare similar-looking names.
+
 ## Implementation-status convention
 
 A definition explains meaning and ownership; it is not a promise that every operation, dtype,
@@ -50,7 +72,624 @@ a glossary term as an implemented API.
 
 ## Terms
 
+These foundational entries explain shared language before the detailed operation and lifecycle
+entries. Follow a linked home when a word has several meanings.
+
+### Axis, rank, scalar, vector, and matrix
+
+An **axis** is one coordinate direction in a tensor, and its **extent** is the number of positions on that direction. **Rank** counts axes, not elements. An **element** is one value at a full coordinate; an **index** names a position, usually starting at zero. Shape `[2, 3]` has rank two, axis-zero extent two, axis-one extent three, and six elements.
+
+A **scalar** has no axes (shape `[]`) and holds one value; a **vector** has one axis (for example `[3]`); a **matrix** has two axes (for example `[2, 3]`). Shape `[1]` is a one-element vector, not a scalar, and `[0, 3]` is an empty rank-two tensor, not rank zero. These are logical categories, independent of storage. See [Shape](#shape) and [Dimension](#dimension). Hardware “vector” execution instead means processing several lanes together; see [SIMD](#simd).
+
+### Bias and activation
+
+A **bias** is an added model parameter that shifts a calculation independently of the current input: in `y = x * weight + bias`, bias allows a nonzero output when x is zero. This is different from statistical bias, which means systematic estimation error.
+
+An **activation** is a function applied to a layer’s values, usually to let several layers express more than one linear transformation. **ReLU** (rectified linear unit) keeps positive inputs and maps negative inputs to zero. **Sigmoid** maps finite inputs smoothly between zero and one; **tanh** (hyperbolic tangent) maps them between minus one and one. These functions are not themselves evidence that a backend supports their execution or differentiation. See [GELU](#gaussian-error-linear-unit--gelu), [SiLU](#sigmoid-linear-unit--silu), and [affine transform](#affine-transform).
+
+### Optimizer and stochastic gradient descent
+
+An **optimizer** is the rule that changes trainable parameters using computed gradients. Differentiation answers how the chosen objective changes; the optimizer decides what update to make. Plain **stochastic gradient descent (SGD)** uses `new_parameter = old_parameter - learning_rate * gradient`. “Stochastic” refers to using sampled training data, often a mini-batch; the update formula does not itself draw random numbers.
+
+For parameter `3`, gradient `4`, and learning rate `0.1`, plain SGD produces `2.6`. **Momentum** remembers a moving update direction across steps. **Weight decay** shrinks parameters according to an explicit optimizer rule; it is not the gradient itself. **Adam** expands to adaptive moment estimation; **AdamW** means Adam with decoupled weight decay. See their [existing definition](#adaptive-optimizer--adam-adamw), [gradients and learning rates](#gradient-and-learning-rate), and [TrainingSession](#training-session--trainingsession) for the implemented ownership and restrictions.
+
+### Derivative and chain rule
+
+A **derivative** measures the local rate at which an output changes with an input. For `y = x * x`, the derivative at x=3 is 6: a small input change produces roughly six times that output change. A **partial derivative** varies one coordinate while holding the others fixed. A **sensitivity** is such a change relationship, often scaled by the output question being asked.
+
+The **chain rule** combines local derivatives through intermediate calculations. For `u = 2 * x` and `y = u * u`, at x=3 the local rates are `du/dx = 2` and `dy/du = 12`, so `dy/dx = 24`. Contributions from several paths add. A mathematically differentiable function need not have a supported derivative rule in Synaptik; see [autograd](#autograd).
+
+Read solid arrows as the forward calculation and dashed arrows as the backward sensitivity
+calculation at x=3. Multiplying the two local rates gives input sensitivity 24.
+
+```mermaid
+flowchart LR
+    accTitle: Chain rule combines local rates
+    accDescr: The forward calculation maps x equal to 3 to u equal to 6 and y equal to 36. Backward sensitivity starts at one for y, multiplies by 12 at u and by 2 at x, producing 24.
+    X["x = 3"] -->|"u = 2 times x"| U["u = 6"]
+    U -->|"y = u times u"| Y["y = 36"]
+    Y -. "local rate 12" .-> U
+    U -. "local rate 2" .-> X
+```
+
+### Jacobian and vector-Jacobian product
+
+A **Jacobian** is a table of partial derivatives: each row corresponds to one output coordinate and each column to one input coordinate. For outputs `[x + y, x - y]`, the Jacobian rows are `[1, 1]` and `[1, -1]`.
+
+A **vector-Jacobian product (VJP)** combines those output rows with supplied output sensitivities to obtain input sensitivities. Output weights `[2, 3]` in this example give input sensitivities `[5, -1]`. Reverse-mode differentiation can construct that product without storing the whole derivative table. A **Jacobian-vector product (JVP)** instead asks how one chosen input perturbation changes outputs. These mathematical terms do not promise either an unrestricted public API or support for every operation.
+
+### Primal, adjoint, and differentiation seed
+
+A **primal** is an original forward value, as opposed to its derivative-related value. In `y = x * x`, x and y are primals. An **adjoint** is the reverse-propagated sensitivity associated with a primal; Synaptik describes these contributions as [cotangents](#cotangent).
+
+A differentiation **seed** chooses the output sensitivity that starts the backward calculation. Seed one for scalar y asks for y’s own derivative; seed two asks for twice that derivative. This is not a random-number seed. **Reverse mode** starts with output sensitivities and works toward inputs; **forward mode** propagates a chosen input change, called a **tangent**, toward outputs. See the [chain rule](#derivative-and-chain-rule) and [Jacobian products](#jacobian-and-vector-jacobian-product).
+
+### Ownership, borrowing, and lease
+
+**Ownership** identifies who must eventually release a resource. **Borrowing** permits another component to use it without transferring that cleanup responsibility. A **lease** is a controlled period of use that prevents the owner from releasing required resources too early. **Lifetime** is the interval during which a resource is valid to use; keeping a Java reference is not sufficient to extend caller-controlled native memory lifetime.
+
+For example, a run can borrow caller input memory while owning its new output memory. A low-level [RunResult](#run-result--runresult) keeps the run alive by a lease until closed; a [detached host value](#host-tensor-value--hosttensorvalue) instead owns a separate copy. Using a resource after its valid lifetime is **use-after-close**. The component’s exact close contract decides whether close waits, defers cleanup, or rejects new work.
+
+Read this as a lifetime distinction, not a transfer of every resource into the result. The
+RunResult keeps run-owned output resources alive; caller input memory must still satisfy its
+own borrowed lifetime. A detached copy is a separate value.
+
+```mermaid
+flowchart LR
+    accTitle: Borrowed input, leased result, and detached value
+    accDescr: A caller owns input memory borrowed by a run. The run owns its new output resources. RunResult keeps run resources alive until result close, while explicit copying produces a detached host value with independent contents.
+    Caller["Caller owns input memory"] -->|"borrow during valid lifetime"| Run["Run owns new output resources"]
+    Result["RunResult lease"] -->|"keeps run resources alive"| Run
+    Result -->|"explicit value copy"| Detached["Detached host value"]
+    Detached -->|"remains readable after result close"| Independent["Independent contents"]
+```
+
+### Aliasing and arena
+
+**Aliasing** means two references or coordinate interpretations reach the same underlying object or memory. Two array slices can overlap even if their wrapper objects differ; equal copied bytes do not establish an alias. A [view](#view) may share storage while changing the coordinate mapping.
+
+The Java **heap** is memory managed as ordinary Java objects, such as primitive arrays. **Native** or **off-heap memory** is managed outside that ordinary object allocation model. A Java **MemorySegment** describes an accessible memory region. An **Arena** controls the lifetime of memory allocated in its scope; closing a closeable arena invalidates those segments. A wrapper borrowing a segment does not acquire permission to close the caller’s arena. Aliasing metadata, physical overlap checks, and ownership are distinct questions.
+
+### Cache and memoization
+
+A **cache** retains a reusable result so later work can avoid recomputing or reloading it. A **cache key** identifies the relevant inputs and compatibility facts. A **hit** means a usable matching entry was found; a **miss** means it was not. A lookup that was never attempted is neither a hit nor a miss.
+
+**Memoization** is caching the result of a computation for matching inputs. A cache of generated code does not store current tensor values, and a metadata memo must not retain mutable run resources. Reuse is safe only inside the owning cache’s compatibility and lifetime rules. See the [generated artifact store](#cpu-generated-kernel-artifact-store) and the explicitly future [Engine geometry memo](#engine-geometry-memo).
+
+### Specialization and fusion
+
+**Specialization** creates or selects an implementation for known facts, such as a particular element type or access pattern. It does not bake in current input values unless that is explicitly part of the specialization contract.
+
+**Fusion** implements several operations together, often avoiding a stored intermediate. For `a * b + c`, a fused loop can compute each product and addition before storing the final value. An **epilogue** is extra work attached to the end of a main calculation, such as adding bias after a matrix product. **Decomposition** expresses one operation using smaller operations. None of these choices permits changing required numerical semantics; arithmetic multiply/add fusion has its own rounding consequences.
+
+### Intermediate representation, DAG, and SSA
+
+An **intermediate representation (IR)** is a structured form used between an original request and its final executable implementation. A graph and a loop-oriented kernel description can both be IRs at different stages.
+
+A **directed acyclic graph (DAG)** has directed dependency arrows and no cycle back to the same node. **Topology** describes those connections. A **topological order** lists producers before consumers, so each needed value is available before use. **Dataflow** is the movement of logical values along these dependencies; an arrow is a **dependency edge**, not necessarily a memory copy.
+
+**Static single assignment (SSA)** is a representation discipline in which each logical value name is defined once. A changed value gets a new name rather than overwriting the old logical definition. This does not mean runtime memory can never be written or reused. See [Graph](#graph) and the concrete [CPU kernel IR](#cpu-kernel-intermediate-representation).
+
+### Application binary interface and native bridge
+
+An **application binary interface (ABI)** specifies how compiled components call each other: argument layout, integer widths, symbol names, return values, and related machine-level rules. A source-level method name match alone does not prove ABI compatibility.
+
+A **native bridge** connects Java to non-Java compiled code. **JNI** expands to Java Native Interface. **FFM** expands to Foreign Function and Memory, Java’s facilities for foreign calls and memory access. A **downcall** goes from Java to native code; an **upcall** lets native code call Java. A **symbol** is a named entry in a compiled library; a **calling convention** specifies how values cross the call boundary.
+
+In BLAS interface discussions, **LP64** (long and pointer are 64-bit) commonly denotes a 32-bit BLAS integer interface on a 64-bit platform, while **ILP64** (integer, long, and pointer are 64-bit) denotes a 64-bit BLAS integer interface. These labels are not interchangeable with “the process is 64-bit”; Synaptik’s qualified OpenBLAS boundary documents its exact supported integer width.
+
+### Just-in-time compilation
+
+**Bytecode** is the instruction format stored in a Java class file for the Java virtual machine to execute. **Machine code** is instructions for a particular processor. **Just-in-time compilation (JIT)** translates or optimizes executable code while a program runs, often using observed behavior.
+
+Generating a Java class during preparation and the JVM later JIT-compiling that class are separate events. The Java **Class-File API** constructs or reads class-file structures; a **hidden class** is a JVM class defined for restricted runtime use rather than normal name-based discovery. Saving generated class bytes does not save already-optimized JIT machine code. See [generated CPU kernels](#generated-cpu-computation-kernel).
+
+An **opcode** identifies an instruction; a **bytecode index (BCI)** is its offset in a method. **Decompilation** reconstructs source-like text, not the original source. **Inlining** incorporates a callee into its caller. **On-stack replacement (OSR)** enters compiled code within an already-running loop. An **nmethod** is HotSpot’s installed compiled-method object; **deoptimization** returns execution to a less specialized form. A **nestmate** can share permitted private access with its host; this is an access rule, not a memory owner.
+
+### SIMD
+
+**SIMD** means single instruction, multiple data: one instruction performs the same kind of calculation on several values at once. Each simultaneous position is a **lane**. This hardware execution use of “vector” is different from a rank-one tensor.
+
+The Java **Vector API** expresses such lane-wise computation. A **vector species** describes a lane element type and vector size. If a vector processes four elements at a time, a length-ten loop can process two full vectors and then a **scalar tail** of two elements. SIMD capability does not imply every operation, layout, or length can use the vector route.
+
+### CPU, GPU, host, and device
+
+A **CPU** (central processing unit) is a general-purpose processor. A **GPU** (graphics processing unit) is a processor designed for large amounts of parallel work, including non-graphics numerical computation. An **accelerator** is a device used to offload selected computation; not every accelerator is a GPU.
+
+**Host** usually means the application’s CPU-side environment; **device** means the selected execution hardware, often an accelerator. Shared physical memory does not remove explicit ownership, representation, transfer, or synchronization rules.
+
+**Metal** is Apple’s GPU programming framework. **CUDA** is NVIDIA’s GPU computing platform and programming environment. **ONNX** expands to Open Neural Network Exchange, a model interchange format. **CLI** means command-line interface. Naming these technologies in a document does not establish their implementation status in Synaptik; use the [status convention](#implementation-status-convention) and owning area’s current evidence.
+
+### MPS, MPSGraph, and OpenBLAS
+
+**MPS** expands to Metal Performance Shaders, Apple’s optimized building blocks for GPU computation. **MPSGraph** (Metal Performance Shaders Graph) describes and executes connected tensor calculations using that platform. A prepared graph executable and a custom Metal kernel are different implementation routes inside Metal, not separate Synaptik backend owners.
+
+**BLAS** means Basic Linear Algebra Subprograms, a family of low-level numerical routines. **OpenBLAS** is an implementation of those routines. Synaptik’s CPU native integration uses its documented bounded matrix multiplication interface, not every operation the library might offer. See [GEMM](#general-matrix-multiplication--gemm), [qualification](#openblas-qualification), and [backend route](#backend-route).
+
+**CBLAS** is the C interface to Basic Linear Algebra Subprograms, not another backend owner.
+
+**MPP** means Metal Performance Primitives, a separate Apple numerical interface. “Classic-MPS” refers to older Metal Performance Shaders interfaces, not MPSGraph. The [environment-bound certificate decision](design/decisions/0024-environment-bound-metal-raw-certificates.md) records that neither classic-MPS nor MPP is positively certified there; these names must not be read as additional qualified routes.
+
+### Floating-point precision and rounding
+
+A **floating-point** number stores a sign, a limited set of significant digits (the **significand**, sometimes called mantissa), and an **exponent** that sets its scale. **Precision** concerns how finely numbers can be distinguished; exponent range concerns how large or small their magnitudes can be. These are different limits.
+
+**Rounding** chooses a representable value when the exact answer is unavailable. For example, decimal `0.1` cannot be represented exactly in ordinary binary floating-point formats. Round-to-nearest with **ties-to-even** chooses the nearer value, and in an exact halfway tie chooses the one with an even least-significant retained digit.
+
+**FLOAT32** (binary32) and **FLOAT64** (binary64) use 32 and 64 bits. **FLOAT16** is a 16-bit floating format; **BFLOAT16** is brain floating point with 16 bits and a different precision/range balance. FLOAT8 format names identify their exponent/significand allocation. **Narrowing** converts to a format with less range or precision; **widening** converts to a wider format without recovering information already lost. **Mixed precision** uses different formats for different parts of a calculation. Exact format and conversion rules remain in [data types](#data-type--datatype) and [numerical semantics](#profile-free-numerical-semantics).
+
+**FP8**, **FP16**, **FP32**, and **FP64** abbreviate eight-, sixteen-, thirty-two-, and sixty-four-bit floating point. **E4M3** and **E5M2** name four exponent/three fraction bits and five exponent/two fraction bits, respectively, plus a sign bit. Different formats have different special-value rules; no format name alone grants native execution support.
+
+BF16 abbreviates BFLOAT16; F16, F32, and F64 are context-dependent short names for the corresponding floating formats. Binary16 means the ordinary 16-bit binary format, not BFLOAT16. **OCP** means Open Compute Project; **OFP8** names its eight-bit floating-point format work, not a separate backend.
+
+### NaN, infinity, and signed zero
+
+**NaN** means not-a-number, a floating-point value class used for invalid or undefined numerical results such as zero divided by zero. A NaN can carry stored **payload** bits; equality and propagation rules are not the same as for ordinary numbers.
+
+Positive and negative **infinity** represent unbounded magnitudes in the floating format, not the largest finite numbers. A **finite** value is neither NaN nor infinity. **Signed zero** has positive-zero and negative-zero representations; their numerical equality does not make their bits or every operation’s behavior identical. For example, reciprocal zero sign distinguishes positive and negative infinity. Synaptik operation families specify selection, propagation, and zero-sign behavior; no universal “ignore NaN” rule should be assumed.
+
+**Quiet** and **signaling NaN** are distinct encoded NaN classes. A **canonical NaN** is a chosen standard pattern, not necessarily the original payload. **Gradual underflow** retains subnormal values near zero instead of immediately flushing them. **Correct rounding** applies the specified rounding rule to the exact mathematical answer; it does not make the stored answer mathematically exact.
+
+### ULP and numerical tolerance
+
+A **unit in the last place (ULP)** is the spacing represented by the final retained digit at a particular floating-point scale. Spacing changes with magnitude, so a one-ULP difference is not one fixed real-number distance everywhere. An ordered-bit distance counts representable floating values under a specified ordering; it must not be casually substituted for another ULP convention.
+
+A **tolerance** is a stated acceptance threshold when comparing results. **Absolute error** is the magnitude of the difference; **relative error** scales that difference by a specified reference magnitude. Relative error alone is unsuitable near zero. A test tolerance or **error envelope** describes permitted comparison error in that test or contract, not permission for arbitrary compiler rewrites. See [profile-free numerical semantics](#profile-free-numerical-semantics).
+
+### Subnormal, DAZ, FTZ, overflow, and underflow
+
+A **subnormal** (also called denormal) is a representable floating-point value closer to zero than the format’s smallest normal magnitude, with reduced effective precision. It is not automatically zero.
+
+**DAZ** means denormals-are-zero: a permitted arithmetic input site can treat a subnormal as same-signed zero. **FTZ** means flush-to-zero: a permitted arithmetic result site can replace a subnormal result with zero according to the specified sign rule. These are narrowly scoped numerical freedoms, not blanket permission to change stored values; see [numerical semantics](#profile-free-numerical-semantics).
+
+**Overflow** occurs when a result exceeds a representable range. **Underflow** concerns a tiny floating-point result below the normal range, possibly becoming subnormal or zero after rounding. Integer overflow is a separate issue: **modular arithmetic** or **wraparound** retains results modulo the fixed bit width where explicitly specified; it does not produce floating infinity.
+
+### Conditioning and numerical stability
+
+**Conditioning** asks how much the exact mathematical answer changes when the problem’s inputs change slightly. An ill-conditioned problem can magnify tiny input changes even if the calculation is performed carefully. A **condition number** quantifies that sensitivity for a stated problem and scale.
+
+**Numerical stability** asks how an algorithm handles rounding and approximation for that problem. Subtracting nearly equal rounded values can lose most useful significant digits, called **cancellation**; an algebraically equivalent stable formulation may avoid unnecessary loss. Stable computation cannot recover information already absent from the inputs or make an ill-conditioned problem insensitive. “Stable sorting” is unrelated: it concerns tie order, not numerical error.
+
+### Schema, serialization, and checkpoint
+
+A **schema** defines the structure and interpretation of data, including version and field rules. **Serialization** encodes structured data into bytes or another transport form; **deserialization** reads it back. A **codec** performs that encoding/decoding, and a **wire format** is the exact transferable byte representation. A **round trip** writes then reads data and checks the required preserved meaning.
+
+A **snapshot** captures state at a defined boundary. A **checkpoint** saves selected state for later use; **persistence** means that state can survive the current process. A saved model, saved generated code, and full training continuation contain different state. Loading parameter bytes does not automatically resume a dataset iterator, random stream, optimizer, or active execution. See the bounded [graph checkpoint source](#generic-graph-checkpoint-source) and [exact training continuation](#exact-training-continuation).
+
+A **dataset cursor** records where the caller should read input next. It is separate from learned parameter values and must be included explicitly in any whole-program continuation claim.
+
+A **wire value** is an encoded field/tag number understood by an exact format. **Marshalling** arranges structured arguments into the agreed exchange representation; it does not establish execution capability.
+
+### Integrity, checksum, and authentication
+
+**Integrity** asks whether data matches the expected content and structure. A **checksum** is a compact value used to detect changes or corruption. A **cryptographic hash** produces a fixed-size **digest** designed to make unnoticed content substitution difficult when the expected digest is trusted. **SHA-256** expands to Secure Hash Algorithm with a 256-bit output.
+
+A matching untrusted file and untrusted digest do not establish who produced them. **Authentication** or **authenticity** concerns verified identity or origin; a **digital signature** can bind data to a signing key under a stated trust policy. Neither a checksum nor successful parsing alone establishes numerical compatibility or safe executable content. Graph [provenance](#provenance) records expression origin and is a different concept from authenticated source provenance.
+
+### API, SPI, and DTO
+
+An **application programming interface (API)** is the supported way a caller interacts with a component: names, types, behavior, and lifecycle rules. A **service provider interface (SPI)** is an interface intended for implementations that plug into another component’s collaboration. Public Java visibility alone does not establish a supported extension point.
+
+A **DTO** (data-transfer object) carries structured information across a boundary; its [existing entry](#data-transfer-object--dto) explains that role. For example, a caller API can accept a request DTO while an internal provider collaboration supplies the implementation. These labels do not authorize generic backend discovery or new integration mechanisms.
+
+### ADR, CI, and qualification
+
+An **architecture decision record (ADR)** records a significant decision, its context, and consequences. It is historical evidence, not a substitute for current architecture authority. **Continuous integration (CI)** automatically runs selected build and review checks when changes are integrated.
+
+**Conformance** means meeting a stated contract. **Qualification** is bounded evidence that a particular implementation, target, or route meets the checks required for a stated use; it is not universal support. A **fixture** is controlled setup/data used by a test. A **mock** is a substitute with arranged behavior and cannot prove that the real backend works. A **regression** is an unintended loss of behavior previously expected. A **smoke test** checks a small important path, not exhaustive correctness. A **test oracle** supplies the expected answer. **JUnit** is a Java testing framework. **TCK** means technology compatibility kit, a suite used to check a stated compatibility contract.
+
+**Differential testing** compares implementations; a **canary** is a deliberate guard value used to detect unintended writes. A numerical oracle must provide an independently justified expected answer, not just a repeated hash of one implementation’s output.
+
+### Java platform and build tools
+
+The **Java Development Kit (JDK)** supplies Java development tools and runtime components. The **Java virtual machine (JVM)** executes Java bytecode. **Javadoc** is Java’s API-documentation system. A **toolchain** is the selected set of compiler/runtime tools used for a build; installing some Java version does not prove the build selected it.
+
+**Gradle** and **Maven** automate builds and dependency handling. A **dependency** is another component needed to compile or run; dependency direction says which component is allowed to rely on which. Maven’s **POM** (Project Object Model) describes a project. **GAV** means group, artifact, version: coordinates identifying a published component. A **JAR** (Java archive) packages Java classes and resources; “artifact” also has a broader [meaning](#artifact-manifest-and-source-provenance).
+
+The **Java Platform Module System (JPMS)** gives Java modules named dependency and export boundaries. A module is such a unit in module-system discussions, not a neural-network layer. The **classpath** locates ordinary classes/resources; the **module path** locates named modules. Build-tool project boundaries, Java modules, and NN modules are distinct uses of “module”.
+
+A **transitive dependency** is required by another dependency rather than directly declared by the application. A **file repository** stores published packages in a local directory layout; it does not imply public upload or distribution permission.
+
+### Artifact, manifest, and source provenance
+
+An **artifact** is a produced object intended for later use: a JAR, model file, generated class, or evidence report. The surrounding owner defines which kind is meant; the word alone does not imply executable code or a durable file.
+
+A **manifest** lists the content, identities, or metadata needed to interpret a package or evidence set. **Source provenance** records which source revision and inputs produced an artifact, unlike [Tensor provenance](#provenance), which records an expression’s producer. A **reproducible build** aims to produce the same specified output from the same stated inputs and environment. Reproducibility claims must name their boundary; matching filenames or hashes without trusted context do not prove origin or capability.
+
+### Benchmark measurement vocabulary
+
+**Warmup** runs work before collecting the intended measurements, for example to let JVM compilation settle. **Sampling** collects measured observations; a timing sample is not a training-data sample. **Latency** is time for one defined unit of work, while **throughput** is completed work per unit time. Their units and measured lifecycle boundary must be stated.
+
+A **distribution** describes how measurements vary. The **mean** is their sum divided by count; the **median** is a middle value under a stated even-count rule; a **percentile** describes a position in the ordered observations. **Variance** measures squared spread around the mean, and **standard deviation** is its square root. An **outlier** is an unusually distant observation, not automatic permission to discard data. These summaries report different facts; none proves correctness or authorizes production defaults. See [benchmarking](#benchmark-report--benchmarking) and [statistical correction](#statistical-correction).
+
+**Steady state** means behavior has stabilized under stated conditions; **nonstationary** measurements change with time. A **censored** observation stops before its completion time is observed. Warmup alone proves neither steady state nor causality.
+
+### Occurrence, identity, and canonical form
+
+An **occurrence** is one position or use, even when the same object appears elsewhere. In `add(x, x)`, there are two input occurrences but one referenced Tensor object. **Reference identity** asks whether two references designate the same object; **structural equality** asks whether their compared contents match.
+
+An **identity domain** states where an identifier is meaningful. **Nominal** identifier types keep different categories separate even if they contain the same number: a node ID is not a value ID. A **canonical form** is a chosen consistent representation; it does not automatically establish global identity or compatibility.
+
+**Immutable** state cannot change after construction; **mutable** state can. A membership snapshot can freeze a list’s membership while retaining references to objects with their own state and lifetimes. Freezing a list therefore does not automatically copy or freeze the memory referenced by its elements.
+
+### Admission, preflight, and fail-closed validation
+
+**Admission** decides whether requested work may enter a lifecycle owner. **Preflight** checks required facts before the action that depends on them, such as validating storage before borrowing it. A **guard** is a check enforcing a condition; an **invariant** is a condition required to stay true across the relevant operations.
+
+**Fail-closed** means rejecting when required safety or support cannot be established, rather than silently proceeding. This is not a fallback that pretends success. **Semantic** facts concern what a calculation means; **physical** facts concern its actual storage and execution. Valid semantic construction alone does not prove a physical route exists.
+
+A **pure** calculation depends only on its explicit inputs and does not introduce hidden state changes. PURE is also used as a precise scan effect classification; its owning contract, not this general explanation, determines admission. A pure expression can still require resources when it is eventually executed.
+
+### Resource transaction and rollback
+
+A **transaction** groups work so incomplete changes or acquired resources are not published as a successful whole. **Commit** makes the checked result effective; **rollback** releases or abandons partial work on failure. **Precommit** checks happen before that publication point. **Atomicity** must name its boundary: a complete resource handoff is not automatically a whole-program persistent transaction.
+
+**Concurrency** means work may overlap in time. A **race** occurs when correctness depends on uncoordinated timing. **Thread-safe** means the stated operations remain correct under their documented concurrent use. **Quiescent** means no relevant admitted work is active. **Idempotent** close has the same cleanup effect when repeated, rather than releasing the resource twice.
+
+**Synchronous** work completes before its call returns; **asynchronous** work can continue afterward. A **hot path** is frequently repeated work whose avoidable overhead matters; a **cold path** handles less frequent setup or analysis. These labels do not replace each owner’s exact admission, completion, and cleanup contract.
+
+### Native packaging and platform vocabulary
+
+**POD** means plain old data: in a native boundary discussion, ordinary data fields without an implicit object ownership protocol. The exact layout still belongs to the ABI. **ARC** means automatic reference counting, a compiler-managed ownership mechanism used by Objective-C. Objective-C is a programming language used by Apple frameworks; its reference counting does not automatically govern Java-owned resources. A retained reference keeps an object alive; release gives up that claim. An autorelease pool groups temporary deferred releases until the pool drains.
+
+A **dynamic library** is compiled code loaded for use by a process. On Apple platforms, **dylib** is its usual filename suffix and **Mach-O** (Mach Object) is the executable/object-file format. **ELF** means Executable and Linkable Format, common on Unix-like systems; **PE** means Portable Executable, used on Windows. **AArch64** (often called arm64) and **x86-64** name 64-bit processor instruction architectures, not interchangeable binary formats.
+
+An **rpath** (runtime search path) helps a loader locate dependencies. **Ad-hoc signing** gives a binary a local code signature without establishing an authenticated publisher identity. **Notarization** is Apple’s separate service-based assessment workflow; it is not a synonym for local signing, a checksum, or a guarantee of numerical correctness. See [integrity and authentication](#integrity-checksum-and-authentication).
+
+**DLL** means dynamic-link library. A **thin binary** targets one architecture; a **universal binary** packages several architecture slices. An **install name** identifies how a native library is referenced for loading; it is not publisher authentication.
+
+### Text encoding and file boundaries
+
+**Unicode** assigns code points to text characters. **UTF-8** (Unicode Transformation Format, 8-bit) encodes each code point as one to four bytes. **UTF-16** (Unicode Transformation Format, 16-bit) uses one or two 16-bit code units per code point; one Java `char` is therefore not always a complete Unicode character.
+
+A **BOM** (byte order mark) is a special initial encoding marker; in UTF-8 it is not needed to choose byte order. **EOF** means end of file, the boundary where no more file content remains, not a required visible character.
+
+**Endianness** specifies the order of bytes in a multi-byte value. Big-endian stores the most-significant byte first; little-endian stores it last. Host-native byte order and a persisted canonical byte order need not match. Encoding text and encoding numeric tensor bytes are distinct contracts.
+
+### Words with several technical meanings
+
+A **stride** can mean a [storage-element step](#element-stride) when moving one logical coordinate, or a [window-start step](#nchw-pooling-window-geometry) between convolution/pooling outputs. Dilation instead spaces samples inside one window. The operation and units decide which meaning applies.
+
+**Normalization** can choose a consistent representation, as in axis normalization or [graph canonicalization](#graph-canonicalization), or transform numerical values using statistics, as in [layer normalization](#layer-normalization). Unicode normalization concerns text representations; image normalization concerns pixel-number ranges. These operations do not share one numerical formula.
+
+**Publication** can expose a [run result](#publication-occurrence) or distribute a [release artifact](#artifact-manifest-and-source-provenance). Publishing a result does not itself create an independent host copy; distributing an artifact does not establish release authorization.
+
+**Planning** can mean compile-time [backend ownership planning](#planning) or project task coordination, where an authorized frontier identifies permitted work. A project plan does not override the architecture contract. **Precision loss** means information lost through numerical representation or rounding, not a neural-network [loss function](#loss).
+
+### Model, module, buffer, and Scan distinctions
+
+**Model** has two important repository meanings: the foundational Model module defines symbolic tensor descriptions and operations, while an owned neural-network **Model** is a stateful composition with its own working parameter/buffer state and a caller-facing computation boundary. Constructing a Model-level expression is not the same as executing an owned NN Model. See [Tensor](#tensor), [functional Model](#functional-model-and-model-topology), and [owned Model source](#owned-model-source).
+
+A **module** can mean a repository/build unit, a [Java module](#java-platform-and-build-tools), or a [neural-network module](#neural-network-module-parameter-buffer-and-forward-context). A **buffer** can mean execution storage or persistent non-parameter NN state, such as running normalization statistics. Persistence as model state does not make that NN buffer a Runtime BufferSlot.
+
+A **cumulative scan** produces running combinations along an axis, such as `[1, 3, 6]` from cumulative sum of `[1, 2, 3]`. A **general scan** repeats a body with explicit carried state and other inputs/outputs. They are separate operation families, not interchangeable names for every loop. See [cumulative scan](#cumulative-scan) and [general differentiable scan](#general-differentiable-scan).
+
+### Capture, graph ports, and reconstruction
+
+**Structural capture** records tensor expression operations and dependencies as graph nodes and values. Capturing `x.mul(x)` records one multiplication with two input occurrences referencing the same value; it does not multiply stored numbers.
+
+A **graph port** is one numbered operand or result position on an operation occurrence. A multi-output operation has distinct output ports even if only some are public results. An **integration port** instead means a narrow API across module boundaries, such as the compiler collaboration used by Engine; it is not a physical network port.
+
+**Cold reconstruction** rebuilds supported ordinary Tensor expressions from stored or retained descriptions without running them. **Rebinding** substitutes compatible new source inputs at that descriptive boundary. Rebuilding the description does not load a native executable or qualify execution support; runtime binding is a different setup step.
+
+### Optimizer history and master parameter
+
+**Optimizer history** or **optimizer state** is information retained between updates, such as momentum, running gradient moments, and step counters. An **optimizer slot** stores per-parameter history, not a Runtime BufferSlot. Restoring learned weights alone omits this update history.
+
+A **master parameter** is a higher-precision working value used to update a lower-precision declared parameter. A FLOAT16 parameter can have a FLOAT32 master; narrowing the accepted update back to FLOAT16 does not change the graph’s declared type. **Gradient accumulation** combines gradients across several executions before an optimizer update. A **micro-batch** is one smaller batch used within such a larger training procedure; the caller must respect the session’s actual accumulation and averaging rules.
+
+### Artifact envelope and atomic publication
+
+An **artifact envelope** is an outer container of named byte payloads whose higher-level meanings belong to another reader. **Opaque** means the current layer carries a value without interpreting its private content. A trace event envelope is a different kind of wrapper around a diagnostic fact.
+
+**Atomic publication** makes a complete new result visible without intentionally exposing partial intermediate content. For a file, a successful **atomic move** can make live readers see the old complete file or the new complete file. **Durability** asks whether the published state survives a process or machine failure; atomic live visibility alone does not guarantee crash durability or a provider-independent failed-move outcome.
+
+**Quiescence** is a period without conflicting changes or closure. Checkpoint capture can require the caller to keep parameter bindings and storage unchanged and alive; the presence of a snapshot API does not automatically provide that exclusion. See [schema and checkpoint](#schema-serialization-and-checkpoint) and [resource transactions](#resource-transaction-and-rollback).
+
+### Composition root, service locator, and convention plugin
+
+A **composition root** is where selected concrete components are assembled with explicit dependencies and ownership. A **service locator** instead looks up an implementation when code asks for it. A **registry** stores associations for lookup. An interface or builder does not by itself authorize implicit discovery or a global service locator.
+
+A **facade** is a caller-facing entry point that composes narrower collaborations behind it. A **dependency leaf** adds no further project dependencies in the dependency graph being discussed; this is a code relationship, not a statement that it executes last.
+
+A build **plugin** adds or configures build behavior. A Gradle **convention plugin** packages shared project build choices, such as compiler options or test setup, so projects use one consistent configuration instead of copying it. It is unrelated to runtime backend discovery.
+
+### Java preview, incubator modules, and compiler tiers
+
+A Java **preview feature** is an evaluation-stage language/platform feature requiring explicit activation. An **incubator module** is an experimental JDK library module requiring its module configuration; preview activation and incubator module inclusion are not interchangeable.
+
+**HotSpot** is a JVM implementation. Its compiler names **C1** (client compiler) and **C2** (server compiler) refer to different runtime compilation strategies: C1 generally compiles quickly with less optimization, while C2 generally spends more effort optimizing hot code. These are not Synaptik capability levels or arbitrary C1/C2 dimension labels. A **JVM fork** is a fresh Java process with separate runtime state.
+
+A **fat JAR** bundles dependency contents into one Java archive. **Shading** rewrites or relocates packaged dependency contents, often to avoid name conflicts. Neither packaging technique proves compatibility or grants distribution rights.
+
+### Review and test workflow vocabulary
+
+A **unit test** targets a small behavior; an **integration test** checks real components working together; an **architecture test** checks selected structural rules such as forbidden dependencies. A **benchmark harness** is the program collecting measurements; its **measurement protocol** states the boundary, repetitions, retained samples, and interpretation rules. None of these checks proves unexercised inputs or environments.
+
+**Normative** documentation states binding rules within its assigned authority; **explanatory** documentation teaches without adding authority. An **authorized frontier** is work explicitly allowed to start after prerequisites and scope checks; **Ready** status alone is not proof of implementation. A **superseded** decision has been replaced in a stated scope. A **retrospective** record documents known rationale after the original event, without inventing missing history. **Pseudocode** illustrates a procedure without promising runnable syntax.
+
+**Nullability** states whether Java `null` is permitted, distinct from an empty tensor or collection. An **observer** receives facts through a supplied **callback**, an operation invoked by another component. A **monotonic clock** measures elapsed progression, unlike a **wall clock** for calendar time; readings require their documented clock domain to be comparable.
+
+A **source revision** identifies recorded repository state. A **dirty build** additionally includes uncommitted working-tree changes, so the base revision alone does not identify its bytes. A version-control **fork** is a separate repository line of development; it is unrelated to a JVM process fork.
+
+### Storage mapping, contiguity, and injectivity
+
+An **affine storage mapping** computes an element position from an offset plus coordinate-times-stride terms. With offset zero and strides `[3, 1]`, matrix coordinate `[1, 2]` reaches element `5`. This addressing meaning of “affine” is different from a layer’s [scale-and-bias transform](#affine-transform).
+
+**Row-major** order changes the last axis fastest; **column-major** changes the first axis fastest. **Contiguous** means adjacent values in the stated traversal occupy adjacent storage positions. An offset-contiguous region can begin after position zero. An **injective** mapping sends different logical coordinates to different storage positions; repeated reads may be allowed where overlapping independent writes would be unsafe.
+
+A **storage carrier** is the actual array or memory region holding encoded values. **Raw** or **represented bits** are their exact stored patterns, not an approximately equal numerical answer. **Byte alignment** constrains where a region begins, for example at an address divisible by eight. Logical element count, [referenced span](#referenced-element-span), and allocated capacity are different quantities.
+
+**Homogeneous** means one common type in the stated domain; **heterogeneous** means several types or implementations. **Arity** counts operation input/output positions, and **cardinality** counts members or occurrences in a stated collection. Neither count describes tensor rank or establishes shape compatibility.
+
+A **storage offset** is the element position reached when all logical coordinates are zero; it is not itself a byte address or a crop-prefix shape.
+
+A matrix **leading dimension** is a storage step between rows or columns under the chosen native interface convention, not tensor rank or necessarily its first logical extent.
+
+### Rounding sites, FMA, and aggregate floor
+
+A **rounding site** is a specified point where an arithmetic result is rounded to its working format. A primitive site is one such elementary arithmetic or function evaluation boundary. **Fused multiply-add (FMA)** calculates `a * b + c` with one final rounding, unlike separately rounding the product and then the addition. It can therefore change a floating-point answer even when the real-number formulas agree.
+
+An **aggregate floor** is a minimum numerical obligation, not the FLOOR function: every declared contributor must participate exactly once, with the required identities, counts, divisors, and allowed arithmetic sites. A different reduction tree is not permission to omit a term. **Compensated summation** retains corrections for some rounding loss while adding the same selected terms. **Working arithmetic** is the numerical format used before final output conversion; see [accumulator type](#accumulator-type) and [numerical semantics](#profile-free-numerical-semantics).
+
+### Device submission, synchronization, and execution context
+
+A **shader** is a program for GPU execution; a compute shader performs numerical work rather than necessarily drawing an image. **Metal Shading Language (MSL)** is the language for Metal shader source. A **compute pipeline** is reusable prepared device setup around a compiled compute function.
+
+A **command buffer** records device commands; a **command queue** submits such work. **Dispatch** requests execution with a specified work geometry. A **threadgroup** or **workgroup** groups cooperating device work items; it is not a batch axis or a Java worker thread group. Recording or submitting work does not by itself prove completion.
+
+**Synchronization** establishes required ordering or visibility. A **fence** is an ordering marker for relevant device operations; it does not automatically mean host-visible completion. In GPU discussions, a **stream** orders submitted work and an **event** records a point that later work may wait on or measure. A device **execution context** associates resources and submissions with a particular execution environment; it is not the NN forward context.
+
+CUDA **compute capability** is a device architectural feature level, not Synaptik’s occurrence-specific backend capability. These general definitions do not create a public asynchronous, stream, event, or CUDA execution API; the owning backend guide states actual support.
+
+**AIR** expands to Apple Intermediate Representation, an intermediate compiled shader form. Inspecting source, inspecting compiled shader output, and executing it on a device are separate evidence layers.
+
+### Native numerical library and instruction architecture
+
+**oneDNN** is the oneAPI Deep Neural Network Library, an external library of deep-learning numerical building blocks. **DNN** means deep neural network. A library’s Primitive API and Graph API are separate interfaces; presence of one does not establish availability of the other or qualification of a particular recipe.
+
+An **instruction set architecture (ISA)** specifies processor instructions and machine rules. A library supporting a format on one processor does not prove native support for it on another. A **native library** supplies platform-compiled code through an explicit boundary; native does not mean GPU, faster, trusted, or universally supported.
+
+A Java **method handle** is a typed callable reference to a method or operation. A **method-handle lookup** carries access permissions used to obtain handles or define classes. It is not a filesystem search, cache lookup, or permission to bypass module ownership rules.
+
+**oneMKL** is the oneAPI Math Kernel Library; **VML** is Vector Math Library; **AOCL** is AMD Optimizing CPU Libraries, where **AMD** expands to Advanced Micro Devices. **ZenDNN** is a named deep-learning library for Zen processors. An **SDK** (software development kit) supplies platform development resources. These names do not establish selected or qualified Synaptik routes.
+
+### Compiler transformations and dominance
+
+**Dead-code elimination (DCE)** removes calculations not needed by retained results. **Common-subexpression elimination (CSE)** shares computations proved equivalent under the relevant guards. **Constant folding** evaluates supported fixed expressions during compilation. These transformations do not authorize reading mutable caller storage or applying approximate floating-point identities.
+
+**Control-flow dominance** means every path reaching one instruction first passes through another; it can prove a check or initialization happens before access. **Structural dominance** in candidate comparison instead means one candidate is no worse on every stated resource measure and better on at least one. Nondominated candidates have not been beaten by that rule; resource counts are not measured timings.
+
+A **heuristic** is a rule-based estimate among legal alternatives, not a speed guarantee. A **projection** supplies selected facts needed at a boundary without exposing the complete original object. **Shallow immutability** freezes an object’s own structure while its referenced objects can retain separate mutable state and lifetimes. See [graph optimization](#forward-graph-optimization) and [identity and snapshots](#occurrence-identity-and-canonical-form).
+
+### Hessian and higher derivatives
+
+A **second derivative** measures how a first derivative changes. A **Hessian** is the table of second partial derivatives of a scalar output. A **Hessian-vector product (HVP)** applies that table to one input direction without necessarily publishing the full table; it is a derivative calculation, not another parameter update.
+
+### Optimizer refinements and initialization
+
+In optimizer configuration, **dampening** reduces the new gradient contribution to momentum under the stated update rule. **Nesterov** is a momentum update variant combining the current gradient with a momentum contribution. **Bias correction** in Adam compensates for moving averages starting at zero; it is unrelated to a layer’s added bias or a floating format’s fixed **exponent bias** encoding offset.
+
+**Glorot-uniform** (also called Xavier) initialization samples starting weights from a uniform interval scaled using input/output widths. Initialization chooses starting values; it is not a learned update or restored optimizer history.
+
+### Saturation, pole, and extremum
+
+**Saturation** clamps a value to a representable boundary; it is not implied by overflow. A **pole** is a formula input where the value becomes unbounded. An **extremum** is a minimum or maximum over a stated domain; an empty domain must use its explicit boundary rule rather than select a nonexistent input.
+
+### Elementwise, unary, binary, and interval vocabulary
+
+An **elementwise** or **pointwise** operation calculates at corresponding positions without combining neighboring positions; broadcasting may repeat an input coordinate. **Unary** means one logical input and **binary** means two, not the number of bits per element. **Variadic** permits a variable input/output count within the stated bounds. A **singleton** axis has extent one.
+
+A **half-open interval** includes one endpoint and excludes the other: `[2, 5)` contains integer positions two, three, and four. A **coordinate tuple** supplies positions for several axes together; **tuple depth** counts how many data axes it selects, not how many axes the index tensor has. **ND** means N-dimensional.
+
+A **deferred obligation** remains mandatory even when current metadata cannot prove it yet. The owning later stage must check it when the needed concrete sizes or values become available. See [deferred graph constraint](#deferred-graph-constraint).
+
+### Norms, elementary functions, and probability distributions
+
+A **norm** measures the magnitude of a collection. **L1** adds absolute values; **L2** takes the square root of their squared sum. For `[3, 4]`, L1 is `7` and L2 is `5`. Absolute value removes the sign; the nonnegative square root of 25 is 5. A norm is a size measurement, whereas normalization changes values using a shared scale.
+
+The natural exponential **exp(x)** raises e (approximately 2.71828) to x. The natural logarithm **log(x)** is its inverse for positive real x. These mathematical meanings do not select an overflow-safe numerical algorithm.
+
+A **probability distribution** describes how likely outcomes are. A normal or **Gaussian distribution** is bell-shaped around its mean; a **uniform distribution** gives equal probability to equal-sized regions in its interval; a **Bernoulli distribution** has two outcomes with a specified probability of success. A **statistic** summarizes a collection; a **running statistic** combines information across successive collections, such as batches.
+
+**Phi** in GELU denotes the standard normal cumulative probability, the probability of a mean-zero, unit-standard-deviation normal value being at most its argument. The **error function**, written **erf**, is a related mathematical function used by the exact GELU formula, not an error estimate for a backend. See [GELU](#gaussian-error-linear-unit--gelu) and [random initialization](#tensor-random-initialization).
+
+### Spatial axes, channels, and window sampling
+
+A **channel** is one feature plane over spatial positions, such as a color component or learned feature. **Spatial axes** locate positions, such as width, height, and depth. **NCHW** orders number-of-samples, channels, height, width; **NHWC** orders number-of-samples, height, width, channels (channels-last). **NCDHW** inserts depth before height, while **NCW** has one spatial width axis. These describe logical roles, not guaranteed physical contiguity.
+
+**TBF** means time, batch, features; **TBH** means time, batch, hidden-state width. **Time-major** places time first. Letters and isolated dimensions are context-dependent, not globally reserved tensor axes.
+
+A **window stride** moves the window’s start between outputs; **dilation** spaces sampled positions inside a window. Effective kernel size includes those internal gaps. These are different from storage-element strides. **Im2col** means image-to-columns window extraction; **col2im** means columns-to-image contribution folding, which adds overlaps rather than generally undoing extraction.
+
+A **convolutional neural network (CNN)** reuses learned local weight patterns across positions. **Fan-in** counts input connections contributing to an output; **fan-out** counts output connections reached from an input. They are not the total weight count. **Kaiming** initialization scales starting weights for rectified-linear activations under a stated policy; it is not a learned optimizer update.
+
+### Masks, padding, and eager evaluation
+
+A **boolean mask** supplies true/false flags whose meaning belongs to the consuming operation. Excluding a value before arithmetic is not the same as multiplying it by zero: NaN multiplied by zero is still NaN in ordinary floating arithmetic.
+
+Sequence **padding** fills unused positions of a rectangular batch; a **valid length** declares how many positions belong to a sequence. A leading active prefix is one particular validity convention, not a universal consequence of zero-filled storage. A scan’s inactive transitions do not automatically mask a later classifier or loss. See [sequence metadata](#host-sequence-metadata).
+
+**Eager evaluation** performs numerical work immediately; **lazy evaluation** records work for later. Immediate metadata validation does not imply immediate numerical evaluation. A **closed inventory** is a fixed supported set of cases, not a closed resource. **Bound state** can mean required state positions are established without implying allocated values or an executable; use the owning API’s exact binding meaning.
+
+### Arithmetic rearrangement and finite-difference checks
+
+**Commutation** exchanges operand order; a commutative operation retains its required result under that exchange. **Reassociation** changes grouping, such as `(a + b) + c` to `a + (b + c)`. **Distributivity** relates `a * (b + c)` to `a * b + a * c`. Equality over real numbers is not automatic permission for a floating-point rewrite.
+
+**Two’s-complement** is the fixed-width signed integer encoding used here. **Sign extension** widens it by repeating the sign bit, preserving the represented integer. **Truncation toward zero** removes a fractional part. Checked size arithmetic must reject overflow where required; it must not silently adopt a numeric operation’s modular rule.
+
+A **finite-difference gradient check** estimates a derivative by perturbing inputs and comparing outputs. **Central differences** perturb both sides. This is approximate checking, not the way autograd constructs derivatives; rounding, perturbation size, and nondifferentiable points affect the comparison.
+
+**IEEE** expands to Institute of Electrical and Electronics Engineers; **IEEE 754** is its floating-point standard. Mentioning it does not override operation-specific rules or make every compact format identical. A **binade** is the magnitude interval between successive powers of two, within which normal binary floating values have uniform spacing.
+
+### Memory management, atomic counters, and complexity
+
+**Garbage collection (GC)** reclaims unreachable Java-managed objects. **Out of memory (OOM)** means required memory could not be obtained; **OOME** abbreviates Java’s OutOfMemoryError. Garbage collection is not a substitute for deterministic native-resource cleanup, and heap exhaustion does not by itself prove native-memory exhaustion.
+
+**Compare-and-set (CAS)** updates a stored value only when it still matches an expected value, with comparison and update as one indivisible action. It does not make surrounding allocations or publications failure-atomic. **Reentrancy** enters an operation again before an earlier call on the same thread finishes. A **deadlock** is a waiting relationship that prevents required progress; it differs from ordinary overlapping concurrent calls.
+
+A **defensive copy** protects retained data against later changes through the caller’s container. A memory **scope** determines when a region is usable and sometimes which threads may access it. **Lexical scope** instead determines which declaration a reference denotes in a body. A **sealed** type family declares permitted variants; a **marker interface** declares a role without methods. Neither proves execution support.
+
+A **side effect** changes state beyond the returned result. **Liveness** identifies values/work still needed. **Dependency injection** supplies collaborators explicitly rather than having inner code find them globally.
+
+**Asymptotic complexity**, often expressed using **Big O**, bounds how work or storage grows with problem size while ignoring fixed factors and smaller terms. O(1) means a constant growth bound, not zero work; O(B) means growth bounded proportionally to batch count B in the stated analysis. Neither is a measured speed guarantee.
+
+**Java Flight Recorder (JFR)** records JVM events and samples. **Resident set size (RSS)** measures process pages currently in physical **random-access memory (RAM)**. **Allocation churn** counts repeated allocations; **shallow size** counts an object’s own storage, not referenced objects. Allocated bytes, live heap, native memory, and RSS are different measurements. **Failure atomicity** means a failed operation does not expose the partial change it promised to make as one unit, not that every external side effect can be undone.
+
+### Text formats, image terms, and decoding limits
+
+Image value normalization changes numerical pixel ranges by a stated rule, such as subtracting a selected channel mean and dividing by a selected standard deviation. It is neither Unicode normalization nor automatically a neural-network normalization layer.
+
+**JSON** (JavaScript Object Notation) is a text format for named fields, arrays, strings, numbers, booleans, and null. Syntax alone does not define the data schema. **ASCII** (American Standard Code for Information Interchange) is a small character encoding; Unicode covers a broader set. **Unicode normalization** chooses standardized code-point sequences and is not the same as preserving exact original text. A UTF-16 **surrogate pair** uses two code units for one code point.
+
+**Byte-pair encoding (BPE)** forms reusable text pieces through repeated merges. **BOS** (beginning-of-sequence) and **EOS** (end-of-sequence) tokens mark boundaries. These general terms do not add subword learning or boundary-token insertion to the implemented frozen whitespace tokenizer.
+
+**RGB** means red, green, blue color components; **sRGB** means standard RGB with defined color/brightness-response rules. **Grayscale** represents brightness without separate RGB components. Image **alpha** describes opacity or coverage; **compositing** combines foreground and background under an explicit rule. Resize **interpolation** computes new pixel values when sample positions change, unlike cropping or metadata-only reshape. These terms do not announce implemented Vision support.
+
+A **decompression bomb** is small encoded content whose expansion needs unexpectedly large memory/work. **Dry sizing** counts an encoding’s required bytes without allocating its complete output. **Framing** marks container boundaries; **magic bytes** identify a format. A **fingerprint** identifies specified content or metadata, not unspecified universal compatibility. **FNV-1a** is Fowler–Noll–Vo hash variant 1a, a non-cryptographic hash, not publisher authentication.
+
+A **microbenchmark** measures a deliberately small unit of work. **Java Microbenchmark Harness (JMH)** organizes such measurements; defining it does not make it a repository dependency or imply a historical baseline used it.
+
+### Backpropagation through time and recurrent state
+
+A recurrent calculation processes a sequence while carrying state from one position to the next. The [existing neural-network module entry](#neural-network-module-parameter-buffer-and-forward-context) defines recurrent neural network (RNN), gated recurrent unit (GRU), and long short-term memory (LSTM) cells and their separate state roles.
+
+**Backpropagation** applies reverse-mode differentiation through a network. **Backpropagation through time (BPTT)** applies it through repeated steps and state connections, combining contributions to weights reused across time. It does not reverse the sequence as a data operation or automatically establish backward support for every fixed recurrent layer.
+
+In a [scan](#general-differentiable-scan), the **body** is the repeated calculation, a **carry** is state passed between steps, an **invariant input** stays unchanged across steps, and an **emission** is an output recorded per step. **Unrolling** represents fixed steps as separate operations. Reusing a Model does not automatically carry state into a later call.
+
+### Exact superaccumulator and limbs
+
+A superaccumulator stores an exact running sum in a sufficiently wide integer representation and rounds only when producing the final floating-point result. A limb is one machine-sized piece of a larger integer. Guard and sticky information record discarded digits needed to decide final rounding.
+
+Example: The historical CPU SUM implementation adds decoded values into long-sized limbs before one result conversion.
+
+An exact intermediate sum does not make the final result arbitrary precision and is not the same algorithm as compensated summation.
+
+### Dependency-convex fusion region
+
+A group of operations is dependency-convex when a dependency path between operations inside the group does not leave the group and later reenter it.
+
+Example: If a fused candidate needs an outside operation to finish a value before continuing its own row work, it cannot execute as that single-pass region.
+
+Adjacent source positions or equal dimension sizes do not establish this dependency property.
+
+### Control-flow graph
+
+A **control-flow graph (CFG)** describes the possible instruction paths. A graph describing which blocks of instructions can execute next through branches and loops. A loop guard decides whether work proceeds; a latch is the end-of-iteration control that returns to the loop. Graph isomorphism compares connection structure after renaming nodes.
+
+Example: Two equivalent loops can place their guard branches differently and therefore have different control-flow graphs.
+
+Literal structural equality is neither necessary nor sufficient for general semantic equivalence.
+
+### Fixed-point arithmetic
+
+Represent a fractional value as an integer multiplied by a fixed scale. In the referenced Q48 and Q32 calculations, the scale provides 48 or 32 fractional binary positions.
+
+Example: An integer can represent a value divided by 2^48 while the arithmetic itself uses integer operations.
+
+A fixed-point scale is explicit and fixed; a floating-point exponent varies with each encoded number.
+
+### Range reduction and approximation
+
+Range reduction transforms an input into a smaller interval where a function is easier to approximate, then reconstructs the original result. Polynomial approximations use sums of powers; rational approximations divide polynomials. A Taylor enclosure adds a justified error bound to a truncated expansion.
+
+Example: An exponential implementation reduces its argument using multiples of a logarithmic constant, approximates the residual, and restores the scale.
+
+Coefficient error, arithmetic rounding, approximation error, and reconstruction error are separate obligations.
+
+### Interval arithmetic and directed rounding
+
+Represent an uncertain or exact value by lower and upper bounds guaranteed to contain it. Arithmetic rounds the lower bound downward and upper bound upward so the enclosure remains safe. Adaptive precision increases the number of retained digits when existing bounds cannot settle a question.
+
+Example: An interval straddling a rounding boundary may require tighter bounds before a result can be certified.
+
+An enclosure is a justified containment claim, not a statistical confidence interval or a sampled minimum and maximum.
+
+### Formal proof, certificate, and trusted assumptions
+
+A formal proof expresses a claim and its reasoning in a form a small checker can verify. A certificate supplies evidence for that checker to replay. A trusted assumption is accepted without being proved in that development. Constructive real-number work represents real values through justified approximations and proves that operations on them match their mathematical meaning.
+
+Example: Checking every finite input word can corroborate a candidate without supplying a missing theorem connecting its arithmetic to mathematical exponential.
+
+A passing log, solver answer, sampled test, or finite certificate does not automatically discharge every source-equivalence and mathematical obligation.
+
+### Proof-assistant and model-checking tools
+
+Lean and Coq are proof assistants that check formal reasoning. Flocq supplies formal floating-point mathematics, and Gappa can generate numerical proof obligations or certificates. SMT means satisfiability modulo theories: automated reasoning over logical formulas with specified mathematical operations. CBMC means C Bounded Model Checker; Kani is another named program-verification tool.
+
+Example: The historical proof plan accepts solver-produced evidence only when its relied-on claims are replayed through the required trusted checker.
+
+These tools serve different roles; merely running one does not establish the complete required proof.
+
+### High-precision numerical tools
+
+MPFR is the Multiple Precision Floating-Point Reliable Library, providing configurable-precision arithmetic with controlled rounding. MPFI is the Multiple Precision Floating-point Interval library. GMP is the GNU Multiple Precision Arithmetic Library. Sollya is a named tool for numerical function analysis and approximation.
+
+Example: These tools can generate coefficients or independently check numerical bounds for a candidate implementation.
+
+Coefficient generation and numerical corroboration are not substitutes for the proof-assistant theorem required by the historical plan. GNU is the recursive name “GNU’s Not Unix”, the free-software project behind GMP; the library name does not imply a new Synaptik dependency.
+
+### Weak reference and weak interning
+
+A weak reference allows an object to be reclaimed when no strong owner keeps it reachable. Weak interning reuses an equivalent live object without keeping it alive solely because it appears in the lookup table. A reference queue reports references whose targets have become reclaimable.
+
+Example: A prepared executable can strongly retain a generated artifact while a shared interner holds only a weak reference.
+
+Reclaimability does not promise when collection or class unloading will occur.
+
+### Single-flight and least-recently-used caching
+
+Single-flight lets concurrent equivalent requests share one in-progress attempt. Least recently used, or LRU, is a policy that evicts entries not used recently. Negative caching retains a failed or absent result so later requests reuse that outcome.
+
+Example: The artifact-store plan shares an in-progress generation attempt but removes the attempt after success or failure.
+
+Sharing an attempt, retaining a completed artifact, and persisting bytes to disk are separate mechanisms.
+
+### Alternative convolution algorithms
+
+Different methods can compute the same convolution formula. The fast Fourier transform, or FFT, efficiently changes data into a frequency representation where convolution can be computed through multiplication and an inverse transform. Winograd methods use algebraic transformations to reduce multiplication counts for suitable small convolutions.
+
+Example: A direct convolution implementation can explicitly exclude both FFT and Winograd routes.
+
+Mentioning an algorithm in non-goals is not evidence that the backend implements or qualifies it.
+
+### Non-uniform memory access
+
+**NUMA** means non-uniform memory access. A hardware arrangement in which the time needed to access memory depends on which processor or processor group owns the nearby memory.
+
+Example: A memory allocator can explicitly exclude policies for choosing NUMA placement.
+
+This concerns physical machine locality, not tensor axis order or Java thread ownership.
+
+### TensorFloat-32
+
+**TF32** abbreviates TensorFloat-32. A reduced-precision multiplication format that retains a FLOAT32-like exponent range but fewer significant digits than full FLOAT32, commonly used with FLOAT32 accumulation on particular hardware.
+
+Example: The row-fusion proposal explicitly prohibits substituting TF32 for its selected arithmetic.
+
+FLOAT32 storage does not establish full-FLOAT32 multiplication precision, and mentioning TF32 does not authorize it.
+
+### Domain-specific language
+
+**DSL** means domain-specific language. A language designed to express a narrow class of problems rather than general-purpose programs.
+
+Example: A fusion design can explicitly reject adding a public pattern language and instead use existing typed code.
+
+A typed internal record or a small helper method is not automatically a new language.
+
+### Continuous integration and hosted runners
+
+Continuous integration, or CI, runs automated checks for repository changes. A hosted runner is a provider-managed machine executing those jobs. An immutable pin selects an exact dependency revision instead of a moving label. OpenID Connect, or OIDC, exchanges verifiable identity information. Git Large File Storage, or LFS, stores large-file content separately from ordinary Git objects.
+
+Example: A macOS runner that can compile native code may still lack the device access needed for real Metal execution.
+
+A compile-only job or skipped device test is not hardware qualification. Mentioned security features can be explicitly forbidden rather than enabled.
+
+
 ### Learning data vocabulary
+
+A dataset is the caller’s collection of examples. Samples are its individual examples, features describe each example, and batching groups examples for one calculation; an epoch counts a dataset pass, not necessarily one optimizer update.
 
 A **sample** is one example supplied to a model. A **feature** is an input coordinate describing
 that sample. A **batch** groups samples processed together; a **mini-batch** is a subset of a
@@ -64,6 +703,8 @@ chooses batches and coordinates progress. See the [learning journey](tutorials/i
 
 ### Trainable parameter
 
+A trainable parameter is a number, or collection of numbers, that learning is allowed to change. In `prediction = input * weight`, the weight can be a parameter while the input remains supplied data.
+
 Model state selected for gradient computation and optimizer updates, such as a Linear weight,
 as distinct from fresh inputs, targets, persistent non-parameter buffers or immutable constants.
 The learning project's supplied weight is gradient-eligible and copied into the owned Model's
@@ -71,6 +712,8 @@ private working set; its caller's original zero value is not updated. Gradient e
 does not make every expression, storage layout or alias configuration admissible to Training.
 
 ### Gradient and learning rate
+
+A gradient tells you how a small parameter change would change the chosen error; the learning rate controls how far an optimizer moves using that information. A positive weight gradient means increasing that weight locally increases the objective.
 
 A **gradient** collects a scalar objective's local derivatives with respect to selected
 parameters. Reverse-mode automatic differentiation constructs those sensitivities by the chain
@@ -96,6 +739,8 @@ Owned static Models guard their captured module modes. Follow the
 rather than mutating a captured mode and assuming automatic recapture.
 
 ### Aggregate reduction
+
+Reduction means combining many values into fewer values: summing `[2, 3, 5]` gives the single value `10`. Selecting an axis chooses which groups are combined; retaining that axis with size one preserves its position in the shape.
 
 A computation that combines values from a selected domain into fewer logical positions. The
 implemented `AggregateReductionKind` vocabulary includes numeric `SUM`, `MEAN`, `PROD`, `MIN`, and
@@ -153,6 +798,8 @@ expressions](reference/tensor/masked-index-reductions.md#masked-sum-and-mean-exp
 
 ### Sum-to-Shape
 
+Sum-to-Shape adds away repetitions until the result has a requested shape. For example, reducing rows of `[[1, 2, 3], [4, 5, 6]]` to shape `[1, 3]` gives `[[5, 7, 9]]`; it does not merely rearrange the six values.
+
 An implemented binding-aware [`aggregate reduction`](#aggregate-reduction) that adds a numeric
 Tensor into an exact target `Shape`. `Tensor.sumToShape(Shape)` right-aligns that target with the
 input: unmatched leading input axes reduce and disappear, aligned target-one axes reduce and
@@ -184,6 +831,8 @@ expressions](reference/tensor/reductions.md#binding-aware-sum-to-shape-expressio
 
 ### Multi-axis reduction
 
+A multi-axis reduction combines values along several axes at once. For shape `[2, 3, 4]`, summing axes zero and two leaves three results, one for each position on axis one.
+
 An implemented aggregate occurrence over a caller-ordered set of distinct normalized axes.
 `MultiAxisReductionAttrs` snapshots the ordered axes plus `keepDimensions`;
 `StatisticalReductionAttrs` adds correction. Axis order is semantic metadata but does not prescribe
@@ -193,6 +842,8 @@ axis list selects a point domain and is distinct from full reduction over every 
 
 ### Statistical correction
 
+Statistical correction changes the divisor used to estimate spread. For values `[1, 3]`, the squared deviations sum to `2`: dividing by `2` gives population variance `1`, while correction one divides by `1` and gives `2`.
+
 The implemented non-negative `long` value subtracted from selected-domain count `N` in variance and
 standard deviation. Correction zero requests population statistics; correction one is the usual
 sample estimator only when `N > 1`. A statically known `N <= correction` is rejected during Tensor
@@ -201,12 +852,16 @@ an accumulator type, rounding mode, denominator clamp, or invalid-domain sentine
 
 ### Log-sum-exp
 
+Log-sum-exp takes exponentials, adds them, then takes a logarithm. It is useful when calculations naturally use logarithms of positive quantities: for two zeros its real-arithmetic value is `log(2)`. A stable implementation can avoid unnecessarily forming huge exponentials.
+
 The implemented floating reduction meaning `log(sum(exp(x_i)))` over selected axes. It is one
 first-class `LOG_SUM_EXP` occurrence rather than stored exp, sum, and log operations. The contract
 fixes empty, NaN, infinity, singleton, and signed-zero meaning while leaving stable algorithm,
 gradient, compiler lowering, backend route, and execution separately owned.
 
 ### Arg-extrema tie policy
+
+An arg-min or arg-max returns the position of a smallest or largest value, not the value itself. A tie policy answers which position wins: for `[7, 7, 2]`, first-maximum selects index `0` and last-maximum selects index `1`.
 
 The implemented `ArgExtremaTiePolicy` choice for selecting a logical axis index when several
 values share a minimum or maximum. `FIRST_INDEX` requests the smallest logical index, and
@@ -227,6 +882,8 @@ generated backward graph.
 
 ### Stable full ordering
 
+Sorting puts values in order; argsort returns the original positions in that order. Stable sorting preserves the original relative order of ties, so two equal scores keep their earlier/later relationship.
+
 An implemented axis-wise request represented by `OrderingKind.SORT` for values or
 `OrderingKind.ARGSORT` for logical indices. **Stable** means values in the same ordering class
 retain increasing original logical-axis index, independently of physical layout or backend
@@ -245,6 +902,8 @@ fully static positive unsigned-32-bit-bounded geometry. Its custom route uses in
 ordering and copies selected representations exactly. Floating SORT backward uses stable ARGSORT.
 
 ### Top-K selected set
+
+Top-K selects only a requested number of best-ranked entries rather than returning the full sorted list. For `[4, 9, 6]`, the largest two are values `[9, 6]` at indices `[1, 2]` when sorted output is requested.
 
 The implemented model request represented by `TopKKind.TOP_K` and
 `TopKAttrs(axis, k, largest, sorted)`. The **selected set** is the first `k` entries of the same
@@ -267,6 +926,8 @@ backward uses the retained indices followed by replacement scatter.
 
 ### Gather
 
+Gather reads values at requested indices. Gathering indices `[2, 0]` from `[10, 20, 30]` returns `[30, 10]`; the source is not changed.
+
 An implemented backend-independent tensor-index meaning represented by `AxisGatherKind.GATHER`
 and `IndexAxisAttrs(axis)`. It consumes ordered logical inputs `[data, indices]` and replaces
 the selected data axis with the complete indices Shape:
@@ -286,6 +947,8 @@ attributes](reference/tensor/operation-indexing.md#gather-and-gather-elements-se
 [axis-gather expressions](reference/tensor/gather.md#axis-gather-expressions).
 
 ### Embedding
+
+An embedding looks up a row of learned numbers for each integer identifier. A token ID can select one row from a vocabulary table; the resulting vector represents that token for later computation, rather than treating the ID itself as a numerical measurement.
 
 An implemented Model convenience, and a current stateful NN layer that delegates to it, for using
 a rank-two floating weight table as an ordinary axis-zero [Gather](#gather). At the Model boundary,
@@ -331,6 +994,8 @@ or executes the lookup.
 
 ### One-hot encoding
 
+One-hot encoding turns a class index into a row of flags with exactly one selected position. At depth four, index `2` means `[false, false, true, false]`; it is not an embedding lookup with learned weights.
+
 An implemented backend-independent index-encoding meaning represented by
 `OneHotKind.ONE_HOT` and `OneHotAttrs(depth)`. It consumes one INT32 or INT64 indices Tensor and
 adds a positive static trailing class axis. For each input coordinate `p` with eventual value `i`,
@@ -357,6 +1022,8 @@ and general composition remain planned. See
 
 ### Gather Elements
 
+Gather Elements chooses a source position separately for each output coordinate, along one selected axis. Unlike ordinary Gather, its index tensor has the same number of axes as the data rather than inserting an entire independent index shape.
+
 An implemented aligned tensor-index meaning represented by
 `AxisGatherKind.GATHER_ELEMENTS` and `IndexAxisAttrs(axis)`. Data and indices must have equal
 rank and structurally equal Dimensions away from the selected axis; the selected extents may
@@ -370,6 +1037,8 @@ backend, or execution behavior. The current CPU portable route separately execut
 static resolved-layout occurrence after complete deterministic pre-write bounds validation.
 
 ### Scatter Add
+
+Scatter Add makes a new result by adding updates at indexed destinations. Starting from `[10, 20, 30]`, two updates `2` and `3` both addressed to index `1` produce `[10, 25, 30]`; the original input is not modified.
 
 An implemented Gather-compatible functional fixed-add meaning represented by
 `AxisScatterKind.SCATTER_ADD` and `IndexAxisAttrs(axis)`. Its ordered inputs are
@@ -405,6 +1074,8 @@ floating-point guarantee.
 
 ### Functional-scatter target group
 
+A target group collects everything that contributes to one scatter destination. If two different updates both contain `3` and address the same destination, both count; equal numerical values do not make them one update.
+
 For one concrete result coordinate `c` in configurable Scatter Elements or Scatter-ND reduction,
 the logical multiset containing exactly one base value `data[c]` and exactly one scalar from every
 updates position addressed to `c`. Equal values from distinct positions remain distinct members,
@@ -430,6 +1101,8 @@ and the forward contract chooses no derivative or subgradient policy. See
 [Scatter Elements expressions](reference/tensor/scatter.md#scatter-elements-expressions).
 
 ### Scatter Elements
+
+Scatter Elements writes or combines updates at positions selected along one axis, returning a new tensor. Think of it as distributing updates to destinations, whereas Gather Elements reads from selected source positions.
 
 An implemented functional same-rank scatter meaning represented by
 `AxisScatterKind.SCATTER_ELEMENTS`, `ScatterElementsAttrs(axis, reduction)`, and
@@ -459,6 +1132,8 @@ unchanged. Bounds and duplicate failures publish exact CPU-parity messages and l
 unchanged; arithmetic scatter, Scatter-ND, INT64, and a complete backward route remain unsupported.
 
 ### Gather-ND
+
+Gather-ND reads using coordinate tuples, where ND means N-dimensional. A tuple `[1, 2]` can select row one, column two of a matrix; shorter tuples can select whole remaining slices rather than single numbers.
 
 An implemented backend-independent tuple-index meaning represented by
 `GatherNdKind.GATHER_ND` and `GatherNdAttrs(batchDimensions)`. Its ordered logical inputs are
@@ -500,6 +1175,8 @@ compiler behavior, materialization, backend behavior, and execution remain separ
 and [Gather-ND expressions](reference/tensor/scatter.md#gather-nd-expressions).
 
 ### Scatter-ND
+
+Scatter-ND distributes updates using N-dimensional coordinate tuples and returns a new tensor. A matrix destination can be named by `[row, column]`; several tuples naming the same destination are combined according to the explicit reduction rule.
 
 An implemented backend-independent functional tuple-index scatter meaning represented by
 `ScatterNdKind.SCATTER_ND` and `ScatterNdAttrs(batchDimensions, reduction)`. It has ordered logical
@@ -543,6 +1220,8 @@ CPU Scatter Elements, including per-range exact-product scratch only for floatin
 
 ### Axis transform
 
+Axis transforms change how coordinates are organized, not the intended numerical values. A permutation exchanges axis positions; expanding dimensions inserts a size-one axis; squeezing removes a size-one axis.
+
 An implemented backend-independent semantic change to axis coordinates. The
 `AxisTransformKind` vocabulary contains exactly `PERMUTE`, `EXPAND_DIMS`, and `SQUEEZE`.
 `PERMUTE` uses [`PermutationAttrs`](#permutation); `EXPAND_DIMS` and `SQUEEZE` use one
@@ -566,9 +1245,13 @@ attributes](reference/tensor/operation-geometry.md#axis-transform-semantic-kinds
 
 ### Architecture contract
 
+An architecture contract is the project’s rulebook for which component may do which work. An explanation or historical plan can help you understand the rulebook but cannot change it.
+
 The normative rules that define Synaptik's module responsibilities, dependency direction, lifecycle boundaries, and core invariants. The repository's architecture contract is [`ARCHITECTURE.md`](../ARCHITECTURE.md). Guides, plans, ADRs, and this glossary may explain those rules but do not override them.
 
 ### Autograd
+
+Automatic differentiation (AD), also called autograd, constructs a calculation of how outputs change when selected inputs change. For `y = x * x`, the derivative is `2 * x`; differentiation builds that relationship rather than estimating it by trying nearby input values. Reverse mode works backward from an output using the [chain rule](#derivative-and-chain-rule).
 
 Automatic differentiation: a compiler transformation that derives gradient computations from the
 forward computation when the compile mode requires them. In Synaptik, the compiler owns global
@@ -591,6 +1274,8 @@ Complete with the representable attention, convolution, pooling, and loss formul
 [Training graph](architecture/training-graph.md).
 
 ### Autotuning / model autotuning
+
+Autotuning measures several valid ways to perform the same work and chooses among them for a particular situation. It differs from [benchmarking](#benchmark-report--benchmarking), which reports measurements without changing production choices, and from training, which changes model parameters.
 
 One explicit optional workflow for a model and target. Its first phase extracts actual tunable
 workloads, reuses compatible canonical signatures from an explicit workload tuning cache, and
@@ -649,6 +1334,8 @@ evidence.
 
 ### Tuning inspection
 
+Tuning inspection lets a reader examine saved tuning evidence without running a competition again or changing the files. A missing or malformed cache is reported as evidence, not silently repaired by inspection.
+
 A bounded, read-only diagnostic view of the current workload-cache and model-plan-cache schema-1
 artifacts, or a detached redacted summary of already-created rich tuning evidence. Path inspection
 uses one read-only channel and reports missing files, typed malformed-content reasons, and compact
@@ -665,6 +1352,8 @@ rich facts from compact files or persist them. Tuning inspection is not a comman
 backend decoder, trust mechanism, cache repair tool, preparation step, or Runtime operation.
 
 ### Model-autotuning request facade / `ModelAutotuningConfig`
+
+This configuration records the caller’s explicit request to search for a faster valid execution plan. Recording a request is not the same as having measured candidates or obtained a tuned result.
 
 The implemented immutable Config-owned value that records one request for later model-autotuning
 composition. Possessing it means tuning was requested; it has no enabled flag, disabled sentinel,
@@ -692,6 +1381,8 @@ declare `PERSISTENT`.
 
 ### Model-autotuning request / preparation result
 
+A tuning request joins the requested policy to representative inputs and a caller-defined model label. A preparation result is the outcome of the later work, not merely proof that the request object exists.
+
 `ModelAutotuningRequest` joins one `ModelAutotuningConfig`, one caller-defined model identity, and
 an immutable list snapshot of live representative Tensor references. It does not copy or own
 Tensor storage. The model identity labels evidence under the caller's schema and revision
@@ -711,6 +1402,8 @@ tuning. Fallback never changes backend ownership.
 
 ### Representative-profile identity
 
+A representative profile is a caller-chosen example situation used for tuning, such as a particular batch size. Its identity is a label for that situation; matching labels alone do not prove that two computations are compatible.
+
 A caller-defined, schema-versioned opaque byte identity for the one representative profile named
 by a [`ModelAutotuningConfig`](#model-autotuning-request-facade--modelautotuningconfig). It
 identifies the profile attached to later tuning evidence; it is not the profile's Tensor values,
@@ -719,6 +1412,8 @@ Construction snapshots a non-empty byte sequence, access returns a fresh copy, a
 hashing compare the positive schema version and byte content.
 
 ### Model-autotuning fallback policy
+
+A fallback policy says what to do when tuning cannot produce a complete result: fail the request or allow the ordinary safe preparation path. Allowing a fallback never permits an unsupported computation.
 
 The declarative distinction between requiring a complete tuning result and allowing ordinary safe
 heuristic preparation when a tuning transaction is unavailable or fails. `REQUIRE_TUNED_RESULT`
@@ -731,6 +1426,8 @@ compatibility, partial-result acceptance, or permission to suppress an unrelated
 failure. Config only records this choice; later composition implements the control flow.
 
 ### Auxiliary mask
+
+An auxiliary mask is a hidden set of true/false flags needed by another calculation. For dropout, the flags remember which values were kept so the backward calculation uses the same selection.
 
 A non-public BOOL result of a multi-output operation that records which logical positions were
 selected during eventual forward execution. Current dropout describes its keep mask at producer
@@ -748,6 +1445,8 @@ this ownership domain but does not implement the backend role.
 
 ### Backend composition
 
+Backend composition connects explicitly supplied execution implementations to one Engine. It is wiring chosen by the caller, not automatic discovery of everything installed on the machine.
+
 The Engine-owned construction-time association between explicitly supplied backend integrations,
 their equal [`BackendId`](#backend-identity--backendid) values, stable capability providers, and
 point-in-time availability snapshots. The public implementation uses an ordered private
@@ -762,6 +1461,8 @@ stride non-overlapping layouts with checked physical spans. Prepared handles ret
 per input and publication occurrence, so run and materialization do not consult the registry.
 
 ### Backend availability snapshot / `BackendAvailabilitySnapshot`
+
+An availability snapshot is a frozen report of which devices a backend says are present at one moment. Presence does not establish that a particular operation is supported or that a device will be selected.
 
 The implemented immutable point-in-time fact for one backend's currently reported available
 devices. It stores an explicit [`BackendId`](#backend-identity--backendid) and an immutable
@@ -778,6 +1479,8 @@ execution, or trace translation and carries no timestamp, status, or absence rea
 
 ### Backend capability
 
+Capability answers “can this backend own this exact operation?” It does not answer “is the device present?”, “is this fastest?”, or “which kernel will run?”.
+
 A backend's declarative answer about computation it can semantically own. The current planning
 contract asks about one immutable [`OperationCapabilityQuery`](#operation-capability-query--operationcapabilityquery)
 through one explicitly supplied
@@ -789,6 +1492,8 @@ kernel, a live executable service, a rejection diagnostic, or a promise that one
 implementation route will always be selected. See [Partition scoring](architecture/partition-scoring.md).
 
 ### Backend capability provider / `BackendCapabilityProvider`
+
+A capability provider is the object asked the capability question. It reports support for described work; it does not execute that work or select a device.
 
 The implemented planning-owned interface through which one named backend answers
 [backend-capability](#backend-capability) questions. `backendId()` returns one stable non-null
@@ -840,6 +1545,8 @@ Compile-time plans retain `BackendId`, not a provider object.
 
 ### Backend hard eligibility
 
+Hard eligibility removes backends that are not allowed to own an operation before preferences or costs are considered. A preference can choose among eligible backends but cannot make an ineligible backend valid.
+
 The implemented internal planning step that determines which backend identities may still own one
 [`OperationCapabilityQuery`](#operation-capability-query--operationcapabilityquery) before
 scoring. It validates a complete one-to-one association between explicitly supplied
@@ -862,6 +1569,8 @@ integration, preparation, runtime, or execution contract.
 
 ### Backend device identity / `BackendDeviceId`
 
+A backend device identity names a device within one backend’s naming system. Like a room number needing a building name, a device token alone does not identify the same device across different backends.
+
 The implemented immutable identity for one opaque device token inside a
 [`BackendId`](#backend-identity--backendid) namespace. It retains the exact caller-supplied backend
 identity and nonblank backend-defined string references. Equal tokens under different backends are
@@ -873,6 +1582,8 @@ stream-local device correlation as zero rather than expose this token.
 
 ### Backend identity / `BackendId`
 
+A backend identity names an ownership domain, not a running service. Writing the name `"cpu"` does not load, register, or prove the availability of a CPU implementation.
+
 The implemented immutable identity for a backend ownership domain. It retains the exact
 caller-supplied nonblank string reference without trimming, case folding, Unicode normalization,
 syntax validation, interning, or alias resolution, so examples such as `"cpu"`, `"metal"`, and
@@ -883,6 +1594,8 @@ backend correlation. The current Metal trace producer deliberately allocates its
 stream-local backend correlation as zero rather than expose the `"metal"` identity.
 
 ### Backend ownership
+
+Backend ownership assigns responsibility for an operation to one execution implementation. This is a planning decision about where work belongs; the later backend route decision chooses how that owner performs it.
 
 The compile-time decision that assigns work to a
 [`BackendId`](#backend-identity--backendid), such as an identity whose value is `"cpu"`, `"metal"`,
@@ -903,6 +1616,8 @@ choice during [prepare](#prepare).
 
 ### Backend intent / `BackendIntent`
 
+Backend intent records whether the caller imposes a mandatory execution target. Unconstrained intent leaves that choice open; it is not an instruction to discover or enable backends.
+
 The implemented immutable config value that records whether later backend planning has one
 [`BackendRequirement`](#backend-requirement--backendrequirement) as a hard eligibility target.
 `BackendIntent.unconstrained()` contains an empty optional, while
@@ -921,6 +1636,8 @@ preferred-class/provider-order owner selection. Later public planning orchestrat
 scoring remain planned, including the public no-match failure contract.
 
 ### Backend requirement / `BackendRequirement`
+
+A backend requirement is a hard condition, such as requiring one backend or one device class. Unlike a preference, it cannot be ignored merely because another eligible choice would be faster.
 
 The implemented sealed, method-free family for one hard backend eligibility target.
 `BackendIdRequirement` targets later ownership by a `BackendId` equal to its retained component.
@@ -942,6 +1659,8 @@ The rule that each concrete backend translates its assigned planned partitions i
 
 ### Backend route
 
+A route is one way to implement work inside an already selected backend. A CPU loop and an OpenBLAS call can therefore be competing routes of the same CPU backend, not two independent backend owners.
+
 A concrete implementation choice inside one backend, such as a CPU scalar loop, Vector API
 routine, generated CPU computation kernel, OpenBLAS call, MPSGraph executable, custom Metal
 kernel, or CUDA kernel. A route is selected during backend prepare after planning has chosen the
@@ -949,6 +1668,8 @@ backend owner. Routes and provider libraries are not separate backend identities
 selection therefore retains one `BackendId("cpu")` and has no fixed vendor-priority list.
 
 ### CPU portable route
+
+The portable CPU route generates Java code for supported work without requiring an optional native numerical library. Portable means its implementation basis is Java; it does not mean every tensor operation or shape is supported.
 
 The bytecode-first Java Class-File API plus Vector API production baseline inside the single CPU
 backend. It is the always-available semantic fallback for every operation occurrence it truthfully
@@ -1252,6 +1973,8 @@ generated code by library identity.
 
 ### CPU concurrency budget / `CpuConcurrencyBudget`
 
+A concurrency budget limits how much coordinated CPU work may proceed at once. A work item borrows permits while active and returns them afterward; the budget is not itself a pool of worker threads.
+
 An explicit CPU-private fair permit capacity borrowed by work that composition chooses to
 coordinate. The implemented budget owns no threads and has no close lifecycle. Inline portable
 work consumes one permit, a portable worker submission consumes its exact participant count once,
@@ -1278,6 +2001,8 @@ type is unsupported internal composition machinery, not a public Config setting,
 or Runtime resource.
 
 ### CPU native peer route
+
+The native peer route uses a qualified external numerical library as an alternative to generated Java work. Its comparison includes necessary input/output copies, not just the apparent speed of the library call.
 
 An exact-capability native realization compared with the portable route by CPU Prepare using
 whole-plan cost. The current first realization is OpenBLAS for one qualified positive rank-two,
@@ -1306,6 +2031,8 @@ provider-specific compatibility mechanics only; it does not reinterpret graphs, 
 broadcast/fusion planning, or own shared resource lifetimes.
 
 ### Generated CPU computation kernel
+
+A generated computation kernel is a small executable program created for selected CPU work. Its reusable code is separate from the input/output memory supplied for each invocation.
 
 A CPU-backend-internal executable route whose Java Virtual Machine (JVM) bytecode is produced for
 one selected lowering and specialization. CPU analysis owns the selection and exact resource
@@ -1369,6 +2096,8 @@ parallel orchestration remains outside the class, and no Shape, layout, mapping,
 decision occurs in the generated loop.
 
 ### CPU kernel specialization
+
+Specialization records the facts that make generated code different, such as element type and access pattern. Two runs may share code when these facts match even when their actual input values differ.
 
 The implemented backend-private immutable description of every fact allowed to change one
 generated CPU class. The current form uses schema 70 and includes the canonical lowering
@@ -1443,6 +2172,8 @@ cache record.
 
 ### CPU generated-kernel artifact
 
+A generated-kernel artifact packages reusable generated code and its calling information. It is the program, not a saved copy of the data that program will process.
+
 The implemented backend-private immutable identity object that retains one verified generated
 class's bytes, specialization, full-privilege hidden-class lookup, hidden class, exact static
 `MethodHandle`, and method type. Primitive arrays, exact `MemorySegment` values, and mixed ordered
@@ -1462,6 +2193,8 @@ migration reader. Retained earlier-schema ledgers and performance material are h
 not current artifact claims.
 
 ### CPU generated-kernel artifact store
+
+An artifact store can save compatible generated class bytes for reuse. Loading a file is not enough: the stored program and its compatibility evidence must pass the stated checks before reuse.
 
 The implemented package-private optional trusted-root mechanism for reusing deterministic
 generated class bytes. With no root, realization is entirely in memory. With a root, one
@@ -1491,6 +2224,8 @@ after shared assignment, and the resulting prepared executable strongly retains 
 artifact.
 
 ### CPU portable preparation plan
+
+This preparation plan records how CPU work will be implemented and what resources it needs, before shared Prepare assigns memory slots. It is a plan for execution, not an active run or allocated memory.
 
 The implemented backend-private immutable result of route-neutral CPU analysis before shared slot
 assignment. `CpuPartitionPreparationPlan` retains one or more stable computation units, including
@@ -1544,6 +2279,8 @@ plan a persistent model-plan artifact.
 
 ### CPU portable prepared executable
 
+A prepared CPU executable is a reusable recipe for invoking selected CPU code with later run-specific memory. Reusing the recipe does not mean sharing mutable output arrays across runs.
+
 The implemented backend-private immutable direct-unit Runtime recipe constructed by CPU
 finalization after shared slot assignment. `CpuPreparedExecutable` strongly retains one generated
 artifact and exact static `MethodHandle`, the lowering-derived selected buffers, full normalized geometry, ordered
@@ -1583,6 +2320,8 @@ dynamic scheduler.
 
 ### CPU execution unit
 
+An execution unit groups work that CPU preparation handles together, potentially combining several graph operations into one implementation. A partition may contain several units without exposing those implementation details to Runtime.
+
 A backend-private computation-oriented group inside one CPU-owned planned
 partition. CPU analysis forms units and applies legal fusion before declaring physical resources.
 One unit has one canonical loop-oriented kernel intermediate representation and one selected
@@ -1610,6 +2349,8 @@ Task 0005A creates only the portable route package; later native packages appear
 concrete Draft tasks.
 
 ### CPU kernel intermediate representation
+
+An intermediate representation (IR) is a structured description between the original expression and final executable code. CPU kernel IR describes the operations and accesses of one execution unit so later code generation need not reinterpret the original model.
 
 The immutable CPU-private portable representation of one CPU execution unit. The sealed family
 contains the established pointwise form, static affine-copy form, static movement form, static
@@ -1668,6 +2409,8 @@ NCHW window geometry, extents, offsets, strides, carriers, workers, and range bo
 This is backend-internal state, not another Model, Compiler, Planning, Prepare, or Runtime IR.
 
 ### CPU access plan
+
+An access plan says how a logical tensor coordinate finds its stored element. A dense matrix and a transposed view can contain the same values but require different address calculations.
 
 The implemented normalized per-value address description shared by the current bounded CPU
 pointwise, affine, movement, indexing, functional-scatter, and overlap-fold units. CPU 0005B
@@ -1735,6 +2478,8 @@ Compiler/Model `SUM_TO_SHAPE` semantics plus later CPU reduction coverage.
 
 ### CPU contiguous materialization plan
 
+This materialization plan describes a proposed copy into contiguous memory so a consumer can read it efficiently. It includes the cost and memory of the copy; the plan itself does not perform the copy.
+
 One complete CPU-private external-read copy candidate into a dedicated run-owned contiguous
 workspace. `CpuMaterializationPlan` retains the typed source identity, carrier and normalized
 binding, canonical dense consumer binding, compatible consumer positions and use counts, checked
@@ -1759,6 +2504,8 @@ based on end-to-end evidence. Runtime never selects, autotunes, or searches cand
 representations.
 
 ### CPU portable execution strategy
+
+A CPU execution strategy combines two independent choices: process one element or several lanes at a time, and use one thread or several workers. Here “vector” describes hardware-lane computation, not a rank-one tensor.
 
 One of exactly `scalar`, `vector`, `parallel-scalar`, or `parallel-vector`. Scalar/vector is the
 compute axis and single-thread/parallel is the orchestration axis. CPU analysis selects among all
@@ -1796,6 +2543,8 @@ claim.
 
 ### CPU worker group / `CpuWorkerGroup`
 
+A worker group owns the threads that can cooperate on CPU work. A prepared executable may borrow the group, but borrowing does not make the executable responsible for closing those threads.
+
 The implemented CPU-private caller-owned lifetime for a fixed positive number of named daemon
 platform workers. Composition or tests create and close the group. A CPU finalizer verifies and
 borrows it for a parallel plan; the prepared executable and bound invocation never close it. The
@@ -1811,6 +2560,8 @@ nor close their group. No write rollback or performance guarantee is implied.
 
 ### CPU generated-class persistence policy
 
+This persistence policy controls whether compatible generated Java class bytes may be saved. It does not save the JVM’s later machine-code optimizations or restore a previous process’s profiling state.
+
 An optional cold-path policy for compatible deterministic class bytes. With no configured trusted
 artifact root, CPU emits, verifies, and defines in memory. With a root, a verified compatible hit
 may avoid emission, but it is still defined in the current JVM and cannot preserve JIT machine
@@ -1825,6 +2576,8 @@ Deterministic structural identity and prepared-execution strong artifact ownersh
 mandatory, and there is no reader for earlier schemas.
 
 ### CPU affine boundary copy
+
+An affine boundary copy copies values through a coordinate mapping built from offsets and strides. Several view changes can be composed into one mapping rather than creating a stored intermediate for each view.
 
 The implemented CPU-private materialization of one bounded static resolved-layout affine view
 chain. Analysis composes one through eight admitted one-input/one-output occurrences into exact
@@ -1845,6 +2598,8 @@ index-tensor work, scatter/fold, ordering, random generation, general partition-
 performance claim.
 
 ### CPU static data movement
+
+Static data movement implements a known arrangement of values, such as padding, tiling, or concatenation. It moves represented bits rather than interpreting a copy as a new arithmetic operation.
 
 The implemented CPU-private represented-bit realization of exactly one fully static,
 resolved-layout PAD, TILE, CONCAT, STACK, UNFOLD_AXIS, UNFOLD2D, or SLICE_UPDATE occurrence.
@@ -1877,6 +2632,8 @@ partition-DAG fusion, or a performance claim.
 
 ### CPU static indexing
 
+Static indexing implements index-based reads with shapes and layouts already known. Repeated source reads are allowed, but a separately writable output must not overlap the inputs.
+
 The implemented CPU-private realization of exactly one fully static, resolved-layout `GATHER`,
 `GATHER_ELEMENTS`, `GATHER_ND`, or `ONE_HOT` occurrence. Gather forms accept all seven current
 data types with INT32 or INT64 indices and copy represented bits; one-hot accepts those index types
@@ -1905,6 +2662,8 @@ index normalization, scatter/fold policy, vector/native indexing, Runtime semant
 second artifact, or a performance claim.
 
 ### CPU overlap fold
+
+An overlap fold adds window contributions back into their original coordinate space. If two windows cover one output position, both contributions are added there rather than one replacing the other.
 
 The implemented CPU-private realization of exactly one fully static, resolved-layout
 `FOLD_AXIS` or `FOLD2D` occurrence. Both operations read one input and create one distinct
@@ -1939,6 +2698,8 @@ performance claim.
 
 ### CPU stable ordering
 
+CPU stable ordering implements the Model’s sorting rules without inventing a different order for ties or special floating-point values. Stability is about original logical positions, not whichever storage order a loop happens to traverse.
+
 The implemented CPU-private realization of exactly one fully static, resolved-layout stable
 `SORT`, `ARGSORT`, or `TOP_K` occurrence. Each independent logical-axis slice uses the Model's
 complete order: floating NaNs are last in ascending and descending order; negative zero precedes
@@ -1968,6 +2729,8 @@ promise, or performance claim.
 
 ### CPU virtual intermediate
 
+A virtual intermediate is a logical result that need not be stored as a separate buffer. For fused `a + b` followed by multiplication, the sum may stay inside the generated calculation while still remaining a value in the compiled graph.
+
 A graph value whose producer and every consumer are inside one fused CPU execution unit and which
 has no publication or other unit/partition boundary obligation. It remains present in the
 compiled graph and `LogicalMemoryPlan`, but CPU analysis emits no buffer declaration for it, so
@@ -1996,12 +2759,16 @@ operation-family, model, and broader end-to-end suites remain planned in the ben
 
 ### Backward graph
 
+A backward graph is the calculation of sensitivities derived from the original output-producing calculation. “Backward” describes the direction of differentiation, not running the original program in reverse time.
+
 The graph nodes produced by capturing gradient Tensor expressions derived from an original
 forward Tensor expression. In backward-capable compile modes, the compiler captures forward
 outputs and gradient roots together once, then validates and optimizes the immutable combined
 graph before planning. See [Training graph](architecture/training-graph.md).
 
 ### Batch dimension
+
+A batch dimension groups independent instances of an operation. A shape `[5, 2, 3]` can describe five separate two-by-three matrices; the leading five is not one matrix’s row count.
 
 A leading Shape dimension that identifies independent groups of the same logical operation rather
 than one operation's elementwise or matrix coordinates. For matrix multiplication, every axis
@@ -2011,6 +2778,8 @@ dimension is logical Shape metadata, not a runtime batch scheduler, storage part
 execution unit. See [Matrix-multiplication expressions](reference/tensor/matmul-linear.md#matrix-multiplication-expressions).
 
 ### Scaled dot-product attention
+
+Attention forms an output by choosing how strongly to use each value row. A query describes what is being sought, keys describe what each candidate matches, and the resulting weights mix the value rows.
 
 An implemented backend-independent operation meaning that compares query rows with key rows,
 softmax-normalizes the resulting eligible [attention scores](#attention-score), and uses those
@@ -2033,12 +2802,16 @@ non-differentiable.
 
 ### Attention score
 
+An attention score is a compatibility score before conversion to a mixing weight. A large score matters relative to the other eligible keys for the same query, not as a probability by itself.
+
 One scaled dot product between a query row and a key row before softmax normalization. In scaled
 dot-product attention, scores have Shape `[..., L, S]`, and each query row normalizes over the
 final key-sequence axis `S`. Masked-out positions are excluded before their score or value special
 values participate.
 
 ### Attention weight
+
+An attention weight controls how much one value row contributes to a query’s output. Scores are converted into weights across eligible keys; a masked-out key contributes no weight.
 
 One normalized, post-mask coefficient produced from an eligible
 [attention score](#attention-score) along the final key-sequence axis. In scaled dot-product
@@ -2063,6 +2836,8 @@ separate explicit BOOL mask combines with causal eligibility by logical AND.
 
 ### Categorical cross entropy
 
+Categorical cross entropy measures how poorly class scores agree with the reference class or class distribution. Assigning little probability to the reference class gives a larger loss; raw scores are [logits](#logit), not already-normalized probabilities.
+
 A loss meaning that compares a logits slice with either a dense target distribution or one index
 target. Synaptik represents both directly from logits with a stable negative-log-softmax meaning;
 it does not first create a probability Tensor. The current model meaning includes an explicit
@@ -2073,11 +2848,15 @@ lifecycle layers.
 
 ### Class axis
 
+A class axis lists the alternative answers, such as “cat”, “dog”, and “bird”. It is distinct from an axis listing independent samples: one sample has several class scores.
+
 The logits axis whose positions represent alternative classes in a categorical loss. Removing it
 leaves the [sample domain](#sample-domain). Callers may supply a positive or negative axis; current
 Tensor construction normalizes it once to a non-negative attributes value.
 
 ### All-masked row
+
+An all-masked row has no permitted key to use for one attention query. Its specified zero output is a deliberate attention rule, not the result of treating an invalid ordinary softmax as successful.
 
 One attention query row with no eligible key positions after explicit and causal masking. The
 scaled-dot-product-attention contract assigns positive-zero weights and positive-zero output
@@ -2085,6 +2864,8 @@ components to such a row rather than applying ordinary softmax to an all-negativ
 sentinel row. An empty key sequence creates this case for every existing query row.
 
 ### Broadcasting
+
+Broadcasting lets compatible shapes participate together as if size-one axes were repeated. For example, adding shape `[3]` to shape `[2, 3]` adds the same three-position row to each of two rows without requiring a copied input.
 
 A shape rule that combines compatible inputs by aligning axes from the right and expanding static
 singleton dimensions as needed. In the implemented local shape model, equal dimensions remain
@@ -2098,6 +2879,8 @@ source-one-or-source-equal requirement; this does not broaden the conservative l
 multi-input-broadcasting rule above.
 
 ### Bounded replay
+
+Bounded replay means repeating the same explicit random state and inputs reproduces results only inside a documented implementation boundary. It is narrower than promising identical random numbers on every backend or release.
 
 A reproducibility promise limited to the same conforming prepared implementation path and
 configuration. Equal graph RNG key/counter state and equal consuming-operation inputs request
@@ -2116,6 +2899,8 @@ guide](backend-guide/cpu-backend.md#current-explicit-state-rng-and-dropout-famil
 
 ### Bindable input
 
+A bindable input is a place in the compiled recipe where the caller may supply a value later. A fixed compile-time constant is a graph input structurally, but is not such a caller-supplied place.
+
 A structural graph input that a later caller or run is allowed to supply. In the current internal
 compiler boundary, bindability is derived from the ordered `CompiledGraphModel.inputs()` list:
 inputs absent from the immutable compile-time constant sidecar are bindable, while inputs with
@@ -2130,6 +2915,8 @@ runtime binding. Sidecar-aware dead-code elimination preserves every bindable in
 identity association even when unused.
 
 ### Bindable input binding
+
+This binding connects a caller-visible tensor identity to the input position that survives compilation. It is a map of identities, not a copy of input values or a memory allocation.
 
 The current public `CompileConstantPlan.BindableInput(TensorId, ValueId)` association between one
 logical caller Tensor identity and its exact final [bindable input](#bindable-input). Complete
@@ -2146,6 +2933,8 @@ or make an artifact executable.
 
 ### Caller-input association snapshot
 
+An association snapshot records which storage each input referred to when a run was admitted. Changing the Tensor’s association afterward does not redirect the already admitted run to another storage object.
+
 The ordinary Engine run's one-time capture of each required Tensor's current borrowed
 `HostTensorStorage` reference after complete logical `TensorId` and descriptor validation. Inputs
 may arrive in arbitrary caller order; Engine reads associations once in final Compiler binding
@@ -2158,6 +2947,8 @@ where used, and free from conflicting mutation until the Engine `RunResult` clos
 interval after synchronous `run(...)` returns.
 
 ### Cast expression
+
+A cast requests conversion from one element type to another, such as integer to floating-point. Constructing a cast expression describes that future conversion; it does not read or convert stored elements immediately.
 
 An implemented public `Tensor.cast(targetDataType)` request that records elementwise conversion
 metadata without converting a value. Every current source/target data-type pair is representable.
@@ -2182,6 +2973,8 @@ that a requested conversion can execute. See [cast expressions](reference/tensor
 
 ### Canonical host snapshot
 
+A canonical host snapshot is a detached byte copy with one documented order and encoding. Different physical layouts can export the same logical values into the same row-major format without retaining the source memory’s lifetime.
+
 A fresh caller-owned `byte[]` containing one tensor occurrence's logical elements in row-major
 coordinate order, with the final axis changing fastest and every multi-byte element encoded
 big-endian. The format is detached from the source representation and layout lifetime. Current
@@ -2205,6 +2998,8 @@ positive-stride non-overlapping layouts. See
 [canonical caller-owned host snapshots](backend-guide/cpu-backend.md#canonical-caller-owned-host-snapshots).
 
 ### Canonical workload signature
+
+A workload signature describes the facts that must match before a measured tuning decision can be reused. “Both are matrix multiplication” is too weak: types, shapes, layouts, target, and relevant policies also matter.
 
 The compatibility key for one local tunable workload. It includes operation semantics and
 attributes, input and output data types, shapes, layouts, relevant policies, and target
@@ -2232,6 +3027,8 @@ construction and authentication.
 
 ### Candidate generator
 
+A candidate generator lists complete valid execution alternatives for a measured comparison. It knows its backend’s rules; shared tuning machinery does not guess valid combinations of low-level knobs.
+
 A typed, version-controlled, tested backend or lifecycle-owner component that derives and prunes
 complete valid tuning candidates from target capabilities, workload facts, and a tuning budget.
 Concrete backend generators are colocated with their routes and own private configuration
@@ -2253,6 +3050,8 @@ generation performs no native allocation.
 
 ### Candidate batch
 
+A candidate batch is one ordered set of alternatives for the same compatibility context. Candidates from a different workload cannot be mixed in merely because their names look alike.
+
 An immutable, owner-defined collection of complete alternatives associated with one exact
 compatibility context. Shared Prepare represents a batch only through the method-free
 `BackendTuningCandidateBatch` role and therefore cannot enumerate or interpret backend-private
@@ -2273,6 +3072,8 @@ other identity fails closed, and no private field crosses the marker-role bounda
 
 ### Complete-plan candidate
 
+A complete-plan candidate is an entire valid alternative at the current whole-plan tuning boundary. It differs from testing one local kernel setting in isolation, because all included representation and topology choices must fit together.
+
 One complete alternative for all choices owned by the producer at the current Phase-2 boundary.
 The implemented CPU form keeps the same exact stable partition projection, sole non-empty CPU
 partition, Planning owner, logical memory, and CPU configuration. Engine separately retains the
@@ -2292,6 +3093,8 @@ action plus the selected production recipe. The CPU producer remains session-sco
 no model-plan-cache filesystem I/O.
 
 ### Selected tuning decision
+
+A selected tuning decision names the alternative chosen from a compatible candidate batch. It is reusable evidence only while the associated compatibility facts still match.
 
 An immutable owner-defined reference to one candidate in one compatible batch. A local-workload
 decision names an exact candidate-schema version, canonical workload signature, and candidate
@@ -2321,6 +3124,8 @@ selected decision for production.
 
 ### Opaque backend tuning handoff
 
+An opaque handoff passes a backend’s typed tuning objects through shared Prepare without revealing their private contents. Shared code preserves their association; the owning backend interprets them.
+
 The implemented Prepare-owned `BackendPartitionTuningHandoff<C, D>` record associates one exact
 `PlannedPartition` reference with one exact backend-owned candidate-batch reference and a non-null
 `Optional` containing either no decision or one exact backend-owned selected-decision reference.
@@ -2338,6 +3143,8 @@ batches and decisions implement the roles nominally; each backend alone validate
 them.
 
 ### Compile
+
+Compile turns a requested computation into a validated logical recipe and assigns backend responsibility. It does not yet choose the physical implementation or execute the numerical calculation.
 
 The lifecycle stage that optionally builds gradient Tensor expressions, captures one forward-only
 or combined graph, validates and transforms immutable graph semantics, assigns backend ownership,
@@ -2363,6 +3170,8 @@ outputs for later compilation. It neither executes nor changes the ordinary comp
 
 ### Compile artifacts
 
+Compile artifacts are the bundle of logical results produced by compilation: the graph, ownership regions, memory relationships, publications, and related metadata. They are not generated machine code or allocated execution buffers.
+
 The current public immutable eight-component `CompileArtifacts` record constructed by the
 package-private complete compiler entry and returned through public `GraphCompilationPort`. It
 contains the exact compile mode and final `CompiledGraphModel`, an immutable membership snapshot
@@ -2381,6 +3190,8 @@ Neither artifacts nor their graph retain Tensors or the separate borrowed `Sourc
 
 ### Compile constant plan
 
+The compile constant plan distinguishes inputs supplied on each run from values fixed by compilation. A repeated scalar constant can be described without storing a dense array of copies.
+
 The current compiler-owned output-only classification of every final graph input as either a
 [bindable input](#bindable-input) or one exact
 [compile-time constant source](#compile-time-constant-source). `CompileConstantPlan` snapshots
@@ -2395,6 +3206,8 @@ materialization instruction, backend value, or physical allocation.
 
 ### Compile diagnostics
 
+Compile diagnostics explain obligations remaining after a successful compilation, such as a size relation to check when inputs are bound. They are not evidence that a failed compile returned a usable partial program.
+
 The current compiler-owned output-only successful-compile diagnostic bundle.
 `CompileDiagnostics` exposes ordered immutable
 `DeferredConstraintDiagnostic(NodeId, subject, predicate)` projections from the final deferred
@@ -2404,6 +3217,8 @@ public predicate language, binding API, trace payload, warning taxonomy, rejecti
 serialization. A failed compilation returns no partial artifact or successful diagnostic bundle.
 
 ### Compile-time constant source
+
+A compile-time constant source supplies a fixed value rather than a fresh caller input. It can remain a structural graph input while a separate immutable description records its repeated scalar value.
 
 A current package-private compiler classification for a fixed logical graph source. Structurally,
 the source remains an ordinary `CompiledGraphModel` input, satisfying the existing graph-closure
@@ -2419,6 +3234,8 @@ classification is not a public binding API, dense payload, physical buffer, runt
 executable constant.
 
 ### Compile mode / `CompileMode`
+
+Compile mode states whether the requested graph needs only outputs or also derivative work. A training-related mode name does not by itself add an optimizer update or create a training session.
 
 The implemented standalone config enum that records requested compile-time graph scope. Its exact
 values, in declaration order, are `FORWARD_ONLY`, `FORWARD_AND_BACKWARD`, and `TRAINING_STEP`.
@@ -2436,6 +3253,8 @@ differs from
 [`GraphPhase`](#graph-phase), which classifies a compiled node's forward or backward origin.
 
 ### Contiguous request
+
+A contiguous request asks for the same logical values in a canonical dense row-major arrangement. It describes the desired result layout; constructing the request does not allocate or copy storage.
 
 The implemented parameterless `ContiguousKind.CONTIGUOUS` operation meaning. It describes one
 logical input and requests logically equivalent canonical dense row-major result geometry with
@@ -2457,6 +3276,8 @@ kind](reference/tensor/operation-geometry.md#contiguous-semantic-kind), [Layout]
 
 ### Cotangent
 
+A cotangent says how strongly a selected output depends on an earlier value. For scalar `y = x * x`, sending sensitivity `1` from `y` yields sensitivity `2 * x` at `x`; an explicit seed other than one scales that question.
+
 The reverse-mode sensitivity that flows backward from a selected output toward an earlier Tensor.
 Current package-private autograd accepts exact-Shape explicit cotangents or supplies an exact typed
 scalar unit for an eligible scalar output, combines multiple output and route contributions with
@@ -2465,6 +3286,8 @@ the accumulated cotangent for each requested target. A cotangent here is a tempo
 Tensor expression, not mutable Tensor gradient state, a runtime tape value, or an optimizer slot.
 
 ### Cotangent normalization
+
+Cotangent normalization makes a backward contribution fit the input it describes. If one input row was broadcast across several output rows, their sensitivity contributions must be summed back into that one row.
 
 The current first-order compiler step that makes one generated contribution match its selected
 input's exact Shape and floating data type before deterministic accumulation. For the selected
@@ -2478,6 +3301,8 @@ occurrences enter the same combined capture, model inference, validation, numeri
 exact optimization pipeline as forward expressions.
 
 ### Compiled graph / `CompiledGraphModel`
+
+A compiled graph is a frozen description of values, operations, and dependencies after capture. Its identifiers and structure are compile-time facts, not handles to live device memory.
 
 The implemented immutable compile-time graph representation. `CompiledGraphModel` stores ordered
 `GraphValue` values, topologically ordered `CompiledNode` nodes, ordered input and output
@@ -2500,6 +3325,8 @@ metadata remains readable after Engine closure. See the
 
 ### Concrete backend
 
+A concrete backend is the implementation module behind an execution owner. It translates and executes its assigned work; the public tensor description does not become a backend-specific tensor just because that backend runs it.
+
 A module that implements a backend, such as `modules/backend/cpu`, `modules/backend/metal`, or `modules/backend/cuda`.
 It owns backend-specific capability reporting, prepare-time lowering, fusion, specialization,
 kernel selection, executable units, storage, workspaces, and native integration. Concrete
@@ -2517,6 +3344,8 @@ values for all seven carriers over exact supported storage layouts. CUDA remains
 concrete execution behavior. See [Module boundaries](architecture/module-boundaries.md).
 
 ### Cumulative scan
+
+A cumulative scan returns a running combination rather than one final aggregate. An inclusive forward sum of `[2, 3, 5]` is `[2, 5, 10]`; an exclusive version omits the current input from each position.
 
 An ordered one-input operation that cumulatively combines values along one axis while preserving
 one output position for every input position. The implemented `CumulativeScanKind` contains
@@ -2555,6 +3384,8 @@ See
 
 ### Dropout / inverted dropout
 
+Dropout randomly suppresses selected values during training. Inverted dropout scales kept values to compensate for the dropped fraction, while evaluation can bypass dropping; explicit random state makes the requested random progression visible.
+
 A training-only stochastic operation that drops a requested fraction of logical input positions.
 Current `Tensor.dropout(probability, state)` represents inverted dropout: a kept value is ideally
 scaled by `1 / (1 - probability)`, while a dropped value becomes positive zero. It consumes
@@ -2572,6 +3403,8 @@ and [Explicit-state dropout construction](reference/tensor/graph-randomness.md#e
 
 ### Contraction dimension
 
+A contraction dimension is the matching length over which products are added. Multiplying a two-by-three matrix by a three-by-four matrix contracts the shared size three and produces a two-by-four result.
+
 The shared input extent over which pairwise products are summed by a contraction operation. In
 current `MATMUL`, it is the final left axis and either the final right axis for a vector or the
 penultimate right axis otherwise. Equal static extents are required; equality involving an
@@ -2580,6 +3413,8 @@ The term describes mathematical and Shape meaning, not an accumulation loop or k
 See [Matrix-multiplication expressions](reference/tensor/matmul-linear.md#matrix-multiplication-expressions).
 
 ### Conv1d composition
+
+Conv1d applies a learned sliding pattern along one spatial axis, such as time. This convenience is described using existing two-dimensional operations with a size-one extra spatial axis, not a separate execution capability.
 
 The current public `Tensor.conv1d` convenience records grouped one-dimensional cross-correlation
 in NCW order: batch, channel, width. It is not a first-class operation kind. It visibly expands
@@ -2592,6 +3427,8 @@ composition does not claim backend execution or performance. See
 [Grouped NCW Conv1d composition](reference/tensor/convolution.md#grouped-ncw-conv1d-composition).
 
 ### Convolution / Conv2d
+
+A convolutional layer slides a small learned weight window across spatial data to detect local patterns. Here the precise operation is cross-correlation: stored weights are used in their existing order, rather than reversed.
 
 Current `Tensor.conv2d` records grouped two-dimensional cross-correlation in NCHW order: batch,
 channel, height, width. Cross-correlation uses the weight kernel in stored order; it does not
@@ -2627,6 +3464,8 @@ do not execute values. There is no public `ConvNd` or public convolution-fan con
 
 ### Conv3d / NCDHW
 
+Conv3d slides a learned weight window through three spatial axes, such as depth, height, and width of a volume. NCDHW names the order number-of-samples, channels, depth, height, width; it is an axis convention, not a memory ownership rule.
+
 Current `Tensor.conv3d` records one first-class grouped three-dimensional cross-correlation in
 NCDHW order: batch, channel, depth, height, width. Input Shape is `[N, C_in, D, H, W]`, weight is
 `[C_out, C_in/groups, K_d, K_h, K_w]`, optional bias is `[C_out]`, and result is
@@ -2660,6 +3499,8 @@ raw NaN and signed-zero bits. There is no implicit quantization scale. See
 
 ### Numeric promotion
 
+Numeric promotion chooses a common element type for a mixed-type calculation. It is different from an explicit cast requested by the caller, and it does not mean every category pair may be combined.
+
 The implemented backend-independent rule that selects a common operation data type for two
 operands from the same numeric category. Equal floating types retain their type; unlike low
 types (`BFLOAT16`, `FLOAT16`, `FLOAT8_E4M3`, `FLOAT8_E5M2`) promote to `FLOAT32`. `FLOAT32`
@@ -2674,6 +3515,8 @@ values, capture a graph, choose a backend, or execute. See
 <a id="numerical-profile"></a>
 
 ### Profile-free numerical semantics
+
+Numerical semantics define what an operation’s answer means, including exceptional values and allowed rounding. Backend tests may accept measured error within a tolerance, but that test threshold does not rewrite the public meaning of the operation.
 
 Model owns one numerical meaning per operation family and dtype, with no graph-wide selector.
 Exact stored comparison and extrema, structure, casts, raw movement and selection, indices,
@@ -2692,6 +3535,8 @@ separate backend-neutral ownership preference, not a numerical mode.
 
 ### Capability ledger
 
+A capability ledger is a checked-in table of actual support queries and their answers. It helps detect changed support claims; it is not a promise that every unlisted combination works.
+
 A canonical checked-in representative snapshot generated by calling actual backend capability
 providers with fully described operation occurrences. The current v2 low-precision ledger records
 backend, kind/attributes, ordered descriptors, type/Shape/layout/gradient metadata, arity, and
@@ -2704,6 +3549,8 @@ generated-backward fact.
 
 
 ### Scalar-power realization
+
+Scalar-power realization chooses how to implement raising a value to one fixed exponent. It keeps the graph’s requested power operation distinct from the CPU’s selected way of calculating it.
 
 The implemented CPU-prepare choice that retains semantic scalar `POW` in the compiled graph while
 selecting one exact/default realization from the exponent's exact FLOAT32 or FLOAT64 bits. Common
@@ -2730,6 +3577,8 @@ schema 10, with no Runtime hot-path lookup.
 
 ### Typed scalar value / `ScalarValue`
 
+A typed scalar value stores one exact number or boolean together with its element type. FLOAT32 positive zero and negative zero can have different stored bits even though ordinary numerical equality treats them as equal.
+
 An implemented immutable backend-independent operation parameter containing one exact
 [`DataType`](#data-type--datatype) and that type's primitive bits. FLOAT64 and FLOAT32 retain raw
 signed-zero and NaN payload bits, raw BFLOAT16 retains all 16 supplied bits, signed INT32 and
@@ -2754,6 +3603,8 @@ families remain planned.
 
 ### Device class / `DeviceClass`
 
+A device class is a broad category, such as CPU or accelerator, rather than a device name or implementation route. Preferring a class does not prove that an available device can perform the requested operation.
+
 The implemented coarse declarative category of a device. `CPU` means a device that executes
 through a general-purpose central processing unit; `ACCELERATOR` means a non-CPU compute device
 intended for offloaded computation. The category does not distinguish graphics processing units,
@@ -2769,6 +3620,8 @@ a soft class preference; it does not change the category itself.
 
 ### Dense target
 
+A dense target lists a reference weight for every class. A three-class target might be `[0, 1, 0]` or a valid soft distribution such as `[0.2, 0.8, 0]`, unlike an integer index target naming just one class.
+
 A dense target supplies one floating weight for every class in a categorical-loss slice. For
 current dense categorical cross entropy, its Shape matches logits exactly and each class-axis
 slice carries a caller obligation to be finite, non-negative, and normalized to one. It differs
@@ -2777,6 +3630,8 @@ three-argument categorical-loss method dispatches between these meanings by targ
 
 ### Index target
 
+An index target stores the reference class number rather than a complete row of class weights. For three classes, integer `1` names the second class; it is not the probability `1.0`.
+
 An INT32 or INT64 Tensor containing one exact class index for each coordinate in a categorical
 loss's [sample domain](#sample-domain). Its Shape equals the logits Shape with the class axis
 removed. An index target is not promoted, cast, broadcast, wrapped, clamped, or converted to one
@@ -2784,6 +3639,8 @@ hot. Every non-ignored value must eventually be in the half-open class range; mo
 does not read values or prove bounds.
 
 ### Ignore index
+
+An ignore index is a specially chosen target value that marks a sample as excluded from a categorical loss. Exclusion happens before checking that sample’s ordinary class bounds and removes it from the mean count.
 
 One exact INT32 or INT64 `ScalarValue` whose type matches an index target. A matching target is
 ignored before bounds checking or logits evaluation, contributes positive zero, and is excluded
@@ -2816,6 +3673,8 @@ sentinels, and local code does not assume that different names or distinct unkno
 
 ### Symbolic batch binding
 
+Symbolic batch binding fills in a named batch size when actual inputs arrive. A template `[B, 3]` can describe different numbers of three-feature rows, but each admitted run must supply one consistent concrete value of B.
+
 The protocol that derives one consistent named dimension B>=0 from actual static
 input descriptors for one immutable compilation/preparation. Compiler owns semantic obligations;
 Engine invokes binding and publishes actual descriptors. Prepared numeric recipes describe exact
@@ -2837,6 +3696,8 @@ cold/copy/wire and other backend/dtype/route extensions remain separately gated.
 and [handoff example](architecture/runtime-prepare-backend-boundary.md#accepted-symbolic-batch-handoff).
 
 ### Symbolic Scan
+
+A symbolic Scan repeats a body over time while leaving the batch size named rather than fixed. Time length and feature widths remain fixed in this source form; symbolic does not mean arbitrary shapes or arbitrary supported bodies.
 
 The all-valid general Scan source form with one named batch B and fixed time/features/state
 widths. Symbolic templates have unresolved numeric layouts; binding must supply canonical actual
@@ -2869,6 +3730,8 @@ defines roles, actual derivative closure and independent B=0/T=0 behavior.
 
 ### Run memory geometry / `RunMemoryGeometry`
 
+Run memory geometry gives the exact byte sizes needed for one run’s bound dimensions. Reusing a prepared plan does not allow different runs to share their mutable storage or temporary size/address arrays.
+
 Authenticated immutable numeric sizes for an exact PreparedMemoryPlan and explicit B/mode.
 Private backing never escapes or mutates; this is not a Shape interpreter or resource owner.
 The current `resolve` call returns fresh geometry for ordinary and qualified symbolic Scan runs;
@@ -2878,6 +3741,8 @@ but mutable access/packed/address/carry/size working arrays remain isolated per 
 Sharing immutable geometry in a test does not itself authorize or implement Engine memoization.
 
 ### Engine geometry memo
+
+A geometry memo would remember previously derived immutable size facts to avoid deriving them again. This entry describes an accepted future optimization, not an already available cache of inputs, outputs, or live memory.
 
 One accepted-but-unimplemented metadata-only replacement entry on the exact Engine prepared
 owner, keyed by exact semantic/inward/memory-plan identity and explicit B/mode. It may reuse pure
@@ -2891,6 +3756,8 @@ added after inward admission. See the
 and [future miss/hit example](architecture/runtime-prepare-backend-boundary.md#future-symbolic-scan-and-geometry-reuse).
 
 ### Deferred graph constraint
+
+A deferred graph constraint is a size rule that cannot yet be settled. For a symbolic matrix product, the compiler may need to record “these contraction lengths must match” and check it when concrete dimensions arrive.
 
 A **deferred graph constraint** is one typed, occurrence-owned Shape obligation that current
 package-private compiler verification cannot prove or disprove from immutable graph descriptors.
@@ -2927,6 +3794,8 @@ The number of storage elements advanced when one logical index advances by one p
 
 ### Floating classification
 
+Floating classification asks whether each value is finite, infinite, or not-a-number. It produces flags rather than changing the values or claiming that a finite value is accurate.
+
 An elementwise semantic request that reports which broad value class a floating input represents.
 The implemented `FloatingClassificationKind` family distinguishes finite values, NaN, and either
 infinity. Public `Tensor.isFinite`, `isNaN`, and `isInf` accept only `BFLOAT16`, `FLOAT32`, or
@@ -2937,6 +3806,8 @@ trace diagnostic, validation warning, eager Java boolean, or storage inspection.
 construction records the request and provenance without calculating classification values.
 
 ### Gaussian error linear unit / GELU
+
+Gaussian error linear unit (GELU) is an activation that smoothly attenuates negative inputs while largely retaining large positive inputs. It uses the standard normal probability curve; its precise formula below is the requested meaning, not a selected approximation algorithm.
 
 A smooth floating activation with exact mathematical target `x * Phi(x)`, where `Phi` is the
 standard normal cumulative distribution function. Equivalently, exact GELU is
@@ -2955,6 +3826,8 @@ positive zero.
 
 ### Functional gradient request
 
+A functional gradient request says which output sensitivities to start from and which earlier values to differentiate with respect to. It describes a calculation without attaching a mutable gradient field to each Tensor.
+
 The current public immutable `FunctionalGradientRequest` for exactly one or two reverse-mode
 stages. Stage one selects exact requested forward outputs; stage two may select generated
 first-stage gradients by target-list index. Every stage aligns optional explicit
@@ -2970,6 +3843,8 @@ rejects it. The value exposes no public compile call or Tensor gradient lifecycl
 The graph that computes outputs from user inputs in the original direction of the tensor expression. It exists before any gradient computation is added. A forward-only compile uses this computation; a backward-capable compile may expand it with a [backward graph](#backward-graph).
 
 ### Forward graph optimization
+
+Graph optimization replaces a calculation with an equivalent one that avoids unnecessary work. Removing an unused result and sharing truly equivalent expressions are distinct transformations; every replacement must preserve the required semantics.
 
 The historical name for the current package-private compiler's optional semantics-preserving
 transformation pipeline. It now operates on the complete graph selected by the compile mode:
@@ -2994,6 +3869,8 @@ derive publication or planning; allocate physical values; or expose a public com
 [Compile API](reference/compiler/optimization.md#current-package-private-canonicalization-and-whole-graph-optimization).
 
 ### Pre-capture Tensor-expression autograd
+
+Pre-capture autograd builds derivative expressions first, then captures the original and derivative expressions together into a graph. The compiler therefore uses ordinary Tensor operations for derivative formulas rather than a separate runtime differentiation language.
 
 The current compiler-owned design for constructing reverse-mode gradient formulas with existing
 public Tensor operations before graph capture. Named compiler rules traverse the original forward
@@ -3022,6 +3899,8 @@ gradient algebra, or backend-owned global autograd. The maintained
 operation-specific, fail-closed derivative matrix.
 
 ### Neural-network module, parameter, buffer, and forward context
+
+A neural network (NN) module groups a reusable calculation with named state. Parameters may be learned, persistent buffers retain other model state, and a forward context supplies explicit per-call choices; these are different roles even when each contains tensors. A neural network connects learned numerical transformations; a multilayer perceptron (MLP) is a stack of feature-mixing layers and nonlinear activations. The recurrent cell families and exact state rules are defined below.
 
 `extensions/nn` currently provides direct-state and module-tree foundations, typed functional
 Model topology, eager parameter initializers, five concrete non-recurrent layers including
@@ -3550,6 +4429,8 @@ dependency. See [Module boundaries](architecture/module-boundaries.md#extensions
 
 ### Owned Model source
 
+An owned Model source gives a Model its own working state rather than mutating the caller’s original tensors. Its supported source construction, copying, persistence, and numerical execution are separate boundaries, detailed below.
+
 The implemented all-valid general-scan workflow reuses this owner through bounded Compiler cold
 reconstruction and Checkpoint attachment-preserving in-memory copy/rebind. All-valid means every
 static time step participates, not arbitrary body support. Qualified static canonical homogeneous
@@ -3581,6 +4462,8 @@ sessions/preparations and native memory but never a borrowed Engine. See the
 [owned workflow](user-guide/running-models.md#owned-static-model-workflow).
 
 ### General differentiable scan
+
+A general differentiable scan repeats a body over a sequence while carrying state from one step to the next. For a running total, each step reads the previous total and one new input; differentiating the scan propagates sensitivities through those step-to-step dependencies.
 
 Model0038 adds a bounded length-aware source/structural-IR foundation to the all-valid scan
 described below. Compiler0013 adds independent length inference, bounded first-order reverse
@@ -3635,6 +4518,8 @@ explains forward/residual/reverse relationships.
 
 ### Length-aware scan row role
 
+A row role states which axis identifies independent batch members inside a length-aware scan. Equal axis sizes do not prove equal roles: a batch of four and a feature width of four still mean different coordinates.
+
 An explicit identified original batch coordinate: ROW(axis) can describe any completely proved
 intermediate axis/rank; SHARED has no row coordinate. Retained sequence/header declarations are
 separate and currently allow axes 0/1, with rank-two ROW(1). Equal sizes, including B=0/1 or B=F,
@@ -3650,6 +4535,8 @@ The [scan owner](architecture/contracts/recurrent-scan.md#bounded-row-role-analy
 complete bounded rules.
 
 ### Scan formal and primal binding
+
+A formal is a declared body input, like a function parameter; an actual is the value supplied to it. Primal binding connects original forward values used by derivative formulas to the correct inputs of a reverse scan body.
 
 A scan formal is an identity-distinct, storage/provenance-free Tensor declared as carry,
 step or invariant input to a source body, not a placeholder for a captured ValueId. Source
@@ -3674,6 +4561,8 @@ Compiler0015 preserves the same protocol with one named B, including generated R
 exact shared histories and parameter-shaped accumulators; it adds no runtime tape or evaluator.
 
 ### Scan residual port and history demand
+
+A scan residual is a forward value that later work may need, such as a previous recurrent state. History demand asks which such values actually need to be retained across time, rather than allocating every possible history.
 
 A canonical scan residual port is metadata/wrapper reserved at original immutable producer
 construction for a retained body value, including previous carry. Current Model constructs these
@@ -3700,6 +4589,8 @@ declarations prove associations, not physical length-mode history storage or run
 
 ### Fluent Model builder
 
+A fluent builder lets the caller describe a model by chaining recipe choices before building it. The resulting owned Model has independent state; editing the builder afterward does not edit an already built model.
+
 `ModelBuilder`, obtained from `Model.builder()`, records closed layer recipes for a fixed floating
 input signature. Each build creates an independent eval-mode owned Model; subsequent builder edits
 cannot change its structure or state. Automatic initialization uses existing Glorot-uniform algorithms
@@ -3719,12 +4610,16 @@ time rather than batch in TBF. These conventions introduce no separate execution
 
 ### Detached Model results
 
+A detached result owns its readable value independently of the temporary execution resources. Closing the Model or batch storage does not invalidate that returned value; a low-level leased result has a different lifetime.
+
 `HostTensorValue` compute outputs and `TrainingStep` training results contain detached values and
 metadata that remain readable after batch storage, Model and Engine close. Owned Model compute
 closes its low-level RunResult before returning; callers never inherit its borrowed storage lifetime.
 This differs from low-level RunResult, which remains a closeable owner.
 
 ### Functional Model and Model topology
+
+A functional Model connects inputs to outputs using typed layer relationships. Its Java input/output types describe the caller boundary, while the tensor operations inside still determine numerical meaning and execution support.
 
 The implemented NN **functional Model** is `Model<I,O>`, a typed root `Module` whose generic
 parameters describe only a caller-selected Java input/output boundary. A simple Tensor model may
@@ -3761,6 +4656,8 @@ contract](reference/nn/composition.md#current-nn-automatic-parameter-initializat
 
 ### Declarative model specification and descriptor-only skeleton
 
+A model specification describes the model’s structure and state descriptors without carrying live parameter values. A descriptor-only skeleton is therefore not an initialized model ready to execute.
+
 An NN **model specification** is the implemented immutable `ModelSpecification`: semantic
 configuration for a closed nested Sequential tree, ordered parameter descriptors and explicit
 Tensor-identity alias groups. It contains no live Tensor, callback, state values, storage, mode,
@@ -3788,6 +4685,8 @@ Neither capability supplies training resume or arbitrary Java model capture.
 
 ### Standard module factory
 
+A standard module factory constructs fresh modules from explicit recipes. It centralizes the supported construction choices without turning a recipe into a generic callback or promising every possible layer type.
+
 The implemented NN **standard module factory** is the final `ModuleFactory` returned by
 `ModuleFactory.standard()`. It is one shared, immutable, instance-field-free construction facade
 for the current initialized `Embedding`; automatic `Linear`, `Conv1d`, `Conv2d`, and `Conv3d`;
@@ -3811,6 +4710,8 @@ The factory has no bidirectional recipe; callers use the concrete bidirectional 
 which keep both directional seeds visible.
 
 ### Unary Tensor module and Sequential
+
+A unary Tensor module accepts one Tensor and returns one Tensor. Sequential composes such steps in order, so each step’s output is the next step’s input; one-input/one-output says nothing by itself about matching shapes or execution support.
 
 A **unary Tensor module** is an implemented `UnaryTensorModule`: a `Module` whose complete public
 forward signature is one non-null Tensor to one non-null Tensor. The nominal subtype preserves
@@ -3875,12 +4776,16 @@ nodes](reference/tensor/compiled-graph.md#graph-values-and-compiled-nodes).
 
 ### Graph phase
 
+Graph phase labels work as part of the original forward calculation or its backward derivative calculation. It classifies nodes, not the lifecycle stage currently executing them.
+
 The implemented `GraphPhase` enum classifies compiled nodes as exactly `FORWARD` or `BACKWARD`
 compile-time work. It helps later compiler, publication, planning, and diagnostic work distinguish
 the two regions. It is not a compile mode, runtime schedule, prepared-execution boundary, ordinal
 serialization, or optimizer-update phase.
 
 ### Gradient publication binding
+
+A gradient publication binding identifies which requested target a returned gradient belongs to. Several target roles can refer to the same graph value without losing the separate caller-visible result positions.
 
 The current public immutable `GradientPublicationBinding` association from derivative order and
 stage-local target index to the stable target `TensorId` and final gradient `ValueId`, exposed as
@@ -3890,6 +4795,8 @@ instead lists each distinct gradient value once. A binding is not mutable Tensor
 allocation, optimizer state, or runtime delivery.
 
 ### Derivative graph metadata
+
+Derivative metadata records which differentiation stage introduced each node. An original forward node has order zero; nodes introduced for the first and second derivative stages have orders one and two.
 
 The current public immutable `DerivativeGraphMetadata` sidecar with one encounter-ordered entry
 per final graph node: zero for an original forward producer, one for a producer first owned by the
@@ -3904,6 +4811,8 @@ the eighth `CompileArtifacts` component, not a ninth. `PrepareContext` transport
 map as its sixth component, `scanActivityPlans`, without storing runtime presence values.
 
 ### Graph optimization configuration / `GraphOptimizationConfig`
+
+This configuration permits or disables optional graph optimizations. Disabling optional transformations does not disable mandatory graph validation or redefine numerical meaning.
 
 The implemented standalone config record whose sole boolean component,
 `optionalOptimizationsEnabled`, permits or suppresses optional semantics-preserving compiler
@@ -3922,6 +4831,8 @@ only to enable or skip the optional pipeline over the complete mode-selected gra
 
 ### Graph canonicalization
 
+Canonicalization gives equivalent graph structure a consistent local numbering scheme. Renumbering nodes and values does not change what the computation means or turn local IDs into globally unique identities.
+
 The current mandatory package-private compiler normalization that rebuilds an accepted immutable
 graph with dense graph-local identifiers. Graph inputs are allocated first in boundary order,
 followed by node outputs in stored topological and output-slot order; node identifiers follow
@@ -3933,6 +4844,10 @@ operation-specific rewrite, numerical execution, concrete dimension binding, pub
 public compiler API.
 
 ### Graph RNG state / `GraphRngState`
+
+A random seed initializes a generator’s state; it is unrelated to a differentiation seed. Counter-based generation derives choices from an explicit key and position rather than a hidden advancing cursor. SplitMix64 and Philox are named pseudorandom generator designs; naming them does not promise a portable cross-backend stream.
+
+Random-number-generator (RNG) state makes random progression an explicit graph value. A consuming operation receives a state and returns the next state, rather than secretly advancing a global generator. A pseudorandom-number generator (PRNG) produces deterministic random-like choices from maintained state; this does not imply cryptographic security.
 
 The implemented opaque public value for one explicit random-number-generator (RNG) state
 occurrence in a Tensor expression graph. `GraphRngState.initial(key, counter)` accepts every Java
@@ -3971,6 +4886,8 @@ interval reuse; sharing an immutable state wrapper does not serialize execution.
 
 ### Host sequence metadata
 
+Sequence metadata says how many time positions in each batch row are valid. A zero-valued sample can still be valid; validity comes from the declared lengths, not from searching for a padding number.
+
 An implemented Data declaration of valid time intervals for original batch rows. A **host valid
 count** counts logical time steps belonging to a row, including ordinary zero values.
 `ValidSequenceLengths` owns copied non-negative counts without a stored time extent.
@@ -3996,6 +4913,8 @@ See the [Data sequence batching API](reference/data/sequences.md#explicit-runtim
 
 ### Frozen whitespace tokenizer
 
+A tokenizer splits text into tokens and assigns integer identifiers. Frozen vocabulary means an unknown word uses the reserved unknown ID rather than extending the mapping during encoding.
+
 An implemented Text mapping whose ordinary token IDs never grow or change after construction.
 `WhitespaceTokenizer.of` copies ordered distinct nonempty tokens without Java whitespace;
 ordinary IDs start at 2, padding (PAD) is 0 and unknown (UNK) is 1. Listed spellings such as
@@ -4006,6 +4925,8 @@ neither token IDs nor counts add masking, execution or runtime length binding. S
 [Text API](reference/text/tokenization.md) and [host sequence metadata](#host-sequence-metadata).
 
 ### Host storage
+
+Host storage is the memory holding tensor elements where host-side code can access them. The wrapper describes capacity and element type; keeping a wrapper does not automatically keep caller-controlled native memory alive.
 
 Implemented model-level raw storage for physical tensor-element capacity visible in host memory.
 The sealed `HostTensorStorage` abstraction currently permits exactly the final
@@ -4044,6 +4965,8 @@ that semantic kernel is not an executable implementation route.
 
 ### General matrix multiplication / GEMM
 
+General matrix multiplication (GEMM) is the numerical-library operation that scales a matrix product and optionally adds a scaled existing output. BLAS means Basic Linear Algebra Subprograms; this entry describes a bounded library call, not every high-level MATMUL form. SGEMM and DGEMM name the single- and double-precision GEMM variants, respectively.
+
 The low-level operation `C[m,n] = alpha * (A[m,k] x B[k,n]) + beta * C[m,n]`. The current
 OpenBLAS provider implements only FLOAT32 and FLOAT64 dense row-major, non-transposed GEMM over
 caller-owned native memory beginning at byte offset zero. It validates and forwards one already-
@@ -4057,6 +4980,8 @@ more calls for other MATMUL forms, linear projection, attention, or convolution,
 surface alone does not implement those operations.
 
 ### OpenBLAS discovery result and session
+
+Discovery records which OpenBLAS library loading attempts were made; a session owns a successfully loaded provider. Finding a library and proving that its interface is safe to use are separate steps.
 
 CPU-private composition values that separate immutable native-loading evidence from ownership of
 a live OpenBLAS provider. An explicit discovery call may be disabled, try a bounded deterministic
@@ -4080,6 +5005,8 @@ guide](backend-guide/cpu-backend.md#internal-automatic-discovery-and-lifetime).
 
 ### OpenBLAS qualification
 
+Qualification checks that one loaded library behaves correctly for a bounded interface and target. Passing these checks is not a certificate for every operation or every other binary with the same filename.
+
 An immutable CPU-private credential issued only after one exact loaded discovery session passes
 cold target, thread-control, and bounded FLOAT32/FLOAT64 general matrix multiplication (GEMM)
 application binary interface (ABI) smoke checks. Small-integer finite cases require exactly
@@ -4098,6 +5025,8 @@ code or certify arbitrary ABI behavior, numerics, determinism, builds, processor
 
 ### OpenBLAS binary identity
 
+A binary identity describes the actual qualified library file and its compatibility facts. Two files with the same name are not necessarily interchangeable if their contents or calling interface differ.
+
 The stable versioned compatibility input produced for an absolute-path OpenBLAS qualification.
 It combines the supported target fingerprint with the complete file's SHA-256 digest and byte
 length, the matching thin Mach-O64, little-endian ELF64, or PE32+ format and AArch64/x86-64 machine,
@@ -4112,6 +5041,8 @@ the pages already mapped by the loader or defend against a hostile filesystem. N
 libraries have no binary identity and cannot authorize persistent reuse.
 
 ### OpenBLAS coordinator / `CpuOpenBlasCoordinator`
+
+The coordinator controls a loaded OpenBLAS provider’s calls, thread setting, and closure. It prevents changing shared library thread configuration while an admitted matrix call is using it.
 
 The CPU-private sole owner of one invocation/close pair transferred from an OpenBLAS discovery
 session. It borrows one exact [CPU concurrency budget](#cpu-concurrency-budget--cpuconcurrencybudget),
@@ -4131,6 +5062,8 @@ control another handle, class loader, coordinator, or arbitrary native code. Thi
 composition primitive, not a singleton or supported public Engine/Config/CPU API.
 
 ### OpenBLAS library handle / `OpenBlasLibrary`
+
+A library handle owns access to one explicitly selected native library and its callable symbols. Loading by exact name or path does not itself choose a CPU route or qualify numerical behavior.
 
 The implemented caller-owned lifetime for one explicitly selected OpenBLAS native library lookup
 and its complete required symbol bindings. A caller supplies either one nonblank operating-system
@@ -4165,6 +5098,8 @@ The logical mapping from a tensor's multidimensional indices to positions in sto
 
 ### Logical splat
 
+A logical splat means the same typed scalar at every coordinate, such as an all-zero tensor. It describes repeated values without requiring a dense stored array of zeros.
+
 One exact typed immutable `ScalarValue` that applies to every logical coordinate of one graph
 value. The current compiler sidecar uses logical splats only for fixed structural graph inputs.
 Equality preserves the scalar data type and exact represented bits, so floating signed zeros and
@@ -4187,6 +5122,8 @@ at least one backend-created initialized representation; Runtime carries only th
 fact, not the scalar.
 
 ### Logical memory plan
+
+The logical memory plan records which values cross or remain within computation regions. It states data relationships before physical storage is chosen, rather than assigning an address to every graph value.
 
 The implemented public `LogicalMemoryPlan` is an immutable ordered snapshot of distinct
 per-value `LogicalMemoryRequirement` records. A current generated requirement retains one graph
@@ -4227,6 +5164,8 @@ Translation from a planned, backend-neutral graph region into a backend-specific
 
 ### Loss
 
+A loss measures disagreement between a model’s prediction and a supplied target. A training **objective** is the scalar quantity chosen for differentiation and minimization; it may be a reduced loss plus other explicit terms. For prediction `3` and target `5`, a squared-error loss is `4`. The target is reference data, not the parameter being optimized. A differentiation target is instead a Tensor whose derivative is requested; it need not be the training target supplied to the loss.
+
 A backend-independent computation meaning that compares model predictions with target values and
 produces one or more error values. A **prediction** is the model-produced operand being assessed;
 a **target** is the caller-supplied reference operand it is compared with. The current implemented
@@ -4236,6 +5175,8 @@ metadata, not a gradient rule, optimizer, training session, compiler pass, backe
 executed value.
 
 ### Loss reduction
+
+Loss reduction chooses whether to keep individual errors, sum them, or average them. The mean’s divisor belongs to the particular loss family; it is not always the number of logits or classes.
 
 The explicit policy that maps a loss's logical error domain to its result Shape. The current
 `LossReduction` vocabulary contains `NONE`, which retains every error coordinate; `SUM`, which
@@ -4279,6 +5220,8 @@ result's distinct declared buffer according to both resolved layouts. It allocat
 workspace and creates no shared alias. See [CPU affine boundary copy](#cpu-affine-boundary-copy).
 
 ### Linear projection
+
+A linear projection mixes the final input features into a requested number of output features using weights and optional bias. With three input features and two output features, the conventional weight table has two rows and three columns.
 
 A convenience that maps an input's final **in-features** axis to an **out-features** axis using a
 conventional rank-two weight with Shape `[outFeatures, inFeatures]`. The implemented
@@ -4340,6 +5283,8 @@ evaluation or suppressing the intermediate quotient. The BOOL mask receives no c
 
 ### Mean-squared error / MSE
 
+Mean-squared error (MSE) measures squared differences between predictions and matching targets. For predictions `[2, 4]` and targets `[1, 6]`, errors are `[1, 4]`, their sum is `5`, and their mean is `2.5`.
+
 The implemented loss meaning represented by `LossKind.MEAN_SQUARED_ERROR` and
 `MeanSquaredErrorAttrs(reduction)`. For prediction `p_i` and exact-shape target `t_i`, each logical
 error is `(p_i - t_i)^2`. `NONE` preserves the exact prediction Shape, while `SUM` and `MEAN`
@@ -4356,6 +5301,8 @@ restored through logical Tensor counts before exact descriptor normalization. Se
 [Mean-squared-error loss expressions](reference/tensor/statistics-losses.md#mean-squared-error-loss-expressions).
 
 ### Matrix multiplication / `MATMUL`
+
+Matrix multiplication combines rows of the left operand with columns of the right by adding pairwise products. For row `[2, 3]` and column `[4, 5]`, the result is `2 * 4 + 3 * 5 = 23`; this differs from element-by-element multiplication.
 
 The implemented backend-independent operation that contracts the final left axis with the right
 vector axis or the penultimate right matrix axis, broadcasts leading batch dimensions
@@ -4396,6 +5343,8 @@ and
 
 ### Buffer slot / `BufferSlot`
 
+A buffer slot is a prepared plan’s name for a place holding a logical value. It is not an address or an allocated buffer; the same numeric slot name in a different plan does not identify the same place.
+
 The implemented public runtime record that carries one non-negative `long` identity for a buffer
 position within one owning prepared-memory-plan context. Zero through `Long.MAX_VALUE` are valid,
 with no reserved sentinel. The record stores no plan reference, so its ordinary equality and
@@ -4412,6 +5361,8 @@ Prepare assignment is current; physical binding and scheduled execution remain p
 
 ### Buffer validity
 
+Buffer validity says whether a particular resident copy currently contains the correct logical value. Memory can exist but be invalid, for example after allocation and before the first successful write.
+
 The implemented per-run boolean fact stating whether one structurally resident physical buffer
 representation currently contains its logical slot value. Each dense buffer/representation
 position in an open [`RunState`](#run-state--runstate) has one independent bit. Borrowed caller
@@ -4427,6 +5378,8 @@ model Tensor state, or a physical representation capability.
 
 ### Workspace slot / `WorkspaceSlot`
 
+A workspace slot names temporary scratch space used by execution. Unlike a buffer slot, it does not represent a transferable logical graph value even when both slot numbers happen to match.
+
 The implemented public Runtime record that carries one non-negative `long` identity for a
 workspace position within one owning prepared-memory-plan context. Zero through
 `Long.MAX_VALUE` are valid, with no reserved sentinel. It is nominally distinct from
@@ -4440,6 +5393,8 @@ device, resource, residency fact, lifetime, or per-run binding. Construction per
 allocation or resource operation.
 
 ### Prepared memory plan / `PreparedMemoryPlan`
+
+The prepared memory plan states how much memory each buffer or scratch position requires and its alignment. It is a reusable size declaration, not ownership of the memory that a run later creates.
 
 The implemented public Runtime record that describes final ordered reusable slot geometry for one
 prepared plan. Its immutable `buffers` and `workspaces` list snapshots contain
@@ -4475,6 +5430,8 @@ owns signatures and failures.
 
 ### Prepared representation plan / `PreparedRepresentationPlan`
 
+The representation plan says where each run’s storage comes from: borrowed caller input, newly created output, initialized buffer, or scratch space. It keeps the reusable creation recipe separate from the actual objects created for one run.
+
 The implemented immutable reusable Runtime description of how every dense buffer representation
 and workspace for one exact `PreparedMemoryPlan` originates. Each non-empty buffer-position list
 contains `CallerInput` occurrences, `CreatedBuffer(BufferCreator)` values,
@@ -4505,6 +5462,8 @@ caller-before-creation validation, reverse rollback and ownership do not change.
 
 ### Memory slot
 
+A memory slot is an indirect name used by prepared work instead of embedding a raw address. The slot’s size belongs to the reusable plan; its actual physical storage belongs to a particular run.
+
 An architecture-level prepared-plan position through which a schedule can refer to reusable
 storage without embedding a raw address. Current
 [`BufferSlot`](#buffer-slot--bufferslot) and
@@ -4518,6 +5477,8 @@ identity is not itself a physical execution resource and must not be confused wi
 [`ValueId`](#valueid) or an analysis requirement ID.
 
 ### Physical runtime representation
+
+A physical representation is the actual memory-backed object used to hold a buffer or scratch space. One logical buffer may need several explicit representations, such as host and device copies, with separate validity facts.
 
 A concrete backend-owned implementation of one buffer or workspace in host, device, or native
 storage. Current Runtime defines the distinct nominal `BufferRepresentation` and
@@ -4551,6 +5512,8 @@ concrete-backend switch is part of the shared contract.
 
 ### CPU buffer argument
 
+A CPU buffer argument is the already-checked direct memory access passed to selected CPU code. It borrows the underlying array or memory segment rather than taking responsibility for closing it.
+
 The implemented backend-private, non-owning direct access form selected when a CPU
 `PreparedExecutable` cold-binds a physical buffer representation. An explicitly prepared array
 form requires an observable primitive heap carrier matching the logical data type and retains the
@@ -4567,9 +5530,13 @@ ordered invocation.
 
 ### `NoOperationAttrs`
 
+Some operations have no extra settings. This explicit singleton means “there are no operation parameters”, unlike a missing or accidentally null attributes object.
+
 The implemented canonical immutable attribute value for an operation kind that has no semantic parameters. It is a single-value enum whose only value is `NoOperationAttrs.INSTANCE`. The singleton makes “no parameters” explicit and non-null rather than representing absence with `null`, an empty map, or a newly allocated placeholder. See [`OperationAttrs`](#operationattrs).
 
 ### Normalized axis
+
+Axis normalization translates a caller’s negative-from-the-end axis into a non-negative axis position. For rank three, `-1` becomes `2`; this is different from numerically normalizing tensor values.
 
 A non-negative axis index in the range established by a tensor's rank. The implemented
 `Shape.normalizeAxis` method accepts a caller-facing positive or negative axis and returns this
@@ -4632,6 +5599,8 @@ A validated non-negative identifier for a node occurrence within one owning grap
 
 ### Operation capability query / `OperationCapabilityQuery`
 
+An operation capability query describes one exact requested operation with its input/output metadata. The backend needs those details because supporting an operation name does not imply supporting every type, shape, or layout.
+
 The implemented immutable planning question for one structurally valid operation occurrence. It
 retains the exact backend-independent [`Operation`](#operation) reference and immutable ordered
 membership snapshots of the exact input and output
@@ -4679,6 +5648,8 @@ kernel, execute computation, own runtime state, or identify a graph occurrence; 
 [`CompiledNode`](#node) represents that occurrence.
 
 ### `OperationAttrs`
+
+Operation attributes are typed settings that refine an operation, such as which axis to sum. They describe meaning, not a kernel implementation or a map of arbitrary tuning settings.
 
 The implemented zero-method marker contract for immutable, typed parameters that refine which
 computation an [`Operation`](#operation) describes. Implemented scalar-family values are
@@ -4732,6 +5703,8 @@ identifies the role of a value but does not enforce immutability at runtime.
 
 ### `OperationKind`
 
+An operation kind names the computation family, such as addition or reduction. The kind plus its attributes forms an operation; a particular use of that operation in a graph is a node.
+
 The implemented open typed discriminator that supplies the “which computation” part of an
 [`Operation`](#operation). `name()` provides stable diagnostic text. `signatures()` returns the
 family-owned immutable structural variants, and `signatureFor(attrs)` resolves one by exact
@@ -4749,6 +5722,8 @@ gradient use remains compiler-owned. Every kind still supplies its exact family-
 signatures.
 
 ### Operation signature
+
+An operation signature states which attributes and how many input/output occurrences a node may have. Counting inputs is different from counting tensor elements: one input Tensor can contain a million elements.
 
 The implemented immutable `OperationSignature` record describes one accepted structural variant
 of an operation kind. It stores the exact concrete `OperationAttrs` class and inclusive minimum
@@ -4960,6 +5935,8 @@ construct Tensors or define compiler, backend, or execution behavior.
 
 ### Padding
 
+Padding adds positions around existing logical data, filled with an explicit constant. Padding `[2, 3]` with one zero on each side produces `[0, 2, 3, 0]`; sequence-validity metadata is a separate concept.
+
 An implemented backend-independent constant-padding meaning represented by `PadKind.PAD` and
 `PadAttrs`. For each normalized axis position `i`, `before[i]` and `after[i]` give the
 non-negative numbers of constant-filled logical positions requested before and after the complete
@@ -5005,6 +5982,8 @@ and attributes](reference/tensor/operation-geometry.md#axis-transform-semantic-k
 
 ### Partition
 
+A partition groups consecutive graph work assigned to one backend owner. It is a logical responsibility region, not a thread, a device buffer, or one necessarily indivisible kernel.
+
 An implemented immutable compile-time recipe for one non-empty consecutive region of an owning
 compiled graph. The public `PlannedPartition(owner, nodeIds)` record stores one non-null
 [`BackendId`](#backend-identity--backendid) and one immutable, non-empty, ordered snapshot of
@@ -5031,6 +6010,8 @@ or planned.
 
 ### Partition scoring configuration / `PartitionScoringConfig`
 
+Partition scoring configuration can express a soft device-class preference after mandatory eligibility checks. A preference is not a guarantee and cannot override a required backend.
+
 The implemented immutable config record that retains one non-null
 `Optional<DeviceClass>` named `preferredDeviceClass`. An empty optional means only that no
 explicit coarse device-class preference was supplied; it promises no default, fallback, equal
@@ -5054,6 +6035,8 @@ memory recipes and their internal generators do not make this config value perfo
 
 ### Planning cost model / planning cost profile
 
+A planning cost model estimates which eligible backend owner is preferable before concrete routes are chosen. It must not interpret backend-private thread counts or kernel settings as if they were shared planning semantics.
+
 A **planning cost model** is backend-neutral compile-time estimation used to compare eligible
 `BackendId` owners. A **planning cost profile** is a possible compact immutable input to that
 model. Planning may interpret graph, operation, data-type, shape/size, transfer, materialization,
@@ -5066,6 +6049,8 @@ contract remains Draft rather than defining a global backend average prematurely
 
 ### Planning
 
+Planning decides which backend owns work and which logical values connect the resulting regions. It chooses responsibility, not the backend’s final machine instructions or memory allocation.
+
 The backend-neutral compile-time work that decides backend ownership, forms same-owner partitions,
 and derives logical memory or materialization requirements from graph facts, configuration, and
 declarative backend capabilities. Current public recipes cover capability questions, partitions,
@@ -5077,6 +6062,8 @@ scoring](architecture/partition-scoring.md).
 
 ### Prepare
 
+Prepare turns the compiled logical recipe into a reusable execution recipe. Shared coordination assigns resource positions while each backend chooses its own implementation; actual run-specific values arrive later.
+
 The lifecycle stage that turns immutable compile artifacts into reusable runtime-ready state.
 Shared Prepare projects partition-scoped facts, coordinates backend analysis, assigns stable
 buffer/workspace slots from exact declarations, invokes backend finalization against those slots,
@@ -5086,6 +6073,8 @@ memory plans, schedules, and `PreparedExecution`. See [Runtime, Prepare, and Bac
 Boundary](architecture/runtime-prepare-backend-boundary.md#the-staged-prepare-handoff).
 
 ### Prepare context: `PrepareContext`
+
+A Prepare context is the partition-scoped packet a backend receives for analysis. It exposes the relevant computation and logical requirements without handing that backend the whole compiler or a live run.
 
 The implemented public immutable projection that shared Prepare supplies for analysis of one
 `PlannedPartition`. Its sole node/topology component is the exact immutable
@@ -5130,6 +6119,8 @@ without shared interpretation.
 
 ### Partition DAG: `PartitionDag`
 
+A partition DAG is the dependency graph inside one partition; DAG means directed acyclic graph. An arrow runs from a producer to a consumer, and no arrow path loops back to its starting node.
+
 The implemented public immutable Prepare-owned directed acyclic graph (DAG) projection for
 exactly one `PlannedPartition`. It retains exact `CompiledNode` references in validated stable
 topological order and derives producer/output-port, consumer/input-port, and edge occurrences
@@ -5146,6 +6137,8 @@ policy.
 
 ### Opaque backend analysis roles
 
+Opaque analysis roles let shared Prepare carry backend-private plans without interpreting their fields. Typed envelopes preserve which collaboration the object belongs to, while the concrete backend retains the knowledge needed to use it.
+
 The two implemented method-free marker interfaces that keep a concrete backend's analysis
 boundary typed while hiding private fields from shared Prepare.
 `BackendAnalysisInputs` marks one immutable backend-owned input object carrying resolved target
@@ -5161,6 +6154,8 @@ immutable state.
 
 ### Preparation resource requirement
 
+A resource requirement declares exact buffer or scratch needs discovered during analysis. A declaration such as “this output needs 64 aligned bytes” does not allocate those bytes or decide their eventual address.
+
 The implemented sealed Prepare-owned declaration family for exact shared resource needs discovered
 during backend analysis. `PreparationResourceRequirement.Buffer` associates one non-null projected
 graph `ValueId` with an exact non-negative byte size and positive power-of-two byte alignment.
@@ -5174,6 +6169,8 @@ workspace requirement ID is backend scratch identity; neither is a Runtime slot,
 allocation, storage object, handle, lifetime interval, executable, or per-run binding.
 
 ### Backend partition analysis: `BackendPartitionAnalysis`
+
+Backend analysis returns a private implementation plan plus shared resource declarations. Shared Prepare can assign slots from the declarations without inspecting how the backend plans to calculate the result.
 
 The implemented immutable result of the first backend preparation stage. It retains one exact
 planned-partition reference, one exact backend-owned
@@ -5190,6 +6187,8 @@ constructing record cannot by itself prove which context produced it; the implem
 `PrepareContext.partition()` reference.
 
 ### Backend partition preparer / `BackendPartitionPreparer`
+
+A partition preparer is the backend collaboration that analyzes a partition’s context. Its typed input and result preserve the connection between that backend’s settings and its private plan.
 
 The implemented Prepare-owned generic collaboration through which one concrete backend analyzes a
 validated `PrepareContext`. Its input type extends `BackendAnalysisInputs`, and its result plan
@@ -5212,6 +6211,8 @@ matrices are described in the CPU and Metal backend guides.
 
 ### Preparation resource assignment
 
+Resource assignment pairs a declared need with a stable slot and plan position. It is the naming bridge between analysis and finalization, not a physical memory binding.
+
 The implemented sealed Prepare-owned association between one exact
 [`PreparationResourceRequirement`](#preparation-resource-requirement), one exact Runtime slot,
 and the dense list index of that slot's entry in a `PreparedMemoryPlan`. The `Buffer` variant uses
@@ -5225,6 +6226,8 @@ alignment, and gives each workspace declaration its own slot. This is conservati
 not aliasing, lifetime analysis, reuse, residency, or materialization.
 
 ### Backend partition finalization
+
+Finalization completes a backend executable after shared memory slots have been assigned. Resources acquired before a successful handoff must still be cleaned up if finalization fails.
 
 The implemented second backend preparation stage after shared slot assignment.
 `BackendPartitionFinalization<P>` retains one exact typed `BackendPartitionAnalysis<P>`, the exact
@@ -5259,6 +6262,8 @@ the analyzed topology. Its finalization result contains no persistent prepared r
 
 ### Prepared partition / `PreparedPartition`
 
+A prepared partition pairs the logical region with its finalized executable recipe. The pair itself does not own per-run memory or represent a schedule invocation.
+
 The implemented immutable Prepare-owned association between one exact `PlannedPartition` and one
 exact finalized `PreparedExecutable`. Backend ownership remains available from the partition and
 prepared-memory identity remains available from the executable, so the record duplicates neither
@@ -5267,6 +6272,8 @@ value. It owns no physical or per-run resource and is not a schedule step, `Prep
 
 ### Prepared buffer assignment / `PreparedBufferAssignment`
 
+A prepared buffer assignment maps one logical graph value to its prepared buffer position. It connects the compile-time name to a runtime-plan name without allocating storage.
+
 The implemented immutable Prepare-owned translation from one compile graph `ValueId` to the exact
 assigned Runtime `BufferSlot` and its non-negative dense index in
 `PreparedMemoryPlan.buffers()`. Complete-set assignment produces one value in first-declaration
@@ -5274,6 +6281,8 @@ order for every distinct declared buffer value. It is schedule-construction cont
 physical binding, representation, residency fact, or mutable runtime state.
 
 ### Graph preparation / `GraphPreparation`
+
+Graph preparation coordinates all partition analyses and finalizations into one reusable prepared execution. It validates the complete handoff rather than assuming individually valid pieces necessarily fit together.
 
 The implemented stateless public Prepare operation that consumes one exact `CompileArtifacts`,
 one typed positional `PartitionPreparation` per planned partition, and one explicit
@@ -5303,6 +6312,8 @@ aggregate; current Engine composition explicitly supplies the collaborators.
 
 ### Prepared schedule context / `PreparedScheduleContext`
 
+Prepared schedule context is the checked set of facts needed to order finalized work. It is supplied after resource assignment so an assembler can build a schedule without redoing backend analysis.
+
 The immutable Prepare-owned input to one `PreparedScheduleAssembler` after analysis, assignment,
 and finalization. It contains stable Model, Planning, Prepare, and Runtime facts only: planned
 partitions, graph values, bindable-source IDs, constants, ordered publication IDs, the exact
@@ -5315,6 +6326,8 @@ physical allocation, run-owned representation, or mutable run state. CPU and Met
 construct immutable Runtime schedule recipes.
 
 ### Producerless published-value resource / `ProducerlessPublishedValueResource`
+
+A producerless published value is an input or constant requested directly as a result, without an operation producing it. It still needs an explicit resource/publication path even though there is no graph node to prepare for that value.
 
 An immutable Prepare composition value for a caller or compile-time constant that is a graph input
 and requested publication without a producing or consuming graph node. It retains five components:
@@ -5340,6 +6353,8 @@ The resource is a declaration only: no allocation, acquisition, initialization, 
 producer, COPY, reverse Scan or publication bypass. Current nonempty-partition policy is unchanged.
 
 ### Prepared execution / `PreparedExecution`
+
+A prepared execution is the reusable root recipe and owner of resources that survive across runs. Each invocation still gets separate mutable run state; closing the prepared owner prevents new leases without invalidating already admitted work prematurely.
 
 The implemented final identity-bearing Runtime class forms the reusable prepared root from one
 exact `PreparedMemoryPlan`, one same-reference `PreparedSchedule`, and a private identity-unique
@@ -5374,6 +6389,8 @@ retrieved the delegate first arbitrates with close only through Runtime's unique
 
 ### Prepared resource / `PreparedResource`
 
+A prepared resource survives across invocations, such as a compiled native program. It is distinct from temporary scratch memory and has exactly one cleanup owner after successful handoff.
+
 An immutable reusable physical resource acquired during backend finalization and needed across
 multiple runs, such as a compiled native executable. Runtime owns only its nominal close contract
 and lifecycle orchestration. The concrete backend owns its native type and performs physical
@@ -5385,6 +6402,8 @@ mechanism. Runtime 0016 implements the nominal contract and owner lifecycle, and
 implements the transactional finalizer handoff.
 
 ### Metal prepared executable
+
+A Metal prepared executable is the reusable Metal-specific recipe for an assigned partition. Its support is occurrence-specific: accepting a construction in Model does not prove Metal can execute that combination of type, shape, layout, and attributes.
 
 The current Metal backend's package-private shape-specialized Runtime recipe for one complete
 maximal Metal-owned partition. Its exact domain admits seven-carrier movement,
@@ -5444,6 +6463,8 @@ concurrent sessions, close rejection, and run-owned output/workspace isolation a
 
 ### Prepared executable / `PreparedExecutable`
 
+A prepared executable describes which existing run buffers a computation reads and writes. Binding later resolves those selections to direct backend references; the reusable recipe does not store one run’s actual inputs.
+
 The implemented Runtime-owned abstract recipe boundary for one backend-prepared computation
 region. It retains one exact `PreparedMemoryPlan` reference and immutable private snapshots of
 ordered dense `BufferSelection` and `WorkspaceSelection` values plus one aligned `BufferAccess`
@@ -5470,6 +6491,8 @@ publication, result, or cleanup lifecycle.
 
 ### Prepared buffer transfer / `PreparedBufferTransfer`
 
+A prepared buffer transfer describes a copy between two already-created representations of the same logical buffer. It is not permission to allocate a destination or discover a route during execution.
+
 The implemented immutable Runtime recipe for one explicit transfer between two distinct,
 already-created representation positions of the same prepared buffer. It retains one exact
 `PreparedMemoryPlan`, one dense buffer index, and dense source and destination representation
@@ -5484,6 +6507,8 @@ schedule traversal, or publication. Transfer to an equivalent already-created de
 materialization; there is no second materialization recipe or schedule kind.
 
 ### Prepared publication / `PreparedPublication`
+
+A prepared publication names which physical representation will supply one result position. Binding finds that representation for a run; publication does not itself mean making a detached host copy.
 
 The implemented immutable Runtime recipe that names one already-created buffer representation as
 one ordered result position. It retains one exact `PreparedMemoryPlan` and three dense zero-based
@@ -5500,6 +6525,8 @@ conversion, allocation, backend call, or ownership transition. The recipe is reu
 bind concurrently to distinct states.
 
 ### Prepared schedule / `PreparedSchedule`
+
+A prepared schedule lists explicit work in execution order. The same executable recipe may occur more than once in the list; each occurrence is an action, not a new ownership claim.
 
 The implemented Runtime-owned immutable recipe that orders already-prepared work against one
 exact `PreparedMemoryPlan`. The schedule retains the plan by reference identity and an immutable
@@ -5529,6 +6556,8 @@ Transfer and publication steps only make their current recipes reachable.
 
 ### Bound invocation / `BoundInvocation`
 
+A bound invocation connects one reusable computation recipe to one run’s actual memory. Its direct references are established before execution, and it borrows rather than owns the run state.
+
 The implemented Runtime-owned abstract lifecycle guard for one backend invocation bound to one
 exact open [`RunState`](#run-state--runstate). A concrete backend subclass stores the compatible
 buffer and workspace representations directly in concrete typed fields established during cold
@@ -5543,6 +6572,8 @@ permitted, and backend `RuntimeException` or `Error` values propagate unchanged.
 not thread-safe and must not be executed concurrently or raced with state closure.
 
 ### Bound buffer transfer / `BoundBufferTransfer`
+
+A bound buffer transfer is a prepared copy attached to one run’s exact source and destination representations. It guards their validity while leaving storage ownership with the run or caller.
 
 The implemented Runtime-owned abstract validity guard for one backend transfer bound to one exact
 open [`RunState`](#run-state--runstate). Its backend subclass stores direct concrete source and
@@ -5560,6 +6591,8 @@ allocation, backend or route discovery, retry, invalidation, publication, or cle
 
 ### Bound publication / `BoundPublication`
 
+A bound publication is the one-run occurrence of exposing a chosen result. Two result positions may intentionally expose the same physical representation without becoming two owners of it.
+
 The implemented per-run one-shot publication occurrence created only by
 [`PreparedPublication.bind`](#prepared-publication--preparedpublication). It retains one exact
 `RunState`, prepared recipe, and directly resolved physical buffer representation. Distinct
@@ -5574,6 +6607,8 @@ lookup, backend callback, transfer, conversion, allocation, copy, fallback, or c
 must not race validity changes, execution, transfer, result construction, or closure.
 
 ### Producer / `TensorProducer`
+
+A Tensor producer records one expression-building occurrence and all its output descriptions. It is the shared origin of related outputs, not a running kernel or a physical allocation.
 
 Implemented immutable pre-capture identity for one public Tensor-expression occurrence. A
 `TensorProducer` retains one exact backend-independent [`Operation`](#operation), an immutable
@@ -5595,6 +6630,8 @@ runtime, or execution state. See [Expression producers and indexed
 provenance](reference/tensor/identity.md#expression-producers-and-indexed-provenance).
 
 ### Provenance
+
+Provenance records where a derived Tensor came from: which expression occurrence and which output position. It describes origin without executing the expression or copying its inputs.
 
 Implemented immutable association between one public [`Tensor`](#tensor) and one zero-based output
 of one exact [`TensorProducer`](#producer--tensorproducer). The two-component
@@ -5669,6 +6706,8 @@ identity, or graph output slot.
 
 ### Forward publication binding
 
+A forward publication binding connects a requested public Tensor identity to its final graph value. It says which logical result to return, not where its bytes are stored.
+
 The implemented immutable `ForwardPublicationBinding` record associates one
 [`TensorId`](#tensorid) with one graph-local [`ValueId`](#valueid). It is standalone Model data
 used for requested forward results by the current compiler-owned `PublicationPlan`, not a
@@ -5677,6 +6716,8 @@ particular graph, and it carries no public `Tensor`, gradient role, publication 
 storage, backend, or runtime state.
 
 ### Publication plan
+
+The publication plan records the ordered forward and gradient result roles requested from compilation. Repeated roles can refer to one graph value while remaining separate result positions.
 
 The current compiler-owned output-only graph context for ordered publication bindings.
 `PublicationPlan` retains the exact final `CompiledGraphModel` and immutable membership snapshots
@@ -5694,6 +6735,8 @@ runtime publication.
 
 ### Publication occurrence
 
+A publication occurrence is one position in the requested result list. Requesting the same value twice creates two result roles, not necessarily two physical copies.
+
 One ordered logical result role retained independently of the physical representation it selects.
 The ordinary Engine exposes a fresh `RunResult.Publication` object for every occurrence: requested
 forward outputs first, then first-order gradient targets. Forward occurrences carry the requested
@@ -5709,6 +6752,8 @@ occurrence object as a selector for explicit materialization; matching metadata 
 is not sufficient authority.
 
 ### Residency
+
+Residency says that a representation exists for a run; validity says whether its contents are current. An allocated but unwritten output can be resident and invalid at the same time.
 
 Runtime knowledge that an explicitly prepared physical representation exists and is bound to one
 run. The current foundation uses structural residency: every buffer and workspace representation
@@ -5730,6 +6775,8 @@ partitions, or choose kernels. See [Lifecycle](architecture/lifecycle.md#run-lif
 
 ### Prepared execution runner / `PreparedExecutionRunner`
 
+The prepared execution runner performs one synchronous invocation of a prepared recipe. It binds work to isolated run state and returns a result lease, rather than recompiling or choosing kernels during the run.
+
 The implemented public stateless Runtime orchestrator for one synchronous invocation of an
 immutable `PreparedExecution`. One call validates dense borrowed caller inputs, creates one
 isolated `RunState`, cold-binds every executable, transfer, and publication occurrence before the
@@ -5746,12 +6793,16 @@ synchronous and must not race its state or bound actions.
 
 ### Runtime profiling
 
+Runtime profiling records what actual execution did. It differs from autotuning, which compares candidates to choose settings; passive observation must not silently change the run being observed.
+
 Passive observation of actual prepared execution. `modules/runtime` owns the execution facts and
 later translates selected observations into typed `modules/trace` data-transfer objects. Runtime
 profiling does not compare tuning candidates, select or mutate settings, or feed hidden state back
 into the current run. Concrete runtime-profile payloads and emitters remain planned.
 
 ### Run result / `RunResult`
+
+A RunResult keeps one completed run’s underlying state alive until the result is closed. It is a lease over execution resources, not automatically a detached copy that outlives closure.
 
 The implemented closeable Runtime lease over one complete open [`RunState`](#run-state--runstate)
 after all dense ordered bound publication occurrences have completed. Construction requires every
@@ -5794,6 +6845,8 @@ owners.
 
 ### Host tensor value / `HostTensorValue`
 
+A host tensor value is a detached immutable result in a documented host byte format. It remains distinct from the source representation and the closeable run that produced it.
+
 The implemented ordinary Engine value returned by explicit materialization of one exact
 publication occurrence. It retains the exact final logical `DataType` and fully static `Shape`,
 checked element and byte counts, and private canonical dense row-major big-endian bytes. Each
@@ -5806,6 +6859,8 @@ Tensor, host-storage association, typed array, scalar decoder, persistence forma
 transfer request, training result, or cross-backend materialization contract.
 
 ### One-shot forward execution
+
+One-shot forward execution performs compile, prepare, run, and explicit result copying behind one convenience call. Its returned detached values do not leave the caller responsible for a hidden temporary RunResult.
 
 The four implemented ordinary `Engine.compute(...)` overloads that synchronously turn one output
 Tensor or an ordered non-empty output list into detached immutable `HostTensorValue` results.
@@ -5832,6 +6887,8 @@ publication copying; direct prepared-handle ownership remains available at the l
 
 ### One-shot scalar-objective backward execution
 
+One-shot backward execution evaluates a scalar objective and returns its gradients for an explicit target list. It is a convenience for obtaining detached values, not an optimizer update or mutable Tensor gradient lifecycle.
+
 The implemented ordinary
 `Engine.backward(objective, targets, maximumTotalBytes)` operation that synchronously returns one
 detached scalar objective plus immutable first gradients aligned with an explicit ordered target
@@ -5856,6 +6913,8 @@ bounded to its exact transfer domain, and pure zero-node compositions remain uns
 [Compile API](reference/compiler/entry-points.md#current-ordinary-and-advanced-engine-compile-boundaries).
 
 ### Run state / `RunState`
+
+RunState owns the mutable execution state for one complete invocation, even when several backends participate. Separate runs do not share their mutable buffer validity or representation bindings.
 
 The implemented public final lifecycle owner for physical representation bindings in one complete
 logical run. It spans all backend partitions in that run; it is not one state per backend or
@@ -5900,6 +6959,8 @@ validity and cleanup described above remain unchanged.
 
 ### Sample domain
 
+The sample domain counts the independent categorical predictions after the alternatives axis is removed. For two samples and three classes, there are two samples, not six, when averaging a dense categorical loss.
+
 For a class-axis loss, the sample domain is the coordinate space remaining after the class axis is
 removed. Its logical element count is the denominator for current dense categorical-cross-entropy
 `MEAN`. For index categorical cross entropy, the exact target Shape represents this domain and
@@ -5919,6 +6980,8 @@ dimensions](reference/tensor/shapes.md#shapes-and-dimensions) and [symbolic exte
 expressions](#symbolic-extent-expression).
 
 ### Symbolic extent expression
+
+A symbolic extent expression records an exact size formula without choosing a concrete size yet. For example, a dimension can depend on B through `B * 4`; knowing the formula is not the same as allocating storage for a particular B.
 
 An implemented immutable model value that retains a small exact formula or a constrained unknown
 for one Shape axis. `DimensionExpressions` is the only public construction boundary. It provides
@@ -5943,6 +7006,8 @@ operations, or add compiler, prepare, runtime, storage, or backend state. See [S
 expressions](reference/tensor/shapes.md#symbolic-extent-expressions).
 
 ### Scalar select
+
+Scalar select fixes one coordinate on an axis and removes that axis. Selecting row one of a matrix returns a row-shaped result; “scalar” describes the single index, not a promise that the entire result has one element.
 
 An implemented backend-independent scalar-index meaning represented by `SelectKind.SELECT` and
 `SelectAttrs(axis, index)`. The normalized zero-based `axis` identifies one existing source axis,
@@ -5980,6 +7045,8 @@ attributes](reference/tensor/operation-indexing.md#scalar-select-semantic-kind-a
 
 ### Sigmoid linear unit / SiLU
 
+Sigmoid linear unit (SiLU) is an activation that multiplies each input by its sigmoid gate, a smooth value between zero and one. It is a numerical function, not a training-mode toggle.
+
 A smooth floating activation with mathematical target `x * sigmoid(x)`, equivalently
 `x / (1 + exp(-x))`. Synaptik represents it as the parameterless first-class
 `UnaryElementwiseKind.SILU` semantic identity and exposes the canonical `Tensor.silu()` spelling;
@@ -5989,6 +7056,8 @@ Current Tensor construction records type-, Shape-, eligibility-, and provenance 
 executing the function or defining compiler decomposition, gradients, or backend algorithms.
 
 ### Slice
+
+A slice selects coordinate ranges without selecting arbitrary per-position indices. A half-open range includes its start and excludes its end; a signed step can request reverse logical order.
 
 An implemented backend-independent logical selection represented by `SliceKind.SLICE` with
 `SliceAttrs`. The attributes use four equal-size parallel lists. Entry `i` selects the half-open
@@ -6041,6 +7110,8 @@ attributes](reference/tensor/operation-geometry.md#slice-semantic-kind-and-norma
 
 ### Slice Update
 
+Slice Update returns a new base-shaped value with a selected region replaced. It is functional replacement, not an instruction to mutate the caller’s original base storage.
+
 An implemented backend-independent functional replacement represented by
 `SliceKind.SLICE_UPDATE` with ordered inputs `[base, update]`. With `SliceAttrs`, entry `i` maps
 update coordinate `k` to base coordinate `normalizedStart[i] + k * steps[i]` on one distinct
@@ -6080,6 +7151,8 @@ are separate current CPU portable families.
 
 ### Target-relative crop
 
+A target-relative crop describes a region by its size and the amount before it on each axis. For a length-ten axis, target length three with prefix two identifies positions two, three, and four.
+
 An implemented target-relative region represented by `CropToShapeAttrs(targetShape, prefixShape)`.
 For `SliceKind.SLICE`, the target Shape is the exact extraction result Shape. For
 `SliceKind.SLICE_UPDATE`, it is the exact update-region Shape and the result retains the base
@@ -6101,6 +7174,8 @@ form. See
 expressions](reference/tensor/slicing.md#slice-update-and-target-relative-crop-expressions).
 
 ### Softmax / log-softmax
+
+Softmax turns a row of scores into non-negative weights totaling one in ordinary finite real arithmetic. Log-softmax returns logarithms of those weights directly, which helps avoid forming tiny probabilities only to take their logarithm afterward.
 
 Two implemented, shape-preserving normalization meanings represented by `SoftmaxKind.SOFTMAX`
 and `SoftmaxKind.LOG_SOFTMAX`. Both pair with `SoftmaxAttrs`, which carries one already normalized
@@ -6156,6 +7231,8 @@ cross-backend semantic or bitwise promises.
 
 ### Layer normalization
 
+Layer normalization centers and rescales each selected trailing feature slice independently. It uses the values within that slice, not a dataset-wide stored average or a statistics pass over unrelated samples.
+
 Implemented shape-preserving normalization that standardizes every non-empty trailing slice by
 subtracting its mean and dividing by `sqrt(populationVariance + epsilon)`. A
 [`normalized Shape`](#normalized-shape) identifies the trailing axes. The no-affine form records
@@ -6187,6 +7264,8 @@ materialization are not recognized by this route.
 
 ### RMS normalization
 
+Root mean square (RMS) normalization rescales a slice using the square root of its average squared value. Unlike layer normalization, it does not first subtract the mean.
+
 Implemented shape-preserving root-mean-square normalization that divides every value in a
 non-empty trailing slice by `sqrt(uncenteredMeanSquare + epsilon)`. It does not center values,
 calculate variance, apply a correction, or accept bias. The no-scale form records `[input]`; the
@@ -6210,6 +7289,8 @@ not add a portable bitwise promise, saved statistics, fusion, vector/native exec
 Shape support, or materialization.
 
 ### Batch normalization / batch-normalization inference and training
+
+Batch normalization centers and rescales channel values using statistics whose source depends on mode. Inference consumes supplied running statistics; training computes batch statistics and describes a separate running-statistic transition.
 
 Batch normalization uses statistics associated with a channel to center and scale values. The
 implemented `BatchNormKind.BATCH_NORM_INFERENCE` meaning is one stateless five-input occurrence
@@ -6280,6 +7361,8 @@ See [batch-normalization inference](reference/tensor/normalization.md#batch-norm
 
 ### Normalized Shape
 
+A normalized Shape identifies the trailing feature block treated as one normalization slice. It names a group of axes and sizes, not an already-normalized tensor or one integer axis index.
+
 The exact positive-rank `Shape` that identifies the trailing axes normalized by layer or RMS
 normalization. If input rank is `R` and normalized rank is `K`, normalized axis `j` corresponds to
 input axis `R - K + j`. Known static extents must match; unresolved equality may be deferred when
@@ -6288,12 +7371,16 @@ axis](#normalized-axis), which is one non-negative integer axis position.
 
 ### Population variance
 
+Population variance measures average squared distance from the mean. For `[1, 3]`, the mean is `2` and the population variance is `(1 + 1) / 2 = 1`; it is not the average squared input value.
+
 Variance with correction zero: the sum of squared deviations from the mean is divided by the
 population count `N`, not `N - 1`. Current layer normalization uses population variance and adds
 epsilon inside the denominator square root. The term describes mathematical semantics, not a
 reduction traversal or backend algorithm.
 
 ### Uncentered mean square
+
+Uncentered mean square measures average squared size without subtracting a mean. For `[1, 3]`, it is `(1 + 9) / 2 = 5`, whereas their population variance is `1`.
 
 The sum of squared values divided by the population count `N`, without first subtracting a mean:
 `sum_i(x_i * x_i) / N`. Current RMS normalization uses this quantity instead of variance and has
@@ -6302,12 +7389,16 @@ order or a backend algorithm.
 
 ### Root mean square
 
+Root mean square (RMS) is a size measure that squares values, averages them, then takes the square root. For `[3, 3]` it is `3`, although the standard deviation is zero because both values are equal.
+
 The positive square root of an uncentered mean square. Current RMS normalization adds epsilon to
 the mean square before taking that root, then divides each input value by the result. This meaning
 is distinct from standard deviation because the input is not centered and variance is not
 calculated.
 
 ### Epsilon
+
+Epsilon keeps a normalization denominator away from zero by adding an explicit small positive quantity. It is part of the operation’s formula, not a general test tolerance or an unspecified machine-precision constant.
 
 A small positive value added to a denominator-related quantity to state a numerical semantic
 boundary. In current layer and RMS normalization it is an exact typed `ScalarValue`, must be
@@ -6321,12 +7412,16 @@ a Tensor input or a default hidden constant.
 
 ### Affine transform
 
+An affine transform scales and shifts values: for input `3`, scale `2`, and bias `1`, the result is `7`. Unlike a general nonlinear activation, this elementwise transformation is exactly multiplication followed by addition.
+
 An elementwise scale followed by bias: `standardized * scale + bias`. Current affine layer
 normalization requires both explicit operands, each with Shape exactly equal to the normalized
 Shape. Both batch-normalization forms also require both explicit operands, but each is an exact
 rank-one per-channel vector. Neither contract infers or initializes parameters.
 
 ### Accumulator type
+
+An accumulator type is the format used for intermediate totals. Adding many low-precision values in FLOAT32 before rounding the final result can preserve information that rounding after every low-precision addition would lose.
 
 The floating format in which a semantic reduction such as a sum, mean, or variance is accumulated
 before conversion to the result format. It can differ from result type: current BFLOAT16 layer
@@ -6343,6 +7438,8 @@ or traversal.
 
 ### Saved statistic
 
+A saved statistic is a forward summary retained because later derivative construction needs it. Saving a mean avoids recomputing that same summary; whether a logical saved value needs physical storage is a separate execution question.
+
 An intermediate statistic retained for a later transformation, commonly a mean or inverse
 standard deviation retained for backward construction. Current public layer and RMS normalization
 and batch-normalization inference create no saved-statistic output. Batch-normalization training
@@ -6358,6 +7455,8 @@ independent cotangent root; materialization and runtime lifetime remain future c
 The minimum count of storage elements needed to include every index referenced by a resolved layout. For non-empty shapes it is the greatest referenced element index plus one; for shapes with a zero-sized dimension it is zero. The span includes a storage offset and is not necessarily equal to the logical element count.
 
 ### Reshape and expand semantics
+
+Reshape changes coordinate grouping while preserving element count; expand repeats compatible size-one axes. Turning six values into shape `[2, 3]` is a reshape, while repeating a shape `[1, 3]` row toward `[2, 3]` is expansion.
 
 Two implemented one-input target-shape meanings represented by `ShapeTransformKind.RESHAPE` and
 `ShapeTransformKind.EXPAND`. Both pair with `TargetShapeAttrs`, which retains one exact non-null
@@ -6412,6 +7511,8 @@ expressions](reference/tensor/reshape-expand.md#expand-expressions).
 
 ### Tensor composition
 
+Tensor composition joins existing tensors: concatenation extends an existing axis, while stacking inserts a new axis. Two length-three vectors concatenate to length six or stack into shape `[2, 3]`.
+
 The implemented backend-independent vocabulary for joining tensors. `TensorCompositionKind`
 contains exactly `CONCAT` and `STACK`. CONCAT joins ordered non-empty inputs along an existing
 axis and preserves rank; STACK joins same-shaped inputs along a newly inserted axis and increases
@@ -6429,6 +7530,8 @@ ordered symbolic input prefix and selects the corresponding inserted-axis coordi
 supported floating STACK input. Repeated positions remain repeated contributions.
 
 ### Tensor
+
+A tensor is a collection of values addressed by zero or more coordinates, together with a type and shape. In Synaptik the public Tensor can also describe an unevaluated expression: constructing `a.add(b)` records an addition request rather than immediately producing stored sums.
 
 The implemented public model object for stable tensor metadata and optional host-visible state.
 The current final `Tensor` retains one exact immutable [`TensorId`](#tensorid), one exact
@@ -6594,6 +7697,8 @@ state](reference/tensor/identity.md#public-tensor-state).
 
 ### Tensor factory
 
+A Tensor factory creates the public Tensor wrapper from its descriptor and, optionally, attaches or allocates host storage. Creating metadata and allocating backing elements are separate choices with different failure effects.
+
 The implemented public static `TensorFactory` creates a fresh [`Tensor`](#tensor) from a completed
 [`TensorDescriptor`](#tensor-descriptor), with optional diagnostic label text and optional
 existing borrowed [host storage](#host-storage). It is the public construction boundary while the
@@ -6656,6 +7761,8 @@ mechanic is absent from production source, generated production Javadoc, and the
 inventory.
 
 ### Tensor random initialization
+
+Random initialization eagerly fills a fresh leaf tensor from an explicit caller-supplied random generator. This is different from an unevaluated random operation that advances explicit graph RNG state during execution.
 
 The public final stateless `TensorRandoms` namespace creates eager provenance-free leaf tensors
 from one explicit caller-owned `RandomGenerator`. It retains no source or result and gives the
@@ -6727,6 +7834,8 @@ dropout contract.
 
 ### Tensor factory allocation and failure effects
 
+Factory failures can still consume an opaque Tensor identifier once allocation has been attempted. Gaps in ID numbers are therefore expected and do not count successful tensors or completed calls.
+
 For every attempted construction that reaches identifier allocation, the factory issues one
 non-negative [`TensorId`](#tensorid) unique among its allocations in the current Java virtual
 machine (JVM), including concurrent calls. Numeric values are opaque: semantic construction
@@ -6796,6 +7905,8 @@ calls without rollback.
 
 ### Tensor descriptor
 
+A Tensor descriptor is its immutable specification: element type, logical shape, layout knowledge, and gradient eligibility. It describes a Tensor without being the Tensor’s identity or owning its stored values.
+
 The implemented immutable combination of one non-null data type, one non-null shape, an explicit
 resolved-or-unresolved layout state, and a `requiresGrad` flag. A present
 `Optional<LayoutDescriptor>` contains resolved numeric geometry; `Optional.empty()` means geometry
@@ -6822,6 +7933,8 @@ tensor objects remain unequal even when their IDs compare equal. An implemented
 IDs on the tensor. See [Identifiers](reference/tensor/identifiers.md#typed-identifiers).
 
 ### Tiling
+
+Tiling repeats the whole input pattern. Tiling `[1, 2]` three times gives `[1, 2, 1, 2, 1, 2]`, not `[1, 1, 1, 2, 2, 2]`.
 
 An implemented backend-independent complete-pattern repetition meaning represented by
 `TileKind.TILE` and `TileAttrs`. Entry `repeats[i]` is the strictly positive number of times the
@@ -6858,6 +7971,8 @@ See [Tracing](architecture/tracing.md).
 
 ### Metal trace observer / `MetalTraceObserver`
 
+A Metal trace observer receives diagnostic events through an explicit caller-supplied callback. Observing execution is separate from owning the integration or closing its native resources.
+
 The implemented public caller-owned callback for one explicitly traced
 `MetalBackendIntegration`. Its sole abstract method accepts
 `TraceEvent<? extends TracePayload>`. Metal retains but never closes the observer, and callbacks
@@ -6880,6 +7995,8 @@ fingerprint, thread identity, exception, free-form string, or map.
 
 ### Trace event envelope
 
+A trace event envelope supplies the common labels around one diagnostic payload: identity, lifecycle phase, severity/detail level, and a clock reading. The payload supplies the particular fact being reported.
+
 The implemented generic `TraceEvent<T extends TracePayload>` record that carries one non-null
 producer-assigned [`TraceEventId`](#trace-event-identity--traceeventid), one non-null lifecycle
 [`TracePhase`](#trace-phase--tracephase), one non-null [`TraceLevel`](#trace-level--tracelevel), a
@@ -6891,6 +8008,8 @@ reads no clock, and provides no serialization, filtering, storage, sink, or emis
 
 ### Trace event identity / `TraceEventId`
 
+A trace event identity distinguishes diagnostic events within one producer’s stream. Event number zero from two different streams need not name the same event.
+
 The implemented non-negative `long` identity for one diagnostic event within a
 producer-defined trace stream. The producer assigns the value and defines its uniqueness domain;
 zero is valid, no sentinel is reserved, and the trace module provides no allocator or global
@@ -6898,11 +8017,15 @@ uniqueness guarantee.
 
 ### Trace level / `TraceLevel`
 
+A trace level classifies how detailed or serious an event is. The label alone does not choose a logging destination or decide whether an operation should fail.
+
 The implemented diagnostic classification with the exact detail-to-severity order `TRACE`,
 `DEBUG`, `INFO`, `WARN`, and `ERROR`. A level classifies an event but defines no filtering
 threshold, sink behavior, logging integration, failure response, or process-exit policy.
 
 ### Trace payload / `TracePayload`
+
+A trace payload is the typed body of an event. It reports facts using diagnostic data structures rather than retaining the compiler or backend objects that produced them.
 
 The implemented open method-free marker for a typed diagnostic DTO carried by a
 [`TraceEvent`](#trace-event-envelope). Implementations are required to be immutable and to
@@ -6911,6 +8034,8 @@ at runtime. `BackendPreparationOutcome` and `BackendInvocationOutcome` are the f
 implementations; broader compile, prepare, run, and backend payload families remain planned.
 
 ### Trace-local correlation identifier
+
+A correlation identifier lets related diagnostic events be matched without exposing the producer’s internal object identity. Its meaning is local to the documented trace stream, not globally unique across processes.
 
 An immutable trace-owned value used to relate diagnostic facts without storing or importing a
 producer-domain identity. The producer defines the trace stream or correlation domain, assigns
@@ -6927,12 +8052,16 @@ process-wide or cross-stream guarantee. Implemented domains are
 
 ### Trace node correlation identity / `TraceNodeId`
 
+A trace node correlation labels one computation occurrence for diagnostics. It must not be confused with the data that computation produces or a graph’s own NodeId.
+
 The implemented non-negative one-`long` trace-local identity for one computation occurrence. It
 does not identify operation semantics, an output value, a producer object, or a runtime unit.
 Zero is valid, no sentinel is reserved, and ordinary record equality applies only to another
 `TraceNodeId` with the same value.
 
 ### Trace value correlation identity / `TraceValueId`
+
+A trace value correlation labels logical data in diagnostic events. It is a different identifier category from the computation producing that data and from its physical memory.
 
 The implemented non-negative one-`long` trace-local identity for logical graph data. It is
 nominally distinct from node and public-Tensor correlations and does not identify storage, a
@@ -6941,6 +8070,8 @@ applies only within the `TraceValueId` domain.
 
 ### Trace Tensor correlation identity / `TraceTensorId`
 
+A trace Tensor correlation labels a public Tensor for diagnostic matching. It is not the Tensor’s storage address or a guarantee that its bytes remain alive.
+
 The implemented non-negative one-`long` trace-local identity for public Tensor state. It is
 nominally distinct from graph node and logical-value correlations and does not identify a storage
 address, device allocation, or runtime residency. Zero is valid, no sentinel is reserved, and
@@ -6948,11 +8079,15 @@ ordinary record equality applies only within the `TraceTensorId` domain.
 
 ### Trace backend correlation identity / `TraceBackendId`
 
+A trace backend correlation labels a backend inside a diagnostic stream. Its numeric value is not a backend name or a handle that can execute work.
+
 The implemented non-negative one-`long` trace-local identity for one backend within a
 producer-defined trace stream. It is not a backend name, global registry key, configuration, or
 implementation object. Zero is valid and no sentinel is reserved.
 
 ### Trace device correlation identity / `TraceDeviceId`
+
+A trace device correlation labels a device for diagnostics without revealing its producer-side device token. Equal numbers in another stream need not describe the same hardware.
 
 The implemented non-negative one-`long` trace-local identity for one device within a
 producer-defined trace stream. It contains no producer device token or capability claim and is
@@ -6960,17 +8095,23 @@ nominally distinct from backend and prepared-unit correlations.
 
 ### Trace prepared-unit correlation identity / `TracePreparedUnitId`
 
+A trace prepared-unit correlation labels a reusable prepared unit. Several invocations can refer to that one unit while each invocation receives its own correlation.
+
 The implemented non-negative one-`long` trace-local identity for one finalized backend prepared
 unit. It contains no executable, route object, resource, or backend handle and is nominally
 distinct from an invocation.
 
 ### Trace invocation correlation identity / `TraceInvocationId`
 
+A trace invocation correlation labels one execution occurrence of a prepared unit. It distinguishes calls, not their reusable program or the thread that happens to execute them.
+
 The implemented non-negative one-`long` trace-local identity for one invocation of a prepared
 unit. The producing stream owns allocation and uniqueness; the value carries no timing, ordering,
 thread, or process-wide uniqueness claim.
 
 ### Trace backend outcome payloads
+
+Backend outcome payloads report whether preparation or invocation succeeded and the relevant diagnostic correlations. They are structured reports, not live resources or a general-purpose map of backend internals.
 
 The implemented immutable `BackendPreparationOutcome` and `BackendInvocationOutcome` records.
 The preparation payload correlates a backend, device, and prepared unit with final outcome,
@@ -6981,6 +8122,8 @@ generic map, exception, path, pointer, handle, tensor value, shape, or byte exte
 
 ### Trace native status / `TraceNativeStatus`
 
+Native status pairs the exact code returned by native work with a neutral diagnostic classification. An unknown nonzero code remains a failure classification rather than being silently treated as success.
+
 An implemented pair of one neutral `TraceNativeStatusKind` and the exact signed native status code
 returned in its backend stream. Kind `SUCCESS` is valid exactly with code `0`; every nonzero code
 uses a non-success kind, including `UNKNOWN` for an unrecognized value. Trace defines no global
@@ -6988,6 +8131,8 @@ numeric-code mapping. A successful backend outcome requires present native succe
 outcome permits empty native status or present non-success.
 
 ### Trace backend outcome vocabulary
+
+Outcome vocabulary fixes the diagnostic labels available to producers. “Not queried” means no cache lookup occurred; it does not mean a lookup occurred and missed.
 
 The closed neutral classifications used by the first backend outcome payloads:
 `TraceOutcomeStatus` is exactly `SUCCEEDED` or `FAILED`; `TraceRouteKind` is exactly `CUSTOM_KERNEL` or
@@ -6997,6 +8142,8 @@ describe the current mechanisms, not a universal backend registry.
 
 ### Trace phase / `TracePhase`
 
+A trace phase states which lifecycle stage produced a diagnostic fact. Backend activity uses compile, prepare, or run as appropriate; “backend” is not a fourth lifecycle phase.
+
 The implemented lifecycle classification with exactly `COMPILE`, `PREPARE`, and `RUN`.
 `COMPILE` covers capture through logical planning, `PREPARE` covers backend preparation and
 executable-state construction, and `RUN` covers invocation and execution activity. Backend is a
@@ -7005,9 +8152,13 @@ which it occurs.
 
 ### Training graph
 
+A training graph includes output calculation and derivative calculation. Its name does not imply that current graphs also contain optimizer-update operations; parameter updates have their own owner.
+
 The compile-time computation used for a training-capable mode. It contains the forward computation and backward gradient computation, and a later architecture version may also represent optimizer updates as graph operations. It remains compile-time graph state; backends only prepare and execute their assigned regions. See [Training graph](architecture/training-graph.md).
 
 ### Native parameter copy / `TrainingParameterStorage`
+
+A native parameter copy explicitly moves current host parameter bytes into newly allocated native host storage before a session opens. The caller keeps that destination memory alive; opening a session does not silently perform this move.
 
 An explicit pre-session Training operation that copies every generic live source parameter's
 represented bytes from current heap or native host storage into fresh caller-owned shareable
@@ -7017,6 +8168,8 @@ keeps the destination Arena alive through session close. It is not a backend tra
 implicit behavior of `TrainingSession.open`. See [Training API](reference/training/parameters.md#explicit-native-parameter-copy).
 
 ### Live parameter source / `TrainingParameters`
+
+A live parameter source exposes the current named parameter membership of an owner. Its membership check can reject structural changes without freezing the parameter bytes or preventing an explicit storage replacement.
 
 A caller-owned ordered admission boundary for Training, independent of NN. `entries()` returns
 immutable path/exact-Tensor membership; `validateUnchanged()` re-reads the live owner, not merely
@@ -7028,6 +8181,8 @@ See [generic admission](reference/training/parameters.md#generic-live-parameter-
 
 ### Parameter group / `ParameterGroup`
 
+A parameter group assigns an optimizer configuration to an ordered subset of named parameters. For example, one layer’s weights can use a different learning rate without creating a second training session or step counter.
+
 An immutable ordered list of distinct stable live-source parameter paths with one SGD, Adam,
 or AdamW configuration.
 Paths come from `TrainingParameters.entries()` (NN adapters use recursive Module paths). One Training session may assign disjoint
@@ -7036,6 +8191,8 @@ in exact Training-state restore compatibility; groups do not create separate cou
 gradient targets. See [Training API](reference/training/sessions.md#session-construction-and-input-mapping).
 
 ### Training session / `TrainingSession`
+
+A TrainingSession reuses one prepared objective/gradient calculation and applies optimizer updates to a stable parameter set. It owns session state, but borrows the Engine and caller storage instead of taking over their lifetimes.
 
 The implemented public Training owner for one scalar objective, one stable generic live parameter
 set, one immutable default optimizer configuration and optional ordered parameter groups, one
@@ -7061,6 +8218,8 @@ or durable checkpoint.
 
 ### Exact training continuation
 
+Exact training continuation means restoring everything that affects the next training step, not only the learned weights. Optimizer state, model buffers, random state, and the caller’s next input can all matter; the claim below is conditional, not a current universal resume API.
+
 A conditional whole-program recovery claim: after a successful-run boundary, the next caller-
 selected input and every state affecting its computation are restored on the same admitted route.
 `TrainingState` alone restores detached session state; NN buffers, relevant local modes, and
@@ -7079,6 +8238,8 @@ devices or execution routes. See the
 
 ### Adaptive optimizer / `Adam`, `AdamW`
 
+Adam (adaptive moment estimation) and AdamW (Adam with decoupled weight decay) use moving gradient summaries to adapt update sizes. Their first moment summarizes gradients and their second summarizes squared gradients; these are optimizer state, not new model parameters.
+
 An optimizer that tracks first and second moments of each parameter's gradient and corrects
 their startup bias using the one-based global optimizer step. Adam couples weight decay by adding
 it to the gradient before both moments; AdamW decouples decay by scaling the master parameter
@@ -7087,12 +8248,16 @@ backend optimizer kernel. See [Training API](reference/training/optimizers.md#op
 
 ### First optimizer slot / `firstMomentBytes()`
 
+The first optimizer slot stores a per-parameter update history: momentum for stochastic gradient descent (SGD), or the first moment for Adam/AdamW. A slot’s saved bytes are not the parameter’s own current value.
+
 The per-parameter FLOAT32 or FLOAT64 slot exposed in a detached `TrainingState`. It is SGD
 momentum or Adam/AdamW's first moment. `momentumBytes()` remains an exact compatible alias;
 `secondMomentBytes()` exists only for Adam/AdamW and has the same element width. See
 [Training API](reference/training/optimizers.md#atomicity-state-concurrency-and-close).
 
 ### Typed trace DTO
+
+A typed trace data-transfer object (DTO) names diagnostic fields explicitly so readers and tools do not have to infer their types from strings. It carries reported facts, not execution authority.
 
 A typed data-transfer object used to carry one defined category of diagnostic facts. The current
 Trace API implements the event envelope, open payload marker, and bounded
@@ -7111,6 +8276,8 @@ A validated non-negative identifier for an input, intermediate, or output logica
 A tensor or layout interpretation that aliases storage also used by another logical tensor representation. A view may change shape, strides, or offset without copying elements. In the implemented `LayoutDescriptor`, view is explicit metadata independent of geometric kind, except that broadcast repetition through a zero stride must be marked as a view.
 
 ### Window transform
+
+A window transform extracts local neighborhoods or combines them back into a larger coordinate space. Unfold extracts windows; fold combines their contributions, including additions where windows overlap.
 
 An implemented backend-independent sliding-window meaning represented by
 `WindowTransformKind`. The exact kind/attributes pairings are `UNFOLD_AXIS` with
@@ -7227,6 +8394,8 @@ expressions](reference/tensor/pooling.md#nchw-average-pooling-expressions), and 
 
 ### Pool1d composition
 
+Pool1d summarizes sliding windows along one spatial axis, such as a time sequence. Its public convenience expands to existing rank edits and two-dimensional pooling, so support must cover those actual component operations.
+
 The current public `Tensor.maxPool1d` and `Tensor.averagePool1d` conveniences describe
 one-dimensional pooling in NCW order: batch, channel, width. They are not first-class operation
 kinds. Each call visibly inserts singleton height at axis 2, applies the matching existing Pool2d
@@ -7242,6 +8411,8 @@ optimization over the visible components, not a new operation, capability, or ar
 [NCW Pool1d composition](reference/tensor/pooling.md#ncw-pool1d-composition).
 
 ### Pool3d / NCDHW pooling
+
+Pool3d summarizes a sliding three-dimensional window over depth, height, and width. NCDHW names the logical order number-of-samples, channels, depth, height, width; pooling changes spatial extents rather than mixing channels by itself.
 
 Current `Tensor.maxPool3d` and `Tensor.averagePool3d` record one first-class pooling occurrence in
 NCDHW order: batch, channel, depth, height, width. Input Shape is `[N, C, D, H, W]`; result Shape
@@ -7278,6 +8449,8 @@ including otherwise-qualified all-valid/length bodies; no optimizer/session stat
 ## Common distinctions
 
 ### Tensor versus graph value
+
+A public Tensor is the object used to construct and supply an expression; a graph value is the immutable logical data recorded when that expression is captured. Neither should be mistaken for a physical execution buffer.
 
 | `Tensor` | Graph value |
 |---|---|
@@ -7322,6 +8495,8 @@ materialization, and publication behavior are not part of the current Tensor con
 
 ### Node versus value
 
+A node is an action and a value is the data entering or leaving that action. An addition node can consume two values and produce a third, just as a recipe step consumes ingredients and produces an intermediate result.
+
 | Node | Value |
 |---|---|
 | Implemented as `CompiledNode` | Implemented as `GraphValue` |
@@ -7335,6 +8510,8 @@ derivation and validates whole-graph uniqueness, topology, boundaries, and exact
 without storing derived indexes.
 
 ### Operation kind versus attributes versus operation
+
+Kind names the computation, attributes provide its settings, and operation pairs those two pieces. A node then records one use of that operation with particular input and output values.
 
 | Concept | Meaning | Current status |
 |---|---|---|
@@ -7378,6 +8555,8 @@ The compiled graph container is implemented model state.
 
 ### Compile versus prepare versus run
 
+Compile decides meaning and ownership; prepare decides implementation; run uses that prepared implementation with particular inputs. The table separates the reusable recipes from the state of one invocation.
+
 | Stage | Main question | Produces | Must not do |
 |---|---|---|---|
 | Compile | What does the graph mean, and which backend owns each region? | Immutable compile artifacts | Allocate physical buffers or choose kernels |
@@ -7385,6 +8564,8 @@ The compiled graph container is implemented model state.
 | Run | Execute this prepared schedule with these inputs. | Per-run state and published results | Discover backends, lower partitions, or select kernels |
 
 ### Logical `ValueId` versus physical memory slot
+
+A ValueId names logical data; a memory slot names a position in a prepared resource plan. Only run-specific representations provide actual storage, so matching numbers across those categories cannot establish aliasing.
 
 A `ValueId` names logical data in one compiled graph. Current `BufferSlot` and `WorkspaceSlot`
 instead name nominally separate plan-local positions without naming physical storage. Current
@@ -7396,6 +8577,8 @@ no source mapping or physical binding, so graph and analysis identities remain d
 slot identities and physical resources.
 
 ### Fresh-value binding / `Engine.runValues`
+
+Fresh-value binding supplies values by compiled input position rather than requiring the original Tensor objects. Matching the required descriptors remains mandatory: fresh identity is not permission for arbitrary shape or type changes.
 
 Positional binding of Tensor values to the final compiled input order on an existing Engine
 PreparedExecution. Identities may be fresh or repeated across matching slots. For static templates,
@@ -7420,6 +8603,8 @@ values; zero-byte overlap remains exempt. External storage is borrowed only thro
 Training call and internal result closure, never retained for the next run.
 
 ### Generic graph checkpoint source
+
+A generic graph checkpoint source describes input prototypes, expression outputs, and named model state for saving or rebuilding a bounded graph form. It is not an executable snapshot of an active run or its temporary histories.
 
 General-body in-memory copy/rebind preserves immutable compiled-body attachments and their local
 IDs while normalizing outer IDs. Compiler alone reconstructs fresh body formals and all canonical
