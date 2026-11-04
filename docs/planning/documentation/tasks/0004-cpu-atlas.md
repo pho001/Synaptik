@@ -39,4 +39,4 @@ Use the assigned isolated worktree, [commit](../../../glossary.md#term-commit) o
 
 See [the shared qualification record](../../documentation-redesign-validation.md) for exact [scope](../../../glossary.md#term-scope),
 generated receipts, source-freeze boundaries and the distinction between automated review and
-human observations. Production contracts, licensing and the [sealed](../../../glossary.md#term-sealed) audit candidate are unchanged.
+human observations. Production contracts, licensing and the sealed audit candidate are unchanged.

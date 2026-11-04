@@ -6,7 +6,7 @@ Current public-readiness source and isolated candidate [qualification](../glossa
 the [audit receipt below](#public-readiness-audit-current-source-and-installed-candidate).
 The earlier bounded private/internal `0.1.0` [matrix](../glossary.md#term-matrix-meanings) retains its own [operation](../glossary.md#operation)-catalog, root and
 isolated source/[artifact](../glossary.md#term-artifact)/consumer evidence. None is a claim about every [Model](../glossary.md#term-model) geometry, public
-[registry](../glossary.md#term-registry) [publication](../glossary.md#term-publication) or a trusted native prebuilt; [sealed](../glossary.md#term-sealed) receipts apply only to their frozen bytes.
+[registry](../glossary.md#term-registry) [publication](../glossary.md#term-publication) or a trusted native prebuilt; sealed receipts apply only to their frozen bytes.
 [General Scan](../glossary.md#general-differentiable-scan) and the bounded [CPU](../glossary.md#term-cpu)/[Metal](../glossary.md#term-metal) neural journeys have component evidence. The
 [product goal](../planning/production-release-goal.md) and
 [owning contracts](../../ARCHITECTURE.md#scope-indexed-normative-contracts) control semantics.
@@ -93,7 +93,7 @@ F32 MATMUL baseline and adds qualified common F32 occurrences under the
 [API/implementation/geometry limits](cpu-backend.md#numerical-qualification-and-training).
 It does not broaden Model [admission](../glossary.md#term-admission) or substitute unqualified numerical formulas: every
 unsupported unit keeps its preplanned ordinary CPU realization. [API](../glossary.md#term-application-programming-interface-api) preferences do not force
-provider selection. New local expanded-F32 source evidence is distinct from the earlier [sealed](../glossary.md#term-sealed)
+provider selection. New local expanded-F32 source evidence is distinct from the earlier sealed
 [artifact](../glossary.md#term-artifact) and cross-platform receipts below; no new release or performance claim follows.
 
 ## [CPU](../glossary.md#term-cpu) [operation](../glossary.md#operation)-audit closure
@@ -313,7 +313,7 @@ exports, operation wires1..116 and attribute wires0..42. Shared native source ha
 components and 188,490 [UTF-8](../glossary.md#term-utf-8) bytes, [SHA-256](../glossary.md#term-sha-256)
 `9d0d08724f5deac665bb4e09c08af3b0fad08efff050dad2d8ae265f39a030d4`.
 The genuine M3 Max package builds with `-Wall -Wextra -Werror`, signs and packages; this is
-component evidence, not a new [sealed](../glossary.md#term-sealed) release or installation acceptance.
+component evidence, not a new sealed release or installation acceptance.
 
 The earlier component source was built, ad-hoc signed, ZIP-extracted outside checkout and
 reverified before its GPU gate. The supported reproducible local source-build installation uses

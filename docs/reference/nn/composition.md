@@ -44,7 +44,7 @@ no tuple, [tokenizer](../../glossary.md#frozen-whitespace-tokenizer), [batch](..
 `Model.define(definition)` invokes one definition [callback](../../glossary.md#term-callback) with a short-lived [`Topology`](../../glossary.md#term-topology). During
 that callback, `topology.addModule(name, module)` records the exact module candidate under a
 descriptive local name and returns that exact concrete type for local use. Collection changes no
-parent link. The topology is [sealed](../../glossary.md#term-sealed) after every success or failure path, and a captured reference
+parent link. The topology is sealed after every success or failure path, and a captured reference
 cannot add a late child. Only after the callback returns a non-null forward body does the Model
 [preflight](../../glossary.md#term-preflight) the complete ordered [snapshot](../../glossary.md#term-snapshot) and permanently attach every child. A callback, null
 result, name, repeated-[identity](../../glossary.md#term-identity-meanings), cycle, or [ownership](../../glossary.md#term-ownership-meanings) failure publishes no partial model and leaves

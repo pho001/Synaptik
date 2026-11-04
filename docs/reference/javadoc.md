@@ -1,6 +1,6 @@
 # Generated [Javadoc](../glossary.md#term-javadoc): exact [signatures](../glossary.md#term-signature) and source contracts
 
-The topic pages explain relationships and examples; generated Javadoc supplies exact Java signatures, [parameter](../glossary.md#term-parameter) constraints, returns and failures. **Every local generated-output link on this page is build-required.** Generated HTML is not committed, and a Markdown browser cannot navigate into a [JAR](../glossary.md#term-jar) directly. Obtain it by either route below. These instructions do not publish [artifacts](../glossary.md#term-artifact), alter licensing, or modify the [sealed](../glossary.md#term-sealed) `0.1.0-public-audit.20261104` candidate.
+The topic pages explain relationships and examples; generated Javadoc supplies exact Java signatures, [parameter](../glossary.md#term-parameter) constraints, returns and failures. **Every local generated-output link on this page is build-required.** Generated HTML is not committed, and a Markdown browser cannot navigate into a [JAR](../glossary.md#term-jar) directly. Obtain it by either route below. These instructions do not publish [artifacts](../glossary.md#term-artifact), alter licensing, or modify the sealed `0.1.0-public-audit.20261104` candidate.
 
 [Reference goals](index.md) · [Framework package atlas](../explanation/packages/index.md)
 
@@ -38,7 +38,7 @@ Prerequisites: the repository's supported [JDK](../glossary.md#term-java-develop
 ./gradlew :modules:model:javadoc :modules:engine:javadoc :extensions:nn:javadoc :extensions:training:javadoc :extensions:checkpoint:javadoc
 ```
 
-Expected output: each requested module's `build/docs/javadoc/index.html` and package/type pages. The links below resolve only after those tasks produce HTML. Generating documentation from a later [source revision](../glossary.md#term-source-revision) is not proof that it matches the [sealed](../glossary.md#term-sealed) candidate; use its supplied JARs when exact candidate documentation matters. Production [Javadoc](../glossary.md#term-javadoc) was not regenerated for this editorial change because its Java/Javadoc input bytes are unchanged. The standalone learning source was separately checked with `javadoc -Xdoclint:all`.
+Expected output: each requested module's `build/docs/javadoc/index.html` and package/type pages. The links below resolve only after those tasks produce HTML. Generating documentation from a later [source revision](../glossary.md#term-source-revision) is not proof that it matches the sealed candidate; use its supplied JARs when exact candidate documentation matters. Production [Javadoc](../glossary.md#term-javadoc) was not regenerated for this editorial change because its Java/Javadoc input bytes are unchanged. The standalone learning source was separately checked with `javadoc -Xdoclint:all`.
 
 ## All 18 supported [artifact](../glossary.md#term-artifact) indexes
 

@@ -10,7 +10,6 @@ and its own producing occurrence. It neither
 reads samples nor owns a result buffer. Model defines the meaning; execution providers realize
 supported routes without redefining it. Semantic responsibility is not storage ownership.
 `unfold2d` exposes samples as canonical rank-three columns; fold adds overlapping contributions rather
-Unfold exposes samples as canonical rank-three columns; fold adds overlapping contributions rather
 than undoing extraction or averaging. For a one-channel three-by-three image and two-by-two windows
 at unit stride, folding unchanged columns counts the center four times. Symbolic products describe
 unresolved extents without binding them; dynamic fold requires structurally matching formulas.

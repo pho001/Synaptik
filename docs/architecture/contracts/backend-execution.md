@@ -2097,4 +2097,4 @@ remain. Metal general FLOAT64 numerical arithmetic, unsupported mixed-low domain
 unqualified higher-order recurrent [derivatives](../../glossary.md#term-derivative) remain excluded. CPU low arithmetic follows its
 separate parity cutover, not this Metal qualification. Source-matched
 device execution and independent source review precede production-support claims; current
-component evidence is not final full-catalog or [sealed](../../glossary.md#term-sealed)-[release](../../glossary.md#term-release) qualification.
+component evidence is not final full-catalog or sealed-[release](../../glossary.md#term-release) qualification.

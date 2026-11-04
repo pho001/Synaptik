@@ -9,10 +9,12 @@ accumulation. The mask is tested before data loading or classification, and only
 advance the invocation-local count used by `MEAN`.
 
 Here, CPU analysis selects structural carrier/layout forms and finalization constructs an immutable
-prepared executable recipe. Runtime later calls the CPU binder on current run storage to validate
-ordered data/mask/output boundaries and create a per-run bound invocation with run-owned exact-state scratch. Borrowed carriers remain distinct; scratch is not persistent model state.
-are structural oracles for entry shape and branch order; independent scalar comparisons across 180
-inventory owners supply semantic evidence.
+`CpuPreparedExecutable` recipe. Runtime later calls its CPU-owned binder on current run storage to
+validate ordered data/mask/output boundaries and create a per-run bound invocation. Its exact-state
+scratch belongs to the run; borrowed input/output carriers do not become persistent model state.
+
+Class-File checks are structural oracles for entry shape and branch order. Independent scalar
+comparisons across the recorded 180 inventory owners supply semantic evidence.
 
 Current-topic navigation (not a replacement for the historical record):
 

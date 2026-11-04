@@ -38,7 +38,7 @@ declared aligned workspace. [Canonical](../glossary.md#term-canonical-form) non-
 sequence and [invariant](../glossary.md#term-invariant) values without admitting F64 body arithmetic, [AD](../glossary.md#autograd) or affine F64 mapping.
 Dynamic-B [Metal](../glossary.md#term-metal), [rank](../glossary.md#term-rank)/[pooling](../glossary.md#term-pooling)/resource bounds and the [CPU](../glossary.md#term-cpu) low-arithmetic lock are unchanged.
 The [follow-up audit](backend-interchangeability-audit.md#15-navazující-opravy-a-aktuální-hranice)
-separates current source verification from the previously [sealed](../glossary.md#term-sealed) [distribution](../glossary.md#term-distribution).
+separates current source verification from the previously sealed [distribution](../glossary.md#term-distribution).
 
 ### Ordinary numerical and exact domains
 

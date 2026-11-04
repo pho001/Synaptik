@@ -23,12 +23,14 @@ for source/build navigation; historical commands and [hashes](../glossary.md#ter
 
 ## Documentation terminology pass
 
-The user requested a complete [reader-accessible terminology pass](documentation-terminology.md)
-after the didactic redesign: readable central definitions, first-use links throughout current
-and historical prose, contextual explanations and useful diagrams. The editorial slices are
-integrated; the coordinator owns the combined linking, preservation and real rendered checks.
-Original [normative](../glossary.md#term-normative) clauses, executable examples, [sealed](../glossary.md#term-sealed) [qualification](../glossary.md#term-qualification) [artifacts](../glossary.md#term-artifact) and [immutable](../glossary.md#term-immutable)
-proof records are preserved rather than being silently requalified.
+The user-requested [reader-accessible terminology and comprehension pass](documentation-terminology.md)
+is complete. The [validation record](documentation-terminology-validation.md) covers the full live
+corpus, contextual caller/ownership/leaf explanations, mathematical notation, commented examples,
+direct topic links and the GitHub README. It records actual rendering and complete-example runs,
+all original authority/source/history protections, full-task independent findings and their
+corrections, and unavailable historical/external evidence. This is not a human usability study or
+new runtime qualification. The requested autotuning review, live CLI and matched PyTorch
+performance comparison follow separately; architecture-changing fixes require analysis/proposals.
 
 ## Completed [checkpoint](../glossary.md#term-checkpoint): didactic documentation redesign
 
@@ -38,7 +40,7 @@ explanation, all-package/native atlas, topic-sized reference and preserved incom
 [Qualification and limits](documentation-redesign-validation.md)<span data-glossary-navigation="true"> ([Qualification glossary](../glossary.md#term-qualification))</span> record actual external examples,
 local navigation/diagram rendering, source accounting and three independent automated review lenses.
 Human-reader observations: none; this is not a usability study. The audited framework authority,
-numerical/[ownership](../glossary.md#term-ownership-meanings) semantics, licensing and [sealed](../glossary.md#term-sealed) private candidate are unchanged. No execution
+numerical/[ownership](../glossary.md#term-ownership-meanings) semantics, licensing and sealed private candidate are unchanged. No execution
 frontier remains active in the completed documentation group.
 
 

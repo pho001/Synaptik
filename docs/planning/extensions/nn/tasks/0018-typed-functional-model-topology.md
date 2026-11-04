@@ -275,7 +275,7 @@ or any build/architecture/[dependency](../../../../glossary.md#term-dependency) 
 - A definition [callback](../../../../glossary.md#term-callback) that throws after several `addModule` calls leaves every candidate
   reusable by another owner and propagates the exact failure.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner))</span>
 - A topology captured by caller code is sealed after every success or failure path; a late call
-  fails without changing the completed model or candidate ownership.<span data-glossary-navigation="true"> ([sealed glossary](../../../../glossary.md#term-sealed); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
+  fails without changing the completed model or candidate ownership.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Functional forward validates null input, calls the exact body once, returns the exact output,
   rejects null output, propagates body exceptions unchanged, calls no hidden module, and preserves
   already-created body prefix effects.
@@ -398,7 +398,7 @@ Data/Text/Vision/[Checkpoint](../../../../glossary.md#term-checkpoint), Training
 The first focused command
 `./gradlew :extensions:nn:test --tests io.github.pho001.synaptik.nn.module.ModelTest` passed after
 the initial executable draft with one suite and ten tests. The implementation then strengthened
-the same focused test to prove that a [sealed](../../../../glossary.md#term-sealed) late-registration candidate and a candidate collected
+the same focused test to prove that a sealed late-registration candidate and a candidate collected
 before a null definition result both remain reusable. The stabilized rerun of the same command
 passed one suite and ten tests with zero failures, errors, or skips.
 
@@ -477,7 +477,7 @@ a task-owned change.
 
 - Completed changes: Implemented typed functional Model definition, sealed named Topology
   collection, complete validate-before-install named child ownership, exact functional forward
-  behavior, descriptive inherited state/mode behavior, and focused coverage.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [sealed glossary](../../../../glossary.md#term-sealed); [Topology glossary](../../../../glossary.md#term-topology); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
+  behavior, descriptive inherited state/mode behavior, and focused coverage.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Topology glossary](../../../../glossary.md#term-topology); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Files changed or created: `Module.java`, `Model.java`, `ModelDefinition.java`,
   `ModelForward.java`, `Topology.java`, [module](../../../../glossary.md#term-module) `package-info.java`, `ModelTest.java`, Training API,
   glossary, the NN master plan, and this task record: exactly the eleven authorized paths.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context))</span>

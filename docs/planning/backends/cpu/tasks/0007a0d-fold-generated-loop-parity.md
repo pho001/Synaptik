@@ -222,7 +222,7 @@ capability and semantics remain unchanged.
   `input[i] = (float) ((i % 251 - 125) * 0.25)`. Before timing, verify the generated and direct
   outputs bitwise against an independent oracle and verify that the fixed input remains unchanged.<span data-glossary-navigation="true"> ([oracle glossary](../../../../glossary.md#term-test-oracle))</span>
 - The direct Java body must implement the exact canonical output-domain algorithm used for the
-  generated acceptance form: for each output ordinal in <span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form))</span>`0,1024)`, start with `+0.0f`; [scan
+  generated acceptance form: for each output ordinal in <span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form))</span>`[0,1024)`, start with `+0.0f`; scan
   `inputOrdinal` from `0` through `2031`; derive
   `window = inputOrdinal / 16`, `within = inputOrdinal - window * 16`, and
   `target = window * 8 + within`; add `input[inputOrdinal]` with [binary32](../../../../glossary.md#floating-point-precision-and-rounding) addition exactly when

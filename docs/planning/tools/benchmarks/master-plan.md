@@ -96,7 +96,7 @@ one-shot observations, a per-[sample](../../../glossary.md#term-sample-machine-l
 requires exact source/configuration/[hash](../../../glossary.md#term-hash), [fork](../../../glossary.md#term-fork-meanings)/order, CPU, species, worker, [materialization](../../../glossary.md#materialization), and
 [OpenBLAS](../../../glossary.md#term-openblas) [metadata](../../../glossary.md#term-metadata). CPU 0010M's [manifest](../../../glossary.md#term-manifest) retains its exact structured invocations, five regenerated
 machine-local [scalar](../../../glossary.md#term-scalar) reports, and a minimum future-comparison acceptance framework under
-`backends/cpu/evidence/cpu-0010m-defaults/`; it is not a [sealed](../../../glossary.md#term-sealed) [measurement protocol](../../../glossary.md#term-measurement-protocol).
+`backends/cpu/evidence/cpu-0010m-defaults/`; it is not a sealed [measurement protocol](../../../glossary.md#term-measurement-protocol).
 
 Public [Engine](../../../glossary.md#term-engine) intentionally exposes no [backend](../../../glossary.md#backend)-private selected plan. Current schema-3 reports
 therefore mark themselves ineligible for a production route/default decision. CPU 0010M completed

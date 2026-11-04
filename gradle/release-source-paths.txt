@@ -443,6 +443,8 @@ docs/planning/backends/openblas-provider/tasks/0003-thread-control-and-native-pr
 docs/planning/backends/openblas-provider/tasks/0004-optional-direct-bfloat16-output-gemm-capability.md
 docs/planning/documentation-redesign-validation.md
 docs/planning/documentation-redesign.md
+docs/planning/documentation-terminology-validation.md
+docs/planning/documentation-terminology.md
 docs/planning/documentation/tasks/0001-learning-journey.md
 docs/planning/documentation/tasks/0002-model-atlas.md
 docs/planning/documentation/tasks/0003-execution-atlas.md

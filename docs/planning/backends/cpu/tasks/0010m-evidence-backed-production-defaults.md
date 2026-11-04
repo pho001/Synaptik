@@ -94,7 +94,7 @@ species, and selected-plan [identities](../../../../glossary.md#term-identity-me
 within-[fork](../../../../glossary.md#term-fork-meanings) [samples](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters) as independent observations; and had 81 of 420 repeated [batches](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) below the
 claimed 25 ms floor. Their aggregates are not retained or cited.
 
-Targeted [sealed](../../../../glossary.md#term-sealed)-[artifact](../../../../glossary.md#term-artifact) search found generated-versus-direct parity and machine-local macOS
+Targeted sealed-[artifact](../../../../glossary.md#term-artifact) search found generated-versus-direct parity and machine-local macOS
 [AArch64](../../../../glossary.md#term-aarch64) observations, not compatible scalar-versus-vector evidence spanning the current policy
 [matrix](../../../../glossary.md#term-matrix-meanings) or [x86-64](../../../../glossary.md#term-x86-64). Generated-versus-direct parity is not permission to change scalar/vector policy.
 A universal default therefore has no adequate cross-[target](../../../../glossary.md#term-target) basis.

@@ -40,4 +40,4 @@ Execution atlas integrated in `42caa1226`; all 18 packages accounted for, coveri
 
 See [the shared qualification record](../../documentation-redesign-validation.md)<span data-glossary-navigation="true"> ([qualification glossary](../../../glossary.md#term-qualification))</span> for exact [scope](../../../glossary.md#term-scope),
 generated receipts, source-freeze boundaries and the distinction between automated review and
-human observations. Production contracts, licensing and the [sealed](../../../glossary.md#term-sealed) audit candidate are unchanged.
+human observations. Production contracts, licensing and the sealed audit candidate are unchanged.

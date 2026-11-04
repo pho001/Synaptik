@@ -4,6 +4,14 @@
 
 ### Added
 
+- [Whole-document terminology and comprehension revision](docs/planning/documentation-terminology-validation.md):
+  local caller/callee, ownership and graph-leaf explanations; a prerequisite-linked dictionary;
+  LaTeX arithmetic/calculus; why-comments and clearer sections; focused related-topic links and a
+  revised GitHub README. Corrected wrong-sense glossary navigation, factual execution/persistence
+  boundaries and recurrent parameter packing. Actual rendering, JDK token preservation and copied
+  program compilation/execution are recorded separately from model-based review. Runtime source,
+  architecture, old qualification artifacts and private-distribution rules are unchanged.
+
 - Reader-oriented documentation now separates tutorials, how-to, explanation and reference.
   One complete seven-stage FLOAT32 Java project runs against installed private artifacts;
   the source-grounded atlas explains all 78 Java packages and 43 native code/build components.

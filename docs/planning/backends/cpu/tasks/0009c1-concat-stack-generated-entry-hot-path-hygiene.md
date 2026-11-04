@@ -176,7 +176,7 @@ Actual production, build, test, resource, and evidence [fan-out](../../../../glo
 ## Maximum [scope](../../../../glossary.md#term-scope)
 
 This task may modify at most two production Java paths, one build path, twenty-two [CPU](../../../../glossary.md#term-cpu) Java-test
-paths, five checked CPU resource paths, the [sealed](../../../../glossary.md#term-sealed) 63-file performance-evidence tree, and five
+paths, five checked CPU resource paths, the sealed 63-file performance-evidence tree, and five
 [planning](../../../../glossary.md#term-planning) paths. The expanded [fan-out](../../../../glossary.md#term-fan-out) is a discovered required consequence of the mandatory
 fallback performance protocol, the frozen-[layout](../../../../glossary.md#layout) correction, [schema](../../../../glossary.md#term-schema) invalidation, and checked-in
 inventory [integrity](../../../../glossary.md#term-integrity); it authorizes no unrelated refactor. The Java-test bound includes the twelve

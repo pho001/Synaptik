@@ -27,7 +27,7 @@ Complete
 
 ## Goal
 
-Correct the [sealed](../../../../glossary.md#term-sealed) [CPU](../../../../glossary.md#term-cpu) generated-coverage evidence immediately after completed CPU 0009G. Add one
+Correct the sealed [CPU](../../../../glossary.md#term-cpu) generated-coverage evidence immediately after completed CPU 0009G. Add one
 [operation](../../../../glossary.md#operation)-specific, selected-[`SCALAR`](../../../../glossary.md#term-scalar) witness for each currently admitted scalar-immediate form
 that lacks one: `SCALAR_SUB`, `SCALAR_MUL`, `SCALAR_DIV`, `SCALAR_MIN`, `SCALAR_MAX`,
 `SCALAR_POW`, and `SCALAR_CLAMP`. Preserve the existing `SCALAR_ADD` scalar/[vector](../../../../glossary.md#term-vector)/
@@ -255,7 +255,7 @@ owners: ADD orchestration plus the seven operation-specific witnesses.
 
 The regenerated inventory [SHA-256](../../../../glossary.md#term-sha-256) is
 `1dcb69796c00fe3793d86f3f4cc3e816176062a45312ddbbaadfba9f8036cf20`.
-The [sealed](../../../../glossary.md#term-sealed) evidence records 17,470 generated rows, 263 scalar-immediate rows, 17,643 total rows,
+The sealed evidence records 17,470 generated rows, 263 scalar-immediate rows, 17,643 total rows,
 173 rejected rows, 2,252 [oracle](../../../../glossary.md#term-test-oracle)-proved rows, 15,218 oracle-partial rows, and 17,470
 performance-partial rows. The [pointwise](../../../../glossary.md#term-pointwise) [manifest](../../../../glossary.md#term-manifest) contains 1,108 generated rows and the structural
 catalog contains 6,016 categories. Live resource regeneration and sealing, [canonical](../../../../glossary.md#term-canonical-form) [UTF-8](../../../../glossary.md#term-utf-8)/LF

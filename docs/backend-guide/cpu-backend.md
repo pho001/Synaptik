@@ -5274,7 +5274,7 @@ species and report mismatches as unqualified without suppressing scalar checks.
 The original eight conditional [binding](../glossary.md#term-binding) diagnostics
 contained process identities; their deterministic value witnesses were separately recovered from
 immutable before-source classes with literal original-ClassFile [provenance](../glossary.md#provenance), without changing the
-[sealed](../glossary.md#term-sealed) [capture](../glossary.md#term-capture-meanings). [Finite](../glossary.md#term-finite) controls complement review of changed generation/allocation paths; they
+sealed [capture](../glossary.md#term-capture-meanings). [Finite](../glossary.md#term-finite) controls complement review of changed generation/allocation paths; they
 do not certify every [specialization](../glossary.md#term-specialization). [Schema](../glossary.md#term-schema)/family 71, namespaces, entry [ABI](../glossary.md#term-application-binary-interface-abi), resources, workers
 and Job [lifecycle](../glossary.md#lifecycle) are unchanged. Literal equality transfers existing evidence only with its
 original limitations; no new optimal-Java parity or speed claim, Scan [SIMD](../glossary.md#simd)/parallel capability,

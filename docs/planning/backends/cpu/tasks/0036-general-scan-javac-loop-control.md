@@ -86,7 +86,7 @@ Stop and report missing/ambiguous contracts or any required expansion; do not in
 
 Historical [Ready](../../../../glossary.md#term-ready)/prelaunch verification (2026-10-23): CPU0035 and all declared dependencies,
 reviews/gates were Complete; master/roadmap agreed. HEAD/origin/main and all 270 dirty paths/[hashes](../../../../glossary.md#term-hash)
-matched the [sealed](../../../../glossary.md#term-sealed) [snapshot](../../../../glossary.md#term-snapshot). User approval selected CPU0036 from frontier None; conflicts were
+matched the sealed [snapshot](../../../../glossary.md#term-snapshot). User approval selected CPU0036 from frontier None; conflicts were
 inactive, [metadata](../../../../glossary.md#term-metadata) complete. Main rechecked the base plus three [planning](../../../../glossary.md#term-planning) edits and exclusive writer.
 
 ## Files and symbols

@@ -446,7 +446,7 @@ filename, establish that distinction.
 
 These three scripts complete the native path accounting. They [prepare](../../glossary.md#prepare)/check [artifacts](../../glossary.md#term-artifact) for an
 explicit caller-selected library; [Engine](../../glossary.md#term-engine) does not [run](../../glossary.md#term-run) them or search their output directory.
-They do not authorize public [publication](../../glossary.md#term-publication) or alter the [sealed](../../glossary.md#term-sealed) `0.1.0-public-audit.20261104` candidate.
+They do not authorize public [publication](../../glossary.md#term-publication) or alter the sealed `0.1.0-public-audit.20261104` candidate.
 
 | Path | Inputs, mechanism, output, and failure/[lifetime](../../glossary.md#term-lifetime) context |
 |---|---|

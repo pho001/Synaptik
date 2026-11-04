@@ -42,4 +42,4 @@ Initial topic migration integrated in `e50ad6daf`; source-fidelity/archive corre
 
 See [the shared qualification record](../../documentation-redesign-validation.md)<span data-glossary-navigation="true"> ([qualification glossary](../../../glossary.md#term-qualification))</span> for exact [scope](../../../glossary.md#term-scope),
 generated receipts, source-freeze boundaries and the distinction between automated review and
-human observations. Production contracts, licensing and the [sealed](../../../glossary.md#term-sealed) audit candidate are unchanged.
+human observations. Production contracts, licensing and the sealed audit candidate are unchanged.

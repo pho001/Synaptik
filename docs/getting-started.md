@@ -33,7 +33,7 @@ No [GPU](glossary.md#term-gpu), data download, external [BLAS](glossary.md#term-
 ## Install a versioned local candidate
 
 The current candidate remains **private/internal**. No public licence/grant or upload has been
-authorized. Obtain the [sealed](glossary.md#term-sealed) [artifacts](glossary.md#term-artifact) from their existing private [distribution](glossary.md#term-distribution); do not assume
+authorized. Obtain the sealed [artifacts](glossary.md#term-artifact) from their existing private [distribution](glossary.md#term-distribution); do not assume
 the version is on [Maven](glossary.md#term-maven) Central or substitute another version silently.
 
 ### Produce and verify the archives

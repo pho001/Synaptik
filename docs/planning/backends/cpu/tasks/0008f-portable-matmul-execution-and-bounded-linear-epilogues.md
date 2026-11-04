@@ -25,7 +25,7 @@ Current-topic navigation (not a replacement for the historical record):
 
 Complete.
 
-The implementation, [sealed](../../../../glossary.md#term-sealed) performance evidence, and independent clean-context documentation
+The implementation, sealed performance evidence, and independent clean-context documentation
 finalization are complete. [CPU](../../../../glossary.md#term-cpu) 0008G is the next Draft frontier and still has no detailed task
 specification.
 

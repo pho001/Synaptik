@@ -47,7 +47,7 @@ CPU support is not a Metal capability promise. [CUDA](docs/glossary.md#term-cuda
 not prepared native executables, optimizer state or the application's complete training continuation.
 
 [Distribution](docs/glossary.md#term-distribution) remains **private/internal**: no public project licence or redistribution grant has
-been selected, and no public upload is authorized. The [sealed](docs/glossary.md#term-sealed)
+been selected, and no public upload is authorized. The sealed
 `0.1.0-public-audit.20261104` candidate has [source-matched audit evidence](docs/planning/public-release-audit-2026-11-04.md#result).
 This documentation uses those [artifacts](docs/glossary.md#term-artifact); it does not silently replace or requalify them.
 

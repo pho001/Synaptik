@@ -4,7 +4,7 @@
 
 The requested reader-oriented documentation is implemented against the audited private
 `0.1.0-public-audit.20261104` [artifacts](../glossary.md#term-artifact). This is an editorial/external-example change, not a new
-[runtime](../glossary.md#term-runtime), numerical policy, public [API](../glossary.md#term-application-programming-interface-api), [backend capability](../glossary.md#backend-capability) or licence grant. The [sealed](../glossary.md#term-sealed) audit
+[runtime](../glossary.md#term-runtime), numerical policy, public [API](../glossary.md#term-application-programming-interface-api), [backend capability](../glossary.md#backend-capability) or licence grant. The sealed audit
 candidate is not overwritten. [The execution plan](documentation-redesign.md) records [ownership](../glossary.md#term-ownership-meanings);
 [the documentation home](../index.md) is the reader entry point.
 
@@ -74,7 +74,7 @@ permission follows from them. Runtime observations were on macOS [arm64](../glos
 The reviewed `gradle/release-source-paths.txt` owns source-[snapshot](../glossary.md#term-snapshot) selection. Accepted tutorials,
 examples, atlas, reference and history paths belong in that selection; generated [Maven](../glossary.md#term-maven) [`target`](../glossary.md#term-target)
 and verification `build` files do not. The source-only documentation snapshot is distinct from
-the [sealed](../glossary.md#term-sealed) [runtime](../glossary.md#term-runtime) candidate and grants no additional distribution rights.
+the sealed [runtime](../glossary.md#term-runtime) candidate and grants no additional distribution rights.
 
 Detailed exact commands, SHA [identities](../glossary.md#term-identity-meanings), stdout, reference runs, link/package/source inventories,
 review reports, screenshots and source-snapshot verification are retained under the generated

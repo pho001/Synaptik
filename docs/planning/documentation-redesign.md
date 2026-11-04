@@ -91,6 +91,6 @@ programs, 78 packages / 43 native components, 542 preserved incoming anchors, su
 
 Independent automated reader/source reviews found and resolved stale semantic statements.
 There were no human-reader observations; this is not a usability study. Framework/authority
-inputs and [sealed](../glossary.md#term-sealed) private [artifacts](../glossary.md#term-artifact) remain unchanged. The generated local receipt separately
+inputs and sealed private [artifacts](../glossary.md#term-artifact) remain unchanged. The generated local receipt separately
 binds final source selection, source-only packaging and exact verification artifacts; this work
 does not qualify a new [backend](../glossary.md#backend) or authorize public [distribution](../glossary.md#term-distribution).

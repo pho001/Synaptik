@@ -5115,7 +5115,7 @@ not a public Tensor [producer](#term-producer) graph, a modules/model [`Compiled
 once, and returns its exact non-null result. A thrown failure or null result preserves already
 created prefix expressions and module-local effects without [rollback](#term-rollback). Recursive state discovery,
 strict state loading, parameter replacement, and train/eval propagation are inherited from
-`Module`; the structure is [sealed](#term-sealed) while [bindings](#term-binding) and mode retain their caller-coordinated [mutable](#term-mutable)
+`Module`; the structure is sealed while [bindings](#term-binding) and mode retain their caller-coordinated [mutable](#term-mutable)
 [lifecycle](#lifecycle). Generic functional Model forward is not [thread-safe](#term-thread-safe). The separate owned-source capability
 admits one high-level [operation](#operation) at a time, but inherited Module mutation remains caller-coordinated.
 

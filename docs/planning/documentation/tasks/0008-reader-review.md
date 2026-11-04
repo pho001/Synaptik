@@ -10,7 +10,7 @@ Status: Complete. Classification: A; integrated editorial work and bounded [qual
 - Integration [validation](../../../glossary.md#term-validation): actual standalone learning execution, reference programs, package/native coverage, link/anchor checks and local rendered preview by coordinator.
 - Shared-document integration [owner](../../../glossary.md#term-owner): coordinator.
 
-Coordinator verified the seven slices are integrated and the actual external [NN](../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)-only [Maven](../../../glossary.md#term-maven) consumer's all-mode output exactly matches all 38 committed stdout lines. Build succeeded using JDK26 and the [sealed](../../../glossary.md#term-sealed) private candidate; no production source changed. Full result is build/documentation-redesign/learning-verification.json. No reviewer repeats builds/tests/lint/formatters.
+Coordinator verified the seven slices are integrated and the actual external [NN](../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)-only [Maven](../../../glossary.md#term-maven) consumer's all-mode output exactly matches all 38 committed stdout lines. Build succeeded using JDK26 and the sealed private candidate; no production source changed. Full result is build/documentation-redesign/learning-verification.json. No reviewer repeats builds/tests/lint/formatters.
 
 ## Review lenses
 
@@ -28,4 +28,4 @@ Three independent automated reader/source lenses completed. Identified [loss](..
 
 See [the shared qualification record](../../documentation-redesign-validation.md)<span data-glossary-navigation="true"> ([qualification glossary](../../../glossary.md#term-qualification))</span> for exact [scope](../../../glossary.md#term-scope),
 generated receipts, source-freeze boundaries and the distinction between automated review and
-human observations. Production contracts, licensing and the [sealed](../../../glossary.md#term-sealed) audit candidate are unchanged.
+human observations. Production contracts, licensing and the sealed audit candidate are unchanged.

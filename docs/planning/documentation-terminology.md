@@ -2,7 +2,7 @@
 
 ## Authorization and status
 
-Status: Active. The user explicitly requested a second pass over **all** documentation: assume no
+Status: Complete — 2026-11-04. The user explicitly requested a second pass over **all** documentation: assume no
 specialist vocabulary, link each technical concept to a readable central definition, and add
 useful diagrams. Classification A: presentation only; no numerical, [API](../glossary.md#term-application-programming-interface-api), [ownership](../glossary.md#term-ownership-meanings), [persistence](../glossary.md#term-persistence),
 [backend capability](../glossary.md#backend-capability), architecture authority or public licensing change.
@@ -67,11 +67,14 @@ are coordinator-owned.
 
 ## Completion evidence
 
-The final record will state the exact complete-document census, dictionary entries and [vocabulary aliases](../glossary.md#term-vocabulary-alias),
-actual inline-link coverage, preserved original anchors/code/math, full local-link results,
-rendered diagrams and independent reader-oriented review limits. Automated coverage checks do
-not establish that a real human understood every definition; human-reader observations remain
-separate. The [sealed](../glossary.md#term-sealed) audit and previous documentation source/evidence archives remain unchanged.
+The [validation record](documentation-terminology-validation.md) accounts for all 978 reviewed live
+pages and this separate closure record, 398 dictionary entries, 606 precise definition anchors,
+preserved incoming links and protected source/authority/history, comment-only executable equivalence,
+actual complete-program compilation/execution, and light/dark mathematical/diagram rendering.
+Three full-task review lenses and ten disjoint correction receipts include earlier glossary-sense
+defects rather than excluding the intermediate baseline. Counts do not establish human comprehension;
+human-reader observations remain none. The fixed private audit and earlier documentation archives
+are unchanged. Autotuning, CLI and performance requests are separate follow-on work.
 
 ## Reader-comprehension continuation authorized by the user
 

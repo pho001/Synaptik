@@ -9,7 +9,7 @@ SHA-bound projection provide structural evidence, while scalar-reference compari
 independent semantic oracle for represented results.
 
 Here, CPU analysis selects structural carrier/layout forms and finalization constructs an immutable
-prepared executable recipe. Runtime later calls the CPU binder on current run storage, creating a
+`CpuPreparedExecutable` recipe. Runtime later calls its CPU-owned binder on current run storage, creating a
 per-run bound invocation. Both scatter and fold own disjoint output ranges. Fold initializes positive
 zero and accumulates in canonical input-row-major order without workspace; the recorded floating-MUL
 scatter route instead requires exact-product scratch. Model semantics, public APIs, and shared Prepare/Runtime contracts remain outside this planning-only decision.

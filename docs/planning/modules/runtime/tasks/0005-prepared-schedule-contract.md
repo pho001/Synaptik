@@ -149,7 +149,7 @@ consumer.
 - Prepare may construct Runtime schedule values by extracting Runtime executable references; that
   inward dependency does not authorize Runtime to retain Prepare associations.<span data-glossary-navigation="true"> ([dependency glossary](../../../../glossary.md#term-dependency))</span>
 - The sealed family is semantic type dispatch, not a payload registry. Runtime may add a variant
-  only after stable Runtime-owned facts and a concrete consumer establish its invariant.<span data-glossary-navigation="true"> ([sealed glossary](../../../../glossary.md#term-sealed); [dispatch glossary](../../../../glossary.md#term-dispatch); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [registry glossary](../../../../glossary.md#term-registry); [invariant glossary](../../../../glossary.md#term-invariant))</span>
+  only after stable Runtime-owned facts and a concrete consumer establish its invariant.<span data-glossary-navigation="true"> ([sealed glossary](../../../../glossary.md#term-sealed); [dispatch glossary](../../../../glossary.md#term-dispatch); [registry glossary](../../../../glossary.md#term-registry); [invariant glossary](../../../../glossary.md#term-invariant))</span>
 - A future runner must cold-bind execution occurrences to direct [`BoundInvocation`](../../../../glossary.md#bound-invocation--boundinvocation) references
   before its hot loop. Step traversal, allocation, backend discovery, graph inspection, and
   resource lookup must not move into <span data-glossary-navigation="true"> ([graph glossary](../../../../glossary.md#graph); [lookup glossary](../../../../glossary.md#term-lookup))</span>`BoundInvocation.execute()`.
@@ -184,7 +184,7 @@ plan and [immutable](../../../../glossary.md#term-immutable) [snapshot](../../..
 array [view](../../../../glossary.md#term-view-meanings), equality override, or [serialization](../../../../glossary.md#term-serialization) contract.
 
 `PreparedSchedule.Step` is a public nested [sealed](../../../../glossary.md#term-sealed) interface permitting exactly `ExecutionStep`.
-It declares only `PreparedMemoryPlan memoryPlan()`. It has no ID, kind enum, [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication), execution
+It declares only `PreparedMemoryPlan memoryPlan()`. It has no ID, kind enum, payload, execution
 method, visitor, or default method.
 
 `ExecutionStep` is a public nested record with exactly one component,
@@ -255,7 +255,7 @@ These variants cannot be defined stably in this task:
   membership only; they define no Runtime delivery target and cannot be imported by Runtime.<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([target glossary](../../../../glossary.md#term-target); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [Compiler glossary](../../../../glossary.md#term-compiler); [bindings glossary](../../../../glossary.md#term-binding); [Model glossary](../../../../glossary.md#term-model))</span>
 
 These remain separate Draft work after their foundations stabilize. The [sealed](../../../../glossary.md#term-sealed) step contract
-reserves no later [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) beyond the exact schedule-plan association every future step must obey.
+reserves no later payload beyond the exact schedule-plan association every future step must obey.
 
 ## Affected files
 

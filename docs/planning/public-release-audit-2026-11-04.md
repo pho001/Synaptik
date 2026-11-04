@@ -9,7 +9,7 @@ select a licence, authorize public uploads or change numerical/[ownership](../gl
 
 Common base revision: `564a9988349c259f6082b6905d98de24f2e216ff`.
 The working repository is `/Users/phujka/IdeaProjects/Synaptik`; the old `/tmp` [snapshot](../glossary.md#term-snapshot) is not
-a Git checkout. Findings refer to current working bytes, not earlier [sealed](../glossary.md#term-sealed) [release](../glossary.md#term-release) [artifacts](../glossary.md#term-artifact).
+a Git checkout. Findings refer to current working bytes, not earlier sealed [release](../glossary.md#term-release) [artifacts](../glossary.md#term-artifact).
 
 ## Contracts and [admission](../glossary.md#term-admission)
 
@@ -214,7 +214,7 @@ The coordinator reproduces public failures, runs the joined native-enabled `test
 affected [Javadoc](../glossary.md#term-javadoc) gate, and separately compiles/runs consumers. A rebuilt local [Maven](../glossary.md#term-maven) repository,
 source archive and ad-hoc-signed native package are then extracted into a fresh directory and
 consumed without checkout classes or a manual [transitive dependency](../glossary.md#term-transitive-dependency) list. [Qualification](../glossary.md#term-qualification) uses
-`0.1.0-public-audit.20261104`, preserving the earlier [sealed](../glossary.md#term-sealed) `0.1.0` receipts.
+`0.1.0-public-audit.20261104`, preserving the earlier sealed `0.1.0` receipts.
 
 Public [publication](../glossary.md#term-publication) remains blocked by the [owner](../glossary.md#term-owner)'s licence/redistribution decision. No upload,
 trusted Developer-ID [signature](../glossary.md#term-signature), [notarization](../glossary.md#term-notarization), x86 low-[precision](../glossary.md#term-precision) qualification, native [FP8](../glossary.md#term-fp8) result
