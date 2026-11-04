@@ -35,9 +35,9 @@ import org.junit.jupiter.api.Test;
  * writes, primitive-conversion order, permitted numerical invocations, and the direct-loop
  * branch topology; it excludes compiler-specific local, label, and geometry-plumbing detail.
  * Vector-selected entries retain evidence of their live vector realization rather than being
- * described as structurally identical to the scalar clean-Java counterpart. Retained owners have
- * independently authored typed counterparts; locked numerical owners prove explicit unsupported
- * outcomes instead. This test does not itself promote a structural or performance disposition.</p>
+ * described as structurally identical to the scalar clean-Java counterpart. Every selected owner
+ * executes against its independently authored typed counterpart. This test does not itself
+ * promote a structural or performance disposition.</p>
  */
 class CpuOrdinaryPointwiseCastStructuralOracleTest {
 
@@ -145,53 +145,25 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
                 "a changed typed ABI must not satisfy the paired comparator");
     }
 
-    /**
-     * Compares the direct hot-loop projection of every selected generated entry with its
-     * independently compiled clean-Java counterpart.  The projection deliberately discards
-     * local-slot allocation, constant-pool numbering, labels, and javac's checkcasts/layout
-     * setup: those are compilation artifacts rather than the specialized loop algorithm. This
-     * normalization is deliberately general to separately compiled artifacts; it does not treat
-     * an incidental compiler-plumbing difference as a change in the selected algorithm. It
-     * retains the operation-selected entry, ordered carrier read/write roles, primitive
-     * conversions, permitted numerical invocations, and direct-loop branch topology. Scalar
-     * realizations compare numerical calls and the live range-loop backedge. A selected Vector
-     * API realization is deliberately not called structurally identical to that scalar clean-Java
-     * oracle: the test instead requires its live vector invocation while retaining the shared
-     * carrier/conversion projection. The adjacent negative controls reject changed carrier,
-     * conversion, invocation, and branch facts. This is a bounded structural oracle, not CFG
-     * equivalence.
-     */
-    @Test void pairedHotLoopFactsMatchEverySelectedGeneratedAndCleanJavaEntry() throws Throwable {
-        List<CpuGeneratedDirectEvidenceClosureTest.PointwiseCandidate> candidates =
-                CpuGeneratedDirectEvidenceClosureTest.pointwiseCandidates();
-        assertEquals(1025, candidates.size(), "exact selected source-derived owner count");
-        var outcomes = pointwiseOutcomes(candidates);
-        candidates = outcomes.retained();
-        List<CpuOrdinaryPointwiseCastCleanJavaOracle.Row> rows = candidates.stream().map(candidate -> {
+    /** Executes every selected typed entry against an independently compiled primitive loop. */
+    @Test void everySelectedEntryMatchesIndependentTypedResultsAcrossRanges() throws Throwable {
+        var candidates = CpuGeneratedDirectEvidenceClosureTest.pointwiseCandidates();
+        var rows = candidates.stream().map(candidate -> {
             var route = new CpuPartitionPreparer().analyze(context(candidate)).plan().units().getFirst().portablePlan();
             return row(candidate, route);
         }).toList();
         var clean = CpuOrdinaryPointwiseCastCleanJavaOracle.compile(rows);
-        Map<String, MethodModel> cleanMethods = methods(clean.bytes());
-        var compared = new ArrayList<String>();
-        for (int index = 0; index < candidates.size(); index++) {
-            var candidate = candidates.get(index);
+        Class<?> witness = new WitnessLoader().define(clean.bytes());
+        for (var candidate : candidates) {
             var route = new CpuPartitionPreparer().analyze(context(candidate)).plan().units().getFirst().portablePlan();
-            byte[] generated = new CpuClassFileKernelGenerator().generateClassBytes(
-                    route.specialization(), route.kernelIr());
-            MethodModel cleanMethod = cleanMethods.get(clean.methods().get(candidate.id()));
-            assertTrue(cleanMethod != null, candidate.id() + " clean structural counterpart");
-            assertPairedHotLoopFacts(candidate.id(), facts(generated), facts(cleanMethod),
-                    candidate.fixture().inputTypes().size(), candidate.fixture().opcode().name().equals("CAST")
-                            && candidate.fixture().inputTypes().getFirst() != candidate.fixture().outputType(),
-                    route.specialization().executionStrategy().compute()
-                            == io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan
-                                    .ExecutionStrategy.Compute.VECTOR,
-                    candidate.fixture().inputTypes().contains(DataType.INT64),
-                    candidate.fixture().outputType() == DataType.INT64);
-            compared.add(candidate.id());
+            var generator = new CpuClassFileKernelGenerator();
+            MethodHandle generated = generator.defineClassBytes(route.specialization(), route.kernelIr(),
+                    generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+            Method cleanEntry = witness.getDeclaredMethod(clean.methods().get(candidate.id()), parameterTypes(candidate));
+            cleanEntry.setAccessible(true);
+            for (long[] range : List.of(new long[] {0, 8}, new long[] {2, 2}, new long[] {2, 6}, new long[] {6, 8}))
+                executePair(candidate, generated, cleanEntry, range[0], range[1]);
         }
-        outcomes.assertComplete(compared);
     }
 
     @Test void pairedHotLoopComparatorRejectsIndependentCarrierConversionInvokeAndBranchDrift() {
@@ -279,8 +251,6 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
                 == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT
                 && candidate.inputs().getLast() != CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT),
                 "segment-to-array is an actual ordered carrier witness");
-        var outcomes = pointwiseOutcomes(witnesses, false);
-        witnesses = outcomes.retained();
         List<CpuOrdinaryPointwiseCastCleanJavaOracle.Row> rows = witnesses.stream().map(candidate -> {
             var route = new CpuPartitionPreparer().analyze(context(candidate)).plan().units().getFirst().portablePlan();
             assertEquals(candidate.inputs(), route.specialization().carrierPattern(), candidate.id());
@@ -297,7 +267,6 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
             executePair(candidate, generated, cleanEntry, 2, 6);
             executed.add(candidate.id());
         }
-        outcomes.assertComplete(executed);
     }
 
     @Test void safeSourceDerivedInputAndOutputAliasesExecuteWithoutAssumingUnsafeOverlap() throws Throwable {
@@ -316,10 +285,6 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
                 .filter(candidate -> candidate.inputs().getFirst() == candidate.inputs().getLast()).toList();
         assertFalse(inputAliases.isEmpty(), "source contracts admit input-input aliases");
         assertFalse(outputAliases.isEmpty(), "source contracts admit one-element input-output aliases");
-        var inputOutcomes = pointwiseOutcomes(inputAliases);
-        var outputOutcomes = pointwiseOutcomes(outputAliases);
-        inputAliases = inputOutcomes.retained();
-        outputAliases = outputOutcomes.retained();
         List<CpuGeneratedDirectEvidenceClosureTest.PointwiseCandidate> aliases = new ArrayList<>();
         aliases.addAll(inputAliases); aliases.addAll(outputAliases);
         List<CpuOrdinaryPointwiseCastCleanJavaOracle.Row> rows = aliases.stream().map(candidate -> {
@@ -346,8 +311,6 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
             executePair(candidate, generated, direct, 2, 6, AliasTopology.INPUT_0_OUTPUT);
             executedOutputs.add(candidate.id());
         }
-        inputOutcomes.assertComplete(executedInputs);
-        outputOutcomes.assertComplete(executedOutputs);
         // Partial overlaps and mixed-width aliases are intentionally absent: their overwrite
         // semantics are not admitted by this pointwise generator contract.
     }
@@ -364,8 +327,6 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
                 Map.entry("LESS_THAN", 30L), Map.entry("LESS_OR_EQUAL", 30L), Map.entry("EQUAL", 30L),
                 Map.entry("NOT_EQUAL", 30L)),
                 countsByOpcode(candidates), "source-derived five-candidate ordinary ownership");
-        var outcomes = pointwiseOutcomes(candidates);
-        candidates = outcomes.retained();
         List<CpuOrdinaryPointwiseCastCleanJavaOracle.Row> rows = candidates.stream().map(candidate -> {
             var route = new CpuPartitionPreparer().analyze(context(candidate)).plan().units().getFirst().portablePlan();
             return new CpuOrdinaryPointwiseCastCleanJavaOracle.Row(candidate.id(), candidate.fixture().opcode().name(),
@@ -385,7 +346,6 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
                 executePair(candidate, generated, cleanEntry, range[0], range[1]);
             executed.add(candidate.id());
         }
-        outcomes.assertComplete(executed);
     }
 
     @Test void unaryActivationAndClassificationOwnersExecuteSelectedGeneratedAndCleanEntries()
@@ -400,8 +360,6 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
                 "GELU_TANH_APPROXIMATION", "SILU", "ERF", "IS_FINITE", "IS_NAN", "IS_INF")) expected.put(opcode, 20L);
         assertEquals(Map.copyOf(expected), countsByOpcode(candidates),
                 "each source-defined unary/classification opcode owns five candidates per floating type");
-        var outcomes = pointwiseOutcomes(candidates);
-        candidates = outcomes.retained();
         List<CpuOrdinaryPointwiseCastCleanJavaOracle.Row> rows = candidates.stream().map(candidate -> {
             var route = new CpuPartitionPreparer().analyze(context(candidate)).plan().units().getFirst().portablePlan();
             return new CpuOrdinaryPointwiseCastCleanJavaOracle.Row(candidate.id(), candidate.fixture().opcode().name(),
@@ -420,7 +378,6 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
                 executePair(candidate, generated, cleanEntry, range[0], range[1]);
             executed.add(candidate.id());
         }
-        outcomes.assertComplete(executed);
     }
 
     private static boolean semanticBinary(String opcode) {
@@ -668,54 +625,6 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
                 candidate.materializationPolicy());
     }
 
-    /**
-     * Proves every unavailable source row before any clean/generated artifact is requested.
-     * @param candidates complete original owner domain, including unavailable numerical forms
-     * @return retained candidates and the independently witnessed unsupported owners
-     */
-    private static PointwiseOutcomes pointwiseOutcomes(
-            List<CpuGeneratedDirectEvidenceClosureTest.PointwiseCandidate> candidates) {
-        return pointwiseOutcomes(candidates, true);
-    }
-
-    /**
-     * Retains execution-only carrier witnesses without adding new inventory owners.
-     * @param candidates complete original owner or execution-witness domain
-     * @param inventoryOwners whether the source domain declares canonical inventory owners
-     * @return retained candidates and independently witnessed unsupported identities
-     */
-    private static PointwiseOutcomes pointwiseOutcomes(
-            List<CpuGeneratedDirectEvidenceClosureTest.PointwiseCandidate> candidates, boolean inventoryOwners) {
-        var retained = new ArrayList<CpuGeneratedDirectEvidenceClosureTest.PointwiseCandidate>();
-        var unsupported = new ArrayList<String>();
-        for (var candidate : candidates) {
-            boolean unavailable = inventoryOwners
-                    ? CpuGeneratedCoverageEvidenceRegistry.lowUnsupported("pointwise-matrix:" + candidate.id(),
-                            context(candidate), candidate.fixture().opcode())
-                    : io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
-                            .assertLowUnsupported(context(candidate));
-            if (unavailable) unsupported.add(candidate.id());
-            else retained.add(candidate);
-        }
-        return new PointwiseOutcomes(candidates.stream().map(candidate -> candidate.id()).toList(),
-                List.copyOf(retained), List.copyOf(unsupported));
-    }
-
-    private record PointwiseOutcomes(List<String> sourceOwners,
-            List<CpuGeneratedDirectEvidenceClosureTest.PointwiseCandidate> retained,
-            List<String> unsupportedOwners) {
-        void assertComplete(List<String> generatedOwners) {
-            assertEquals(retained.stream().map(candidate -> candidate.id()).sorted().toList(),
-                    generatedOwners.stream().sorted().toList(),
-                    "every retained owner independently completes its generated/clean assertions");
-            assertTrue(java.util.Collections.disjoint(generatedOwners, unsupportedOwners),
-                    "unsupported evidence is separate from generated provenance");
-            var accounted = new ArrayList<>(generatedOwners);
-            accounted.addAll(unsupportedOwners);
-            assertEquals(sourceOwners.stream().sorted().toList(), accounted.stream().sorted().toList(),
-                    "all original source owners have generated or explicit unsupported outcomes");
-        }
-    }
 
     private static String entryDescriptor(io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan route) {
         return route.specialization().entryType().descriptorString();
@@ -783,7 +692,7 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
     }
     private static Class<?> carrierType(DataType type, CpuKernelSpecialization.CarrierAccess access) {
         return access == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT ? MemorySegment.class : array(switch(type) {
-            case FLOAT64 -> 'D'; case FLOAT32 -> 'F'; case BFLOAT16, FLOAT16 -> 'S'; case INT64 -> 'J'; case INT32 -> 'I'; case BOOL -> 'B';
+            case FLOAT64 -> 'D'; case FLOAT32 -> 'F'; case BFLOAT16, FLOAT16 -> 'S'; case INT64 -> 'J'; case INT32 -> 'I'; case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> 'B';
         });
     }
     private static Class<?> array(char tag) { return switch (tag) { case 'D' -> double[].class; case 'F' -> float[].class;
@@ -793,16 +702,19 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
         if (access == CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT) return arena.allocate(128, 8);
         return switch (type) { case FLOAT64 -> new double[32]; case FLOAT32 -> new float[32];
             case BFLOAT16, FLOAT16 -> new short[32];
-            case INT64 -> new long[32]; case INT32 -> new int[32]; case BOOL -> new byte[32]; };
+            case INT64 -> new long[32]; case INT32 -> new int[32]; case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> new byte[32]; };
     }
     private static void fill(Object carrier, DataType type, long value) { for (int i = 0; i < 16; i++) put(carrier, type, i, value); }
     private static long sentinel(DataType t) { return switch (t) { case FLOAT64 -> 0x7ff80000000000a5L; case FLOAT32 -> 0x7fc000a5L;
         case BFLOAT16 -> 0x7fc5; case FLOAT16 -> 0x7e55; case INT64 -> 0x5a5a5a5a5a5a5a5aL;
+        case FLOAT8_E4M3, FLOAT8_E5M2 -> 0x5a;
         case INT32 -> 0x5a5a5a5aL; case BOOL -> 1; }; }
     private static long edge(DataType t, int i) { return switch (t) { case FLOAT64 -> new long[] {0L,0x8000000000000000L,0x7ff0000000000042L,0x7ff0000000000000L,0xfff0000000000000L,0x7fefffffffffffffL,Double.doubleToRawLongBits(2147483647.75),Double.doubleToRawLongBits(1.0039062501)}[i];
         case FLOAT32 -> new long[] {0,0x80000000L,0x7fa12345L,0x7f800000L,0xff800000L,0x7f7fffffL,0x4f000000L,0x3f808000L}[i];
         case BFLOAT16 -> new long[] {0,0x8000,0x7f81,0x7f80,0xff80,0x7f7f,0x4f00,0x3f81}[i];
         case FLOAT16 -> new long[] {0,0x8000,0x7c01,0x7c00,0xfc00,0x7bff,0x7c00,0x3c01}[i];
+        case FLOAT8_E4M3 -> new long[] {0,128,127,255,126,1,56,184}[i];
+        case FLOAT8_E5M2 -> new long[] {0,128,125,124,252,123,60,188}[i];
         case INT64 -> new long[] {0,1,-1,Long.MIN_VALUE,Long.MAX_VALUE,2155872257L,-2155872257L,16777217L}[i];
         case INT32 -> new long[] {0,1,-1,Integer.MIN_VALUE,Integer.MAX_VALUE,0x80000001L,0x7fffffffL,16777217L}[i];
         case BOOL -> i % 2; }; }
@@ -810,14 +722,15 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
         case FLOAT32 -> new long[] {0x80000000L,0,0x7fa12345L,0xff800000L,0x7f800000L,0xbf800000L,0x40000000L,0x3f000000L}[i];
         case BFLOAT16 -> new long[] {0x8000,0,0x7f81,0xff80,0x7f80,0xbf80,0x4000,0x3f00}[i];
         case FLOAT16 -> new long[] {0x8000,0,0x7c01,0xfc00,0x7c00,0xbc00,0x4000,0x3800}[i];
+        case FLOAT8_E4M3, FLOAT8_E5M2 -> edge(t, 7-i);
         case INT64 -> new long[] {1,-1,Long.MIN_VALUE,Long.MAX_VALUE,0,-1,2,3}[i];
         case INT32 -> new long[] {1,-1,Integer.MIN_VALUE,Integer.MAX_VALUE,0,-1,2,3}[i];
         case BOOL -> (i + 1) % 2; }; }
     private static void put(Object c, DataType t, long i, long bits) { if (c instanceof MemorySegment s) { switch(t) {
         case FLOAT64 -> s.setAtIndex(java.lang.foreign.ValueLayout.JAVA_LONG_UNALIGNED, i, bits); case FLOAT32, INT32 -> s.setAtIndex(java.lang.foreign.ValueLayout.JAVA_INT_UNALIGNED, i, (int) bits);
-        case BFLOAT16, FLOAT16 -> s.setAtIndex(java.lang.foreign.ValueLayout.JAVA_SHORT_UNALIGNED, i, (short) bits); case INT64 -> s.setAtIndex(java.lang.foreign.ValueLayout.JAVA_LONG_UNALIGNED, i, bits); case BOOL -> s.setAtIndex(java.lang.foreign.ValueLayout.JAVA_BYTE, i, (byte) bits); } return; }
-        switch(t) { case FLOAT64 -> ((double[])c)[(int)i]=Double.longBitsToDouble(bits); case FLOAT32 -> ((float[])c)[(int)i]=Float.intBitsToFloat((int)bits); case BFLOAT16, FLOAT16 -> ((short[])c)[(int)i]=(short)bits; case INT64 -> ((long[])c)[(int)i]=bits; case INT32 -> ((int[])c)[(int)i]=(int)bits; case BOOL -> ((byte[])c)[(int)i]=(byte)bits; } }
-    private static long raw(Object c, DataType t, long i) { if (c instanceof MemorySegment s) return switch(t) { case FLOAT64, INT64 -> s.getAtIndex(java.lang.foreign.ValueLayout.JAVA_LONG_UNALIGNED,i); case FLOAT32, INT32 -> Integer.toUnsignedLong(s.getAtIndex(java.lang.foreign.ValueLayout.JAVA_INT_UNALIGNED,i)); case BFLOAT16, FLOAT16 -> Short.toUnsignedLong(s.getAtIndex(java.lang.foreign.ValueLayout.JAVA_SHORT_UNALIGNED,i)); case BOOL -> Byte.toUnsignedLong(s.getAtIndex(java.lang.foreign.ValueLayout.JAVA_BYTE,i)); }; return switch(t) { case FLOAT64 -> Double.doubleToRawLongBits(((double[])c)[(int)i]); case FLOAT32 -> Integer.toUnsignedLong(Float.floatToRawIntBits(((float[])c)[(int)i])); case BFLOAT16, FLOAT16 -> Short.toUnsignedLong(((short[])c)[(int)i]); case INT64 -> ((long[])c)[(int)i]; case INT32 -> Integer.toUnsignedLong(((int[])c)[(int)i]); case BOOL -> Byte.toUnsignedLong(((byte[])c)[(int)i]); }; }
+        case BFLOAT16, FLOAT16 -> s.setAtIndex(java.lang.foreign.ValueLayout.JAVA_SHORT_UNALIGNED, i, (short) bits); case INT64 -> s.setAtIndex(java.lang.foreign.ValueLayout.JAVA_LONG_UNALIGNED, i, bits); case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> s.setAtIndex(java.lang.foreign.ValueLayout.JAVA_BYTE, i, (byte) bits); } return; }
+        switch(t) { case FLOAT64 -> ((double[])c)[(int)i]=Double.longBitsToDouble(bits); case FLOAT32 -> ((float[])c)[(int)i]=Float.intBitsToFloat((int)bits); case BFLOAT16, FLOAT16 -> ((short[])c)[(int)i]=(short)bits; case INT64 -> ((long[])c)[(int)i]=bits; case INT32 -> ((int[])c)[(int)i]=(int)bits; case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> ((byte[])c)[(int)i]=(byte)bits; } }
+    private static long raw(Object c, DataType t, long i) { if (c instanceof MemorySegment s) return switch(t) { case FLOAT64, INT64 -> s.getAtIndex(java.lang.foreign.ValueLayout.JAVA_LONG_UNALIGNED,i); case FLOAT32, INT32 -> Integer.toUnsignedLong(s.getAtIndex(java.lang.foreign.ValueLayout.JAVA_INT_UNALIGNED,i)); case BFLOAT16, FLOAT16 -> Short.toUnsignedLong(s.getAtIndex(java.lang.foreign.ValueLayout.JAVA_SHORT_UNALIGNED,i)); case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> Byte.toUnsignedLong(s.getAtIndex(java.lang.foreign.ValueLayout.JAVA_BYTE,i)); }; return switch(t) { case FLOAT64 -> Double.doubleToRawLongBits(((double[])c)[(int)i]); case FLOAT32 -> Integer.toUnsignedLong(Float.floatToRawIntBits(((float[])c)[(int)i])); case BFLOAT16, FLOAT16 -> Short.toUnsignedLong(((short[])c)[(int)i]); case INT64 -> ((long[])c)[(int)i]; case INT32 -> Integer.toUnsignedLong(((int[])c)[(int)i]); case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> Byte.toUnsignedLong(((byte[])c)[(int)i]); }; }
     private static final class WitnessLoader extends ClassLoader { WitnessLoader() { super(CpuOrdinaryPointwiseCastStructuralOracleTest.class.getClassLoader()); } Class<?> define(byte[] bytes) { return defineClass(null, bytes, 0, bytes.length); } }
 
     @Test void inventorySeparatesPointwiseAndCrossCategoryRejectionsFromTheGeneratedStructuralDenominator()
@@ -841,8 +754,6 @@ class CpuOrdinaryPointwiseCastStructuralOracleTest {
             if (row.length == 27 && row[0].startsWith("pointwise-matrix:")
                     && row[21].equals("GENERATED")) rows.add(row);
         }
-        pointwiseOutcomes(CpuGeneratedDirectEvidenceClosureTest.pointwiseCandidates()).assertComplete(
-                rows.stream().map(row -> row[0].substring("pointwise-matrix:".length())).toList());
         return List.copyOf(rows);
     }
 

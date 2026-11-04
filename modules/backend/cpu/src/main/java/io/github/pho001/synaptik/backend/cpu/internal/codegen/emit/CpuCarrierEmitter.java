@@ -18,6 +18,9 @@ import io.github.pho001.synaptik.model.datatype.DataType;
  * an external scalar/all-zero BOOL condition is converted once to the matching all-true or
  * all-false mask. Materialized BOOL boundaries retain canonical byte {@code 0}/{@code 1}
  * storage. Carrier choice and access geometry are already validated before emission.</p>
+ * <p>OFP8 uses the same physical byte carrier and byte layout as BOOL, but never its logical
+ * normalization or mask bridge. Scalar OFP8 locals retain every stored bit; numerical unsigned
+ * interpretation belongs to the cast emitter. Neither OFP8 format has a vector lane realization.</p>
  */
 final class CpuCarrierEmitter {
     private static final int LAYOUT_LOCAL_COUNT = 6;
@@ -131,7 +134,7 @@ final class CpuCarrierEmitter {
             }
         }
         for (DataType type : DataType.values()) {
-            if (type == DataType.FLOAT16) continue;
+            if (type == DataType.FLOAT16 || type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2) continue;
             int offset = layoutLocalOffset(type);
             if (required[offset]) emitLayout(code, type, directNativePredefinedLayouts)
                     .astore(base + offset);
@@ -325,7 +328,7 @@ final class CpuCarrierEmitter {
             switch (type) {
                 case FLOAT64 -> code.daload(); case FLOAT32 -> code.faload();
                 case BFLOAT16, FLOAT16 -> code.saload(); case INT32 -> code.iaload();
-                case INT64 -> code.laload(); case BOOL -> code.baload();
+                case INT64 -> code.laload(); case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> code.baload();
                 default -> throw new IllegalArgumentException("unsupported carrier data type");
             }
             return;
@@ -383,7 +386,7 @@ final class CpuCarrierEmitter {
             switch (type) {
                 case FLOAT64 -> code.daload(); case FLOAT32 -> code.faload();
                 case BFLOAT16, FLOAT16 -> code.saload(); case INT32 -> code.iaload();
-                case INT64 -> code.laload(); case BOOL -> code.baload();
+                case INT64 -> code.laload(); case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> code.baload();
                 default -> throw new IllegalArgumentException("unsupported carrier data type");
             }
             return;
@@ -419,7 +422,7 @@ final class CpuCarrierEmitter {
             switch (type) {
                 case FLOAT64 -> code.daload(); case FLOAT32 -> code.faload();
                 case BFLOAT16, FLOAT16 -> code.saload(); case INT32 -> code.iaload();
-                case INT64 -> code.laload(); case BOOL -> code.baload();
+                case INT64 -> code.laload(); case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> code.baload();
                 default -> throw new IllegalArgumentException("unsupported carrier data type");
             }
             return;
@@ -468,7 +471,7 @@ final class CpuCarrierEmitter {
             switch (type) {
                 case FLOAT64 -> code.dastore(); case FLOAT32 -> code.fastore();
                 case BFLOAT16, FLOAT16 -> code.sastore(); case INT32 -> code.iastore();
-                case INT64 -> code.lastore(); case BOOL -> code.bastore();
+                case INT64 -> code.lastore(); case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> code.bastore();
                 default -> throw new IllegalArgumentException("unsupported carrier data type");
             }
             return;
@@ -515,7 +518,7 @@ final class CpuCarrierEmitter {
             switch (type) {
                 case FLOAT64 -> code.dastore(); case FLOAT32 -> code.fastore();
                 case BFLOAT16, FLOAT16 -> code.sastore(); case INT32 -> code.iastore();
-                case INT64 -> code.lastore(); case BOOL -> code.bastore();
+                case INT64 -> code.lastore(); case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> code.bastore();
                 default -> throw new IllegalArgumentException("unsupported carrier data type");
             }
             return;
@@ -558,7 +561,7 @@ final class CpuCarrierEmitter {
             case BFLOAT16, FLOAT16 -> "JAVA_SHORT_UNALIGNED";
             case INT32 -> "JAVA_INT_UNALIGNED";
             case INT64 -> "JAVA_LONG_UNALIGNED";
-            case BOOL -> "JAVA_BYTE";
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> "JAVA_BYTE";
             default -> throw new IllegalArgumentException("unsupported frozen segment data type");
         };
         code.getstatic(VALUE_LAYOUT, field, layoutClass(type));
@@ -834,7 +837,7 @@ final class CpuCarrierEmitter {
             case FLOAT64 -> "JAVA_DOUBLE_UNALIGNED"; case FLOAT32 -> "JAVA_FLOAT_UNALIGNED";
             case BFLOAT16, FLOAT16 -> "JAVA_SHORT_UNALIGNED";
             case INT32 -> "JAVA_INT_UNALIGNED"; case INT64 -> "JAVA_LONG_UNALIGNED";
-            case BOOL -> "JAVA_BYTE"; default -> throw new IllegalArgumentException("unsupported type");
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> "JAVA_BYTE"; default -> throw new IllegalArgumentException("unsupported type");
         };
         ClassDesc layout = layoutClass(type);
         code.getstatic(VALUE_LAYOUT, field, layout);
@@ -973,14 +976,14 @@ final class CpuCarrierEmitter {
             case BFLOAT16, FLOAT16 -> 2;
             case INT32 -> 3;
             case INT64 -> 4;
-            case BOOL -> 5;
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> 5;
         };
     }
 
     private void loadLocal(DataType type, int local) {
         switch (type) {
             case FLOAT64 -> code.dload(local); case FLOAT32 -> code.fload(local);
-            case BFLOAT16, FLOAT16, INT32, BOOL -> code.iload(local); case INT64 -> code.lload(local);
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> code.iload(local); case INT64 -> code.lload(local);
             default -> throw new IllegalArgumentException("unsupported type");
         }
     }
@@ -989,7 +992,7 @@ final class CpuCarrierEmitter {
         return switch (type) {
             case FLOAT64 -> DOUBLE_LAYOUT; case FLOAT32 -> FLOAT_LAYOUT;
             case BFLOAT16, FLOAT16 -> SHORT_LAYOUT; case INT32 -> INT_LAYOUT;
-            case INT64 -> LONG_LAYOUT; case BOOL -> BYTE_LAYOUT;
+            case INT64 -> LONG_LAYOUT; case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> BYTE_LAYOUT;
             default -> throw new IllegalArgumentException("unsupported type");
         };
     }
@@ -1001,7 +1004,7 @@ final class CpuCarrierEmitter {
             case BFLOAT16, FLOAT16 -> java.lang.constant.ConstantDescs.CD_short;
             case INT32 -> java.lang.constant.ConstantDescs.CD_int;
             case INT64 -> java.lang.constant.ConstantDescs.CD_long;
-            case BOOL -> java.lang.constant.ConstantDescs.CD_byte;
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> java.lang.constant.ConstantDescs.CD_byte;
             default -> throw new IllegalArgumentException("unsupported type");
         };
     }

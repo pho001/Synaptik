@@ -60,37 +60,6 @@ class CpuKernelSpecializationTest {
             }
         }
     }
-    /** Low folds reject each geometry; admitted controls retain geometry-free typed streams. */
-    @Test void lowFoldFingerprintFeedsBothStreamsAndStaysGeometryFreeAndDtypeDistinct() {
-        for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
-            for (int geometry = 0; geometry < 2; geometry++) {
-                var base = CpuFoldLoweringTest.context(new Operation(WindowTransformKind.FOLD_AXIS,
-                        new FoldAxisAttrs(0, geometry == 0 ? 5 : 6, geometry == 0 ? 1 : 2)),
-                        type, geometry == 0 ? Shape.of(3, 3) : Shape.of(2, 3),
-                        geometry == 0 ? Shape.of(5) : Shape.of(6));
-                var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                        base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
-                                List.of(CarrierAccess.SHORT_ARRAY, CarrierAccess.SHORT_ARRAY)));
-                assertTrue(io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
-                        .assertLowUnsupported(context));
-            }
-        }
-        var keys = new java.util.HashSet<String>();
-        for (var type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.INT32)) {
-            var carrier = type == DataType.FLOAT32 ? CarrierAccess.FLOAT_ARRAY
-                    : type == DataType.FLOAT64 ? CarrierAccess.DOUBLE_ARRAY : CarrierAccess.INT_ARRAY;
-            var first = fold(new Operation(WindowTransformKind.FOLD_AXIS, new FoldAxisAttrs(0, 5, 1)),
-                    type, Shape.of(3, 3), Shape.of(5), List.of(carrier, carrier)).specialization();
-            var second = fold(new Operation(WindowTransformKind.FOLD_AXIS, new FoldAxisAttrs(0, 6, 2)),
-                    type, Shape.of(2, 3), Shape.of(6), List.of(carrier, carrier)).specialization();
-            assertArrayEquals(first.compatibilityBytes(), second.compatibilityBytes());
-            assertArrayEquals(first.classIdentityBytes(), second.classIdentityBytes());
-            assertTrue(new String(first.compatibilityBytes(), java.nio.charset.StandardCharsets.US_ASCII).contains(first.loweringFingerprint().hex()));
-            assertTrue(new String(first.classIdentityBytes(), java.nio.charset.StandardCharsets.US_ASCII).contains(first.loweringFingerprint().hex()));
-            assertTrue(keys.add(first.structuralKey()));
-            assertEquals(71, CpuGeneratorSchema.CURRENT_VERSION); assertEquals(52, first.classIdentitySchema());
-        }
-    }
     /** Ordinary fusion is typed, scalar, single-family and selectively versioned in both streams. */
     @Test void ordinaryAggregateFusionRequiresItsTypedRecipeAndLeavesBareIdentityUnmarked() {
         var route = io.github.pho001.synaptik.backend.cpu.internal.codegen.emit.CpuAggregateFusionGeneratedKernelTest.ordinaryRoute(DataType.FLOAT32,0);

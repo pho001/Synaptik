@@ -6,6 +6,7 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRowMapReductionIr;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRecipes.BatchByteSize;
+import io.github.pho001.synaptik.backend.cpu.internal.ir.*;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodType;
 import java.nio.charset.StandardCharsets;
@@ -29,6 +30,9 @@ import jdk.incubator.vector.LongVector;
  * The selective ordinary aggregate-fusion payload additionally binds its baked static normalized
  * access geometry and typed sites in both identity streams; it never retains invocation carriers,
  * actual bases, assigned slots or mutable state. Unrelated families append no fusion payload.
+ * Affected low numerical bodies and new FP8 recipes use projection 77. Unchanged exact
+ * low movement, casts, predicates and raw WHERE recipes retain their former identities.
+ * Projection 78 is restricted to the corrected F32 reduced-MSE exact-count denominator.
  *
  * @param loweringFingerprint non-null canonical lowering fingerprint
  * @param executionStrategy non-null generated compute strategy; ordinary parallel plans reuse
@@ -93,6 +97,72 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
     public static final int MOVEMENT_OPERAND_TABLE_SCHEMA = 75;
     /** FLOAT32 RSQRT rounds its square root before the reciprocal. */
     public static final int FLOAT32_RSQRT_SITES_SCHEMA = 76;
+    /** Low F32 working arithmetic and new one-byte floating recipes, affected families only. */
+    public static final int LOW_PRECISION_ARITHMETIC_SCHEMA = 77;
+    /** F32 reduced MSE uses the exact integral denominator rather than its F32 projection. */
+    public static final int FLOAT32_MSE_EXACT_COUNT_SCHEMA = 78;
+
+    private String selectiveArithmeticIdentity() {
+        return classIdentitySchema == LOW_PRECISION_ARITHMETIC_SCHEMA
+                ? "|low-precision-f32-working-rne-v1"
+                : classIdentitySchema == FLOAT32_MSE_EXACT_COUNT_SCHEMA
+                    ? "|float32-mse-mean-exact-count-v1" : "";
+    }
+
+    /**
+     * Selects changed low numerical bodies without renaming established exact raw recipes.
+     *
+     * @param ir non-null portable typed family
+     * @return whether its generated body requires the low arithmetic compatibility projection
+     */
+    public static boolean requiresLowPrecisionArithmeticSchema(CpuPortableKernelIr ir) {
+        CpuKernelIr envelope = switch (ir) {
+            case CpuKernelIr value -> value;
+            case CpuAffineCopyIr value -> value.encodedKernelIr();
+            case CpuConstantWriteIr value -> value.encodedKernelIr();
+            case CpuDataMovementIr value -> value.encodedKernelIr();
+            case CpuIndexingIr value -> value.encodedKernelIr();
+            case CpuScatterIr value -> value.encodedKernelIr();
+            case CpuFoldIr value -> value.encodedKernelIr();
+            case CpuOrderingIr value -> value.encodedKernelIr();
+            case CpuRandomIr value -> value.encodedKernelIr();
+            case CpuScanIr value -> value.encodedKernelIr();
+            case CpuAggregateIr value -> value.encodedKernelIr();
+            case CpuAggregateFusionIr value -> value.encodedKernelIr();
+            case CpuSoftmaxBackwardIr value -> value.encodedKernelIr();
+            case CpuArgExtremaIr value -> value.encodedKernelIr();
+            case CpuMaskedReductionIr value -> value.encodedKernelIr();
+            case CpuAdvancedReductionIr value -> value.encodedKernelIr();
+            case CpuSoftmaxIr value -> value.encodedKernelIr();
+            case CpuTrailingNormalizationIr value -> value.encodedKernelIr();
+            case CpuBatchNormInferenceIr value -> value.encodedKernelIr();
+            case CpuBatchNormTrainingIr value -> value.encodedKernelIr();
+            case CpuConv2dIr value -> value.encodedKernelIr();
+            case CpuConv3dIr value -> value.encodedKernelIr();
+            case CpuPool2dIr value -> value.encodedKernelIr();
+            case CpuPool3dIr value -> value.encodedKernelIr();
+            case CpuAttentionIr value -> value.encodedKernelIr();
+            case CpuLossIr value -> value.encodedKernelIr();
+            case CpuGeneralScanIr value -> value.encodedKernelIr();
+            case CpuRowMapReductionIr value -> value.encodedKernelIr();
+        };
+        if (envelope.values().stream().anyMatch(v -> v.dataType() == DataType.FLOAT8_E4M3
+                || v.dataType() == DataType.FLOAT8_E5M2)) return true;
+        if (envelope.values().stream().noneMatch(v -> v.dataType() == DataType.BFLOAT16
+                || v.dataType() == DataType.FLOAT16)) return false;
+        if (!envelope.instructions().isEmpty()) return envelope.instructions().stream().anyMatch(i ->
+                switch (i.opcode().family()) {
+                    case CLASSIFICATION, COMPARISON, LOGICAL, CAST, SELECTION -> false;
+                    default -> true;
+                });
+        String family = envelope.familyIdentity();
+        return !(family.startsWith("affine:") || family.startsWith("movement:")
+                || family.startsWith("indexing:") || family.startsWith("ordering:")
+                || family.startsWith("constant-write-v1:") || family.startsWith("arg-extrema:")
+                || family.startsWith("scatter:") && family.contains(":reduction=NONE:")
+                || family.startsWith("aggregate:MIN:") || family.startsWith("aggregate:MAX:")
+                || family.startsWith("pool2d:kind=MAX") || family.startsWith("pool3d:kind=MAX"));
+    }
 
     /**
      * Retains the standalone specialization constructor and its unchanged identity stream.
@@ -625,7 +695,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         }
         if (softmaxBackwardIr.isPresent()) {
             var backward = softmaxBackwardIr.orElseThrow();
-            if (classIdentitySchema != 52 || ordinaryBatch || typedOrdinaryBatch || matmulIr.isPresent()
+            if (classIdentitySchema != 52 && classIdentitySchema != LOW_PRECISION_ARITHMETIC_SCHEMA || ordinaryBatch || typedOrdinaryBatch || matmulIr.isPresent()
                     || generalScanIr.isPresent() || rowMapReductionIr.isPresent() || rowFusionEmission.isPresent()
                     || aggregateFusionIr.isPresent()
                     || !executionStrategy.equals(CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR)
@@ -637,7 +707,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         }
         if (aggregateFusionIr.isPresent()) {
             var fusion = aggregateFusionIr.orElseThrow();
-            if (classIdentitySchema != 52 || ordinaryBatch || typedOrdinaryBatch || matmulIr.isPresent()
+            if (classIdentitySchema != 52 && classIdentitySchema != LOW_PRECISION_ARITHMETIC_SCHEMA || ordinaryBatch || typedOrdinaryBatch || matmulIr.isPresent()
                     || generalScanIr.isPresent() || rowMapReductionIr.isPresent() || rowFusionEmission.isPresent()
                     || !executionStrategy.equals(CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR)
                     || vectorSpeciesBitSize != 0 || materializedSourcePosition != -1 || !scratchParameter
@@ -672,7 +742,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
         if (ordinaryBatch && (!selectedRow && !executionStrategy.equals(CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR)
                 || generalScanIr.isPresent() || materializedSourcePosition != -1
                 || boundaryDataTypes.stream().anyMatch(type -> type != DataType.FLOAT32
-                    && (!typedOrdinaryBatch || type != DataType.FLOAT64 && type != DataType.INT64)))) {
+                    && (!typedOrdinaryBatch || type != DataType.FLOAT64 && type != DataType.INT64 && type != DataType.BFLOAT16 && type != DataType.FLOAT16 && type != DataType.FLOAT8_E4M3 && type != DataType.FLOAT8_E5M2)))) {
             throw new IllegalArgumentException("ordinary batch requires qualified typed scalar specialization");
         }
         if (matmulIr.isPresent() && ordinaryBatch != (matmulIr.orElseThrow().batchGeometry() != null)) {
@@ -686,10 +756,13 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
                 && classIdentitySchema != 68 && classIdentitySchema != 71 && classIdentitySchema != 72
                 && classIdentitySchema != DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA
                 && classIdentitySchema != MOVEMENT_OPERAND_TABLE_SCHEMA
-                && classIdentitySchema != FLOAT32_RSQRT_SITES_SCHEMA) {
+                && classIdentitySchema != FLOAT32_RSQRT_SITES_SCHEMA
+                && classIdentitySchema != LOW_PRECISION_ARITHMETIC_SCHEMA
+                && classIdentitySchema != FLOAT32_MSE_EXACT_COUNT_SCHEMA) {
             throw new IllegalArgumentException("unsupported CPU generated class identity projection");
         }
-        if ((classIdentitySchema == 71) != generalScanIr.isPresent())
+        if (classIdentitySchema == 71 && generalScanIr.isEmpty()
+                || generalScanIr.isPresent() && classIdentitySchema != 71 && classIdentitySchema != LOW_PRECISION_ARITHMETIC_SCHEMA)
             throw new IllegalArgumentException("scan family projection requires typed scan facts");
         if (generalScanIr.isPresent()) {
             var scan = generalScanIr.orElseThrow();
@@ -703,7 +776,8 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
                     || scan.composition().isEmpty() && boundaryDataTypes.size() + 5 + (scratchParameter ? 1 : 0) > 254)
                 throw new IllegalArgumentException("scan typed facts/entry budget disagree");
         }
-        if ((classIdentitySchema == 54) != matmulIr.isPresent()
+        if ((classIdentitySchema == 54 && matmulIr.isEmpty()
+                || matmulIr.isPresent() && classIdentitySchema != 54 && classIdentitySchema != LOW_PRECISION_ARITHMETIC_SCHEMA)
                 || classIdentitySchema == 55 && matmulIr.isPresent()) {
             throw new IllegalArgumentException(
                     "class identity schema and typed MATMUL facts disagree");
@@ -866,7 +940,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
                 + aggregateFusionIr.map(f -> "|ordinary-aggregate-fusion-v1="+f.bakedSpecializationIdentity()).orElse("")
                 + softmaxBackwardIr.map(f -> "|ordinary-softmax-backward-v1="+f.bakedSpecializationIdentity()).orElse("")
                 + compositionIdentity() + matmulSingletonIdentity() + movementOperandTableIdentity()
-                + float32RsqrtIdentity()
+                + float32RsqrtIdentity() + selectiveArithmeticIdentity()
                 + rowExecutionIdentity() + scalarRowReuseIdentity() + invariantRowStagingIdentity()
                 + (classIdentitySchema == DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA
                     ? "|affine-dense-array-empty-range-v1" : "")
@@ -923,7 +997,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
                 + aggregateFusionIr.map(f -> "|ordinary-aggregate-fusion-v1="+f.bakedSpecializationIdentity()).orElse("")
                 + softmaxBackwardIr.map(f -> "|ordinary-softmax-backward-v1="+f.bakedSpecializationIdentity()).orElse("")
                 + compositionIdentity() + matmulSingletonIdentity() + movementOperandTableIdentity()
-                + float32RsqrtIdentity()
+                + float32RsqrtIdentity() + selectiveArithmeticIdentity()
                 + rowExecutionIdentity() + scalarRowReuseIdentity() + invariantRowStagingIdentity()
                 + (classIdentitySchema == DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA
                     ? "|affine-dense-array-empty-range-v1" : "")
@@ -1012,7 +1086,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
             case BFLOAT16, FLOAT16 -> CarrierAccess.SHORT_ARRAY;
             case INT32 -> CarrierAccess.INT_ARRAY;
             case INT64 -> CarrierAccess.LONG_ARRAY;
-            case BOOL -> CarrierAccess.BYTE_ARRAY;
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> CarrierAccess.BYTE_ARRAY;
         };
     }
 
@@ -1106,7 +1180,7 @@ public record CpuKernelSpecialization(CpuLoweringFingerprint loweringFingerprint
             case INT32 -> IntVector.SPECIES_PREFERRED.vectorBitSize();
             case INT64 -> LongVector.SPECIES_PREFERRED.vectorBitSize();
             case BOOL -> ByteVector.SPECIES_PREFERRED.vectorBitSize();
-            case BFLOAT16, FLOAT16 -> 0;
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> 0;
         };
     }
 

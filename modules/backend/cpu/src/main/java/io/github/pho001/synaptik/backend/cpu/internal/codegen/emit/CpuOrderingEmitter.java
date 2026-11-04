@@ -281,7 +281,7 @@ public final class CpuOrderingEmitter {
                 case FLOAT64 -> code.loadConstant(0.0d);
                 case FLOAT32 -> code.loadConstant(0.0f);
                 case INT64 -> code.loadConstant(0L);
-                case BFLOAT16, FLOAT16, INT32, BOOL -> code.loadConstant(0);
+                case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> code.loadConstant(0);
             }
             storeValue(code, p.type, leftValue);
             var zeroOutput = code.newLabel();
@@ -367,7 +367,8 @@ public final class CpuOrderingEmitter {
     private static void emitComparison(CodeBuilder code, DataType type, boolean descending,
             int left, int right, Label chooseLeft, Label chooseRight) {
         if (type == DataType.FLOAT32 || type == DataType.BFLOAT16
-                || type == DataType.FLOAT16) {
+                || type == DataType.FLOAT16 || type == DataType.FLOAT8_E4M3
+                || type == DataType.FLOAT8_E5M2) {
             if (type == DataType.BFLOAT16) {
                 code.iload(left).loadConstant(16).ishl().invokestatic(FLOAT_CLASS, "intBitsToFloat",
                         MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int)).fstore(left);
@@ -378,6 +379,9 @@ public final class CpuOrderingEmitter {
                         MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short)).fstore(left);
                 code.iload(right).i2s().invokestatic(FLOAT_CLASS, "float16ToFloat",
                         MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short)).fstore(right);
+            } else if (type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2) {
+                CpuCastEmitter.emitLowToFloat(code, type, left); code.fstore(left);
+                CpuCastEmitter.emitLowToFloat(code, type, right); code.fstore(right);
             }
             Label leftFinite = code.newLabel();
             Label rightNan = code.newLabel();
@@ -638,7 +642,7 @@ public final class CpuOrderingEmitter {
             case BFLOAT16, FLOAT16 -> "JAVA_SHORT_UNALIGNED";
             case INT32 -> "JAVA_INT_UNALIGNED";
             case INT64 -> "JAVA_LONG_UNALIGNED";
-            case BOOL -> "JAVA_BYTE";
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> "JAVA_BYTE";
         };
     }
 
@@ -649,7 +653,7 @@ public final class CpuOrderingEmitter {
             case BFLOAT16, FLOAT16 -> SHORT_LAYOUT;
             case INT32 -> INT_LAYOUT;
             case INT64 -> LONG_LAYOUT;
-            case BOOL -> BYTE_LAYOUT;
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> BYTE_LAYOUT;
         };
     }
 
@@ -660,7 +664,7 @@ public final class CpuOrderingEmitter {
             case BFLOAT16, FLOAT16 -> ConstantDescs.CD_short;
             case INT32 -> ConstantDescs.CD_int;
             case INT64 -> ConstantDescs.CD_long;
-            case BOOL -> ConstantDescs.CD_byte;
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> ConstantDescs.CD_byte;
         };
     }
 
@@ -778,7 +782,7 @@ public final class CpuOrderingEmitter {
             case FLOAT64 -> code.dload(local);
             case FLOAT32 -> code.fload(local);
             case INT64 -> code.lload(local);
-            case BFLOAT16, FLOAT16, INT32, BOOL -> code.iload(local);
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> code.iload(local);
         }
     }
 
@@ -787,7 +791,7 @@ public final class CpuOrderingEmitter {
             case FLOAT64 -> code.dstore(local);
             case FLOAT32 -> code.fstore(local);
             case INT64 -> code.lstore(local);
-            case BFLOAT16, FLOAT16, INT32, BOOL -> code.istore(local);
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> code.istore(local);
         }
     }
 
@@ -796,7 +800,7 @@ public final class CpuOrderingEmitter {
             case FLOAT64 -> TypeKind.DOUBLE;
             case FLOAT32 -> TypeKind.FLOAT;
             case INT64 -> TypeKind.LONG;
-            case BFLOAT16, FLOAT16, INT32, BOOL -> TypeKind.INT;
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> TypeKind.INT;
         };
     }
 

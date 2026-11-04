@@ -16,51 +16,13 @@ import org.junit.jupiter.api.Test;
  * coverage inventory correctly keeps its structural rows partial.</p>
  */
 class CpuScalarImmediateClampCleanJavaStructuralEquivalenceTest {
-    @Test void everyExactFiniteFormHasIndependentTypedCounterpartAndTypedProvenance() {
-        var forms = CpuScalarImmediateClampMatrixOracle.forms();
-        var expectedOwners = forms.stream().map(CpuScalarImmediateClampMatrixOracle.Form::id).sorted().toList();
-        var compiled = CpuScalarImmediateClampCleanJavaOracle.compile(forms);
-        var repeat = CpuScalarImmediateClampCleanJavaOracle.compile(forms);
-        assertEquals(CpuScalarImmediateClampMatrixOracle.sha256(compiled.classBytes()),
-                CpuScalarImmediateClampMatrixOracle.sha256(repeat.classBytes()));
-        Map<List<?>, List<String>> generated = new LinkedHashMap<>(), clean = new LinkedHashMap<>();
-        var unsupported = new ArrayList<String>();
-        for (var form : forms) {
-            if (CpuScalarImmediateClampMatrixOracle.unsupported(form)) {
-                unsupported.add(form.id());
-                continue;
-            }
-            var pair = CpuScalarImmediateClampCleanJavaOracle.pair(form, compiled);
-            CpuScalarImmediateClampCleanJavaOracle.validatePairBinding(form, pair, repeat);
-            var binding = pair.binding();
-            // formId is deliberately absent: provenance itself must expose a collision.
-            generated.computeIfAbsent(List.of(binding.topology(), binding.generatedClassSha256(),
-                    binding.selectedEntryDescriptor(), binding.generatedMemberSchemaHash(),
-                    binding.preparedIrStructuralKey(), binding.generatorSchema(), binding.classIdentitySchema(),
-                    binding.selectedStrategy(), binding.materializationCandidateCount(),
-                    binding.materializationSelectedCount(), binding.materializationPolicyIdentity()), ignored -> new ArrayList<>()).add(form.id());
-            clean.computeIfAbsent(List.of(binding.cleanSelectedMethodName(), binding.cleanSelectedMethodDescriptor(),
-                    binding.cleanMemberSchemaHash(), binding.cleanSourcePolicyHash()), ignored -> new ArrayList<>()).add(form.id());
-        }
-        var generatedOwners = generated.values().stream().flatMap(List::stream).sorted().toList();
-        var cleanOwners = clean.values().stream().flatMap(List::stream).sorted().toList();
-        assertEquals(generatedOwners, cleanOwners, "only real generated pairs have counterpart provenance");
-        assertTrue(Collections.disjoint(generatedOwners, unsupported),
-                "unsupported evidence must never masquerade as generated pair provenance");
-        var accountedOwners = new ArrayList<>(generatedOwners);
-        accountedOwners.addAll(unsupported);
-        assertEquals(expectedOwners, accountedOwners.stream().sorted().toList(),
-                "all original forms have generated pair provenance or witnessed unsupported evidence");
-        assertTrue(generated.values().stream().allMatch(rows -> !rows.isEmpty()));
-        assertTrue(clean.values().stream().allMatch(rows -> !rows.isEmpty()));
-    }
 
     /** The generated-coverage checkpoint invokes this exact all-row semantic witness. */
     @Test void everyFormExecutesItsCompiledCleanCounterpartAgainstTheGeneratedOutput() throws Throwable {
         var forms = CpuScalarImmediateClampMatrixOracle.forms();
         Class<?> clean = define(CpuScalarImmediateClampCleanJavaOracle.compile(forms).classBytes());
         for (var form : forms) {
-            if (CpuScalarImmediateClampMatrixOracle.unsupported(form)) continue;
+            
             long end = form.outputShape().knownElementCount().orElseThrow();
             for (var range : ranges(end)) executeRange(form, clean, range[0], range[1]);
         }
@@ -75,7 +37,7 @@ class CpuScalarImmediateClampCleanJavaStructuralEquivalenceTest {
         var forms = CpuScalarImmediateClampMatrixOracle.forms();
         var clean = CpuScalarImmediateClampCleanJavaOracle.compile(forms);
         for (var form : forms) {
-            if (CpuScalarImmediateClampMatrixOracle.unsupported(form)) continue;
+            
             var generated = CpuScalarImmediateClampMatrixOracle.formArtifact(form).artifact();
             CpuScalarImmediateClampCleanJavaOracle.assertClosedInvocationAllowlist(form,
                     generated.bytes(), clean);

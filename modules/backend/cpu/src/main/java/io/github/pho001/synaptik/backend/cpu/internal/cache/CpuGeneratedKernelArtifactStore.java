@@ -116,17 +116,11 @@ public final class CpuGeneratedKernelArtifactStore {
      * @param kernelIr non-null matching canonical IR
      * @return the verified artifact and its non-null observed source
      * @throws NullPointerException if either argument is {@code null}
-     * @throws IllegalArgumentException if current CPU numerical admission, compatibility or realization fails
+     * @throws IllegalArgumentException if typed family facts, selective compatibility or realization fails
      */
     ObservedRealization loadOrGenerateObserved(CpuKernelSpecialization specialization,
             CpuKernelIr kernelIr) {
-        Objects.requireNonNull(specialization, "specialization");
-        Objects.requireNonNull(kernelIr, "kernelIr");
-        io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering
-                .requirePermittedLowPrecisionUse(specialization, kernelIr);
-        if (!specialization.loweringFingerprint().hex().equals(kernelIr.structuralKey())) {
-            throw new IllegalArgumentException("kernel IR does not match specialization");
-        }
+        CpuClassFileKernelGenerator.validateSpecialization(specialization, kernelIr);
         String key = specialization.structuralKey();
         synchronized (LOADED) {
             removeCollectedEntries();

@@ -26,7 +26,7 @@ class CpuScalarImmediateClampMatrixTest {
 
     @Test void everyExactArtifactExecutesAgainstItsIndependentTypedCleanJavaLoop() throws Throwable {
         for (var fixture : CpuScalarImmediateClampMatrixOracle.fixtures()) {
-            if (CpuScalarImmediateClampMatrixOracle.unsupported(fixture)) continue;
+            
             Object expected = CpuScalarImmediateClampMatrixOracle.cleanJava(fixture);
             Object actual = CpuScalarImmediateClampMatrixOracle.generated(fixture);
             if (expected instanceof short[] value) assertArrayEquals(value, (short[]) actual, fixture.id());
@@ -39,7 +39,7 @@ class CpuScalarImmediateClampMatrixTest {
 
     @Test void everyCompositionalFormExecutesAgainstItsResolvedLayoutOracle() throws Throwable {
         for (var form : CpuScalarImmediateClampMatrixOracle.forms()) {
-            if (CpuScalarImmediateClampMatrixOracle.unsupported(form)) continue;
+            
             assertTypedEquals(CpuScalarImmediateClampMatrixOracle.cleanJava(form),
                     CpuScalarImmediateClampMatrixOracle.generated(form), form.id());
         }
@@ -48,7 +48,7 @@ class CpuScalarImmediateClampMatrixTest {
     @Test void reachableSegmentAndOrderedMixedCarriersHaveTheirOwnDescriptorAndTypedExecution() throws Throwable {
         for (var form : CpuScalarImmediateClampMatrixOracle.forms().stream()
                 .filter(value -> value.id().startsWith("CARRIER-")).toList()) {
-                    if (CpuScalarImmediateClampMatrixOracle.unsupported(form)) continue;
+                    
             var fixture = form.fixture();
             var artifact = CpuScalarImmediateClampMatrixOracle.artifact(fixture);
             assertTrue(artifact.descriptor().contains("MemorySegment"), fixture.id());
@@ -61,7 +61,6 @@ class CpuScalarImmediateClampMatrixTest {
         var provider = new CpuCapabilityProvider();
         var numeric = List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64,
                 DataType.INT32, DataType.INT64);
-        var expectedPairs = new java.util.LinkedHashSet<String>();
         for (var kind : ScalarElementwiseKind.values()) {
             for (var type : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) {
                 boolean expected = type != DataType.BOOL
@@ -69,15 +68,9 @@ class CpuScalarImmediateClampMatrixTest {
                             && kind != ScalarElementwiseKind.DIV
                             && kind != ScalarElementwiseKind.POW || type.isFloating());
                 var query = query(kind, type, type, type);
-                assertEquals(expected && !io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
-                        .lockedLowComputation(query), provider.supports(query), kind + " " + type);
-                if (expected) expectedPairs.add(kind + "/" + type);
+                assertEquals(expected, provider.supports(query), kind + " " + type);
             }
         }
-        assertEquals(expectedPairs, CpuScalarImmediateClampMatrixOracle.fixtures().stream()
-                .map(fixture -> fixture.operation() + "/" + fixture.type())
-                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new)),
-                "the complete original semantic fixture domain remains represented, including unsupported rows");
         for (var kind : ScalarElementwiseKind.values()) {
             for (var input : numeric) for (var output : numeric) if (input != output) {
                 assertFalse(provider.supports(query(kind, input, output, output)),

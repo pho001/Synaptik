@@ -210,7 +210,7 @@ final class CpuAffineCopyEmitter {
         int value = code.allocateLocal(switch (type) {
             case FLOAT64 -> TypeKind.DOUBLE;
             case FLOAT32 -> TypeKind.FLOAT;
-            case BFLOAT16, FLOAT16, INT32, BOOL -> TypeKind.INT;
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> TypeKind.INT;
             case INT64 -> TypeKind.LONG;
         });
         int index = code.allocateLocal(TypeKind.LONG);
@@ -244,7 +244,7 @@ final class CpuAffineCopyEmitter {
             switch (type) {
                 case FLOAT64 -> code.dstore(value);
                 case FLOAT32 -> code.fstore(value);
-                case BFLOAT16, FLOAT16, INT32, BOOL -> code.istore(value);
+                case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> code.istore(value);
                 case INT64 -> code.lstore(value);
             }
             emitInactiveZero(code, type, value, controlled, inactive, valueReady);
@@ -271,7 +271,7 @@ final class CpuAffineCopyEmitter {
         switch (type) {
             case FLOAT64 -> code.dstore(value);
             case FLOAT32 -> code.fstore(value);
-            case BFLOAT16, FLOAT16, INT32, BOOL -> code.istore(value);
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> code.istore(value);
             case INT64 -> code.lstore(value);
         }
         emitInactiveZero(code, type, value, controlled, inactive, valueReady);
@@ -323,7 +323,7 @@ final class CpuAffineCopyEmitter {
             case FLOAT64 -> code.loadConstant(0.0d).dstore(value);
             case FLOAT32 -> code.loadConstant(0.0f).fstore(value);
             case INT64 -> code.loadConstant(0L).lstore(value);
-            case BFLOAT16, FLOAT16, INT32, BOOL -> code.loadConstant(0).istore(value);
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> code.loadConstant(0).istore(value);
         }
         code.labelBinding(ready);
     }
@@ -339,7 +339,7 @@ final class CpuAffineCopyEmitter {
                 case BFLOAT16, FLOAT16 -> code.iload(value).sastore();
                 case INT32 -> code.iload(value).iastore();
                 case INT64 -> code.lload(value).lastore();
-                case BOOL -> code.iload(value).bastore();
+                case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> code.iload(value).bastore();
             }
             return;
         }
@@ -351,7 +351,7 @@ final class CpuAffineCopyEmitter {
         switch (type) {
             case FLOAT64 -> code.dload(value);
             case FLOAT32 -> code.fload(value);
-            case BFLOAT16, FLOAT16, INT32, BOOL -> code.iload(value);
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> code.iload(value);
             case INT64 -> code.lload(value);
         }
         code.invokeinterface(SEGMENT, "set", MethodTypeDesc.of(TypeKind.VOID.upperBound(),
@@ -369,7 +369,7 @@ final class CpuAffineCopyEmitter {
                 case BFLOAT16, FLOAT16 -> code.saload();
                 case INT32 -> code.iaload();
                 case INT64 -> code.laload();
-                case BOOL -> code.baload();
+                case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> code.baload();
             }
             return;
         }
@@ -390,7 +390,7 @@ final class CpuAffineCopyEmitter {
                             CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY;
                     case INT32 -> CpuKernelSpecialization.CarrierAccess.INT_ARRAY;
                     case INT64 -> CpuKernelSpecialization.CarrierAccess.LONG_ARRAY;
-                    case BOOL -> CpuKernelSpecialization.CarrierAccess.BYTE_ARRAY;
+                    case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> CpuKernelSpecialization.CarrierAccess.BYTE_ARRAY;
                 };
     }
 
@@ -401,7 +401,7 @@ final class CpuAffineCopyEmitter {
             case BFLOAT16, FLOAT16 -> SHORT_LAYOUT;
             case INT32 -> INT_LAYOUT;
             case INT64 -> LONG_LAYOUT;
-            case BOOL -> BYTE_LAYOUT;
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> BYTE_LAYOUT;
         };
     }
 

@@ -39,12 +39,12 @@ class CpuPromotedPointwiseTest {
         }
     }
 
-    @Test void originalLowOperandsRemainLockedBeforePromotionAndCrossCategoryStillRejects() {
+    @Test void lowOperandsPromoteBeforeArithmeticWhileCrossCategoryStillRejects() {
         var provider = new CpuCapabilityProvider();
-        for (var low : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+        for (var low : List.of(DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
             var fixture = fixture(new Operation(BinaryArithmeticKind.ADD, NoOperationAttrs.INSTANCE),
                     List.of(low, DataType.FLOAT64), DataType.FLOAT64, CpuPointwiseOpcode.ADD);
-            assertFalse(provider.supports(new OperationCapabilityQuery(fixture.operation(),
+            assertTrue(provider.supports(new OperationCapabilityQuery(fixture.operation(),
                     fixture.inputDescriptors(), List.of(fixture.outputDescriptor()))));
         }
         var invalid = fixture(new Operation(BinaryComparisonKind.EQUAL, NoOperationAttrs.INSTANCE),

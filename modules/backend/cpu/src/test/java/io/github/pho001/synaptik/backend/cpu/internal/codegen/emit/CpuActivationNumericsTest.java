@@ -95,8 +95,7 @@ final class CpuActivationNumericsTest {
     @Test void allLowRepresentationsUseNamedFloatSitesIncludingCancellation() throws Throwable {
         for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16))
             for (CpuPointwiseOpcode kind : COMPOSITES) {
-                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(type, () -> {
-                int count = 65_536;
+                { int count = 65_536;
                 short[] input = new short[count], actual = new short[count], reference = new short[count];
                 for (int i = 0; i < count; i++) input[i] = (short) i;
                 Fixture fixture = fixture(type, kind, ExecutionStrategy.SCALAR, false, false, false);
@@ -126,8 +125,7 @@ final class CpuActivationNumericsTest {
                 if (kind == CpuPointwiseOpcode.GELU_EXACT) {
                     int index = Short.toUnsignedInt(CpuActivationDirectOracle.encode(type, -6f));
                     assertEquals((short) 0x8000, actual[index], "GELU(-6) is negative zero");
-                }
-                });
+                } }
             }
     }
 
@@ -137,13 +135,6 @@ final class CpuActivationNumericsTest {
                 for (boolean strided : List.of(false, true))
                     for (boolean nativeIn : List.of(false, true))
                         for (boolean nativeOut : List.of(false, true)) {
-                            if (type == DataType.BFLOAT16 || type == DataType.FLOAT16) {
-                                assertThrows(IllegalArgumentException.class, () -> fixture(type,
-                                        kind, ExecutionStrategy.SCALAR, nativeIn, nativeOut, strided),
-                                        type + "/" + kind + "/strided=" + strided
-                                                + "/nativeIn=" + nativeIn + "/nativeOut=" + nativeOut);
-                                continue;
-                            }
                             int count = 17, stride = strided ? 2 : 1, span = 48, start = 2, end = 15;
                             Object input = array(type, span), output = array(type, span);
                             for (int i = 0; i < span; i++) { putTyped(type, input, i, -71); putTyped(type, output, i, -71); }
@@ -184,13 +175,6 @@ final class CpuActivationNumericsTest {
                         }
     }
 
-    @Test void lowCompositeClassFilesAreRejectedIndependently() {
-        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16))
-            for (CpuPointwiseOpcode kind : COMPOSITES) {
-                assertThrows(IllegalArgumentException.class, () -> fixture(type, kind,
-                        ExecutionStrategy.SCALAR, false, false, false), type + "/" + kind);
-            }
-    }
 
     @Test void erfVectorHelpersBoundInputsBeforeMultiplicationAndKeepChunkOnlyCalls() throws Exception {
         Path root = Path.of("build/cpu-0022-classes");
@@ -249,7 +233,9 @@ final class CpuActivationNumericsTest {
                 List.of(nativeIn ? CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT : heap,
                         nativeOut ? CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT : heap),
                 strategy == ExecutionStrategy.VECTOR ? lanes(type) * type.byteWidth() * 8 : 0,
-                -1, List.of(), false, CpuKernelSpecialization.hasFloat32RsqrtSites(ir)
+                -1, List.of(), false, CpuKernelSpecialization.requiresLowPrecisionArithmeticSchema(ir)
+                        ? CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA
+                        : CpuKernelSpecialization.hasFloat32RsqrtSites(ir)
                         ? CpuKernelSpecialization.FLOAT32_RSQRT_SITES_SCHEMA
                         : type == DataType.FLOAT16 ? 68 : type == DataType.BFLOAT16 ? 59 : 52);
         var generator = new CpuClassFileKernelGenerator();

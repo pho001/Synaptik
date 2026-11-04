@@ -17,7 +17,7 @@ import java.lang.constant.MethodTypeDesc;
  * {@link StrictMath} calls. The ERF, sigmoid, exact and tanh-approximation GELU, and SiLU formulas
  * are emitted directly into the generated class rather than invoked through a Synaptik runtime
  * helper. FLOAT32 widens one represented value to {@code double} where the selected formula or JDK
- * operation requires it and narrows the result once. BFLOAT16/FLOAT16 locals retain raw represented
+ * operation requires it and narrows the result once. All four low floating locals retain raw represented
  * bits, expand to FLOAT32 only at a numerical consumer, and narrow once after each low-producing
  * logical instruction. Low composite activations instead use FLOAT32 at every named arithmetic
  * site and round each elementary result back to FLOAT32 before its consumer; only the internals
@@ -80,6 +80,8 @@ final class CpuScalarEmitter {
         CpuPointwiseOpcode opcode = instruction.opcode();
         DataType inputType = ir.values().get(instruction.inputs().getFirst()).dataType();
         DataType outputType = ir.values().get(instruction.output()).dataType();
+        if (isLow(inputType) && inputType == outputType
+                && emitExactLow(instruction, locals, inputType)) return;
         if (opcode == CpuPointwiseOpcode.WHERE) {
             emitWhere(ir, instruction, locals, outputType);
             return;
@@ -105,9 +107,9 @@ final class CpuScalarEmitter {
         }
         if (opcode == CpuPointwiseOpcode.CAST) {
             casts.emit(inputType, outputType, locals[instruction.inputs().getFirst()]);
-            // CAST to a 16-bit float already leaves raw represented short bits on the stack.
-            // Other 16-bit-float-producing operators leave FLOAT32 and use store's RNE edge.
-            if (outputType == DataType.BFLOAT16 || outputType == DataType.FLOAT16) {
+            // CAST to a low float already leaves raw represented bits on the stack.
+            // Other low-float-producing operators leave FLOAT32 and use store's RNE edge.
+            if (isLow(outputType)) {
                 code.istore(locals[instruction.output()]);
             } else store(outputType, locals[instruction.output()]);
             return;
@@ -134,6 +136,78 @@ final class CpuScalarEmitter {
         store(outputType, locals[instruction.output()]);
     }
 
+    private boolean emitExactLow(CpuKernelIr.Instruction instruction, int[] locals, DataType type) {
+        var opcode = instruction.opcode();
+        int input = locals[instruction.inputs().getFirst()];
+        int output = locals[instruction.output()];
+        if (opcode == CpuPointwiseOpcode.SIGN || opcode == CpuPointwiseOpcode.FLOOR
+                || opcode == CpuPointwiseOpcode.CEIL) {
+            int value = code.allocateLocal(TypeKind.FLOAT);
+            var finite = code.newLabel(); var done = code.newLabel();
+            CpuCastEmitter.emitLowToFloat(code, type, input); code.fstore(value);
+            code.fload(value).invokestatic(FLOAT, "isNaN",
+                    MethodTypeDesc.of(ConstantDescs.CD_boolean, ConstantDescs.CD_float))
+                    .branch(Opcode.IFEQ, finite);
+            code.iload(input).istore(output).branch(Opcode.GOTO, done);
+            code.labelBinding(finite).fload(value);
+            unary(opcode, type); store(type, output);
+            code.labelBinding(done);
+            return true;
+        }
+        int sign = type.byteWidth() == 1 ? 128 : 0x8000;
+        if (opcode == CpuPointwiseOpcode.ABS || opcode == CpuPointwiseOpcode.NEG) {
+            code.iload(input).loadConstant(opcode == CpuPointwiseOpcode.ABS ? sign - 1 : sign);
+            if (opcode == CpuPointwiseOpcode.ABS) code.iand(); else code.ixor();
+            code.istore(output);
+            return true;
+        }
+        boolean minimum = opcode == CpuPointwiseOpcode.MIN || opcode == CpuPointwiseOpcode.SCALAR_MIN;
+        boolean maximum = opcode == CpuPointwiseOpcode.MAX || opcode == CpuPointwiseOpcode.SCALAR_MAX;
+        if (minimum || maximum || opcode == CpuPointwiseOpcode.RELU) {
+            int right;
+            if (instruction.inputs().size() == 2) right = locals[instruction.inputs().get(1)];
+            else {
+                right = code.allocateLocal(TypeKind.INT);
+                code.loadConstant(opcode == CpuPointwiseOpcode.RELU ? 0
+                        : (int) instruction.scalarImmediate().bits()).istore(right);
+            }
+            exactLowExtrema(type, minimum, input, right);
+            code.istore(output);
+            return true;
+        }
+        if (opcode == CpuPointwiseOpcode.SCALAR_CLAMP) {
+            int lower = code.allocateLocal(TypeKind.INT);
+            int upper = code.allocateLocal(TypeKind.INT);
+            int middle = code.allocateLocal(TypeKind.INT);
+            code.loadConstant((int) instruction.clampImmediate().lower().bits()).istore(lower);
+            code.loadConstant((int) instruction.clampImmediate().upper().bits()).istore(upper);
+            exactLowExtrema(type, false, input, lower); code.istore(middle);
+            exactLowExtrema(type, true, middle, upper); code.istore(output);
+            return true;
+        }
+        return false;
+    }
+
+    private void exactLowExtrema(DataType type, boolean minimum, int left, int right) {
+        int a = code.allocateLocal(TypeKind.FLOAT);
+        int b = code.allocateLocal(TypeKind.FLOAT);
+        var chooseLeft = code.newLabel(); var chooseRight = code.newLabel();
+        var equal = code.newLabel(); var done = code.newLabel();
+        CpuCastEmitter.emitLowToFloat(code, type, left); code.fstore(a);
+        CpuCastEmitter.emitLowToFloat(code, type, right); code.fstore(b);
+        code.fload(a).fload(a).fcmpl().branch(Opcode.IFNE, chooseLeft);
+        code.fload(b).fload(b).fcmpl().branch(Opcode.IFNE, chooseRight);
+        code.fload(a).fload(b).fcmpg().branch(Opcode.IFEQ, equal);
+        code.fload(a).fload(b).fcmpg().branch(minimum ? Opcode.IFLT : Opcode.IFGT, chooseLeft)
+                .branch(Opcode.GOTO, chooseRight);
+        code.labelBinding(equal).fload(a).loadConstant(0f).fcmpl().branch(Opcode.IFNE, chooseLeft);
+        code.iload(left).loadConstant(type.byteWidth() == 1 ? 128 : 0x8000).iand()
+                .branch(minimum ? Opcode.IFNE : Opcode.IFEQ, chooseLeft)
+                .branch(Opcode.GOTO, chooseRight);
+        code.labelBinding(chooseLeft).iload(left).branch(Opcode.GOTO, done);
+        code.labelBinding(chooseRight).iload(right).labelBinding(done);
+    }
+
     private void arithmetic(CpuPointwiseOpcode opcode, DataType type) {
         boolean add = opcode == CpuPointwiseOpcode.ADD || opcode == CpuPointwiseOpcode.SCALAR_ADD;
         boolean sub = opcode == CpuPointwiseOpcode.SUB || opcode == CpuPointwiseOpcode.SCALAR_SUB;
@@ -147,7 +221,7 @@ final class CpuScalarEmitter {
         switch (type) {
             case FLOAT64 -> { if (add) code.dadd(); else if (sub) code.dsub();
                 else if (div) code.ddiv(); else code.dmul(); }
-            case FLOAT32, BFLOAT16, FLOAT16 -> { if (add) code.fadd(); else if (sub) code.fsub();
+            case FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> { if (add) code.fadd(); else if (sub) code.fsub();
                 else if (div) code.fdiv(); else code.fmul(); }
             case INT32 -> { if (div) throw new IllegalArgumentException("integral division unsupported");
                 if (add) code.iadd(); else if (sub) code.isub(); else code.imul(); }
@@ -174,7 +248,7 @@ final class CpuScalarEmitter {
         ClassDesc primitive;
         switch (type) {
             case FLOAT64 -> { owner = MATH; primitive = ConstantDescs.CD_double; }
-            case FLOAT32, BFLOAT16, FLOAT16 -> { owner = MATH; primitive = ConstantDescs.CD_float; }
+            case FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> { owner = MATH; primitive = ConstantDescs.CD_float; }
             case INT32 -> { owner = INTEGER; primitive = ConstantDescs.CD_int; }
             case INT64 -> { owner = LONG; primitive = ConstantDescs.CD_long; }
             default -> throw new IllegalArgumentException("unsupported extrema type");
@@ -232,7 +306,7 @@ final class CpuScalarEmitter {
             return;
         }
         if (opcode == CpuPointwiseOpcode.RSQRT
-                && (type == DataType.BFLOAT16 || type == DataType.FLOAT16)) {
+                && (isLow(type))) {
             invokeDoubleUnary(type, STRICT_MATH, "sqrt");
             int root = code.allocateLocal(TypeKind.FLOAT);
             code.fstore(root).loadConstant(1.0f).fload(root).fdiv();
@@ -240,6 +314,10 @@ final class CpuScalarEmitter {
         }
         if (opcode == CpuPointwiseOpcode.RECIPROCAL || opcode == CpuPointwiseOpcode.RSQRT) {
             int value = code.allocateLocal(type == DataType.FLOAT64 ? TypeKind.DOUBLE : TypeKind.FLOAT);
+            if (isLow(type)) {
+                code.fstore(value).loadConstant(1f).fload(value).fdiv();
+                return;
+            }
             store(type, value);
             loadPositiveOne(type);
             load(type, value);
@@ -274,7 +352,7 @@ final class CpuScalarEmitter {
     }
 
     private void emitActivation(CpuPointwiseOpcode opcode, DataType type) {
-        if ((type == DataType.BFLOAT16 || type == DataType.FLOAT16)
+        if ((isLow(type))
                 && opcode != CpuPointwiseOpcode.ERF) {
             emitLowActivation(opcode);
             return;
@@ -511,7 +589,7 @@ final class CpuScalarEmitter {
         var whenFalse = code.newLabel();
         var done = code.newLabel();
         code.iload(locals[instruction.inputs().get(0)]).branch(Opcode.IFEQ, whenFalse);
-        if (resultType == DataType.BFLOAT16 || resultType == DataType.FLOAT16) {
+        if (isLow(resultType)) {
             code.iload(locals[instruction.inputs().get(1)]).istore(locals[instruction.output()]);
             code.branch(Opcode.GOTO, done).labelBinding(whenFalse);
             code.iload(locals[instruction.inputs().get(2)]).istore(locals[instruction.output()]);
@@ -551,6 +629,11 @@ final class CpuScalarEmitter {
             case FLOAT16 -> code.loadConstant((int) immediate.bits()).i2s()
                     .invokestatic(FLOAT, "float16ToFloat", MethodTypeDesc.of(
                             ConstantDescs.CD_float, ConstantDescs.CD_short));
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> {
+                int raw = code.allocateLocal(TypeKind.INT);
+                code.loadConstant((int) immediate.bits()).istore(raw);
+                CpuCastEmitter.emitLowToFloat(code, immediate.dataType(), raw);
+            }
             case INT32 -> code.loadConstant((int) immediate.bits());
             case INT64 -> code.loadConstant(immediate.bits());
             default -> throw new IllegalArgumentException("unsupported scalar immediate");
@@ -565,6 +648,7 @@ final class CpuScalarEmitter {
                             ConstantDescs.CD_int));
             case FLOAT16 -> code.iload(local).i2s().invokestatic(FLOAT, "float16ToFloat",
                     MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short));
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> CpuCastEmitter.emitLowToFloat(code, type, local);
             case INT32, BOOL -> code.iload(local); case INT64 -> code.lload(local);
             default -> throw new IllegalArgumentException("unsupported value type");
         }
@@ -575,6 +659,12 @@ final class CpuScalarEmitter {
             case FLOAT64 -> code.dstore(local); case FLOAT32 -> code.fstore(local);
             case BFLOAT16 -> encodeBfloat(local);
             case FLOAT16 -> encodeFloat16(local);
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> {
+                int value = code.allocateLocal(TypeKind.FLOAT);
+                code.fstore(value);
+                CpuCastEmitter.emitFloatToLow(code, type, value);
+                code.istore(local);
+            }
             case INT32, BOOL -> code.istore(local); case INT64 -> code.lstore(local);
             default -> throw new IllegalArgumentException("unsupported value type");
         }
@@ -582,8 +672,13 @@ final class CpuScalarEmitter {
 
     private static boolean floatLike(DataType type) {
         return type == DataType.FLOAT32 || type == DataType.BFLOAT16
-                || type == DataType.FLOAT16;
+                || type == DataType.FLOAT16 || type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2;
     }
+    private static boolean isLow(DataType type) {
+        return type == DataType.BFLOAT16 || type == DataType.FLOAT16
+                || type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2;
+    }
+
 
     /** Emits the established inline RNE/canonical-NaN FLOAT32-to-BFLOAT16 boundary. */
     private void encodeBfloat(int local) {

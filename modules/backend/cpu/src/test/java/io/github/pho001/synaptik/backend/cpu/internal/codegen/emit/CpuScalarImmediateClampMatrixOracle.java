@@ -94,18 +94,6 @@ final class CpuScalarImmediateClampMatrixOracle {
         return List.copyOf(result);
     }
 
-    /** Proves a formerly positive low numerical fixture is currently unsupported. */
-    static boolean unsupported(Fixture fixture) {
-        return io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
-                .assertLowUnsupported(context(fixture));
-    }
-
-    /** Retains the complete form domain in the current inventory as explicit negative records. */
-    static boolean unsupported(Form form) {
-        return CpuGeneratedCoverageEvidenceRegistry.lowUnsupported("scalar-immediate:" + form.id(),
-                contextFor(form.fixture(), form.inputShape(), form.inputLayout(),
-                        form.outputShape(), form.outputLayout(), form.materializationPolicy()));
-    }
 
     static Artifact artifact(Fixture fixture) {
         var context = context(fixture);
@@ -508,12 +496,19 @@ final class CpuScalarImmediateClampMatrixOracle {
             case SUB -> { for (int i = 0; i < output.length; i++) output[i] = bfloat(value(input[i]) - immediate); }
             case MUL -> { for (int i = 0; i < output.length; i++) output[i] = bfloat(value(input[i]) * immediate); }
             case DIV -> { for (int i = 0; i < output.length; i++) output[i] = bfloat(value(input[i]) / immediate); }
-            case MIN -> { for (int i = 0; i < output.length; i++) output[i] = bfloat(Math.min(value(input[i]), immediate)); }
-            case MAX -> { for (int i = 0; i < output.length; i++) output[i] = bfloat(Math.max(value(input[i]), immediate)); }
+            case MIN -> { for (int i = 0; i < output.length; i++) output[i] = bf16Winner(input[i], fixture.immediate().bfloat16Bits(), true); }
+            case MAX -> { for (int i = 0; i < output.length; i++) output[i] = bf16Winner(input[i], fixture.immediate().bfloat16Bits(), false); }
             case POW -> power(fixture, input, output, immediate);
-            case CLAMP -> { for (int i = 0; i < output.length; i++) output[i] = bfloat(Math.min(Math.max(value(input[i]), immediate), upper)); }
+            case CLAMP -> { for (int i = 0; i < output.length; i++) output[i] = bf16Winner(bf16Winner(input[i], fixture.immediate().bfloat16Bits(), false), fixture.upper().bfloat16Bits(), true); }
         }
         return output;
+    }
+
+    private static short bf16Winner(short a, short b, boolean minimum) {
+        float left = value(a), right = value(b);
+        if (Float.isNaN(left)) return a;
+        if (Float.isNaN(right)) return b;
+        return (minimum ? Float.compare(left, right) <= 0 : Float.compare(left, right) >= 0) ? a : b;
     }
     private static float[] f32(Fixture fixture) {
         float[] input = (float[]) input(DataType.FLOAT32), output = new float[32];

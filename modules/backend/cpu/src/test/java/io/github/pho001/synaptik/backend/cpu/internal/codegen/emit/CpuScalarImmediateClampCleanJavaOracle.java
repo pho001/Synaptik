@@ -1450,9 +1450,34 @@ final class CpuScalarImmediateClampCleanJavaOracle {
         // shape/layout semantics, not from emitted bytecode.
         String inputAddress = directDenseArray ? "ib+(tailOrdinal-start)" : "ia";
         String outputAddress = directDenseArray ? "ob+(tailOrdinal-start)" : "oa";
+        if (x.type() == DataType.BFLOAT16 && (x.operation() == ScalarElementwiseKind.MIN
+                || x.operation() == ScalarElementwiseKind.MAX || x.operation() == ScalarElementwiseKind.CLAMP)) {
+            String raw = x.carriers().getFirst() == CarrierAccess.MEMORY_SEGMENT
+                    ? "input.get(ValueLayout.JAVA_SHORT_UNALIGNED,(" + inputAddress + ")*2L)"
+                    : "input[(int)(" + inputAddress + ")]";
+            s.append("int selected=").append(raw).append(';');
+            if (x.operation() == ScalarElementwiseKind.CLAMP) {
+                appendLowSelection(s, x.immediate().bfloat16Bits(), false);
+                appendLowSelection(s, x.upper().bfloat16Bits(), true);
+            } else appendLowSelection(s, x.immediate().bfloat16Bits(), x.operation() == ScalarElementwiseKind.MIN);
+            s.append(x.carriers().getLast() == CarrierAccess.MEMORY_SEGMENT
+                    ? "output.set(ValueLayout.JAVA_SHORT_UNALIGNED,(" + outputAddress + ")*2L,(short)selected);"
+                    : "output[(int)(" + outputAddress + ")]=(short)selected;");
+            s.append(advance).append("}}\n");
+            return;
+        }
         String v = load("input", x.type(), x.carriers().getFirst(), inputAddress);
         String value = operation(f, v); s.append(store("output", x.type(), x.carriers().getLast(), outputAddress, value)).append(';')
                 .append(advance).append("}}\n");
+    }
+
+    private static void appendLowSelection(StringBuilder source, short bound, boolean minimum) {
+        String zeroTie = minimum ? bound < 0 ? "||(a==0f&&b==0f&&(selected&32768)==0)" : ""
+                : bound >= 0 ? "||(a==0f&&b==0f&&(selected&32768)!=0)" : "";
+        source.append("{float a=Float.intBitsToFloat(selected<<16),b=Float.intBitsToFloat(")
+                .append((int) bound << 16).append(");if(a==a&&(b!=b||a")
+                .append(minimum ? ">b" : "<b").append(zeroTie)
+                .append("))selected=").append((int) bound).append(";}");
     }
 
     /*

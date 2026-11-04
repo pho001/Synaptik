@@ -348,7 +348,7 @@ final class CpuDataMovementEmitter {
         int value = code.allocateLocal(switch (type) {
             case FLOAT64 -> TypeKind.DOUBLE;
             case FLOAT32 -> TypeKind.FLOAT;
-            case BFLOAT16, FLOAT16 -> TypeKind.INT;
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> TypeKind.INT;
             default -> throw new IllegalArgumentException("image unfold requires a floating carrier");
         });
         var carriers = new CpuCarrierEmitter(code);
@@ -431,7 +431,7 @@ final class CpuDataMovementEmitter {
         int value = code.allocateLocal(switch (type) {
             case FLOAT64 -> TypeKind.DOUBLE;
             case FLOAT32 -> TypeKind.FLOAT;
-            case BFLOAT16, FLOAT16, INT32, BOOL -> TypeKind.INT;
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> TypeKind.INT;
             case INT64 -> TypeKind.LONG;
         });
         int inputBases = 3 * rank + 1;
@@ -689,7 +689,7 @@ final class CpuDataMovementEmitter {
         int value = code.allocateLocal(switch (type) {
             case FLOAT64 -> TypeKind.DOUBLE;
             case FLOAT32 -> TypeKind.FLOAT;
-            case BFLOAT16, FLOAT16, INT32, BOOL -> TypeKind.INT;
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> TypeKind.INT;
             case INT64 -> TypeKind.LONG;
         });
         int inputBases = 3 * rank + 1;
@@ -1377,7 +1377,7 @@ final class CpuDataMovementEmitter {
                 case BFLOAT16, FLOAT16 -> code.saload();
                 case INT32 -> code.iaload();
                 case INT64 -> code.laload();
-                case BOOL -> code.baload();
+                case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> code.baload();
             }
             return;
         }
@@ -1401,7 +1401,7 @@ final class CpuDataMovementEmitter {
                 case BFLOAT16, FLOAT16 -> code.saload();
                 case INT32 -> code.iaload();
                 case INT64 -> code.laload();
-                case BOOL -> code.baload();
+                case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> code.baload();
             }
             return;
         }
@@ -1426,7 +1426,7 @@ final class CpuDataMovementEmitter {
                 case BFLOAT16, FLOAT16 -> code.sastore();
                 case INT32 -> code.iastore();
                 case INT64 -> code.lastore();
-                case BOOL -> code.bastore();
+                case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> code.bastore();
             }
             return;
         }
@@ -1452,7 +1452,7 @@ final class CpuDataMovementEmitter {
                 case BFLOAT16, FLOAT16 -> code.sastore();
                 case INT32 -> code.iastore();
                 case INT64 -> code.lastore();
-                case BOOL -> code.bastore();
+                case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> code.bastore();
             }
             return;
         }
@@ -1473,7 +1473,7 @@ final class CpuDataMovementEmitter {
             case BFLOAT16, FLOAT16 -> "JAVA_SHORT_UNALIGNED";
             case INT32 -> "JAVA_INT_UNALIGNED";
             case INT64 -> "JAVA_LONG_UNALIGNED";
-            case BOOL -> "JAVA_BYTE";
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> "JAVA_BYTE";
         };
     }
 
@@ -1484,7 +1484,7 @@ final class CpuDataMovementEmitter {
             case BFLOAT16, FLOAT16 -> "Short";
             case INT32 -> "Int";
             case INT64 -> "Long";
-            case BOOL -> "Byte";
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> "Byte";
         });
     }
 
@@ -1495,7 +1495,7 @@ final class CpuDataMovementEmitter {
             case BFLOAT16, FLOAT16 -> TypeKind.SHORT.upperBound();
             case INT32 -> TypeKind.INT.upperBound();
             case INT64 -> TypeKind.LONG.upperBound();
-            case BOOL -> TypeKind.BYTE.upperBound();
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> TypeKind.BYTE.upperBound();
         };
     }
 
@@ -1506,7 +1506,7 @@ final class CpuDataMovementEmitter {
             case BFLOAT16, FLOAT16 -> code.iload(local).i2s();
             case INT32 -> code.iload(local);
             case INT64 -> code.lload(local);
-            case BOOL -> code.iload(local).i2b();
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> code.iload(local).i2b();
         }
     }
 
@@ -1595,7 +1595,7 @@ final class CpuDataMovementEmitter {
         int value = code.allocateLocal(switch (type) {
             case FLOAT64 -> TypeKind.DOUBLE;
             case FLOAT32 -> TypeKind.FLOAT;
-            case BFLOAT16, FLOAT16, INT32, BOOL -> TypeKind.INT;
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> TypeKind.INT;
             case INT64 -> TypeKind.LONG;
         });
         int[] tileCoordinates = null;

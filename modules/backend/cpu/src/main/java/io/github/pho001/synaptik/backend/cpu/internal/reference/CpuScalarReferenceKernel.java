@@ -34,14 +34,16 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.Float16Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E4M3Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E5M2Bits;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastValueConversions;
 
 /**
  * Scalar conformance realization for the bounded typed CPU portable semantics.
  * It evaluates already-lowered primitive arithmetic, exact extrema and clamp, direct Tensor
- * power, canonical-BOOL logic, the closed BFLOAT16/FLOAT16/FLOAT32/FLOAT64 unary matrix, and the
- * selected scalar-power plan. BFLOAT16 and FLOAT16 numerical inputs decode from raw bits, every
+ * power, canonical-BOOL logic, the floating unary matrix including both OFP8 types, and the
+ * selected scalar-power plan. All low floating numerical inputs decode from raw bits, every
  * producing logical node encodes once. Same-type {@code WHERE} copies selected raw bits; promoted
  * selection converts the chosen branch through the Model conversion owner. Binary arithmetic and
  * comparisons promote same-category original carriers without a floating intermediate for
@@ -87,6 +89,39 @@ public final class CpuScalarReferenceKernel {
             2.24633760818710981792E3, 1.65666309194161350182E3,
             5.57535340817727675546E2};
     private CpuScalarReferenceKernel() { }
+
+    private static boolean lowType(DataType type) {
+        return type == DataType.BFLOAT16 || type == DataType.FLOAT16
+                || type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2;
+    }
+
+    private static float lowFloat(DataType type, Object value) {
+        return switch (type) {
+            case BFLOAT16 -> BFloat16Bits.toFloat((short) value);
+            case FLOAT16 -> Float16Bits.toFloat((short) value);
+            case FLOAT8_E4M3 -> Float8E4M3Bits.toFloat((byte) value);
+            case FLOAT8_E5M2 -> Float8E5M2Bits.toFloat((byte) value);
+            default -> throw new AssertionError("not a low storage type");
+        };
+    }
+
+    private static Object lowBits(DataType type, float value) {
+        return switch (type) {
+            case BFLOAT16 -> BFloat16Bits.fromFloat(value);
+            case FLOAT16 -> Float16Bits.fromFloat(value);
+            case FLOAT8_E4M3 -> Float8E4M3Bits.fromFloat(value);
+            case FLOAT8_E5M2 -> Float8E5M2Bits.fromFloat(value);
+            default -> throw new AssertionError("not a low storage type");
+        };
+    }
+
+    private static Object lowWinner(DataType type, Object left, Object right, boolean minimum) {
+        float a = lowFloat(type, left), b = lowFloat(type, right);
+        if (Float.isNaN(a)) return left;
+        if (Float.isNaN(b)) return right;
+        int comparison = Float.compare(a, b);
+        return minimum ? comparison <= 0 ? left : right : comparison >= 0 ? left : right;
+    }
 
     /**
      * Independently evaluates one complete ordinary numerical, extrema, Boolean, or bound
@@ -150,7 +185,9 @@ public final class CpuScalarReferenceKernel {
                 }
                 Object value = load(arguments.getFirst(), ir.dataType(),
                         aggregateAddress(geometry.input(), inputCoordinates));
-                accumulator = aggregateApply(ir.kind(), ir.dataType(), accumulator, value);
+                accumulator = domain == 0 && ir.dataType().isFloating()
+                        && (ir.kind() == CpuAggregateIr.Kind.MIN || ir.kind() == CpuAggregateIr.Kind.MAX)
+                        ? value : aggregateApply(ir.kind(), ir.dataType(), accumulator, value);
             }
             store(arguments.getLast(), ir.dataType(),
                     aggregateAddress(geometry.output(), outputCoordinates), accumulator);
@@ -174,6 +211,8 @@ public final class CpuScalarReferenceKernel {
             case FLOAT32 -> minimum ? Float.POSITIVE_INFINITY : Float.NEGATIVE_INFINITY;
             case BFLOAT16 -> (short) (minimum ? 0x7f80 : 0xff80);
             case FLOAT16 -> (short) (minimum ? 0x7c00 : 0xfc00);
+            case FLOAT8_E4M3 -> (byte) 127;
+            case FLOAT8_E5M2 -> (byte) (minimum ? 124 : 252);
             case INT32 -> kind == CpuAggregateIr.Kind.SUM ? 0 : kind == CpuAggregateIr.Kind.PROD ? 1
                     : minimum ? Integer.MAX_VALUE : Integer.MIN_VALUE;
             case INT64 -> kind == CpuAggregateIr.Kind.SUM ? 0L : kind == CpuAggregateIr.Kind.PROD ? 1L
@@ -196,12 +235,10 @@ public final class CpuScalarReferenceKernel {
                         ? Math.min((long) left, (long) right) : Math.max((long) left, (long) right);
         double l = type == DataType.FLOAT64 ? (double) left
                 : type == DataType.FLOAT32 ? (float) left
-                : type == DataType.FLOAT16 ? Float.float16ToFloat((short) left)
-                : bfloat((short) left);
+                : lowFloat(type, left);
         double r = type == DataType.FLOAT64 ? (double) right
                 : type == DataType.FLOAT32 ? (float) right
-                : type == DataType.FLOAT16 ? Float.float16ToFloat((short) right)
-                : bfloat((short) right);
+                : lowFloat(type, right);
         if (Double.isNaN(l)) return left;
         if (Double.isNaN(r)) return right;
         if (l == 0.0 && r == 0.0) {
@@ -215,6 +252,8 @@ public final class CpuScalarReferenceKernel {
     private static Object numericalFloatingReference(CpuAggregateIr.Kind kind, DataType type,
             CpuBufferArgument input, CpuAggregateLowering.Geometry geometry,
             long[] coordinates, long[] extents, boolean[] selected) {
+        DataType storageType = type;
+        if (lowType(type)) type = DataType.FLOAT32;
         int fractionBits = type == DataType.FLOAT64 ? 52 : type == DataType.FLOAT32 ? 23
                 : type == DataType.FLOAT16 ? 10 : 7;
         int bias = type == DataType.FLOAT64 ? 1023 : type == DataType.FLOAT16 ? 15 : 127;
@@ -234,7 +273,8 @@ public final class CpuScalarReferenceKernel {
             for (int axis = coordinates.length - 1; axis >= 0; axis--) if (selected[axis]) {
                 coordinates[axis] = remaining % extents[axis]; remaining /= extents[axis];
             }
-            Object represented = load(input, type, aggregateAddress(geometry.input(), coordinates));
+            Object represented = load(input, storageType, aggregateAddress(geometry.input(), coordinates));
+            if (lowType(storageType)) represented = lowFloat(storageType, represented);
             long bits = type == DataType.FLOAT64 ? Double.doubleToRawLongBits((double) represented)
                     : type == DataType.FLOAT32 ? Integer.toUnsignedLong(
                             Float.floatToRawIntBits((float) represented))
@@ -284,6 +324,7 @@ public final class CpuScalarReferenceKernel {
         else result = roundRational(exact.abs(), unitExponent,
                 kind == CpuAggregateIr.Kind.MEAN ? BigInteger.valueOf(geometry.domainCount())
                         : BigInteger.ONE, exact.signum() < 0, fractionBits, bias, signMask);
+        if (lowType(storageType)) return lowBits(storageType, Float.intBitsToFloat((int) result));
         return switch (type) {
             case FLOAT64 -> Double.longBitsToDouble(result);
             case FLOAT32 -> Float.intBitsToFloat((int) result);
@@ -332,6 +373,7 @@ public final class CpuScalarReferenceKernel {
             case FLOAT64 -> Double.doubleToRawLongBits((double) value) < 0;
             case FLOAT32 -> Float.floatToRawIntBits((float) value) < 0;
             case BFLOAT16, FLOAT16 -> (short) value < 0;
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> (byte) value < 0;
             default -> false;
         };
     }
@@ -401,6 +443,8 @@ public final class CpuScalarReferenceKernel {
 
     private static Object maskedFloatingReference(CpuMaskedReductionIr.Kind kind, DataType type,
             List<Object> selected) {
+        if (lowType(type)) return lowBits(type, (float) maskedFloatingReference(kind, DataType.FLOAT32,
+                selected.stream().map(v -> (Object) lowFloat(type, v)).toList()));
         int fractionBits = type == DataType.FLOAT64 ? 52 : type == DataType.FLOAT32 ? 23 : 7;
         int bias = type == DataType.FLOAT64 ? 1023 : 127;
         int unitExponent = type == DataType.FLOAT64 ? -1074
@@ -536,6 +580,7 @@ public final class CpuScalarReferenceKernel {
             case BFLOAT16 -> Float.compare(bfloat((short) left), bfloat((short) right));
             case FLOAT16 -> Float.compare(Float.float16ToFloat((short) left),
                     Float.float16ToFloat((short) right));
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> Float.compare(lowFloat(type, left), lowFloat(type, right));
             case INT32 -> Integer.compare((int) left, (int) right);
             case INT64 -> Long.compare((long) left, (long) right);
             case BOOL -> throw new AssertionError();
@@ -548,6 +593,7 @@ public final class CpuScalarReferenceKernel {
             case FLOAT32 -> Float.isNaN((float) value);
             case BFLOAT16 -> Float.isNaN(bfloat((short) value));
             case FLOAT16 -> Float.isNaN(Float.float16ToFloat((short) value));
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> Float.isNaN(lowFloat(type, value));
             case INT32, INT64 -> false;
             case BOOL -> throw new AssertionError();
         };
@@ -597,8 +643,7 @@ public final class CpuScalarReferenceKernel {
         boolean sum = kind == CpuScanIr.Kind.CUM_SUM;
         return switch (type) {
             case FLOAT64 -> sum ? 0.0d : 1.0d; case FLOAT32 -> sum ? 0.0f : 1.0f;
-            case BFLOAT16 -> (short) (sum ? 0 : 0x3f80);
-            case FLOAT16 -> (short) (sum ? 0 : 0x3c00);
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> sum ? 0.0f : 1.0f;
             case INT32 -> sum ? 0 : 1;
             case INT64 -> sum ? 0L : 1L; case BOOL -> throw new AssertionError();
         };
@@ -608,11 +653,8 @@ public final class CpuScalarReferenceKernel {
         return switch (type) {
             case FLOAT64 -> sum ? (double) left + (double) right : (double) left * (double) right;
             case FLOAT32 -> sum ? (float) left + (float) right : (float) left * (float) right;
-            case BFLOAT16 -> toBfloat(sum ? bfloat((short) left) + bfloat((short) right)
-                    : bfloat((short) left) * bfloat((short) right));
-            case FLOAT16 -> Float.floatToFloat16(sum
-                    ? Float.float16ToFloat((short) left) + Float.float16ToFloat((short) right)
-                    : Float.float16ToFloat((short) left) * Float.float16ToFloat((short) right));
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 ->
+                    sum ? (float) left + lowFloat(type, right) : (float) left * lowFloat(type, right);
             case INT32 -> sum ? (int) left + (int) right : (int) left * (int) right;
             case INT64 -> sum ? (long) left + (long) right : (long) left * (long) right;
             case BOOL -> throw new AssertionError();
@@ -670,20 +712,10 @@ public final class CpuScalarReferenceKernel {
                         randomAddress(geometry.boundaries().get(2), logical), value);
             } else {
                 DataType type = ir.valueType();
-                short inputBits = keep ? (short) load(arguments.get(0), type,
-                        randomAddress(geometry.boundaries().get(0), logical)) : 0;
-                ScalarValue inputValue = type == DataType.FLOAT16
-                        ? ScalarValue.float16Bits(inputBits) : ScalarValue.bfloat16Bits(inputBits);
-                float input = CastValueConversions.convert(
-                        inputValue, DataType.FLOAT32).float32Value();
-                ScalarValue value = keep ? CastValueConversions.convert(
-                        ScalarValue.float32(input * (float) scale), type)
-                        : type == DataType.FLOAT16
-                                ? ScalarValue.float16Bits((short) 0)
-                                : ScalarValue.bfloat16Bits((short) 0);
-                store(arguments.get(2), type,
-                        randomAddress(geometry.boundaries().get(2), logical),
-                        type == DataType.FLOAT16 ? value.float16Bits() : value.bfloat16Bits());
+                float input = keep ? lowFloat(type, load(arguments.get(0), type,
+                        randomAddress(geometry.boundaries().get(0), logical))) : 0f;
+                store(arguments.get(2), type, randomAddress(geometry.boundaries().get(2), logical),
+                        lowBits(type, keep ? input * (float) scale : 0f));
             }
         }
         store(arguments.get(4), DataType.INT64,
@@ -777,14 +809,15 @@ public final class CpuScalarReferenceKernel {
                     Float.intBitsToFloat(Short.toUnsignedInt((short) right) << 16), geometry.descending());
             case FLOAT16 -> orderedFloating(Float.float16ToFloat((short) left),
                     Float.float16ToFloat((short) right), geometry.descending());
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> orderedFloating(lowFloat(geometry.dataType(), left),
+                    lowFloat(geometry.dataType(), right), geometry.descending());
             case INT32 -> Integer.compare((int) left, (int) right);
             case INT64 -> Long.compare((long) left, (long) right);
             case BOOL -> Byte.compare((byte) left, (byte) right);
         };
         return geometry.descending() && geometry.dataType() != DataType.FLOAT64
                 && geometry.dataType() != DataType.FLOAT32
-                && geometry.dataType() != DataType.BFLOAT16
-                && geometry.dataType() != DataType.FLOAT16 ? -comparison : comparison;
+                && !lowType(geometry.dataType()) ? -comparison : comparison;
     }
 
     private static int orderedFloating(double left, double right, boolean descending) {
@@ -859,11 +892,7 @@ public final class CpuScalarReferenceKernel {
                         foldAddress(geometry.input(), inputCoordinate));
                 sum = foldAdd(sum, value, type);
             }
-            Object result = switch (type) {
-                case BFLOAT16 -> BFloat16Bits.fromFloat((float) sum);
-                case FLOAT16 -> Float16Bits.fromFloat((float) sum);
-                default -> sum;
-            };
+            Object result = lowType(type) ? lowBits(type, (float) sum) : sum;
             store(arguments.getLast(), type, foldAddress(geometry.output(), outputCoordinate), result);
         }
     }
@@ -927,7 +956,7 @@ public final class CpuScalarReferenceKernel {
     private static Object positiveZero(DataType type) {
         return switch (type) {
             case FLOAT64 -> 0.0d; case FLOAT32 -> 0.0f;
-            case BFLOAT16, FLOAT16 -> 0.0f;
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> 0.0f;
             case INT32 -> 0; case INT64 -> 0L;
             case BOOL -> throw new AssertionError("BOOL fold is unsupported");
         };
@@ -946,8 +975,7 @@ public final class CpuScalarReferenceKernel {
         return switch (type) {
             case FLOAT64 -> (double) left + (double) right;
             case FLOAT32 -> (float) left + (float) right;
-            case BFLOAT16 -> (float) left + BFloat16Bits.toFloat((short) right);
-            case FLOAT16 -> (float) left + Float16Bits.toFloat((short) right);
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> (float) left + lowFloat(type, right);
             case INT32 -> (int) left + (int) right;
             case INT64 -> (long) left + (long) right;
             case BOOL -> throw new AssertionError("BOOL fold is unsupported");
@@ -1020,17 +1048,25 @@ public final class CpuScalarReferenceKernel {
             long[] coordinate=coordinates(ordinal,ol.extents());
             Object base=load(arguments.get(db),type,address(dl,coordinate));
             Object result=base;boolean found=false;
+            float lowSum = lowType(type) ? lowFloat(type, base) : 0f;
             var productBits=new java.util.ArrayList<Long>();
             for(int update=0;update<targets.size();update++)if(java.util.Arrays.equals(coordinate,targets.get(update))){
                 Object value=load(arguments.get(ub),type,address(ul,coordinates(update,ul.extents())));
                 if(ir.reduction()==ScatterReduction.NONE)result=value;
                 else if(ir.reduction()==ScatterReduction.MUL&&floatingType(type)){
                     if(!found)productBits.add(rawBits(base,type));productBits.add(rawBits(value,type));
-                }else result=referenceReduce(result,value,type,ir.reduction());
+                } else if (lowType(type) && ir.reduction() == ScatterReduction.ADD) {
+                    lowSum += lowFloat(type, value);
+                } else if (lowType(type) && (ir.reduction() == ScatterReduction.MIN
+                        || ir.reduction() == ScatterReduction.MAX)) {
+                    result = lowWinner(type, result, value, ir.reduction() == ScatterReduction.MIN);
+                } else result=referenceReduce(result,value,type,ir.reduction());
                 found=true;
             }
             if(found&&ir.reduction()==ScatterReduction.MUL&&floatingType(type))
                 result=fromRawBits(referenceProduct(productBits,type),type);
+            if (found && lowType(type) && ir.reduction() == ScatterReduction.ADD)
+                result = lowBits(type, lowSum);
             store(arguments.getLast(),type,address(ol,coordinate),result);
         }
     }
@@ -1047,14 +1083,21 @@ public final class CpuScalarReferenceKernel {
         int q=il.extents().length;for(int a=0;a<g.batchDimensions();a++)target[a]=update[a];long[] index=new long[q];System.arraycopy(update,0,index,0,q-1);for(int k=0;k<g.tupleDepth();k++){index[q-1]=k;target[g.batchDimensions()+k]=((Number)load(indices,indexType,address(il,index))).longValue();}for(int a=g.batchDimensions()+g.tupleDepth();a<target.length;a++)target[a]=update[q-1+a-g.batchDimensions()-g.tupleDepth()];return target;
     }
 
-    private static boolean floatingType(DataType t){return t==DataType.FLOAT64||t==DataType.FLOAT32||t==DataType.BFLOAT16||t==DataType.FLOAT16;}
+    private static boolean floatingType(DataType t){return t==DataType.FLOAT64||t==DataType.FLOAT32||t==DataType.BFLOAT16||t==DataType.FLOAT16||t==DataType.FLOAT8_E4M3||t==DataType.FLOAT8_E5M2;}
     private static long rawBits(Object v,DataType t){return switch(t){case FLOAT64->Double.doubleToRawLongBits((double)v);case FLOAT32->Integer.toUnsignedLong(Float.floatToRawIntBits((float)v));case BFLOAT16,FLOAT16->Short.toUnsignedLong((short)v);default->((Number)v).longValue();};}
-    private static Object fromRawBits(long v,DataType t){return switch(t){case FLOAT64->Double.longBitsToDouble(v);case FLOAT32->Float.intBitsToFloat((int)v);case BFLOAT16,FLOAT16->(short)v;default->v;};}
+    private static Object fromRawBits(long v,DataType t){return switch(t){case FLOAT64->Double.longBitsToDouble(v);case FLOAT32->Float.intBitsToFloat((int)v);case BFLOAT16,FLOAT16->(short)v;case FLOAT8_E4M3,FLOAT8_E5M2->(byte)v;default->v;};}
     private static Object referenceReduce(Object a,Object b,DataType t,ScatterReduction r){if(t==DataType.INT32){int x=(int)a,y=(int)b;return switch(r){case ADD->x+y;case MUL->x*y;case MIN->Math.min(x,y);case MAX->Math.max(x,y);default->b;};}if(t==DataType.INT64){long x=(long)a,y=(long)b;return switch(r){case ADD->x+y;case MUL->x*y;case MIN->Math.min(x,y);case MAX->Math.max(x,y);default->b;};}double x=t==DataType.FLOAT64?(double)a:t==DataType.FLOAT32?(float)a:t==DataType.FLOAT16?Float.float16ToFloat((short)a):bfloat((short)a),y=t==DataType.FLOAT64?(double)b:t==DataType.FLOAT32?(float)b:t==DataType.FLOAT16?Float.float16ToFloat((short)b):bfloat((short)b);double z=r==ScatterReduction.ADD?x+y:Double.isNaN(x)||Double.isNaN(y)?Double.NaN:r==ScatterReduction.MIN?(x==0&&y==0&&(Double.doubleToRawLongBits(x)<0||Double.doubleToRawLongBits(y)<0)?-0.0:Math.min(x,y)):(x==0&&y==0&&(Double.doubleToRawLongBits(x)>=0||Double.doubleToRawLongBits(y)>=0)?0.0:Math.max(x,y));return switch(t){case FLOAT64->z;case FLOAT32->(float)z;case BFLOAT16->toBfloat((float)z);case FLOAT16->Float.floatToFloat16((float)z);default->throw new AssertionError(t);};}
     private static float bfloat(short v){return Float.intBitsToFloat(Short.toUnsignedInt(v)<<16);}
     private static short toBfloat(float v){int bits=Float.floatToRawIntBits(v);if((bits&0x7f800000)==0x7f800000&&(bits&0x7fffff)!=0)return(short)((bits>>>16)|0x40);int upper=bits>>>16,lower=bits&0xffff;if(lower>0x8000||(lower==0x8000&&(upper&1)!=0))upper++;return(short)upper;}
 
-    private static long referenceProduct(List<Long> factors,DataType type){boolean negative=false,zero=false,infinity=false,nan=false;java.math.BigInteger product=java.math.BigInteger.ONE;long exponent=0;int fractionBits=type==DataType.FLOAT64?52:type==DataType.FLOAT32?23:type==DataType.FLOAT16?10:7,exponentBits=type==DataType.FLOAT64?11:type==DataType.FLOAT16?5:8,bias=type==DataType.FLOAT64?1023:type==DataType.FLOAT16?15:127,total=type==DataType.FLOAT64?64:type==DataType.FLOAT32?32:16;long fractionMask=(1L<<fractionBits)-1,exponentMask=(1L<<exponentBits)-1;for(long bits:factors){if((bits&(1L<<(total-1)))!=0)negative=!negative;long f=bits&fractionMask,e=(bits>>>fractionBits)&exponentMask;if(e==exponentMask){if(f!=0)nan=true;else infinity=true;}else if(e==0&&f==0)zero=true;else{long significand=e==0?f:(1L<<fractionBits)|f;product=product.multiply(java.math.BigInteger.valueOf(significand));exponent+=(e==0?1-bias:e-bias)-fractionBits;}}long sign=negative?1L<<(total-1):0;if(nan||zero&&infinity)return sign|(type==DataType.FLOAT64?0x7ff8000000000000L:type==DataType.FLOAT32?0x7fc00000L:type==DataType.FLOAT16?0x7e00L:0x7fc0L);if(infinity)return sign|(type==DataType.FLOAT64?0x7ff0000000000000L:type==DataType.FLOAT32?0x7f800000L:type==DataType.FLOAT16?0x7c00L:0x7f80L);if(zero)return sign;int precision=fractionBits+1,minNormal=1-bias,maxExponent=bias;long unbiased=exponent+product.bitLength()-1;if(unbiased>maxExponent)return sign|(exponentMask<<fractionBits);long shift=unbiased>=minNormal?product.bitLength()-precision:(minNormal-fractionBits)-exponent;java.math.BigInteger q=roundShift(product,shift);if(unbiased>=minNormal){if(q.bitLength()>precision){q=q.shiftRight(1);unbiased++;}if(unbiased>maxExponent)return sign|(exponentMask<<fractionBits);return sign|((unbiased+bias)<<fractionBits)|(q.longValue()&fractionMask);}if(q.signum()==0)return sign;if(q.bitLength()>fractionBits)return sign|(1L<<fractionBits);return sign|q.longValue();}
+    private static long referenceProduct(List<Long> factors,DataType type){
+        if (lowType(type)) {
+            var widened = factors.stream().map(bits -> Integer.toUnsignedLong(Float.floatToRawIntBits(
+                    lowFloat(type, fromRawBits(bits, type))))).toList();
+            float value = Float.intBitsToFloat((int) referenceProduct(widened, DataType.FLOAT32));
+            return rawBits(lowBits(type, value), type);
+        }
+        boolean negative=false,zero=false,infinity=false,nan=false;java.math.BigInteger product=java.math.BigInteger.ONE;long exponent=0;int fractionBits=type==DataType.FLOAT64?52:type==DataType.FLOAT32?23:type==DataType.FLOAT16?10:7,exponentBits=type==DataType.FLOAT64?11:type==DataType.FLOAT16?5:8,bias=type==DataType.FLOAT64?1023:type==DataType.FLOAT16?15:127,total=type==DataType.FLOAT64?64:type==DataType.FLOAT32?32:16;long fractionMask=(1L<<fractionBits)-1,exponentMask=(1L<<exponentBits)-1;for(long bits:factors){if((bits&(1L<<(total-1)))!=0)negative=!negative;long f=bits&fractionMask,e=(bits>>>fractionBits)&exponentMask;if(e==exponentMask){if(f!=0)nan=true;else infinity=true;}else if(e==0&&f==0)zero=true;else{long significand=e==0?f:(1L<<fractionBits)|f;product=product.multiply(java.math.BigInteger.valueOf(significand));exponent+=(e==0?1-bias:e-bias)-fractionBits;}}long sign=negative?1L<<(total-1):0;if(nan||zero&&infinity)return sign|(type==DataType.FLOAT64?0x7ff8000000000000L:type==DataType.FLOAT32?0x7fc00000L:type==DataType.FLOAT16?0x7e00L:0x7fc0L);if(infinity)return sign|(type==DataType.FLOAT64?0x7ff0000000000000L:type==DataType.FLOAT32?0x7f800000L:type==DataType.FLOAT16?0x7c00L:0x7f80L);if(zero)return sign;int precision=fractionBits+1,minNormal=1-bias,maxExponent=bias;long unbiased=exponent+product.bitLength()-1;if(unbiased>maxExponent)return sign|(exponentMask<<fractionBits);long shift=unbiased>=minNormal?product.bitLength()-precision:(minNormal-fractionBits)-exponent;java.math.BigInteger q=roundShift(product,shift);if(unbiased>=minNormal){if(q.bitLength()>precision){q=q.shiftRight(1);unbiased++;}if(unbiased>maxExponent)return sign|(exponentMask<<fractionBits);return sign|((unbiased+bias)<<fractionBits)|(q.longValue()&fractionMask);}if(q.signum()==0)return sign;if(q.bitLength()>fractionBits)return sign|(1L<<fractionBits);return sign|q.longValue();}
     private static java.math.BigInteger roundShift(java.math.BigInteger value,long shift){if(shift<=0)return value.shiftLeft(Math.toIntExact(-shift));if(shift>Integer.MAX_VALUE)return java.math.BigInteger.ZERO;int s=(int)shift;java.math.BigInteger q=value.shiftRight(s);if(s==0)return q;boolean guard=value.testBit(s-1),sticky=value.getLowestSetBit()>=0&&value.getLowestSetBit()<s-1;return guard&&(sticky||q.testBit(0))?q.add(java.math.BigInteger.ONE):q;}
 
     /**
@@ -1510,7 +1553,7 @@ public final class CpuScalarReferenceKernel {
             case BFLOAT16, FLOAT16 -> (short) bits;
             case INT32 -> (int) bits;
             case INT64 -> bits;
-            case BOOL -> (byte) bits;
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> (byte) bits;
         };
     }
 
@@ -1521,6 +1564,25 @@ public final class CpuScalarReferenceKernel {
         Object right = instruction.inputs().size() > 1 ? values[instruction.inputs().get(1)] : null;
         Object scalar = instruction.scalarImmediate() == null ? null
                 : immediate(instruction.scalarImmediate());
+        if (lowType(type) && ir.values().get(instruction.output()).dataType() == type) {
+            long sign = type.byteWidth() == 1 ? 128 : 0x8000;
+            switch (instruction.opcode()) {
+                case ABS -> { return fromRawBits(rawBits(left, type) & (sign - 1), type); }
+                case NEG -> { return fromRawBits(rawBits(left, type) ^ sign, type); }
+                case MIN, MAX -> { return lowWinner(type, left, right,
+                        instruction.opcode() == CpuPointwiseOpcode.MIN); }
+                case SCALAR_MIN, SCALAR_MAX -> { return lowWinner(type, left, scalar,
+                        instruction.opcode() == CpuPointwiseOpcode.SCALAR_MIN); }
+                case RELU -> { return lowWinner(type, left, lowBits(type, 0f), false); }
+                case SIGN, FLOOR, CEIL -> {
+                    if (Float.isNaN(lowFloat(type, left))) return left;
+                }
+                case SCALAR_CLAMP -> { return lowWinner(type, lowWinner(type, left,
+                        immediate(instruction.clampImmediate().lower()), false),
+                        immediate(instruction.clampImmediate().upper()), true); }
+                default -> { }
+            }
+        }
         if (instruction.opcode().family() == CpuPointwiseOpcode.Family.BINARY_ARITHMETIC
                 || instruction.opcode().family() == CpuPointwiseOpcode.Family.COMPARISON) {
             DataType rightType = ir.values().get(instruction.inputs().get(1)).dataType();
@@ -1530,15 +1592,12 @@ public final class CpuScalarReferenceKernel {
             if (rightType != promoted) right = cast(rightType, right, promoted);
             type = promoted;
         }
-        if ((type == DataType.BFLOAT16 || type == DataType.FLOAT16)
+        if ((lowType(type))
                 && instruction.opcode() != CpuPointwiseOpcode.WHERE
                 && instruction.opcode() != CpuPointwiseOpcode.CAST) {
-            if (left != null) left = Float.valueOf(type == DataType.BFLOAT16
-                    ? BFloat16Bits.toFloat((short) left) : Float16Bits.toFloat((short) left));
-            if (right != null) right = Float.valueOf(type == DataType.BFLOAT16
-                    ? BFloat16Bits.toFloat((short) right) : Float16Bits.toFloat((short) right));
-            if (scalar != null) scalar = Float.valueOf(type == DataType.BFLOAT16
-                    ? BFloat16Bits.toFloat((short) scalar) : Float16Bits.toFloat((short) scalar));
+            if (left != null) left = lowFloat(type, left);
+            if (right != null) right = lowFloat(type, right);
+            if (scalar != null) scalar = lowFloat(type, scalar);
         }
         Object result = switch (instruction.opcode()) {
             case ADD -> arithmetic(type, left, right, 0);
@@ -1559,13 +1618,9 @@ public final class CpuScalarReferenceKernel {
             case SCALAR_CLAMP -> {
                 Object lower = immediate(instruction.clampImmediate().lower());
                 Object upper = immediate(instruction.clampImmediate().upper());
-                if (type == DataType.BFLOAT16 || type == DataType.FLOAT16) {
-                    lower = Float.valueOf(type == DataType.BFLOAT16
-                            ? BFloat16Bits.toFloat((short) lower)
-                            : Float16Bits.toFloat((short) lower));
-                    upper = Float.valueOf(type == DataType.BFLOAT16
-                            ? BFloat16Bits.toFloat((short) upper)
-                            : Float16Bits.toFloat((short) upper));
+                if (lowType(type)) {
+                    lower = lowFloat(type, lower);
+                    upper = lowFloat(type, upper);
                 }
                 yield extrema(type, extrema(type, left, lower, false), upper, true);
             }
@@ -1598,8 +1653,7 @@ public final class CpuScalarReferenceKernel {
         if (instruction.opcode() == CpuPointwiseOpcode.WHERE
                 || instruction.opcode() == CpuPointwiseOpcode.CAST
                 || ir.values().get(instruction.output()).dataType() != type) return result;
-        if (type == DataType.BFLOAT16) return BFloat16Bits.fromFloat((float) result);
-        if (type == DataType.FLOAT16) return Float16Bits.fromFloat((float) result);
+        if (lowType(type)) return lowBits(type, (float) result);
         return result;
     }
 
@@ -1618,6 +1672,8 @@ public final class CpuScalarReferenceKernel {
             case FLOAT32 -> converted.float32Value();
             case BFLOAT16 -> converted.bfloat16Bits();
             case FLOAT16 -> converted.float16Bits();
+            case FLOAT8_E4M3 -> converted.float8E4m3Bits();
+            case FLOAT8_E5M2 -> converted.float8E5m2Bits();
             case INT64 -> converted.int64Value();
             case INT32 -> converted.int32Value();
             case BOOL -> (byte) (converted.booleanValue() ? 1 : 0);
@@ -1637,6 +1693,8 @@ public final class CpuScalarReferenceKernel {
             case FLOAT32 -> ScalarValue.float32((float) value);
             case BFLOAT16 -> ScalarValue.bfloat16Bits((short) value);
             case FLOAT16 -> ScalarValue.float16Bits((short) value);
+            case FLOAT8_E4M3 -> ScalarValue.float8E4m3Bits((byte) value);
+            case FLOAT8_E5M2 -> ScalarValue.float8E5m2Bits((byte) value);
             case INT64 -> ScalarValue.int64((long) value);
             case INT32 -> ScalarValue.int32((int) value);
             case BOOL -> ScalarValue.bool((byte) value == 1);
@@ -1655,7 +1713,7 @@ public final class CpuScalarReferenceKernel {
     private static Object unary(CpuPointwiseOpcode opcode, DataType type, Object input) {
         if (opcode == CpuPointwiseOpcode.RSQRT && type != DataType.FLOAT64)
             return Float.valueOf(1.0f / (float) StrictMath.sqrt((float) input));
-        if (type == DataType.BFLOAT16 || type == DataType.FLOAT16) {
+        if (lowType(type)) {
             float x = (float) input;
             switch (opcode) {
                 case SIGMOID, SILU, GELU_EXACT, GELU_TANH_APPROXIMATION:
@@ -1722,7 +1780,7 @@ public final class CpuScalarReferenceKernel {
         return switch (type) {
             case FLOAT64 -> minimum ? Math.min((double) left, (double) right)
                     : Math.max((double) left, (double) right);
-            case FLOAT32, BFLOAT16, FLOAT16 ->
+            case FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 ->
                     minimum ? Math.min((float) left, (float) right)
                             : Math.max((float) left, (float) right);
             case INT32 -> minimum ? Math.min((int) left, (int) right)
@@ -1738,7 +1796,7 @@ public final class CpuScalarReferenceKernel {
             case FLOAT64 -> { double a = (double) left, b = (double) right;
                 yield operation == 0 ? a + b : operation == 1 ? a - b
                         : operation == 2 ? a * b : a / b; }
-            case FLOAT32, BFLOAT16, FLOAT16 -> {
+            case FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> {
                 float a = (float) left, b = (float) right;
                 yield operation == 0 ? a + b : operation == 1 ? a - b
                         : operation == 2 ? a * b : a / b;
@@ -1768,11 +1826,8 @@ public final class CpuScalarReferenceKernel {
         float value = base == null ? Float.NaN : (float) base;
         return switch (realization) {
             case DIRECT -> (float) StrictMath.pow((double) value,
-                    (double) (type == DataType.BFLOAT16
-                            ? BFloat16Bits.toFloat((short) exponent.bits())
-                            : type == DataType.FLOAT16
-                                ? Float16Bits.toFloat((short) exponent.bits())
-                                : Float.intBitsToFloat((int) exponent.bits())));
+                    (double) (lowType(type) ? lowFloat(type, immediate(exponent))
+                            : Float.intBitsToFloat((int) exponent.bits())));
             case POSITIVE_ONE -> 1.0f;
             case IDENTITY -> value;
             case SQUARE -> value * value;
@@ -1799,7 +1854,7 @@ public final class CpuScalarReferenceKernel {
         int relation = switch (type) {
             case FLOAT64 -> (double) left > (double) right ? 1 : (double) left < (double) right ? -1
                     : (double) left == (double) right ? 0 : 2;
-            case FLOAT32, BFLOAT16, FLOAT16 ->
+            case FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 ->
                     (float) left > (float) right ? 1 : (float) left < (float) right ? -1
                             : (float) left == (float) right ? 0 : 2;
             case INT32 -> Integer.compare((int) left, (int) right);
@@ -1816,7 +1871,7 @@ public final class CpuScalarReferenceKernel {
     private static boolean equal(DataType type, Object left, Object right) {
         return switch (type) {
             case FLOAT64 -> (double) left == (double) right;
-            case FLOAT32, BFLOAT16, FLOAT16 -> (float) left == (float) right;
+            case FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> (float) left == (float) right;
             case INT32 -> (int) left == (int) right;
             case INT64 -> (long) left == (long) right;
             default -> throw new IllegalArgumentException("unsupported comparison type");
@@ -1830,6 +1885,7 @@ public final class CpuScalarReferenceKernel {
             case FLOAT64 -> Double.longBitsToDouble(value.bits());
             case FLOAT32 -> Float.intBitsToFloat((int) value.bits());
             case BFLOAT16, FLOAT16 -> (short) value.bits();
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> (byte) value.bits();
             case INT32 -> (int) value.bits(); case INT64 -> value.bits();
             default -> throw new IllegalArgumentException("unsupported immediate type");
         };
@@ -1873,7 +1929,7 @@ public final class CpuScalarReferenceKernel {
             case BFLOAT16, FLOAT16 -> segment.get(ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset);
             case INT32 -> segment.get(ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset);
             case INT64 -> segment.get(ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset);
-            case BOOL -> segment.get(ValueLayout.JAVA_BYTE, offset);
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> segment.get(ValueLayout.JAVA_BYTE, offset);
             default -> throw new IllegalArgumentException("unsupported reference type");
         };
     }
@@ -1902,7 +1958,7 @@ public final class CpuScalarReferenceKernel {
                 case BFLOAT16, FLOAT16 -> segment.set(ValueLayout.JAVA_SHORT_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset, (short) stored);
                 case INT32 -> segment.set(ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset, (int) stored);
                 case INT64 -> segment.set(ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.nativeOrder()), offset, (long) stored);
-                case BOOL -> segment.set(ValueLayout.JAVA_BYTE, offset, (byte) stored);
+                case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> segment.set(ValueLayout.JAVA_BYTE, offset, (byte) stored);
                 default -> throw new IllegalArgumentException("unsupported reference type");
             }
         }

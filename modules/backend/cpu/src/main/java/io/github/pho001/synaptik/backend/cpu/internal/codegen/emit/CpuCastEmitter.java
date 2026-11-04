@@ -11,12 +11,12 @@ import java.lang.constant.MethodTypeDesc;
 /**
  * Emits one exact Model CAST conversion boundary as primitive generated instructions.
  *
- * <p>The emitter covers all 49 ordered pairs among FLOAT64, FLOAT32, BFLOAT16, FLOAT16, INT64,
- * INT32, and BOOL. Same-type conversions reload represented bits; lossy floating NaNs become the
+ * <p>The emitter covers all 81 ordered pairs among FLOAT64, FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3,
+ * FLOAT8_E5M2, INT64, INT32, and BOOL. Same-type conversions reload represented bits; lossy floating NaNs become the
  * positive canonical target NaN; widening preserves the Model-defined NaN mapping; floating-to-
  * integral conversion truncates and saturates with NaN mapped to zero; INT64-to-INT32 retains low
  * bits; and BOOL results are canonical zero or one. FLOAT64 and integral values round directly to
- * either 16-bit floating target without a FLOAT32 intermediate. The emitter runs only while a class is built. It
+ * any low floating target without a FLOAT32 intermediate. The emitter runs only while a class is built. It
  * contributes no field, helper call, dispatch object, or allocation to generated element work.</p>
  */
 final class CpuCastEmitter {
@@ -32,16 +32,197 @@ final class CpuCastEmitter {
     CpuCastEmitter(CodeBuilder code) { this.code = code; }
 
     /**
+     * Decodes a low storage local without helper dispatch in the generated element body.
+     *
+     * @param code generated method builder
+     * @param source low floating storage type
+     * @param rawLocal int local containing the represented bits
+     */
+    static void emitLowToFloat(CodeBuilder code, DataType source, int rawLocal) {
+        if (source == DataType.BFLOAT16) {
+            code.iload(rawLocal).loadConstant(16).ishl().invokestatic(FLOAT, "intBitsToFloat",
+                    MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int));
+        } else if (source == DataType.FLOAT16) {
+            new CpuCastEmitter(code).widenHalfToFloat(rawLocal);
+        } else {
+            int fraction = source == DataType.FLOAT8_E4M3 ? 3 : 2;
+            int bias = source == DataType.FLOAT8_E4M3 ? 7 : 15;
+            int magnitude = code.allocateLocal(TypeKind.INT);
+            int exponent = code.allocateLocal(TypeKind.INT);
+            int bits = code.allocateLocal(TypeKind.INT);
+            var subnormal = code.newLabel(); var special = code.newLabel();
+            var done = code.newLabel();
+            code.iload(rawLocal).loadConstant(127).iand().istore(magnitude);
+            code.iload(magnitude).loadConstant(fraction).iushr().istore(exponent);
+            code.iload(exponent).branch(Opcode.IFEQ, subnormal);
+            code.iload(magnitude).loadConstant(source == DataType.FLOAT8_E4M3 ? 127 : 124)
+                    .branch(Opcode.IF_ICMPGE, special);
+            code.iload(exponent).loadConstant(127 - bias).iadd().loadConstant(23).ishl()
+                    .iload(magnitude).loadConstant((1 << fraction) - 1).iand()
+                    .loadConstant(23 - fraction).ishl().ior().istore(bits);
+            code.iload(rawLocal).loadConstant(128).iand().loadConstant(24).ishl()
+                    .iload(bits).ior().invokestatic(FLOAT, "intBitsToFloat",
+                            MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int))
+                    .branch(Opcode.GOTO, done);
+            code.labelBinding(special).iload(rawLocal).loadConstant(128).iand()
+                    .loadConstant(24).ishl().loadConstant(0x7f800000).ior()
+                    .iload(magnitude).loadConstant((1 << fraction) - 1).iand()
+                    .loadConstant(23 - fraction).ishl().ior()
+                    .invokestatic(FLOAT, "intBitsToFloat",
+                            MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int))
+                    .branch(Opcode.GOTO, done);
+            code.labelBinding(subnormal).iload(magnitude).i2f()
+                    .loadConstant(Math.scalb(1f, 1 - bias - fraction)).fmul().fstore(bits);
+            code.fload(bits).invokestatic(FLOAT, "floatToRawIntBits",
+                            MethodTypeDesc.of(ConstantDescs.CD_int, ConstantDescs.CD_float))
+                    .iload(rawLocal).loadConstant(128).iand().loadConstant(24).ishl().ior()
+                    .invokestatic(FLOAT, "intBitsToFloat",
+                            MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int))
+                    .labelBinding(done);
+        }
+    }
+
+    /**
+     * Narrows one F32 working value with a single ties-to-even conversion.
+     *
+     * @param code generated method builder
+     * @param target low floating storage type
+     * @param floatLocal F32 local containing the working value
+     */
+    static void emitFloatToLow(CodeBuilder code, DataType target, int floatLocal) {
+        var emitter = new CpuCastEmitter(code);
+        if (target == DataType.BFLOAT16) emitter.floatBfloat(floatLocal);
+        else if (target == DataType.FLOAT16) emitter.floatHalf(floatLocal);
+        else {
+            int value = code.allocateLocal(TypeKind.DOUBLE);
+            code.fload(floatLocal).f2d().dstore(value);
+            emitter.doubleFp8(target, value);
+        }
+    }
+
+    private void doubleFp8(DataType target, int local) {
+        int fraction = target == DataType.FLOAT8_E4M3 ? 3 : 2;
+        int bias = target == DataType.FLOAT8_E4M3 ? 7 : 15;
+        int normalExponent = 1024 - bias;
+        int maxExponent = target == DataType.FLOAT8_E4M3 ? 1031 : 1038;
+        int bits = code.allocateLocal(TypeKind.LONG);
+        int sign = code.allocateLocal(TypeKind.INT);
+        int exponent = code.allocateLocal(TypeKind.INT);
+        int shift = code.allocateLocal(TypeKind.INT);
+        int significand = code.allocateLocal(TypeKind.LONG);
+        int rounded = code.allocateLocal(TypeKind.LONG);
+        int result = code.allocateLocal(TypeKind.INT);
+        var special = code.newLabel(); var overflow = code.newLabel();
+        var zero = code.newLabel(); var subnormal = code.newLabel();
+        var round = code.newLabel(); var compose = code.newLabel();
+        var check = code.newLabel(); var nan = code.newLabel(); var done = code.newLabel();
+        code.dload(local).invokestatic(DOUBLE, "doubleToRawLongBits",
+                MethodTypeDesc.of(ConstantDescs.CD_long, ConstantDescs.CD_double)).lstore(bits);
+        code.lload(bits).loadConstant(56).lushr().l2i().loadConstant(128).iand().istore(sign);
+        code.lload(bits).loadConstant(52).lushr().l2i().loadConstant(2047).iand().istore(exponent);
+        code.iload(exponent).loadConstant(2047).branch(Opcode.IF_ICMPEQ, special);
+        code.iload(exponent).loadConstant(maxExponent).branch(Opcode.IF_ICMPGT, overflow);
+        code.iload(exponent).loadConstant(normalExponent - fraction - 1)
+                .branch(Opcode.IF_ICMPLT, zero);
+        code.iload(exponent).loadConstant(normalExponent).branch(Opcode.IF_ICMPLT, subnormal);
+        code.loadConstant(52 - fraction).istore(shift).branch(Opcode.GOTO, round);
+        code.labelBinding(subnormal).loadConstant(normalExponent + 52 - fraction)
+                .iload(exponent).isub().istore(shift);
+        code.labelBinding(round).lload(bits).loadConstant(0x000fffffffffffffL).land()
+                .loadConstant(1L << 52).lor().lstore(significand);
+        code.lload(significand).loadConstant(1L).iload(shift).loadConstant(1).isub().lshl()
+                .ladd().loadConstant(1L).lsub()
+                .lload(significand).iload(shift).lushr().loadConstant(1L).land().ladd()
+                .iload(shift).lushr().lstore(rounded);
+        code.iload(exponent).loadConstant(normalExponent).branch(Opcode.IF_ICMPLT, compose);
+        code.iload(exponent).loadConstant(normalExponent).isub().loadConstant(fraction).ishl()
+                .lload(rounded).l2i().iadd().istore(result).branch(Opcode.GOTO, check);
+        code.labelBinding(compose).lload(rounded).l2i().istore(result);
+        code.labelBinding(check).iload(result)
+                .loadConstant(target == DataType.FLOAT8_E4M3 ? 126 : 123)
+                .branch(Opcode.IF_ICMPGT, overflow);
+        code.iload(result).iload(sign).ior().istore(result).branch(Opcode.GOTO, done);
+        code.labelBinding(zero).iload(sign).istore(result).branch(Opcode.GOTO, done);
+        code.labelBinding(special).lload(bits).loadConstant(0x000fffffffffffffL).land()
+                .loadConstant(0L).lcmp().branch(Opcode.IFNE, nan);
+        code.labelBinding(overflow);
+        if (target == DataType.FLOAT8_E4M3) code.loadConstant(127);
+        else code.iload(sign).loadConstant(124).ior();
+        code.istore(result).branch(Opcode.GOTO, done);
+        code.labelBinding(nan).loadConstant(target == DataType.FLOAT8_E4M3 ? 127 : 126)
+                .istore(result).labelBinding(done).iload(result);
+    }
+    /**
      * Leaves one target-typed represented value on the generated operand stack.
      *
      * @param source non-null represented type of the value in {@code local}
      * @param target non-null requested represented result type
      * @param local valid local-variable slot containing a primitive value of {@code source}
      * @throws NullPointerException if {@code source} or {@code target} is {@code null}
-     * @throws AssertionError if either type is outside the six current Model data types
+     * @throws AssertionError if either type is outside the current Model data types
      */
     void emit(DataType source, DataType target, int local) {
         if (source == target) { raw(source, local); return; }
+        if (target == DataType.FLOAT8_E4M3 || target == DataType.FLOAT8_E5M2) {
+            int value = code.allocateLocal(TypeKind.DOUBLE);
+            if (source == DataType.FLOAT64) code.dload(local);
+            else if (source == DataType.INT64) code.lload(local).l2d();
+            else if (source == DataType.INT32 || source == DataType.BOOL) code.iload(local).i2d();
+            else {
+                if (source == DataType.FLOAT8_E4M3 || source == DataType.FLOAT8_E5M2)
+                    emitLowToFloat(code, source, local);
+                else value(source, local);
+                code.f2d();
+            }
+            code.dstore(value);
+            doubleFp8(target, value);
+            return;
+        }
+        if (source == DataType.FLOAT8_E4M3 || source == DataType.FLOAT8_E5M2) {
+            if (target == DataType.BFLOAT16 || target == DataType.FLOAT16) {
+                int fraction = source == DataType.FLOAT8_E4M3 ? 3 : 2;
+                var normal = code.newLabel(); var done = code.newLabel();
+                code.iload(local).loadConstant(127).iand()
+                        .loadConstant(source == DataType.FLOAT8_E4M3 ? 127 : 124)
+                        .branch(Opcode.IF_ICMPLT, normal);
+                code.iload(local).loadConstant((1 << fraction) - 1).iand()
+                        .branch(Opcode.IFEQ, normal);
+                code.iload(local).loadConstant(128).iand().loadConstant(8).ishl()
+                        .loadConstant(target == DataType.FLOAT16 ? 0x7c00 : 0x7f80).ior()
+                        .iload(local).loadConstant((1 << fraction) - 1).iand()
+                        .loadConstant((target == DataType.FLOAT16 ? 10 : 7) - fraction).ishl()
+                        .ior().branch(Opcode.GOTO, done);
+                code.labelBinding(normal);
+                int value = code.allocateLocal(TypeKind.FLOAT);
+                emitLowToFloat(code, source, local); code.fstore(value);
+                emitFloatToLow(code, target, value);
+                code.labelBinding(done);
+                return;
+            }
+            if (target == DataType.FLOAT64) {
+                int fraction = source == DataType.FLOAT8_E4M3 ? 3 : 2;
+                var normal = code.newLabel(); var done = code.newLabel();
+                code.iload(local).loadConstant(127).iand()
+                        .loadConstant(source == DataType.FLOAT8_E4M3 ? 127 : 124)
+                        .branch(Opcode.IF_ICMPLT, normal);
+                code.iload(local).loadConstant((1 << fraction) - 1).iand()
+                        .branch(Opcode.IFEQ, normal);
+                code.iload(local).loadConstant(128).iand().i2l().loadConstant(56).lshl()
+                        .loadConstant(0x7ff0000000000000L).lor()
+                        .iload(local).loadConstant((1 << fraction) - 1).iand().i2l()
+                        .loadConstant(52 - fraction).lshl().lor()
+                        .invokestatic(DOUBLE, "longBitsToDouble", MethodTypeDesc.of(
+                                ConstantDescs.CD_double, ConstantDescs.CD_long))
+                        .branch(Opcode.GOTO, done);
+                code.labelBinding(normal); emitLowToFloat(code, source, local);
+                code.f2d().labelBinding(done);
+            } else {
+                int value = code.allocateLocal(TypeKind.FLOAT);
+                emitLowToFloat(code, source, local); code.fstore(value);
+                emit(DataType.FLOAT32, target, value);
+            }
+            return;
+        }
         if (target == DataType.BFLOAT16) { bfloat(source, local); return; }
         if (target == DataType.FLOAT16) { half(source, local); return; }
         if (target == DataType.FLOAT64 && (source == DataType.FLOAT32
@@ -311,6 +492,6 @@ final class CpuCastEmitter {
         code.labelBinding(done).iload(output);
     }
     private void bool(DataType s) {var yes=code.newLabel();var done=code.newLabel();switch(s){case FLOAT64->code.loadConstant(0d).dcmpl().branch(Opcode.IFNE,yes);case FLOAT32,BFLOAT16,FLOAT16->code.loadConstant(0f).fcmpl().branch(Opcode.IFNE,yes);case INT64->code.loadConstant(0L).lcmp().branch(Opcode.IFNE,yes);case INT32,BOOL->code.branch(Opcode.IFNE,yes);}code.loadConstant(0).branch(Opcode.GOTO,done).labelBinding(yes).loadConstant(1).labelBinding(done);}
-    private void raw(DataType t,int l){switch(t){case FLOAT64->code.dload(l);case FLOAT32->code.fload(l);case BFLOAT16,FLOAT16,INT32,BOOL->code.iload(l);case INT64->code.lload(l);}}
+    private void raw(DataType t,int l){switch(t){case FLOAT64->code.dload(l);case FLOAT32->code.fload(l);case BFLOAT16,FLOAT16,FLOAT8_E4M3,FLOAT8_E5M2,INT32,BOOL->code.iload(l);case INT64->code.lload(l);}}
     private void value(DataType t,int l){if(t==DataType.BFLOAT16)code.iload(l).loadConstant(16).ishl().invokestatic(FLOAT,"intBitsToFloat",MethodTypeDesc.of(ConstantDescs.CD_float,ConstantDescs.CD_int));else if(t==DataType.FLOAT16)code.iload(l).i2s().invokestatic(FLOAT,"float16ToFloat",MethodTypeDesc.of(ConstantDescs.CD_float,ConstantDescs.CD_short));else raw(t,l);}
 }

@@ -381,7 +381,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
                 case BFLOAT16, FLOAT16 -> "OfShort:S";
                 case INT64 -> "OfLong:J";
                 case INT32 -> "OfInt:I";
-                case BOOL -> "OfByte:B";
+                case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> "OfByte:B";
             };
             return (store ? "SEGMENT_SET:" : "SEGMENT_GET:") + layout;
         }
@@ -391,7 +391,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
             case BFLOAT16, FLOAT16 -> store ? "SASTORE" : "SALOAD";
             case INT64 -> store ? "LASTORE" : "LALOAD_DATA";
             case INT32 -> store ? "IASTORE" : "IALOAD";
-            case BOOL -> store ? "BASTORE" : "BALOAD";
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> store ? "BASTORE" : "BALOAD";
         };
     }
 
@@ -479,6 +479,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
         case BFLOAT16, FLOAT16 -> { short[] x = new short[n]; for (int i=0;i<n;i++) x[i]=(short)(0x8000+i); yield x; }
         case INT64 -> { long[] x = new long[n]; for (int i=0;i<n;i++) x[i]=0x1020304050607080L+i; yield x; }
         case INT32 -> { int[] x = new int[n]; for (int i=0;i<n;i++) x[i]=0x10203040+i; yield x; }
+        case FLOAT8_E4M3, FLOAT8_E5M2 -> { byte[] x = new byte[n]; for (int i=0;i<n;i++) x[i]=(byte)i; yield x; }
         case BOOL -> { byte[] x = new byte[n]; for (int i=0;i<n;i++) x[i]=(byte)(i & 1); yield x; }
     }; }
     private static Object sentinels(DataType type, int n) {
@@ -490,7 +491,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
         byte[] x = new byte[n]; for (int i = 0; i < n; i++) x[i] = (byte) ((i + 1) & 1); return x;
     }
     private static MemorySegment segment(Object array) { if (array instanceof double[] x) return MemorySegment.ofArray(x); if (array instanceof float[] x) return MemorySegment.ofArray(x); if (array instanceof short[] x) return MemorySegment.ofArray(x); if (array instanceof long[] x) return MemorySegment.ofArray(x); if (array instanceof int[] x) return MemorySegment.ofArray(x); return MemorySegment.ofArray((byte[]) array); }
-    private static long raw(Object value, DataType type, int i) { return switch (type) { case FLOAT64 -> Double.doubleToRawLongBits(((double[]) value)[i]); case FLOAT32 -> Integer.toUnsignedLong(Float.floatToRawIntBits(((float[]) value)[i])); case BFLOAT16, FLOAT16 -> Short.toUnsignedLong(((short[]) value)[i]); case INT64 -> ((long[]) value)[i]; case INT32 -> Integer.toUnsignedLong(((int[]) value)[i]); case BOOL -> Byte.toUnsignedLong(((byte[]) value)[i]); }; }
+    private static long raw(Object value, DataType type, int i) { return switch (type) { case FLOAT64 -> Double.doubleToRawLongBits(((double[]) value)[i]); case FLOAT32 -> Integer.toUnsignedLong(Float.floatToRawIntBits(((float[]) value)[i])); case BFLOAT16, FLOAT16 -> Short.toUnsignedLong(((short[]) value)[i]); case INT64 -> ((long[]) value)[i]; case INT32 -> Integer.toUnsignedLong(((int[]) value)[i]); case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> Byte.toUnsignedLong(((byte[]) value)[i]); }; }
     private static void assertUntouchedAffineResult(PreparedAffine row, long[] range, Object before,
             Object after, String implementation) {
         for (int cell = 0; cell < 32; cell++) {
@@ -511,7 +512,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
             case BFLOAT16, FLOAT16 -> ((short[]) expected).length;
             case INT64 -> ((long[]) expected).length;
             case INT32 -> ((int[]) expected).length;
-            case BOOL -> ((byte[]) expected).length;
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> ((byte[]) expected).length;
         };
         for (int cell = 0; cell < length; cell++) assertEquals(raw(expected, type, cell), raw(actual, type, cell),
                 label + " raw cell=" + cell);
@@ -946,7 +947,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
     private static Map<String, Long> movementCounts(List<CpuOrdinaryNonPointwiseGeneratedMatrixTest.MovementOrFoldCandidate> candidates) {
         var result = new TreeMap<String, Long>(); candidates.forEach(c -> result.merge(c.operationForm(), 1L, Long::sum)); return result;
     }
-    private static long padBits(io.github.pho001.synaptik.model.operation.layout.PadAttrs attrs) { var v=attrs.constantValue(); return switch(v.dataType()) { case FLOAT64 -> Double.doubleToRawLongBits(v.float64Value()); case FLOAT32 -> Float.floatToRawIntBits(v.float32Value()) & 0xffffffffL; case BFLOAT16 -> v.bfloat16Bits() & 0xffffL; case FLOAT16 -> v.float16Bits() & 0xffffL; case INT64 -> v.int64Value(); case INT32 -> v.int32Value() & 0xffffffffL; case BOOL -> v.booleanValue()?1L:0L; }; }
+    private static long padBits(io.github.pho001.synaptik.model.operation.layout.PadAttrs attrs) { var v=attrs.constantValue(); return switch(v.dataType()) { case FLOAT64 -> Double.doubleToRawLongBits(v.float64Value()); case FLOAT32 -> Float.floatToRawIntBits(v.float32Value()) & 0xffffffffL; case BFLOAT16 -> v.bfloat16Bits() & 0xffffL; case FLOAT16 -> v.float16Bits() & 0xffffL; case FLOAT8_E4M3 -> v.float8E4m3Bits() & 0xffL; case FLOAT8_E5M2 -> v.float8E5m2Bits() & 0xffL; case INT64 -> v.int64Value(); case INT32 -> v.int32Value() & 0xffffffffL; case BOOL -> v.booleanValue()?1L:0L; }; }
     private static List<MovementCarrier> movementCarriers(PreparedMovement row) {
         var result = new ArrayList<MovementCarrier>();
         for (int i = 0; i < row.plan.boundaryValues().size(); i++) {
@@ -1601,7 +1602,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
         return result;
     }
     private static Object newProvenanceArray(DataType type, int cells, int role, int markedAddress, boolean output) {
-        Object result = switch (type) { case FLOAT64 -> new double[cells]; case FLOAT32 -> new float[cells]; case BFLOAT16, FLOAT16 -> new short[cells]; case INT64 -> new long[cells]; case INT32 -> new int[cells]; case BOOL -> new byte[cells]; };
+        Object result = switch (type) { case FLOAT64 -> new double[cells]; case FLOAT32 -> new float[cells]; case BFLOAT16, FLOAT16 -> new short[cells]; case INT64 -> new long[cells]; case INT32 -> new int[cells]; case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> new byte[cells]; };
         for (int address = 0; address < cells; address++) setRaw(result, type, address, output ? 0L : provenanceValue(type, role, address, markedAddress));
         return result;
     }
@@ -1614,9 +1615,11 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
         if (type == DataType.BOOL) return address == markedAddress ? 1L : 0L;
         return switch (type) { case FLOAT64 -> 0x3ff0000000000000L + role * 0x10000L + address; case FLOAT32 -> 0x3f000000L + role * 0x10000L + address;
             case BFLOAT16, FLOAT16 -> 0x1000L + role * 0x100L + address; case INT64 -> 0x1020304050600000L + role * 0x10000L + address;
-            case INT32 -> 0x10200000L + role * 0x10000L + address; case BOOL -> throw new AssertionError(); };
+            case INT32 -> 0x10200000L + role * 0x10000L + address;
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> (role * 32L + address) & 255;
+            case BOOL -> throw new AssertionError(); };
     }
-    private static void setRaw(Object target, DataType type, int address, long value) { switch (type) { case FLOAT64 -> ((double[]) target)[address] = Double.longBitsToDouble(value); case FLOAT32 -> ((float[]) target)[address] = Float.intBitsToFloat((int) value); case BFLOAT16, FLOAT16 -> ((short[]) target)[address] = (short) value; case INT64 -> ((long[]) target)[address] = value; case INT32 -> ((int[]) target)[address] = (int) value; case BOOL -> ((byte[]) target)[address] = (byte) value; } }
+    private static void setRaw(Object target, DataType type, int address, long value) { switch (type) { case FLOAT64 -> ((double[]) target)[address] = Double.longBitsToDouble(value); case FLOAT32 -> ((float[]) target)[address] = Float.intBitsToFloat((int) value); case BFLOAT16, FLOAT16 -> ((short[]) target)[address] = (short) value; case INT64 -> ((long[]) target)[address] = value; case INT32 -> ((int[]) target)[address] = (int) value; case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> ((byte[]) target)[address] = (byte) value; } }
     private record ProvenanceIdentity(int role, long address) { }
     private record CompositionRelation(long outputAddress, List<Long> logicalCoordinate, int occurrenceOrdinal,
             int carrierRole, long sourceAddress, long relativeOrInputCoordinate) { }
@@ -1923,7 +1926,7 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
         String layout = switch (type) {
             case FLOAT64 -> "OfDouble:D"; case FLOAT32 -> "OfFloat:F";
             case BFLOAT16, FLOAT16 -> "OfShort:S"; case INT64 -> "OfLong:J";
-            case INT32 -> "OfInt:I"; case BOOL -> "OfByte:B";
+            case INT32 -> "OfInt:I"; case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> "OfByte:B";
         };
         int separator = layout.indexOf(':');
         String layoutType = layout.substring(0, separator), payload = layout.substring(separator + 1);
@@ -1989,8 +1992,8 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
     }
 
     /**
-     * Proves unsupported numerical scatter owners separately, and compiles an independent typed
-     * clean writer for every retained owner to compare the selected ABI and non-erased topology.
+     * Compiles an independent typed clean writer for every scatter owner to compare the selected
+     * ABI and non-erased topology.
      * The direct scatter closure remains the executable represented-value oracle; this projection
      * retains base copy, ordered index/update loads, output store, row-major contribution loop,
      * range ownership, and the floating-MUL workspace parameter boundary.
@@ -1999,13 +2002,8 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
         var candidates = CpuOrdinaryNonPointwiseGeneratedMatrixTest.scatterCandidates();
         var cleanRows = new ArrayList<CpuAffineMovementIndexingScatterRandomCleanJavaOracle.Row>();
         var prepared = new ArrayList<PreparedScatter>();
-        var unsupported = new ArrayList<String>();
         var executed = new ArrayList<String>();
         for (var candidate : candidates) {
-            if (CpuGeneratedCoverageEvidenceRegistry.lowUnsupported("ordinary:" + candidate.ownerId(), candidate.context())) {
-                unsupported.add(candidate.ownerId());
-                continue;
-            }
             var plan = new CpuPartitionPreparer().analyze(candidate.context()).plan();
             var route = plan.units().getFirst().portablePlan();
             var geometry = plan.scatterGeometry().orElseThrow();
@@ -2095,11 +2093,8 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
                 (long) elements, "every retained SCATTER_ELEMENTS row executes");
         assertEquals(prepared.stream().filter(row -> row.form.equals("SCATTER_ND")).count(),
                 (long) nd, "every retained SCATTER_ND row executes");
-        assertTrue(java.util.Collections.disjoint(executed, unsupported));
-        var accounted = new ArrayList<>(executed);
-        accounted.addAll(unsupported);
         assertEquals(candidates.stream().map(candidate -> candidate.ownerId()).sorted().toList(),
-                accounted.stream().sorted().toList(), "every original scatter owner has a witnessed outcome");
+                executed.stream().sorted().toList(), "every scatter owner executes");
         assertTrue(scratchRows > 0, "floating MUL retains its separate workspace ABI");
     }
 
@@ -2406,11 +2401,11 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
             String layout = switch (type) {
                 case FLOAT64 -> "OfDouble;J"; case FLOAT32 -> "OfFloat;J";
                 case BFLOAT16, FLOAT16 -> "OfShort;J";
-                case INT64 -> "OfLong;J"; case INT32 -> "OfInt;J"; case BOOL -> "OfByte;J";
+                case INT64 -> "OfLong;J"; case INT32 -> "OfInt;J"; case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> "OfByte;J";
             };
             String result = switch (type) {
                 case FLOAT64 -> "D"; case FLOAT32 -> "F"; case BFLOAT16, FLOAT16 -> "S";
-                case INT64 -> "J"; case INT32 -> "I"; case BOOL -> "B";
+                case INT64 -> "J"; case INT32 -> "I"; case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> "B";
             };
             String prefix = "java/lang/foreign/MemorySegment.";
             allowed.add(prefix + "get(Ljava/lang/foreign/ValueLayout$" + layout + ")" + result);
@@ -2436,8 +2431,8 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
     }
 
     /**
-     * Proves unsupported numerical random owners separately and pairs every retained owner with a
-     * separately compiled typed body. INITIAL_STATE's two stores are not a degenerate dropout; DROPOUT runs
+     * Pairs every random owner with a separately compiled typed body. INITIAL_STATE's two stores
+     * are not a degenerate dropout; DROPOUT runs
      * its [0,0) next-state prologue and then independently exercises whole, empty, interior, and
      * tail draw ranges through the counter-plus-global-ordinal mapping.
      */
@@ -2446,13 +2441,8 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
                 .filter(candidate -> RANDOM.contains(candidate.operationForm())).toList();
         var cleanRows = new ArrayList<CpuAffineMovementIndexingScatterRandomCleanJavaOracle.Row>();
         var prepared = new ArrayList<PreparedRandom>();
-        var unsupported = new ArrayList<String>();
         var executed = new ArrayList<String>();
         for (var candidate : candidates) {
-            if (CpuGeneratedCoverageEvidenceRegistry.lowUnsupported(candidate.ownerId(), candidate.context())) {
-                unsupported.add(candidate.ownerId());
-                continue;
-            }
             var plan = new CpuPartitionPreparer().analyze(candidate.context()).plan();
             var route = plan.units().getFirst().portablePlan();
             var node = candidate.context().nodes().getFirst();
@@ -2504,11 +2494,8 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
                 (long) dropout, "every retained DROPOUT row executes");
         assertEquals(prepared.stream().filter(row -> row.candidate.operationForm().equals("INITIAL_STATE")).count(),
                 (long) initializer, "every INITIAL_STATE control row executes");
-        assertTrue(java.util.Collections.disjoint(executed, unsupported));
-        var accounted = new ArrayList<>(executed);
-        accounted.addAll(unsupported);
         assertEquals(candidates.stream().map(candidate -> candidate.ownerId()).sorted().toList(),
-                accounted.stream().sorted().toList(), "every original random owner has a witnessed outcome");
+                executed.stream().sorted().toList(), "every random owner executes");
     }
 
     /** Rejects changes in ABI, carrier direction, range direction, and family topology facts. */

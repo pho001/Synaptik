@@ -191,6 +191,26 @@ final class CpuOrdinaryPointwiseCastCleanJavaOracle {
         String value = source.equals("FLOAT64") ? loaded
                 : source.equals("BFLOAT16") ? "Float.intBitsToFloat(((" + loaded + ")&65535)<<16)"
                 : source.equals("FLOAT16") ? "Float.float16ToFloat((short)(" + loaded + "))" : loaded;
+        if ((source.equals("BFLOAT16") || source.equals("FLOAT16"))
+                && List.of("ABS", "NEG", "RELU", "SIGN", "FLOOR", "CEIL").contains(row.operation())) {
+            java.append("int raw=").append(loaded).append(";float value=").append(value)
+                    .append(";int converted;");
+            switch (row.operation()) {
+                case "ABS" -> java.append("converted=raw&32767;");
+                case "NEG" -> java.append("converted=raw^32768;");
+                case "RELU" -> java.append("converted=Float.isNaN(value)?raw:Float.compare(value,0f)<0?0:raw;");
+                case "SIGN" -> java.append("converted=Float.isNaN(value)||value==0f?raw:(raw&32768)|")
+                        .append(source.equals("BFLOAT16") ? 16256 : 15360).append(';');
+                default -> {
+                    String rounded = "(float)StrictMath." + (row.operation().equals("FLOOR") ? "floor" : "ceil") + "(value)";
+                    java.append("converted=Float.isNaN(value)?raw:")
+                            .append(source.equals("BFLOAT16") ? "Float.floatToRawIntBits(" + rounded + ")>>>16"
+                                    : "Float.floatToFloat16(" + rounded + ")&65535").append(';');
+                }
+            }
+            java.append(store(source, outputSegment, "out", "converted")).append("}}\n");
+            return;
+        }
         if (row.operation().startsWith("IS_")) {
             String predicate = switch (row.operation()) {
                 case "IS_FINITE" -> "Float.isFinite(" + value + ")";
@@ -336,6 +356,15 @@ final class CpuOrdinaryPointwiseCastCleanJavaOracle {
             String arithmeticRight = valueType.equals("BFLOAT16")
                     ? "Float.intBitsToFloat(((" + right + ")&65535)<<16)"
                     : valueType.equals("FLOAT16") ? "Float.float16ToFloat((short)(" + right + "))" : right;
+            if ((type.equals("BFLOAT16") || type.equals("FLOAT16"))
+                    && (row.operation().equals("MIN") || row.operation().equals("MAX"))) {
+                java.append("int rawLeft=").append(left).append(",rawRight=").append(right)
+                        .append(";float a=").append(arithmeticLeft).append(",b=").append(arithmeticRight)
+                        .append(";int converted=Float.isNaN(a)?rawLeft:Float.isNaN(b)?rawRight:Float.compare(a,b)")
+                        .append(row.operation().equals("MIN") ? "<=0" : ">=0").append("?rawLeft:rawRight;")
+                        .append(storeTo(type, outputSegment, "p2", "out", "converted")).append("}}\n");
+                return;
+            }
             String expression = switch (row.operation()) {
                 case "ADD" -> arithmeticLeft + "+" + arithmeticRight;
                 case "SUB" -> arithmeticLeft + "-" + arithmeticRight;

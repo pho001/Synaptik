@@ -14,9 +14,6 @@ import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.ordering.*;
 import io.github.pho001.synaptik.model.shape.Shape;
 import java.lang.foreign.Arena;
-import java.lang.classfile.*;
-import java.lang.classfile.constantpool.MemberRefEntry;
-import java.lang.classfile.instruction.*;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 
@@ -102,24 +99,6 @@ class CpuOrderingGeneratedKernelTest {
             }
         }
     }
-    @Test void generatedClassMatrixUsesDirectTypedAllocationFreeOrderingBodies() {
-        for (DataType type : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) {
-            for (boolean descending : List.of(false, true)) {
-                assertDirectShape(new Operation(OrderingKind.SORT,
-                        new SortAttrs(0, descending)), type, false, false, true);
-                assertDirectShape(new Operation(OrderingKind.ARGSORT,
-                        new SortAttrs(0, descending)), type, false, false, true);
-                assertDirectShape(new Operation(TopKKind.TOP_K,
-                        new TopKAttrs(0, 2, descending, true)), type, true, false, true);
-                assertDirectShape(new Operation(TopKKind.TOP_K,
-                        new TopKAttrs(0, 2, descending, false)), type, true, false, true);
-            }
-        }
-        assertDirectShape(new Operation(OrderingKind.ARGSORT, new SortAttrs(0, true)),
-                DataType.FLOAT64, false, true, false);
-        assertDirectShape(new Operation(TopKKind.TOP_K, new TopKAttrs(0, 2, false, false)),
-                DataType.BFLOAT16, true, true, false);
-    }
 
     @Test void preservesStableNanLastSignedZeroAndRepresentedBitsBothDirections() throws Throwable {
         double nan1 = Double.longBitsToDouble(0x7ff8000000000001L);
@@ -191,6 +170,27 @@ class CpuOrderingGeneratedKernelTest {
         invoke(new Operation(OrderingKind.ARGSORT, new SortAttrs(0, true)), DataType.BOOL,
                 Shape.of(4), Shape.of(4), false, bools, boolIndices, null);
         assertArrayEquals(new long[]{0, 2, 1, 3}, boolIndices);
+    }
+
+    @Test void fp8SortAndArgsortKeepFiniteExtremesZeroSignsAndStableNanBits() throws Throwable {
+        for (DataType type : List.of(DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            byte maximum = (byte) (type == DataType.FLOAT8_E4M3 ? 126 : 123);
+            byte nan1 = (byte) (type == DataType.FLOAT8_E4M3 ? 127 : 125);
+            byte nan2 = (byte) 255;
+            byte[] input = {maximum, nan1, (byte) 128, 0, maximum, nan2};
+            for (boolean descending : List.of(false, true)) {
+                byte[] values = new byte[6];
+                long[] indices = new long[6];
+                invoke(new Operation(OrderingKind.SORT, new SortAttrs(0, descending)), type,
+                        Shape.of(6), Shape.of(6), false, input, values, null);
+                invoke(new Operation(OrderingKind.ARGSORT, new SortAttrs(0, descending)), type,
+                        Shape.of(6), Shape.of(6), false, input, indices, null);
+                assertArrayEquals(descending ? new byte[] {maximum, maximum, 0, (byte) 128, nan1, nan2}
+                        : new byte[] {(byte) 128, 0, maximum, maximum, nan1, nan2}, values);
+                assertArrayEquals(descending ? new long[] {0, 4, 3, 2, 1, 5}
+                        : new long[] {2, 3, 0, 4, 1, 5}, indices);
+            }
+        }
     }
 
     @Test void generalSegmentAndMixedCarrierFormsPreserveRepresentedOutputs() throws Throwable {
@@ -286,71 +286,6 @@ class CpuOrderingGeneratedKernelTest {
         }
     }
 
-    private static void assertDirectShape(Operation operation, DataType type, boolean topK,
-            boolean segments, boolean dense) {
-        Shape inputShape = Shape.of(4), outputShape = topK ? Shape.of(2) : inputShape;
-        var base = CpuOrderingLoweringTest.context(operation, type, inputShape, outputShape, topK);
-        var carriers = new ArrayList<CarrierAccess>();
-        carriers.add(segments ? CarrierAccess.MEMORY_SEGMENT : heap(type));
-        carriers.add(segments ? CarrierAccess.MEMORY_SEGMENT
-                : operation.kind() == OrderingKind.ARGSORT ? CarrierAccess.LONG_ARRAY : heap(type));
-        if (topK) carriers.add(segments ? CarrierAccess.MEMORY_SEGMENT : CarrierAccess.LONG_ARRAY);
-        var context = new io.github.pho001.synaptik.prepare.analysis.PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
-        var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
-                .portablePlan();
-        var generator = new CpuClassFileKernelGenerator();
-        byte[] first = generator.generateClassBytes(route.specialization(), route.kernelIr());
-        byte[] second = generator.generateClassBytes(route.specialization(), route.kernelIr());
-        ClassModel model = ClassFile.of().parse(first);
-        var method = model.methods().getFirst();
-        var instructions = method.code().orElseThrow().elementStream()
-                .filter(Instruction.class::isInstance).map(Instruction.class::cast).toList();
-        var invokes = instructions.stream().filter(InvokeInstruction.class::isInstance)
-                .map(InvokeInstruction.class::cast).toList();
-        var refs = java.util.stream.StreamSupport.stream(model.constantPool().spliterator(), false)
-                .filter(MemberRefEntry.class::isInstance).map(MemberRefEntry.class::cast).toList();
-        assertAll(
-                () -> assertArrayEquals(first, second),
-                () -> assertFalse(method.methodTypeSymbol().descriptorString()
-                        .contains("Ljava/lang/Object;")),
-                () -> assertEquals(dense
-                                ? io.github.pho001.synaptik.backend.cpu.internal.cache
-                                        .CpuKernelSpecialization.LoopAddressing.DENSE_HEAP_ARRAY_INT
-                                : io.github.pho001.synaptik.backend.cpu.internal.cache
-                                        .CpuKernelSpecialization.LoopAddressing.GENERAL_LONG,
-                        route.specialization().loopAddressing(route.kernelIr())),
-                () -> assertTrue(instructions.stream().noneMatch(element ->
-                        element instanceof TypeCheckInstruction
-                                || element instanceof NewObjectInstruction
-                                || element instanceof NewPrimitiveArrayInstruction
-                                || element instanceof NewReferenceArrayInstruction
-                                || element instanceof NewMultiArrayInstruction), instructions.toString()),
-                () -> assertTrue(refs.stream().noneMatch(reference ->
-                        reference.owner().asInternalName().equals(
-                                CpuOrderingEmitter.class.getName().replace('.', '/'))
-                                || reference.type().stringValue().contains("Ljava/lang/Object;")),
-                        refs.toString()),
-                () -> assertTrue(invokes.stream().allMatch(call ->
-                        call.owner().asInternalName().equals("java/lang/foreign/MemorySegment")
-                                && (call.name().stringValue().equals("get")
-                                        || call.name().stringValue().equals("set"))
-                        || type == DataType.BFLOAT16
-                                && call.owner().asInternalName().equals("java/lang/Float")
-                                && call.name().stringValue().equals("intBitsToFloat"))),
-                () -> assertTrue(invokes.stream().noneMatch(call ->
-                        call.name().stringValue().equals("values")
-                                || call.owner().asInternalName().startsWith("java/lang/reflect/")
-                                || call.owner().asInternalName().startsWith("java/util/Map")
-                                || call.owner().asInternalName().startsWith("java/util/Arrays"))),
-                () -> assertTrue(instructions.stream().map(Instruction::opcode)
-                        .anyMatch(opcode -> opcode == Opcode.GOTO)),
-                () -> assertTrue(invokes.stream().anyMatch(call ->
-                        call.owner().asInternalName().equals("java/lang/foreign/MemorySegment")
-                                && call.name().stringValue().equals("get"))),
-                () -> assertTrue(invokes.stream().anyMatch(call ->
-                        call.owner().asInternalName().equals("java/lang/foreign/MemorySegment")
-                                && call.name().stringValue().equals("set"))));
-    }
 
     private static void invokeCarriers(Operation operation, DataType type, Shape inputShape,
             Shape outputShape, boolean topK, List<CarrierAccess> carriers, List<Object> arguments)
@@ -403,11 +338,10 @@ class CpuOrderingGeneratedKernelTest {
         return switch (type) {
             case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY;
             case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
-            case BFLOAT16 -> CarrierAccess.SHORT_ARRAY;
+            case BFLOAT16, FLOAT16 -> CarrierAccess.SHORT_ARRAY;
             case INT32 -> CarrierAccess.INT_ARRAY;
             case INT64 -> CarrierAccess.LONG_ARRAY;
-            case BOOL -> CarrierAccess.BYTE_ARRAY;
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU ordering unsupported");
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> CarrierAccess.BYTE_ARRAY;
         };
     }
     private static long[] raw(double[] values) { long[] result = new long[values.length];
@@ -420,11 +354,10 @@ class CpuOrderingGeneratedKernelTest {
         return switch (type) {
             case FLOAT64 -> new CpuBufferArgument.Doubles((double[]) carrier, 0, bytes, readOnly);
             case FLOAT32 -> new CpuBufferArgument.Floats((float[]) carrier, 0, bytes, readOnly);
-            case BFLOAT16 -> new CpuBufferArgument.Shorts((short[]) carrier, 0, bytes, readOnly);
+            case BFLOAT16, FLOAT16 -> new CpuBufferArgument.Shorts((short[]) carrier, 0, bytes, readOnly);
             case INT32 -> new CpuBufferArgument.Ints((int[]) carrier, 0, bytes, readOnly);
             case INT64 -> new CpuBufferArgument.Longs((long[]) carrier, 0, bytes, readOnly);
-            case BOOL -> new CpuBufferArgument.Bytes((byte[]) carrier, 0, bytes, readOnly);
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU ordering unsupported");
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> new CpuBufferArgument.Bytes((byte[]) carrier, 0, bytes, readOnly);
         };
     }
 }

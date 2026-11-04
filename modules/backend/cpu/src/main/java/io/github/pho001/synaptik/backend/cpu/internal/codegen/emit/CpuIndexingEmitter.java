@@ -640,7 +640,7 @@ public final class CpuIndexingEmitter {
                 case FLOAT64 -> code.loadConstant(0.0d);
                 case FLOAT32 -> code.loadConstant(0.0f);
                 case INT64 -> code.loadConstant(0L);
-                case BFLOAT16, FLOAT16, INT32, BOOL -> code.loadConstant(0);
+                case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> code.loadConstant(0);
             }
             store(code, outputType, familyValue);
             code.labelBinding(valueReady);
@@ -916,7 +916,7 @@ public final class CpuIndexingEmitter {
             case FLOAT64 -> code.dstore(local);
             case FLOAT32 -> code.fstore(local);
             case INT64 -> code.lstore(local);
-            case BFLOAT16, FLOAT16, INT32, BOOL -> code.istore(local);
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> code.istore(local);
         }
     }
     private static TypeKind localKind(DataType type) {
@@ -924,7 +924,7 @@ public final class CpuIndexingEmitter {
             case FLOAT64 -> TypeKind.DOUBLE;
             case FLOAT32 -> TypeKind.FLOAT;
             case INT64 -> TypeKind.LONG;
-            case BFLOAT16, FLOAT16, INT32, BOOL -> TypeKind.INT;
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> TypeKind.INT;
         };
     }
 

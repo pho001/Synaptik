@@ -262,7 +262,8 @@ class CpuBFloat16PointwisePerformanceTest {
         List<DataType> types = values.stream().map(CpuKernelIr.Value::dataType).toList();
         List<CpuKernelSpecialization.CarrierAccess> carriers = carriers(row);
         return new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1,
-        List.of(), false, 59);
+        List.of(), false, CpuKernelSpecialization.requiresLowPrecisionArithmeticSchema(ir)
+                ? CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA : 59);
     }
 
     private static String classFileName(Row row) { return switch (row) {

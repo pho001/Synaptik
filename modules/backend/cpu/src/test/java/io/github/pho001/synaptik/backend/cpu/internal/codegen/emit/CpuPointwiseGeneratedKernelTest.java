@@ -34,81 +34,8 @@ class CpuPointwiseGeneratedKernelTest {
             CpuPointwiseOpcode.ERF, CpuPointwiseOpcode.SIGMOID, CpuPointwiseOpcode.GELU_EXACT,
             CpuPointwiseOpcode.GELU_TANH_APPROXIMATION, CpuPointwiseOpcode.SILU);
 
-    @Test void retainsBfloat16GeneratedClassFileEvidenceWhenExplicitlyRequested() throws Exception {
-        String requested = System.getProperty("synaptik.cpu.0008j.evidenceRoot");
-        org.junit.jupiter.api.Assumptions.assumeTrue(requested != null && !requested.isBlank());
-        Path root = Path.of(requested);
-        Files.createDirectories(root.resolve("generated-classes"));
-        var generator = new CpuClassFileKernelGenerator();
-        List<CpuKernelIr> fixtures = List.of(ir(new Case(CpuPointwiseOpcode.GELU_EXACT,
-                DataType.BFLOAT16)), ir(new Case(CpuPointwiseOpcode.POW, DataType.BFLOAT16)),
-                bfloatGeneralClampEvidenceIr(), bfloatBroadcastComparisonEvidenceIr(),
-                bfloatAccessRegimeIr());
-        List<List<CpuKernelSpecialization.CarrierAccess>> carrierPatterns = List.of(
-                List.of(CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY,
-                        CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY),
-                Collections.nCopies(3, CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT),
-                List.of(CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY,
-                        CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT),
-                List.of(CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY,
-                        CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY,
-                        CpuKernelSpecialization.CarrierAccess.BYTE_ARRAY),
-                Collections.nCopies(5, CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY));
-        String[] names = {"gelu", "pow", "clamp", "comparison", "fused-access"};
-        for (int index = 0; index < fixtures.size(); index++) {
-            CpuKernelIr fixture = fixtures.get(index);
-            List<DataType> types = fixture.values().stream().filter(value -> value.kind()
-                    != CpuKernelIr.Value.Kind.VIRTUAL).map(CpuKernelIr.Value::dataType).toList();
-            List<CpuKernelSpecialization.CarrierAccess> carriers = carrierPatterns.get(index);
-            var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(
-                    fixture.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1,
-            fixture.instructions().stream().filter(instruction -> instruction.opcode()
-                    == CpuPointwiseOpcode.SCALAR_POW)
-                    .map(CpuKernelIr.Instruction::powerRealization).toList(), false, 59);
-            if (fixture.instructions().stream().anyMatch(instruction -> Set.of(
-                    CpuPointwiseOpcode.GELU_EXACT, CpuPointwiseOpcode.POW,
-                    CpuPointwiseOpcode.ADD).contains(instruction.opcode()))) {
-                assertThrows(IllegalArgumentException.class,
-                        () -> generator.generateClassBytes(specialization, fixture));
-                continue;
-            }
-            Files.write(root.resolve("generated-classes").resolve(names[index] + ".class"),
-                    generator.generateClassBytes(specialization, fixture));
-        }
-    }
 
-    @Test void originalFusedBfloatArithmeticRejectsAndIndependentLowWhereCopiesRawBits()
-            throws Throwable {
-        CpuKernelIr ir = new CpuKernelIr(List.of(
-                new CpuKernelIr.Value(0, DataType.BFLOAT16, CpuKernelIr.Value.Kind.INPUT,
-                        dense(CpuAccessPlan.AccessKind.READ)),
-                new CpuKernelIr.Value(1, DataType.BFLOAT16, CpuKernelIr.Value.Kind.INPUT,
-                        dense(CpuAccessPlan.AccessKind.READ)),
-                new CpuKernelIr.Value(2, DataType.BFLOAT16, CpuKernelIr.Value.Kind.INPUT,
-                        dense(CpuAccessPlan.AccessKind.READ)),
-                new CpuKernelIr.Value(3, DataType.BFLOAT16, CpuKernelIr.Value.Kind.VIRTUAL,
-                        dense(CpuAccessPlan.AccessKind.READ)),
-                new CpuKernelIr.Value(4, DataType.BOOL, CpuKernelIr.Value.Kind.VIRTUAL,
-                        dense(CpuAccessPlan.AccessKind.READ)),
-                new CpuKernelIr.Value(5, DataType.BFLOAT16, CpuKernelIr.Value.Kind.VIRTUAL,
-                        dense(CpuAccessPlan.AccessKind.READ)),
-                new CpuKernelIr.Value(6, DataType.BFLOAT16, CpuKernelIr.Value.Kind.OUTPUT,
-                        dense(CpuAccessPlan.AccessKind.WRITE))), List.of(
-                new CpuKernelIr.Instruction(CpuPointwiseOpcode.ADD, List.of(0, 1), 3),
-                new CpuKernelIr.Instruction(CpuPointwiseOpcode.IS_FINITE, List.of(3), 4),
-                new CpuKernelIr.Instruction(CpuPointwiseOpcode.SIGMOID, List.of(3), 5),
-                new CpuKernelIr.Instruction(CpuPointwiseOpcode.WHERE, List.of(4, 5, 2), 6)),
-                new CpuKernelIr.Loop("start", "end"), List.of(new CpuKernelIr.Store(6, 0)));
-        List<DataType> boundaryTypes = List.of(DataType.BFLOAT16, DataType.BFLOAT16,
-                DataType.BFLOAT16, DataType.BFLOAT16);
-        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(
-                ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, boundaryTypes,
-        Collections.nCopies(4, CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY), 0, -1,
-        List.of(), false, 59);
-        var generator = new CpuClassFileKernelGenerator();
-        assertThrows(IllegalArgumentException.class,
-                () -> generator.generateClassBytes(specialization, ir));
-
+    @Test void lowWhereCopiesEverySelectedRawBit() throws Throwable {
         for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
             var where = ir(new Case(CpuPointwiseOpcode.WHERE, type));
             var exact = artifact(where, List.of(DataType.BOOL, type, type, type),
@@ -606,21 +533,23 @@ class CpuPointwiseGeneratedKernelTest {
                 (short) 0xffc1};
         for (short exponentBits : bfloatExponents) {
             CpuKernelIr ir = powerIr(DataType.BFLOAT16, Short.toUnsignedLong(exponentBits));
-            for (short baseBits : bfloatBases) {
-                assertThrows(IllegalArgumentException.class,
-                        () -> powerArtifact(ir, DataType.BFLOAT16,
-                                CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR),
-                        "base=0x" + Integer.toHexString(Short.toUnsignedInt(baseBits))
-                                + " exponent=0x"
-                                + Integer.toHexString(Short.toUnsignedInt(exponentBits)));
+            var generated = powerArtifact(ir, DataType.BFLOAT16,
+                    CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR);
+            short[] output = new short[bfloatBases.length];
+            generated.entryPoint().invokeWithArguments(bfloatBases, output,
+                    geometry(2, output.length), 0L, (long) output.length);
+            for (int i = 0; i < output.length; i++) {
+                float expected = (float) StrictMath.pow(BFloat16Bits.toFloat(bfloatBases[i]),
+                        BFloat16Bits.toFloat(exponentBits));
+                if (Float.isNaN(expected)) assertTrue(Float.isNaN(BFloat16Bits.toFloat(output[i])));
+                else assertEquals(BFloat16Bits.fromFloat(expected), output[i]);
             }
         }
     }
 
     @Test void bfloat16EncodingUsesTiesToEvenCanonicalNanOverflowAndSignedUnderflow()
             throws Throwable {
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
-        CpuKernelIr add = ir(new Case(CpuPointwiseOpcode.ADD, DataType.BFLOAT16));
+        { CpuKernelIr add = ir(new Case(CpuPointwiseOpcode.ADD, DataType.BFLOAT16));
         var addArtifact = artifact(add, List.of(DataType.BFLOAT16, DataType.BFLOAT16,
                 DataType.BFLOAT16), Collections.nCopies(3,
                         CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY));
@@ -633,7 +562,7 @@ class CpuPointwiseGeneratedKernelTest {
                 (long) left.length);
         assertArrayEquals(new short[] {(short) 0x3f80, (short) 0x3f82, (short) 0x7f80,
                 (short) 0x7fc0, (short) 0x7fc0}, added);
-
+        
         CpuKernelIr multiply = ir(new Case(CpuPointwiseOpcode.MUL, DataType.BFLOAT16));
         var multiplyArtifact = artifact(multiply, List.of(DataType.BFLOAT16, DataType.BFLOAT16,
                 DataType.BFLOAT16), Collections.nCopies(3,
@@ -642,8 +571,7 @@ class CpuPointwiseGeneratedKernelTest {
         multiplyArtifact.entryPoint().invokeExact(new short[] {1, (short) 0x8001},
                 new short[] {(short) 0x3f00, (short) 0x3f00}, multiplied,
                 geometry(3, 2), 0L, 2L);
-        assertArrayEquals(new short[] {0, (short) 0x8000}, multiplied);
-        });
+        assertArrayEquals(new short[] {0, (short) 0x8000}, multiplied); }
     }
 
     @Test void generatedBinaryAndScalarDivisionMatchPrimitiveOracleEdges() throws Throwable {
@@ -869,8 +797,7 @@ class CpuPointwiseGeneratedKernelTest {
 
     @Test void bfloat16GeneralAddressingUsesEveryLegalAccessRegimeAndPartialRanges()
             throws Throwable {
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
-        CpuKernelIr ir = bfloatAccessRegimeIr();
+        { CpuKernelIr ir = bfloatAccessRegimeIr();
         List<DataType> types = List.of(DataType.BFLOAT16, DataType.BFLOAT16, DataType.BFLOAT16,
                 DataType.BFLOAT16, DataType.BFLOAT16);
         var artifact = artifact(ir, types, List.of(CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY,
@@ -894,8 +821,7 @@ class CpuPointwiseGeneratedKernelTest {
             expected[(ordinal / 3) * 5 + column] = BFloat16Bits.toFloat(sum)
                     > BFloat16Bits.toFloat(bias[column]) ? sum : otherwise[0];
         }
-        assertArrayEquals(expected, output);
-        });
+        assertArrayEquals(expected, output); }
     }
 
     @Test void preferredTypedVectorsUseSegmentAndMixedCarriers() throws Throwable {
@@ -934,7 +860,9 @@ class CpuPointwiseGeneratedKernelTest {
         ir.instructions().stream()
                 .filter(instruction -> instruction.opcode() == CpuPointwiseOpcode.SCALAR_POW)
                 .map(CpuKernelIr.Instruction::powerRealization).toList(), false,
-        CpuKernelSpecialization.hasFloat32RsqrtSites(ir)
+        CpuKernelSpecialization.requiresLowPrecisionArithmeticSchema(ir)
+                ? CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA
+                : CpuKernelSpecialization.hasFloat32RsqrtSites(ir)
                 ? CpuKernelSpecialization.FLOAT32_RSQRT_SITES_SCHEMA
                 : types.contains(DataType.FLOAT16) ? 68 : types.contains(DataType.BFLOAT16) ? 59 : 52);
         var generator = new CpuClassFileKernelGenerator();
@@ -1011,7 +939,9 @@ class CpuPointwiseGeneratedKernelTest {
             List<CpuKernelSpecialization.CarrierAccess> carriers, DataType laneType) {
         var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR, types, carriers,
         vectorSpeciesBits(laneType), -1, List.of(), false,
-        CpuKernelSpecialization.hasFloat32RsqrtSites(ir)
+        CpuKernelSpecialization.requiresLowPrecisionArithmeticSchema(ir)
+                ? CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA
+                : CpuKernelSpecialization.hasFloat32RsqrtSites(ir)
                 ? CpuKernelSpecialization.FLOAT32_RSQRT_SITES_SCHEMA : 52);
         var generator = new CpuClassFileKernelGenerator();
         return generator.defineClassBytes(specialization, ir, generator.generateClassBytes(specialization, ir));
@@ -1165,7 +1095,8 @@ class CpuPointwiseGeneratedKernelTest {
         var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), strategy,
         List.of(type, type), List.of(heapCarrier(type), heapCarrier(type)), species, -1,
         List.of(ir.instructions().getFirst().powerRealization()), false,
-        type == DataType.BFLOAT16 ? 59 : 52);
+        CpuKernelSpecialization.requiresLowPrecisionArithmeticSchema(ir)
+                ? CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA : type == DataType.BFLOAT16 ? 59 : 52);
         var generator = new CpuClassFileKernelGenerator();
         return generator.defineClassBytes(specialization, ir, generator.generateClassBytes(specialization, ir));
     }
@@ -1412,8 +1343,7 @@ class CpuPointwiseGeneratedKernelTest {
     }
 
     private static void assertCase(Case one) throws Throwable {
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(one.opcode().usesFloatingArithmetic() ? one.type() : DataType.FLOAT32, () -> {
-        CpuKernelIr ir = ir(one);
+        { CpuKernelIr ir = ir(one);
         List<CpuKernelIr.Value> boundaries = ir.values();
         List<DataType> types = boundaries.stream().map(CpuKernelIr.Value::dataType).toList();
         List<CpuKernelSpecialization.CarrierAccess> carriers = types.stream()
@@ -1422,7 +1352,9 @@ class CpuPointwiseGeneratedKernelTest {
         ir.instructions().stream().filter(instruction -> instruction.opcode()
                 == CpuPointwiseOpcode.SCALAR_POW)
                 .map(CpuKernelIr.Instruction::powerRealization).toList(), false,
-        CpuKernelSpecialization.hasFloat32RsqrtSites(ir)
+        CpuKernelSpecialization.requiresLowPrecisionArithmeticSchema(ir)
+                ? CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA
+                : CpuKernelSpecialization.hasFloat32RsqrtSites(ir)
                 ? CpuKernelSpecialization.FLOAT32_RSQRT_SITES_SCHEMA
                 : types.contains(DataType.FLOAT16) ? 68 : types.contains(DataType.BFLOAT16) ? 59 : 52);
         var artifact = new CpuClassFileKernelGenerator().defineClassBytes(specialization, ir, new CpuClassFileKernelGenerator().generateClassBytes(specialization, ir));
@@ -1438,14 +1370,12 @@ class CpuPointwiseGeneratedKernelTest {
         CpuScalarReferenceKernel.execute(ir, reference.stream().map((Object value) -> argument(value,
                 types.get(reference.indexOf(value)))).toList(), bindings(boundaries.size()), 0, 4);
         assertPrimitiveArrayEquals(referenceOutput, generatedOutput,
-                one.opcode() + " " + one.type());
-        });
+                one.opcode() + " " + one.type()); }
     }
 
     private static void assertBfloatSegmentCase(Case one, Arena arena, boolean mixed)
             throws Throwable {
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(one.opcode().usesFloatingArithmetic() ? one.type() : DataType.FLOAT32, () -> {
-        CpuKernelIr ir = ir(one);
+        { CpuKernelIr ir = ir(one);
         List<CpuKernelIr.Value> boundaries = ir.values().stream().filter(value -> value.kind()
                 != CpuKernelIr.Value.Kind.VIRTUAL).toList();
         List<DataType> types = boundaries.stream().map(CpuKernelIr.Value::dataType).toList();
@@ -1474,8 +1404,7 @@ class CpuPointwiseGeneratedKernelTest {
         call.add(geometry(boundaries.size(), 4)); call.add(0L); call.add(4L);
         artifact.entryPoint().invokeWithArguments(call);
         assertPrimitiveArrayEquals(expected, arrayFromSegment(one.outputType(), output, 4),
-                one.opcode() + " segment/mixed raw result");
-        });
+                one.opcode() + " segment/mixed raw result"); }
     }
 
     private static Object arrayFromSegment(DataType type, java.lang.foreign.MemorySegment segment,

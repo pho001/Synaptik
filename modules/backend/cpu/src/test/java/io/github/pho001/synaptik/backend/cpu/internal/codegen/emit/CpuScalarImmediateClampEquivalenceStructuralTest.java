@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 class CpuScalarImmediateClampEquivalenceStructuralTest {
     @Test void generatedUnitsRejectForbiddenHotPathMechanisms() {
         for (var fixture : CpuScalarImmediateClampEquivalenceOracle.fixtures()) {
-            if (CpuScalarImmediateClampEquivalenceOracle.unsupported(fixture)) continue;
+            
             byte[] bytes = CpuScalarImmediateClampEquivalenceOracle.artifact(fixture).bytes();
             var model = ClassFile.of().parse(bytes);
             assertTrue(model.fields().isEmpty(), fixture.id()); assertEquals(1, model.methods().size(), fixture.id());

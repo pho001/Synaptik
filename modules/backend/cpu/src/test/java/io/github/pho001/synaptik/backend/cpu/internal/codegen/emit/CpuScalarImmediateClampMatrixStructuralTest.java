@@ -25,7 +25,7 @@ class CpuScalarImmediateClampMatrixStructuralTest {
 
     @Test void generatedBodiesHaveOneDirectEntryAndNoForbiddenAllocationOrDispatch() {
         for (var form : CpuScalarImmediateClampMatrixOracle.forms()) {
-            if (CpuScalarImmediateClampMatrixOracle.unsupported(form)) continue;
+            
             byte[] bytes = CpuScalarImmediateClampMatrixOracle.formArtifact(form).artifact().bytes();
             var model = ClassFile.of().parse(bytes);
             assertEquals(1, model.methods().size(), form.id());
@@ -69,7 +69,7 @@ class CpuScalarImmediateClampMatrixStructuralTest {
         var manifest = new ArrayList<String>();
         manifest.add("id\tclass-file-sha256\tdescriptor\tstrategy\tgenerator-schema\tclass-identity-schema\tnormalizer\tnormalized-sha256");
         for (var form : CpuScalarImmediateClampMatrixOracle.forms()) {
-            if (CpuScalarImmediateClampMatrixOracle.unsupported(form)) continue;
+            
             var artifact = CpuScalarImmediateClampMatrixOracle.formArtifact(form).artifact();
             byte[] normalized = String.join("\n", normalize(artifact.bytes())).concat("\n")
                     .getBytes(StandardCharsets.UTF_8);

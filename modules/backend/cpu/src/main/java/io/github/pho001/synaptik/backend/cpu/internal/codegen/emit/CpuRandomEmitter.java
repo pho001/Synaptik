@@ -359,14 +359,7 @@ public final class CpuRandomEmitter {
             code.loadConstant(1.0f / (float) (1.0d - probability)).fmul().fstore(result);
         } else {
             code.istore(result);
-            if (type == DataType.FLOAT16) {
-                code.iload(result).i2s().invokestatic(FLOAT, "float16ToFloat",
-                        MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short));
-            } else {
-                code.iload(result).loadConstant(16).ishl()
-                        .invokestatic(FLOAT, "intBitsToFloat",
-                                MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int));
-            }
+            CpuCastEmitter.emitLowToFloat(code, type, result);
             code.loadConstant(1.0f / (float) (1.0d - probability)).fmul();
             int product = code.allocateLocal(TypeKind.FLOAT);
             code.fstore(product);
@@ -450,6 +443,7 @@ public final class CpuRandomEmitter {
             switch (type) {
                 case FLOAT64 -> code.daload(); case FLOAT32 -> code.faload();
                 case BFLOAT16, FLOAT16 -> code.saload(); case INT64 -> code.laload();
+                case FLOAT8_E4M3, FLOAT8_E5M2 -> code.baload();
                 default -> throw new IllegalArgumentException("unsupported random load type");
             }
             return;
@@ -469,7 +463,7 @@ public final class CpuRandomEmitter {
             switch (type) {
                 case FLOAT64 -> code.dastore(); case FLOAT32 -> code.fastore();
                 case BFLOAT16, FLOAT16 -> code.sastore(); case INT64 -> code.lastore();
-                case BOOL -> code.bastore();
+                case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> code.bastore();
                 default -> throw new IllegalArgumentException("unsupported random store type");
             }
             return;
@@ -489,7 +483,7 @@ public final class CpuRandomEmitter {
     private static void loadValue(CodeBuilder code, DataType type, int value) {
         switch (type) {
             case FLOAT64 -> code.dload(value); case FLOAT32 -> code.fload(value);
-            case BFLOAT16, FLOAT16, BOOL -> code.iload(value); case INT64 -> code.lload(value);
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, BOOL -> code.iload(value); case INT64 -> code.lload(value);
             default -> throw new IllegalArgumentException("unsupported random value type");
         }
     }
@@ -498,7 +492,7 @@ public final class CpuRandomEmitter {
         return switch (type) {
             case FLOAT64 -> "JAVA_DOUBLE_UNALIGNED"; case FLOAT32 -> "JAVA_FLOAT_UNALIGNED";
             case BFLOAT16, FLOAT16 -> "JAVA_SHORT_UNALIGNED"; case INT64 -> "JAVA_LONG_UNALIGNED";
-            case BOOL -> "JAVA_BYTE";
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> "JAVA_BYTE";
             default -> throw new IllegalArgumentException("unsupported random layout type");
         };
     }
@@ -506,7 +500,7 @@ public final class CpuRandomEmitter {
     private static ClassDesc layoutClass(DataType type) {
         return switch (type) {
             case FLOAT64 -> DOUBLE_LAYOUT; case FLOAT32 -> FLOAT_LAYOUT;
-            case BFLOAT16, FLOAT16 -> SHORT_LAYOUT; case INT64 -> LONG_LAYOUT; case BOOL -> BYTE_LAYOUT;
+            case BFLOAT16, FLOAT16 -> SHORT_LAYOUT; case INT64 -> LONG_LAYOUT; case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> BYTE_LAYOUT;
             default -> throw new IllegalArgumentException("unsupported random layout type");
         };
     }
@@ -515,7 +509,7 @@ public final class CpuRandomEmitter {
         return switch (type) {
             case FLOAT64 -> ConstantDescs.CD_double; case FLOAT32 -> ConstantDescs.CD_float;
             case BFLOAT16, FLOAT16 -> ConstantDescs.CD_short; case INT64 -> ConstantDescs.CD_long;
-            case BOOL -> ConstantDescs.CD_byte;
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> ConstantDescs.CD_byte;
             default -> throw new IllegalArgumentException("unsupported random primitive type");
         };
     }

@@ -411,7 +411,7 @@ class CpuSignedVariadicMovementTest {
                 case BFLOAT16, FLOAT16 -> segment.toArray(ValueLayout.JAVA_SHORT_UNALIGNED);
                 case INT32 -> segment.toArray(ValueLayout.JAVA_INT_UNALIGNED);
                 case INT64 -> segment.toArray(ValueLayout.JAVA_LONG_UNALIGNED);
-                case BOOL -> segment.toArray(ValueLayout.JAVA_BYTE);
+                case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> segment.toArray(ValueLayout.JAVA_BYTE);
             });
             pattern.add(switch (type) {
                 case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY;
@@ -419,7 +419,7 @@ class CpuSignedVariadicMovementTest {
                 case BFLOAT16, FLOAT16 -> CarrierAccess.SHORT_ARRAY;
                 case INT32 -> CarrierAccess.INT_ARRAY;
                 case INT64 -> CarrierAccess.LONG_ARRAY;
-                case BOOL -> CarrierAccess.BYTE_ARRAY;
+                case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> CarrierAccess.BYTE_ARRAY;
             });
         }
         invokeGenerated(context, carriers, start, end);
@@ -481,6 +481,7 @@ class CpuSignedVariadicMovementTest {
             case FLOAT32 -> switch (i % 4) { case 0 -> 0x8000_0000L; case 1 -> 0x7fc0_0042L+i; case 2 -> 1; default -> 0x3f80_0000L+i; };
             case BFLOAT16 -> (i % 2 == 0 ? 0x8000L : 0x7fc0L+i) & 0xffffL;
             case FLOAT16 -> (i % 2 == 0 ? 0x8000L : 0x7e00L+i) & 0xffffL;
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> i & 255;
             case INT64 -> Long.MIN_VALUE+i;
             case INT32 -> Integer.toUnsignedLong(Integer.MIN_VALUE+i);
             case BOOL -> i & 1;

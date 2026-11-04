@@ -27,8 +27,9 @@ import java.util.Objects;
  * <p>It realizes the already-selected scalar body or eligible preferred-species
  * FLOAT32/FLOAT64, signed-integral, canonical-BOOL, or bounded dense floating-mask vector body,
  * and retains the scalar body for tails. Unit-private masks remain virtual, while required dense
- * BOOL boundaries use a fixed covering byte species. BFLOAT16 pointwise work is scalar-only and keeps
- * raw represented locals, decoding numerical inputs and encoding each producing logical node.
+ * BOOL boundaries use a fixed covering byte species. All four low floating types use scalar
+ * pointwise work with raw represented locals, F32 numerical work, and one final RNE per logical
+ * result. OFP8 carriers remain bytes rather than Boolean masks.
  * A pointwise topology containing cross-type CAST is likewise scalar-only: each CAST emits its
  * Model-defined conversion directly into the target-typed local, preserving explicit
  * intermediate conversion boundaries without a generated Synaptik helper call.
@@ -166,6 +167,18 @@ public final class CpuClassFileKernelGenerator {
             ClassDesc.of("java.lang.foreign.ValueLayout$OfFloat");
     /** Creates a stateless generator with no retained route or specialization state. */
     public CpuClassFileKernelGenerator() { }
+
+    /**
+     * Authenticates a cold recipe before any generated-class cache lookup, including weak hits.
+     *
+     * @param specialization non-null typed carrier and selective compatibility facts
+     * @param kernelIr non-null canonical body envelope
+     * @throws NullPointerException if either argument is null
+     * @throws IllegalArgumentException if family facts, carriers, ABI or compatibility disagree
+     */
+    public static void validateSpecialization(CpuKernelSpecialization specialization, CpuKernelIr kernelIr) {
+        validate(specialization, kernelIr);
+    }
 
     /**
      * Binds the two iteration domains of an ordinary aggregate composition. Static coordinate
@@ -538,8 +551,6 @@ public final class CpuClassFileKernelGenerator {
             boolean controlled) {
         Objects.requireNonNull(owner, "owner");
         Objects.requireNonNull(prefix, "prefix");
-        io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering
-                .requirePermittedLowPrecisionUse(specialization, kernelIr);
         validate(specialization, kernelIr);
         if ((!prefix.isEmpty() || controlled) && specialization.generalScanIr().isPresent())
             throw new IllegalArgumentException("nested general Scan emission is not supported");
@@ -1853,8 +1864,6 @@ public final class CpuClassFileKernelGenerator {
             CpuKernelIr kernelIr, byte[] classBytes) {
         Objects.requireNonNull(specialization, "specialization");
         Objects.requireNonNull(classBytes, "classBytes");
-        io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPartitionLowering
-                .requirePermittedLowPrecisionUse(specialization, kernelIr);
         validate(specialization, kernelIr);
         verify(specialization, kernelIr, classBytes);
         try {
@@ -1957,7 +1966,7 @@ public final class CpuClassFileKernelGenerator {
         for (CpuKernelIr.Value value : ir.values()) result[value.ordinal()] = code.allocateLocal(
                 switch (value.dataType()) {
                     case FLOAT64 -> TypeKind.DOUBLE; case FLOAT32 -> TypeKind.FLOAT;
-                    case BFLOAT16, FLOAT16, INT32, BOOL -> TypeKind.INT;
+                    case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> TypeKind.INT;
                     case INT64 -> TypeKind.LONG;
                     default -> throw new IllegalArgumentException("unsupported generated type");
                 });
@@ -2206,7 +2215,7 @@ public final class CpuClassFileKernelGenerator {
     private static void store(java.lang.classfile.CodeBuilder code, DataType type, int local) {
         switch (type) {
             case FLOAT64 -> code.dstore(local); case FLOAT32 -> code.fstore(local);
-            case BFLOAT16, FLOAT16, INT32, BOOL -> code.istore(local);
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32, BOOL -> code.istore(local);
             case INT64 -> code.lstore(local);
             default -> throw new IllegalArgumentException("unsupported generated type");
         }
@@ -2227,6 +2236,19 @@ public final class CpuClassFileKernelGenerator {
         if (!specialization.loweringFingerprint().hex().equals(kernelIr.structuralKey())) {
             throw new IllegalArgumentException("kernel IR does not match specialization");
         }
+        if (specialization.matmulIr().isPresent()
+                && !specialization.matmulIr().orElseThrow().structuralKey().equals(kernelIr.structuralKey()))
+            throw new IllegalArgumentException("matrix envelope differs from typed facts");
+        boolean lowSchema = CpuKernelSpecialization.requiresLowPrecisionArithmeticSchema(kernelIr)
+                && !specialization.movementOperandTable();
+        if (lowSchema != (specialization.classIdentitySchema()
+                == CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA))
+            throw new IllegalArgumentException("low numerical compatibility projection disagrees");
+        boolean exactMseCount = !lowSchema && kernelIr.familyIdentity().startsWith("loss:kind=MEAN_SQUARED_ERROR:")
+                && kernelIr.familyIdentity().contains(":result=FLOAT32:reduction=MEAN:");
+        if (exactMseCount != (specialization.classIdentitySchema()
+                == CpuKernelSpecialization.FLOAT32_MSE_EXACT_COUNT_SCHEMA))
+            throw new IllegalArgumentException("MSE exact-count compatibility projection disagrees");
         if (specialization.softmaxBackwardIr().isPresent()) {
             if (!kernelIr.equals(specialization.softmaxBackwardIr().orElseThrow().encodedKernelIr()))
                 throw new IllegalArgumentException("softmax backward envelope differs from typed facts");
@@ -2268,24 +2290,26 @@ public final class CpuClassFileKernelGenerator {
         boolean denseArrayAffine = kernelIr.familyIdentity().startsWith("affine:")
                 && specialization.loopAddressing(kernelIr)
                     == CpuKernelSpecialization.LoopAddressing.DENSE_HEAP_ARRAY_INT;
-        if (denseArrayAffine != (specialization.classIdentitySchema()
+        if (specialization.classIdentitySchema() != CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA && denseArrayAffine != (specialization.classIdentitySchema()
                 == CpuKernelSpecialization.DENSE_ARRAY_AFFINE_EMPTY_RANGE_SCHEMA)) {
             throw new IllegalArgumentException("affine empty-range compatibility projection disagrees");
         }
         boolean attentionFamily = kernelIr.familyIdentity().startsWith("attention:");
-        if (attentionFamily != (specialization.classIdentitySchema()
+        if (specialization.classIdentitySchema() != CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA && attentionFamily != (specialization.classIdentitySchema()
                 == CpuKernelSpecialization.ATTENTION_LITERAL_EXP_SCHEMA)) {
             throw new IllegalArgumentException("literal attention compatibility projection disagrees");
         }
         boolean bfloatPointwise = pointwise && kernelIr.values().stream().anyMatch(value ->
                 value.dataType() == io.github.pho001.synaptik.model.datatype.DataType.BFLOAT16);
         boolean float16Pointwise = pointwise && kernelIr.values().stream().anyMatch(value ->
-                value.dataType() == io.github.pho001.synaptik.model.datatype.DataType.FLOAT16);
+                value.dataType() == io.github.pho001.synaptik.model.datatype.DataType.FLOAT16
+                        || value.dataType() == DataType.FLOAT8_E4M3 || value.dataType() == DataType.FLOAT8_E5M2);
         boolean crossTypeCast = pointwise && kernelIr.instructions().stream().anyMatch(instruction ->
                 instruction.opcode() == CpuPointwiseOpcode.CAST
                         && kernelIr.values().get(instruction.inputs().getFirst()).dataType()
                                 != kernelIr.values().get(instruction.output()).dataType());
         int expectedPointwiseSchema = !pointwise ? 0
+                : lowSchema ? CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA
                 : CpuKernelSpecialization.hasFloat32RsqrtSites(kernelIr)
                     ? CpuKernelSpecialization.FLOAT32_RSQRT_SITES_SCHEMA
                 : float16Pointwise ? 68 : crossTypeCast ? 60 : bfloatPointwise ? 59
@@ -2376,7 +2400,8 @@ public final class CpuClassFileKernelGenerator {
                 || (kernelIr.values().stream().anyMatch(value ->
                         value.dataType() == io.github.pho001.synaptik.model.datatype.DataType.BFLOAT16
                         || value.dataType()
-                            == io.github.pho001.synaptik.model.datatype.DataType.FLOAT16)
+                            == io.github.pho001.synaptik.model.datatype.DataType.FLOAT16
+                        || value.dataType() == DataType.FLOAT8_E4M3 || value.dataType() == DataType.FLOAT8_E5M2)
                     || crossTypeCast)
                     && specialization.executionStrategy().compute()
                         != io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan.ExecutionStrategy.Compute.SCALAR) {

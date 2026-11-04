@@ -269,12 +269,6 @@ class CpuRandomGeneratedKernelTest {
                 for (int segmentRole = 0; segmentRole < 5; segmentRole++) {
                     List<CarrierAccess> selected = new ArrayList<>(heap);
                     selected.set(segmentRole, CarrierAccess.MEMORY_SEGMENT);
-                    if (type == DataType.BFLOAT16) {
-                        var base = CpuRandomLoweringTest.dropoutContext(type, Shape.of(), 0.0d);
-                        assertUnsupportedRange(base, selected, 0, 0);
-                        assertUnsupportedRange(base, selected, 0, 1);
-                        continue;
-                    }
                     Object input = valueArray(type, 1);
                     Object state = new long[]{9, -1};
                     Object output = valueArray(type, 1);
@@ -325,30 +319,6 @@ class CpuRandomGeneratedKernelTest {
         assertArrayEquals(emptyState, emptyNext);
     }
 
-    @Test void bfloat16ZeroProbabilityRejectsEveryOddTailReplayRange() {
-        var base = CpuRandomLoweringTest.dropoutContext(DataType.BFLOAT16, Shape.of(7), -0.0d);
-        for (int replay = 0; replay < 2; replay++) {
-            assertUnsupportedRange(base, carriers(DataType.BFLOAT16), 0, 0);
-            assertUnsupportedRange(base, carriers(DataType.BFLOAT16), 0, 3);
-            assertUnsupportedRange(base, carriers(DataType.BFLOAT16), 3, 7);
-        }
-    }
-
-    @Test void bfloat16GeneralBroadcastAndStridedWritesRejectEveryReplayRange() {
-        Shape shape = Shape.of(2, 2);
-        Shape stateShape = Shape.of(2);
-        var context = CpuRandomLoweringTest.dropoutContext(DataType.BFLOAT16, shape, .5d,
-                List.of(LayoutDescriptor.of(shape, new long[]{0, 2}, 1, true),
-                        LayoutDescriptor.of(stateShape, new long[]{2}, 1, true),
-                        LayoutDescriptor.of(shape, new long[]{7, 2}, 1, true),
-                        LayoutDescriptor.of(shape, new long[]{8, 3}, 2, true),
-                        LayoutDescriptor.of(stateShape, new long[]{3}, 2, true)));
-        for (int replay = 0; replay < 2; replay++) {
-            assertUnsupportedRange(context, carriers(DataType.BFLOAT16), 0, 0);
-            assertUnsupportedRange(context, carriers(DataType.BFLOAT16), 2, 4);
-            assertUnsupportedRange(context, carriers(DataType.BFLOAT16), 0, 2);
-        }
-    }
 
     @Test void preparedBfloat16DropoutBindsAndExecutesTheGeneratedArtifact() {
         var base = CpuRandomLoweringTest.dropoutContext(DataType.BFLOAT16, Shape.of(3), 0.0d);
@@ -356,7 +326,6 @@ class CpuRandomGeneratedKernelTest {
         var context = new PrepareContext<>(
                 base.partition(), base.nodes(), base.values(), base.memoryRequirements(),
                 base.constants(), new CpuPartitionAnalysisInputs(false, selected));
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var analysis = new CpuPartitionPreparer().analyze(context);
         var executable = CpuPartitionFinalizerTest.finalizeExecutable(analysis, Optional.empty());
         short[] input = {(short) 0x8000, (short) 0x7fa1, (short) 0x3f80};
@@ -380,6 +349,37 @@ class CpuRandomGeneratedKernelTest {
                     () -> assertArrayEquals(new long[]{9, 2}, next));
         } finally {
             state.close();
+        }
+    }
+
+    @Test void fp8DropoutUsesF32ScalingAndReplaysExactMasksAndState() throws Throwable {
+        for (DataType type : List.of(DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            var generated = generated(CpuRandomLoweringTest.dropoutContext(type, Shape.of(7), .25d),
+                    List.of(CarrierAccess.BYTE_ARRAY, CarrierAccess.LONG_ARRAY, CarrierAccess.BYTE_ARRAY,
+                            CarrierAccess.BYTE_ARRAY, CarrierAccess.LONG_ARRAY));
+            byte[] input = {(byte) 128, 0, 1, (byte) 255, 56, 126, (byte) 184};
+            for (long counter : new long[] {-1, Long.MAX_VALUE - 3}) {
+                long[] state = {0x1234, counter}, next = new long[2];
+                byte[] output = new byte[7], mask = new byte[7];
+                generated.handle.invokeWithArguments(input, state, output, mask, next,
+                        generated.geometry, 0L, 0L);
+                generated.handle.invokeWithArguments(input, state, output, mask, next,
+                        generated.geometry, 0L, 7L);
+                for (int i = 0; i < input.length; i++) {
+                    boolean keep = oracleUniform(oracleWord(state[0], counter, i)) >= .25d;
+                    float value = type == DataType.FLOAT8_E4M3
+                            ? io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.toFloat(input[i])
+                            : io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.toFloat(input[i]);
+                    float working = keep ? value * (1f / .75f) : 0f;
+                    byte expected = type == DataType.FLOAT8_E4M3
+                            ? io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.fromFloat(working)
+                            : io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.fromFloat(working);
+                    assertEquals(keep ? 1 : 0, mask[i]);
+                    assertEquals(expected, output[i], type + " lane=" + i);
+                }
+                assertArrayEquals(new long[] {state[0], counter + 7}, next);
+                assertArrayEquals(new long[] {0x1234, counter}, state, "borrowed state stays unchanged");
+            }
         }
     }
 
@@ -502,20 +502,6 @@ class CpuRandomGeneratedKernelTest {
     }
 
 
-    /**
-     * Proves admission rejection separately for each original logical invocation range.
-     * @param base original numerical fixture including its logical layouts
-     * @param carriers exact represented carrier for every boundary role
-     * @param start inclusive original invocation start
-     * @param end exclusive original invocation end
-     */
-    private static void assertUnsupportedRange(PrepareContext<CpuPartitionAnalysisInputs> base,
-            List<CarrierAccess> carriers, long start, long end) {
-        var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
-                base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, carriers));
-        assertTrue(io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
-                .assertLowUnsupported(context), "dropout range [" + start + "," + end + ")");
-    }
 
     private static Generated generated(PrepareContext<CpuPartitionAnalysisInputs> base,
             List<CarrierAccess> carriers) {

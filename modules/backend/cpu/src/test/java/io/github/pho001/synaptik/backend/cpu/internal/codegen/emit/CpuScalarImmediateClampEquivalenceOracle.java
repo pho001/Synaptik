@@ -38,12 +38,6 @@ final class CpuScalarImmediateClampEquivalenceOracle {
                 new Fixture("bf16-mul-two", 2.0f, "entry:28"));
     }
 
-    /** The sealed historical low-MUL rows now prove real current preparation rejection. */
-    static boolean unsupported(Fixture fixture) {
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
-                () -> artifact(fixture), fixture.id());
-        return true;
-    }
 
     static Artifact artifact(Fixture fixture) {
         var shape = Shape.of(8);

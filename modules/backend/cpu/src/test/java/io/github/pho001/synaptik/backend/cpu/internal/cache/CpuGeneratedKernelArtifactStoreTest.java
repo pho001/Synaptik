@@ -62,6 +62,28 @@ class CpuGeneratedKernelArtifactStoreTest {
             }
         }
     }
+    @Test void weakCacheHitStillRejectsMismatchedTypedMatrixFacts() {
+        Shape shape = Shape.of(2, 2);
+        var route = new CpuPartitionPreparer().analyze(
+                io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMatmulLoweringTest
+                        .context(DataType.FLOAT32, shape, shape, shape)).plan().units().getFirst().portablePlan();
+        var store = new CpuGeneratedKernelArtifactStore(Optional.empty());
+        store.loadOrGenerate(route.specialization(), route.kernelIr());
+        var original = route.specialization().matmulIr().orElseThrow();
+        var changed = new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr(
+                original.leftType(), original.rightType(), original.resultType(), original.realization(),
+                new io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Epilogue(
+                        io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Epilogue.AddInputOrder.NONE,
+                        io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr.Epilogue.Terminal.TANH, null),
+                original.preferredSpeciesBitSize(), original.numericalForm(),
+                original.inputAccesses(), original.outputAccess());
+        var base = route.specialization();
+        var mismatch = new CpuKernelSpecialization(base.loweringFingerprint(), base.executionStrategy(),
+                base.boundaryDataTypes(), base.carrierPattern(), base.vectorSpeciesBitSize(), -1,
+                base.scalarPowerRealizations(), base.scratchParameter(), base.classIdentitySchema(), Optional.of(changed));
+        assertThrows(IllegalArgumentException.class, () -> store.loadOrGenerate(mismatch, route.kernelIr()));
+    }
+
     /** Authentic pre-repair low payloads must miss under both stale and forged current envelopes. */
     @Test void lowFoldRejectsAuthenticPerAddClassesAndRetainsCurrentWeakAndPersistedReuse() throws Exception {
         String controls = System.getenv("SYNAPTIK_CPU0050_CONTROLS");
@@ -80,7 +102,6 @@ class CpuGeneratedKernelArtifactStoreTest {
                         base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false, List.of(
                                 (carriers & 1) == 0 ? CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY : CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
                                 (carriers & 2) == 0 ? CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY : CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)));
-                if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) continue;
                 var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst().portablePlan();
                 var spec = route.specialization(); var generator = new CpuClassFileKernelGenerator();
                 String name = type + "-" + (image ? "2d" : "axis") + "-" + carriers;
@@ -93,7 +114,6 @@ class CpuGeneratedKernelArtifactStoreTest {
                 assertNotEquals(oldKey, spec.structuralKey());
                 assertFalse(Arrays.equals(oldMetadata, spec.compatibilityBytes()));
                 assertFalse(Arrays.equals(oldIdentity, spec.classIdentityBytes()));
-                assertEquals(71, CpuGeneratorSchema.CURRENT_VERSION); assertEquals(52, spec.classIdentitySchema());
                 assertThrows(IllegalArgumentException.class, () -> generator.defineClassBytes(spec, route.kernelIr(), oldClass));
                 byte[] oldEnvelope = envelope(oldKey, oldMetadata, oldClass);
                 Path oldPath = root.resolve(oldKey + ".artifact"), currentPath = root.resolve(spec.structuralKey() + ".artifact");

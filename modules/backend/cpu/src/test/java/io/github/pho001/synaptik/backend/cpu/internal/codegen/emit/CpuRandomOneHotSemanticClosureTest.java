@@ -78,7 +78,6 @@ class CpuRandomOneHotSemanticClosureTest {
     private static void execute(CpuOrdinaryNonPointwiseGeneratedMatrixTest.RandomOrOneHotCandidate candidate)
             throws Throwable {
         var context = candidate.context();
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var route = plan.units().getFirst().portablePlan();
         var generator = new CpuClassFileKernelGenerator();
