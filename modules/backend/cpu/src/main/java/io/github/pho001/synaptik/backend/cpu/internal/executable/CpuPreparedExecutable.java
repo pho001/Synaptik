@@ -222,7 +222,7 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         if (!memoryPlan.requiresBatchSize()
                 || !route.specialization().ordinaryBatch() && route.ordinaryBatchGeometry().isEmpty()
                 || !artifact.specialization().equals(route.specialization())
-                || selections.size() != route.batchBindings().size()
+                || selections.size() != ordinaryBatchBindings(route).size()
                 || workspace.isPresent() != (route.ordinaryBatchGeometry().isPresent()
                         ? route.specialization().scratchParameter()
                         : route.batchAggregate().isPresent() || route.specialization().rowFusionEmission().isPresent())
@@ -252,6 +252,18 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
         pool2dGeometry = Optional.empty(); pool3dGeometry = Optional.empty(); attentionGeometry = Optional.empty();
         lossGeometry = Optional.empty(); outputCount = route.specialization().rowMapReductionIr()
                 .map(r -> r.arithmetic().stores().size()).orElse(1);
+    }
+
+    /**
+     * Selects the complete boundary recipes from their owning ordinary geometry representation.
+     * Generic family geometry owns its bindings; retained routes keep their original legacy list.
+     * @param route non-null prepared ordinary numeric route
+     * @return non-null immutable ordered boundary recipes without copying or resolving B
+     */
+    private static List<CpuAccessPlan.BatchBinding> ordinaryBatchBindings(
+            io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuPortableRoutePlan route) {
+        return route.ordinaryBatchGeometry().isPresent()
+                ? route.ordinaryBatchGeometry().orElseThrow().bindings() : route.batchBindings();
     }
 
     /**
@@ -1976,7 +1988,8 @@ public final class CpuPreparedExecutable extends PreparedExecutable {
     private BoundInvocation bindOrdinaryBatch(RunState state, BufferRepresentation[] buffers,
             WorkspaceRepresentation[] workspaces) {
         long batch = state.geometry().batchSize().orElseThrow();
-        var resolved = batchRoute.batchBindings().stream().map(recipe -> recipe.bind(batch)).toList();
+        var resolved = ordinaryBatchBindings(batchRoute).stream()
+                .map(recipe -> recipe.bind(batch)).toList();
         var arguments = new ArrayList<CpuBufferArgument>(buffers.length);
         for (int i = 0; i < buffers.length; i++) {
             var argument = preparedArgument((CpuBufferRepresentation) buffers[i], i);
