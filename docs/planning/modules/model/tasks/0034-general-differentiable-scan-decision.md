@@ -30,7 +30,7 @@ illustration, not a floating reordering permission.
 
 Complete — ARCHITECTURE DECISION/CUTOVER ONLY, accepted by main on 2026-10-21 after final independent
 Class C APPROVE. Authority frontier None; all Java implementation frontiers remain None.
-User approval (“ok, tak tedy pokracuj”, 2026-10-21) followed the concrete ScanBody/reverse-[scan](../../../../glossary.md#term-cumulative-scan)/
+User approval (“ok, tak tedy pokracuj”, 2026-10-21) followed the concrete ScanBody/reverse-scan/
 [canonical](../../../../glossary.md#term-canonical-form)-[residual](../../../../glossary.md#scan-residual-port-and-history-demand) proposal and source-checked comparison. Main recorded authority-only approval,
 not arbitrary control flow or Java slices; earlier [planning](../../../../glossary.md#term-planning)-only approval is separate evidence.
 
@@ -46,7 +46,7 @@ Enact the already approved [program](../../../general-differentiable-scan.md), w
 root + existing owning scoped sections + focused explanations + significant [ADR](../../../../glossary.md#term-architecture-decision-record-adr) in one coordinated
 documentation-only cutover. Broaden the recurrent semantic [owner](../../../../glossary.md#term-owner) in place, retaining the six-contract
 authority index. The bounded exception is now enacted in the
-[scan semantic owner](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>;
+[scan semantic owner](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan);
 this brief/program is coordination, not authority or Java implementation permission.
 
 Non-goals: Java/build/test-source changes, a seventh contract, new [module](../../../../glossary.md#term-module)/[dependency edge](../../../../glossary.md#term-dependency-edge), additional
@@ -57,7 +57,7 @@ mixed-owner bodies, another [AD](../../../../glossary.md#autograd) algebra/execu
 
 ## Contracts
 
-Read these exact headings; amend only [scan](../../../../glossary.md#term-cumulative-scan) deltas in their existing [owners](../../../../glossary.md#term-owner), preserving other rules.
+Read these exact headings; amend only scan deltas in their existing [owners](../../../../glossary.md#term-owner), preserving other rules.
 If approved [scope](../../../../glossary.md#term-scope) leaves an actual ambiguity, stop and report it; do not invent architecture.
 
 - [Root](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts): `Scope-indexed normative
@@ -92,7 +92,7 @@ If approved [scope](../../../../glossary.md#term-scope) leaves an actual ambigui
 - Depends on: Model0025E/0025F/0032/0033; Compiler0006A/0006D/0008/0009; CPU0028/0029;
   Engine0021; Training0008; NN0021B/0022B/0028/0029 — all Complete, accepted baseline.
 - Conflicts with: scan API/IR/residuals, capture/AD, Planning queries, Prepare projection, CPU
-  resources/cache/ledger, NN admission/persistence and shared authority/docs; serialize all.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [capture glossary](../../../../glossary.md#term-capture-meanings); [AD glossary](../../../../glossary.md#autograd); [Prepare glossary](../../../../glossary.md#prepare); [CPU glossary](../../../../glossary.md#term-cpu); [cache glossary](../../../../glossary.md#term-cache); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [admission glossary](../../../../glossary.md#term-admission); [persistence glossary](../../../../glossary.md#term-persistence))</span>
+  resources/cache/ledger, NN admission/persistence and shared authority/docs; serialize all.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [capture glossary](../../../../glossary.md#term-capture-meanings); [AD glossary](../../../../glossary.md#autograd); [Prepare glossary](../../../../glossary.md#prepare); [CPU glossary](../../../../glossary.md#term-cpu); [cache glossary](../../../../glossary.md#term-cache); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [admission glossary](../../../../glossary.md#term-admission); [persistence glossary](../../../../glossary.md#term-persistence))</span>
 - Parallel group: None; sole writer, no concurrent write task or isolated worktree needed.
 - Common base revision: HEAD=main=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`.
 - Integration order: approved frozen packet → clean authority executor → separate independent Class C
@@ -143,7 +143,7 @@ Focused tests: Compiler `RecurrentScanCompilerTest`, `AutogradPreflightTest`; CP
 `CpuClassFileKernelGeneratorTest`, `CpuRecurrentScanExecutionTest`, `CpuRecurrentScanLoweringTest`;
 [conformance](../../../../glossary.md#term-conformance) `CpuRecurrentScanConformanceTest`; integration `EngineCpuRecurrentScanIntegrationTest`,
 `RuntimeLengthScanModelIntegrationTest`; NN `RuntimeLengthScanModelTest`. Inspect relevant cases only;
-fixed-[scan](../../../../glossary.md#term-cumulative-scan) evidence does not prove generic-body semantics and needs no rerun for this docs-only task.
+fixed-scan evidence does not prove generic-body semantics and needs no rerun for this docs-only task.
 
 ## Acceptance criteria
 
@@ -158,7 +158,7 @@ fixed-[scan](../../../../glossary.md#term-cumulative-scan) evidence does not pro
   temporaries, dead ports zero bytes/stores and no fusion restriction, including reverse residuals.<span data-glossary-navigation="true"> ([Canonical glossary](../../../../glossary.md#term-canonical-form); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand); [immutable glossary](../../../../glossary.md#term-immutable); [producer glossary](../../../../glossary.md#term-producer); [Tensor glossary](../../../../glossary.md#tensor); [carry glossary](../../../../glossary.md#term-carry); [invariant glossary](../../../../glossary.md#term-invariant); [bindings glossary](../../../../glossary.md#term-binding); [Metadata glossary](../../../../glossary.md#term-metadata); [publication glossary](../../../../glossary.md#term-publication); [Prepare glossary](../../../../glossary.md#prepare); [fusion glossary](../../../../glossary.md#term-fusion))</span>
 - Preserve exact original Tensor → residual/step/invariant reverse formal binding for EVERY primal
   formula operand (including saved TANH output), original contribution identities and joint seeds once
-  per scan; tied positional/cross-occurrence terms sum once each. No captured-IR AD or ValueId→Tensor AD map.<span data-glossary-navigation="true"> ([primal glossary](../../../../glossary.md#term-primal); [TANH glossary](../../../../glossary.md#term-tanh); [seeds glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings); [scan glossary](../../../../glossary.md#term-cumulative-scan); [occurrence glossary](../../../../glossary.md#term-occurrence); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [AD glossary](../../../../glossary.md#autograd); [ValueId glossary](../../../../glossary.md#logical-valueid-versus-physical-memory-slot))</span>
+  per scan; tied positional/cross-occurrence terms sum once each. No captured-IR AD or ValueId→Tensor AD map.<span data-glossary-navigation="true"> ([primal glossary](../../../../glossary.md#term-primal); [TANH glossary](../../../../glossary.md#term-tanh); [seeds glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings); [occurrence glossary](../../../../glossary.md#term-occurrence); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [AD glossary](../../../../glossary.md#autograd); [ValueId glossary](../../../../glossary.md#logical-valueid-versus-physical-memory-slot))</span>
 - Same immutable template/producers may serve multiple occurrences with independent capture scopes;
   reject outer escape/cross-template sharing. No outer ValueIds inside a body; role bindings may repeat.
   Close TANH/SIGMOID oneLike leaves through invariant formals/outer registered splats; zero seeds and
@@ -204,7 +204,7 @@ Java/Javadoc unchanged. Main accepted the [checkpoint](../../../../glossary.md#t
 
 Status: Complete — authority decision/cutover only, accepted 2026-10-21.
 
-Completed root/six scoped [owners](../../../../glossary.md#term-owner), focused general-[scan](../../../../glossary.md#term-cumulative-scan) explanation, [module](../../../../glossary.md#term-module)/training/[handoff](../../../../glossary.md#term-handoff) updates,
+Completed root/six scoped [owners](../../../../glossary.md#term-owner), focused general-scan explanation, [module](../../../../glossary.md#term-module)/training/[handoff](../../../../glossary.md#term-handoff) updates,
 ADR0045, three targeted glossary entries and authorized current-architecture-plan.md navigation.
 Initial [scope](../../../../glossary.md#term-scope) was 14 files (12 changed, two new); delegated closure updates seven existing [planning](../../../../glossary.md#term-planning)
 files plus [ADR](../../../../glossary.md#term-architecture-decision-record-adr) Status only, for 21 unique files overall. No Java/build/[dependency](../../../../glossary.md#term-dependency)/test-source change.

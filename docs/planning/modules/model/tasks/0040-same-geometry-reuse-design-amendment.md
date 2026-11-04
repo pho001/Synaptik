@@ -25,7 +25,7 @@ enlarge this historical approval.
 Complete — DESIGN DELIVERY ONLY; MAIN accepted 2026-10-25 after independent frozen review
 APPROVE, zero open P1/P2. PlanningAuthorized=true; ImplementationAuthorized=false.
 [Planning](../../../../glossary.md#term-planning) frontier: None. Implementation frontier: None. User “ok, dopln to” authorizes
-this design addition, not the wider symbolic-[Scan](../../../../glossary.md#term-cumulative-scan) authority cutover or Java implementation.
+this design addition, not the wider symbolic-Scan authority cutover or Java implementation.
 
 ## Change class
 
@@ -34,7 +34,7 @@ concurrent-[run](../../../../glossary.md#term-run) isolation and generated hot-p
 
 ## Goal and [scope](../../../../glossary.md#term-scope)
 
-Amend the existing [symbolic-Scan proposal](../general-scan-symbolic-batch-proposal.md)<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan))</span> so repeated
+Amend the existing [symbolic-Scan proposal](../general-scan-symbolic-batch-proposal.md) so repeated
 matching geometry reuses checked [immutable](../../../../glossary.md#term-immutable) [metadata](../../../../glossary.md#term-metadata) without repeating pure geometry work.
 Distinguish [compile](../../../../glossary.md#compile)/[prepare](../../../../glossary.md#prepare) work, [run](../../../../glossary.md#term-run)-entry work and numeric loops. Keep current per-call input,
 storage and [lifecycle](../../../../glossary.md#lifecycle) [validation](../../../../glossary.md#term-validation), fresh [mutable](../../../../glossary.md#term-mutable) [run state](../../../../glossary.md#run-state--runstate) and exact actual-size resources.
@@ -47,7 +47,7 @@ Do not rewrite completed Model0039's brief or its frozen review evidence.
 
 No Java/tests/build/[ABI](../../../../glossary.md#term-application-binary-interface-abi)/[API](../../../../glossary.md#term-application-programming-interface-api)/[normative](../../../../glossary.md#term-normative)/[ADR](../../../../glossary.md#term-architecture-decision-record-adr)/glossary edits, execution [qualification](../../../../glossary.md#term-qualification), benchmarks,
 [commits](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings) or push. No [buffer](../../../../glossary.md#term-buffer) pool, per-B compiled/prepared-plan [cache](../../../../glossary.md#term-cache), new session/executor,
-global cache, [mutable](../../../../glossary.md#term-mutable) shared invocation geometry or implicit broader [Scan](../../../../glossary.md#term-cumulative-scan) approval.
+global cache, [mutable](../../../../glossary.md#term-mutable) shared invocation geometry or implicit broader Scan approval.
 
 ## Contracts
 
@@ -61,7 +61,7 @@ Scoped headings constrain the proposal; this task cannot amend them:
   [Public reusable prepared execution](../../../../architecture/contracts/runtime-prepare-engine.md#public-reusable-prepared-execution)<span data-glossary-navigation="true"> ([prepared execution glossary](../../../../glossary.md#prepared-execution--preparedexecution))</span>.
 - [Compiler](../../../../glossary.md#term-compiler): [Accepted symbolic-batch metadata binding](../../../../architecture/contracts/compiler-autograd.md#accepted-symbolic-batch-metadata-binding)<span data-glossary-navigation="true"> ([metadata glossary](../../../../glossary.md#term-metadata); [binding glossary](../../../../glossary.md#term-binding))</span>.
 - [CPU](../../../../glossary.md#term-cpu): [Accepted ordinary symbolic-batch CPU contract](../../../../architecture/contracts/backend-execution.md#accepted-ordinary-symbolic-batch-cpu-contract).
-- [Scan](../../../../glossary.md#term-cumulative-scan) [owner](../../../../glossary.md#term-owner): [Source body, attachments and scoped identities](../../../../architecture/contracts/recurrent-scan.md#source-body-attachments-and-scoped-identities)<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span>.
+- Scan [owner](../../../../glossary.md#term-owner): [Source body, attachments and scoped identities](../../../../architecture/contracts/recurrent-scan.md#source-body-attachments-and-scoped-identities)<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span>.
 
 Current clauses assign resolved private size arrays to a [run](../../../../glossary.md#term-run) and prohibit [mutable](../../../../glossary.md#term-mutable) prepared
 geometry. If proposing shared [immutable](../../../../glossary.md#term-immutable) resolved facts or a [memo](../../../../glossary.md#cache-and-memoization) slot, identify the exact future
@@ -72,7 +72,7 @@ Stop for any other missing contract or required [scope](../../../../glossary.md#
 
 - Depends on: Complete Model0039 design delivery and Prepare0013 ordinary dynamic-B vertical.
 - Conflicts with: the five planning paths, Scan geometry/admission semantics and future
-  Engine/Runtime ownership wording; serialize all writes.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [Engine glossary](../../../../glossary.md#term-engine); [Runtime glossary](../../../../glossary.md#term-runtime); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
+  Engine/Runtime ownership wording; serialize all writes.<span data-glossary-navigation="true"> ([Engine glossary](../../../../glossary.md#term-engine); [Runtime glossary](../../../../glossary.md#term-runtime); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Parallel group: None.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`
   plus accepted uncommitted baseline; index empty and unchanged.
@@ -100,7 +100,7 @@ exact-name/package/purpose/[signature](../../../../glossary.md#term-signature) a
 ## Acceptance criteria
 
 - Label the optimization proposed, not implemented. Retain all symbolic-Scan dtype, empty-domain,
-  scope, identity and later-authority gates from Model0039.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [dtype glossary](../../../../glossary.md#data-type--datatype); [scope glossary](../../../../glossary.md#term-scope); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
+  scope, identity and later-authority gates from Model0039.<span data-glossary-navigation="true"> ([dtype glossary](../../../../glossary.md#data-type--datatype); [scope glossary](../../../../glossary.md#term-scope); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Propose bounded same-preparation reuse of immutable B-dependent checks/sizes/offsets and
   template-derived publication metadata, with a consecutive same-B hit scenario and changed-B miss.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [publication glossary](../../../../glossary.md#term-publication); [metadata glossary](../../../../glossary.md#term-metadata))</span>
 - Specify exact preparation/plan, explicit B/mode key validity (also `[B,0]`) and atomic complete

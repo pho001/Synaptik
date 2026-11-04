@@ -292,7 +292,7 @@ Failures consume no [Tensor](../../../../glossary.md#tensor) ID. [Identity](../.
 Every successful expression stores the caller's exact `double` in its attributes without casting
 through `float`, [BFLOAT16](../../../../glossary.md#term-bfloat16) conversion, [normalization](../../../../glossary.md#term-normalization), or special-value replacement. Tests compare
 [raw bits](../../../../glossary.md#storage-mapping-contiguity-and-injectivity) for [finite](../../../../glossary.md#term-finite) values, [signed zero](../../../../glossary.md#term-signed-zero), [infinities](../../../../glossary.md#nan-infinity-and-signed-zero), and multiple [NaN](../../../../glossary.md#term-nan) payloads. Record equality
-still follows the standard attribute contract and is not raw-[payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) [identity](../../../../glossary.md#term-identity-meanings).
+still follows the standard attribute contract and is not raw-payload [identity](../../../../glossary.md#term-identity-meanings).
 
 For a [FLOAT32](../../../../glossary.md#term-float32) or BFLOAT16 input, retaining [binary64](../../../../glossary.md#floating-point-precision-and-rounding) parameters does not mean the eventual [backend](../../../../glossary.md#backend)
 calculates a wider output. It means the [model](../../../../glossary.md#term-model) preserves the semantic literal until a prepared
@@ -451,7 +451,7 @@ The focused test must cover:
 
 Manually inspect `javap -p -c -s` and reflection for exact Tensor overload descriptors, helper
 surface, one helper delegation per public method, validation order, raw value passage, exact
-kind/attributes construction, and one factory call. [Scan](../../../../glossary.md#term-cumulative-scan) imports/dependencies for forbidden layers.
+kind/attributes construction, and one factory call. Scan imports/dependencies for forbidden layers.
 Confirm absence of scalar conversion, storage access, [graph](../../../../glossary.md#graph) IDs, [compiler](../../../../glossary.md#term-compiler)/[runtime](../../../../glossary.md#term-runtime)/[backend](../../../../glossary.md#backend) types,
 [gradient](../../../../glossary.md#term-gradient) rules, [canonicalization](../../../../glossary.md#occurrence-identity-and-canonical-form), registries, caches, and services. Validate generated [Javadoc](../../../../glossary.md#term-javadoc),
 Tensor/[Compile](../../../../glossary.md#compile) [API](../../../../glossary.md#term-application-programming-interface-api) current-versus-planned wording, newcomer example, glossary, links/anchors/
@@ -575,7 +575,7 @@ public expression can therefore remain [backend](../../../../glossary.md#backend
 Planning validation:
 
 - `git diff --check` passed, and the three changed planning files contain no trailing whitespace.
-- The [canonical](../../../../glossary.md#term-canonical-form) section [scan](../../../../glossary.md#term-cumulative-scan) found every required task-specification section.
+- The [canonical](../../../../glossary.md#term-canonical-form) section scan found every required task-specification section.
 - The relative Markdown-[target](../../../../glossary.md#term-target) scan resolved every local `.md` link in this task, the model master
   plan, and the roadmap.
 - Status inspection found task 0014F [`Ready`](../../../../glossary.md#term-ready) exactly once in this specification, its model-master

@@ -208,7 +208,7 @@ helper, or fallback mapper remains.
 | Result type / eligibility | Exact floating input type and exact input `requiresGrad`; mask contributes neither. |
 | Masked-out [finite](../../../../glossary.md#term-finite), [NaN](../../../../glossary.md#term-nan), or Inf input | Excluded before aggregation and cannot affect the result. |
 | All-false sum [slice](../../../../glossary.md#slice) | Floating additive zero. |
-| All-false [mean](../../../../glossary.md#term-mean) slice | NaN in the result floating type; [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication)/bit pattern is not specified. |
+| All-false [mean](../../../../glossary.md#term-mean) slice | NaN in the result floating type; payload/bit pattern is not specified. |
 | Static zero-sized reduction axis | Every sum slice is zero and every mean slice is NaN, because no [element](../../../../glossary.md#term-element) can be selected. |
 | Dynamic reduction axis | Construction succeeds when Shape [broadcasting](../../../../glossary.md#broadcasting) is locally provable; [runtime](../../../../glossary.md#term-runtime) zero-size or all-false slices follow the same zero/NaN semantics. |
 | Selected non-finite input | Participates in the requested ordinary aggregate; this task does not add a new selected-value accumulation or NaN policy. |
@@ -462,7 +462,7 @@ Examples for input `[batch, time, features]`:
 | `[features]` | accepted | Ordinary trailing-[axis](../../../../glossary.md#term-axis) [alignment](../../../../glossary.md#term-alignment). |
 | `[time, 1]` | accepted | Time aligns to input axis 1; [singleton](../../../../glossary.md#term-singleton) expands over [features](../../../../glossary.md#term-feature). |
 | `[batch, time, 1]` | accepted | Explicit intended [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)/time alignment. |
-| `[batch, time]` | rejected in general | Right alignment compares `time` to [`features`](../../../../glossary.md#term-software-feature); caller uses `expandDims(2)`. |
+| `[batch, time]` | rejected in general | Right alignment compares `time` to [`features`](../../../../glossary.md#term-feature); caller uses `expandDims(2)`. |
 | `[2, time, features]` against input leading singleton | rejected if it enlarges input | A mask may broadcast to the input; it may not change the input domain. |
 
 Static zero extents follow existing singleton rules. Equal named or exact expression [dimensions](../../../../glossary.md#dimension)

@@ -1,4 +1,4 @@
-# Task 0043: Symbolic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) and [runtime](../../../../glossary.md#term-runtime)-length [Scan](../../../../glossary.md#term-cumulative-scan) integration design
+# Task 0043: Symbolic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) and [runtime](../../../../glossary.md#term-runtime)-length Scan integration design
 
 **Editorial reading key (current context, not a status update).**
 
@@ -40,7 +40,7 @@ does not enact those contracts or capabilities. MAIN selected the independent ta
 ## Goal
 
 Deliver a concise, source-backed integration proposal for one named dynamic [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) B and [runtime](../../../../glossary.md#term-runtime)
-[INT64](../../../../glossary.md#data-type--datatype)[B] sequence lengths in [general Scan](../../../../glossary.md#general-differentiable-scan): fixed T/[features](../../../../glossary.md#term-software-feature), [FLOAT32](../../../../glossary.md#term-float32) and [FLOAT64](../../../../glossary.md#term-float64) forward plus
+[INT64](../../../../glossary.md#data-type--datatype)[B] sequence lengths in [general Scan](../../../../glossary.md#general-differentiable-scan): fixed T/[features](../../../../glossary.md#term-feature), [FLOAT32](../../../../glossary.md#term-float32) and [FLOAT64](../../../../glossary.md#term-float64) forward plus
 actual [Compiler](../../../../glossary.md#term-compiler)-generated first-order backward. Extend the existing length-aware plan, not a new
 framework. Proposal delivery is not user acceptance of new semantics or implementation authority.
 
@@ -56,7 +56,7 @@ framework. Proposal delivery is not user acceptance of new semantics or implemen
 - concise current-frontier/status updates in the [roadmap](../../../roadmap.md).
 
 Preserve completed histories and every preexisting change. No additional successor brief without
-MAIN approval. Inspect only current [Scan](../../../../glossary.md#term-cumulative-scan) algebra and real outer first-order closure/plumbing,
+MAIN approval. Inspect only current Scan algebra and real outer first-order closure/plumbing,
 not all [backend](../../../../glossary.md#backend) operations. Reuse current [owners](../../../../glossary.md#term-owner); production type/[API](../../../../glossary.md#term-application-programming-interface-api) additions: NONE proposed.
 No production replacement/deletion is selected. Identify overlapping mutual-exclusion guards for
 careful combined-case replacement while retaining unrelated [validation](../../../../glossary.md#term-validation).
@@ -76,7 +76,7 @@ Use the root [scope](../../../../glossary.md#term-scope) index and these exact c
 
 - [ARCHITECTURE.md](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts):
   `Core lifecycle`, `Core invariants`, `Scope-indexed normative contracts`.
-- [Recurrent scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>:
+- [Recurrent scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan):
   [`General differentiable scan`](../../../../glossary.md#general-differentiable-scan), `Accepted symbolic-batch scan` and descendants,
   `Length-aware whole-batch scan` and descendants: source roles, reverse, demand and [preflight](../../../../glossary.md#term-preflight).
 - [Compiler/autograd](../../../../architecture/contracts/compiler-autograd.md#modulescompiler)<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [autograd glossary](../../../../glossary.md#autograd))</span>:
@@ -100,7 +100,7 @@ Report any missing/ambiguous contract explicitly to MAIN; never silently select 
 - Depends on: Complete Model0042; Compiler0013/0014; Prepare0011/0013/0014;
   CPU0037/0041/0042; MAIN's verified accepted baseline and user planning authority.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning))</span>
 - Conflicts with: Scan semantics/roles, AD/binding, geometry/resources, generated identities and
-  the listed shared planning documents; serialize any writer to those scopes.<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [AD glossary](../../../../glossary.md#autograd); [binding glossary](../../../../glossary.md#term-binding))</span>
+  the listed shared planning documents; serialize any writer to those scopes.<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([AD glossary](../../../../glossary.md#autograd); [binding glossary](../../../../glossary.md#term-binding))</span>
 - Parallel group: None.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`
   plus the accepted uncommitted 2477-file snapshot, not merged predecessors.<span data-glossary-navigation="true"> ([snapshot glossary](../../../../glossary.md#term-snapshot))</span>
@@ -117,7 +117,7 @@ Report any missing/ambiguous contract explicitly to MAIN; never silently select 
 PlanningAuthorized=true; AuthorityAuthorized=false; ImplementationAuthorized=false.
 The user's “ok, pust se do toho” accepted the explicit concise integration-[planning](../../../../glossary.md#term-planning) proposal only.
 MAIN directly checked Status/Result for all 12 listed baseline predecessors: Complete with final
-reviews/gates; the required [Scan](../../../../glossary.md#term-cumulative-scan) integration predecessors are recorded above. Current active
+reviews/gates; the required Scan integration predecessors are recorded above. Current active
 [Model](../../../../glossary.md#term-model)/[Compiler](../../../../glossary.md#term-compiler)/[Prepare](../../../../glossary.md#prepare)/[CPU](../../../../glossary.md#term-cpu) masters and roadmap confirm source/authority frontiers None.
 At admission, the only newly admitted frontier was Model0043 planning; [Ready](../../../../glossary.md#term-ready) granted no implementation.
 HEAD/origin match the recorded revision; MAIN verified unchanged index/full 2477-file [snapshot](../../../../glossary.md#term-snapshot).
@@ -145,7 +145,7 @@ Read current affected source and focused tests after launch, using these bounded
 - [Prepare](../../../../glossary.md#prepare) `analysis/PrepareContext` scoped projection/[bindings](../../../../glossary.md#term-binding) and focused resource tests.
 - CPU CpuGeneralScanLowering.analyzeSymbolic, CpuPartitionLowering's ordinary F32 guards,
   CpuGeneralScanIr.Stages, existing scan emitters/prepared executable/carrier/resource owners;
-  CpuGeneralScan*, CpuSymbolicScan* and CpuOrdinaryDynamicBatch* focused tests.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [scan glossary](../../../../glossary.md#term-cumulative-scan); [prepared executable glossary](../../../../glossary.md#prepared-executable--preparedexecutable); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  CpuGeneralScan*, CpuSymbolicScan* and CpuOrdinaryDynamicBatch* focused tests.<span data-glossary-navigation="true"> ([owners glossary](../../../../glossary.md#term-owner))</span><span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [prepared executable glossary](../../../../glossary.md#prepared-executable--preparedexecutable); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
 - [Engine](../../../../glossary.md#term-engine) symbolic [admission](../../../../glossary.md#term-admission)/runValues and existing symbolic/length [conformance](../../../../glossary.md#term-conformance)/integration tests.
 
 ## Acceptance criteria
@@ -153,7 +153,7 @@ Read current affected source and focused tests after launch, using these bounded
 - Show one prepared execution at B=32 → 32 with different lengths → 7 → 1 → 32; B=0 separately.
   Lengths may be supplied or computed by producers; shape admission never reads L.<span data-glossary-navigation="true"> ([prepared execution glossary](../../../../glossary.md#prepared-execution--preparedexecution); [shape glossary](../../../../glossary.md#shape); [admission glossary](../../../../glossary.md#term-admission))</span>
 - Preserve producer ordering: all B lengths checked after producers, before ANY Scan writes,
-  including invalid last length and T=0. T=0/B=0 are not whole-run shortcuts.<span data-glossary-navigation="true"> ([producer glossary](../../../../glossary.md#term-producer); [Scan glossary](../../../../glossary.md#term-cumulative-scan); [run glossary](../../../../glossary.md#term-run))</span>
+  including invalid last length and T=0. T=0/B=0 are not whole-run shortcuts.<span data-glossary-navigation="true"> ([producer glossary](../../../../glossary.md#term-producer); [run glossary](../../../../glossary.md#term-run))</span>
 - Preserve raw carry/empty-row seeds, positive-zero padding, active NaN/Inf and nonactive load/
   arithmetic skipping; ROW(0), ROW(1), SHARED derive from provenance, never equal sizes.<span data-glossary-navigation="true"> ([carry glossary](../../../../glossary.md#term-carry); [seeds glossary](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings); [padding glossary](../../../../glossary.md#padding); [NaN glossary](../../../../glossary.md#term-nan); [provenance glossary](../../../../glossary.md#provenance))</span>
 - Specify true generated reverse, O(P) shared accumulators, distinct per-time contribution ADD,
@@ -201,7 +201,7 @@ was reused. The Result records reviewer approval and MAIN acceptance, not planne
 
 Delivered the [bounded integration proposal](../../../length-aware-general-scan.md#proposed-symbolic-b-plus-lengths-integration)
 and concise synchronized status/crosslinks in all eight allowed [planning](../../../../glossary.md#term-planning) paths.
-Files: this new brief, length-aware-general-[scan](../../../../glossary.md#term-cumulative-scan).md, dynamic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)-execution.md, active
+Files: this new brief, length-aware-general-scan.md, dynamic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)-execution.md, active
 [Model](../../../../glossary.md#term-model)/[Compiler](../../../../glossary.md#term-compiler)/[Prepare](../../../../glossary.md#prepare)/[CPU](../../../../glossary.md#term-cpu) master sections and roadmap.md; no other file changed.
 [F64](../../../../glossary.md#floating-point-precision-and-rounding) decision: real typed symbolic packing/fold and bounded outer/control prerequisites;
 proposed exact SUM/[MEAN](../../../../glossary.md#term-mean) uses 34 limbs/280-byte scratch, not [F32](../../../../glossary.md#floating-point-precision-and-rounding) [narrowing](../../../../glossary.md#term-narrowing) or all-op expansion.

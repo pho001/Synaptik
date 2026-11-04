@@ -79,7 +79,7 @@ transitional [aliases](../../../../glossary.md#aliasing-and-arena).
 
 - a default, global, thread-local, [engine](../../../../glossary.md#term-engine)-owned, [runtime](../../../../glossary.md#term-runtime)-owned, or service-located random source
 - seed-only random overloads, generator selection, source splitting, source synchronization,
-  source retention, source serialization, or cross-generator reproducibility<span data-glossary-navigation="true"> ([seed glossary](../../../../glossary.md#term-seed); [synchronization glossary](../../../../glossary.md#term-synchronization); [serialization glossary](../../../../glossary.md#term-serialization); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance))</span>
+  source retention, source serialization, or cross-generator reproducibility<span data-glossary-navigation="true"> ([seed glossary](../../../../glossary.md#term-seed); [synchronization glossary](../../../../glossary.md#term-synchronization); [serialization glossary](../../../../glossary.md#term-serialization))</span>
 - [graph RNG state](../../../../glossary.md#graph-rng-state--graphrngstate), random [`Operation`](../../../../glossary.md#operation) kinds, dropout, state-producing tensors, compiler capture,
   or task-0019B behavior<span data-glossary-navigation="true"> ([dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [tensors glossary](../../../../glossary.md#tensor); [compiler glossary](../../../../glossary.md#term-compiler); [capture glossary](../../../../glossary.md#term-capture-meanings))</span>
 - new distributions, changed distribution formulas, changed parameter types, changed output types,
@@ -361,7 +361,7 @@ stop and propose a follow-up or request explicit scope expansion before editing 
 
 - Finalize complete public type and method Javadocs for `TensorRandoms`, including every parameter,
   result, validation failure, source ownership rule, source advancement, conversion, allocation,
-  ID side effect, and reproducibility boundary.<span data-glossary-navigation="true"> ([parameter glossary](../../../../glossary.md#term-parameter); [validation glossary](../../../../glossary.md#term-validation); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [side effect glossary](../../../../glossary.md#term-side-effect); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance))</span>
+  ID side effect, and reproducibility boundary.<span data-glossary-navigation="true"> ([parameter glossary](../../../../glossary.md#term-parameter); [validation glossary](../../../../glossary.md#term-validation); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [side effect glossary](../../../../glossary.md#term-side-effect))</span>
 - Rewrite `TensorFactory` type Javadoc to describe only its retained responsibilities.
 - Review retained `TensorFactory` methods and change their Javadocs only when they mention removed
   random/prefix ownership or broad factory claims.
@@ -518,7 +518,7 @@ Implementation-local decisions:
   declaring owner; no compatibility forwarding path remains in TensorFactory.
 - Kept the complete source-ownership, source-advancement, conversion, allocation, ID-side-effect,
   and bounded-reproducibility contract in public TensorRandoms Javadoc rather than duplicating
-  random behavior in TensorFactory documentation.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
+  random behavior in TensorFactory documentation.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings); [Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 - Kept prefix terminology only where needed to explain the removed public boundary and the
   package-private test-source fixture; it is absent from product API inventories and generated
   production Javadoc.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
@@ -575,7 +575,7 @@ Documentation-agent context: clean task
   Javadocs for all parameters, results, failures, caller source ownership/advancement, conversions,
   allocation and ID effects, and reproducibility limits; and the narrow package-private
   TensorRanges and test-only TensorTestData contracts. Retained TensorFactory member Javadocs were
-  reviewed and remained accurate without further edits.<span data-glossary-navigation="true"> ([parameters glossary](../../../../glossary.md#term-parameter); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance))</span>
+  reviewed and remained accurate without further edits.<span data-glossary-navigation="true"> ([parameters glossary](../../../../glossary.md#term-parameter); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Finalized `docs/api/tensor-api.md` and `docs/glossary.md`: TensorFactory owns construction,
   allocation, import, constants, and integer ranges; TensorRandoms is the sole focused public
   explicit-source eager-random owner; prefix preparation is test-fixture mechanics rather than

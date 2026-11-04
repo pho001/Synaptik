@@ -1,4 +1,4 @@
-# Task 0048: Shared per-output ordinary [Scan](../../../../glossary.md#term-cumulative-scan) value semantics
+# Task 0048: Shared per-output ordinary Scan value semantics
 
 **Editorial reading key (current context, not a status update).**
 
@@ -29,7 +29,7 @@ Final independent source/evidence/documentation APPROVE0; no wider typed [AD](..
 
 ## Goal and [owner](../../../../glossary.md#term-owner)
 
-Class C. Replace the duplicated [producer](../../../../glossary.md#term-producer)-wide length-[Scan](../../../../glossary.md#term-cumulative-scan) role algebra with one [descriptor](../../../../glossary.md#term-descriptor)-only
+Class C. Replace the duplicated [producer](../../../../glossary.md#term-producer)-wide length-Scan role algebra with one [descriptor](../../../../glossary.md#term-descriptor)-only
 per-output semantic seam on existing [model](../../../../glossary.md#term-model).[tensor](../../../../glossary.md#tensor).Scan. Ordinary Model guards and independent
 [Compiler](../../../../glossary.md#term-compiler) [inference](../../../../glossary.md#term-inference) remain distinct. This is the source/[coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) prerequisite of the mandatory
 all-[PURE](../../../../glossary.md#term-pure) composition [target](../../../../glossary.md#term-target), not a narrower final mathematical inventory.
@@ -41,7 +41,7 @@ typed-demand/activity/physical continuation remains proposed, not a blanket impl
 
 ## Shared interface
 
-In existing [Scan](../../../../glossary.md#term-cumulative-scan):
+In existing Scan:
 
 ```java
 public record ValueSemantics(OptionalInt rowAxis, boolean terminal, List<Integer> directInputs) {}
@@ -84,7 +84,7 @@ public static List<ValueSemantics> ordinarySemantics(Operation operation,
 
 ## Cutover and independent boundaries
 
-[Model](../../../../glossary.md#term-model) [Scan](../../../../glossary.md#term-cumulative-scan).validateRows, raw [Compiler](../../../../glossary.md#term-compiler) ScanBodyInference.validateRows and [derivative](../../../../glossary.md#term-derivative) role discovery
+[Model](../../../../glossary.md#term-model) Scan.validateRows, raw [Compiler](../../../../glossary.md#term-compiler) ScanBodyInference.validateRows and [derivative](../../../../glossary.md#term-derivative) role discovery
 in ScanGradientRules use the same seam after their own [descriptor](../../../../glossary.md#term-descriptor) [validation](../../../../glossary.md#term-validation). Remove the old
 rowResult implementations and migrate every caller/[test oracle](../../../../glossary.md#term-test-oracle); no [alias](../../../../glossary.md#aliasing-and-arena) or shadow role algebra.
 Check shared-[carry](../../../../glossary.md#term-carry) syntactic isolation separately from per-output numeric dependencies.
@@ -107,7 +107,7 @@ consumer/[codec](../../../../glossary.md#term-codec) guards; arbitrary intermedi
 - Source owners: Model Scan.java/ScanBody.java; Compiler ScanBodyInference.java/ScanGradientRules.java/
   SourceGraphReconstruction.java; existing codec cold hook only if required to preserve its effective
   old intersection. Migrate the direct ScanGradientRulesTest role oracle and affected genuine
-  Model/Compiler/Checkpoint/Prepare/CPU behavior fixtures; no source-text/count/wiring tests.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Scan glossary](../../../../glossary.md#term-cumulative-scan); [Compiler glossary](../../../../glossary.md#term-compiler); [codec glossary](../../../../glossary.md#term-codec); [oracle glossary](../../../../glossary.md#term-test-oracle); [Checkpoint glossary](../../../../glossary.md#term-checkpoint); [Prepare glossary](../../../../glossary.md#prepare))</span>
+  Model/Compiler/Checkpoint/Prepare/CPU behavior fixtures; no source-text/count/wiring tests.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [Compiler glossary](../../../../glossary.md#term-compiler); [codec glossary](../../../../glossary.md#term-codec); [oracle glossary](../../../../glossary.md#term-test-oracle); [Checkpoint glossary](../../../../glossary.md#term-checkpoint); [Prepare glossary](../../../../glossary.md#prepare))</span>
 - Existing TensorWindowExpressions.windowOutputDimension/windowOutputSize may become package-private
   with meaningful shared-owner Javadoc so exact flattened-window coordinate proofs reuse ordinary
   checked geometry. Keep both algorithms and their existing callers unchanged; no duplicate formula.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc); [coordinate glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
@@ -129,7 +129,7 @@ first-order backward and existing-[owner](../../../../glossary.md#term-owner) ph
 
 ## Result
 
-Existing [Scan](../../../../glossary.md#term-cumulative-scan) owns the three public [descriptor](../../../../glossary.md#term-descriptor)-only APIs above. [Model](../../../../glossary.md#term-model) construction, independent
+Existing Scan owns the three public [descriptor](../../../../glossary.md#term-descriptor)-only APIs above. [Model](../../../../glossary.md#term-model) construction, independent
 raw [inference](../../../../glossary.md#term-inference), [derivative](../../../../glossary.md#term-derivative) bookkeeping and the genuine expression [oracle](../../../../glossary.md#term-test-oracle) share one per-[canonical](../../../../glossary.md#term-canonical-form)-
 output semantic transfer; obsolete [producer](../../../../glossary.md#term-producer)-wide rowResult implementations are removed. Known
 entirely SHARED [PURE](../../../../glossary.md#term-pure) families no longer need a [coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix)-kind whitelist. Arbitrary intermediate

@@ -53,7 +53,7 @@ the completed storage contracts.
   permits list, or any modification to <span data-glossary-navigation="true"> ([sealed glossary](../../../../glossary.md#term-sealed))</span>`HostTensorStorage` or `MemorySegmentStorage`
 - an [`Arena`](../../../../glossary.md#term-arena) field, native or [off-heap](../../../../glossary.md#term-off-heap-memory) allocation, mapped memory, external allocation handles,
   `AutoCloseable`, close methods, cleanup callbacks, `Cleaner`, finalizers, leases, reference
-  counting, pooling, or runtime resources<span data-glossary-navigation="true"> ([leases glossary](../../../../glossary.md#term-lease); [pooling glossary](../../../../glossary.md#term-pooling); [runtime glossary](../../../../glossary.md#term-runtime))</span>
+  counting, pooling, or runtime resources<span data-glossary-navigation="true"> ([leases glossary](../../../../glossary.md#term-lease); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 - typed element reads or writes, bulk access, public backing-array access, copying, conversion,
   BFLOAT16 conversion, boolean normalization, fill loops, or mutation/version tracking<span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [boolean glossary](../../../../glossary.md#data-type--datatype); [normalization glossary](../../../../glossary.md#term-normalization))</span>
 - flat typed import, nested import, logical-count/data [validation](../../../../glossary.md#term-validation), or any task-0012B/0012C behavior
@@ -117,7 +117,7 @@ Useful capability evidence is limited to these facts:
 
 The new implementation must not copy the legacy per-data-type storage classes, [mutable](../../../../glossary.md#term-mutable)-array
 accessors, version counters, data-type access switch, broad population factory, native allocation
-handles, [runtime](../../../../glossary.md#term-runtime) `ExecutionResource` coupling, [pooling](../../../../glossary.md#term-pooling), close behavior, or legacy [shape](../../../../glossary.md#shape)/scalar
+handles, [runtime](../../../../glossary.md#term-runtime) `ExecutionResource` coupling, pooling, close behavior, or legacy [shape](../../../../glossary.md#shape)/scalar
 conventions. Legacy code is capability evidence only.
 
 ## Architecture constraints
@@ -537,10 +537,10 @@ Manually verify:
 - Task 0012D remains Draft and owns public scalar, zeros, ones, zeros-like, and ones-like
   conveniences after typed population exists.<span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar))</span>
 - Task 0012E remains Draft and owns integer ranges and strict/cyclic prefix population.
-- Task 0012F remains Draft and owns random-source/[reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance) policy and normal population.
+- Task 0012F remains Draft and owns random-source/reproducibility policy and normal population.
 - Task 0013 remains Draft after the factory families and owns minimal [provenance](../../../../glossary.md#provenance).
 - Runtime and concrete backend tasks continue to own runtime buffers, device/native allocation,
-  residency, pooling, transfers, and deterministic resource lifetimes.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [concrete backend glossary](../../../../glossary.md#concrete-backend); [buffers glossary](../../../../glossary.md#term-buffer); [device glossary](../../../../glossary.md#term-device); [residency glossary](../../../../glossary.md#residency); [pooling glossary](../../../../glossary.md#term-pooling))</span>
+  residency, pooling, transfers, and deterministic resource lifetimes.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [concrete backend glossary](../../../../glossary.md#concrete-backend); [buffers glossary](../../../../glossary.md#term-buffer); [device glossary](../../../../glossary.md#term-device); [residency glossary](../../../../glossary.md#residency))</span>
 
 Do not create a detailed specification for any follow-up as part of task 0012A.
 
@@ -682,7 +682,7 @@ specification. Do not commit or push.
 - Practical [JVM](../../../../glossary.md#term-java-virtual-machine-jvm) array-size and [heap](../../../../glossary.md#term-heap) limits may be lower than `Integer.MAX_VALUE`; the JVM may throw
   [`OutOfMemoryError`](../../../../glossary.md#memory-management-atomic-counters-and-complexity), which propagates unchanged before ID allocation.
 - Allocation is heap-only and garbage-collected. There is no deterministic release, native/mapped
-  allocation, pooling, or backend/runtime storage policy.<span data-glossary-navigation="true"> ([release glossary](../../../../glossary.md#term-release); [pooling glossary](../../../../glossary.md#term-pooling); [backend glossary](../../../../glossary.md#backend); [runtime glossary](../../../../glossary.md#term-runtime))</span>
+  allocation, pooling, or backend/runtime storage policy.<span data-glossary-navigation="true"> ([release glossary](../../../../glossary.md#term-release); [backend glossary](../../../../glossary.md#backend); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 - The returned raw storage is writable and zero-initialized, but this task adds no typed access,
   import, conversion, fill, or public constant convenience.<span data-glossary-navigation="true"> ([constant glossary](../../../../glossary.md#term-constant))</span>
 - The backing array remains reachable through the heap segment but is not exposed through a new

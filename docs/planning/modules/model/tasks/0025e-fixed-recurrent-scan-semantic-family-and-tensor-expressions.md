@@ -1,4 +1,4 @@
-# Task 0025E: Fixed Recurrent-[Scan](../../../../glossary.md#term-cumulative-scan) Semantic Family and [Tensor](../../../../glossary.md#tensor) Expressions
+# Task 0025E: Fixed Recurrent-Scan Semantic Family and [Tensor](../../../../glossary.md#tensor) Expressions
 
 **Editorial reading key (current context, not a status update).**
 
@@ -30,7 +30,7 @@ Complete
 
 ## Goal
 
-Add the smallest [Model](../../../../glossary.md#term-model)-owned fixed recurrent-[scan](../../../../glossary.md#term-cumulative-scan) capability selected by
+Add the smallest [Model](../../../../glossary.md#term-model)-owned fixed recurrent-scan capability selected by
 [ADR 0012](../../../../design/decisions/0012-fixed-recurrent-scan-without-regions.md)<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>: one flat,
 [identity](../../../../glossary.md#term-identity-meanings)-distinct, multi-output [operation](../../../../glossary.md#operation) [occurrence](../../../../glossary.md#term-occurrence) for each of `RNN_TANH`,
 `GRU_RESET_AFTER`, and [`LSTM`](../../../../glossary.md#term-long-short-term-memory-lstm), with one [immutable](../../../../glossary.md#term-immutable) `FORWARD` or `REVERSE` direction.
@@ -120,7 +120,7 @@ explicit and [fail-closed](../../../../glossary.md#term-fail-closed).
 
 - [Architecture contract](../../../../../ARCHITECTURE.md)<span data-glossary-navigation="true"> ([Architecture contract glossary](../../../../glossary.md#architecture-contract))</span>, especially fixed recurrent scan,
   Model ownership, immutable operation/provenance, static Shape, compile, Runtime, Engine, and
-  training boundaries<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [Model glossary](../../../../glossary.md#term-model); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [immutable glossary](../../../../glossary.md#term-immutable); [operation glossary](../../../../glossary.md#operation); [provenance glossary](../../../../glossary.md#provenance); [Shape glossary](../../../../glossary.md#shape); [compile glossary](../../../../glossary.md#compile); [Runtime glossary](../../../../glossary.md#term-runtime); [Engine glossary](../../../../glossary.md#term-engine))</span>
+  training boundaries<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [immutable glossary](../../../../glossary.md#term-immutable); [operation glossary](../../../../glossary.md#operation); [provenance glossary](../../../../glossary.md#provenance); [Shape glossary](../../../../glossary.md#shape); [compile glossary](../../../../glossary.md#compile); [Runtime glossary](../../../../glossary.md#term-runtime); [Engine glossary](../../../../glossary.md#term-engine))</span>
 - [ADR 0012](../../../../design/decisions/0012-fixed-recurrent-scan-without-regions.md)<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
 - [Current architecture index](../../../../architecture/current-architecture-plan.md)
 - [Lifecycle](../../../../architecture/lifecycle.md)<span data-glossary-navigation="true"> ([Lifecycle glossary](../../../../glossary.md#lifecycle))</span>
@@ -154,7 +154,7 @@ explicit and [fail-closed](../../../../glossary.md#term-fail-closed).
 
 - Work remains inside `modules/model` plus directly affected architecture-status,
   explanatory/API, glossary, capability, and Model planning documentation.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [planning glossary](../../../../glossary.md#term-planning))</span>
-- One recurrent [scan](../../../../glossary.md#term-cumulative-scan) is one ordinary flat [`Operation`](../../../../glossary.md#operation) and one [identity](../../../../glossary.md#term-identity-meanings)-distinct
+- One recurrent scan is one ordinary flat [`Operation`](../../../../glossary.md#operation) and one [identity](../../../../glossary.md#term-identity-meanings)-distinct
   [`TensorProducer`](../../../../glossary.md#producer--tensorproducer), independent of `time`. It has no body, region, callback, nested graph, or
   auxiliary per-time Tensor producer.<span data-glossary-navigation="true"> ([callback glossary](../../../../glossary.md#term-callback); [graph glossary](../../../../glossary.md#graph); [Tensor glossary](../../../../glossary.md#tensor); [producer glossary](../../../../glossary.md#term-producer))</span>
 - `RecurrentDirection` is the complete [immutable](../../../../glossary.md#term-immutable) attributes value. It contains only `FORWARD` and
@@ -214,7 +214,7 @@ Type placement:
   validation, descriptor inference, operation construction, and result-carrier assembly.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [inference glossary](../../../../glossary.md#term-inference); [operation glossary](../../../../glossary.md#operation); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
 - `io.github.pho001.synaptik.model.tensor.Tensor` — remains the public receiver [facade](../../../../glossary.md#term-facade).
 
-No generic [scan](../../../../glossary.md#term-cumulative-scan) utility, recurrent [descriptor](../../../../glossary.md#term-descriptor), recurrent attributes record, builder, facade,
+No generic scan utility, recurrent [descriptor](../../../../glossary.md#term-descriptor), recurrent attributes record, builder, facade,
 manager, [compiler](../../../../glossary.md#term-compiler) adapter, or [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) type is added.
 
 ## Exact public [API](../../../../glossary.md#term-application-programming-interface-api) and [occurrence](../../../../glossary.md#term-occurrence) [signatures](../../../../glossary.md#term-signature)
@@ -395,7 +395,7 @@ h' = o * tanh(c')
 ```
 
 There is no recurrent-side bias, peephole, projection, configurable [activation](../../../../glossary.md#term-activation), or hidden
-[parameter](../../../../glossary.md#term-parameter) convention. The [scan](../../../../glossary.md#term-cumulative-scan) is semantically equivalent to repeated application of these fixed
+[parameter](../../../../glossary.md#term-parameter) convention. The scan is semantically equivalent to repeated application of these fixed
 transitions but is not represented as repeated [Tensor](../../../../glossary.md#tensor) expressions.
 
 ## Static [descriptors](../../../../glossary.md#term-descriptor), valid lengths, and traversal
@@ -676,7 +676,7 @@ checks:
 - task/master status is synchronized only after all implementation, documentation, and validation
   evidence passes.
 
-Repository-wide validation is deferred to [CI](../../../../glossary.md#term-continuous-integration-ci) or the next recorded cross-[module](../../../../glossary.md#term-module) recurrent-[scan](../../../../glossary.md#term-cumulative-scan)
+Repository-wide validation is deferred to [CI](../../../../glossary.md#term-continuous-integration-ci) or the next recorded cross-[module](../../../../glossary.md#term-module) recurrent-scan
 capability [checkpoint](../../../../glossary.md#term-checkpoint). This is one Model-module task; it changes no [dependency](../../../../glossary.md#term-dependency), architecture
 boundary, shared build configuration, or executable cross-module contract. [Compiler](../../../../glossary.md#term-compiler) 0006A owns
 its focused [capture](../../../../glossary.md#term-capture-meanings)/[inference](../../../../glossary.md#term-inference)/[preflight](../../../../glossary.md#term-preflight) tests and later end-to-end execution adoption owns
@@ -825,7 +825,7 @@ Implementation context `/root/model_0025e_implementation` validation after execu
 - External package-use [compilation](../../../../glossary.md#compiler-engine-and-execution-stage-names) against `modules/model/build/classes/java/main` passed for all
   three result forms, both directions, and biased/unbiased public signatures. <span data-glossary-navigation="true"> ([signatures glossary](../../../../glossary.md#term-signature))</span>`javap` showed
   exactly two direction constants, three kind constants, the two- and three-component records,
-  and exactly six Tensor scan overloads.<span data-glossary-navigation="true"> ([constants glossary](../../../../glossary.md#term-constant); [Tensor glossary](../../../../glossary.md#tensor); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  and exactly six Tensor scan overloads.<span data-glossary-navigation="true"> ([constants glossary](../../../../glossary.md#term-constant); [Tensor glossary](../../../../glossary.md#tensor))</span>
 - A temporary compiler-package boundary probe compiled and ran after
   `./gradlew :modules:compiler:classes`: generic graph capture produced exactly one flat node with
   two ordered outputs; current captured inference rejected <span data-glossary-navigation="true"> ([graph capture glossary](../../../../glossary.md#capture-graph-ports-and-reconstruction); [node glossary](../../../../glossary.md#node))</span>`RecurrentScanKind` as an unsupported

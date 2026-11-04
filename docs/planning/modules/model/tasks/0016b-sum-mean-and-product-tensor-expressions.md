@@ -427,7 +427,7 @@ Planning validation:
 - `git diff --check` passed and targeted trailing-whitespace inspection found no matches in the
   three changed planning paths.
 - The canonical section scan found every required task section, including exact API/helper shape,
-  package impact, bounded scope, validation, handoff, decisions, limitations, and evidence.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [scan glossary](../../../../glossary.md#term-cumulative-scan); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [scope glossary](../../../../glossary.md#term-scope); [handoff glossary](../../../../glossary.md#term-handoff))</span>
+  package impact, bounded scope, validation, handoff, decisions, limitations, and evidence.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [scope glossary](../../../../glossary.md#term-scope); [handoff glossary](../../../../glossary.md#term-handoff))</span>
 - Every local Markdown file linked from this task, the master plan, and roadmap resolves; fences
   are balanced.
 - Status inspection found 0016B [`Ready`](../../../../glossary.md#term-ready) in this specification, its linked master-plan row, and its

@@ -12,7 +12,7 @@ Focused current reading: [Current formal/actual Scan boundary](../../../referenc
 ## Purpose and authority
 
 Record the selected extension from static [general Scan](../../../glossary.md#general-differentiable-scan) to one named per-[run](../../../glossary.md#term-run) [batch](../../../glossary.md#term-batch-machine-learning-and-hyperparameters) B, with fixed
-time T, [features](../../../glossary.md#term-software-feature) F and state width H. [Compile](../../../glossary.md#compile) retains meaning; [prepare](../../../glossary.md#prepare) fixes code/routes/slots and
+time T, [features](../../../glossary.md#term-feature) F and state width H. [Compile](../../../glossary.md#compile) retains meaning; [prepare](../../../glossary.md#prepare) fixes code/routes/slots and
 numeric recipes; each invocation resolves B and owns storage. This is a non-authoritative design
 for [Model0039](tasks/0039-general-scan-symbolic-batch-design.md), not an authoritative contract or capability.
 Model0039 baseline: Complete — DESIGN DELIVERY ONLY; independent frozen review APPROVE, zero open
@@ -23,7 +23,7 @@ authorized [Model0041](tasks/0041-symbolic-scan-authority-cutover.md), now Compl
 authority-only cutover. PlanningAuthorized=true; AuthorityAuthorized=true; ImplementationAuthorized=false.
 [Planning](../../../glossary.md#term-planning) frontier: None. Authority frontier: None. Implementation frontier: None.
 Accepted semantics live only in the
-[Scan owner](../../../architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan)<span data-glossary-navigation="true"> ([Scan glossary](../../../glossary.md#term-cumulative-scan); [owner glossary](../../../glossary.md#term-owner))</span> and
+[Scan owner](../../../architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan)<span data-glossary-navigation="true"> ([owner glossary](../../../glossary.md#term-owner))</span> and
 [memo owner](../../../architecture/contracts/runtime-prepare-engine.md#accepted-engine-geometry-memo)<span data-glossary-navigation="true"> ([memo glossary](../../../glossary.md#cache-and-memoization))</span>.
 The separately admitted [Model0042](tasks/0042-symbolic-scan-source-foundation.md) source foundation
 is Complete after independent APPROVE and MAIN acceptance 2026-10-25; it grants no downstream capability.
@@ -31,7 +31,7 @@ is Complete after independent APPROVE and MAIN acceptance 2026-10-25; it grants 
 ## Current truth and accepted future [admission](../../../glossary.md#term-admission)
 
 Ordinary [FLOAT32](../../../glossary.md#term-float32) [CPU](../../../glossary.md#term-cpu) dynamic-B forward/actual first-order backward is implemented by Prepare0013.
-[Model](../../../glossary.md#term-model) now constructs static and bounded one-name symbolic all-valid [Scan](../../../glossary.md#term-cumulative-scan) source with no [API](../../../glossary.md#term-application-programming-interface-api)/header
+[Model](../../../glossary.md#term-model) now constructs static and bounded one-name symbolic all-valid Scan source with no [API](../../../glossary.md#term-application-programming-interface-api)/header
 change, preserving [canonical](../../../glossary.md#term-canonical-form) static and unresolved symbolic [layouts](../../../glossary.md#layout). Compiler0014 [inference](../../../glossary.md#term-inference)/
 actual first-order [AD](../../../glossary.md#autograd)/scoped [binding](../../../glossary.md#term-binding) is independently reviewed and MAIN accepted 2026-10-25 after
 compatibility [validation](../../../glossary.md#term-validation). [Prepare](../../../glossary.md#prepare) still rejects dynamic Scan [descriptors](../../../glossary.md#term-descriptor); CPU additionally bakes staged extents, [strides](../../../glossary.md#term-stride),
@@ -50,7 +50,7 @@ Neither source nor AD acceptance grants symbolic FLOAT64 CPU execution or all-PU
 
 ## Concrete [qualification](../../../glossary.md#term-qualification) example
 
-Conceptual future scenario, not runnable or currently supported symbolic-[Scan](../../../glossary.md#term-cumulative-scan) Java. Use fixed
+Conceptual future scenario, not runnable or currently supported symbolic-Scan Java. Use fixed
 T=3, F=4, H=3; X[T,B,F], h0[B,H], Wx[F,H], Wh[H,H], [bias](../../../glossary.md#term-bias)[H]. Storage-free formals describe:
 
 ```text
@@ -99,7 +99,7 @@ No body or hoisted body [operation](../../../glossary.md#operation) executes; fi
 distinct [canonical](../../../glossary.md#term-canonical-form) output, dh0 equals the final-carry seed, stacked emissions/residuals/dX are
 empty and [invariant](../../../glossary.md#term-invariant)-[gradient](../../../glossary.md#term-gradient) sums are typed zero. Structural checks still inspect the full body.
 B=0 on a fixed-T plan empties row carries/sequences/emissions/histories but does not skip the
-whole [Scan](../../../glossary.md#term-cumulative-scan)/run: shared carries/emissions, parameter-shaped empty-[contraction](../../../glossary.md#contraction-dimension)/SUM outputs and
+whole Scan/run: shared carries/emissions, parameter-shaped empty-[contraction](../../../glossary.md#contraction-dimension)/SUM outputs and
 initializers remain nonempty where declared. K=0 MATMUL and empty SUM publish typed zero without
 reading nonexistent row cells. L=[mean](../../../glossary.md#term-mean)(empty finalCarry) is [NaN](../../../glossary.md#term-nan); empty dX/dh0 do not license skipping
 nonempty parameter-gradient outputs. Test B=0 and T=0 independently and together, including shared
@@ -115,7 +115,7 @@ future extensions of inspected owners, not permission to edit source in Model004
 | [Model ScanBody](../../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/ScanBody.java)<span data-glossary-navigation="true"> ([Model glossary](../../../glossary.md#term-model))</span> / [Scan](../../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Scan.java) | Replace `requireStatic`-only [admission](../../../glossary.md#term-admission) and numeric [canonical](../../../glossary.md#term-canonical-form)-formal comparison for the symbolic branch; extend `validateBindings`, `validatePort`, `portDescriptor`. Dynamic templates have unresolved numeric [layouts](../../../glossary.md#layout), not fabricated resolved layouts; static formals/outputs retain exact canonical checks. Preserve storage-free containment, siblings, [gradient](../../../glossary.md#term-gradient) OR and canonical [residual](../../../glossary.md#scan-residual-port-and-history-demand) wrappers. |
 | [ScanAttrs](../../../../modules/model/src/main/java/io/github/pho001/synaptik/model/operation/scan/ScanAttrs.java) / [CompiledScanBody](../../../../modules/model/src/main/java/io/github/pho001/synaptik/model/graph/CompiledScanBody.java) | Keep `timeCount` fixed and all-valid header defaults/counts. Retain [`graph`](../../../glossary.md#graph), `nextCarry`, `emissions`, `residuals`, `demandedOutputIndices`; no B value, new component or second body representation is selected. |
 | [ScanBodyInference](../../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/ScanBodyInference.java) / [ScanGradientRules](../../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/ScanGradientRules.java) | Extend `infer`/[`preflight`](../../../glossary.md#term-preflight) static guards and formal creation to named-B templates, independently check symbolic actual/formal/result obligations. Reuse [`capture`](../../../glossary.md#term-capture-meanings) → `GraphCapture.captureBody`, exact [primal](../../../glossary.md#term-primal) [bindings](../../../glossary.md#term-binding), [derivative](../../../glossary.md#term-derivative) [constants](../../../glossary.md#term-constant) and per-[invariant](../../../glossary.md#term-invariant) [accumulator](../../../glossary.md#accumulator-type) algebra. There is no current `ScopedScanCapture` type. Preserve [scope](../../../glossary.md#term-scope)/demand after rewrites and reject residual roots/higher-order before derivative allocation. |
-| [BatchBindingPlan](../../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/BatchBindingPlan.java) / [StaticResultLogicalLayoutClosure](../../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/StaticResultLogicalLayoutClosure.java) | [`prepare`](../../../glossary.md#prepare) currently rejects any dynamic output when `node.outputs().size()!=1`. Add an exact body-bearing [SCAN](../../../glossary.md#term-cumulative-scan) case that preindexes canonical actual layouts for **every** final/emission/[residual port](../../../glossary.md#scan-residual-port-and-history-demand), then retains rejection for unknown symbolic multi-output kinds. Keep `bind`/`Binding.descriptor(int)` [lazy](../../../glossary.md#term-lazy-evaluation) and [occurrence](../../../glossary.md#term-occurrence)-correct. Do not make static `closeValue` fabricate dynamic layouts; symbolic layout recipes stay in the [metadata](../../../glossary.md#term-metadata)/numeric owners. |
+| [BatchBindingPlan](../../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/BatchBindingPlan.java) / [StaticResultLogicalLayoutClosure](../../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/StaticResultLogicalLayoutClosure.java) | [`prepare`](../../../glossary.md#prepare) currently rejects any dynamic output when `node.outputs().size()!=1`. Add an exact body-bearing SCAN case that preindexes canonical actual layouts for **every** final/emission/[residual port](../../../glossary.md#scan-residual-port-and-history-demand), then retains rejection for unknown symbolic multi-output kinds. Keep `bind`/`Binding.descriptor(int)` [lazy](../../../glossary.md#term-lazy-evaluation) and [occurrence](../../../glossary.md#term-occurrence)-correct. Do not make static `closeValue` fabricate dynamic layouts; symbolic layout recipes stay in the [metadata](../../../glossary.md#term-metadata)/numeric owners. |
 | [PrepareContext](../../../../modules/prepare/src/main/java/io/github/pho001/synaptik/prepare/analysis/PrepareContext.java)<span data-glossary-navigation="true"> ([PrepareContext glossary](../../../glossary.md#prepare-context-preparecontext))</span> / [GraphPreparation](../../../../modules/prepare/src/main/java/io/github/pho001/synaptik/prepare/GraphPreparation.java)<span data-glossary-navigation="true"> ([GraphPreparation glossary](../../../glossary.md#graph-preparation--graphpreparation))</span> | Extend `ordinaryBatchShape`'s [rank-two](../../../glossary.md#axis-rank-scalar-vector-and-matrix) gate only for qualified scan boundaries/closure; extend `validateScan` local static/canonical matching to symbolic templates. Preserve complete-graph demand checks before analyzers, local/outer ID separation and `requiresBatchSize()`, even with constant bytes. No [CPU](../../../glossary.md#term-cpu) geometry interpretation. |
 | [CpuGeneralScanIr](../../../../modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/ir/CpuGeneralScanIr.java) / [Lowering](../../../../modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuGeneralScanLowering.java) | Extend existing [`View`](../../../glossary.md#term-view-meanings)/`Stages`/`Cut` and `Facts` storage for [immutable](../../../glossary.md#term-immutable) B-coefficient access/frame/cut/[carry](../../../glossary.md#term-carry)-offset recipes alongside retained static fields. Reuse `analyze`, `shapedResources` and stage lifetimes; no representative fake B, post-bind re-[lowering](../../../glossary.md#lowering) or new semantic [IR](../../../glossary.md#term-intermediate-representation-ir). Exact component [signatures](../../../glossary.md#term-signature) need the later CPU brief/approval, not speculative new records here. |
 | [CpuCapabilityProvider](../../../../modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/CpuCapabilityProvider.java) / [CpuPartitionLowering](../../../../modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/lowering/CpuPartitionLowering.java) / [CpuPartitionPreparer](../../../../modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/prepare/CpuPartitionPreparer.java) | `CpuCapabilityProvider.supports(query)` returns `supportsOrdinaryBatch` for symbolic [descriptors](../../../glossary.md#term-descriptor) before its SCAN branch; preparer `requiresBatchSize()` likewise enters `analyzeOrdinaryBatch`. Add explicit Scan [dispatch](../../../glossary.md#term-dispatch) to existing whole-body analysis at both boundaries, plus bounded [rank](../../../glossary.md#term-rank)-three closure support. Adapt `analyzeGeneralScan` fixed-byte declarations/workspace-presence test to fixed or [run](../../../glossary.md#term-run)-size declarations; finalization emits only after slots. |
@@ -131,7 +131,7 @@ checked numeric sizes/offsets. Existing [CPU](../../../glossary.md#term-cpu) own
 those numeric recipes without unknown maxima or per-B route/slot choices. Reuse existing numeric
 `CpuAccessPlan.BatchBinding.bind(long)`, `CpuRepresentationRecipes.BatchByteSize.byteSize(long)`,
 `CpuMatmulLowering.BatchGeometry.bind(long)` and `CpuAggregateLowering.BatchGeometry.bind(long)`;
-the last describes ordinary outer reductions, not automatic reuse of its entry [ABI](../../../glossary.md#term-application-binary-interface-abi) inside [Scan](../../../glossary.md#term-cumulative-scan).
+the last describes ordinary outer reductions, not automatic reuse of its entry [ABI](../../../glossary.md#term-application-binary-interface-abi) inside Scan.
 Reuse `PreparedMemoryPlan.ByteSize` and `RunMemoryGeometry.resolve(plan, OptionalLong)` unchanged.
 CPU may extend fields/methods on its existing Scan records; if a new named type or changed [Runtime](../../../glossary.md#term-runtime)
 [handoff](../../../glossary.md#term-handoff) proves necessary, stop for an exact package/name/purpose/[signature](../../../glossary.md#term-signature) and user approval first.
@@ -169,7 +169,7 @@ only authenticated numeric geometry. Keep storage/[lifetime](../../../glossary.m
 Generate the optimal fixed-F/H clean-Java algorithm with invocation B: direct time/row/[feature](../../../glossary.md#term-feature)
 loops, cursor increments and typed [MATMUL](../../../glossary.md#matrix-multiplication--matmul) contributors. Hoist B/strides/frame offsets once per
 invocation or necessary row setup, not per-element recipe [lookup](../../../glossary.md#term-lookup)/[dispatch](../../../glossary.md#term-dispatch). Keep structural
-broadcast [axes](../../../glossary.md#term-axis) prepared and B=0/1 entry guards correct. [Scan](../../../glossary.md#term-cumulative-scan)'s existing typed producing-site SUM
+broadcast [axes](../../../glossary.md#term-axis) prepared and B=0/1 entry guards correct. Scan's existing typed producing-site SUM
 and ordinary outer exact five-[limb](../../../glossary.md#exact-superaccumulator-and-limbs) SUM/[MEAN](../../../glossary.md#term-mean) are distinct qualified algorithms; do not silently
 replace one with the other. Required sumToShape [singleton](../../../glossary.md#term-singleton)/raw-copy versus empty-reduction behavior
 must remain [operation](../../../glossary.md#operation)-correct. Class-File evidence compares algorithm, [dataflow](../../../glossary.md#term-dataflow) and hidden overhead.
@@ -193,7 +193,7 @@ and explicit B/mode (even `[B,0]`); equal bytes/B or foreign equal plans/[shapes
 Retain checked B-dependent domain validity, sizes/[strides](../../../glossary.md#term-stride)/offsets, aligned aggregate bounds and
 template-derived non-input [publication](../../../glossary.md#term-publication) [metadata](../../../glossary.md#term-metadata); never [Tensor](../../../glossary.md#tensor) [identity](../../../glossary.md#term-identity-meanings), supplied descriptors,
 `Binding`, storage, addresses, [leases](../../../glossary.md#term-lease), [mutable](../../../glossary.md#term-mutable) arrays or results.
-One [graph](../../../glossary.md#graph)-sized [snapshot](../../../glossary.md#term-snapshot), no B-sized [payload](../../../glossary.md#artifact-envelope-and-atomic-publication)/map; old snapshots survive only via live calls/results.
+One [graph](../../../glossary.md#graph)-sized [snapshot](../../../glossary.md#term-snapshot), no B-sized payload/map; old snapshots survive only via live calls/results.
 Bound candidates by active admissions; no global/ThreadLocal [cache](../../../glossary.md#term-cache), pool or per-B plan cache.
 
 Every call keeps Engine/owner/closed-prepared precedence, snapshots/counts/nulls and exact-ID or
@@ -258,7 +258,7 @@ preparations, failure/retry, close/concurrent mixed-B results and generated loop
    NN/Training one-state reuse. Cold/copy/wire, variable T, wider execution dtypes and native/mixed
    remain independent gates, never inferred from this design or made prerequisites by speculation.<span data-glossary-navigation="true"> ([NN glossary](../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [dtypes glossary](../../../glossary.md#data-type--datatype))</span>
 
-All future gates are serial (Parallel group None), conflict on [Scan](../../../glossary.md#term-cumulative-scan)/resource/[identity](../../../glossary.md#term-identity-meanings) semantics,
+All future gates are serial (Parallel group None), conflict on Scan/resource/[identity](../../../glossary.md#term-identity-meanings) semantics,
 and depend on their immediately preceding accepted gate plus the retained baseline. MAIN owns
 shared-document integration and revalidates the accepted dirty base before any launch. Workers
 [run](../../../glossary.md#term-run) focused plus affected-[module](../../../glossary.md#term-module) [validation](../../../glossary.md#term-validation) once; independent reviewers reuse it; MAIN runs one

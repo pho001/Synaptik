@@ -416,7 +416,7 @@ Complete until both passes succeed. Leave 0017E Draft without a specification. D
 ## Local decisions
 
 - Expand mirrors reshape with raw `long...` and exact [`Shape`](../../../../glossary.md#shape), but has no [inference](../../../../glossary.md#term-inference) sentinel.
-- Empty raw [dimensions](../../../../glossary.md#dimension) [mean](../../../../glossary.md#term-mean) [scalar](../../../../glossary.md#term-scalar), consistent with Shape.of.
+- Empty raw [dimensions](../../../../glossary.md#dimension) mean [scalar](../../../../glossary.md#term-scalar), consistent with Shape.of.
 - [Validation](../../../../glossary.md#term-validation) is directional: [target](../../../../glossary.md#term-target) [singleton](../../../../glossary.md#term-singleton) cannot shrink an input.
 - Equal dynamic symbols and input static singleton to dynamic target are locally provable; other
   dynamic combinations are rejected rather than hidden as constraints.

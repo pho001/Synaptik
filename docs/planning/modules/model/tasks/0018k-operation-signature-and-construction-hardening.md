@@ -68,7 +68,7 @@ operation [registry](../../../../glossary.md#term-registry), reflective discover
   test-local kind
 - changing [`Operation`](../../../../glossary.md#operation) record components, equality, hashing, or diagnostic value semantics
 - a generic operation factory, builder, parser, serializer, schema generator, annotation
-  processor, classpath scan, reflective plugin discovery, service locator, or mutable registry<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [classpath glossary](../../../../glossary.md#term-classpath); [scan glossary](../../../../glossary.md#term-cumulative-scan); [plugin glossary](../../../../glossary.md#term-plugin); [service locator glossary](../../../../glossary.md#term-service-locator); [mutable glossary](../../../../glossary.md#term-mutable); [registry glossary](../../../../glossary.md#term-registry))</span>
+  processor, classpath scan, reflective plugin discovery, service locator, or mutable registry<span data-glossary-navigation="true"> ([schema glossary](../../../../glossary.md#term-schema); [classpath glossary](../../../../glossary.md#term-classpath); [plugin glossary](../../../../glossary.md#term-plugin); [service locator glossary](../../../../glossary.md#term-service-locator); [mutable glossary](../../../../glossary.md#term-mutable); [registry glossary](../../../../glossary.md#term-registry))</span>
 - string-keyed kind or attribute lookup, class-name dispatch, a monolithic operation enum, or a
   root-package switch over every concrete production family<span data-glossary-navigation="true"> ([lookup glossary](../../../../glossary.md#term-lookup); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
 - Shape, DataType, layout, descriptor, axis-bound, broadcasting, tuple-depth, or
@@ -413,7 +413,7 @@ or architecture document is required, stop and report the needed follow-up.
 - Signature construction enforces valid inclusive input/output ranges and permits fixed, bounded,
   zero-input, effectively variadic-input, and multi-output contracts.<span data-glossary-navigation="true"> ([Signature glossary](../../../../glossary.md#term-signature); [variadic glossary](../../../../glossary.md#term-variadic))</span>
 - Attribute matching is exact-class based and uses no string comparison, classpath scan,
-  annotation scan, service lookup, or global kind map.<span data-glossary-navigation="true"> ([classpath glossary](../../../../glossary.md#term-classpath); [scan glossary](../../../../glossary.md#term-cumulative-scan); [lookup glossary](../../../../glossary.md#term-lookup))</span>
+  annotation scan, service lookup, or global kind map.<span data-glossary-navigation="true"> ([classpath glossary](../../../../glossary.md#term-classpath); [lookup glossary](../../../../glossary.md#term-lookup))</span>
 - [`OperationKind`](../../../../glossary.md#operationkind) retains `name()`, requires stable family-owned signature variants, and resolves
   one unique variant for an attributes object.
 - A kind with missing, empty, null, duplicate, or nonmatching signature declarations fails closed;

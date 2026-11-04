@@ -25,7 +25,7 @@ Complete
 
 ## Change class
 
-Class C — this documentation-only task corrects one sentence in the [normative](../../../../glossary.md#term-normative) recurrent-[scan](../../../../glossary.md#term-cumulative-scan)
+Class C — this documentation-only task corrects one sentence in the [normative](../../../../glossary.md#term-normative) recurrent-scan
 contract. It changes no behavior or [ownership](../../../../glossary.md#term-ownership-meanings), but requires clean implementation and independent
 review because the sentence distinguishes the current [Engine](../../../../glossary.md#term-engine) [facade](../../../../glossary.md#term-facade) from future recurrent
 execution and exception translation.
@@ -120,7 +120,7 @@ git diff --name-only -- '*.java' '*.gradle' '*.gradle.kts'
 git diff --check
 ```
 
-The Java/[Gradle](../../../../glossary.md#term-gradle) [scan](../../../../glossary.md#term-cumulative-scan) must be empty and the path audit must equal the four-file allowlist. If the
+The Java/[Gradle](../../../../glossary.md#term-gradle) scan must be empty and the path audit must equal the four-file allowlist. If the
 temporary Markdown validator is absent, create an equivalent validator outside the repository.
 Review reuses successful focused-test evidence unless executable behavior changes and reruns final
 documentation, size, [scope](../../../../glossary.md#term-scope), and whitespace checks.
@@ -149,7 +149,7 @@ state, with no executable, build, [dependency](../../../../glossary.md#term-depe
 - Corrected this brief's stale heading label and anchor to the actual owning contract heading.
 - Synchronized this brief, the [Model](../../../../glossary.md#term-model) master plan, and the roadmap at `Complete` after the
   mandatory independent Class C review.
-- Changed only the four allowlisted Markdown paths; Java/[Gradle](../../../../glossary.md#term-gradle) [scan](../../../../glossary.md#term-cumulative-scan) was empty.
+- Changed only the four allowlisted Markdown paths; Java/[Gradle](../../../../glossary.md#term-gradle) scan was empty.
 - `./gradlew :modules:model:test --tests
   io.github.pho001.synaptik.model.operation.recurrent.RecurrentScanSemanticsTest` passed.
 - `./gradlew :modules:compiler:test --tests

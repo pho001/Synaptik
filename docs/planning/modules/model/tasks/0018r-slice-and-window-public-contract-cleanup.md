@@ -865,7 +865,7 @@ a detailed specification.
   only the four intended planning paths.
 - The canonical-section scan found every required task-specification section, plus the decision,
   before/after, operation-signature, documentation, mental-model, and current-problem sections.
-  No unresolved design placeholder remains in the Ready contract.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [scan glossary](../../../../glossary.md#term-cumulative-scan); [Ready glossary](../../../../glossary.md#term-ready))</span>
+  No unresolved design placeholder remains in the Ready contract.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [Ready glossary](../../../../glossary.md#term-ready))</span>
 - Task/master-plan/roadmap scans identify 0018R as Ready, 0018Q as Complete, and 0018S plus every
   later row as Draft. The master-plan dependency cell is `0017G–0017N, 0018K–0018M`.
 - The task-file inventory found no detailed 0018S-or-later specification.

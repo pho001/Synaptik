@@ -548,7 +548,7 @@ Planning validation:
   three changed planning paths.
 - The canonical section scan found every required task-specification section, including exact
   public/helper contracts, package impact, bounded scope, validation, implementation handoff,
-  decisions, limitations, and completion-evidence sections.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [scan glossary](../../../../glossary.md#term-cumulative-scan); [scope glossary](../../../../glossary.md#term-scope); [handoff glossary](../../../../glossary.md#term-handoff))</span>
+  decisions, limitations, and completion-evidence sections.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [scope glossary](../../../../glossary.md#term-scope); [handoff glossary](../../../../glossary.md#term-handoff))</span>
 - Every local Markdown target linked from this task, the model master plan, and the roadmap
   resolves. Markdown fences are balanced in all three changed paths.
 - Status inspection found 0015H [`Ready`](../../../../glossary.md#term-ready) in this specification, its linked model-master row, and

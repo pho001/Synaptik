@@ -5,10 +5,11 @@
 This record concerns Task 0023D’s Model-only construction boundary; its method counts and deferred
 compiler/backend work are historical, not current capability descriptions. The caller supplies a
 Tensor, window attributes, and optionally a typed padding scalar; the Tensor helper validates these
-descriptions and returns a fresh storage-free expression recording its input producer. It neither
+descriptions and returns a fresh storage-free expression recording its exact input Tensor reference
+and its own producing occurrence. It neither
 reads samples nor owns a result buffer. Model defines the meaning; execution providers realize
 supported routes without redefining it. Semantic responsibility is not storage ownership.
-
+`unfold2d` exposes samples as canonical rank-three columns; fold adds overlapping contributions rather
 Unfold exposes samples as canonical rank-three columns; fold adds overlapping contributions rather
 than undoing extraction or averaging. For a one-channel three-by-three image and two-by-two windows
 at unit stride, folding unchanged columns counts the center four times. Symbolic products describe
@@ -632,7 +633,7 @@ and every later task Draft without a detailed specification.
 - `./gradlew :modules:model:javadoc` passed after final [Javadoc](../../../../glossary.md#term-javadoc) edits (`BUILD SUCCESSFUL`; two
   executed tasks). Generated pages exist for Product, both Dimension factory contracts,
   `Unfold2dAttrs`, all window kinds/attributes, [`Tensor`](../../../../glossary.md#tensor), and the construction helper. A targeted
-  `rg` generated-page [scan](../../../../glossary.md#term-cumulative-scan) found `foldAxis`, the typed `unfold2d` overload, Product,
+  `rg` generated-page scan found `foldAxis`, the typed `unfold2d` overload, Product,
   `Unfold2dAttrs`, and canonical-symbolic wording. A later redundant Javadoc invocation inside a
   combined final command could not open the Gradle user-home lock under the filesystem sandbox;
   rerunning <span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [Gradle glossary](../../../../glossary.md#term-gradle))</span>`./gradlew :modules:model:javadoc` with the approved Gradle permission passed with both

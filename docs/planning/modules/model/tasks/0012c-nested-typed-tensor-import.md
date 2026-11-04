@@ -60,8 +60,8 @@ task 0012B, and never retains or mutates the caller's nested array [graph](../..
   access/export, mutation/version tracking, or concurrent-source snapshot guarantees<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [snapshot glossary](../../../../glossary.md#term-snapshot))</span>
 - task 0012D [constants](../../../../glossary.md#term-constant), [scalars](../../../../glossary.md#term-scalar), zeros, ones, zeros-like, or ones-like behavior
 - task 0012E ranges or strict/cyclic prefix population
-- task 0012F random generation or [reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance) policy
-- native/[off-heap](../../../../glossary.md#term-off-heap-memory)/mapped allocation, [`Arena`](../../../../glossary.md#term-arena), [ownership](../../../../glossary.md#term-ownership-meanings)/close behavior, [pooling](../../../../glossary.md#term-pooling), or new storage types
+- task 0012F random generation or reproducibility policy
+- native/[off-heap](../../../../glossary.md#term-off-heap-memory)/mapped allocation, [`Arena`](../../../../glossary.md#term-arena), [ownership](../../../../glossary.md#term-ownership-meanings)/close behavior, pooling, or new storage types
 - provenance, expression operations, graph IDs, gradients beyond descriptor eligibility,
   publication state, compiler, planning, prepare, runtime, engine, backend, device, residency, or
   execution behavior<span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance); [graph glossary](../../../../glossary.md#graph); [gradients glossary](../../../../glossary.md#term-gradient); [publication glossary](../../../../glossary.md#term-publication); [compiler glossary](../../../../glossary.md#term-compiler); [planning glossary](../../../../glossary.md#term-planning); [prepare glossary](../../../../glossary.md#prepare); [runtime glossary](../../../../glossary.md#term-runtime); [engine glossary](../../../../glossary.md#term-engine); [backend glossary](../../../../glossary.md#backend); [device glossary](../../../../glossary.md#term-device); [residency glossary](../../../../glossary.md#residency))</span>
@@ -422,7 +422,7 @@ absence of task-0012D/task-0013 specs.
 
 - Task 0012D will define [scalar](../../../../glossary.md#term-scalar) and [constant](../../../../glossary.md#term-constant) creation, zeros, ones, zeros-like, and ones-like.
 - Task 0012E will define integer ranges and strict/cyclic prefix population.
-- Task 0012F will define random creation and [reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance) policy.
+- Task 0012F will define random creation and reproducibility policy.
 - Later work owns typed export/access, mutation versions, [views](../../../../glossary.md#term-view-meanings)/scatter, [provenance](../../../../glossary.md#provenance), and operations.
 
 Do not create a detailed task-0012D or later specification as part of task 0012C.

@@ -50,7 +50,7 @@ index [Tensor](../../../../glossary.md#tensor) through the existing flat-import 
 - retaining the caller array, exposing the generated index Tensor directly, adding a label, or
   creating an INT64 index Tensor<span data-glossary-navigation="true"> ([INT64 glossary](../../../../glossary.md#data-type--datatype))</span>
 - native/off-heap allocation, Arena ownership, pooling, lifecycle APIs, storage types, or direct
-  writes outside existing TensorFactory import<span data-glossary-navigation="true"> ([off-heap glossary](../../../../glossary.md#term-off-heap-memory); [Arena glossary](../../../../glossary.md#term-arena); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [pooling glossary](../../../../glossary.md#term-pooling); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
+  writes outside existing TensorFactory import<span data-glossary-navigation="true"> ([off-heap glossary](../../../../glossary.md#term-off-heap-memory); [Arena glossary](../../../../glossary.md#term-arena); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [lifecycle glossary](../../../../glossary.md#lifecycle))</span>
 - gradients, scatter backward, graph capture, compiler, planning, prepare, runtime, backend,
   engine, trace, ONNX implementation, training, or execution behavior<span data-glossary-navigation="true"> ([gradients glossary](../../../../glossary.md#term-gradient); [graph capture glossary](../../../../glossary.md#capture-graph-ports-and-reconstruction); [compiler glossary](../../../../glossary.md#term-compiler); [planning glossary](../../../../glossary.md#term-planning); [prepare glossary](../../../../glossary.md#prepare); [runtime glossary](../../../../glossary.md#term-runtime); [backend glossary](../../../../glossary.md#backend); [engine glossary](../../../../glossary.md#term-engine); [trace glossary](../../../../glossary.md#trace); [ONNX glossary](../../../../glossary.md#term-onnx))</span>
 - another production helper/type, dependency, Gradle/build option, architecture change, another
@@ -490,7 +490,7 @@ Complete until both passes succeed. Leave 0018E Draft without a specification. D
   recorded above.<span data-glossary-navigation="true"> ([axis glossary](../../../../glossary.md#term-axis); [gather glossary](../../../../glossary.md#gather))</span>
 - Glossary impact: The existing Axis gather entry now distinguishes tensor-index aliasing from
   primitive input adaptation and records copying, generated metadata, value-bounds, and late-
-  failure ownership boundaries; no gratuitous new term was added.<span data-glossary-navigation="true"> ([aliasing glossary](../../../../glossary.md#term-aliasing); [metadata glossary](../../../../glossary.md#term-metadata))</span>
+  failure ownership boundaries; no gratuitous new term was added.<span data-glossary-navigation="true"> ([metadata glossary](../../../../glossary.md#term-metadata))</span>
 - Architecture impact: None.
 - Unresolved issues: None.
 - Follow-up required: None for task 0018D1. Task 0018E remains Draft without a detailed

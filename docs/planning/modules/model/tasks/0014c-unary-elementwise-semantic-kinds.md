@@ -342,7 +342,7 @@ retention, and typed separation from a private test enum with an equal diagnosti
 
 Manually inspect `javap -p -c -s` and reflection for exact enum [shape](../../../../glossary.md#shape), fifteen [constants](../../../../glossary.md#term-constant), only
 [compiler](../../../../glossary.md#term-compiler)-generated static enum machinery, no extra state/[API](../../../../glossary.md#term-application-programming-interface-api), inherited names, and Operation
-composition. [Scan](../../../../glossary.md#term-cumulative-scan) production imports/dependencies for forbidden layers. Validate generated
+composition. Scan production imports/dependencies for forbidden layers. Validate generated
 [Javadoc](../../../../glossary.md#term-javadoc), current-versus-planned [Tensor](../../../../glossary.md#tensor) API wording, glossary status, local links/anchors/fences/
 whitespace, exact seven-path [scope](../../../../glossary.md#term-scope), synchronized status, [checkpoint](../../../../glossary.md#term-checkpoint) decision, and absence of a
 task-0014D specification.
@@ -456,7 +456,7 @@ Planning validation:
 
 - `git diff --check` passed for the tracked master-plan and roadmap changes; a trailing-whitespace
   scan also passed for this new task file.
-- The [canonical](../../../../glossary.md#term-canonical-form) task-section [scan](../../../../glossary.md#term-cumulative-scan) found every required planning section.
+- The [canonical](../../../../glossary.md#term-canonical-form) task-section scan found every required planning section.
 - The local Markdown-target check resolved every link in this task, the model master plan, and the
   roadmap.<span data-glossary-navigation="true"> ([target glossary](../../../../glossary.md#term-target))</span>
 - Scope inspection found exactly three documentation/planning paths, no Java, Gradle, AGENTS,

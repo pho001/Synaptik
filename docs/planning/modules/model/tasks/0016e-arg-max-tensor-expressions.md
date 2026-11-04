@@ -486,7 +486,7 @@ package, [dependency](../../../../glossary.md#term-dependency), foundation, or a
 Planning validation:
 
 - `git diff --check` passed. A targeted trailing-whitespace scan found no matches in the three
-  changed planning paths, including this untracked task file.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  changed planning paths, including this untracked task file.
 - The canonical section scan found every required task section. The specification contains exact
   public/helper shapes, default/explicit policy mapping, numeric/result validation and order,
   package placement, ten-path limit, acceptance criteria, validation, clean-context implementation/

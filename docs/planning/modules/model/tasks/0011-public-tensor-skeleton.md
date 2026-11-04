@@ -57,7 +57,7 @@ association. The tensor remains public [API](../../../../glossary.md#term-applic
 - typed scalar/indexed access, typed bulk access, copy/export, conversion, mutation/version
   tracking, byte order, alignment, or direct memory operations<span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar); [byte order glossary](../../../../glossary.md#text-encoding-and-file-boundaries); [alignment glossary](../../../../glossary.md#term-alignment))</span>
 - storage allocation, resizing, slicing, copying, conversion, [ownership](../../../../glossary.md#term-ownership-meanings), retaining, closing,
-  `AutoCloseable`, [arena](../../../../glossary.md#term-arena) creation, [leases](../../../../glossary.md#term-lease), [pooling](../../../../glossary.md#term-pooling), or [materialization](../../../../glossary.md#materialization) policy
+  `AutoCloseable`, [arena](../../../../glossary.md#term-arena) creation, [leases](../../../../glossary.md#term-lease), pooling, or [materialization](../../../../glossary.md#materialization) policy
 - runtime residency, device buffers, backend storage, physical slots, transfers, prepared state,
   execution, backend support, kernel selection, or service lookup<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [residency glossary](../../../../glossary.md#residency); [device glossary](../../../../glossary.md#term-device); [buffers glossary](../../../../glossary.md#term-buffer); [backend glossary](../../../../glossary.md#backend); [kernel glossary](../../../../glossary.md#kernel); [lookup glossary](../../../../glossary.md#term-lookup))</span>
 - operation-family methods, compiler behavior, planning behavior, dependencies, new packages,

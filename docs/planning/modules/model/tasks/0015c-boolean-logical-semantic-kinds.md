@@ -412,7 +412,7 @@ Planning validation:
 - The required-section scan found every canonical task-specification section, including package
   impact, exact scope, validation, implementation handoff, decisions, limitations, and completion
   evidence sections.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [scope glossary](../../../../glossary.md#term-scope); [handoff glossary](../../../../glossary.md#term-handoff))</span>
-- The relative Markdown-[target](../../../../glossary.md#term-target) [scan](../../../../glossary.md#term-cumulative-scan) resolved every local `.md` link in this task, the model master
+- The relative Markdown-[target](../../../../glossary.md#term-target) scan resolved every local `.md` link in this task, the model master
   plan, and the roadmap. Markdown fence counts are balanced and no changed link uses an unresolved
   heading anchor.
 - Status inspection found 0015C [`Ready`](../../../../glossary.md#term-ready) in this specification, its linked model-master row, and

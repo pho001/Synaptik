@@ -240,7 +240,7 @@ wrap, suffix adjustment, or partial update.
 
 A selected zero length uses [canonical](../../../../glossary.md#term-canonical-form) start zero and maps no coordinates. Empty update values
 leave the base mathematically unchanged but still create one fresh explicit [occurrence](../../../../glossary.md#term-occurrence). Empty
-arrays [mean](../../../../glossary.md#term-mean) unrestricted full-shape replacement: update Shape must equal base Shape, every result
+arrays mean unrestricted full-shape replacement: update Shape must equal base Shape, every result
 value comes from update, and one fresh `SLICE_UPDATE` occurrence is still recorded.
 
 Every mapped update coordinate replaces exactly one base coordinate. Unique axes plus non-zero

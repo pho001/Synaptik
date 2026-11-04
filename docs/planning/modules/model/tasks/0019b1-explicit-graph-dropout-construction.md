@@ -190,7 +190,7 @@ public enum DropoutKind implements OperationKind {
 ```
 
 `DropoutAttrs` accepts a [finite](../../../../glossary.md#term-finite) [binary64](../../../../glossary.md#floating-point-precision-and-rounding) drop probability numerically in `[0.0, 1.0)`. Positive
-and [negative zero](../../../../glossary.md#nan-infinity-and-signed-zero) are both accepted, retained bit-for-bit by the record, and [mean](../../../../glossary.md#term-mean) zero [dropout](../../../../glossary.md#dropout--inverted-dropout).
+and [negative zero](../../../../glossary.md#nan-infinity-and-signed-zero) are both accepted, retained bit-for-bit by the record, and mean zero [dropout](../../../../glossary.md#dropout--inverted-dropout).
 [NaN](../../../../glossary.md#term-nan), either [infinity](../../../../glossary.md#term-infinity), negative finite values, and `1.0` or larger fail with:
 
 ```text

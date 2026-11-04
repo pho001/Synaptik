@@ -385,7 +385,7 @@ Manually verify:
   hashing, list-order sensitivity, and diagnostics;<span data-glossary-navigation="true"> ([sensitivity glossary](../../../../glossary.md#term-sensitivity))</span>
 - `javap -p -c` confirms exact fields, defensive `List.copyOf` snapshots, the specified local
   validations, direct scalar accessors, and record-generated equality, hashing, and text;<span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar))</span>
-- a production import [scan](../../../../glossary.md#term-cumulative-scan) finds no public [`Tensor`](../../../../glossary.md#tensor), [`TensorId`](../../../../glossary.md#tensorid), storage, compiler, planning,
+- a production import scan finds no public [`Tensor`](../../../../glossary.md#tensor), [`TensorId`](../../../../glossary.md#tensorid), storage, compiler, planning,
   runtime, prepare, backend, trace, or concrete operation-family dependency;<span data-glossary-navigation="true"> ([compiler glossary](../../../../glossary.md#term-compiler); [runtime glossary](../../../../glossary.md#term-runtime); [prepare glossary](../../../../glossary.md#prepare); [backend glossary](../../../../glossary.md#backend); [trace glossary](../../../../glossary.md#trace); [operation glossary](../../../../glossary.md#operation))</span>
 - no producer or consumer field, nullable operation sentinel, ID allocator, global uniqueness
   claim, serialization contract, graph-wide lookup, graph phase, publication binding, or graph

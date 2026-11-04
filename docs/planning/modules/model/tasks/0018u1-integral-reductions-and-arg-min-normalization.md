@@ -799,7 +799,7 @@ Planning validation:
 - The required-section scan found Status, goal/scope/exclusions, architecture/package contracts,
   exact affected files and maximum scope, Javadocs, acceptance, validation, dependencies,
   follow-ups, architecture impact, full implementation prompt, and all implementation-time
-  placeholders.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [scope glossary](../../../../glossary.md#term-scope))</span>
+  placeholders.<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope))</span>
 - Status/order checks found 0018U Complete, 0018U1 Ready and linked in this task/master/roadmap,
   and 0018V Draft with no detailed task file. Dependencies are complete and table order is
   unchanged.<span data-glossary-navigation="true"> ([Ready glossary](../../../../glossary.md#term-ready))</span>

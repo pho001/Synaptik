@@ -54,7 +54,7 @@ This task creates the complete semantic foundation consumed by task 0016H. It do
   axis, or no-axis form
 - value/storage access, allocation, copying, [materialization](../../../../glossary.md#materialization), mutation, [aliasing](../../../../glossary.md#term-aliasing), or execution
 - parallel prefix algorithm, work partitioning, associativity optimization, numerical
-  reproducibility, vectorization, fusion, cost, route, or kernel selection<span data-glossary-navigation="true"> ([reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance); [fusion glossary](../../../../glossary.md#term-fusion); [kernel glossary](../../../../glossary.md#kernel))</span>
+  reproducibility, vectorization, fusion, cost, route, or kernel selection<span data-glossary-navigation="true"> ([fusion glossary](../../../../glossary.md#term-fusion); [kernel glossary](../../../../glossary.md#kernel))</span>
 - empty-[axis](../../../../glossary.md#term-axis) execution, [NaN](../../../../glossary.md#term-nan), [infinity](../../../../glossary.md#term-infinity), [signed zero](../../../../glossary.md#term-signed-zero), [overflow](../../../../glossary.md#term-overflow), [underflow](../../../../glossary.md#term-underflow), or numerical error policy
 - [gradients](../../../../glossary.md#term-gradient), backward [scan](../../../../glossary.md#term-cumulative-scan) semantics, gradient rules, [autograd](../../../../glossary.md#autograd), [optimizer](../../../../glossary.md#term-optimizer), or training behavior
 - operation factory, compatibility validator, registry, parser, visitor, string dispatch, arity or
@@ -219,7 +219,7 @@ Document this valid pairing without adding generic compatibility [validation](..
 new Operation(CumulativeSumKind.CUM_SUM, attrs)
 ```
 
-The four attribute combinations [mean](../../../../glossary.md#term-mean):
+The four attribute combinations mean:
 
 - `(exclusive=false, reverse=false)` — inclusive forward prefix;
 - `(exclusive=true, reverse=false)` — exclusive forward prefix with zero at the lowest index;

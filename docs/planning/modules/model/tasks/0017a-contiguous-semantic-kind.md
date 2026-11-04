@@ -432,7 +432,7 @@ Planning validation after synchronizing this task, the model master plan, and ro
 
 - `git diff --check` passed.
 - The targeted trailing-whitespace scan returned no matches across the three changed planning
-  files.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  files.
 - All 180 local Markdown file links across the three planning files resolve.
 - Markdown code-fence counts are balanced: twelve in this task, two in the master plan, and zero
   in the roadmap.

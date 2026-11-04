@@ -39,7 +39,7 @@ type](../../../../glossary.md#data-type--datatype), backend support, or executio
 
 - Admit all 36 ordered source/[target](../../../../glossary.md#term-target) pairs: six same-type pairs and all 30 cross-type pairs.
 - Preserve every same-type raw represented bit, including signed zero and every NaN sign,
-  quiet/signaling state, and payload.<span data-glossary-navigation="true"> ([signed zero glossary](../../../../glossary.md#term-signed-zero); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication))</span>
+  quiet/signaling state, and payload.<span data-glossary-navigation="true"> ([signed zero glossary](../../../../glossary.md#term-signed-zero))</span>
 - Define exact floating-to-floating rounding, overflow, underflow, infinity, signed-zero, and NaN
   behavior, including direct <span data-glossary-navigation="true"> ([rounding glossary](../../../../glossary.md#term-rounding); [overflow glossary](../../../../glossary.md#term-overflow); [underflow glossary](../../../../glossary.md#term-underflow); [infinity glossary](../../../../glossary.md#term-infinity); [signed-zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>`FLOAT64 -> BFLOAT16` conversion without a [`FLOAT32`](../../../../glossary.md#term-float32) intermediate.
 - Define exact signed integral [widening](../../../../glossary.md#term-widening)/[narrowing](../../../../glossary.md#term-narrowing) and all floating/integral conversions.
@@ -176,7 +176,7 @@ class independently auditable; they do not add another conversion mode.
 ### Floating [NaN](../../../../glossary.md#term-nan) policy
 
 Same-type casts preserve the complete raw pattern. Cross-floating [narrowing](../../../../glossary.md#term-narrowing) is lossy and maps
-every source NaN, regardless of sign, signaling/quiet bit, or [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication), to the positive [canonical](../../../../glossary.md#term-canonical-form)
+every source NaN, regardless of sign, signaling/quiet bit, or payload, to the positive [canonical](../../../../glossary.md#term-canonical-form)
 quiet [target](../../../../glossary.md#term-target) pattern:
 
 | Target | Canonical NaN bits |
@@ -420,7 +420,7 @@ stop and propose a follow-up task.
 - Every cross-floating finite, zero, infinity, overflow, underflow, and NaN rule above is covered at
   raw-bit level, including direct binary64-to-BFLOAT16 double-rounding counterexamples.<span data-glossary-navigation="true"> ([finite glossary](../../../../glossary.md#term-finite); [infinity glossary](../../../../glossary.md#term-infinity); [overflow glossary](../../../../glossary.md#term-overflow); [underflow glossary](../../../../glossary.md#term-underflow); [NaN glossary](../../../../glossary.md#term-nan); [binary64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [rounding glossary](../../../../glossary.md#term-rounding))</span>
 - Lossy NaNs produce exactly the three canonical patterns; widening NaNs implement exactly the
-  three left-aligned mappings and preserve sign, quiet/signaling state, and payload.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [widening glossary](../../../../glossary.md#term-widening); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication))</span>
+  three left-aligned mappings and preserve sign, quiet/signaling state, and payload.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [widening glossary](../../../../glossary.md#term-widening))</span>
 - Integral sign extension, low-32-bit narrowing, integer-to-floating RNE, floating truncation/
   saturation, NaN-to-zero, and infinity saturation match the exact boundaries and examples above.<span data-glossary-navigation="true"> ([sign extension glossary](../../../../glossary.md#term-sign-extension); [narrowing glossary](../../../../glossary.md#term-narrowing); [truncation glossary](../../../../glossary.md#term-truncation-toward-zero); [saturation glossary](../../../../glossary.md#term-saturation))</span>
 - Boolean conversions match positive 0/1 and numeric truthiness for signed zero, subnormal,
@@ -575,7 +575,7 @@ criterion and the documentation pass are complete.
 
 - The owner-approved policy fixes positive canonical quiet NaNs for lossy narrowing and
   left-aligned fraction mapping for lossless widening; no implementation discretion remains over
-  NaN sign/payload behavior.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [canonical glossary](../../../../glossary.md#term-canonical-form); [narrowing glossary](../../../../glossary.md#term-narrowing); [widening glossary](../../../../glossary.md#term-widening); [NaN glossary](../../../../glossary.md#term-nan); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication))</span>
+  NaN sign/payload behavior.<span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [canonical glossary](../../../../glossary.md#term-canonical-form); [narrowing glossary](../../../../glossary.md#term-narrowing); [widening glossary](../../../../glossary.md#term-widening); [NaN glossary](../../../../glossary.md#term-nan))</span>
 - A single public `CastValueConversions` scalar reference is justified by the current 30-pair
   semantic test matrix and immediate CPU conformance dependency. A test-only duplicate would not
   provide a shared oracle, while backend use in an element loop would violate the performance and

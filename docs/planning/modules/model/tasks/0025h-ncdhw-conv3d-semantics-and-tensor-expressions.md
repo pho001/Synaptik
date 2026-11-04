@@ -115,7 +115,7 @@ meaning, and [provenance](../../../../glossary.md#provenance) only; later [Compi
 - [`Tensor`](../../../../glossary.md#tensor) remains the public fluent receiver facade. The helper depends only on existing Model
   datatype, operation, Shape, descriptor, factory, and provenance contracts.<span data-glossary-navigation="true"> ([facade glossary](../../../../glossary.md#term-facade))</span>
 - [`CONV3D`](../../../../glossary.md#conv3d--ncdhw) is one ordinary flat one-output semantic operation. It has no region, subgraph,
-  decomposition, hidden auxiliary, backend payload, execution state, or generated implementation.<span data-glossary-navigation="true"> ([decomposition glossary](../../../../glossary.md#term-decomposition); [backend glossary](../../../../glossary.md#backend); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication))</span>
+  decomposition, hidden auxiliary, backend payload, execution state, or generated implementation.<span data-glossary-navigation="true"> ([decomposition glossary](../../../../glossary.md#term-decomposition); [backend glossary](../../../../glossary.md#backend))</span>
 - Every successful call creates one [immutable](../../../../glossary.md#term-immutable) [`Operation`](../../../../glossary.md#operation), one [`TensorProducer`](../../../../glossary.md#producer--tensorproducer), one descriptor,
   and the producer-owned canonical output wrapper through the existing <span data-glossary-navigation="true"> ([producer glossary](../../../../glossary.md#term-producer); [canonical glossary](../../../../glossary.md#term-canonical-form))</span>`TensorFactory` seam.
 - Ordered inputs are exact Tensor references. Attributes are retained by exact reference.

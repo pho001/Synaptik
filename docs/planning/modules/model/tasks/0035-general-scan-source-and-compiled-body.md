@@ -31,7 +31,7 @@ Class C — public source-body [API](../../../../glossary.md#term-application-pr
 
 ## Goal
 
-Deliver an independently reviewable [Model](../../../../glossary.md#term-model) foundation: reusable source bodies, [canonical](../../../../glossary.md#term-canonical-form) [scan](../../../../glossary.md#term-cumulative-scan)
+Deliver an independently reviewable [Model](../../../../glossary.md#term-model) foundation: reusable source bodies, [canonical](../../../../glossary.md#term-canonical-form) scan
 results/[residual](../../../../glossary.md#scan-residual-port-and-history-demand) ports and structurally validated compiled-body attachments. Construction describes
 meaning; it does not [capture](../../../../glossary.md#term-capture-meanings), differentiate, [prepare](../../../../glossary.md#prepare) or execute a scan.
 
@@ -59,7 +59,7 @@ Read these exact headings, not unrelated contracts or completed task histories:
   producer ownership, immutable records and scalar-only attributes.<span data-glossary-navigation="true"> ([producer glossary](../../../../glossary.md#term-producer); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [immutable glossary](../../../../glossary.md#term-immutable); [scalar glossary](../../../../glossary.md#term-scalar))</span>
 - Recurrent [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>,
   including **Source body, attachments and scoped [identities](../../../../glossary.md#term-identity-meanings)**, **[Canonical](../../../../glossary.md#term-canonical-form) [residual](../../../../glossary.md#scan-residual-port-and-history-demand) ports and demand**,
-  **Reverse [scan](../../../../glossary.md#term-cumulative-scan) and exact [primal](../../../../glossary.md#term-primal) [bindings](../../../../glossary.md#term-binding)**, **Traversal, empty domains and declared [qualification](../../../../glossary.md#term-qualification)**,
+  **Reverse scan and exact [primal](../../../../glossary.md#term-primal) [bindings](../../../../glossary.md#term-binding)**, **Traversal, empty domains and declared [qualification](../../../../glossary.md#term-qualification)**,
   and **Qualification, performance and migration gates**: sole complete scan semantic [owner](../../../../glossary.md#term-owner).
 
 If a new contract conflict appears, stop and report it. The following choices were approved and
@@ -80,7 +80,7 @@ User approved both choices on 2026-10-22; authority review/main acceptance prece
 
 - Depends on: Model0034 Complete, including independent authority APPROVE and main acceptance (2026-10-21).
 - Conflicts with: scan source/IR/roles/residuals, shared authority/docs, and downstream query/AD/capture/
-  projection/backend/NN/persistence scan changes; serialize all overlapping work.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [AD glossary](../../../../glossary.md#autograd); [capture glossary](../../../../glossary.md#term-capture-meanings); [backend glossary](../../../../glossary.md#backend); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [persistence glossary](../../../../glossary.md#term-persistence))</span>
+  projection/backend/NN/persistence scan changes; serialize all overlapping work.<span data-glossary-navigation="true"> ([IR glossary](../../../../glossary.md#term-intermediate-representation-ir); [AD glossary](../../../../glossary.md#autograd); [capture glossary](../../../../glossary.md#term-capture-meanings); [backend glossary](../../../../glossary.md#backend); [NN glossary](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context); [persistence glossary](../../../../glossary.md#term-persistence))</span>
 - Parallel group: None.
 - Common base revision: `6da23a0b42f015979a88f5e84416799f5ada3f40` (HEAD=origin/main), plus accepted
   uncommitted Model0034 authority/planning work; do not treat dirty accepted work as a merged commit.<span data-glossary-navigation="true"> ([planning glossary](../../../../glossary.md#term-planning); [commit glossary](../../../../glossary.md#term-commit))</span>
@@ -114,7 +114,7 @@ subsequently satisfied. Accepted dirty work and the three protected files were p
   ScanBodyTest, ScanExpressionTest, ScanResultTest, ScanSemanticsTest, CompiledScanBodyTest;
   update TensorProducerTest/CompiledNodeTest and focused compatibility coverage.
 - Documentation: affected [Javadoc](../../../../glossary.md#term-javadoc), `docs/api/tensor-api.md`, focused general-scan explanation and
-  targeted glossary entries; main owns master/program/roadmap integration, including delegated closure.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  targeted glossary entries; main owns master/program/roadmap integration, including delegated closure.
 
 ## Acceptance criteria
 
@@ -131,7 +131,7 @@ subsequently satisfied. Accepted dirty work and the three protected files were p
 - Reuse one immutable body/producers across distinct scan occurrences. Never unroll by T or retain a
   callback. Derive identity-unique latent residual inventory deterministically by producer postorder/
   ascending sibling slots, including unused siblings and previous carry; exclude step/invariant formals.
-  Previous-carry residual meaning is pre-step; emission/history indices are original-time aligned.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [callback glossary](../../../../glossary.md#term-callback); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>
+  Previous-carry residual meaning is pre-step; emission/history indices are original-time aligned.<span data-glossary-navigation="true"> ([callback glossary](../../../../glossary.md#term-callback); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>
 - Original producer reserves every distinct canonical wrapper in final-carry/emission/residual order
   before public return. Duplicate role bindings do not merge outer wrappers. ScanResult groups exact
   canonical immutable lists. No storage/history allocation, producer replacement or postcapture extension.<span data-glossary-navigation="true"> ([bindings glossary](../../../../glossary.md#term-binding))</span>
@@ -209,7 +209,7 @@ glossary/Java changes. API example [validation](../../../../glossary.md#term-val
 - Main's exact Validation commands all PASS: five-module compileTestJava (5s, 16 tasks: 10 executed,
   six up-to-date); architecture (five suites/seven tests; 2s, 27 tasks: 12/15); fixed-scan integration
   (one suite/five tests; 3s, 42 tasks: 3/39), zero failures/errors/skips. Existing unchecked javac note
-  and FFM native-access/incubator-vector warnings only.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [FFM glossary](../../../../glossary.md#term-ffm); [vector glossary](../../../../glossary.md#term-vector))</span>
+  and FFM native-access/incubator-vector warnings only.<span data-glossary-navigation="true"> ([FFM glossary](../../../../glossary.md#term-ffm); [vector glossary](../../../../glossary.md#term-vector))</span>
 - Main's final 110-file hash comparison differed only in eight reviewer-declared Javadoc files;
   protected hashes/index/HEAD and <span data-glossary-navigation="true"> ([hash glossary](../../../../glossary.md#term-hash))</span>`git diff --check` passed. [Planning](../../../../glossary.md#term-planning) closure synchronizes seven files.
 - Limits: source/IR only, not whole generic scan; no capture/query/AD/Prepare/execution/training/

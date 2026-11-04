@@ -43,7 +43,7 @@ surface. Add one non-instantiable static `TensorFactory` that accepts a complete
 - scalar, zeros, ones, zeros-like, ones-like, random, range, flat-array, nested-array, strict-prefix,
   cyclic-prefix, fill, copy, conversion, or typed-access methods<span data-glossary-navigation="true"> ([scalar glossary](../../../../glossary.md#term-scalar))</span>
 - storage allocation, [`Arena`](../../../../glossary.md#term-arena) creation, segment allocation, implicit `MemorySegmentStorage`
-  construction, owned storage, lifetime extension, closing, retaining, pooling, or <span data-glossary-navigation="true"> ([lifetime glossary](../../../../glossary.md#term-lifetime); [pooling glossary](../../../../glossary.md#term-pooling))</span>`AutoCloseable`
+  construction, owned storage, lifetime extension, closing, retaining, pooling, or <span data-glossary-navigation="true"> ([lifetime glossary](../../../../glossary.md#term-lifetime))</span>`AutoCloseable`
 - a public constructor, instance factory, builder, allocator interface, allocator object, registry,
   service locator, dependency injection, reset hook, test hook, seed, exposed counter, raw next ID,
   or caller-supplied <span data-glossary-navigation="true"> ([registry glossary](../../../../glossary.md#term-registry); [service locator glossary](../../../../glossary.md#term-service-locator); [dependency injection glossary](../../../../glossary.md#term-dependency-injection); [seed glossary](../../../../glossary.md#term-seed))</span>[`TensorId`](../../../../glossary.md#tensorid)

@@ -258,7 +258,7 @@ With one sentinel:
 - require `inputShape.knownElementCount()` to be present, otherwise fail with
   `cannot infer -1 from dynamic input shape <inputShape>`;
 - compute the checked product of all non-sentinel dimensions after the full value/sentinel scan;
-  if any such dimension is zero, the known product is zero without multiplying other values;<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  if any such dimension is zero, the known product is zero without multiplying other values;
 - reject zero known product with
   `cannot infer -1 when known requested dimensions have product zero`;
 - require exact divisibility, otherwise fail with
@@ -396,7 +396,7 @@ method, [dependency](../../../../glossary.md#term-dependency), cross-layer behav
 - Each public overload delegates exactly once to the matching helper overload.
 - The helper is package-private final/stateless with one private constructor and exactly the six
   specified methods, visibilities, parameters, and return types.<span data-glossary-navigation="true"> ([parameters glossary](../../../../glossary.md#term-parameter))</span>
-- Null checks, raw-request [scan](../../../../glossary.md#term-cumulative-scan), `-1` inference, count validation, view resolution, and construction
+- Null checks, raw-request scan, `-1` inference, count validation, view resolution, and construction
   follow the exact documented order and messages.<span data-glossary-navigation="true"> ([inference glossary](../../../../glossary.md#term-inference); [validation glossary](../../../../glossary.md#term-validation); [view glossary](../../../../glossary.md#term-view-meanings))</span>
 - Raw arrays are neither retained nor mutated; exact [Shape](../../../../glossary.md#shape) overload references are retained.
 - Empty varargs produce [scalar](../../../../glossary.md#term-scalar) Shape; zero extents are accepted; one inferable `-1` works; invalid
@@ -444,7 +444,7 @@ offset [view](../../../../glossary.md#term-view-meanings) [layouts](../../../../
 early failure ID non-consumption; and final identifier exhaustion.
 
 Manually inspect `javap -p -c -s`, reflection, imports, and source. Confirm two one-call public
-delegations; exact six-method stateless helper; no hidden overload; one request [scan](../../../../glossary.md#term-cumulative-scan); one count
+delegations; exact six-method stateless helper; no hidden overload; one request scan; one count
 validation path; one view-layout decision; one [descriptor](../../../../glossary.md#term-descriptor)/attributes/Operation/provenance/factory
 path; and no value copy, [host](../../../../glossary.md#term-host) allocation, storage access, [graph](../../../../glossary.md#graph)/[compiler](../../../../glossary.md#term-compiler)/[planning](../../../../glossary.md#term-planning)/[prepare](../../../../glossary.md#prepare)/[runtime](../../../../glossary.md#term-runtime)/
 [backend](../../../../glossary.md#backend) type, [gradient](../../../../glossary.md#term-gradient) rule, [registry](../../../../glossary.md#term-registry), [cache](../../../../glossary.md#term-cache), service, or hidden [materialization](../../../../glossary.md#materialization). Validate generated
@@ -586,7 +586,7 @@ Planning validation after synchronizing this task, the model master plan, and ro
 
 - `git diff --check` passed.
 - The targeted trailing-whitespace scan returned no matches across the three changed planning
-  files.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  files.
 - All 196 local Markdown file links across the three planning files resolve.
 - Markdown code-fence counts are balanced: twelve in this task, two in the master plan, and zero
   in the roadmap.

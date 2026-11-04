@@ -612,7 +612,7 @@ Documentation context: `/root/implement_0023f/document_0023f`, applying the Gene
   Javadoc contains the one-through-two-output kind contract, the exact result record, and all four
   `scaledDotProductAttentionWithWeights` forms. An initial generated-page scan used an inapplicable
   module-qualified output prefix after the successful reflection check and reported missing paths;
-  the corrected scan used the actual generated paths and passed.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [module glossary](../../../../glossary.md#term-module))</span>
+  the corrected scan used the actual generated paths and passed.<span data-glossary-navigation="true"> ([module glossary](../../../../glossary.md#term-module))</span>
 - `javac --release 26 -cp modules/model/build/classes/java/main -d
   /tmp/synaptik-attention-weights-doc-example /tmp/AttentionWeightsMetadataExample.java` and the
   matching `java` command passed. Output was exact [Shapes](../../../../glossary.md#shape) `Shape[2, 4, 10]` and

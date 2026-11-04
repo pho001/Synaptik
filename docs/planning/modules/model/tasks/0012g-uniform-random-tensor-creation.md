@@ -17,7 +17,7 @@ Extend the completed explicit-source random factory with one method for dense fl
 sampled from a continuous [uniform distribution](../../../../glossary.md#term-uniform-distribution) over a caller-supplied [half-open interval](../../../../glossary.md#term-half-open-interval).
 
 The task reuses task 0012F's caller-owned `RandomGenerator`, static dense [descriptor](../../../../glossary.md#term-descriptor), [carrier](../../../../glossary.md#term-storage-carrier),
-flat-import, [reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance), and failure-side-effect policies without adding random services or
+flat-import, reproducibility, and failure-side-effect policies without adding random services or
 another package.
 
 ## [Scope](../../../../glossary.md#term-scope)
@@ -73,7 +73,7 @@ another package.
 - [Task 0012](0012-tensor-factory.md)
 - [Task 0012B](0012b-flat-typed-tensor-import.md)
 - [Task 0012F](0012f-random-tensor-creation.md), authoritative prerequisite for random-source and
-  reproducibility policy<span data-glossary-navigation="true"> ([reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance))</span>
+  reproducibility policy
 - [Tensor API](../../../../api/tensor-api.md)<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span> and [glossary](../../../../glossary.md)
 
 ## Architecture constraints
@@ -183,7 +183,7 @@ bound or lower-rounded representable value. This is conversion behavior, not a c
 A custom non-conforming generator result is not post-validated. The source and carrier are not
 retained.
 
-### [Ownership](../../../../glossary.md#term-ownership-meanings), [reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance), and failure effects
+### [Ownership](../../../../glossary.md#term-ownership-meanings), reproducibility, and failure effects
 
 - Reuse task 0012F policy: caller owns/configures source; no cross-algorithm/provider/JDK promise;
   no synchronization; equivalent results require equivalent source state and no interference.<span data-glossary-navigation="true"> ([JDK glossary](../../../../glossary.md#term-java-development-kit-jdk); [synchronization glossary](../../../../glossary.md#term-synchronization))</span>
@@ -240,7 +240,7 @@ not create detailed task 0012H/0012I/0013 specs. Stop if scope or architecture m
 
 - Update TensorFactory type Javadoc and fully document `randomUniform(...)` bounds, binary64
   half-open semantics, narrowing caveat, types, shape, source ownership/reproducibility/threading,
-  call count, label/gradient, result, failures, allocation, and ID effects.<span data-glossary-navigation="true"> ([binary64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [half-open glossary](../../../../glossary.md#term-half-open-interval); [narrowing glossary](../../../../glossary.md#term-narrowing); [shape glossary](../../../../glossary.md#shape); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance); [gradient glossary](../../../../glossary.md#term-gradient))</span>
+  call count, label/gradient, result, failures, allocation, and ID effects.<span data-glossary-navigation="true"> ([binary64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [half-open glossary](../../../../glossary.md#term-half-open-interval); [narrowing glossary](../../../../glossary.md#term-narrowing); [shape glossary](../../../../glossary.md#shape); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [gradient glossary](../../../../glossary.md#term-gradient))</span>
 - Finalize the new helper entry/private implementation Javadocs without changing normal contracts.
 - Explain why no new package, source abstraction, [seed](../../../../glossary.md#term-seed) [API](../../../../glossary.md#term-application-programming-interface-api), or [distribution](../../../../glossary.md#term-distribution) enum is introduced.
 - Review existing normal/BFLOAT16/type/shape/layout/descriptor/Tensor/storage Javadocs and record
@@ -286,7 +286,7 @@ whitespace/status, exact ten paths, and absence of later detailed specs.
 
 ## Dependencies
 
-- Task 0012F defines and implements source/[reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance)/random helper policy.
+- Task 0012F defines and implements source/reproducibility/random helper policy.
 - Task 0012B supplies typed copied flat import.
 - Foundational datatype/[shape](../../../../glossary.md#shape)/[layout](../../../../glossary.md#layout)/[descriptor](../../../../glossary.md#term-descriptor)/storage/[Tensor](../../../../glossary.md#tensor) tasks remain complete.
 
@@ -345,7 +345,7 @@ status only after both passes. Leave 0012H Draft without a spec. Do not commit o
 
 - Floating uniform output only, static Java-array-sized [shapes](../../../../glossary.md#shape) only.
 - [Half-open](../../../../glossary.md#term-half-open-interval) guarantee is on [binary64](../../../../glossary.md#floating-point-precision-and-rounding) source [samples](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters) before [narrowing](../../../../glossary.md#term-narrowing).
-- No source [synchronization](../../../../glossary.md#term-synchronization) or cross-algorithm/provider/[JDK](../../../../glossary.md#term-java-development-kit-jdk) [reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance).
+- No source [synchronization](../../../../glossary.md#term-synchronization) or cross-algorithm/provider/[JDK](../../../../glossary.md#term-java-development-kit-jdk) reproducibility.
 - No defaults, [seeds](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings), other [distributions](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings), random Operations, typed access, or [runtime](../../../../glossary.md#term-runtime) generation.
 
 ## [Validation](../../../../glossary.md#term-validation) evidence
@@ -407,7 +407,7 @@ Documentation validation used clean context
 master plan, and roadmap; General style and Example format were also applied. The pass read the
 [architecture contract](../../../../glossary.md#architecture-contract) and focused [model](../../../../glossary.md#term-model)-boundary explanations, inspected the final implementation
 and all affected tests directly, and finalized bounds, binary64 [half-open](../../../../glossary.md#term-half-open-interval) semantics, [narrowing](../../../../glossary.md#term-narrowing),
-source [ownership](../../../../glossary.md#term-ownership-meanings), threading, [reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance), call order/count, validation messages, allocation,
+source [ownership](../../../../glossary.md#term-ownership-meanings), threading, reproducibility, call order/count, validation messages, allocation,
 and ID effects in Javadocs and the public reference. It also made uniform creation current in the
 existing Tensor and [Tensor factory](../../../../glossary.md#tensor-factory) glossary entries. No new glossary term was warranted because
 continuous [uniform distribution](../../../../glossary.md#term-uniform-distribution) and caller-owned `RandomGenerator` are ordinary mathematical and
@@ -433,7 +433,7 @@ or end-to-end execution behavior. Architecture impact is therefore None.
   call per row-major element and delegates once to matching flat import.<span data-glossary-navigation="true"> ([validation glossary](../../../../glossary.md#term-validation); [canonical glossary](../../../../glossary.md#term-canonical-form); [descriptor glossary](../../../../glossary.md#term-descriptor); [shapes glossary](../../../../glossary.md#shape); [samples glossary](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters); [carrier glossary](../../../../glossary.md#term-storage-carrier); [row-major glossary](../../../../glossary.md#term-row-major); [element glossary](../../../../glossary.md#term-element))</span>
 - Focused tests cover API/helper shape, exact bounded arguments/order/count, all three conversions,
   the narrowed-upper-bound caveat, scalar and empty shapes, validation order/messages, label and
-  identifier side effects, bounded reproducibility, non-retention, and source exceptions.<span data-glossary-navigation="true"> ([arguments glossary](../../../../glossary.md#term-argument); [scalar glossary](../../../../glossary.md#term-scalar); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance))</span>
+  identifier side effects, bounded reproducibility, non-retention, and source exceptions.<span data-glossary-navigation="true"> ([arguments glossary](../../../../glossary.md#term-argument); [scalar glossary](../../../../glossary.md#term-scalar))</span>
 - The independent clean-context documentation pass finalized Javadocs, the Tensor API example,
   glossary impact, and synchronized planning status before completion.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [planning glossary](../../../../glossary.md#term-planning))</span>
 

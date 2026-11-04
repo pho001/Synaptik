@@ -300,7 +300,7 @@ separation from a private test enum with equal `ADD` text.
 
 Manually inspect `javap -p -c -s` and reflection for exact enum [shape](../../../../glossary.md#shape), seven [constants](../../../../glossary.md#term-constant), only
 [compiler](../../../../glossary.md#term-compiler)-generated static enum machinery, no extra state/[API](../../../../glossary.md#term-application-programming-interface-api), inherited `name`, and Operation
-composition. [Scan](../../../../glossary.md#term-cumulative-scan) imports/dependencies for forbidden layers. Validate generated [Javadoc](../../../../glossary.md#term-javadoc), production
+composition. Scan imports/dependencies for forbidden layers. Validate generated [Javadoc](../../../../glossary.md#term-javadoc), production
 example/current-versus-planned wording, glossary status, local links/anchors/fences/whitespace,
 exact seven paths, synchronized status, and absence of a task-0014B specification.
 

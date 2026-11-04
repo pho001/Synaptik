@@ -1,4 +1,4 @@
-# Task Model0038: Length-aware [Scan](../../../../glossary.md#term-cumulative-scan) source/[IR](../../../../glossary.md#term-intermediate-representation-ir) foundation
+# Task Model0038: Length-aware Scan source/[IR](../../../../glossary.md#term-intermediate-representation-ir) foundation
 
 **Editorial reading key (current context, not a status update).**
 
@@ -47,7 +47,7 @@ Read AGENTS.md and root [scope](../../../../glossary.md#term-scope) index, [Core
 [Dependency rules](../../../../../ARCHITECTURE.md#dependency-rules)<span data-glossary-navigation="true"> ([Dependency glossary](../../../../glossary.md#term-dependency))</span>,
 [Documentation authority and architecture updates](../../../../../ARCHITECTURE.md#documentation-authority-and-architecture-updates),
 [Testing requirements](../../../../../ARCHITECTURE.md#testing-requirements).
-Read recurrent-[scan](../../../../glossary.md#term-cumulative-scan) [Source body, attachments and scoped identities](../../../../architecture/contracts/recurrent-scan.md#source-body-attachments-and-scoped-identities)<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span>,
+Read recurrent-scan [Source body, attachments and scoped identities](../../../../architecture/contracts/recurrent-scan.md#source-body-attachments-and-scoped-identities)<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span>,
 [Canonical residual ports and demand](../../../../architecture/contracts/recurrent-scan.md#canonical-residual-ports-and-demand)<span data-glossary-navigation="true"> ([Canonical glossary](../../../../glossary.md#term-canonical-form); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>,
 and [Length-aware whole-batch scan](../../../../architecture/contracts/recurrent-scan.md#length-aware-whole-batch-scan)<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>
 with every subheading: Header, Bounded row-role analysis, Activity/histories, First-order reverse,
@@ -66,7 +66,7 @@ Stop on a concrete conflict; do not reinterpret the accepted design or invent ar
 - Depends on: Model0037 Complete after independent Class C approval and MAIN acceptance;
   accepted Model0035 and its downstream baseline remain Complete.
 - Conflicts with: scan API/roles/AD/inference/cold/Prepare/CPU/codec writers and NN0032 migration;
-  all shared authority/planning/explanation edits. Serialize; MAIN verified no other writer at Ready.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [AD glossary](../../../../glossary.md#autograd); [inference glossary](../../../../glossary.md#term-inference); [Prepare glossary](../../../../glossary.md#prepare); [CPU glossary](../../../../glossary.md#term-cpu); [codec glossary](../../../../glossary.md#term-codec); [planning glossary](../../../../glossary.md#term-planning))</span>
+  all shared authority/planning/explanation edits. Serialize; MAIN verified no other writer at Ready.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [AD glossary](../../../../glossary.md#autograd); [inference glossary](../../../../glossary.md#term-inference); [Prepare glossary](../../../../glossary.md#prepare); [CPU glossary](../../../../glossary.md#term-cpu); [codec glossary](../../../../glossary.md#term-codec); [planning glossary](../../../../glossary.md#term-planning))</span>
 - Parallel group: None.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` plus
   297 accepted dirty baseline paths / 2425 Git-listed files plus 15 accepted authority deltas
@@ -126,7 +126,7 @@ Only these downstream production files may change, for explicit rejection/Javado
 
 ## Acceptance criteria
 
-- Old seven-[argument](../../../../glossary.md#term-argument) ScanAttrs and five-argument [Scan](../../../../glossary.md#term-cumulative-scan).apply select `(0, empty)` all-valid, with
+- Old seven-[argument](../../../../glossary.md#term-argument) ScanAttrs and five-argument Scan.apply select `(0, empty)` all-valid, with
   old counts/descriptors/canonical wrappers/flags/PURE/type inventory intact. New record equality,
   hash/text/reflection shape is not promised unchanged; no key may derive from changed record text.<span data-glossary-navigation="true"> ([descriptors glossary](../../../../glossary.md#term-descriptor); [canonical glossary](../../../../glossary.md#term-canonical-form); [PURE glossary](../../../../glossary.md#term-pure); [hash glossary](../../../../glossary.md#term-hash); [shape glossary](../../../../glossary.md#shape))</span>
 - New attrs validates positive bounded rowCarryCount, exact immutable/non-null ordered axes,
@@ -142,7 +142,7 @@ Only these downstream production files may change, for explicit rejection/Javado
   rank-two products/transposes and normalized SUM axes. ROW0 reshape preserves B and checked
   trailing feature product; expand/rank edits affect trailing features only; no ROW1 shape edits.
   Never infer a role from rank, requiresGrad or equal extents, including B=F/1/0. Explicitly test
-  ROW0 <span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [broadcasting glossary](../../../../glossary.md#broadcasting); [feature glossary](../../../../glossary.md#term-software-feature))</span>`[1,H]` + SHARED `[1,H]` accepted; non-[singleton](../../../../glossary.md#term-singleton) shared row-[axis](../../../../glossary.md#term-axis) broadcast rejects.
+  ROW0 <span data-glossary-navigation="true"> ([owner glossary](../../../../glossary.md#term-owner); [broadcasting glossary](../../../../glossary.md#broadcasting); [feature glossary](../../../../glossary.md#term-feature))</span>`[1,H]` + SHARED `[1,H]` accepted; non-[singleton](../../../../glossary.md#term-singleton) shared row-[axis](../../../../glossary.md#term-axis) broadcast rejects.
 - Row-reduced dependencies are terminal shared contributions only, never broadcast back into
   row feedback/emissions. Shared suffix formal occurs solely as exact old/left operand of its
   own matching old.add(contribution) root; contribution is free of every shared carry formal.

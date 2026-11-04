@@ -57,7 +57,7 @@ arrays, expose backing arrays, add tensor element access, or define [view](../..
 - public typed reads/writes, bulk export, copies from tensors, conversion methods, or a general
   storage-access API<span data-glossary-navigation="true"> ([tensors glossary](../../../../glossary.md#tensor); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - a new storage type, native/[off-heap](../../../../glossary.md#term-off-heap-memory)/mapped allocation, [`Arena`](../../../../glossary.md#term-arena), close behavior, pooling, or
-  backend/runtime storage<span data-glossary-navigation="true"> ([pooling glossary](../../../../glossary.md#term-pooling); [backend glossary](../../../../glossary.md#backend); [runtime glossary](../../../../glossary.md#term-runtime))</span>
+  backend/runtime storage<span data-glossary-navigation="true"> ([backend glossary](../../../../glossary.md#backend); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 - provenance, operations, graph IDs, gradients, trainable/publication state, compiler, planning,
   prepare, runtime, engine, backend, device, residency, or execution behavior<span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance); [graph glossary](../../../../glossary.md#graph); [gradients glossary](../../../../glossary.md#term-gradient); [publication glossary](../../../../glossary.md#term-publication); [compiler glossary](../../../../glossary.md#term-compiler); [planning glossary](../../../../glossary.md#term-planning); [prepare glossary](../../../../glossary.md#prepare); [engine glossary](../../../../glossary.md#term-engine); [device glossary](../../../../glossary.md#term-device); [residency glossary](../../../../glossary.md#residency))</span>
 - dependencies, preview/incubator [features](../../../../glossary.md#term-software-feature), [Gradle](../../../../glossary.md#term-gradle) changes, architecture changes, or another [module](../../../../glossary.md#term-module)
@@ -372,7 +372,7 @@ and absence of task-0012C/task-0013 specs.
 - Task 0012C will define nested typed import and rectangular [shape](../../../../glossary.md#shape) [inference](../../../../glossary.md#term-inference).
 - Task 0012D will define [scalar](../../../../glossary.md#term-scalar) and [constant](../../../../glossary.md#term-constant) conveniences.
 - Task 0012E will define ranges and prefix population.
-- Task 0012F will define random creation and [reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance) policy.
+- Task 0012F will define random creation and reproducibility policy.
 - Later work owns typed export/access, mutation versions, [views](../../../../glossary.md#term-view-meanings)/scatter, [provenance](../../../../glossary.md#provenance), and operations.
 
 Do not create a detailed task-0012C specification as part of task 0012B.

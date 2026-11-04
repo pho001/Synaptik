@@ -198,7 +198,7 @@ This task records [operation](../../../../glossary.md#operation) meaning but add
 - `ADD`, `SUB`, `MUL`, and `DIV` mean the ordinary ordered IEEE-754 floating operation in the
   result data type. NaN, infinity, signed-zero, overflow, and underflow classifications follow
   that operation. No NaN payload, exact machine instruction, intermediate precision, or bitwise
-  reproducibility is promised by this model-only task.<span data-glossary-navigation="true"> ([mean glossary](../../../../glossary.md#term-mean); [IEEE glossary](../../../../glossary.md#term-ieee); [operation glossary](../../../../glossary.md#operation); [data type glossary](../../../../glossary.md#data-type--datatype); [NaN glossary](../../../../glossary.md#term-nan); [infinity glossary](../../../../glossary.md#term-infinity); [signed-zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [overflow glossary](../../../../glossary.md#term-overflow); [underflow glossary](../../../../glossary.md#term-underflow); [NaN payload glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [precision glossary](../../../../glossary.md#term-precision); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance); [model glossary](../../../../glossary.md#term-model))</span>
+  reproducibility is promised by this model-only task.<span data-glossary-navigation="true"> ([mean glossary](../../../../glossary.md#term-mean); [IEEE glossary](../../../../glossary.md#term-ieee); [operation glossary](../../../../glossary.md#operation); [data type glossary](../../../../glossary.md#data-type--datatype); [NaN glossary](../../../../glossary.md#term-nan); [infinity glossary](../../../../glossary.md#term-infinity); [signed-zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [overflow glossary](../../../../glossary.md#term-overflow); [underflow glossary](../../../../glossary.md#term-underflow); [NaN payload glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [precision glossary](../../../../glossary.md#term-precision); [model glossary](../../../../glossary.md#term-model))</span>
 - `POW` retains its existing ordered base/exponent mathematical request. This task does not choose
   an approximation algorithm or extend its numerical contract beyond the current portable
   meaning.<span data-glossary-navigation="true"> ([exponent glossary](../../../../glossary.md#term-exponent))</span>
@@ -209,7 +209,7 @@ This task records [operation](../../../../glossary.md#operation) meaning but add
 
 The same [extrema](../../../../glossary.md#saturation-pole-and-extremum) meaning applies to [Binary](../../../../glossary.md#term-binary-descriptor-and-metadata) and [Scalar](../../../../glossary.md#term-scalar) `MIN`/`MAX`:
 
-- if either compared value is [NaN](../../../../glossary.md#term-nan), the result is NaN; a [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) or sign is not promised;
+- if either compared value is [NaN](../../../../glossary.md#term-nan), the result is NaN; a payload or sign is not promised;
 - negative infinity orders below every finite value and positive infinity above every finite
   value;<span data-glossary-navigation="true"> ([negative infinity glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [finite glossary](../../../../glossary.md#term-finite); [positive infinity glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>
 - `minimum(-0.0, +0.0)` is [negative zero](../../../../glossary.md#nan-infinity-and-signed-zero);
@@ -534,7 +534,7 @@ The documentation pass must also:
 
 - validate local Markdown links and anchors in changed documents;
 - validate Java examples affected by the naming/[API](../../../../glossary.md#term-application-programming-interface-api) change against the compiled [model](../../../../glossary.md#term-model) classes;
-- [scan](../../../../glossary.md#term-cumulative-scan) live production Java and current API/glossary docs for removed `CLAMP_MIN`, `CLAMP_MAX`,
+- scan live production Java and current API/glossary docs for removed `CLAMP_MIN`, `CLAMP_MAX`,
   `min(Tensor)`, and `max(Tensor)` vocabulary while allowing historical completed task records;
 - verify the exact 18-path cap and no Java/Gradle/module/architecture/dependency changes outside
   scope;<span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle); [dependency glossary](../../../../glossary.md#term-dependency); [scope glossary](../../../../glossary.md#term-scope))</span>
@@ -632,9 +632,9 @@ without a detailed specification.
 - This task constructs model metadata only. It does not calculate values, define gradients,
   capture a graph, lower operations, select kernels, or make a backend executable.<span data-glossary-navigation="true"> ([model glossary](../../../../glossary.md#term-model); [metadata glossary](../../../../glossary.md#term-metadata); [gradients glossary](../../../../glossary.md#term-gradient); [capture glossary](../../../../glossary.md#term-capture-meanings); [graph glossary](../../../../glossary.md#graph); [kernels glossary](../../../../glossary.md#kernel); [backend glossary](../../../../glossary.md#backend))</span>
 - [Scalar](../../../../glossary.md#term-scalar) arithmetic remains floating-only with exact receiver/value data-type equality. Retained
-  `double` overloads [mean](../../../../glossary.md#term-mean) exact [FLOAT64](../../../../glossary.md#term-float64) and do not infer or narrow a scalar type.
+  `double` overloads mean exact [FLOAT64](../../../../glossary.md#term-float64) and do not infer or narrow a scalar type.
 - No NaN payload, exact instruction, intermediate precision, bitwise reproducibility, or extrema
-  equality/subgradient convention is promised.<span data-glossary-navigation="true"> ([NaN payload glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [precision glossary](../../../../glossary.md#term-precision); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance); [extrema glossary](../../../../glossary.md#saturation-pole-and-extremum))</span>
+  equality/subgradient convention is promised.<span data-glossary-navigation="true"> ([NaN payload glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [precision glossary](../../../../glossary.md#term-precision); [extrema glossary](../../../../glossary.md#saturation-pole-and-extremum))</span>
 
 ## [Validation](../../../../glossary.md#term-validation) evidence
 

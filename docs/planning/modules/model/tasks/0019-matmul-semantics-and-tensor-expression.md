@@ -219,7 +219,7 @@ order, and cross-backend identical [rounding](../../../../glossary.md#term-round
 per-type error tolerances. [IEEE](../../../../glossary.md#term-ieee)-754 [NaN](../../../../glossary.md#term-nan), [infinity](../../../../glossary.md#term-infinity), and [signed-zero](../../../../glossary.md#nan-infinity-and-signed-zero) behavior follows the selected
 floating multiply/add operations. An empty floating contraction produces [positive zero](../../../../glossary.md#nan-infinity-and-signed-zero).
 
-Integral multiplication and accumulation [mean](../../../../glossary.md#term-mean) the exact sum of products modulo `2^32` or `2^64`
+Integral multiplication and accumulation mean the exact sum of products modulo `2^32` or `2^64`
 in the promoted signed [two's-complement](../../../../glossary.md#arithmetic-rearrangement-and-finite-difference-checks) result type. No [widening](../../../../glossary.md#term-widening), [saturation](../../../../glossary.md#term-saturation), [overflow](../../../../glossary.md#term-overflow) exception,
 or undefined overflow is selected. Modular [reassociation](../../../../glossary.md#term-reassociation) is permitted and exact. An empty
 integral contraction produces zero.

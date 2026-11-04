@@ -57,7 +57,7 @@ one-input [producer](../../../../glossary.md#term-producer)/[provenance](../../.
   Tensor cumProd(int axis, boolean exclusive, boolean reverse)
   ```
 
-- Make the short `cumProd` overload select inclusive [forward mode](../../../../glossary.md#term-forward-mode) explicitly.
+- Make the short `cumProd` overload select inclusive forward mode explicitly.
 - Accept exactly FLOAT64, FLOAT32, BFLOAT16, INT32, and INT64 input; reject BOOL through the same
   numeric-input boundary as cumulative sum.<span data-glossary-navigation="true"> ([FLOAT64 glossary](../../../../glossary.md#term-float64); [FLOAT32 glossary](../../../../glossary.md#term-float32); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [INT32 glossary](../../../../glossary.md#data-type--datatype); [INT64 glossary](../../../../glossary.md#data-type--datatype); [BOOL glossary](../../../../glossary.md#data-type--datatype))</span>
 - Normalize one positive or negative caller axis exactly once through the input [Shape](../../../../glossary.md#shape).
@@ -91,7 +91,7 @@ one-input [producer](../../../../glossary.md#term-producer)/[provenance](../../.
   `AggregateReductionKind.PROD`
 - floating rounding, accuracy, payload, reproducibility, backend reassociation, or execution
   algorithm guarantees beyond the selected mathematical subset and existing product special-value
-  contract<span data-glossary-navigation="true"> ([rounding glossary](../../../../glossary.md#term-rounding); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance); [backend glossary](../../../../glossary.md#backend); [reassociation glossary](../../../../glossary.md#term-reassociation))</span>
+  contract<span data-glossary-navigation="true"> ([rounding glossary](../../../../glossary.md#term-rounding); [backend glossary](../../../../glossary.md#backend); [reassociation glossary](../../../../glossary.md#term-reassociation))</span>
 - gradient rules, backward kinds, autograd traversal, compiler adoption of the task-0023 product
   formula, saved values, accumulation, or optimization<span data-glossary-navigation="true"> ([gradient glossary](../../../../glossary.md#term-gradient); [autograd glossary](../../../../glossary.md#autograd); [compiler glossary](../../../../glossary.md#term-compiler))</span>
 - graph capture, compiled graph changes, planning, prepare, runtime, backend, engine, training,
@@ -513,7 +513,7 @@ and every later task Draft without a detailed specification.
   inclusive-forward short form.
 - Reuse the current five-type numeric domain and exact-type result contract.
 - Select integral modular multiplication and the existing floating product special-value meaning;
-  leave algorithm, payload, rounding, and backend accuracy outside model construction.<span data-glossary-navigation="true"> ([payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [rounding glossary](../../../../glossary.md#term-rounding); [backend glossary](../../../../glossary.md#backend); [model glossary](../../../../glossary.md#term-model))</span>
+  leave algorithm, payload, rounding, and backend accuracy outside model construction.<span data-glossary-navigation="true"> ([rounding glossary](../../../../glossary.md#term-rounding); [backend glossary](../../../../glossary.md#backend); [model glossary](../../../../glossary.md#term-model))</span>
 - Retain shape-preserving unresolved-layout metadata and one fresh producer occurrence rather than
   introducing a view, eager scan, or output carrier.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [layout glossary](../../../../glossary.md#layout); [metadata glossary](../../../../glossary.md#term-metadata); [producer glossary](../../../../glossary.md#term-producer); [occurrence glossary](../../../../glossary.md#term-occurrence); [view glossary](../../../../glossary.md#term-view-meanings); [eager glossary](../../../../glossary.md#term-eager-evaluation); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
 
@@ -521,7 +521,7 @@ and every later task Draft without a detailed specification.
 
 - This task constructs [metadata](../../../../glossary.md#term-metadata) and executes no cumulative sum or product.
 - Floating bitwise results, NaN payloads, intermediate rounding, and cross-backend reproducibility
-  are not selected here.<span data-glossary-navigation="true"> ([NaN glossary](../../../../glossary.md#term-nan); [rounding glossary](../../../../glossary.md#term-rounding); [backend glossary](../../../../glossary.md#backend); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance))</span>
+  are not selected here.<span data-glossary-navigation="true"> ([NaN glossary](../../../../glossary.md#term-nan); [rounding glossary](../../../../glossary.md#term-rounding); [backend glossary](../../../../glossary.md#backend))</span>
 - Product adjoints at NaN, infinity, and other policy-deferred derivative boundaries remain later
   compiler-policy work even though zero-safe regular-domain composition becomes expressible.<span data-glossary-navigation="true"> ([infinity glossary](../../../../glossary.md#term-infinity); [derivative glossary](../../../../glossary.md#term-derivative); [compiler glossary](../../../../glossary.md#term-compiler))</span>
 - Only one normalized axis is supported. Multi-axis product reduction remains composition through
@@ -549,7 +549,7 @@ and every later task Draft without a detailed specification.
   `[2, 3, 4]`, multiplicative positive-one exclusive boundaries, zero-length axes, exact-width
   integral modular multiplication, and selected floating special values without claiming an
   algorithm, rounding, payload, gradient, compiler, runtime, backend, or execution behavior. The
-  Compile API distinguishes current model expressibility from planned compiler adoption.<span data-glossary-navigation="true"> ([axes glossary](../../../../glossary.md#term-axis); [rounding glossary](../../../../glossary.md#term-rounding); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [gradient glossary](../../../../glossary.md#term-gradient); [compiler glossary](../../../../glossary.md#term-compiler); [backend glossary](../../../../glossary.md#backend); [model glossary](../../../../glossary.md#term-model))</span>
+  Compile API distinguishes current model expressibility from planned compiler adoption.<span data-glossary-navigation="true"> ([axes glossary](../../../../glossary.md#term-axis); [rounding glossary](../../../../glossary.md#term-rounding); [gradient glossary](../../../../glossary.md#term-gradient); [compiler glossary](../../../../glossary.md#term-compiler); [backend glossary](../../../../glossary.md#backend); [model glossary](../../../../glossary.md#term-model))</span>
 - `./gradlew :modules:model:javadoc` passed after final [Javadoc](../../../../glossary.md#term-javadoc) edits with `BUILD SUCCESSFUL`; both
   `compileJava` and `javadoc` executed. Generated pages exist for `CumulativeScanKind`,
   `CumulativeScanAttrs`, and `Tensor`; targeted `rg` checks found `CUM_PROD`, both `cumProd`
@@ -597,7 +597,7 @@ and every later task Draft without a detailed specification.
   aliases. <span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [aliases glossary](../../../../glossary.md#aliasing-and-arena))</span>`CumulativeScanKind` contains exactly `CUM_SUM` and `CUM_PROD`, in order, and both use
   exact `CumulativeScanAttrs` one-input/one-output [signatures](../../../../glossary.md#term-signature).
 - Preserved the two public `cumSum` overloads and their construction behavior. Added exactly two
-  public `cumProd` overloads, with the short form explicitly selecting inclusive [forward mode](../../../../glossary.md#term-forward-mode).
+  public `cumProd` overloads, with the short form explicitly selecting inclusive forward mode.
 - Retained the five-type numeric domain, exact Shape/type/eligibility metadata, unresolved result
   layout, fresh unlabeled storage-free identity, one-input producer/provenance, output index zero,
   validation order, deterministic failures, and ID behavior. No executable Java changed after the

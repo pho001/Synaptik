@@ -34,7 +34,7 @@ generator retention, a [service locator](../../../../glossary.md#term-service-lo
 - Store binary64 directly for FLOAT64, narrow to binary32 for FLOAT32, and narrow to binary32 then
   use <span data-glossary-navigation="true"> ([binary32 glossary](../../../../glossary.md#floating-point-precision-and-rounding))</span>`BFloat16Bits.fromFloat(...)` for BFLOAT16.
 - Create one exact typed source [carrier](../../../../glossary.md#term-storage-carrier) and delegate once to matching flat import.
-- Define source [ownership](../../../../glossary.md#term-ownership-meanings), [reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance), threading, failure, allocation, and ID side effects.
+- Define source [ownership](../../../../glossary.md#term-ownership-meanings), reproducibility, threading, failure, allocation, and ID side effects.
 - Modify `TensorFactory`, add one package-private `TensorRandoms`, update only the factory API-shape
   test, and add one focused random test.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - During implementation, update Tensor API, glossary, task evidence, master plan, and roadmap
@@ -46,7 +46,7 @@ generator retention, a [service locator](../../../../glossary.md#term-service-lo
   registry, service, dependency injection, retained source, or lifecycle ownership<span data-glossary-navigation="true"> ([registry glossary](../../../../glossary.md#term-registry); [dependency injection glossary](../../../../glossary.md#term-dependency-injection); [lifecycle glossary](../../../../glossary.md#lifecycle); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - [seed](../../../../glossary.md#term-seed)-only, algorithm-name, `RandomGeneratorFactory`, split/reset/copy/close, source-creation, or
   synchronization APIs<span data-glossary-navigation="true"> ([synchronization glossary](../../../../glossary.md#term-synchronization))</span>
-- cross-algorithm, cross-provider, cross-Java-version, or concurrent-use [reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance) promises
+- cross-algorithm, cross-provider, cross-Java-version, or concurrent-use reproducibility promises
 - uniform, Bernoulli, integer, boolean, categorical, truncated/multivariate normal, permutation,
   random-range, or arbitrary-distribution creation<span data-glossary-navigation="true"> ([Bernoulli glossary](../../../../glossary.md#term-bernoulli-distribution); [boolean glossary](../../../../glossary.md#data-type--datatype); [permutation glossary](../../../../glossary.md#permutation); [distribution glossary](../../../../glossary.md#term-distribution))</span>
 - [`INT32`](../../../../glossary.md#data-type--datatype), [`INT64`](../../../../glossary.md#data-type--datatype), or [`BOOL`](../../../../glossary.md#data-type--datatype) random output and their [rounding](../../../../glossary.md#term-rounding)/truthiness policies
@@ -56,7 +56,7 @@ generator retention, a [service locator](../../../../glossary.md#term-service-lo
 - typed access/export, backing-array exposure, mutation/version tracking, or zero-copy transfer
 - provenance, random operations, graph/compiler/planning/prepare/runtime/backend/training behavior,
   execution, or ONNX mapping<span data-glossary-navigation="true"> ([provenance glossary](../../../../glossary.md#provenance); [graph glossary](../../../../glossary.md#graph); [compiler glossary](../../../../glossary.md#term-compiler); [planning glossary](../../../../glossary.md#term-planning); [prepare glossary](../../../../glossary.md#prepare); [runtime glossary](../../../../glossary.md#term-runtime); [backend glossary](../../../../glossary.md#backend); [ONNX glossary](../../../../glossary.md#term-onnx))</span>
-- new storage, native/[off-heap](../../../../glossary.md#term-off-heap-memory) allocation, [`Arena`](../../../../glossary.md#term-arena), deterministic close, [pooling](../../../../glossary.md#term-pooling), or [residency](../../../../glossary.md#residency)
+- new storage, native/[off-heap](../../../../glossary.md#term-off-heap-memory) allocation, [`Arena`](../../../../glossary.md#term-arena), deterministic close, pooling, or [residency](../../../../glossary.md#residency)
 - dependencies, preview/incubator [features](../../../../glossary.md#term-software-feature), [Gradle](../../../../glossary.md#term-gradle)/architecture changes, or another [module](../../../../glossary.md#term-module)
 - a detailed task-0013 or later specification
 
@@ -221,7 +221,7 @@ Generated [overflow](../../../../glossary.md#term-overflow), [underflow](../../.
 generator may override normal behavior; Synaptik still applies the specified formula/conversion.
 BFLOAT16 retains existing [canonical](../../../../glossary.md#term-canonical-form)-NaN conversion. Generator and carrier are not retained.
 
-### Source [ownership](../../../../glossary.md#term-ownership-meanings) and [reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance)
+### Source [ownership](../../../../glossary.md#term-ownership-meanings) and reproducibility
 
 - The caller creates, configures, [seeds](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings), owns, and advances the generator.
 - TensorFactory never selects an algorithm/default, stores a seed, resets/splits/closes, or retains
@@ -323,7 +323,7 @@ is required.
 - Update TensorFactory type Javadoc for explicit caller-owned normal generation.
 - Fully document the public method: type/shape/count/layout, formula/conversions, finite rules,
   call order/count, ownership/non-retention/threading/reproducibility, label/gradient, result,
-  failures, and source/allocation/ID side effects.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [layout glossary](../../../../glossary.md#layout); [finite glossary](../../../../glossary.md#term-finite); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance); [gradient glossary](../../../../glossary.md#term-gradient))</span>
+  failures, and source/allocation/ID side effects.<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [layout glossary](../../../../glossary.md#layout); [finite glossary](../../../../glossary.md#term-finite); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [gradient glossary](../../../../glossary.md#term-gradient))</span>
 - Document helper, entry, and private methods to the same [precision](../../../../glossary.md#term-precision).
 - Explain two-stage [BFLOAT16](../../../../glossary.md#term-bfloat16) [narrowing](../../../../glossary.md#term-narrowing) and absence of default source/[seed](../../../../glossary.md#term-seed)/service.
 - Do not claim other distributions, seeded Synaptik API, random Operations, access/export, or
@@ -443,7 +443,7 @@ both passes. Leave 0013 Draft without a spec. Do not commit or push.
   finite-parameter normal distribution and is rejected rather than silently filling infinities or
   NaNs; signed-zero deviation remains a valid degenerate distribution.<span data-glossary-navigation="true"> ([distribution glossary](../../../../glossary.md#term-distribution); [parameters glossary](../../../../glossary.md#term-parameter); [finite glossary](../../../../glossary.md#term-finite); [normal distribution glossary](../../../../glossary.md#norms-elementary-functions-and-probability-distributions); [infinities glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [signed-zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>
 - Reproducibility is bounded to equivalent source implementation/state and arguments; no seed-only
-  or algorithm convenience implies a wider promise.<span data-glossary-navigation="true"> ([Reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance); [arguments glossary](../../../../glossary.md#term-argument); [seed glossary](../../../../glossary.md#term-seed))</span>
+  or algorithm convenience implies a wider promise.<span data-glossary-navigation="true"> ([arguments glossary](../../../../glossary.md#term-argument); [seed glossary](../../../../glossary.md#term-seed))</span>
 - One draw per element is consumed even for signed-zero deviation, keeping source advancement
   independent of constant-distribution optimization.<span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element); [constant glossary](../../../../glossary.md#term-constant))</span>
 - Ordinary multiply/add matches selected legacy transformation; no [mean](../../../../glossary.md#term-mean)/deviation overload or [FMA](../../../../glossary.md#term-fused-multiply-add-fma).
@@ -456,7 +456,7 @@ both passes. Leave 0013 Draft without a spec. Do not commit or push.
 - Only [eager](../../../../glossary.md#term-eager-evaluation) independent normal [samples](../../../../glossary.md#term-sample-machine-learning-and-hyperparameters) for three floating types.
 - Static Java-array-sized [shapes](../../../../glossary.md#shape) only; practical [heap](../../../../glossary.md#term-heap) limits may be lower.
 - No generator [synchronization](../../../../glossary.md#term-synchronization) or [atomic](../../../../glossary.md#resource-transaction-and-rollback) source [snapshot](../../../../glossary.md#term-snapshot).
-- No [reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance) promise across algorithms/providers/Java versions/states/interference.
+- No reproducibility promise across algorithms/providers/Java versions/states/interference.
 - Generated non-[finite](../../../../glossary.md#term-finite) values are not post-validated.
 - No seeded convenience, default source, other distribution, random Operation, access/export,
   training initializer, or runtime/backend random generation.<span data-glossary-navigation="true"> ([distribution glossary](../../../../glossary.md#term-distribution); [Operation glossary](../../../../glossary.md#operation); [runtime glossary](../../../../glossary.md#term-runtime); [backend glossary](../../../../glossary.md#backend))</span>
@@ -561,7 +561,7 @@ scope. Architecture tests and [backend](../../../../glossary.md#backend)/integra
   and Javadoc, Planning, General style, and Example format profiles.
 - Documentation impact: Tensor API now documents implemented normal-random behavior, ownership,
   reproducibility, conversion, failures, and a complete scripted example; architecture/focused
-  capability documents remain accurate without changes.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance))</span>
+  capability documents remain accurate without changes.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Javadoc review: affected factory and helper contracts were finalized; related existing model
   contracts remain accurate because their behavior did not change.
 - Glossary impact: updated existing implementation-status, Tensor, and Tensor factory language;

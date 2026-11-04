@@ -29,7 +29,7 @@ ImplementationAuthorized=false. Authority frontier: None. Implementation frontie
 
 ## Change class
 
-Class C: scoped [Scan](../../../../glossary.md#term-cumulative-scan) semantics, [Compiler](../../../../glossary.md#term-compiler) first-order [automatic differentiation](../../../../glossary.md#autograd) ([AD](../../../../glossary.md#autograd)),
+Class C: scoped Scan semantics, [Compiler](../../../../glossary.md#term-compiler) first-order [automatic differentiation](../../../../glossary.md#autograd) ([AD](../../../../glossary.md#autograd)),
 [Prepare](../../../../glossary.md#prepare)/[Runtime](../../../../glossary.md#term-runtime) resource geometry, [Engine](../../../../glossary.md#term-engine) [admission](../../../../glossary.md#term-admission)/[concurrency](../../../../glossary.md#term-concurrency) and generated hot-loop contracts.
 This cutover changes documents, not executable support.
 
@@ -37,11 +37,11 @@ This cutover changes documents, not executable support.
 
 Enact the user-approved [symbolic-Scan design](../general-scan-symbolic-batch-proposal.md),
 including Model0040's same-geometry amendment, as a bounded accepted-but-unimplemented contract.
-One named B, fixed T/[features](../../../../glossary.md#term-software-feature)/state widths, one [compilation](../../../../glossary.md#compiler-engine-and-execution-stage-names)/preparation and initial [homogeneous](../../../../glossary.md#term-homogeneous)
+One named B, fixed T/[features](../../../../glossary.md#term-feature)/state widths, one [compilation](../../../../glossary.md#compiler-engine-and-execution-stage-names)/preparation and initial [homogeneous](../../../../glossary.md#term-homogeneous)
 [FLOAT32](../../../../glossary.md#term-float32) [scalar](../../../../glossary.md#term-scalar) single-range [CPU](../../../../glossary.md#term-cpu) forward plus actual generated first-order backward are selected.
 [Model](../../../../glossary.md#term-model) [PURE](../../../../glossary.md#term-pure)/[dtype](../../../../glossary.md#data-type--datatype) source validity and [Compiler](../../../../glossary.md#term-compiler)'s bounded [F32](../../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../../glossary.md#floating-point-precision-and-rounding) [AD](../../../../glossary.md#autograd) [admission](../../../../glossary.md#term-admission) remain separate.
 
-Use existing [owners](../../../../glossary.md#term-owner) and numeric protocols. The [Scan](../../../../glossary.md#term-cumulative-scan) contract alone owns complete Scan semantics;
+Use existing [owners](../../../../glossary.md#term-owner) and numeric protocols. The Scan contract alone owns complete Scan semantics;
 Compiler, [Runtime](../../../../glossary.md#term-runtime)/[Prepare](../../../../glossary.md#prepare)/[Engine](../../../../glossary.md#term-engine) and CPU own only their boundaries. Resolve the [metadata](../../../../glossary.md#term-metadata)-only
 single-entry [memo](../../../../glossary.md#cache-and-memoization) exception explicitly, without changing current static behavior or claiming
 [symbolic Scan](../../../../glossary.md#symbolic-scan), [memoization](../../../../glossary.md#term-memoization), [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)/Training reuse or wider execution is implemented.
@@ -50,7 +50,7 @@ single-entry [memo](../../../../glossary.md#cache-and-memoization) exception exp
 
 No Java/[Javadoc](../../../../glossary.md#term-javadoc)/test-source/build/[API](../../../../glossary.md#term-application-programming-interface-api)/[ABI](../../../../glossary.md#term-application-binary-interface-abi)/native edits, [code generation](../../../../glossary.md#term-code-generation), benchmarks, [commits](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings) or push.
 No [module](../../../../glossary.md#term-module)/[dependency](../../../../glossary.md#term-dependency) change, second [graph](../../../../glossary.md#graph)/session/executor, new production type or public [signature](../../../../glossary.md#term-signature).
-No static [Scan](../../../../glossary.md#term-cumulative-scan) [regression](../../../../glossary.md#term-regression), fixed [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn)/[GRU](../../../../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../../../../glossary.md#term-long-short-term-memory-lstm) [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt), length execution, variable T/[features](../../../../glossary.md#term-feature),
+No static Scan [regression](../../../../glossary.md#term-regression), fixed [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn)/[GRU](../../../../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../../../../glossary.md#term-long-short-term-memory-lstm) [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt), length execution, variable T/[features](../../../../glossary.md#term-feature),
 higher-order, low/wider [CPU](../../../../glossary.md#term-cpu) [dtype](../../../../glossary.md#data-type--datatype), native/mixed/[vector](../../../../glossary.md#term-vector)/parallel, cold/copy/wire or [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)/Training enablement.
 Do not retrospectively rewrite completed task briefs or ADR0050's historical evidence.
 
@@ -66,7 +66,7 @@ and [Testing requirements](../../../../../ARCHITECTURE.md#testing-requirements).
 
 Owning scoped headings (all current clauses remain constraints except the explicit cutover):
 
-- [Scan](../../../../glossary.md#term-cumulative-scan): [Source body, attachments and scoped identities](../../../../architecture/contracts/recurrent-scan.md#source-body-attachments-and-scoped-identities)<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span>,
+- Scan: [Source body, attachments and scoped identities](../../../../architecture/contracts/recurrent-scan.md#source-body-attachments-and-scoped-identities)<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span>,
   [Canonical residual ports and demand](../../../../architecture/contracts/recurrent-scan.md#canonical-residual-ports-and-demand)<span data-glossary-navigation="true"> ([Canonical glossary](../../../../glossary.md#term-canonical-form); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>,
   [Reverse scan and exact primal bindings](../../../../architecture/contracts/recurrent-scan.md#reverse-scan-and-exact-primal-bindings)<span data-glossary-navigation="true"> ([primal glossary](../../../../glossary.md#term-primal); [bindings glossary](../../../../glossary.md#term-binding))</span>,
   [Traversal, empty domains and declared qualification](../../../../architecture/contracts/recurrent-scan.md#traversal-empty-domains-and-declared-qualification)<span data-glossary-navigation="true"> ([qualification glossary](../../../../glossary.md#term-qualification))</span>,
@@ -88,7 +88,7 @@ missing/ambiguous [owner](../../../../glossary.md#term-owner), unapproved type/p
 - Depends on: Complete Model0039 and Model0040 reviewed design deliveries; Complete Model0038,
   Compiler0013, Prepare0013 and CPU0037 retained source/AD/static/dynamic-ordinary baseline.<span data-glossary-navigation="true"> ([AD glossary](../../../../glossary.md#autograd))</span>
 - Conflicts with: Scan/source/AD/resource/admission/identity semantics and all thirteen write paths;
-  serialize these concerns, including shared authoritative documents.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
+  serialize these concerns, including shared authoritative documents.<span data-glossary-navigation="true"> ([identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Parallel group: None.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`
   plus accepted uncommitted baseline, not merged predecessors; index empty/unchanged.
@@ -118,7 +118,7 @@ Exclusive repository write [scope](../../../../glossary.md#term-scope) (thirteen
 - `docs/architecture/contracts/backend-execution.md` — bounded [CPU](../../../../glossary.md#term-cpu) resources/emission/[identity](../../../../glossary.md#term-identity-meanings) gates.
 - `docs/architecture/runtime-prepare-backend-boundary.md` — focused conceptual workflow and rationale.
 - `docs/design/decisions/0051-symbolic-scan-and-geometry-reuse.md` — new accepted rationale, not authority.
-- `docs/glossary.md` — targeted symbolic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)/[Scan](../../../../glossary.md#term-cumulative-scan)/[run](../../../../glossary.md#term-run)-geometry/prepared-[owner](../../../../glossary.md#term-owner) wording only.
+- `docs/glossary.md` — targeted symbolic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)/Scan/[run](../../../../glossary.md#term-run)-geometry/prepared-[owner](../../../../glossary.md#term-owner) wording only.
 - This brief, [Model](../../../../glossary.md#term-model) `master-plan.md`, `general-scan-symbolic-batch-proposal.md`,
   `docs/planning/dynamic-batch-execution.md`, `docs/planning/roadmap.md` — synchronized current state.
 
@@ -132,7 +132,7 @@ exact [signatures](../../../../glossary.md#term-signature) remain later scoped-b
 ## Acceptance criteria
 
 - Add explicit accepted-but-unimplemented symbolic Scan qualification; preserve implemented static
-  F32/F64, dense-read exceptions and fixed-scan restrictions. Never import CPU F32 limits into Model.<span data-glossary-navigation="true"> ([symbolic Scan glossary](../../../../glossary.md#symbolic-scan); [qualification glossary](../../../../glossary.md#term-qualification); [F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [scan glossary](../../../../glossary.md#term-cumulative-scan); [CPU glossary](../../../../glossary.md#term-cpu); [Model glossary](../../../../glossary.md#term-model))</span>
+  F32/F64, dense-read exceptions and fixed-scan restrictions. Never import CPU F32 limits into Model.<span data-glossary-navigation="true"> ([symbolic Scan glossary](../../../../glossary.md#symbolic-scan); [qualification glossary](../../../../glossary.md#term-qualification); [F32 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [F64 glossary](../../../../glossary.md#floating-point-precision-and-rounding); [CPU glossary](../../../../glossary.md#term-cpu); [Model glossary](../../../../glossary.md#term-model))</span>
 - Define named-axis roles, unresolved template vs resolved actual layouts, every multi-output port,
   fixed parameter gradients, actual AD closure/count/K=B, scoped body obligations and exact saved sites.<span data-glossary-navigation="true"> ([axis glossary](../../../../glossary.md#term-axis); [layouts glossary](../../../../glossary.md#layout); [output port glossary](../../../../glossary.md#capture-graph-ports-and-reconstruction); [parameter glossary](../../../../glossary.md#term-parameter); [gradients glossary](../../../../glossary.md#term-gradient); [AD glossary](../../../../glossary.md#autograd))</span>
 - Keep T=0 a separate fixed-T plan; B=0 never skips required shared work/parameter zeros or whole-body
@@ -160,7 +160,7 @@ exact [signatures](../../../../glossary.md#term-signature) remain later scoped-b
 Worker: targeted documentation/contract consistency and local links/anchors, glossary search,
 brief <=200 lines/15 KB, `git diff --check` and exact-thirteen-path audit against the [snapshot](../../../../glossary.md#term-snapshot).
 MAIN supplies a dedicated read-only document validator during drafting. Reuse existing executable
-evidence only as retained-baseline evidence, never as dynamic [Scan](../../../../glossary.md#term-cumulative-scan)/[memo](../../../../glossary.md#cache-and-memoization) [qualification](../../../../glossary.md#term-qualification).
+evidence only as retained-baseline evidence, never as dynamic Scan/[memo](../../../../glossary.md#cache-and-memoization) [qualification](../../../../glossary.md#term-qualification).
 No [Gradle](../../../../glossary.md#term-gradle)/Java/native/performance [run](../../../../glossary.md#term-run) is needed for a document-only future permission with unchanged
 dependencies/[API](../../../../glossary.md#term-application-programming-interface-api)/executable behavior; later implementation owns matching architecture/[conformance](../../../../glossary.md#term-conformance)/
 integration and generated-code tests. No test or [Javadoc](../../../../glossary.md#term-javadoc) is claimed newly validated here.
@@ -174,7 +174,7 @@ Independent clean targeted Class C documentation/contract review is mandatory be
 
 ## Result
 
-Authority/docs enacted across exactly the thirteen paths above: sole [Scan](../../../../glossary.md#term-cumulative-scan) semantics, linked boundary
+Authority/docs enacted across exactly the thirteen paths above: sole Scan semantics, linked boundary
 [owners](../../../../glossary.md#term-owner), [immutable](../../../../glossary.md#term-immutable)-only [Engine](../../../../glossary.md#term-engine) [memo](../../../../glossary.md#cache-and-memoization) exception, ADR0051, glossary, future example and synchronized plans.
 The accepted direction is unimplemented; current static/source/[AD](../../../../glossary.md#autograd)/[CPU](../../../../glossary.md#term-cpu) distinctions and [identities](../../../../glossary.md#term-identity-meanings) remain.
 Documentation profiles: general, architecture, decision-record, [planning](../../../../glossary.md#term-planning) and conceptual examples.

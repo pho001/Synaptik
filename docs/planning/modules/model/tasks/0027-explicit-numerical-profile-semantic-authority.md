@@ -66,7 +66,7 @@ for gross errors.
 
 | Profile | Required meaning |
 |---|---|
-| `STRICT_IEEE` | The exact current per-[operation](../../../../glossary.md#operation) [Model](../../../../glossary.md#term-model) contract, including every current family-specific [rounding](../../../../glossary.md#term-rounding), approximation, [NaN](../../../../glossary.md#term-nan)-[payload](../../../../glossary.md#artifact-envelope-and-atomic-publication), [signed-zero](../../../../glossary.md#nan-infinity-and-signed-zero), accumulation, [reassociation](../../../../glossary.md#term-reassociation), and [FMA](../../../../glossary.md#term-fused-multiply-add-fma) promise or freedom. |
+| `STRICT_IEEE` | The exact current per-[operation](../../../../glossary.md#operation) [Model](../../../../glossary.md#term-model) contract, including every current family-specific [rounding](../../../../glossary.md#term-rounding), approximation, [NaN](../../../../glossary.md#term-nan)-payload, [signed-zero](../../../../glossary.md#nan-infinity-and-signed-zero), accumulation, [reassociation](../../../../glossary.md#term-reassociation), and [FMA](../../../../glossary.md#term-fused-multiply-add-fma) promise or freedom. |
 | [`ACCELERATOR`](../../../../glossary.md#term-accelerator) | A superset of the strict allowed-result set formed only by the row-specific transformations below. A [backend](../../../../glossary.md#backend) may always choose a strict result. |
 
 ### Required bounded [`ACCELERATOR`](../../../../glossary.md#term-accelerator) table
@@ -82,7 +82,7 @@ for gross errors.
 | Affine/[layout](../../../../glossary.md#layout) movement, [`CONTIGUOUS`](../../../../glossary.md#term-contiguous), `WHERE`, classification, [Boolean](../../../../glossary.md#data-type--datatype) logic, casts, indexing, ordering, and arg-[extrema](../../../../glossary.md#saturation-pole-and-extremum) | No relaxation. Preserve their current bit, conversion, truth, selected-value, index, and tie contracts. |
 | Unlisted [unary](../../../../glossary.md#term-unary)/transcendental, normalization, [loss](../../../../glossary.md#loss), attention, [pooling](../../../../glossary.md#term-pooling), scatter/fold, random, and recurrent families | No relaxation in this task. A later architecture update must give a named operation its own finite-domain and special-value envelope before a [backend](../../../../glossary.md#backend) may use `ACCELERATOR` to widen capability. |
 
-For a fixed permitted [evaluation](../../../../glossary.md#term-evaluation), NaN sign, [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication), and quiet/signaling representation may vary
+For a fixed permitted [evaluation](../../../../glossary.md#term-evaluation), NaN sign, payload, and quiet/signaling representation may vary
 only where the current operation has no stronger promise. NaN may not become an ordinary value and
 an ordinary value may not become NaN except through a genuine [IEEE](../../../../glossary.md#term-ieee) exceptional path created by a
 listed DAZ, reassociation, or FMA choice. Transcendentals receive no generic [epsilon](../../../../glossary.md#epsilon) or [ULP](../../../../glossary.md#term-unit-in-the-last-place-ulp) budget.
@@ -95,7 +95,7 @@ listed DAZ, reassociation, or FMA choice. Transcendentals receive no generic [ep
 - `RELU(NaN) -> +0` and `TANH(NaN) -> +1` remain invalid; zero-sign freedom never changes NaN
   classification.<span data-glossary-navigation="true"> ([NaN glossary](../../../../glossary.md#term-nan))</span>
 - `CAST`, affine/[layout](../../../../glossary.md#layout) movement, [`CONTIGUOUS`](../../../../glossary.md#term-contiguous), and selected `WHERE` values do not acquire DAZ/FTZ
-  or NaN-payload freedom from surrounding arithmetic.<span data-glossary-navigation="true"> ([DAZ glossary](../../../../glossary.md#term-daz); [FTZ glossary](../../../../glossary.md#term-ftz); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication))</span>
+  or NaN-payload freedom from surrounding arithmetic.<span data-glossary-navigation="true"> ([DAZ glossary](../../../../glossary.md#term-daz); [FTZ glossary](../../../../glossary.md#term-ftz))</span>
 - [`FLOAT64`](../../../../glossary.md#term-float64), [`BFLOAT16`](../../../../glossary.md#term-bfloat16), future [`FLOAT16`](../../../../glossary.md#term-float16), integral values, and [`BOOL`](../../../../glossary.md#data-type--datatype) receive no relaxed arithmetic
   meaning. Model 0026 remains the independent owner of future IEEE FLOAT16 semantics.<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [owner glossary](../../../../glossary.md#term-owner); [IEEE glossary](../../../../glossary.md#term-ieee))</span>
 - This task authorizes no Config enum, capability row, backend route, native schema, cache codec,

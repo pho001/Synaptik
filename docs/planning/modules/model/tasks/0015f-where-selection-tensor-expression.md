@@ -580,7 +580,7 @@ Planning validation:
   the three changed planning paths.
 - The required-section scan found every canonical task-specification section, including package
   impact, exact helper and public API shapes, bounded scope, validation, implementation handoff,
-  decisions, limitations, and completion-evidence sections.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [canonical glossary](../../../../glossary.md#term-canonical-form); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [scope glossary](../../../../glossary.md#term-scope); [handoff glossary](../../../../glossary.md#term-handoff))</span>
+  decisions, limitations, and completion-evidence sections.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [scope glossary](../../../../glossary.md#term-scope); [handoff glossary](../../../../glossary.md#term-handoff))</span>
 - Every local Markdown file and heading anchor linked from this task, the model master plan, and
   the roadmap resolves. Markdown fence counts are balanced.
 - Status inspection found 0015F [`Ready`](../../../../glossary.md#term-ready) in this specification, its linked model-master row, and

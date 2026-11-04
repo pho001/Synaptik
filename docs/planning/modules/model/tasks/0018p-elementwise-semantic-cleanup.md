@@ -288,7 +288,7 @@ The enum retains one stable [immutable](../../../../glossary.md#term-immutable) 
 `OperationSignature.fixed(NoOperationAttrs.class, 1, 1)`. It adds no field or method other than
 the existing family-owned signature implementation and [compiler](../../../../glossary.md#term-compiler)-generated enum machinery.
 
-`EXP` and `TANH` do not mean “strict algorithm,” [correctly rounded](../../../../glossary.md#nan-infinity-and-signed-zero) result, bitwise [reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance),
+`EXP` and `TANH` do not mean “strict algorithm,” [correctly rounded](../../../../glossary.md#nan-infinity-and-signed-zero) result, bitwise reproducibility,
 or a mandatory library/[kernel](../../../../glossary.md#kernel) route. They are portable mathematical requests whose later
 executable implementations must satisfy numerical policy defined outside this task. Removing the
 fast variants does not strengthen their current numerical promise.
@@ -397,7 +397,7 @@ The pairings remain:
 - [`ScalarValue`](../../../../glossary.md#typed-scalar-value--scalarvalue) remains one final [immutable](../../../../glossary.md#term-immutable) [`DataType`](../../../../glossary.md#data-type--datatype) plus exact primitive-bit payload with the
   existing named FLOAT64, FLOAT32, converted/raw BFLOAT16, INT32, INT64, and BOOL factories,
   strict type-specific inspectors, exact type-and-bit equality/hashing, and no general conversion
-  API;<span data-glossary-navigation="true"> ([payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [FLOAT32 glossary](../../../../glossary.md#term-float32); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [INT32 glossary](../../../../glossary.md#data-type--datatype); [INT64 glossary](../../../../glossary.md#data-type--datatype); [BOOL glossary](../../../../glossary.md#data-type--datatype); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
+  API;<span data-glossary-navigation="true"> ([FLOAT32 glossary](../../../../glossary.md#term-float32); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [INT32 glossary](../../../../glossary.md#data-type--datatype); [INT64 glossary](../../../../glossary.md#data-type--datatype); [BOOL glossary](../../../../glossary.md#data-type--datatype); [API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
 - `MUL`, `POW`, `CLAMP_MIN`, and `CLAMP_MAX` accept exactly `ScalarValueAttrs`, one input, and one
   output;
 - `CLAMP` accepts exactly `ClampRangeAttrs`, one input, and one output;
@@ -742,7 +742,7 @@ remain source- and behavior-unchanged.
 Planning-only validation is recorded before [handoff](../../../../glossary.md#term-handoff):
 
 - a canonical-section scan found every required task-specification section exactly once and no
-  missing or duplicate section; the task contains no unresolved design placeholder;<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  missing or duplicate section; the task contains no unresolved design placeholder;
 - the final enum/method inventories, failure order, before/after mapping, scalar no-change
   contract, 0018T boundary, affected paths, and maximum scope are explicit;
 - status scans found 0018P Ready exactly once in this task, the master-plan row, and the roadmap

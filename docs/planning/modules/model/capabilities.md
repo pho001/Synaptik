@@ -140,7 +140,7 @@ receiver/value data-type equality without implicit conversion.
 `ScalarValue` is [model](../../../glossary.md#term-model) semantic state, not a scalar Tensor, [storage carrier](../../../glossary.md#term-storage-carrier), conversion request,
 or executable [constant](../../../glossary.md#term-constant). The existing `double` Tensor overloads remain exact-FLOAT64 conveniences,
 and existing primitive TensorFactory scalar/full methods remain unchanged. Future [FLOAT16](../../../glossary.md#term-float16) or
-cross-type conversion requires a separately specified contract rather than a generic [payload](../../../glossary.md#artifact-envelope-and-atomic-publication) or
+cross-type conversion requires a separately specified contract rather than a generic payload or
 speculative numeric category.
 
 ## Existing capability decisions
@@ -869,7 +869,7 @@ policies, not [backend](../../../glossary.md#backend) algorithm designs.
 [Model](../../../glossary.md#term-model) records the selected meaning. [Compiler](../../../glossary.md#term-compiler) owns differentiability rules and [backward graph](../../../glossary.md#backward-graph)
 construction; backends may use different algorithms only when they satisfy that meaning.
 
-## Fixed recurrent-[scan](../../../glossary.md#term-cumulative-scan) [metadata](../../../glossary.md#term-metadata)
+## Fixed recurrent-scan [metadata](../../../glossary.md#term-metadata)
 
 Completed [task 0025E](tasks/0025e-fixed-recurrent-scan-semantic-family-and-tensor-expressions.md)
 adds [Model](../../../glossary.md#term-model)-owned expression metadata for exactly `RNN_TANH`, `GRU_RESET_AFTER`, and [`LSTM`](../../../glossary.md#term-long-short-term-memory-lstm), with

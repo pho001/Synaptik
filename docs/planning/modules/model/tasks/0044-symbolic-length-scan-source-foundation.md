@@ -1,4 +1,4 @@
-# Task 0044: Static and symbolic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) length [Scan](../../../../glossary.md#term-cumulative-scan) source foundation
+# Task 0044: Static and symbolic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) length Scan source foundation
 
 **Editorial reading key (current context, not a status update).**
 
@@ -14,8 +14,10 @@ carry passes between steps, sequences supply slices, and invariants stay unchang
 placeholder leaf—no producing expression, not necessarily stored values. Here, descriptors cross the
 construction boundary, not length values: separate non-gradient INT64 lengths have no body formal.
 ROW identifies a proved batch coordinate; SHARED lacks one, regardless of equal sizes. For zero
-steps and batch named `Rows`, row state `[Rows,2]` yields history `[0,Rows,2]`, while shared bias
-`[2]` yields `[0,2]`. These storage-free expressions neither execute nor own result buffers. Follow
+steps and batch named `Rows`, retained row state `[Rows,2]` has residual-history Shape `[0,Rows,2]`,
+while a retained SHARED accumulator carry `[2]` has residual-history Shape `[0,2]`. An invariant
+bias has no retained-history port, and length-aware emissions must be ROW. These Shapes are metadata,
+not allocated histories; these storage-free expressions neither execute nor own result buffers. Follow
 [canonical
 results](../../../../reference/tensor/general-scan.md#canonical-results-residual-metadata-and-eligibility)
 to distinguish port identity, residual metadata and gradient flags from allocated histories or
@@ -33,12 +35,12 @@ Class C: bounded source-contract [admission](../../../../glossary.md#term-admiss
 ## Goal
 
 Extend the existing length-aware `Scan.apply` to fully static [shapes](../../../../glossary.md#shape) OR one named [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) B,
-with fixed T/[features](../../../../glossary.md#term-software-feature), [homogeneous](../../../../glossary.md#term-homogeneous) [FLOAT32](../../../../glossary.md#term-float32)/[FLOAT64](../../../../glossary.md#term-float64) body and separate non-[gradient](../../../../glossary.md#term-gradient) [INT64](../../../../glossary.md#data-type--datatype) `[B]`
+with fixed T/[features](../../../../glossary.md#term-feature), [homogeneous](../../../../glossary.md#term-homogeneous) [FLOAT32](../../../../glossary.md#term-float32)/[FLOAT64](../../../../glossary.md#term-float64) body and separate non-[gradient](../../../../glossary.md#term-gradient) [INT64](../../../../glossary.md#data-type--datatype) `[B]`
 lengths. Preserve true [Dimension](../../../../glossary.md#dimension)/ROW [provenance](../../../../glossary.md#provenance) and every old static/all-valid [guard](../../../../glossary.md#term-guard) and behavior.
 
 ## [Scope](../../../../glossary.md#term-scope) and non-goals
 
-Source/tests/[Javadoc](../../../../glossary.md#term-javadoc)/docs include bounded root/[scan](../../../../glossary.md#term-cumulative-scan)-[owner](../../../../glossary.md#term-owner) wording BEFORE Java and exactly two
+Source/tests/[Javadoc](../../../../glossary.md#term-javadoc)/docs include bounded root/scan-[owner](../../../../glossary.md#term-owner) wording BEFORE Java and exactly two
 early rejection fixes: [Compiler](../../../../glossary.md#term-compiler) [AD](../../../../glossary.md#autograd) [preflight](../../../../glossary.md#term-preflight) and [Prepare](../../../../glossary.md#prepare) projection. Other consumer gates stay closed.
 No new/moved production type, [API](../../../../glossary.md#term-application-programming-interface-api), package, field, representation, [dependency](../../../../glossary.md#term-dependency) or [Runtime](../../../../glossary.md#term-runtime) [handoff](../../../../glossary.md#term-handoff).
 No ScanAttrs/ScanResult/CompiledScanBody representation/count change or [narrowing](../../../../glossary.md#term-narrowing) of all-valid ScanBody.
@@ -69,7 +71,7 @@ Read AGENTS.md, this brief, affected source/focused tests and these scoped headi
   [Checkpoint](../../../../architecture/contracts/extensions-training.md#canonical-graph-model-version-5)<span data-glossary-navigation="true"> ([Checkpoint glossary](../../../../glossary.md#term-checkpoint))</span>
   `Generic graph source and values`, `Canonical graph-model version 5` (closed cold/wire gates).
 
-Only root source/status pointers and recurrent-[scan](../../../../glossary.md#term-cumulative-scan) source wording change authority. Do not edit
+Only root source/status pointers and recurrent-scan source wording change authority. Do not edit
 other [normative](../../../../glossary.md#term-normative) [owners](../../../../glossary.md#term-owner); report an actual contradiction to MAIN FIRST. Original-source [AD](../../../../glossary.md#autograd) restrictions,
 arithmetic/activity/history/[runtime](../../../../glossary.md#term-runtime)/[producer](../../../../glossary.md#term-producer)/resource rules and all [identities](../../../../glossary.md#term-identity-meanings) remain unchanged.
 
@@ -78,7 +80,7 @@ arithmetic/activity/history/[runtime](../../../../glossary.md#term-runtime)/[pro
 - Depends on: Complete Model0043 (reviewed design), Model0042/0038, Compiler0013/0014,
   Prepare0011/0014, CPU0042; explicit user semantic/source/bounded-authority approval.
 - Conflicts with: Scan source/ROW semantics, AD preflight, Prepare projection, shared contracts/docs;
-  serialize writers; other module frontiers closed.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [AD glossary](../../../../glossary.md#autograd); [preflight glossary](../../../../glossary.md#term-preflight); [Prepare glossary](../../../../glossary.md#prepare); [module glossary](../../../../glossary.md#term-module))</span>
+  serialize writers; other module frontiers closed.<span data-glossary-navigation="true"> ([AD glossary](../../../../glossary.md#autograd); [preflight glossary](../../../../glossary.md#term-preflight); [Prepare glossary](../../../../glossary.md#prepare); [module glossary](../../../../glossary.md#term-module))</span>
 - Parallel group: None; sole serial writer, no concurrent-write worktree needed.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`
   plus accepted dirty base; predecessors are accepted UNCOMMITTED work, not merges.
@@ -89,7 +91,7 @@ arithmetic/activity/history/[runtime](../../../../glossary.md#term-runtime)/[pro
 
 ### [Admission](../../../../glossary.md#term-admission) verification — 2026-10-26
 
-PlanningAuthorized=true; AuthorityAuthorized=true ONLY for bounded [Model](../../../../glossary.md#term-model)-source wording in root/[scan](../../../../glossary.md#term-cumulative-scan) [owner](../../../../glossary.md#term-owner).
+PlanningAuthorized=true; AuthorityAuthorized=true ONLY for bounded [Model](../../../../glossary.md#term-model)-source wording in root/scan [owner](../../../../glossary.md#term-owner).
 ImplementationAuthorized=true ONLY for this source foundation and deliberate reject guards/tests.
 Mencius pre-Java APPROVE: 0 P1/P2, no missing contracts/owners. MAIN accepted authority/[Ready](../../../../glossary.md#term-ready) on
 2026-10-26: dependencies Complete, conflicts inactive, sole Model frontier 0044, no other writer.
@@ -187,7 +189,7 @@ exact baseline-relative [scope](../../../../glossary.md#term-scope) and unchange
 
 ## Documentation and review impact
 
-Profiles: general + [planning](../../../../glossary.md#term-planning) for this/master/roadmap/focused plans; architecture for root/[scan](../../../../glossary.md#term-cumulative-scan) [owner](../../../../glossary.md#term-owner)
+Profiles: general + [planning](../../../../glossary.md#term-planning) for this/master/roadmap/focused plans; architecture for root/scan [owner](../../../../glossary.md#term-owner)
 and training-[graph](../../../../glossary.md#graph); [API](../../../../glossary.md#term-application-programming-interface-api)/[Javadoc](../../../../glossary.md#term-javadoc) for [tensor](../../../../glossary.md#tensor)-api/affected members. Follow documentation-rules.md.
 Planning docs: this brief, [Model](../../../../glossary.md#term-model) master, roadmap, length-aware-general-scan, dynamic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)-execution.
 Authority/explanation: ARCHITECTURE.md, recurrent-scan.md, training-graph.md and tensor-api.md only.
@@ -199,7 +201,7 @@ Javadocs remain accurate. No new term or [ADR](../../../../glossary.md#term-arch
 
 ## Result
 
-[Scan](../../../../glossary.md#term-cumulative-scan).java source + ScanGradientRules.java/[PrepareContext](../../../../glossary.md#prepare-context-preparecontext).java early rejects; 12 test files (one new).
+Scan.java source + ScanGradientRules.java/[PrepareContext](../../../../glossary.md#prepare-context-preparecontext).java early rejects; 12 test files (one new).
 Static/one-B [F32](../../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../../glossary.md#floating-point-precision-and-rounding) source; Mencius independent APPROVE: 0 P1/P2;
 MAIN accepted Complete 2026-10-26. Worker [Model](../../../../glossary.md#term-model)/[Compiler](../../../../glossary.md#term-compiler)/[Prepare](../../../../glossary.md#prepare)/[CPU](../../../../glossary.md#term-cpu)/[Checkpoint](../../../../glossary.md#term-checkpoint): 1199/386/97/35/17;
 1734 total, zero failures/errors/skips, three Javadocs passed. Evidence above:

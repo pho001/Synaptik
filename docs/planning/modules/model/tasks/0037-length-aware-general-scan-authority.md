@@ -43,7 +43,7 @@ No source, tests, build, [Javadoc](../../../../glossary.md#term-javadoc), native
   [Dependency rules](../../../../../ARCHITECTURE.md#dependency-rules)<span data-glossary-navigation="true"> ([Dependency glossary](../../../../glossary.md#term-dependency))</span>,
   [Documentation authority and architecture updates](../../../../../ARCHITECTURE.md#documentation-authority-and-architecture-updates),
   [Testing requirements](../../../../../ARCHITECTURE.md#testing-requirements).
-- [Recurrent-scan: General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>,
+- [Recurrent-scan: General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>,
   every subheading including the replaced final lengths gate and new Length-aware whole-batch scan;
   this remains the sole complete semantic owner.<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters); [owner glossary](../../../../glossary.md#term-owner))</span>
 - [Compiler](../../../../glossary.md#term-compiler)/[autograd](../../../../glossary.md#autograd) [Compiler-owned automatic differentiation](../../../../architecture/contracts/compiler-autograd.md#compiler-owned-automatic-differentiation)<span data-glossary-navigation="true"> ([automatic differentiation glossary](../../../../glossary.md#autograd))</span>,
@@ -61,7 +61,7 @@ No source, tests, build, [Javadoc](../../../../glossary.md#term-javadoc), native
 - Depends on: Model0036 proposal delivery Complete; accepted Model0035, Planning0008,
   Compiler0011/0012, Prepare0010, CPU0030–0037, CP0012/0013, NN0031 and recorded joins Complete.
 - Conflicts with: every scan API/semantic/AD/cold/runtime/wire writer; NN0032 fluent authority;
-  shared root/contracts/planning/explanation. None active; sole writer, read-only review allowed.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [AD glossary](../../../../glossary.md#autograd); [runtime glossary](../../../../glossary.md#term-runtime))</span>
+  shared root/contracts/planning/explanation. None active; sole writer, read-only review allowed.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [AD glossary](../../../../glossary.md#autograd); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 - Parallel group: None.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40` plus
   297 accepted dirty paths / 2425 Git-listed files, **uncommitted**, not merged predecessors.
@@ -83,7 +83,7 @@ contains the accepted base; MAIN verified all [hashes](../../../../glossary.md#t
 ## Files and acceptance
 
 Write allowlist: ARCHITECTURE.md; relevant headings in the six incorporated contracts; existing
-docs/architecture/general-[differentiable](../../../../glossary.md#derivative-and-chain-rule)-[scan](../../../../glossary.md#term-cumulative-scan).md; new ADR0049-length-aware-general-scan.md;
+docs/architecture/general-[differentiable](../../../../glossary.md#derivative-and-chain-rule)-scan.md; new ADR0049-length-aware-general-scan.md;
 [Model](../../../../glossary.md#term-model) master-plan and new 0037/0038 briefs; docs/[planning](../../../../glossary.md#term-planning)/{general-differentiable-scan,
 length-aware-general-scan,roadmap}.md. No [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) tracker update is needed: explicit held-gate links suffice.
 

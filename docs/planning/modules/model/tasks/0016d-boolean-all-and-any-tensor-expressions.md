@@ -504,7 +504,7 @@ suffice; no package, [dependency](../../../../glossary.md#term-dependency), foun
 Planning validation:
 
 - `git diff --check` passed. A targeted trailing-whitespace scan found no matches in the three
-  changed planning paths, including this untracked task file.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  changed planning paths, including this untracked task file.
 - The canonical section scan found every required task section. The specification contains exact
   public/helper shapes, numeric and BOOL validation messages/order, package placement, eleven-path
   limit, acceptance criteria, validation, clean-context implementation/documentation handoff,

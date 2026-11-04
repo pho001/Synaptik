@@ -1,4 +1,4 @@
-# Task 0025F: Recurrent-[Scan](../../../../glossary.md#term-cumulative-scan) Expression Namespace Correction
+# Task 0025F: Recurrent-Scan Expression Namespace Correction
 
 **Editorial reading key (current context, not a status update).**
 
@@ -25,7 +25,7 @@ Complete
 
 ## Goal
 
-Correct the newly introduced fixed recurrent-[scan](../../../../glossary.md#term-cumulative-scan) construction surface before [Compiler](../../../../glossary.md#term-compiler) 0006A
+Correct the newly introduced fixed recurrent-scan construction surface before [Compiler](../../../../glossary.md#term-compiler) 0006A
 adopts it. Ordinary neural-network callers should continue to use `RnnSequence`, `GruSequence`,
 and `LstmSequence`; the fixed recurrent scan remains a low-level [Model](../../../../glossary.md#term-model) expression seam for later
 [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) and Compiler integration, but its six domain-heavy multi-input/multi-output entries must not
@@ -89,7 +89,7 @@ contract.
   fail-closed rejection without Tensor-ID allocation.<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler); [signatures glossary](../../../../glossary.md#term-signature); [Model glossary](../../../../glossary.md#term-model); [fail-closed glossary](../../../../glossary.md#term-fail-closed))</span>
 - Amend the authoritative and focused architecture wording to select the low-level static
   namespace instead of Tensor receiver methods, without changing fixed-scan semantics, lifecycle
-  ownership, or dependency direction.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [lifecycle glossary](../../../../glossary.md#lifecycle); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [dependency direction glossary](../../../../glossary.md#java-platform-and-build-tools))</span>
+  ownership, or dependency direction.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [dependency direction glossary](../../../../glossary.md#java-platform-and-build-tools))</span>
 - Finalize affected Javadocs, Tensor/Compile API explanations, glossary terminology, Model
   capabilities, and Model planning records through the required independent documentation pass.<span data-glossary-navigation="true"> ([Compile glossary](../../../../glossary.md#compile); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [planning glossary](../../../../glossary.md#term-planning))</span>
 
@@ -114,7 +114,7 @@ contract.
 - changing the existing `RnnCell`, `GruCell`, `LstmCell`, `RnnSequence`, `GruSequence`,
   `LstmSequence`, bidirectional containers, [`Module`](../../../../glossary.md#term-module), `ModuleFactory`, parameter/state ownership,
   or NN documentation/planning history<span data-glossary-navigation="true"> ([parameter glossary](../../../../glossary.md#term-parameter); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [planning glossary](../../../../glossary.md#term-planning))</span>
-- redirecting current NN sequence containers to the fixed [scan](../../../../glossary.md#term-cumulative-scan); their compact `long[]` static
+- redirecting current NN sequence containers to the fixed scan; their compact `long[]` static
   APIs and explicit static unrolling remain the general and reference path<span data-glossary-navigation="true"> ([unrolling glossary](../../../../glossary.md#term-unrolling))</span>
 - compiler production inference, graph finalization, autograd inventory, backpropagation through
   time (BPTT), Planning capability, Prepare, Runtime, Engine, backend, execution, binding, Data,
@@ -127,7 +127,7 @@ contract.
 ## Architecture references
 
 - [Architecture contract](../../../../../ARCHITECTURE.md)<span data-glossary-navigation="true"> ([Architecture contract glossary](../../../../glossary.md#architecture-contract))</span>, especially the fixed recurrent-scan,
-  flat Tensor-producer, Model ownership, compiler, runtime, and training boundaries<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [Tensor glossary](../../../../glossary.md#tensor); [producer glossary](../../../../glossary.md#term-producer); [Model glossary](../../../../glossary.md#term-model); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [compiler glossary](../../../../glossary.md#term-compiler); [runtime glossary](../../../../glossary.md#term-runtime))</span>
+  flat Tensor-producer, Model ownership, compiler, runtime, and training boundaries<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [producer glossary](../../../../glossary.md#term-producer); [Model glossary](../../../../glossary.md#term-model); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [compiler glossary](../../../../glossary.md#term-compiler); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 - [ADR 0012](../../../../design/decisions/0012-fixed-recurrent-scan-without-regions.md)<span data-glossary-navigation="true"> ([ADR glossary](../../../../glossary.md#term-architecture-decision-record-adr))</span>
 - [Current architecture index](../../../../architecture/current-architecture-plan.md)
 - [Module boundaries](../../../../architecture/module-boundaries.md)<span data-glossary-navigation="true"> ([Module glossary](../../../../glossary.md#term-module))</span>
@@ -179,7 +179,7 @@ contract.
   corresponding completed helper method did.
 - [`Tensor`](../../../../glossary.md#tensor) remains the public immutable tensor state and fluent algebra surface, but fixed
   recurrent scan is intentionally accessed through the focused namespace. This correction does
-  not establish a general policy that every high-arity or multi-output operation needs a facade.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [scan glossary](../../../../glossary.md#term-cumulative-scan); [arity glossary](../../../../glossary.md#term-arity); [facade glossary](../../../../glossary.md#term-facade))</span>
+  not establish a general policy that every high-arity or multi-output operation needs a facade.<span data-glossary-navigation="true"> ([immutable glossary](../../../../glossary.md#term-immutable); [arity glossary](../../../../glossary.md#term-arity); [facade glossary](../../../../glossary.md#term-facade))</span>
 - Current graph capture can still observe the result producer as one flat occurrence. Current
   forward inference still rejects <span data-glossary-navigation="true"> ([graph capture glossary](../../../../glossary.md#capture-graph-ports-and-reconstruction); [inference glossary](../../../../glossary.md#term-inference))</span>`RecurrentScanKind` as unsupported, and every backward-capable
   request still fails through the closed autograd inventory before constructing derivative
@@ -225,7 +225,7 @@ Type placement:
   fixed semantic family with unchanged signatures.<span data-glossary-navigation="true"> ([signatures glossary](../../../../glossary.md#term-signature))</span>
 
 `TensorRecurrentScanExpressions` is removed. No alternate helper, [facade](../../../../glossary.md#term-facade), interface, provider,
-[registry](../../../../glossary.md#term-registry), generic [scan](../../../../glossary.md#term-cumulative-scan) namespace, or recurrent package under `extensions/nn` is added.
+[registry](../../../../glossary.md#term-registry), generic scan namespace, or recurrent package under `extensions/nn` is added.
 
 ## Exact public [API](../../../../glossary.md#term-application-programming-interface-api)
 
@@ -298,7 +298,7 @@ public static LstmRecurrentScanResult lstm(
 ```
 
 There are exactly two overloads for each name. There is no `rnnScan`, `gruScan`, `lstmScan`,
-[`scan`](../../../../glossary.md#term-cumulative-scan), `apply`, default-direction, options, instance, nullable-[bias](../../../../glossary.md#term-bias), [alias](../../../../glossary.md#aliasing-and-arena), or deprecated form on
+`scan`, `apply`, default-direction, options, instance, nullable-[bias](../../../../glossary.md#term-bias), [alias](../../../../glossary.md#aliasing-and-arena), or deprecated form on
 `RecurrentScan`, [`Tensor`](../../../../glossary.md#tensor), or another production type.
 
 ## Preserved [occurrence](../../../../glossary.md#term-occurrence) contract
@@ -436,7 +436,7 @@ This task may create, modify, or delete at most:
 The documentation pass found one current-tense receiver claim in the originally review-only
 Training API. The coordinator authorized `docs/api/training-api.md` as the eighth documentation
 path so the correction does not ship with a known false API statement. That scope amendment is
-limited to the directly affected recurrent-[scan](../../../../glossary.md#term-cumulative-scan) paragraph.
+limited to the directly affected recurrent-scan paragraph.
 
 The result records, recurrent enums, `TensorFactory`, `TensorLinearExpressions`, [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) sources/tests,
 Compiler production sources/other tests/master plan, architecture-test sources,
@@ -455,7 +455,7 @@ follow-up instead of expanding this correction.
   public declared-method count is exactly 202 and every unrelated method remains unchanged.
 - The six namespace entries have the exact names, return types, parameter order/types, static and
   visibility modifiers, and biased/unbiased split specified above; no alias or generic scan entry
-  exists.<span data-glossary-navigation="true"> ([parameter glossary](../../../../glossary.md#term-parameter); [alias glossary](../../../../glossary.md#aliasing-and-arena); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  exists.<span data-glossary-navigation="true"> ([parameter glossary](../../../../glossary.md#term-parameter); [alias glossary](../../../../glossary.md#aliasing-and-arena))</span>
 - Every existing fixed-scan kind, signature, direction, equation, gate order, Shape, type,
   gradient flag, output descriptor, ordered input/output, canonical wrapper, ID, freshness, and
   one-producer provenance assertion still passes through the namespace.<span data-glossary-navigation="true"> ([signature glossary](../../../../glossary.md#term-signature); [Shape glossary](../../../../glossary.md#shape); [gradient glossary](../../../../glossary.md#term-gradient); [descriptor glossary](../../../../glossary.md#term-descriptor); [canonical glossary](../../../../glossary.md#term-canonical-form); [producer glossary](../../../../glossary.md#term-producer); [provenance glossary](../../../../glossary.md#provenance))</span>
@@ -596,7 +596,7 @@ checks:
 - Later [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [runtime](../../../../glossary.md#term-runtime)-valid-length work may call `RecurrentScan` only after that executable path is
   available. Existing static sequence APIs and unrolling remain supported and unchanged.<span data-glossary-navigation="true"> ([unrolling glossary](../../../../glossary.md#term-unrolling))</span>
 - BPTT, dynamic Shapes, bidirectional fixed-scan composition, packed/compacted execution, broader
-  cell variants, and general regions remain separate future decisions.<span data-glossary-navigation="true"> ([Shapes glossary](../../../../glossary.md#shape); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  cell variants, and general regions remain separate future decisions.<span data-glossary-navigation="true"> ([Shapes glossary](../../../../glossary.md#shape))</span>
 - [Model](../../../../glossary.md#term-model) 0026 remains Draft without a detailed task specification.
 
 ## Architecture impact
@@ -659,7 +659,7 @@ documentation pass succeed.
   states the fixed domain concept without the redundant [`Tensor`](../../../../glossary.md#tensor) prefix used by package-private
   helpers and without implying a generic body-bearing scan abstraction.
 - The method names are `rnn`, `gru`, and `lstm`. The namespace already supplies the scan context,
-  so retaining the [`Scan`](../../../../glossary.md#term-cumulative-scan) suffix would be redundant. Bias is represented only by exact overload
+  so retaining the `Scan` suffix would be redundant. Bias is represented only by exact overload
   arity.<span data-glossary-navigation="true"> ([Bias glossary](../../../../glossary.md#term-bias); [arity glossary](../../../../glossary.md#term-arity))</span>
 - `input` becomes the explicit first argument, matching the helper and producer-input order that
   0025E already implemented. All other arguments retain their exact current order.<span data-glossary-navigation="true"> ([argument glossary](../../../../glossary.md#term-argument); [producer glossary](../../../../glossary.md#term-producer))</span>
@@ -683,7 +683,7 @@ documentation pass succeed.
 ## Known limitations
 
 - The fixed recurrent-scan metadata remains non-executable until Compiler 0006A and later
-  lifecycle/backend work adopt it.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [metadata glossary](../../../../glossary.md#term-metadata); [Compiler glossary](../../../../glossary.md#term-compiler); [lifecycle glossary](../../../../glossary.md#lifecycle); [backend glossary](../../../../glossary.md#backend))</span>
+  lifecycle/backend work adopt it.<span data-glossary-navigation="true"> ([metadata glossary](../../../../glossary.md#term-metadata); [Compiler glossary](../../../../glossary.md#term-compiler); [lifecycle glossary](../../../../glossary.md#lifecycle); [backend glossary](../../../../glossary.md#backend))</span>
 - Every backward-capable [compile](../../../../glossary.md#compile) remains unsupported; [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt) is not designed here.
 - Only the existing fully static [Shape](../../../../glossary.md#shape), [runtime](../../../../glossary.md#term-runtime) `INT64[batch]` valid-prefix, one-direction, dense
   original-time-aligned, three-cell-family contract is represented.

@@ -381,7 +381,7 @@ The focused test must cover:
   added dependencies.
 
 Manually inspect `javap -p -c -s` and reflection for exact enum/record shape, component order,
-constructor validation, and absence of additional project [API](../../../../glossary.md#term-application-programming-interface-api)/state. [Scan](../../../../glossary.md#term-cumulative-scan) production imports and
+constructor validation, and absence of additional project [API](../../../../glossary.md#term-application-programming-interface-api)/state. Scan production imports and
 [Gradle](../../../../glossary.md#term-gradle) dependencies for forbidden layers. Confirm no [Tensor](../../../../glossary.md#tensor), [DataType](../../../../glossary.md#data-type--datatype), storage, [graph](../../../../glossary.md#graph), [compiler](../../../../glossary.md#term-compiler),
 [planning](../../../../glossary.md#term-planning), [runtime](../../../../glossary.md#term-runtime), [backend](../../../../glossary.md#backend), [gradient](../../../../glossary.md#term-gradient), cost, [fusion](../../../../glossary.md#term-fusion), route, [registry](../../../../glossary.md#term-registry), map, reflection, or service
 type appears. Validate generated [Javadoc](../../../../glossary.md#term-javadoc), Tensor API current-versus-planned wording, glossary
@@ -505,7 +505,7 @@ the foundational operation package.
 Planning validation:
 
 - `git diff --check` passed, and the three changed planning files contain no trailing whitespace.
-- The [canonical](../../../../glossary.md#term-canonical-form) section [scan](../../../../glossary.md#term-cumulative-scan) found every required task-specification section.
+- The [canonical](../../../../glossary.md#term-canonical-form) section scan found every required task-specification section.
 - The relative Markdown-[target](../../../../glossary.md#term-target) scan resolved every local `.md` link in this task, the model master
   plan, and the roadmap.
 - Status inspection found task 0014E [`Ready`](../../../../glossary.md#term-ready) exactly once in this specification, its model-master

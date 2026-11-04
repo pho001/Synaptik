@@ -190,7 +190,7 @@ retained.
 - Strict `<` implements the mathematical Bernoulli success rule and avoids including a hypothetical
   draw equal to the probability.<span data-glossary-navigation="true"> ([Bernoulli glossary](../../../../glossary.md#term-bernoulli-distribution))</span>
 
-### [Ownership](../../../../glossary.md#term-ownership-meanings), [reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance), and failure effects
+### [Ownership](../../../../glossary.md#term-ownership-meanings), reproducibility, and failure effects
 
 - Reuse task 0012F policy: caller owns source; no management/synchronization; equivalent results
   require equivalent implementation/state/arguments without interference.<span data-glossary-navigation="true"> ([synchronization glossary](../../../../glossary.md#term-synchronization); [arguments glossary](../../../../glossary.md#term-argument))</span>
@@ -252,7 +252,7 @@ the fifth entry in the same buildable change.
 
 - Update TensorFactory type Javadoc and document `randomBernoulli` fully: BOOL/non-gradient result,
   probability interval/endpoints, strict comparison, exact source call count, static dense shape,
-  ownership/reproducibility/threading, label/result, failures, allocation/source/ID effects.<span data-glossary-navigation="true"> ([BOOL glossary](../../../../glossary.md#data-type--datatype); [shape glossary](../../../../glossary.md#shape); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance))</span>
+  ownership/reproducibility/threading, label/result, failures, allocation/source/ID effects.<span data-glossary-navigation="true"> ([BOOL glossary](../../../../glossary.md#data-type--datatype); [shape glossary](../../../../glossary.md#shape); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Finalize helper entry/private loop; preserve all existing random Javadocs.
 - Explain why endpoint draws are not skipped and why no [DataType](../../../../glossary.md#data-type--datatype)/[gradient](../../../../glossary.md#term-gradient)/package/source abstraction.
 - Review related BOOL/type/shape/layout/descriptor/Tensor/storage/random Javadocs and record
@@ -301,7 +301,7 @@ paths, and no task-0013 spec.
 
 ## Dependencies
 
-- 0012F owns caller-source/[reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance) policy.
+- 0012F owns caller-source/reproducibility policy.
 - 0012G defines uniform [binary64](../../../../glossary.md#floating-point-precision-and-rounding) source semantics.
 - 0012H establishes current helper surface and direct typed random extension practice.
 - 0012B supplies [canonical](../../../../glossary.md#term-canonical-form) [BOOL](../../../../glossary.md#data-type--datatype) flat import; foundational [model](../../../../glossary.md#term-model) tasks remain complete.
@@ -360,7 +360,7 @@ only after both passes. Leave 0013 Draft without a spec. Do not commit or push.
 - [Scalar](../../../../glossary.md#term-scalar) probability only; [BOOL](../../../../glossary.md#data-type--datatype) output; static Java-array-sized [shape](../../../../glossary.md#shape).
 - No per-[element](../../../../glossary.md#term-element) probabilities, logits, [broadcasting](../../../../glossary.md#broadcasting), numeric output, or [gradient](../../../../glossary.md#term-gradient).
 - No source synchronization/cross-provider reproducibility/defaults/random Operation/dropout/runtime
-  generation.<span data-glossary-navigation="true"> ([synchronization glossary](../../../../glossary.md#term-synchronization); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance); [Operation glossary](../../../../glossary.md#operation); [dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [runtime glossary](../../../../glossary.md#term-runtime))</span>
+  generation.<span data-glossary-navigation="true"> ([synchronization glossary](../../../../glossary.md#term-synchronization); [Operation glossary](../../../../glossary.md#operation); [dropout glossary](../../../../glossary.md#dropout--inverted-dropout); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 - Custom non-conforming draw results are compared directly without post-[validation](../../../../glossary.md#term-validation).
 
 ## [Validation](../../../../glossary.md#term-validation) evidence
@@ -452,7 +452,7 @@ uses their existing [boolean](../../../../glossary.md#data-type--datatype) class
 Existing normal, uniform, and integral Javadocs also remain accurate; only the factory/helper type
 surface and additive Bernoulli contracts required revision. The Tensor API now treats Bernoulli
 creation as current and documents probability, endpoint calls, strict comparison, canonical BOOL
-storage, [ownership](../../../../glossary.md#term-ownership-meanings), [reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance), and failure effects.
+storage, [ownership](../../../../glossary.md#term-ownership-meanings), reproducibility, and failure effects.
 
 The glossary's implementation status and existing Tensor/TensorFactory entries now include
 Bernoulli creation. No new reusable glossary term was warranted: Bernoulli distribution,
@@ -474,7 +474,7 @@ storage ownership, backend behavior, or end-to-end execution contract.
 - Focused tests cover exact public/helper surface, strict equality and non-conforming draws,
   endpoints including signed zero, canonical bytes, scalar/empty shapes, exact validation and
   messages, source ownership and failure, bounded reproducibility, labels, identifier effects,
-  allocator restoration, and absence of bounded-double or boolean calls.<span data-glossary-navigation="true"> ([signed zero glossary](../../../../glossary.md#term-signed-zero); [scalar glossary](../../../../glossary.md#term-scalar); [shapes glossary](../../../../glossary.md#shape); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance); [boolean glossary](../../../../glossary.md#data-type--datatype))</span>
+  allocator restoration, and absence of bounded-double or boolean calls.<span data-glossary-navigation="true"> ([signed zero glossary](../../../../glossary.md#term-signed-zero); [scalar glossary](../../../../glossary.md#term-scalar); [shapes glossary](../../../../glossary.md#shape); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [boolean glossary](../../../../glossary.md#data-type--datatype))</span>
 - The independent documentation pass finalized Javadocs, the Tensor API example, glossary impact,
   validation evidence, and synchronized planning status before completion.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [planning glossary](../../../../glossary.md#term-planning))</span>
 

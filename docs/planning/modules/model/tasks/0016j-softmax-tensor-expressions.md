@@ -58,7 +58,7 @@ graph](../../../../glossary.md#compiled-graph--compiledgraphmodel), decompose th
 - value or host-storage inspection, allocation, copy, materialization, maximum, subtraction,
   exponential, logarithm, sum, division, probability calculation, mutation, or execution<span data-glossary-navigation="true"> ([host glossary](../../../../glossary.md#term-host); [materialization glossary](../../../../glossary.md#materialization))</span>
 - numerical stability algorithm, subtract-maximum implementation, reduction order, precision,
-  reproducibility, overflow, underflow, NaN, infinity, signed zero, empty-axis, or error policy<span data-glossary-navigation="true"> ([numerical stability glossary](../../../../glossary.md#term-numerical-stability); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance); [overflow glossary](../../../../glossary.md#term-overflow); [underflow glossary](../../../../glossary.md#term-underflow); [NaN glossary](../../../../glossary.md#term-nan); [infinity glossary](../../../../glossary.md#term-infinity); [signed zero glossary](../../../../glossary.md#term-signed-zero); [axis glossary](../../../../glossary.md#term-axis))</span>
+  reproducibility, overflow, underflow, NaN, infinity, signed zero, empty-axis, or error policy<span data-glossary-navigation="true"> ([numerical stability glossary](../../../../glossary.md#term-numerical-stability); [overflow glossary](../../../../glossary.md#term-overflow); [underflow glossary](../../../../glossary.md#term-underflow); [NaN glossary](../../../../glossary.md#term-nan); [infinity glossary](../../../../glossary.md#term-infinity); [signed zero glossary](../../../../glossary.md#term-signed-zero); [axis glossary](../../../../glossary.md#term-axis))</span>
 - preserving resolved layout, view construction, strides, offset, storage aliasing, or
   materialization policy<span data-glossary-navigation="true"> ([layout glossary](../../../../glossary.md#layout); [view glossary](../../../../glossary.md#term-view-meanings); [strides glossary](../../../../glossary.md#term-stride); [aliasing glossary](../../../../glossary.md#term-aliasing))</span>
 - gradient rule, Jacobian-vector product, backward operation, saved forward value, autograd
@@ -475,7 +475,7 @@ Pre-implementation planning validation after synchronizing this task, the model 
 roadmap:
 
 - `git diff --check` passed.
-- The targeted trailing-whitespace [scan](../../../../glossary.md#term-cumulative-scan) returned no matches across the three planning files.
+- The targeted trailing-whitespace scan returned no matches across the three planning files.
 - All 179 relative Markdown links across the three planning files resolve locally.
 - Markdown fence counts are balanced: twelve in this task, two in the master plan, and zero in the
   roadmap.

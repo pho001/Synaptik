@@ -351,7 +351,7 @@ The focused test must cover:
 - distinction from `NoOperationAttrs.INSTANCE` and parameterless families.
 
 Manually inspect `javap -p -c -s` and reflection for exact enum/record shape, component order,
-constructor null validation, explicit accessor, and absence of extra project [API](../../../../glossary.md#term-application-programming-interface-api)/state. [Scan](../../../../glossary.md#term-cumulative-scan)
+constructor null validation, explicit accessor, and absence of extra project [API](../../../../glossary.md#term-application-programming-interface-api)/state. Scan
 production imports and [Gradle](../../../../glossary.md#term-gradle) dependencies: `CastKind` may import only [`OperationKind`](../../../../glossary.md#operationkind); `CastAttrs`
 may import only `DataType`, [`OperationAttrs`](../../../../glossary.md#operationattrs), and `Objects`. Confirm no [Tensor](../../../../glossary.md#tensor), [shape](../../../../glossary.md#shape), [layout](../../../../glossary.md#layout),
 storage, [provenance](../../../../glossary.md#provenance), [graph](../../../../glossary.md#graph), [compiler](../../../../glossary.md#term-compiler), [planning](../../../../glossary.md#term-planning), [runtime](../../../../glossary.md#term-runtime), [prepare](../../../../glossary.md#prepare), [backend](../../../../glossary.md#backend), training, [gradient](../../../../glossary.md#term-gradient),
@@ -475,7 +475,7 @@ Planning validation:
   the three changed planning paths.
 - The required-section scan found every canonical task-specification section, including package
   impact, exact enum/record shapes, bounded scope, validation, implementation handoff, decisions,
-  limitations, and completion-evidence sections.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [canonical glossary](../../../../glossary.md#term-canonical-form); [scope glossary](../../../../glossary.md#term-scope); [handoff glossary](../../../../glossary.md#term-handoff))</span>
+  limitations, and completion-evidence sections.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [scope glossary](../../../../glossary.md#term-scope); [handoff glossary](../../../../glossary.md#term-handoff))</span>
 - Every local Markdown file and heading anchor linked from this task, the model master plan, and
   the roadmap resolves. Markdown fence counts are balanced.
 - Initial planning status inspection found 0015G [`Ready`](../../../../glossary.md#term-ready) in this specification, its linked

@@ -118,7 +118,7 @@ widened output, [saturation](../../../../glossary.md#term-saturation), conversio
 For a non-empty update group, floating `MUL` follows the existing portable product meaning used by
 ordinary reductions and cumulative product:
 
-- any [NaN](../../../../glossary.md#term-nan) factor produces NaN, without a [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication), sign, signaling, or source-factor promise;
+- any [NaN](../../../../glossary.md#term-nan) factor produces NaN, without a payload, sign, signaling, or source-factor promise;
 - a group containing both any zero and any [infinity](../../../../glossary.md#term-infinity) produces NaN;
 - otherwise, an infinity produces infinity and a zero produces zero, with sign determined by the
   parity of negative factors, including negative zero and negative infinity;<span data-glossary-navigation="true"> ([negative zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [negative infinity glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>
@@ -145,7 +145,7 @@ For a non-empty update group, floating `MIN` and `MAX` reuse completed [Model](.
 represented-value [extrema](../../../../glossary.md#saturation-pole-and-extremum) meaning across the entire candidate group:
 
 - if any candidate is NaN, the result is NaN, without a payload, sign, source-candidate, or
-  bitwise-result promise;<span data-glossary-navigation="true"> ([payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication))</span>
+  bitwise-result promise;
 - if both zero signs occur, `MIN` produces [negative zero](../../../../glossary.md#nan-infinity-and-signed-zero) and `MAX` produces positive zero,
   independent of how many occurrences contribute;<span data-glossary-navigation="true"> ([positive zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>
 - [infinities](../../../../glossary.md#nan-infinity-and-signed-zero) and unequal non-[NaN](../../../../glossary.md#term-nan) values use ordinary numeric order; and

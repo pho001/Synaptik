@@ -58,9 +58,9 @@ default [data type](../../../../glossary.md#data-type--datatype), inherited stor
   dense-contiguous leaf storage<span data-glossary-navigation="true"> ([contiguous glossary](../../../../glossary.md#term-contiguous); [leaf glossary](../../../../glossary.md#term-leaf))</span>
 - dynamic-[shape](../../../../glossary.md#shape) allocation or symbolic [binding](../../../../glossary.md#term-binding)
 - task 0012E integer ranges, strict-prefix filling, or cyclic-prefix filling
-- task 0012F random values, random sources, [seeds](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings), or [reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance)
+- task 0012F random values, random sources, [seeds](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings), or reproducibility
 - typed [Tensor](../../../../glossary.md#tensor) reads/writes or export, mutation/version tracking, [views](../../../../glossary.md#term-view-meanings)/scatter, or zero-copy state
-- native/[off-heap](../../../../glossary.md#term-off-heap-memory)/mapped allocation, [`Arena`](../../../../glossary.md#term-arena), [ownership](../../../../glossary.md#term-ownership-meanings)/close behavior, [pooling](../../../../glossary.md#term-pooling), or new storage types
+- native/[off-heap](../../../../glossary.md#term-off-heap-memory)/mapped allocation, [`Arena`](../../../../glossary.md#term-arena), [ownership](../../../../glossary.md#term-ownership-meanings)/close behavior, pooling, or new storage types
 - provenance, expression operations, graph/compiler/planning/prepare/runtime/engine/backend/device
   behavior, dependencies, build changes, architecture changes, another module, or later task specs<span data-glossary-navigation="true"> ([compiler glossary](../../../../glossary.md#term-compiler); [planning glossary](../../../../glossary.md#term-planning); [prepare glossary](../../../../glossary.md#prepare); [engine glossary](../../../../glossary.md#term-engine); [device glossary](../../../../glossary.md#term-device); [module glossary](../../../../glossary.md#term-module))</span>
 
@@ -444,7 +444,7 @@ task-0012E/task-0013 specs.
 ## Follow-up tasks
 
 - Task 0012E will define integer ranges and strict/cyclic prefix population.
-- Task 0012F will define random creation and [reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance) policy.
+- Task 0012F will define random creation and reproducibility policy.
 - Later work owns typed export/access, mutation versions, [views](../../../../glossary.md#term-view-meanings)/scatter, [provenance](../../../../glossary.md#provenance), and operations.
 
 Do not create a detailed task-0012E or later specification as part of task 0012D.

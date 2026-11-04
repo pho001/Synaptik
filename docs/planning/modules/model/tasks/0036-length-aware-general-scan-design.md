@@ -41,7 +41,7 @@ Class C design — proposed row [binding](../../../../glossary.md#term-binding),
 ## Goal
 
 Deliver a compact, independently reviewed [proposal](../../../length-aware-general-scan.md) for
-[runtime](../../../../glossary.md#term-runtime) [INT64](../../../../glossary.md#data-type--datatype) `[B]` valid lengths on existing [Scan](../../../../glossary.md#term-cumulative-scan) and first-order reverse, using existing [owners](../../../../glossary.md#term-owner).
+[runtime](../../../../glossary.md#term-runtime) [INT64](../../../../glossary.md#data-type--datatype) `[B]` valid lengths on existing Scan and first-order reverse, using existing [owners](../../../../glossary.md#term-owner).
 Choose a bounded mechanism and expose every genuinely new [API](../../../../glossary.md#term-application-programming-interface-api)/[metadata](../../../../glossary.md#term-metadata) concept as PROPOSED.
 
 ## [Scope](../../../../glossary.md#term-scope)
@@ -86,7 +86,7 @@ Read [root scope index](../../../../../ARCHITECTURE.md#scope-indexed-normative-c
   [Prepare lifecycle](../../../../architecture/contracts/runtime-prepare-engine.md#prepare-lifecycle),
   [CPU backend routes](../../../../architecture/contracts/backend-execution.md#cpu-backend-routes)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [backend glossary](../../../../glossary.md#backend))</span>.
 
-[Planning](../../../../glossary.md#term-planning) guide/roadmap/active [Model](../../../../glossary.md#term-model), [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) and general-[scan](../../../../glossary.md#term-cumulative-scan) program reading is required for this
+[Planning](../../../../glossary.md#term-planning) guide/roadmap/active [Model](../../../../glossary.md#term-model), [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) and general-scan program reading is required for this
 planning context. Apply documentation rules, general/planning style, decision-record rationale and
 example profiles. Search relevant glossary terms only. Stop on a conflict that prevents a coherent
 proposal; do not invent accepted architecture. Current contracts remain unchanged.
@@ -97,7 +97,7 @@ proposal; do not invent accepted architecture. Current contracts remain unchange
   CPU0030–0037, CP0012/0013, NN0030/0031 and their recorded joins; current source/contract baseline.
   Their recorded Complete status is reused, not independently rerun here.
 - Conflicts with: scan binding/AD/history/identity/wire decisions, fluent migration and all seven
-  shared planning documents; sole documentation writer, no concurrent code writer.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [binding glossary](../../../../glossary.md#term-binding); [AD glossary](../../../../glossary.md#autograd); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
+  shared planning documents; sole documentation writer, no concurrent code writer.<span data-glossary-navigation="true"> ([binding glossary](../../../../glossary.md#term-binding); [AD glossary](../../../../glossary.md#autograd); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - Parallel group: None. Planner closed; independent reviewer holds only the exclusive seven-path
   factual review/status closure grant after final APPROVE.
 - Common base revision: HEAD=origin/main `6da23a0b42f015979a88f5e84416799f5ada3f40`, plus 295
@@ -125,7 +125,7 @@ Read-only evidence uses package prefix `io.github.pho001.synaptik`:
 - `modules/compiler`: `ScanBodyInference.capture/infer/refreshDemand`,
   `ScanGradientRules.preflight/apply`, `FirstOrderAutograd.expandBody`,
   `LinearAlgebraGradientRules.apply`, the [primal](../../../../glossary.md#term-primal)-bound `ReductionGradientRules.apply` overload,
-  `SourceGraphReconstruction.preflight/reconstructScan`, `AutogradPreflight` [scan](../../../../glossary.md#term-cumulative-scan)-order rejection.
+  `SourceGraphReconstruction.preflight/reconstructScan`, `AutogradPreflight` scan-order rejection.
 - `modules/planning`: [`OperationCapabilityQuery`](../../../../glossary.md#operation-capability-query--operationcapabilityquery); `modules/prepare`: [`PrepareContext`](../../../../glossary.md#prepare-context-preparecontext),
   [`GraphPreparation`](../../../../glossary.md#graph-preparation--graphpreparation) demand [validation](../../../../glossary.md#term-validation). Existing scoped body attachment remains the [carrier](../../../../glossary.md#term-storage-carrier).
 - `modules/backend/cpu`: `CpuGeneralScanLowering`, `CpuGeneralScanIr`, `CpuGeneralScanEmitter`,
@@ -154,7 +154,7 @@ Read-only evidence uses package prefix `io.github.pho001.synaptik`:
 - Exact saved/previous primals, shared/row history activity and positive-zero padding are specified;
   no padded seed/history reads, activation replay or unguarded hoisted body work.<span data-glossary-navigation="true"> ([padding glossary](../../../../glossary.md#padding); [seed glossary](../../../../glossary.md#term-seed); [activation glossary](../../../../glossary.md#term-activation))</span>
 - Runtime lengths fully preflight after producers and before this scan's first write; no upstream
-  rollback claim. O(body) code/prepared objects, dense output/live-history costs remain truthful.<span data-glossary-navigation="true"> ([producers glossary](../../../../glossary.md#term-producer))</span><span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [preflight glossary](../../../../glossary.md#term-preflight); [scan glossary](../../../../glossary.md#term-cumulative-scan); [rollback glossary](../../../../glossary.md#term-rollback))</span>
+  rollback claim. O(body) code/prepared objects, dense output/live-history costs remain truthful.<span data-glossary-navigation="true"> ([producers glossary](../../../../glossary.md#term-producer))</span><span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [preflight glossary](../../../../glossary.md#term-preflight); [rollback glossary](../../../../glossary.md#term-rollback))</span>
 - Old all-valid behavior/constructors/identities and v1–v4 bytes remain separate; new public record
   fields/overload and selective v5/new opcode are proposed, not silently accepted or schema-free.<span data-glossary-navigation="true"> ([opcode glossary](../../../../glossary.md#term-opcode); [schema glossary](../../../../glossary.md#term-schema))</span>
 - Current fluent/fixed APIs and NN0032 second-order compile blocker, CONCAT-copy and mixed-engine

@@ -305,7 +305,7 @@ At the end, update this task file with local decisions, known limitations, valid
   output.
 - Final `javap` inspection confirmed that `OperationKind` exposes only `String name()`,
   `OperationAttrs` exposes no methods, and `NoOperationAttrs` declares only the `INSTANCE` enum
-  constant. A production-source import scan returned no matches.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  constant. A production-source import scan returned no matches.
 - Final scope review confirmed that only the three production files, two test files, Tensor API,
   glossary, this task, model master plan, and implementation roadmap changed. <span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope); [Tensor glossary](../../../../glossary.md#tensor))</span>`ARCHITECTURE.md`,
   focused architecture documentation, Gradle files, existing Java contracts, and other modules

@@ -427,7 +427,7 @@ The focused test must cover:
 
 Manually inspect `javap -p -c -s` and reflection for the exact [Tensor](../../../../glossary.md#tensor) method [descriptors](../../../../glossary.md#term-descriptor) and helper
 surface. Inspect source/[bytecode](../../../../glossary.md#term-bytecode) for one helper delegation per public method and exact local
-construction order. [Scan](../../../../glossary.md#term-cumulative-scan) production imports and [Gradle](../../../../glossary.md#term-gradle) dependencies for forbidden layers. Confirm
+construction order. Scan production imports and [Gradle](../../../../glossary.md#term-gradle) dependencies for forbidden layers. Confirm
 that no storage accessor, segment [API](../../../../glossary.md#term-application-programming-interface-api), shape algebra, [graph](../../../../glossary.md#graph) ID, [compiler](../../../../glossary.md#term-compiler)/[runtime](../../../../glossary.md#term-runtime)/[backend](../../../../glossary.md#backend) type,
 gradient rule, domain check, [canonicalization](../../../../glossary.md#occurrence-identity-and-canonical-form), [cache](../../../../glossary.md#term-cache), [registry](../../../../glossary.md#term-registry), or service [lookup](../../../../glossary.md#term-lookup) appears. Validate
 generated [Javadoc](../../../../glossary.md#term-javadoc), Tensor and [Compile](../../../../glossary.md#compile) API current-versus-planned wording and newcomer example,
@@ -554,7 +554,7 @@ package direction remains acyclic.
 Planning validation:
 
 - `git diff --check` passed, and the three changed planning files contain no trailing whitespace.
-- The [canonical](../../../../glossary.md#term-canonical-form) section [scan](../../../../glossary.md#term-cumulative-scan) found every required task-specification section.
+- The [canonical](../../../../glossary.md#term-canonical-form) section scan found every required task-specification section.
 - The relative Markdown-[target](../../../../glossary.md#term-target) scan resolved every local `.md` link in this task, the model master
   plan, and the roadmap.
 - Status inspection found task 0014D [`Ready`](../../../../glossary.md#term-ready) exactly once in this specification, its model-master

@@ -542,7 +542,7 @@ criteria pass; otherwise return the exact incomplete follow-up.
 - A runtime inventory scan over compiled Model operation enums reported exactly 40 families, 113
   constants, and 134 signatures. Source scans found no Pool3d references in Compiler or CPU
   production/tests, architecture tests, backend conformance, or integration tests, confirming
-  that current support stops at Model metadata.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [scan glossary](../../../../glossary.md#term-cumulative-scan); [operation glossary](../../../../glossary.md#operation); [constants glossary](../../../../glossary.md#term-constant); [backend glossary](../../../../glossary.md#backend); [conformance glossary](../../../../glossary.md#term-conformance))</span>
+  that current support stops at Model metadata.<span data-glossary-navigation="true"> ([runtime glossary](../../../../glossary.md#term-runtime); [operation glossary](../../../../glossary.md#operation); [constants glossary](../../../../glossary.md#term-constant); [backend glossary](../../../../glossary.md#backend); [conformance glossary](../../../../glossary.md#term-conformance))</span>
 - The targeted Markdown validator passed all seven documentation/planning files: 1,060 local
   links, 792 target anchors, balanced fences, final newlines, no carriage returns, and no trailing
   whitespace. The exact-scope check passed 33 authorized paths: six production/Javadoc, twenty

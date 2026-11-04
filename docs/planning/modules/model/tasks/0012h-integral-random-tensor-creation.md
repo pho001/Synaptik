@@ -30,7 +30,7 @@ behavior.
   element in row-major order.<span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element); [row-major glossary](../../../../glossary.md#term-row-major))</span>
 - Require fully static Java-array-sized [shape](../../../../glossary.md#shape) and synthesize [canonical](../../../../glossary.md#term-canonical-form) dense [layout](../../../../glossary.md#layout) with
   `requiresGrad == false`.
-- Preserve task 0012F source [ownership](../../../../glossary.md#term-ownership-meanings)/[reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance)/failure policy.
+- Preserve task 0012F source [ownership](../../../../glossary.md#term-ownership-meanings)/reproducibility/failure policy.
 - Extend existing `TensorRandoms` with exactly two package-private overloads.
 - Update the factory public API-shape test and only exact helper-surface assertions in both existing
   random focused tests; add one integral-random focused test.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api))</span>
@@ -191,7 +191,7 @@ Bounds use the result [carrier](../../../../glossary.md#term-storage-carrier) it
 express the mathematical exclusive bound one greater than the carrier maximum; no unbounded/full-
 domain alternative is added in this task. Negative and mixed-sign valid intervals are supported.
 
-### [Ownership](../../../../glossary.md#term-ownership-meanings), [reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance), and failure effects
+### [Ownership](../../../../glossary.md#term-ownership-meanings), reproducibility, and failure effects
 
 - Reuse task 0012F policy: caller owns source, no source management/synchronization, and equivalent
   results require equivalent implementation/state/arguments without interference.<span data-glossary-navigation="true"> ([synchronization glossary](../../../../glossary.md#term-synchronization); [arguments glossary](../../../../glossary.md#term-argument))</span>
@@ -254,7 +254,7 @@ from the API addition would leave the repository failing between tasks.
 
 - Update TensorFactory type Javadoc and document both overloads fully: inferred type, half-open
   bounds, static shape, source ownership/reproducibility/call count, no modulo bias, carrier-domain
-  limitation, label/result, failures, allocation, source, and ID effects.<span data-glossary-navigation="true"> ([half-open glossary](../../../../glossary.md#term-half-open-interval); [shape glossary](../../../../glossary.md#shape); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance); [bias glossary](../../../../glossary.md#term-bias); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
+  limitation, label/result, failures, allocation, source, and ID effects.<span data-glossary-navigation="true"> ([half-open glossary](../../../../glossary.md#term-half-open-interval); [shape glossary](../../../../glossary.md#shape); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [bias glossary](../../../../glossary.md#term-bias); [carrier glossary](../../../../glossary.md#term-storage-carrier))</span>
 - Finalize both helper entries/private loops and preserve existing normal/uniform Javadocs.
 - Explain why there is no [DataType](../../../../glossary.md#data-type--datatype)/[gradient](../../../../glossary.md#term-gradient)/default/full-domain [API](../../../../glossary.md#term-application-programming-interface-api) and no new package.
 - Review related type/shape/layout/descriptor/Tensor/storage/random Javadocs and record reasoned
@@ -302,7 +302,7 @@ later detailed specs.
 
 ## Dependencies
 
-- 0012F owns caller-source/[reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance) policy.
+- 0012F owns caller-source/reproducibility policy.
 - 0012G establishes safe helper extension and exact-surface update practice.
 - 0012B supplies typed flat import; foundational [model](../../../../glossary.md#term-model) tasks remain complete.
 
@@ -361,7 +361,7 @@ only after both passes. Leave 0012I Draft without a spec. Do not commit or push.
 - The exclusive bound cannot be mathematically one above [carrier](../../../../glossary.md#term-storage-carrier) maximum.
 - One bounded method invocation is promised, not underlying random-bit consumption.
 - No source synchronization/cross-provider reproducibility/defaults/full-domain/Bernoulli/random
-  Operation/access/runtime generation.<span data-glossary-navigation="true"> ([synchronization glossary](../../../../glossary.md#term-synchronization); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance); [Bernoulli glossary](../../../../glossary.md#term-bernoulli-distribution); [Operation glossary](../../../../glossary.md#operation); [runtime glossary](../../../../glossary.md#term-runtime))</span>
+  Operation/access/runtime generation.<span data-glossary-navigation="true"> ([synchronization glossary](../../../../glossary.md#term-synchronization); [Bernoulli glossary](../../../../glossary.md#term-bernoulli-distribution); [Operation glossary](../../../../glossary.md#operation); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 
 ## [Validation](../../../../glossary.md#term-validation) evidence
 
@@ -402,7 +402,7 @@ execution, output, repository state, or the passing [Gradle](../../../../glossar
 A Ruby local Markdown [target](../../../../glossary.md#term-target)-and-heading checker ran over the [Tensor](../../../../glossary.md#tensor) API, glossary, this task,
 model master plan, and roadmap. It checked 163 local links, including 58 anchors, with 0 failures.
 A separate fence check over the same five files reported 0 failures. `git diff --check` confirmed
-no whitespace errors in tracked diffs, and a targeted trailing-whitespace [scan](../../../../glossary.md#term-cumulative-scan) of both new files
+no whitespace errors in tracked diffs, and a targeted trailing-whitespace scan of both new files
 also passed.
 
 `javap -p -s` confirmed exactly two public and two matching package-private `randomInt` overloads,
@@ -427,7 +427,7 @@ Documentation validation used the separate clean context
 `/root/implement_model_0012h/review_model_0012h_docs`. The primary profiles were API and [Javadoc](../../../../glossary.md#term-javadoc)
 for `TensorFactory`, `TensorRandoms`, and the Tensor API, plus Planning for this task, the model
 master plan, and roadmap; General style and Example format were also applied. The pass finalized
-the public/helper validation, carrier-domain, [ownership](../../../../glossary.md#term-ownership-meanings), [reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance), call-count, allocation,
+the public/helper validation, carrier-domain, [ownership](../../../../glossary.md#term-ownership-meanings), reproducibility, call-count, allocation,
 source, and identifier contracts; added the current bounded-integral API and focused example; and
 updated the existing Tensor and [Tensor factory](../../../../glossary.md#tensor-factory) glossary status. No new glossary entry was
 warranted because [half-open interval](../../../../glossary.md#term-half-open-interval), bounded integer sampling, and `RandomGenerator` are ordinary
@@ -454,7 +454,7 @@ end-to-end execution. Architecture impact is None.
 - Focused tests cover exact API/helper shape, int/long arguments and direct values, scalar/empty and
   signed/boundary-adjacent intervals, validation order/messages, source ownership and failure,
   labels, descriptor facts, bounded reproducibility, late identifier effects, and allocator
-  restoration.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [shape glossary](../../../../glossary.md#shape); [arguments glossary](../../../../glossary.md#term-argument); [scalar glossary](../../../../glossary.md#term-scalar); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [descriptor glossary](../../../../glossary.md#term-descriptor); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance))</span>
+  restoration.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [shape glossary](../../../../glossary.md#shape); [arguments glossary](../../../../glossary.md#term-argument); [scalar glossary](../../../../glossary.md#term-scalar); [ownership glossary](../../../../glossary.md#term-ownership-meanings); [descriptor glossary](../../../../glossary.md#term-descriptor))</span>
 - The independent documentation pass finalized Javadocs, the Tensor API example, glossary impact,
   validation evidence, and planning status before completion.<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [planning glossary](../../../../glossary.md#term-planning))</span>
 

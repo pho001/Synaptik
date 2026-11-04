@@ -30,7 +30,7 @@ Actual [descriptor](../../../../glossary.md#term-descriptor)-only calls, affecte
 
 Class B: preserve existing ordinary constructor semantics while making their checks usable before
 [Tensor](../../../../glossary.md#tensor) [identity](../../../../glossary.md#term-identity-meanings) allocation. Authority remains the [Model owner](../../../../architecture/contracts/foundational-modules.md#modulesmodel)<span data-glossary-navigation="true"> ([Model glossary](../../../../glossary.md#term-model); [owner glossary](../../../../glossary.md#term-owner))</span>
-and [Scan owner](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>.
+and [Scan owner](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan).
 This task grants no new row-[coordinate](../../../../glossary.md#axis-rank-scalar-vector-and-matrix), differentiability, [backend](../../../../glossary.md#backend), wire or cold-acquisition domain.
 
 The existing checked ordinary selector in `ScanBody` now invokes [descriptor](../../../../glossary.md#term-descriptor)-only family owners
@@ -52,7 +52,7 @@ canonical [occurrence](../../../../glossary.md#term-occurrence): reject, rather 
 nulls and exact [signature](../../../../glossary.md#term-signature) [cardinality](../../../../glossary.md#term-cardinality) before positional access. Reuse/refactor the existing
 ordinary selector instead of retaining a second family switch. Known ordinary [PURE](../../../../glossary.md#term-pure) families only;
 custom/unknown kinds, [RNG](../../../../glossary.md#graph-rng-state--graphrngstate)/[dropout](../../../../glossary.md#dropout--inverted-dropout), fixed recurrent scans and nested general scans remain excluded.
-[Descriptor](../../../../glossary.md#term-descriptor) [admission](../../../../glossary.md#term-admission) does not establish [Scan](../../../../glossary.md#term-cumulative-scan) [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) or [Compiler](../../../../glossary.md#term-compiler) predicate disposition.
+[Descriptor](../../../../glossary.md#term-descriptor) [admission](../../../../glossary.md#term-admission) does not establish Scan [coordinates](../../../../glossary.md#axis-rank-scalar-vector-and-matrix) or [Compiler](../../../../glossary.md#term-compiler) predicate disposition.
 
 Each existing family exposes this package-private completion entry:
 
@@ -112,5 +112,5 @@ broadcast, [view](../../../../glossary.md#term-view-meanings)/materializing resh
 Exact source manifests, first-failed XML/[logs](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings), repaired Model gate, actual [CLI](../../../../glossary.md#term-cli) output and CPU
 compatibility capture are retained in the production-[run](../../../../glossary.md#term-run) receipts model0047-*. Final independent
 primitive, structured and contract/evidence/docs reviews all APPROVE with zero P1/P2. This completes
-Model0047 only; no all-PURE [Scan](../../../../glossary.md#term-cumulative-scan) execution or production-[release](../../../../glossary.md#term-release) completion is claimed.
+Model0047 only; no all-PURE Scan execution or production-[release](../../../../glossary.md#term-release) completion is claimed.
 

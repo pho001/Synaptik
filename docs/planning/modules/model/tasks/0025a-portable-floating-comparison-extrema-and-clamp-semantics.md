@@ -91,7 +91,7 @@ comparison after current promotion, with exact equality and no floating special-
 [Binary](../../../../glossary.md#term-binary-descriptor-and-metadata) and [scalar](../../../../glossary.md#term-scalar) floating `MIN`/`MAX` use one typed rule:
 
 - if either candidate is NaN, the result is NaN, without a payload, sign, source-operand, or
-  bitwise-result promise;<span data-glossary-navigation="true"> ([payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication))</span>
+  bitwise-result promise;
 - for opposite-signed zeros, `MIN` produces [negative zero](../../../../glossary.md#nan-infinity-and-signed-zero) and `MAX` produces positive zero,
   independent of operand order;<span data-glossary-navigation="true"> ([positive zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>
 - [infinities](../../../../glossary.md#nan-infinity-and-signed-zero) and unequal non-[NaN](../../../../glossary.md#term-nan) values use ordinary numeric order; and
@@ -121,7 +121,7 @@ Consequences that documentation must state explicitly:
 
 | Input or bounds | Result |
 |---|---|
-| input, `minValue`, or `maxValue` is [NaN](../../../../glossary.md#term-nan) | NaN, with no [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) promise |
+| input, `minValue`, or `maxValue` is [NaN](../../../../glossary.md#term-nan) | NaN, with no payload promise |
 | equal non-NaN, same-representation bounds | that bound for every non-NaN input |
 | bounds `[-0, +0]` | negative inputs and [negative zero](../../../../glossary.md#nan-infinity-and-signed-zero) produce `-0`; positive inputs and [positive zero](../../../../glossary.md#nan-infinity-and-signed-zero) produce `+0` |
 | bounds `[+0, -0]` | every non-NaN input produces `-0` |
@@ -150,7 +150,7 @@ exactly scalar `MIN`.
 - a `model.numerics` package, numerical-policy object, registry, service, selectable mode,
   generic evaluator, backend utility, runtime utility, or test-only fake evaluator<span data-glossary-navigation="true"> ([registry glossary](../../../../glossary.md#term-registry); [backend glossary](../../../../glossary.md#backend); [runtime glossary](../../../../glossary.md#term-runtime))</span>
 - FLOAT16, implicit scalar conversion, a new scalar carrier, payload preservation, exact
-  instruction selection, bitwise reproducibility, or backend tolerance<span data-glossary-navigation="true"> ([FLOAT16 glossary](../../../../glossary.md#term-float16); [scalar glossary](../../../../glossary.md#term-scalar); [carrier glossary](../../../../glossary.md#term-storage-carrier); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance); [tolerance glossary](../../../../glossary.md#term-tolerance))</span>
+  instruction selection, bitwise reproducibility, or backend tolerance<span data-glossary-navigation="true"> ([FLOAT16 glossary](../../../../glossary.md#term-float16); [scalar glossary](../../../../glossary.md#term-scalar); [carrier glossary](../../../../glossary.md#term-storage-carrier); [tolerance glossary](../../../../glossary.md#term-tolerance))</span>
 - changes to reduction `MIN`/`MAX`, arg extrema, sorting/top-K, pooling, scatter reduction, or
   other operation families<span data-glossary-navigation="true"> ([extrema glossary](../../../../glossary.md#saturation-pole-and-extremum); [pooling glossary](../../../../glossary.md#term-pooling))</span>
 - constant folding, algebraic rewriting, canonicalization, graph capture, inference, validation,
@@ -444,7 +444,7 @@ without a task file, dependent on completed Model 0025A and Compiler 0005; keep 
 - `NOT_EQUAL` is the exact logical complement of numeric `EQUAL`. This supplies the NaN and
   opposite-signed-zero outcomes without a second independent policy.<span data-glossary-navigation="true"> ([NaN glossary](../../../../glossary.md#term-nan); [signed-zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>
 - Binary and scalar MIN/MAX now use the same complete NaN, infinity, signed-zero, unequal-value,
-  and equal-nonzero contract. No payload or source-operand identity becomes observable.<span data-glossary-navigation="true"> ([Binary glossary](../../../../glossary.md#term-binary-descriptor-and-metadata); [infinity glossary](../../../../glossary.md#term-infinity); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
+  and equal-nonzero contract. No payload or source-operand identity becomes observable.<span data-glossary-navigation="true"> ([Binary glossary](../../../../glossary.md#term-binary-descriptor-and-metadata); [infinity glossary](../../../../glossary.md#term-infinity); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - [Scalar](../../../../glossary.md#term-scalar) numerical comparison uses the exact same-typed [`ScalarValue`](../../../../glossary.md#typed-scalar-value--scalarvalue) represented value.
   `ScalarValue` raw-bit equality and hashing remain distinct [immutable](../../../../glossary.md#term-immutable) [metadata](../../../../glossary.md#term-metadata) behavior.
 - First-class CLAMP remains one [operation](../../../../glossary.md#operation) with ordered

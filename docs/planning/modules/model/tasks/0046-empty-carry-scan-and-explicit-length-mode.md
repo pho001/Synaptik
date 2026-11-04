@@ -1,4 +1,4 @@
-# Task 0046: Empty-[carry](../../../../glossary.md#term-carry) [Scan](../../../../glossary.md#term-cumulative-scan) and explicit length-mode source
+# Task 0046: Empty-[carry](../../../../glossary.md#term-carry) Scan and explicit length-mode source
 
 **Editorial reading key (current context, not a status update).**
 
@@ -41,7 +41,7 @@ Clean implementation, independent source/[Javadoc](../../../../glossary.md#term-
 ## Goal and source evidence
 
 Represent an actual empty [carry](../../../../glossary.md#term-carry), and length-aware reverse scans with zero ROW carries, in the
-existing [Scan](../../../../glossary.md#term-cumulative-scan). Before this cutover, ScanBody forbade empty carry and ScanAttrs required carryCount>=1
+existing Scan. Before this cutover, ScanBody forbade empty carry and ScanAttrs required carryCount>=1
 and used rowCarryCount=0 as all-valid. A legal first-order [derivative](../../../../glossary.md#term-derivative) with only discrete original
 carries can need no floating reverse carry, or only SHARED floating accumulators. Do not introduce dummy
 floating state, fake discrete [gradients](../../../../glossary.md#term-gradient), replay, [unrolling](../../../../glossary.md#term-unrolling), a map namespace or a second executor.
@@ -64,7 +64,7 @@ representation and truthful independent [guard](../../../../glossary.md#term-gua
 - Existing Scan.apply overloads accept the matching empty actual list. Infer static/named B from
   validLengths INT64[B] metadata before checking every explicit ROW declaration. No first-carry
   assumption, length read, extent-based row guess or altered role/algebra rule. Existing positive-
-  ROW source meanings, axes, aliases, canonical ports, flags and storage-free validation stay.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [INT64 glossary](../../../../glossary.md#data-type--datatype); [metadata glossary](../../../../glossary.md#term-metadata); [extent glossary](../../../../glossary.md#term-extent); [validation glossary](../../../../glossary.md#term-validation))</span>
+  ROW source meanings, axes, aliases, canonical ports, flags and storage-free validation stay.<span data-glossary-navigation="true"> ([INT64 glossary](../../../../glossary.md#data-type--datatype); [metadata glossary](../../../../glossary.md#term-metadata); [extent glossary](../../../../glossary.md#term-extent); [validation glossary](../../../../glossary.md#term-validation))</span>
 - ScanKind minimum inputs becomes one for carry-free all-valid with one sequence. CompiledScanBody
   structural admission permits empty nextCarry but requires at least one carry/emission root.
   ScanResult already permits empty groups; preserve it without another result type.<span data-glossary-navigation="true"> ([admission glossary](../../../../glossary.md#term-admission))</span>
@@ -96,8 +96,8 @@ ordinary floating [target](../../../../glossary.md#term-target)/cast/disconnecte
 ## Contracts and authority prerequisites
 
 - [Root](../../../../../ARCHITECTURE.md#core-lifecycle): lifecycle, source-only status and exact
-  per-owner consumer gates. Before Ready MAIN coordinates explicit header/source permission.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle); [owner glossary](../../../../glossary.md#term-owner); [Ready glossary](../../../../glossary.md#term-ready); [coordinates glossary](../../../../glossary.md#axis-rank-scalar-vector-and-matrix))</span>
-- [Scan owner](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan))</span>:
+  per-owner consumer gates. Before Ready MAIN coordinates explicit header/source permission.<span data-glossary-navigation="true"> ([lifecycle glossary](../../../../glossary.md#lifecycle); [owner glossary](../../../../glossary.md#term-owner); [Ready glossary](../../../../glossary.md#term-ready))</span>
+- [Scan owner](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan):
   source/header/bindings, canonical outputs, traversal/empties, accepted per-value typing and row
   semantics. Source counts/mode and independent downstream gates must change together.<span data-glossary-navigation="true"> ([bindings glossary](../../../../glossary.md#term-binding); [canonical glossary](../../../../glossary.md#term-canonical-form))</span>
 - [Compiler](../../../../architecture/contracts/compiler-autograd.md#compiler-owned-automatic-differentiation)<span data-glossary-navigation="true"> ([Compiler glossary](../../../../glossary.md#term-compiler))</span>
@@ -108,7 +108,7 @@ ordinary floating [target](../../../../glossary.md#term-target)/cast/disconnecte
 
 ## Files and current [owners](../../../../glossary.md#term-owner)
 
-[Model](../../../../glossary.md#term-model): [operation](../../../../glossary.md#operation).[scan](../../../../glossary.md#term-cumulative-scan).ScanAttrs/ScanKind; [tensor](../../../../glossary.md#tensor).Scan/ScanBody/ScanResult Javadocs; [graph](../../../../glossary.md#graph).CompiledScanBody;
+[Model](../../../../glossary.md#term-model): [operation](../../../../glossary.md#operation).scan.ScanAttrs/ScanKind; [tensor](../../../../glossary.md#tensor).Scan/ScanBody/ScanResult Javadocs; [graph](../../../../glossary.md#graph).CompiledScanBody;
 focused constructor/attachment/body/semantics tests. No new production type or helper protocol.
 
 All old [canonical](../../../../glossary.md#term-canonical-form) constructor and header-derived mode callers/tests across [Compiler](../../../../glossary.md#term-compiler), [Planning](../../../../glossary.md#term-planning),
@@ -123,7 +123,7 @@ MAIN owns root/scoped/[ADR](../../../../glossary.md#term-architecture-decision-r
 - Depends on: Model0045 and practical Compiler0018/Checkpoint0014/NN0033 Complete, CPU0078 integration,
   approved ADR0059 design, coordinated source/count/consumer authority, exact Ready verification.
 - Conflicts with: Scan header/source/compiled body, typed consumers/guards, CPU GeneralScanLowering,
-  raw codec/cold copies and affected tests/docs. No concurrent all-PURE/typed writer.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [CPU glossary](../../../../glossary.md#term-cpu); [codec glossary](../../../../glossary.md#term-codec); [PURE glossary](../../../../glossary.md#term-pure))</span>
+  raw codec/cold copies and affected tests/docs. No concurrent all-PURE/typed writer.<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu); [codec glossary](../../../../glossary.md#term-codec); [PURE glossary](../../../../glossary.md#term-pure))</span>
 - Parallel group: None; source-typing cutover serial after CPU0078. Engine0022 cleanup is unrelated.
 - Common base revision: exact accepted dirty source/authority [manifest](../../../../glossary.md#term-manifest) after CPU0078, captured at [Ready](../../../../glossary.md#term-ready).
 - Integration order: authority/Ready -> isolated complete source/callers/guards -> independent review ->
@@ -158,7 +158,7 @@ cutover. No nine-[argument](../../../../glossary.md#term-argument) compatibility
 
 Actual Model1210, Compiler418, Planning73, Prepare99, CPU1474, Checkpoint80, NN566 and current
 conformance78 passed;60existing [CPU](../../../../glossary.md#term-cpu) cases skipped. [Model](../../../../glossary.md#term-model)/Compiler/[Checkpoint](../../../../glossary.md#term-checkpoint) Javadocs and required
-jars passed. The first full gate remains FAILED at the obsolete copied [Scan](../../../../glossary.md#term-cumulative-scan) minimum-input tuple;
+jars passed. The first full gate remains FAILED at the obsolete copied Scan minimum-input tuple;
 the owning test was deleted rather than repinned. Its affected full Compiler after-gate passed.
 
 The public [CLI](../../../../glossary.md#term-cli) passed96F32/[F64](../../../../glossary.md#floating-point-precision-and-rounding) emission-only/zero-ROW Shared cases across both directions,

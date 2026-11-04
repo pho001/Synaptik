@@ -302,7 +302,7 @@ fact is invalid:
     key with `IllegalArgumentException` and message
     `nodePhases contains unknown <NodeId>`.
 
-In every message above, `<ValueId>` and `<NodeId>` [mean](../../../../glossary.md#term-mean) the identifier's record-generated
+In every message above, `<ValueId>` and `<NodeId>` mean the identifier's record-generated
 diagnostic text, for example `ValueId[value=7]` and `NodeId[value=3]`. Indices are zero-based.
 Map keys are sorted only for deterministic validation; sorted or insertion iteration is not a
 stored-map contract.

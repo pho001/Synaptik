@@ -59,11 +59,11 @@ fill, conversion, typed tensor access, or an executable Range [operation](../../
   broadcast destination population, view scattering, alias-conflict policy, or source retention<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [inference glossary](../../../../glossary.md#term-inference); [descriptor glossary](../../../../glossary.md#term-descriptor); [layout glossary](../../../../glossary.md#layout); [view glossary](../../../../glossary.md#term-view-meanings); [alias glossary](../../../../glossary.md#aliasing-and-arena))</span>
 - a general `fill`, arbitrary constant, linear spacing, logarithmic spacing, mask, repeat, tile, or
   sequence operation<span data-glossary-navigation="true"> ([constant glossary](../../../../glossary.md#term-constant); [linear glossary](../../../../glossary.md#term-linear-meanings); [mask glossary](../../../../glossary.md#term-boolean-mask))</span>
-- random creation or [reproducibility](../../../../glossary.md#artifact-manifest-and-source-provenance) policy from task 0012F
+- random creation or reproducibility policy from task 0012F
 - typed Tensor reads/writes, bulk export, source Tensor population, mutation/version tracking,
   backing-array exposure, or zero-copy ownership transfer<span data-glossary-navigation="true"> ([Tensor glossary](../../../../glossary.md#tensor); [ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - new storage types, native/[off-heap](../../../../glossary.md#term-off-heap-memory)/mapped allocation, [`Arena`](../../../../glossary.md#term-arena), deterministic close behavior,
-  pooling, runtime residency, or backend storage<span data-glossary-navigation="true"> ([pooling glossary](../../../../glossary.md#term-pooling); [residency glossary](../../../../glossary.md#residency); [backend glossary](../../../../glossary.md#backend))</span>
+  pooling, runtime residency, or backend storage<span data-glossary-navigation="true"> ([residency glossary](../../../../glossary.md#residency); [backend glossary](../../../../glossary.md#backend))</span>
 - gradient state, trainable/publication behavior, provenance, operations, compiler, planning,
   prepare, runtime, engine, backend, device, or execution behavior<span data-glossary-navigation="true"> ([gradient glossary](../../../../glossary.md#term-gradient); [publication glossary](../../../../glossary.md#term-publication); [planning glossary](../../../../glossary.md#term-planning); [prepare glossary](../../../../glossary.md#prepare); [engine glossary](../../../../glossary.md#term-engine); [device glossary](../../../../glossary.md#term-device))</span>
 - dependencies, preview/incubator [features](../../../../glossary.md#term-software-feature), [Gradle](../../../../glossary.md#term-gradle) changes, architecture changes, or another [module](../../../../glossary.md#term-module)
@@ -481,7 +481,7 @@ specifications.
 ## Follow-up tasks
 
 - Task 0012F will decide random-source ownership and reproducibility policy, then add normally
-  distributed floating tensor creation.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance))</span>
+  distributed floating tensor creation.<span data-glossary-navigation="true"> ([ownership glossary](../../../../glossary.md#term-ownership-meanings))</span>
 - Task 0013 will define minimal [Tensor](../../../../glossary.md#tensor) [provenance](../../../../glossary.md#provenance) for future [graph capture](../../../../glossary.md#capture-graph-ports-and-reconstruction).
 - Later work owns typed access/export, mutation/version tracking, views/scatter, range operations,
   ONNX Range mapping, compiler/runtime generation, and backend execution.<span data-glossary-navigation="true"> ([views glossary](../../../../glossary.md#term-view-meanings); [ONNX glossary](../../../../glossary.md#term-onnx); [compiler glossary](../../../../glossary.md#term-compiler); [runtime glossary](../../../../glossary.md#term-runtime); [backend glossary](../../../../glossary.md#backend))</span>

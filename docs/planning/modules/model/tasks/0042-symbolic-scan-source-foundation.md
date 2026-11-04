@@ -24,11 +24,11 @@ not revise its historical fail-closed handoff.
 
 Complete — [Model](../../../../glossary.md#term-model) source, consumer guards, documentation and source-matched [validation](../../../../glossary.md#term-validation) accepted.
 PlanningAuthorized=true; ImplementationAuthorized=true. Implementation frontier: None.
-Authority frontier: None. No [Compiler](../../../../glossary.md#term-compiler) symbolic [inference](../../../../glossary.md#term-inference)/[AD](../../../../glossary.md#autograd) or executable [Scan](../../../../glossary.md#term-cumulative-scan) support is authorized.
+Authority frontier: None. No [Compiler](../../../../glossary.md#term-compiler) symbolic [inference](../../../../glossary.md#term-inference)/[AD](../../../../glossary.md#autograd) or executable Scan support is authorized.
 
 ## Change class
 
-Class C: supported source-[shape](../../../../glossary.md#shape) invariants, scoped [Scan](../../../../glossary.md#term-cumulative-scan) [metadata](../../../../glossary.md#term-metadata), [canonical](../../../../glossary.md#term-canonical-form) output allocation and
+Class C: supported source-[shape](../../../../glossary.md#shape) invariants, scoped Scan [metadata](../../../../glossary.md#term-metadata), [canonical](../../../../glossary.md#term-canonical-form) output allocation and
 the unchanged [fail-closed](../../../../glossary.md#term-fail-closed) [handoff](../../../../glossary.md#term-handoff) to [Compiler](../../../../glossary.md#term-compiler). Use a clean implementation and independent review.
 
 ## Goal and [scope](../../../../glossary.md#term-scope)
@@ -47,7 +47,7 @@ fixed/shared ports retain their static [canonical](../../../../glossary.md#term-
 ## Non-goals
 
 No [Compiler](../../../../glossary.md#term-compiler)/[Prepare](../../../../glossary.md#prepare)/[CPU](../../../../glossary.md#term-cpu)/[Engine](../../../../glossary.md#term-engine) production changes, symbolic execution/[AD](../../../../glossary.md#autograd)/cold/[persistence](../../../../glossary.md#term-persistence),
-length-mode symbolic combination, new [API](../../../../glossary.md#term-application-programming-interface-api)/type/session/[graph](../../../../glossary.md#graph), dynamic T/[features](../../../../glossary.md#term-software-feature), numerics,
+length-mode symbolic combination, new [API](../../../../glossary.md#term-application-programming-interface-api)/type/session/[graph](../../../../glossary.md#graph), dynamic T/[features](../../../../glossary.md#term-feature), numerics,
 [dependency](../../../../glossary.md#term-dependency)/build/native changes, benchmarks, [commits](../../../../glossary.md#commit-release-distribution-log-and-seed-meanings) or push. No body whitelist copied from CPU.
 No rewrite of completed briefs or unrelated accepted dirty work. Report any required consumer
 production [guard](../../../../glossary.md#term-guard) fix to MAIN before [widening](../../../../glossary.md#term-widening) the explicit [scope](../../../../glossary.md#term-scope).
@@ -59,7 +59,7 @@ Read root [Core lifecycle](../../../../../ARCHITECTURE.md#core-lifecycle)<span d
 [Scope-indexed normative contracts](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts)<span data-glossary-navigation="true"> ([Scope glossary](../../../../glossary.md#term-scope); [normative glossary](../../../../glossary.md#term-normative))</span>,
 [Dependency rules](../../../../../ARCHITECTURE.md#dependency-rules)<span data-glossary-navigation="true"> ([Dependency glossary](../../../../glossary.md#term-dependency))</span> and
 [Testing requirements](../../../../../ARCHITECTURE.md#testing-requirements).
-Owning [Scan](../../../../glossary.md#term-cumulative-scan) headings: [Source body, attachments and scoped identities](../../../../architecture/contracts/recurrent-scan.md#source-body-attachments-and-scoped-identities)<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span>,
+Owning Scan headings: [Source body, attachments and scoped identities](../../../../architecture/contracts/recurrent-scan.md#source-body-attachments-and-scoped-identities)<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span>,
 [Canonical residual ports and demand](../../../../architecture/contracts/recurrent-scan.md#canonical-residual-ports-and-demand)<span data-glossary-navigation="true"> ([Canonical glossary](../../../../glossary.md#term-canonical-form); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>,
 [Traversal, empty domains and declared qualification](../../../../architecture/contracts/recurrent-scan.md#traversal-empty-domains-and-declared-qualification)<span data-glossary-navigation="true"> ([qualification glossary](../../../../glossary.md#term-qualification))</span>,
 [Accepted symbolic-batch scan](../../../../architecture/contracts/recurrent-scan.md#accepted-symbolic-batch-scan)<span data-glossary-navigation="true"> ([batch glossary](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters))</span>
@@ -74,7 +74,7 @@ stop on a missing/ambiguous contract or a necessary new production type/[signatu
 ## Dependencies and integration
 
 - Depends on: Complete Model0041 authority/review; retained Complete Model0038 and Compiler0013;
-  existing static Scan/source/dtype/read/length contracts and tests.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [dtype glossary](../../../../glossary.md#data-type--datatype))</span>
+  existing static Scan/source/dtype/read/length contracts and tests.<span data-glossary-navigation="true"> ([dtype glossary](../../../../glossary.md#data-type--datatype))</span>
 - Conflicts with: Scan source/API/descriptor/attachment and scope/AD/cold admission semantics;
   all permitted write paths below. No competing writer; serialize these concerns.<span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [descriptor glossary](../../../../glossary.md#term-descriptor); [scope glossary](../../../../glossary.md#term-scope); [AD glossary](../../../../glossary.md#autograd))</span>
 - Parallel group: None.
@@ -108,7 +108,7 @@ Other production [owners](../../../../glossary.md#term-owner) are read-only: Dyn
 CompiledScanBody, ScanAttrs, ScanBodyInference/ScanGradientRules/GraphCompilationPort.
 
 Documentation/[planning](../../../../glossary.md#term-planning) writes: `ARCHITECTURE.md` and owning `recurrent-scan.md` for current-status
-clarification only; `docs/api/tensor-api.md` general-[scan](../../../../glossary.md#term-cumulative-scan) construction; focused
+clarification only; `docs/api/tensor-api.md` general-scan construction; focused
 `docs/architecture/general-differentiable-scan.md`; targeted `docs/glossary.md`; this brief;
 Model master plan/proposal, `docs/planning/dynamic-batch-execution.md`, `docs/planning/roadmap.md`.
 These are sixteen permitted paths, not a requirement to manufacture unnecessary edits.
@@ -180,7 +180,7 @@ No downstream enablement. The correction changes only ScanBody.java, ScanSymboli
 [Tensor](../../../../glossary.md#tensor) [API](../../../../glossary.md#term-application-programming-interface-api), focused explanation and this live brief relative to the first frozen [handoff](../../../../glossary.md#term-handoff).
 
 - Production: only existing ScanBody.java and Scan.java; named-axis/source-family proofs, exact
-  binding, canonical static/unresolved symbolic ports, complete sibling and explicit static length guards.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [axis glossary](../../../../glossary.md#term-axis); [canonical glossary](../../../../glossary.md#term-canonical-form))</span>
+  binding, canonical static/unresolved symbolic ports, complete sibling and explicit static length guards.<span data-glossary-navigation="true"> ([axis glossary](../../../../glossary.md#term-axis); [canonical glossary](../../../../glossary.md#term-canonical-form))</span>
 - Tests: ScanBodyTest updated; new ScanSymbolicBatchSourceTest; GeneralScanCompilerTest expanded.
   Existing ScanExpressionTest unchanged and reused. Static F32/F64 T=0, B=0/1/32, symbolic low TANH/
   F32 RELU, retained/sibling/role/gradient/no-ID/storage checks pass. Public forward/backward/cold

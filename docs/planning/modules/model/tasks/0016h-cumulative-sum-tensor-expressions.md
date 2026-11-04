@@ -62,7 +62,7 @@ This task completes public expression construction for the semantic contracts in
 - value or host-storage inspection, allocation, copy, materialization, cumulative addition,
   exclusive-zero emission, reverse traversal, parallel prefix algorithm, mutation, or execution<span data-glossary-navigation="true"> ([host glossary](../../../../glossary.md#term-host))</span>
 - numerical accumulation order, precision, associativity, reproducibility, overflow, underflow,
-  NaN, infinity, signed-zero, empty-axis, or error policy<span data-glossary-navigation="true"> ([precision glossary](../../../../glossary.md#term-precision); [reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance); [overflow glossary](../../../../glossary.md#term-overflow); [underflow glossary](../../../../glossary.md#term-underflow); [NaN glossary](../../../../glossary.md#term-nan); [infinity glossary](../../../../glossary.md#term-infinity); [signed-zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>
+  NaN, infinity, signed-zero, empty-axis, or error policy<span data-glossary-navigation="true"> ([precision glossary](../../../../glossary.md#term-precision); [overflow glossary](../../../../glossary.md#term-overflow); [underflow glossary](../../../../glossary.md#term-underflow); [NaN glossary](../../../../glossary.md#term-nan); [infinity glossary](../../../../glossary.md#term-infinity); [signed-zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>
 - [layout](../../../../glossary.md#layout) preservation, [view](../../../../glossary.md#term-view-meanings) creation, [strides](../../../../glossary.md#term-stride), offset, storage [aliasing](../../../../glossary.md#term-aliasing), or [materialization](../../../../glossary.md#materialization) policy
 - a gradient rule, backward scan, autograd expansion, gradient Tensor, optimizer, or training
   behavior<span data-glossary-navigation="true"> ([gradient glossary](../../../../glossary.md#term-gradient); [autograd glossary](../../../../glossary.md#autograd); [optimizer glossary](../../../../glossary.md#term-optimizer))</span>
@@ -109,7 +109,7 @@ Tensor cumSum(int axis)
 Tensor cumSum(int axis, boolean exclusive, boolean reverse)
 ```
 
-The short form delegates to inclusive [forward mode](../../../../glossary.md#term-forward-mode). The complete form supports all four
+The short form delegates to inclusive forward mode. The complete form supports all four
 inclusion/direction combinations. Legacy evidence confirms positive and negative [axis](../../../../glossary.md#term-axis)
 [normalization](../../../../glossary.md#term-normalization), [shape](../../../../glossary.md#shape) and data-type preservation, [FLOAT64](../../../../glossary.md#term-float64), [FLOAT32](../../../../glossary.md#term-float32), [BFLOAT16](../../../../glossary.md#term-bfloat16), [INT32](../../../../glossary.md#data-type--datatype), and [INT64](../../../../glossary.md#data-type--datatype)
 inputs, [BOOL](../../../../glossary.md#data-type--datatype) rejection, non-[contiguous](../../../../glossary.md#term-contiguous) input, [ONNX](../../../../glossary.md#term-onnx) round trips, [CPU](../../../../glossary.md#term-cpu) execution, and [Metal](../../../../glossary.md#term-metal) [lowering](../../../../glossary.md#lowering).
@@ -479,7 +479,7 @@ Pre-implementation planning validation after synchronizing this task, the model 
 roadmap:
 
 - `git diff --check` passed.
-- The targeted trailing-whitespace [scan](../../../../glossary.md#term-cumulative-scan) returned no matches across the three planning files.
+- The targeted trailing-whitespace scan returned no matches across the three planning files.
 - All 172 relative Markdown links across the three planning files resolve locally.
 - Markdown fence counts are balanced: twelve in this task, two in the master plan, and zero in the
   roadmap.

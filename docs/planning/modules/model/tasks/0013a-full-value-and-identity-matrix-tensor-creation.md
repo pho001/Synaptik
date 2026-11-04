@@ -631,7 +631,7 @@ implementation/documentation paths with no architecture or [dependency](../../..
 ## Completion summary
 
 - Completed changes: Implemented and documented type-safe full-value tensors and dense rectangular
-  identity matrices for all six current data types, with <span data-glossary-navigation="true"> ([tensors glossary](../../../../glossary.md#tensor); [identity glossary](../../../../glossary.md#term-identity-meanings); [matrices glossary](../../../../glossary.md#term-matrix-meanings))</span>`eye` exactly [aliasing](../../../../glossary.md#term-aliasing) [canonical](../../../../glossary.md#term-canonical-form)
+  identity matrices for all six current data types, with <span data-glossary-navigation="true"> ([tensors glossary](../../../../glossary.md#tensor); [identity glossary](../../../../glossary.md#term-identity-meanings); [matrices glossary](../../../../glossary.md#term-matrix-meanings))</span>`eye` exactly aliasing [canonical](../../../../glossary.md#term-canonical-form)
   `identityMatrix` behavior.
 - Files changed or created: The exact ten paths authorized under Affected files and Maximum scope;
   no other repository path changed.<span data-glossary-navigation="true"> ([scope glossary](../../../../glossary.md#term-scope))</span>

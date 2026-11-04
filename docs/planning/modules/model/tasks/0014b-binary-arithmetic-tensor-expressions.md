@@ -396,7 +396,7 @@ The focused test must cover:
 
 Manually inspect `javap -p -c -s` and reflection for the exact [Tensor](../../../../glossary.md#tensor) method [descriptors](../../../../glossary.md#term-descriptor) and helper
 surface. Inspect method [bytecode](../../../../glossary.md#term-bytecode)/source for one helper delegation per public method and exact local
-construction order. [Scan](../../../../glossary.md#term-cumulative-scan) production imports and [Gradle](../../../../glossary.md#term-gradle) dependencies for forbidden layers. Confirm
+construction order. Scan production imports and [Gradle](../../../../glossary.md#term-gradle) dependencies for forbidden layers. Confirm
 that no storage accessor, segment [API](../../../../glossary.md#term-application-programming-interface-api), [graph](../../../../glossary.md#graph) ID, [compiler](../../../../glossary.md#term-compiler)/[runtime](../../../../glossary.md#term-runtime)/[backend](../../../../glossary.md#backend) type, [gradient](../../../../glossary.md#term-gradient) rule,
 [canonicalization](../../../../glossary.md#occurrence-identity-and-canonical-form), [cache](../../../../glossary.md#term-cache), or [registry](../../../../glossary.md#term-registry) appears. Validate generated [Javadoc](../../../../glossary.md#term-javadoc), Tensor API current-versus-
 planned wording and newcomer example, glossary terminology, links/anchors/fences/whitespace, exact
@@ -523,7 +523,7 @@ Planning validation:
 
 - `git diff --check` passed for the tracked planning changes; a trailing-whitespace scan also passed
   for this new task file.
-- The [canonical](../../../../glossary.md#term-canonical-form) task-section [scan](../../../../glossary.md#term-cumulative-scan) found every required planning section.
+- The [canonical](../../../../glossary.md#term-canonical-form) task-section scan found every required planning section.
 - The local Markdown-target check resolved every link in this task, the model master plan, and the
   roadmap.<span data-glossary-navigation="true"> ([target glossary](../../../../glossary.md#term-target))</span>
 - Scope inspection found exactly three documentation/planning paths, no Java, Gradle, AGENTS, or

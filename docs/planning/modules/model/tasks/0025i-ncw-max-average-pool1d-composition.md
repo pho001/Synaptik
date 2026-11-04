@@ -261,7 +261,7 @@ Clean-context documentation-focused pass:
   local file targets, heading anchors, and fenced blocks all validated.<span data-glossary-navigation="true"> ([targets glossary](../../../../glossary.md#term-target))</span>
 - `git diff --check` — passed with no whitespace errors.
 - Focused `rg` absence scan across Model production, Compiler, CPU, Planning, Prepare, testing,
-  Compile/Training APIs, architecture docs, and <span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan); [Prepare glossary](../../../../glossary.md#prepare))</span>`ARCHITECTURE.md` — passed; no `MAX_POOL1D`,
+  Compile/Training APIs, architecture docs, and <span data-glossary-navigation="true"> ([Prepare glossary](../../../../glossary.md#prepare))</span>`ARCHITECTURE.md` — passed; no `MAX_POOL1D`,
   `AVERAGE_POOL1D`, or `Pool1dKind` exists.
 - File/status checks — passed: the worktree contains exactly 30 changed or new paths, all inside
   the authorized implementation, method-count-test, documentation, and planning scope; no task

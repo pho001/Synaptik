@@ -374,7 +374,7 @@ foundation change, result [inference](../../../../glossary.md#term-inference), o
 Planning validation:
 
 - `git diff --check` passed, and the three changed planning files contain no trailing whitespace.
-- The [canonical](../../../../glossary.md#term-canonical-form) section [scan](../../../../glossary.md#term-cumulative-scan) found every required task-specification section.
+- The [canonical](../../../../glossary.md#term-canonical-form) section scan found every required task-specification section.
 - The relative Markdown-[target](../../../../glossary.md#term-target) scan resolved every local `.md` link in this task, the model master
   plan, and the roadmap.<span data-glossary-navigation="true"> ([model glossary](../../../../glossary.md#term-model))</span>
 - Status inspection found task 0015A [`Ready`](../../../../glossary.md#term-ready) exactly once in this specification, its model-master

@@ -427,7 +427,7 @@ test, and a new Draft expression frontier. Existing Operation foundations suffic
 Planning validation after synchronizing this task, the model master plan, and the roadmap:
 
 - `git diff --check` passed.
-- The trailing-whitespace [scan](../../../../glossary.md#term-cumulative-scan) returned no matches across the three planning files.
+- The trailing-whitespace scan returned no matches across the three planning files.
 - All 160 relative Markdown links across the three planning files resolve locally.
 - Markdown fence counts are balanced: eight in this task, two in the master plan, and zero in the
   roadmap.

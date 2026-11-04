@@ -486,7 +486,7 @@ Do not mark 0025 Complete until both passes and all acceptance criteria succeed.
   executed. Generated Javadoc includes the new indexed accessor and package-owned allocator seam.<span data-glossary-navigation="true"> ([Javadoc glossary](../../../../glossary.md#term-javadoc))</span>
 - A targeted local Markdown validator resolved local paths and anchors and checked balanced
   fences and final newlines for all ten affected Markdown documents; all ten passed. A full stale
-  status/design scan then returned no obsolete readiness, no-output, or planned-cycle wording.<span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  status/design scan then returned no obsolete readiness, no-output, or planned-cycle wording.
 - `javap -public` reports exactly five public [`TensorProducer`](../../../../glossary.md#producer--tensorproducer) methods: the four existing accessors
   plus `output(int)`. `javap -public` reports no `TensorFactory.nextTensorId()`, while
   `javap -private` reports it as package-private alongside the two existing package-private

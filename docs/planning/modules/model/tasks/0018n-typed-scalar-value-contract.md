@@ -98,7 +98,7 @@ overload; callers use `ScalarValue.float32(0.5f)` instead.
 - Add one public final [`ScalarValue`](../../../../glossary.md#typed-scalar-value--scalarvalue) class in `model.datatype` for exactly the six current data
   types.
 - Store one exact [`DataType`](../../../../glossary.md#data-type--datatype) plus one primitive `long` bit payload; add no boxed payload, subtype,
-  collection, map, registry, or service.<span data-glossary-navigation="true"> ([payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [registry glossary](../../../../glossary.md#term-registry))</span>
+  collection, map, registry, or service.<span data-glossary-navigation="true"> ([registry glossary](../../../../glossary.md#term-registry))</span>
 - Provide named factories for exact FLOAT64, FLOAT32, raw BFLOAT16, INT32, INT64, and BOOL values,
   plus one explicitly named binary32-to-BFLOAT16 conversion factory using <span data-glossary-navigation="true"> ([FLOAT64 glossary](../../../../glossary.md#term-float64); [FLOAT32 glossary](../../../../glossary.md#term-float32); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [INT32 glossary](../../../../glossary.md#data-type--datatype); [INT64 glossary](../../../../glossary.md#data-type--datatype); [BOOL glossary](../../../../glossary.md#data-type--datatype); [binary32 glossary](../../../../glossary.md#floating-point-precision-and-rounding))</span>`BFloat16Bits`.
 - Provide one `dataType()` query and six strict type-specific inspection methods.
@@ -185,7 +185,7 @@ overload; callers use `ScalarValue.float32(0.5f)` instead.
   equality. The public Tensor construction boundary owns that local check. Later compiler graph
   validation must enforce the same invariant for operations not created by public Tensor methods.<span data-glossary-navigation="true"> ([descriptor glossary](../../../../glossary.md#term-descriptor); [invariant glossary](../../../../glossary.md#term-invariant))</span>
 - No global registry, factory service, scalar subtype hierarchy, classpath scan, or boxing-heavy
-  abstraction is permitted.<span data-glossary-navigation="true"> ([registry glossary](../../../../glossary.md#term-registry); [classpath glossary](../../../../glossary.md#term-classpath); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>
+  abstraction is permitted.<span data-glossary-navigation="true"> ([registry glossary](../../../../glossary.md#term-registry); [classpath glossary](../../../../glossary.md#term-classpath))</span>
 - Public [`Tensor`](../../../../glossary.md#tensor) remains mutable API state rather than graph IR. Typed overloads create the same
   storage-free derived metadata as the existing methods.<span data-glossary-navigation="true"> ([mutable glossary](../../../../glossary.md#term-mutable); [API glossary](../../../../glossary.md#term-application-programming-interface-api); [IR glossary](../../../../glossary.md#term-intermediate-representation-ir))</span>
 - If implementation requires a new module dependency, architecture rule, operation-signature
@@ -536,7 +536,7 @@ path or a different production concept is needed, stop and propose the smallest 
 
 - Exactly one public final [`ScalarValue`](../../../../glossary.md#typed-scalar-value--scalarvalue) class with two primitive/reference instance fields and
   the specified named public factories/inspectors exists in `model.datatype`.
-- All six current [`DataType`](../../../../glossary.md#data-type--datatype) values are covered and no future type or generic [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) is added.
+- All six current [`DataType`](../../../../glossary.md#data-type--datatype) values are covered and no future type or generic payload is added.
 - FLOAT64/FLOAT32 signed zero and raw NaN sign/payload are preserved with exact-bit equality; raw
   BFLOAT16 preserves all 16 bits; INT32/INT64 are exact; BOOL is canonical false or true.<span data-glossary-navigation="true"> ([FLOAT64 glossary](../../../../glossary.md#term-float64); [FLOAT32 glossary](../../../../glossary.md#term-float32); [signed zero glossary](../../../../glossary.md#term-signed-zero); [NaN glossary](../../../../glossary.md#term-nan); [BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [INT32 glossary](../../../../glossary.md#data-type--datatype); [BOOL glossary](../../../../glossary.md#data-type--datatype); [canonical glossary](../../../../glossary.md#term-canonical-form))</span>
 - [INT64](../../../../glossary.md#data-type--datatype) values above `2^53`, including `9_007_199_254_740_993L`, round-trip exactly without a
@@ -667,7 +667,7 @@ later task Draft without a detailed specification.
 - [`ScalarValue`](../../../../glossary.md#typed-scalar-value--scalarvalue) lives in `model.datatype` because it is a reusable exact value-format contract
   beside [`DataType`](../../../../glossary.md#data-type--datatype) and `BFloat16Bits`; [operation](../../../../glossary.md#operation) attributes consume it without a package cycle.
 - One final class stores `DataType` plus primitive `long` bits. A subtype per data type, boxed
-  payload, or generic union adds allocation and dispatch without a current need.<span data-glossary-navigation="true"> ([data type glossary](../../../../glossary.md#data-type--datatype); [payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
+  payload, or generic union adds allocation and dispatch without a current need.<span data-glossary-navigation="true"> ([data type glossary](../../../../glossary.md#data-type--datatype); [dispatch glossary](../../../../glossary.md#term-dispatch))</span>
 - Named factories make the chosen type explicit. Raw BFLOAT16 construction is distinct from
   explicit binary32 conversion.<span data-glossary-navigation="true"> ([BFLOAT16 glossary](../../../../glossary.md#term-bfloat16); [binary32 glossary](../../../../glossary.md#floating-point-precision-and-rounding))</span>
 - Floating equality is exact by raw bits, preserving signed zero and NaN payload policy rather
@@ -712,7 +712,7 @@ Planning-only validation:
   files.<span data-glossary-navigation="true"> ([target glossary](../../../../glossary.md#term-target))</span>
 - The canonical section scan found every required task-specification section, and task 0018N is
   synchronized as Ready in this specification, the model task table, the roadmap task table, and
-  current-frontier wording.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [scan glossary](../../../../glossary.md#term-cumulative-scan); [Ready glossary](../../../../glossary.md#term-ready))</span>
+  current-frontier wording.<span data-glossary-navigation="true"> ([canonical glossary](../../../../glossary.md#term-canonical-form); [Ready glossary](../../../../glossary.md#term-ready))</span>
 - Task ordering remains unchanged: tasks through 0018M1 are Complete, 0018N is Ready, and 0018O
   and every later task remain Draft. No task-0018O-or-later detailed specification exists.
 - Package, dependency, and maximum-scope review confirms one new datatype value, migrations in

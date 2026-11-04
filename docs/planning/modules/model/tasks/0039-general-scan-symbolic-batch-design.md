@@ -34,13 +34,13 @@ This is not architecture approval or Java readiness; no automatic successor laun
 
 ## Change class
 
-Class C design review: scoped [Scan](../../../../glossary.md#term-cumulative-scan) semantics, first-order [automatic differentiation](../../../../glossary.md#autograd) ([AD](../../../../glossary.md#autograd)),
+Class C design review: scoped Scan semantics, first-order [automatic differentiation](../../../../glossary.md#autograd) ([AD](../../../../glossary.md#autograd)),
 [Prepare](../../../../glossary.md#prepare)/[Runtime](../../../../glossary.md#term-runtime) sizing and generated hot loops. This task changes no [normative](../../../../glossary.md#term-normative) contract or code.
 
 ## Goal and [scope](../../../../glossary.md#term-scope)
 
 Deliver a concise source-grounded [proposal](../general-scan-symbolic-batch-proposal.md) for one
-named per-[run](../../../../glossary.md#term-run) [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) B, fixed time T/[features](../../../../glossary.md#term-software-feature) F/state H, through existing [compilation](../../../../glossary.md#compiler-engine-and-execution-stage-names)/preparation.
+named per-[run](../../../../glossary.md#term-run) [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) B, fixed time T/[features](../../../../glossary.md#term-feature) F/state H, through existing [compilation](../../../../glossary.md#compiler-engine-and-execution-stage-names)/preparation.
 First execution [qualification](../../../../glossary.md#term-qualification) is all-valid [homogeneous](../../../../glossary.md#term-homogeneous) [FLOAT32](../../../../glossary.md#term-float32) [CPU](../../../../glossary.md#term-cpu) forward and actual generated
 first-order backward. Separate source validity, [AD](../../../../glossary.md#autograd) [admission](../../../../glossary.md#term-admission) and [backend](../../../../glossary.md#backend) qualification.
 
@@ -65,7 +65,7 @@ Current contracts are constraints, not changes enacted by this proposal. Read th
   [Scope-indexed normative contracts](../../../../../ARCHITECTURE.md#scope-indexed-normative-contracts)<span data-glossary-navigation="true"> ([Scope glossary](../../../../glossary.md#term-scope); [normative glossary](../../../../glossary.md#term-normative))</span>,
   [Dependency rules](../../../../../ARCHITECTURE.md#dependency-rules)<span data-glossary-navigation="true"> ([Dependency glossary](../../../../glossary.md#term-dependency))</span> and
   [Testing requirements](../../../../../ARCHITECTURE.md#testing-requirements).
-- [Scan](../../../../glossary.md#term-cumulative-scan) [owner](../../../../glossary.md#term-owner): [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>,
+- Scan [owner](../../../../glossary.md#term-owner): [General differentiable scan](../../../../architecture/contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([General differentiable scan glossary](../../../../glossary.md#general-differentiable-scan))</span>,
   [Source body, attachments and scoped identities](../../../../architecture/contracts/recurrent-scan.md#source-body-attachments-and-scoped-identities)<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span>
   (including accepted-future symbolic B), [Canonical residual ports and demand](../../../../architecture/contracts/recurrent-scan.md#canonical-residual-ports-and-demand)<span data-glossary-navigation="true"> ([Canonical glossary](../../../../glossary.md#term-canonical-form); [residual glossary](../../../../glossary.md#scan-residual-port-and-history-demand))</span>,
   [Reverse scan and exact primal bindings](../../../../architecture/contracts/recurrent-scan.md#reverse-scan-and-exact-primal-bindings)<span data-glossary-navigation="true"> ([primal glossary](../../../../glossary.md#term-primal); [bindings glossary](../../../../glossary.md#term-binding))</span>,
@@ -88,7 +88,7 @@ This design explicitly proposes extending current static Scan guards; it does no
 ## Dependencies and integration
 
 - Depends on: Complete Model0035/0038, Compiler0013, Prepare0013 ordinary dynamic-B vertical,
-  CPU0037; current static Scan/AD/Prepare and ordinary symbolic-B contracts.<span data-glossary-navigation="true"> ([Scan glossary](../../../../glossary.md#term-cumulative-scan); [AD glossary](../../../../glossary.md#autograd))</span>
+  CPU0037; current static Scan/AD/Prepare and ordinary symbolic-B contracts.<span data-glossary-navigation="true"> ([AD glossary](../../../../glossary.md#autograd))</span>
 - Conflicts with: Scan semantics/API, scoped capture/AD/demand, CPU geometry/identities,
   resource/admission/publication contracts and the five shared planning paths; serialize all writes.<span data-glossary-navigation="true"> ([identities glossary](../../../../glossary.md#term-identity-meanings))</span><span data-glossary-navigation="true"> ([API glossary](../../../../glossary.md#term-application-programming-interface-api); [capture glossary](../../../../glossary.md#term-capture-meanings); [publication glossary](../../../../glossary.md#term-publication))</span>
 - Parallel group: None.
@@ -118,7 +118,7 @@ Existing record/field/method changes require the later approved authority and sc
 
 ## Acceptance criteria
 
-- Distinguish proposed [symbolic Scan](../../../../glossary.md#symbolic-scan) from current static [F32](../../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../../glossary.md#floating-point-precision-and-rounding) [Scan](../../../../glossary.md#term-cumulative-scan) and implemented ordinary B.
+- Distinguish proposed [symbolic Scan](../../../../glossary.md#symbolic-scan) from current static [F32](../../../../glossary.md#floating-point-precision-and-rounding)/[F64](../../../../glossary.md#floating-point-precision-and-rounding) Scan and implemented ordinary B.
 - Specify X[T,B,F], h[B,H], fixed Wx/Wh/bias, emissions versus final carry and actual first-order
   reverse, with 64→40→1→64 on one fixed-T plan; T=0 uses a separate fixed-T plan.<span data-glossary-navigation="true"> ([bias glossary](../../../../glossary.md#term-bias); [carry glossary](../../../../glossary.md#term-carry))</span>
 - Define named-axis versus shared geometry, demanded histories/cuts, empty policies, checked
@@ -135,7 +135,7 @@ Existing record/field/method changes require the later approved authority and sc
 
 [Planning](../../../../glossary.md#term-planning) only: local links/anchors against current files; seven [metadata](../../../../glossary.md#term-metadata) fields and authorization
 flags; brief <=200 lines/15 KB; focused proposal about 150–200 lines; trailing whitespace;
-`git diff --check`; [hash](../../../../glossary.md#term-hash) comparison to the pre-[scan](../../../../glossary.md#term-cumulative-scan) baseline allowing only the five listed paths.
+`git diff --check`; [hash](../../../../glossary.md#term-hash) comparison to the pre-scan baseline allowing only the five listed paths.
 Exact commands/results and final sizes are recorded at the frozen review [checkpoint](../../../../glossary.md#term-checkpoint).
 No [Gradle](../../../../glossary.md#term-gradle)/Java/native/performance [run](../../../../glossary.md#term-run) is authorized or needed for this design delivery.
 

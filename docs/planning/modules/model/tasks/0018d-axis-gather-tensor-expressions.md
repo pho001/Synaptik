@@ -626,7 +626,7 @@ Complete until both passes succeed. Leave 0018D1 Draft without a specification. 
   contracts remain accurate for the reasons recorded above.
 - Glossary impact: Axis-gather terminology now distinguishes semantic values, current input-aware
   expression construction, structural dynamic compatibility, exact take aliasing, and deferred
-  value/executable behavior.<span data-glossary-navigation="true"> ([aliasing glossary](../../../../glossary.md#term-aliasing))</span>
+  value/executable behavior.
 - Architecture impact: None.
 - Unresolved issues: None.
 - Follow-up required: None for task 0018D. Task 0018D1 remains Draft without a detailed

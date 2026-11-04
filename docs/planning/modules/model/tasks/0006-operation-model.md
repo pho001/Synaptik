@@ -398,7 +398,7 @@ and status synchronization are complete.
 - A targeted local Markdown path-and-heading check resolved every relative link and anchor in all
   three changed planning documents.
 - Fence counts were even in every changed document, a trailing-whitespace scan returned no
-  matches, and <span data-glossary-navigation="true"> ([scan glossary](../../../../glossary.md#term-cumulative-scan))</span>`git diff --check` passed for tracked changes. A no-index whitespace check of this
+  matches, and `git diff --check` passed for tracked changes. A no-index whitespace check of this
   new task returned no diagnostic.
 - Status review confirmed task 0005 remains `Complete` and task 0006 is [`Ready`](../../../../glossary.md#term-ready) in this task, the
   master-plan row/current status/notes, and the roadmap frontier/table. Task order and dependencies

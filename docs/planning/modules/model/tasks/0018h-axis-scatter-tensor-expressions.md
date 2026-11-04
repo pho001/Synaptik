@@ -72,7 +72,7 @@ or update values.
 - reading, normalizing, clamping, bounds-checking, or otherwise inspecting index values
 - detecting duplicate [targets](../../../../glossary.md#term-target) for `NONE`; that requires index values
 - applying writes/reductions or defining accumulation order, reproducibility, overflow, NaN,
-  signed-zero, empty-domain, atomicity, or backend numerical policy<span data-glossary-navigation="true"> ([reproducibility glossary](../../../../glossary.md#artifact-manifest-and-source-provenance); [overflow glossary](../../../../glossary.md#term-overflow); [NaN glossary](../../../../glossary.md#term-nan); [signed-zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [atomicity glossary](../../../../glossary.md#term-atomicity); [backend glossary](../../../../glossary.md#backend))</span>
+  signed-zero, empty-domain, atomicity, or backend numerical policy<span data-glossary-navigation="true"> ([overflow glossary](../../../../glossary.md#term-overflow); [NaN glossary](../../../../glossary.md#term-nan); [signed-zero glossary](../../../../glossary.md#nan-infinity-and-signed-zero); [atomicity glossary](../../../../glossary.md#term-atomicity); [backend glossary](../../../../glossary.md#backend))</span>
 - resolved layout, aliasing, in-place mutation, storage access, materialization, device state, or
   backend routes<span data-glossary-navigation="true"> ([layout glossary](../../../../glossary.md#layout); [aliasing glossary](../../../../glossary.md#term-aliasing); [materialization glossary](../../../../glossary.md#materialization); [device glossary](../../../../glossary.md#term-device))</span>
 - rejecting floating gradient eligibility for reductions without a current backward rule;

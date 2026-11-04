@@ -45,7 +45,7 @@ adding typed element access, validating tensor geometry, or representing [runtim
   or Java-array allocation<span data-glossary-navigation="true"> ([data type glossary](../../../../glossary.md#data-type--datatype); [mutable glossary](../../../../glossary.md#term-mutable))</span>
 - allocation of [heap](../../../../glossary.md#term-heap), native, mapped, [arena](../../../../glossary.md#term-arena)-owned, pooled, prepared, [backend](../../../../glossary.md#backend), or [runtime](../../../../glossary.md#term-runtime) memory
 - owning, retaining, closing, or hiding an `Arena`; `AutoCloseable`; cleanup callbacks; reference
-  counting; leases; pooling; or resource registries<span data-glossary-navigation="true"> ([leases glossary](../../../../glossary.md#term-lease); [pooling glossary](../../../../glossary.md#term-pooling))</span>
+  counting; leases; pooling; or resource registries<span data-glossary-navigation="true"> ([leases glossary](../../../../glossary.md#term-lease))</span>
 - [`Shape`](../../../../glossary.md#shape), `TensorDescriptor`, `LayoutDescriptor`, logical element count, layout offset/span,
   view/alias validation, or tensor-to-storage capacity validation<span data-glossary-navigation="true"> ([element glossary](../../../../glossary.md#term-element); [layout glossary](../../../../glossary.md#layout); [view glossary](../../../../glossary.md#term-view-meanings); [alias glossary](../../../../glossary.md#aliasing-and-arena); [validation glossary](../../../../glossary.md#term-validation))</span>
 - byte-order selection, typed `ValueLayout` selection, ABI alignment, backend alignment, address
@@ -96,7 +96,7 @@ The following legacy design is rejected:
 - a [dtype](../../../../glossary.md#data-type--datatype)-switching access utility with [scalar](../../../../glossary.md#term-scalar) conversion and array downcasts;
 - [mutable](../../../../glossary.md#term-mutable)-array exposure and storage version counters in the foundational wrapper;
 - allocation handles coupled to [runtime](../../../../glossary.md#term-runtime) `ExecutionResource`;
-- [ownership](../../../../glossary.md#term-ownership-meanings) flags, close behavior, [pooling](../../../../glossary.md#term-pooling), retention, or prepared-execution allocation;
+- [ownership](../../../../glossary.md#term-ownership-meanings) flags, close behavior, pooling, retention, or prepared-execution allocation;
 - runtime/native registries, materializers, [backend](../../../../glossary.md#backend) routing, [kernel](../../../../glossary.md#kernel) policy, or [residency](../../../../glossary.md#residency); and
 - package names, source structure, [validation](../../../../glossary.md#term-validation) accidents, and backend/runtime coupling.
 
@@ -211,7 +211,7 @@ public sealed interface HostTensorStorage permits MemorySegmentStorage {
 }
 ```
 
-The methods [mean](../../../../glossary.md#term-mean):
+The methods mean:
 
 - `dataType()` returns the exact non-null logical [element](../../../../glossary.md#term-element) type supplied by the wrapper.
 - `elementCapacity()` returns the non-negative number of complete physical elements that fit in
@@ -447,7 +447,7 @@ Manually verify:
   unaligned slices, dead-at-construction and closed-after-construction behavior, and wrapper
   identity semantics;<span data-glossary-navigation="true"> ([overflow glossary](../../../../glossary.md#term-overflow); [identity glossary](../../../../glossary.md#term-identity-meanings))</span>
 - mapped-segment tests use only stable JDK file-mapping APIs, close the test arena/channel, and
-  clean up the temporary file; they do not add a production allocation policy;<span data-glossary-navigation="true"> ([JDK glossary](../../../../glossary.md#term-java-development-kit-jdk); [arena glossary](../../../../glossary.md#term-arena); [channel glossary](../../../../glossary.md#term-channel))</span>
+  clean up the temporary file; they do not add a production allocation policy;<span data-glossary-navigation="true"> ([JDK glossary](../../../../glossary.md#term-java-development-kit-jdk); [arena glossary](../../../../glossary.md#term-arena); [channel glossary](../../../../glossary.md#term-io-channel))</span>
 - production imports contain no shape, layout, tensor, graph, compiler, planning, runtime,
   prepare, backend, storage registry, allocation, or execution type;<span data-glossary-navigation="true"> ([shape glossary](../../../../glossary.md#shape); [layout glossary](../../../../glossary.md#layout); [tensor glossary](../../../../glossary.md#tensor); [graph glossary](../../../../glossary.md#graph); [compiler glossary](../../../../glossary.md#term-compiler); [runtime glossary](../../../../glossary.md#term-runtime); [prepare glossary](../../../../glossary.md#prepare); [backend glossary](../../../../glossary.md#backend); [registry glossary](../../../../glossary.md#term-registry))</span>
 - no source or build configuration contains `--enable-preview`, `jdk.incubator`, or a new
@@ -490,7 +490,7 @@ Manually verify:
 - Later focused model tasks may define typed scalar or bulk access and mutation/version semantics
   only when required by the public Tensor contract.<span data-glossary-navigation="true"> ([model glossary](../../../../glossary.md#term-model); [scalar glossary](../../../../glossary.md#term-scalar))</span>
 - Runtime, prepare, and concrete backend tasks own physical execution slots, device/native backend
-  storage, residency, transfers, allocation policy, pooling, and kernel routes.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [prepare glossary](../../../../glossary.md#prepare); [concrete backend glossary](../../../../glossary.md#concrete-backend); [device glossary](../../../../glossary.md#term-device); [backend glossary](../../../../glossary.md#backend); [residency glossary](../../../../glossary.md#residency); [pooling glossary](../../../../glossary.md#term-pooling); [kernel glossary](../../../../glossary.md#kernel))</span>
+  storage, residency, transfers, allocation policy, pooling, and kernel routes.<span data-glossary-navigation="true"> ([Runtime glossary](../../../../glossary.md#term-runtime); [prepare glossary](../../../../glossary.md#prepare); [concrete backend glossary](../../../../glossary.md#concrete-backend); [device glossary](../../../../glossary.md#term-device); [backend glossary](../../../../glossary.md#backend); [residency glossary](../../../../glossary.md#residency); [kernel glossary](../../../../glossary.md#kernel))</span>
 
 Do not create a detailed task-0011 specification as part of task 0010.
 
@@ -751,7 +751,7 @@ task-0011 specification and do not commit or push.
   overflow-before-size behavior, undersized/oversized/non-divisible regions, heap/native/mapped/
   global/confined/shared/read-only/writable/sliced/unaligned segments, exact segment/scope
   identity, raw mutation, initial and later closure, and wrapper identity. The mapped test closes
-  its channel/arena and deletes its temporary file. Tests introduce no tensor/layout association.<span data-glossary-navigation="true"> ([channel glossary](../../../../glossary.md#term-channel))</span>
+  its channel/arena and deletes its temporary file. Tests introduce no tensor/layout association.<span data-glossary-navigation="true"> ([channel glossary](../../../../glossary.md#term-io-channel))</span>
 - A targeted Ruby check resolved all 120 local Markdown links and anchors in the Tensor API,
   glossary, this task, model master plan, and roadmap. Fence counts were balanced; trailing-
   whitespace checks and no-index whitespace checks for new files found no diagnostics.

@@ -198,7 +198,7 @@ results across [backends](../../../../glossary.md#backend). A backend claiming t
 - a negative finite value or [negative infinity](../../../../glossary.md#nan-infinity-and-signed-zero) produces [NaN](../../../../glossary.md#term-nan); and
 - NaN produces NaN.
 
-No NaN sign or [payload](../../../../glossary.md#artifact-envelope-and-atomic-publication), exact [rounding](../../../../glossary.md#term-rounding), [ULP](../../../../glossary.md#term-unit-in-the-last-place-ulp) bound, intermediate [precision](../../../../glossary.md#term-precision), or bitwise result is
+No NaN sign or payload, exact [rounding](../../../../glossary.md#term-rounding), [ULP](../../../../glossary.md#term-unit-in-the-last-place-ulp) bound, intermediate [precision](../../../../glossary.md#term-precision), or bitwise result is
 promised by this [model](../../../../glossary.md#term-model) task.
 
 ### `LOG1P`
@@ -239,7 +239,7 @@ Classification uses the logical value represented by the floating input:
 - `IS_FINITE` is true for every finite normal, subnormal, positive-zero, or negative-zero value and
   false for both infinities and every NaN;<span data-glossary-navigation="true"> ([subnormal glossary](../../../../glossary.md#term-subnormal); [infinities glossary](../../../../glossary.md#nan-infinity-and-signed-zero))</span>
 - `IS_NAN` is true only for NaN, independent of sign, quiet/signaling encoding, or payload, and
-  false for finite values and infinities; and<span data-glossary-navigation="true"> ([payload glossary](../../../../glossary.md#artifact-envelope-and-atomic-publication))</span>
+  false for finite values and infinities; and
 - `IS_INF` is true only for positive or [negative infinity](../../../../glossary.md#nan-infinity-and-signed-zero) and false for [finite](../../../../glossary.md#term-finite) values and [NaN](../../../../glossary.md#term-nan).
 
 For every represented floating value, exactly one of finite, NaN, or [infinity](../../../../glossary.md#term-infinity) classification is

@@ -134,7 +134,7 @@ git diff --name-only -- '*.java' '*.gradle' '*.gradle.kts'
 git diff --check
 ```
 
-The Java/[Gradle](../../../../glossary.md#term-gradle) [scan](../../../../glossary.md#term-cumulative-scan) must be empty and the complete path audit must equal the five-file allowlist.
+The Java/[Gradle](../../../../glossary.md#term-gradle) scan must be empty and the complete path audit must equal the five-file allowlist.
 If the temporary Markdown validator is absent, create an equivalent validator outside the
 repository for local [targets](../../../../glossary.md#term-target)/anchors, unique headings, balanced fences, final newlines, and
 trailing whitespace. The independent review reruns final documentation, size, [scope](../../../../glossary.md#term-scope), example,
@@ -187,7 +187,7 @@ documents existing behavior only.
 - The five-file Markdown validator passed links, generated anchors, fences, final newlines, and
   whitespace; targeted opening/guide searches found none of the replaced stale claims.
 - The brief remained below 200 lines and 15 KB. The Java/Gradle scan was empty, the complete path
-  audit equaled the exact five-file allowlist, and <span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle); [scan glossary](../../../../glossary.md#term-cumulative-scan))</span>`git diff --check` passed.
+  audit equaled the exact five-file allowlist, and <span data-glossary-navigation="true"> ([Gradle glossary](../../../../glossary.md#term-gradle))</span>`git diff --check` passed.
 - Javadoc, glossary, architecture, tests, and other guides need no change: the final documentation
   describes current contracts and public behavior without changing Java, terminology, authority,
   backend capability, or workflow beyond the two selected pages.<span data-glossary-navigation="true"> ([backend capability glossary](../../../../glossary.md#backend-capability))</span>
