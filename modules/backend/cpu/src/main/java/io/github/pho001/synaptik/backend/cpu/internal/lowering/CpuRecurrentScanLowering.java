@@ -19,23 +19,22 @@ import java.util.Objects;
  * Cold descriptor-only admission and direct scalar lowering for one homogeneous floating scan.
  * Reads admit every resolved nonnegative layout; sibling outputs remain canonical dense values.
  * Referenced storage spans, logical counts and projection scratch are checked independently.
+ * Every low floating format keeps its original storage width and uses four-byte FLOAT32
+ * projection scratch; FLOAT64 alone uses eight-byte working values.
  */
 public final class CpuRecurrentScanLowering {
     /** Creates a stateless lowerer; no runtime values or prototype storage are retained. */
     public CpuRecurrentScanLowering() { }
 
     /**
-     * Validates current F32/F64 computation without inspecting storage or lengths. Retained low
-     * geometry/storage helpers do not grant executable admission, even for empty/inactive work.
+     * Validates homogeneous floating computation without inspecting storage or lengths.
+     * Low storage types retain distinct byte/short addressing and FLOAT32 working resources.
      * @param query non-null exact ordered occurrence
      * @return immutable checked geometry, never null
-     * @throws IllegalArgumentException if a low numerical type is requested or any type, flag,
-     *     shape or resolved layout disagrees
+     * @throws IllegalArgumentException if any type, flag, shape or resolved layout disagrees
      * @throws ArithmeticException if dimensions, boundary counts or scratch arithmetic overflow
      */
     public static Geometry geometry(OperationCapabilityQuery query) {
-        if (!CpuPartitionLowering.permitsLowPrecisionUse(query))
-            throw new IllegalArgumentException("CPU low recurrent computation is temporarily unsupported");
         if (!(query.operation().kind() instanceof RecurrentScanKind kind)
                 || !(query.operation().attrs() instanceof RecurrentDirection direction))
             throw new IllegalArgumentException("not a fixed recurrent scan");
@@ -60,7 +59,7 @@ public final class CpuRecurrentScanLowering {
         int t = Math.toIntExact(x[0]), b = Math.toIntExact(x[1]), i = Math.toIntExact(x[2]);
         int hidden = Math.toIntExact(h[1]), packed = Math.multiplyExact(gates, hidden);
         DataType type = in.getFirst().dataType();
-        if (!List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16).contains(type))
+        if (!type.isFloating())
             throw new IllegalArgumentException("scan requires a floating type");
         boolean grad = false;
         for (int role = 0; role < in.size(); role++) {
@@ -163,7 +162,7 @@ public final class CpuRecurrentScanLowering {
             Objects.requireNonNull(kind, "kind");
             Objects.requireNonNull(dataType, "dataType");
             int expectedGates = switch (kind) { case RNN_TANH -> 1; case GRU_RESET_AFTER -> 3; case LSTM -> 4; };
-            if (!List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16).contains(dataType)
+            if (!dataType.isFloating()
                     || time < 0 || batch < 0 || inputSize <= 0 || hiddenSize <= 0 || gates != expectedGates
                     || scratchBytes != (time == 0 || batch == 0 ? 0
                         : Math.multiplyExact(2L * Math.multiplyExact(gates, hiddenSize), dataType == DataType.FLOAT64 ? 8L : 4L)))

@@ -24,7 +24,7 @@ public class CpuRecurrentScanLoweringTest {
             for (boolean bias : List.of(false, true)) for (boolean grad : List.of(false, true))
                 for (var type : floatingTypes()) for (int layout = 0; layout < 6; layout++) {
                 var context = scalarContext(kind, bias, direction, 3, 4, 2, 3, grad, type, layout);
-                if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) continue;
+                
                 var lowered = new CpuPartitionLowering().lower(context);
                 assertNull(lowered.portableKernelIr());
                 assertThrows(IllegalStateException.class, lowered::kernelIr);
@@ -50,7 +50,7 @@ public class CpuRecurrentScanLoweringTest {
         for (var type : floatingTypes()) for (int time : List.of(0, 1, 10000)) for (int batch : List.of(0, 4)) {
             var context = scalarContext(RecurrentScanKind.LSTM, true,
                     RecurrentDirection.REVERSE, time, batch, 2, 3, false, type, 2);
-            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) continue;
+            
             var analysis = new CpuPartitionPreparer().analyze(context);
             assertEquals(1, analysis.plan().units().size());
             var workspace = analysis.plan().units().getFirst().runtimeFacts().workspaceDeclaration();
@@ -120,7 +120,7 @@ public class CpuRecurrentScanLoweringTest {
                 var in = new ArrayList<>(query.inputs()); var d = in.get(role);
                 in.set(role, new TensorDescriptor(d.dataType(), d.shape(), d.layout(), true));
                 var out = query.outputs().stream().map(o -> new TensorDescriptor(o.dataType(), o.shape(), o.layout(), true)).toList();
-                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(new CpuCapabilityProvider(), new OperationCapabilityQuery(query.operation(), in, out));
+                assertTrue(new CpuCapabilityProvider().supports(new OperationCapabilityQuery(query.operation(), in, out)));
                 rejected(new OperationCapabilityQuery(query.operation(), in, query.outputs()));
             }
         }

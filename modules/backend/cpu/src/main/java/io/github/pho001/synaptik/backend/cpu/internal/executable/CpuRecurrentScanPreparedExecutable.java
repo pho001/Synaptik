@@ -7,6 +7,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuRecurren
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuRecurrentScanFloat64Kernel;
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuRecurrentScanBFloat16Kernel;
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuRecurrentScanFloat16Kernel;
+import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuRecurrentScanFloat8E4M3Kernel;
+import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuRecurrentScanFloat8E5M2Kernel;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.runtime.execution.BoundInvocation;
 import io.github.pho001.synaptik.runtime.execution.PreparedExecutable;
@@ -32,6 +34,8 @@ import java.util.Objects;
  * Bound execution repeats access preflight and validates every logically strided length after
  * preceding producers,
  * before even padding or raw initial-state copies can write any scan result.
+ * Low types keep their original byte/short storage and FLOAT32 projection workspace; only
+ * hidden/cell state publications narrow, including the cell consumed by LSTM's hidden update.
  */
 public final class CpuRecurrentScanPreparedExecutable extends PreparedExecutable {
     private final Facts facts;
@@ -39,6 +43,8 @@ public final class CpuRecurrentScanPreparedExecutable extends PreparedExecutable
     private final CpuRecurrentScanFloat64Kernel doubleKernel;
     private final CpuRecurrentScanBFloat16Kernel bfloatKernel;
     private final CpuRecurrentScanFloat16Kernel halfKernel;
+    private final CpuRecurrentScanFloat8E4M3Kernel e4m3Kernel;
+    private final CpuRecurrentScanFloat8E5M2Kernel e5m2Kernel;
     private final long lengthOffset, lengthStride;
     private final CpuConcurrencyBudget budget;
     private final Optional<WorkspaceSelection> selectedWorkspace;
@@ -51,8 +57,7 @@ public final class CpuRecurrentScanPreparedExecutable extends PreparedExecutable
      *     working width/alignment for FLOAT64, four otherwise, absent for empty time or batch
      * @param facts non-null immutable checked occurrence facts
      * @param budget borrowed inline concurrency admission, or null when not configured
-     * @throws IllegalArgumentException if selections disagree or the computation is not F32/F64,
-     *     including empty time/batch and all-inactive lengths
+     * @throws IllegalArgumentException if selections disagree
      */
     public CpuRecurrentScanPreparedExecutable(PreparedMemoryPlan plan, List<BufferSelection> buffers,
             Optional<WorkspaceSelection> workspace, Facts facts, CpuConcurrencyBudget budget) {
@@ -62,12 +67,12 @@ public final class CpuRecurrentScanPreparedExecutable extends PreparedExecutable
         this.budget = budget;
         this.selectedWorkspace = workspace;
         var type = facts.geometry().dataType();
-        if (type != DataType.FLOAT32 && type != DataType.FLOAT64)
-            throw new IllegalArgumentException("CPU low recurrent computation is temporarily unsupported");
         kernel = type == DataType.FLOAT32 ? new CpuRecurrentScanKernel(facts) : null;
         doubleKernel = type == DataType.FLOAT64 ? new CpuRecurrentScanFloat64Kernel(facts) : null;
         bfloatKernel = type == DataType.BFLOAT16 ? new CpuRecurrentScanBFloat16Kernel(facts) : null;
         halfKernel = type == DataType.FLOAT16 ? new CpuRecurrentScanFloat16Kernel(facts) : null;
+        e4m3Kernel = type == DataType.FLOAT8_E4M3 ? new CpuRecurrentScanFloat8E4M3Kernel(facts) : null;
+        e5m2Kernel = type == DataType.FLOAT8_E5M2 ? new CpuRecurrentScanFloat8E5M2Kernel(facts) : null;
         var lengthBinding = facts.accessBindings().get(facts.rolePositions().get(1));
         lengthOffset = lengthBinding.baseElementOffset();
         lengthStride = lengthBinding.effectiveStrides().getFirst();
@@ -195,6 +200,16 @@ public final class CpuRecurrentScanPreparedExecutable extends PreparedExecutable
             case RNN_TANH -> () -> halfKernel.rnn(x, lengths, h0, w, u, bias, y, h, scratch);
             case GRU_RESET_AFTER -> () -> halfKernel.gru(x, lengths, h0, w, u, bias, y, h, scratch);
             case LSTM -> () -> halfKernel.lstm(x, lengths, h0, c0, w, u, bias, y, h, c, scratch);
+        };
+            case FLOAT8_E4M3 -> switch (g.kind()) {
+            case RNN_TANH -> () -> e4m3Kernel.rnn(x, lengths, h0, w, u, bias, y, h, scratch);
+            case GRU_RESET_AFTER -> () -> e4m3Kernel.gru(x, lengths, h0, w, u, bias, y, h, scratch);
+            case LSTM -> () -> e4m3Kernel.lstm(x, lengths, h0, c0, w, u, bias, y, h, c, scratch);
+        };
+            case FLOAT8_E5M2 -> switch (g.kind()) {
+            case RNN_TANH -> () -> e5m2Kernel.rnn(x, lengths, h0, w, u, bias, y, h, scratch);
+            case GRU_RESET_AFTER -> () -> e5m2Kernel.gru(x, lengths, h0, w, u, bias, y, h, scratch);
+            case LSTM -> () -> e5m2Kernel.lstm(x, lengths, h0, c0, w, u, bias, y, h, c, scratch);
         };
             default -> throw new AssertionError("non-floating scan escaped cold admission");
         };

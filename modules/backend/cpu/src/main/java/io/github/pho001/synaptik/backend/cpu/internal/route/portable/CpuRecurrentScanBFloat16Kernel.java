@@ -10,6 +10,7 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
  * Immutable direct Java BFLOAT16 scan kernel with FLOAT32 work and accumulation.
  * Hidden and cell publications narrow once to storage; subsequent reads decode that exact state.
  * Gates and projections never narrow to low storage. LSTM hidden consumes the stored cell.
+ * Nonempty projections start at their first product, preserving singleton negative zero.
  * Each invocation supplies its own exact segments.
  * All packed projections from prior hidden state finish before any hidden coordinate is replaced.
  * Invalid/padded coordinates never reach projections. No step allocates storage or inspects a graph.
@@ -213,10 +214,12 @@ public final class CpuRecurrentScanBFloat16Kernel {
             MemorySegment h, MemorySegment scratch, int t, int b) {
         long xbase = xo + t * xt + b * xb, hbase = (long) b * hidden;
         for (int row = 0; row < packed; row++) {
-            float px = 0, ph = 0;
             long xa = xbase, wa = wo + row * wr, ua = uo + row * ur;
-            for (int k = 0; k < input; k++, xa += xi, wa += wk) px += get(x, xa) * get(w, wa);
-            for (int k = 0; k < hidden; k++, ua += uk) ph += get(h, hbase + k) * get(u, ua);
+            float px = get(x, xa) * get(w, wa);
+            float ph = get(h, hbase) * get(u, ua);
+            xa += xi; wa += wk; ua += uk;
+            for (int k = 1; k < input; k++, xa += xi, wa += wk) px += get(x, xa) * get(w, wa);
+            for (int k = 1; k < hidden; k++, ua += uk) ph += get(h, hbase + k) * get(u, ua);
             putWork(scratch, row, px); putWork(scratch, packed + row, ph);
         }
         if (bias != null) for (int row = 0; row < packed; row++)

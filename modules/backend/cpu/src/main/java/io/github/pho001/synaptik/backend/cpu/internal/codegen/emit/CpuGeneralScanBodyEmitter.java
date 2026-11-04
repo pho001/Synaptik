@@ -15,6 +15,8 @@ import java.util.List;
  * Numerical work belongs exclusively to the ordinary same-class helpers. Invocation-owned
  * packs, segment wrappers and scratch slices are bound before entry; generated time steps
  * only reset numeric cursor cells, update presence and make fixed {@code invokestatic} calls.
+ * Low helpers retain their declared byte/short boundaries; this orchestration never widens a
+ * stored carry, history or public value into a replacement FLOAT32 representation.
  */
 final class CpuGeneralScanBodyEmitter {
     private static final ClassDesc SEGMENT = ClassDesc.of("java.lang.foreign.MemorySegment");

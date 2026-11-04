@@ -35,7 +35,7 @@ public class CpuGeneralScanCapabilityTest {
         for (var type : List.of(io.github.pho001.synaptik.model.datatype.DataType.FLOAT32,
                 io.github.pho001.synaptik.model.datatype.DataType.FLOAT64))
             for (long time : new long[] {0, 3}) for (boolean reverse : List.of(false, true)) {
-                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(provider, symbolicLengthQuery(type, time, reverse));
+                assertTrue(provider.supports(symbolicLengthQuery(type, time, reverse)));
             }
     }
 
@@ -153,13 +153,13 @@ public class CpuGeneralScanCapabilityTest {
                 Tensor weight = tensor(type,false,w.descriptor().shape().toLongArray());
                 var old = Scan.apply(List.of(initial),List.of(seq),List.of(weight),body,false);
                 var q = query(old.finalCarry());
-                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(new CpuCapabilityProvider(), q);
+                assertTrue(new CpuCapabilityProvider().supports(q));
                 assertEquals(shaped, CpuGeneralScanLowering.analyze(q).ir().stages().isPresent());
                 var length = Scan.apply(List.of(initial),List.of(seq),List.of(weight),
                         tensor(io.github.pho001.synaptik.model.datatype.DataType.INT64,false,2),1,List.of(OptionalInt.of(0)),body,false);
                 var p = length.finalCarry().getFirst().provenance().orElseThrow().producer();
                 var rejected = new OperationCapabilityQuery(p.operation(), p.inputs().stream().map(Tensor::descriptor).toList(), p.outputDescriptors(), q.scanBody(), q.scanActivityPlan());
-                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(new CpuCapabilityProvider(), rejected);
+                assertTrue(new CpuCapabilityProvider().supports(rejected));
                 assertTrue(CpuGeneralScanLowering.analyze(rejected).ir().lengthAware());
             }
         }
@@ -177,8 +177,8 @@ public class CpuGeneralScanCapabilityTest {
         var roots = List.of(scan.finalCarry().getFirst(),scan.outputs().getFirst());
         var artifact = compile(roots,Optional.of(request(roots,List.of(weight,recurrent,bias,kernel,prefixBias,input))),true,new CpuCapabilityProvider());
         for (var q : queries(artifact)) {
-            io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(new CpuCapabilityProvider(), withActualReadViews(q,false));
-            io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(new CpuCapabilityProvider(), withActualReadViews(q,true));
+            assertTrue(new CpuCapabilityProvider().supports(withActualReadViews(q,false)));
+            assertTrue(new CpuCapabilityProvider().supports(withActualReadViews(q,true)));
         }
         assertPreparedDenseReadEquivalence(artifact);
     }
@@ -191,7 +191,7 @@ public class CpuGeneralScanCapabilityTest {
             var q = denseReadFixture(type,family,3,false); var views = withActualReadViews(q,true);
             for (int p = 0; p < q.inputs().size(); p++) {
                 var inputs = new ArrayList<>(q.inputs()); inputs.set(p,views.inputs().get(p));
-                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(cpu, new OperationCapabilityQuery(q.operation(), inputs, q.outputs(), q.scanBody(), q.scanActivityPlan()), "actual role="+p+" family="+family);
+                assertTrue(cpu.supports(new OperationCapabilityQuery(q.operation(), inputs, q.outputs(), q.scanBody(), q.scanActivityPlan())), "actual role="+p+" family="+family);
             }
             var mixed = new ArrayList<>(views.inputs()); var d = mixed.getFirst();
             var other = type == io.github.pho001.synaptik.model.datatype.DataType.FLOAT32
@@ -204,8 +204,8 @@ public class CpuGeneralScanCapabilityTest {
             var qs = queries(artifact);
             for (var q : qs) {
                 var dense = withActualReadViews(q,false); var views = withActualReadViews(q,true);
-                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(cpu, dense);
-                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(cpu, views);
+                assertTrue(cpu.supports(dense));
+                assertTrue(cpu.supports(views));
             }
             assertPreparedDenseReadEquivalence(artifact);
         }
@@ -285,7 +285,7 @@ public class CpuGeneralScanCapabilityTest {
                 var request = request(roots, List.of(seq, weight));
                 var artifact = compile(roots, Optional.of(request), optimized, new CpuCapabilityProvider());
                 for (var q : queries(artifact))
-                    io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(new CpuCapabilityProvider(), q);
+                    assertTrue(new CpuCapabilityProvider().supports(q));
                 assertPreparedDenseReadEquivalence(artifact);
             }
         }

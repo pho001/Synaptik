@@ -1089,7 +1089,7 @@ public class CpuSymbolicScanGeneratedKernelTest {
             var scan = Scan.apply(List.of(symbolic(false,b,new StaticDimension(3))),
                     List.of(symbolic(false,new StaticDimension(time),b,new StaticDimension(4))),List.of(fixed(false,4,3),fixed(false,3,3)),body,false);
             var roots = new ArrayList<>(scan.finalCarry()); roots.addAll(scan.outputs());
-            var query = CpuGeneralScanLoweringTest.query(roots); io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(new CpuCapabilityProvider(), query);
+            var query = CpuGeneralScanLoweringTest.query(roots); assertTrue(new CpuCapabilityProvider().supports(query));
             var facts = CpuGeneralScanLowering.analyze(query); var ir = facts.ir(); var stages = ir.stages().orElseThrow();
             assertTrue(ir.symbolic()); assertEquals(1,ir.scratchBanks());
             assertTrue(ir.encodedKernelIr().familyIdentity().endsWith(":symbolic-batch-v1"));

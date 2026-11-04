@@ -53,6 +53,9 @@ import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuRepresentationRe
  * preserves activity domains, not just equal shapes. Histories cannot back inactive state;
  * only proved direct-old same-cell transitions may own their distinct final output in-place.
  * Static non-MATMUL staged/pointwise and symbolic identity text and code remain unchanged.
+ * Low floating bodies use ordinary physical composition rather than reinterpreting the legacy
+ * homogeneous arithmetic locals. Byte/short carries, saved values and public ports remain raw;
+ * each ordinary helper owns FLOAT32 working sites and its final represented narrowing.
  * CPU0071's approved retained static MATMUL cutovers instead advance all-valid v4 to v5 and
  * fixed-length MATMUL v1 to length-aware-matmul v2 for invocation-bound constant strides.
  */
@@ -344,10 +347,6 @@ public final class CpuGeneralScanLowering {
                 if (ordinaryUnits.size() != composition.units().size()
                         || constant < composition.workspaceSize().constantBytes()
                         || factor < composition.workspaceSize().bytesPerBatch()) throw invalid();
-                for (var unit : ordinaryUnits) {
-                    CpuPartitionLowering.requirePermittedLowPrecisionUse(unit.portableKernelIr());
-                    CpuPartitionLowering.requirePermittedLowPrecisionUse(unit.kernelIr());
-                }
                 if (ir.symbolic()) {
                     if (!spans.isEmpty() || !accessBindings.isEmpty()
                             || batchBindings.size() != ir.boundaryAccesses().size()) throw invalid();
@@ -425,7 +424,11 @@ public final class CpuGeneralScanLowering {
      */
     public static Facts analyze(OperationCapabilityQuery query) {
         Objects.requireNonNull(query, "query");
-        if (query.scanActivityPlan().isPresent()) return CpuGeneralScanCompositionLowering.analyze(query);
+        if (query.scanActivityPlan().isPresent() || query.scanBody().stream()
+                .flatMap(body -> body.graph().values().stream())
+                .anyMatch(value -> value.descriptor().dataType().isFloating()
+                        && value.descriptor().dataType().byteWidth() < Float.BYTES))
+            return CpuGeneralScanCompositionLowering.analyze(query);
         try {
             if (query.operation().attrs() instanceof ScanAttrs a
                     && (a.carryCount() == 0 || a.lengthAware() && a.rowCarryCount() == 0)) throw invalid();

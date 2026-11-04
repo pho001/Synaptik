@@ -124,8 +124,6 @@ public class CpuGeneralScanLoweringTest {
         for (var id : published)
             assertTrue(local.memoryRequirements().stream().anyMatch(r -> r.valueId().equals(id) && r.graphOutput()),
                     "typed carry and emission cuts survive local projection");
-        for (var unit : facts.ordinaryUnits())
-            assertDoesNotThrow(() -> CpuPartitionLowering.requirePermittedLowPrecisionUse(unit.portableKernelIr()));
         assertTrue(physical.values().stream().allMatch(v -> v.rowAxis() == -1));
     }
 
@@ -174,14 +172,6 @@ public class CpuGeneralScanLoweringTest {
         assertTrue(physical.boundaryDescriptors().stream().anyMatch(d -> d.dataType() == DataType.BOOL && d.shape().rank() == 5));
     }
 
-    /** The temporary low-arithmetic lock applies before any empty time-domain shortcut. */
-    @Test void ordinaryCompositionIndependentlyRejectsNestedLowNumericsAtZeroTime() {
-        Tensor h = tensor(DataType.FLOAT16, false, 2, 3), x = tensor(DataType.FLOAT16, false, 2, 3);
-        var body = new ScanBody(List.of(h), List.of(x), List.of(), List.of(h.tanh()), List.of());
-        var scan = Scan.apply(List.of(tensor(DataType.FLOAT16, false, 2, 3)),
-                List.of(tensor(DataType.FLOAT16, false, 0, 2, 3)), List.of(), body, false);
-        assertThrows(IllegalArgumentException.class, () -> CpuGeneralScanCompositionLowering.analyze(query(scan.finalCarry())));
-    }
 
     /**
      * Proves a producer-independent SUM tail may lose only its dead local cut. A demanded
@@ -306,14 +296,6 @@ public class CpuGeneralScanLoweringTest {
             var wrongRole = new io.github.pho001.synaptik.model.operation.scan.ScanAttrs(time, a.carryCount(), a.sequenceCount(), a.invariantCount(), a.emissionCount(), a.residualCount(), false, true, 1, List.of(OptionalInt.empty()));
             assertRejected(new OperationCapabilityQuery(new io.github.pho001.synaptik.model.operation.Operation(
                     io.github.pho001.synaptik.model.operation.scan.ScanKind.SCAN,wrongRole), q.inputs(), q.outputs(), q.scanBody(), q.scanActivityPlan()));
-            for (DataType low : List.of(DataType.BFLOAT16,DataType.FLOAT16)) {
-                var local = g.values().stream().map(v -> new GraphValue(v.id(),new TensorDescriptor(low,v.descriptor().shape(),v.descriptor().layout(),v.descriptor().requiresGrad()))).toList();
-                var inputs = q.inputs().stream().map(d -> new TensorDescriptor(d.dataType() == DataType.INT64 ? DataType.INT64 : low,d.shape(),d.layout(),d.requiresGrad())).toList();
-                var outputs = q.outputs().stream().map(d -> new TensorDescriptor(low,d.shape(),d.layout(),d.requiresGrad())).toList();
-                assertEquals(DataType.INT64,inputs.getLast().dataType());
-                assertRejected(new OperationCapabilityQuery(q.operation(), inputs, outputs, Optional.of(new CompiledScanBody(
-                        new CompiledGraphModel(local,g.nodes(),g.inputs(),g.outputs(),g.nodePhases()),b.nextCarry(),b.emissions(),b.residuals(),List.of())), java.util.Optional.empty()));
-            }
         }
     }
     /**

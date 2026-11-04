@@ -28,6 +28,8 @@ import io.github.pho001.synaptik.planning.capability.ScanActivityPlan;
  * arithmetic. Empty bodies and empty carries need no fabricated arithmetic value. Its selective
  * identity includes physical recipes and ordinal-only activity, never graph IDs, actual B,
  * storage identities or assigned slots. Absent composition leaves old projections unchanged.</p>
+ * Low floating bodies use this ordinary composition, retaining byte/short physical values and
+ * independent FLOAT32 numerical helper sites. No low value is stored in a FLOAT32 carrier.
  *
  * @param arithmetic existing typed pointwise arithmetic, or an empty composite envelope
  * @param formalOrdinals declaration-ordered local ordinals

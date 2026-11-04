@@ -36,6 +36,9 @@ import java.util.*;
  * execute once after the nonempty-time guard with pinned scratch; other stages remain step-bound.
  * Represented dtype selects FLOAT32 or FLOAT64 locals and four/eight-byte accesses during
  * generation, not by runtime type dispatch. Only live cuts and demanded roles require stores.
+ * Low floating and independently typed bodies use the ordinary composition branch: raw
+ * byte/short transfers and control stay here, while ordinary helpers own FLOAT32 computation
+ * and declared result narrowing. No legacy FLOAT32 local is substituted for low stored state.
  * Demanded prior carry is saved before arithmetic, while produced
  * saved sites retain their exact value before later consumers. Shaped carries keep simultaneous
  * old/new versions across cross-coordinate reads. Address reuse is generation-cell scoped;

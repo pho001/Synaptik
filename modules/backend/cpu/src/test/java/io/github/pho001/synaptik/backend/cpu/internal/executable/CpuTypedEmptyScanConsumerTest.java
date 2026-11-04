@@ -22,8 +22,7 @@ import org.junit.jupiter.api.Test;
 
 /** Numerical consumers of typed histories, controlled matrices and genuine empty local graphs, using assigned slots. */
 public class CpuTypedEmptyScanConsumerTest {
-    private static final List<DataType> STORAGE_TYPES = List.of(DataType.BOOL, DataType.INT32,
-            DataType.INT64, DataType.FLOAT16, DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64);
+    private static final List<DataType> STORAGE_TYPES = List.of(DataType.values());
 
     @Test void carryFreeZeroNodeBodyPublishesEveryWidthAndResetsPaddingOnTheSameBoundInvocation() {
         for (boolean named : List.of(false, true)) for (boolean lengthMode : List.of(false, true))
@@ -696,6 +695,7 @@ public class CpuTypedEmptyScanConsumerTest {
             case INT32 -> new long[] {0, 0x80000000L, 0x7fffffffL, 0xfedcba98L}[index % 4];
             case INT64 -> new long[] {0, Long.MIN_VALUE, Long.MAX_VALUE, 0x123456789abcdef0L}[index % 4];
             case FLOAT16, BFLOAT16 -> new long[] {0, 0x8000, 1, 0x7e35, 0xfe47}[index % 5];
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> new long[] {0, 0x80, 1, 0x7f, 0xff, 0x7d, 0xfd}[index % 7];
             case FLOAT32 -> new long[] {0, 0x80000000L, 1, 0x7fc12345L, 0xffc54321L}[index % 5];
             case FLOAT64 -> new long[] {0, Long.MIN_VALUE, 1, 0x7ff8123456789abcL, 0xfff8543210abcdefL}[index % 5];
         };

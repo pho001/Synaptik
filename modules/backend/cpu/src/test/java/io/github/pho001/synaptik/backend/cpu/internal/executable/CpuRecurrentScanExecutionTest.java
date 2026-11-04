@@ -9,6 +9,8 @@ import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.Float16Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E4M3Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E5M2Bits;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.graph.GraphValue;
 import io.github.pho001.synaptik.backend.cpu.internal.route.portable.CpuRecurrentScanCleanJavaOracle;
@@ -31,40 +33,12 @@ import org.junit.jupiter.api.Test;
 
 /** Direct-kernel equations, raw movement and no-partial-write qualification on exact segments. */
 public class CpuRecurrentScanExecutionTest {
-    /** Retained low facts cannot construct executable code, including zero-scratch domains. */
-    @Test void retainedLowFixedExecutableRejectsBeforeEmptyDomainDecisions() {
-        for (var kind : RecurrentScanKind.values()) for (int time : List.of(0, 2))
-            for (int batch : List.of(0, 2)) {
-                var analysis = new CpuPartitionPreparer().analyze(scalarContext(kind, true,
-                        RecurrentDirection.FORWARD, time, batch, 2, 2, false, DataType.FLOAT32, 2));
-                var original = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
-                try (var fixture = new Fixture(analysis, 0, false, false, Map.of())) {
-                    var selections = java.util.stream.IntStream.range(0, original.boundaryValues().size())
-                            .mapToObj(p -> new PreparedExecutable.BufferSelection(p, 0)).toList();
-                    Optional<PreparedExecutable.WorkspaceSelection> workspace = original.geometry().scratchBytes() == 0
-                            ? Optional.empty() : Optional.of(new PreparedExecutable.WorkspaceSelection(0));
-                    assertDoesNotThrow(() -> new CpuRecurrentScanPreparedExecutable(
-                            fixture.state.memoryPlan(), selections, workspace, original, null));
-                    for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
-                        var g = original.geometry();
-                        var geometry = new CpuRecurrentScanLowering.Geometry(g.kind(), g.reverse(), g.bias(),
-                                g.time(), g.batch(), g.inputSize(), g.hiddenSize(), g.gates(), type, g.scratchBytes());
-                        var retained = new CpuRecurrentScanLowering.Facts(geometry, original.boundaryValues(),
-                                original.rolePositions(), original.accessBindings(),
-                                original.boundaryTypes().stream().map(t -> t == DataType.FLOAT32 ? type : t).toList(),
-                                original.spans(), original.readCount());
-                        assertThrows(IllegalArgumentException.class, () -> new CpuRecurrentScanPreparedExecutable(
-                                fixture.state.memoryPlan(), selections, workspace, retained, null));
-                    }
-                }
-            }
-    }
 
     @Test void everyScalarTypeRetainsActiveSpecialClassesAndGradualSubnormalSites() {
         for (var type : floatingTypes()) for (var kind : RecurrentScanKind.values()) {
             var context = scalarContext(kind, true, RecurrentDirection.FORWARD,
                     1, 1, 1, 1, false, type, 2);
-            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) continue;
+            
             var analysis = new CpuPartitionPreparer().analyze(context);
             var facts = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
             try (var f = new Fixture(analysis, 2, true, true, Map.of())) {
@@ -88,7 +62,7 @@ public class CpuRecurrentScanExecutionTest {
         for (var type : floatingTypes()) {
             var context = scalarContext(RecurrentScanKind.RNN_TANH, false,
                     RecurrentDirection.FORWARD, 1, 1, 1, 1, false, type, 2);
-            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) continue;
+            
             var analysis = new CpuPartitionPreparer().analyze(context);
             var facts = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
             try (var f = new Fixture(analysis, 0, true, true, Map.of())) {
@@ -112,7 +86,7 @@ public class CpuRecurrentScanExecutionTest {
         for (var type : floatingTypes()) {
             var context = scalarContext(RecurrentScanKind.LSTM, true,
                     RecurrentDirection.FORWARD, 2, 2, 2, 2, false, type, 2);
-            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) continue;
+            
             var analysis = new CpuPartitionPreparer().analyze(context);
             var facts = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
             try (Arena arena = Arena.ofShared()) {
@@ -174,7 +148,7 @@ public class CpuRecurrentScanExecutionTest {
                 var witnessed = new boolean[kind == RecurrentScanKind.LSTM ? 5 : 4];
                 var context = scalarContext(kind, true,
                         RecurrentDirection.FORWARD, 2, 1, 3, 2, false, type, 2);
-                if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) continue;
+                
                 var analysis = new CpuPartitionPreparer().analyze(context);
                 var facts = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
                 try (var f = new Fixture(analysis, 0, false, false, Map.of())) {
@@ -211,7 +185,7 @@ public class CpuRecurrentScanExecutionTest {
                 for (int mode = 0; mode < 6; mode++) for (int carrier = 0; carrier < 3; carrier++) {
                     var context = scalarContext(kind, bias, direction,
                             3, 4, 2, 3, false, type, mode);
-                    if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) continue;
+                    
                     var analysis = new CpuPartitionPreparer().analyze(context);
                     var facts = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
                     try (var f = new Fixture(analysis, carrier, true, true, Map.of())) {
@@ -254,7 +228,7 @@ public class CpuRecurrentScanExecutionTest {
         for (var type : floatingTypes()) for (var kind : RecurrentScanKind.values()) for (int mode : List.of(1, 2, 4)) {
             var context = scalarContext(kind, true, RecurrentDirection.REVERSE,
                     3, 4, 2, 3, false, type, mode);
-            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) continue;
+            
             var analysis = new CpuPartitionPreparer().analyze(context);
             var facts = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
             try (var f = new Fixture(analysis, 2, false, true, Map.of())) {
@@ -289,7 +263,7 @@ public class CpuRecurrentScanExecutionTest {
                                     new long[] {Long.MAX_VALUE, 0, 0}, Long.MAX_VALUE, true)), false));
                     context = project(ds, context.nodes());
                 }
-                if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) continue;
+                
                 var analysis = new CpuPartitionPreparer().analyze(context);
                 var facts = analysis.plan().units().getFirst().runtimeFacts().recurrentScan().orElseThrow();
                 try (var f = new Fixture(analysis, 2, true, true, Map.of())) {
@@ -747,6 +721,7 @@ public class CpuRecurrentScanExecutionTest {
             case FLOAT64 -> MemorySegment.ofArray(new double[size]);
             case FLOAT32 -> MemorySegment.ofArray(new float[size]);
             case BFLOAT16, FLOAT16 -> MemorySegment.ofArray(new short[size]);
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> MemorySegment.ofArray(new byte[size]);
             case INT64 -> MemorySegment.ofArray(new long[size]);
             default -> throw new AssertionError(type);
         };
@@ -837,6 +812,8 @@ public class CpuRecurrentScanExecutionTest {
             case FLOAT32 -> segment.getAtIndex(ValueLayout.JAVA_FLOAT, index);
             case BFLOAT16 -> BFloat16Bits.toFloat(segment.getAtIndex(ValueLayout.JAVA_SHORT, index));
             case FLOAT16 -> Float16Bits.toFloat(segment.getAtIndex(ValueLayout.JAVA_SHORT, index));
+            case FLOAT8_E4M3 -> Float8E4M3Bits.toFloat(segment.getAtIndex(ValueLayout.JAVA_BYTE, index));
+            case FLOAT8_E5M2 -> Float8E5M2Bits.toFloat(segment.getAtIndex(ValueLayout.JAVA_BYTE, index));
             default -> throw new AssertionError(type);
         };
     }
@@ -847,6 +824,8 @@ public class CpuRecurrentScanExecutionTest {
             case FLOAT32 -> segment.setAtIndex(ValueLayout.JAVA_FLOAT, index, (float) value);
             case BFLOAT16 -> segment.setAtIndex(ValueLayout.JAVA_SHORT, index, BFloat16Bits.fromFloat((float) value));
             case FLOAT16 -> segment.setAtIndex(ValueLayout.JAVA_SHORT, index, Float16Bits.fromFloat((float) value));
+            case FLOAT8_E4M3 -> segment.setAtIndex(ValueLayout.JAVA_BYTE, index, Float8E4M3Bits.fromDouble(value));
+            case FLOAT8_E5M2 -> segment.setAtIndex(ValueLayout.JAVA_BYTE, index, Float8E5M2Bits.fromDouble(value));
             default -> throw new AssertionError(type);
         }
     }
@@ -856,6 +835,7 @@ public class CpuRecurrentScanExecutionTest {
             case FLOAT64 -> segment.getAtIndex(ValueLayout.JAVA_LONG, index);
             case FLOAT32 -> Integer.toUnsignedLong(segment.getAtIndex(ValueLayout.JAVA_INT, index));
             case BFLOAT16, FLOAT16 -> Short.toUnsignedLong(segment.getAtIndex(ValueLayout.JAVA_SHORT, index));
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> Byte.toUnsignedLong(segment.getAtIndex(ValueLayout.JAVA_BYTE, index));
             default -> throw new AssertionError(type);
         };
     }
@@ -865,6 +845,7 @@ public class CpuRecurrentScanExecutionTest {
             case FLOAT64 -> segment.setAtIndex(ValueLayout.JAVA_LONG, index, bits);
             case FLOAT32 -> segment.setAtIndex(ValueLayout.JAVA_INT, index, (int) bits);
             case BFLOAT16, FLOAT16 -> segment.setAtIndex(ValueLayout.JAVA_SHORT, index, (short) bits);
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> segment.setAtIndex(ValueLayout.JAVA_BYTE, index, (byte) bits);
             default -> throw new AssertionError(type);
         }
     }
@@ -1113,7 +1094,7 @@ public class CpuRecurrentScanExecutionTest {
             if (carrier == 0 || carrier == 2 && (index+1)%2 == 0) {
                 int cells = Math.toIntExact(capacity/type.byteWidth());
                 result = switch (type) {
-                    case BOOL -> MemorySegment.ofArray(new byte[cells]);
+                    case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> MemorySegment.ofArray(new byte[cells]);
                     case INT32 -> MemorySegment.ofArray(new int[cells]);
                     case INT64 -> MemorySegment.ofArray(new long[cells]);
                     case FLOAT16, BFLOAT16 -> MemorySegment.ofArray(new short[cells]);
@@ -1204,6 +1185,8 @@ public class CpuRecurrentScanExecutionTest {
                     MemorySegment segment = carrier == 0 || carrier == 2 && buffers.size() % 2 == 0
                             ? type == DataType.INT64 ? MemorySegment.ofArray(new long[Math.toIntExact(capacity / 8)])
                                 : type == DataType.FLOAT64 ? MemorySegment.ofArray(new double[Math.toIntExact(capacity / 8)])
+                                : type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2
+                                    ? MemorySegment.ofArray(new byte[Math.toIntExact(capacity)])
                                 : type == DataType.BFLOAT16 || type == DataType.FLOAT16
                                     ? MemorySegment.ofArray(new short[Math.toIntExact(capacity / 2)])
                                     : MemorySegment.ofArray(new float[Math.toIntExact(capacity / 4)])

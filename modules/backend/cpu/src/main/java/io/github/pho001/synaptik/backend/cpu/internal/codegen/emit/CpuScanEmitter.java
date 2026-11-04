@@ -4,6 +4,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.cache.CpuKernelSpecializat
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuAccessPlan;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.Float8E4M3Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E5M2Bits;
 import java.lang.classfile.CodeBuilder;
 import java.lang.classfile.Opcode;
 import java.lang.classfile.TypeKind;
@@ -18,9 +20,9 @@ import java.lang.foreign.ValueLayout;
  *
  * <p>Each range contains whole logical slices only. Within a slice, execution visits the selected
  * axis sequentially in forward or reverse order and applies inclusive or exclusive placement.
- * FLOAT64 and FLOAT32 retain same-format results, BFLOAT16 directly emits widening to FLOAT32,
- * one typed operation, and round-to-nearest-ties-to-even conversion after every value, and
- * INT32/INT64 wrap at their represented width. The generated BFLOAT16 body calls no Synaptik
+ * FLOAT64 and FLOAT32 retain same-format results; all four low floating formats retain
+ * FLOAT32 accumulators and narrow only each declared prefix output, never the next accumulator.
+ * INT32/INT64 wrap at their represented width. Generated low bodies call no Synaptik
  * runtime helper. The body allocates no
  * per-slice or per-element object and owns no worker, workspace, or persistent accumulator.
  * Dense rank-one heap-array scans use one-time integer base narrowing and a direct typed loop.
@@ -31,7 +33,6 @@ import java.lang.foreign.ValueLayout;
  * coordinates once per slice. Neither form requests workspace or materialization.</p>
  */
 public final class CpuScanEmitter {
-    private static final ClassDesc FLOAT = ClassDesc.of(Float.class.getName());
     private static final ClassDesc SEGMENT = ClassDesc.of(MemorySegment.class.getName());
     private static final ClassDesc VALUE_LAYOUT = ClassDesc.of(ValueLayout.class.getName());
     private static final ClassDesc LONG_LAYOUT =
@@ -174,8 +175,9 @@ public final class CpuScanEmitter {
         int inputBase = code.allocateLocal(TypeKind.INT), outputBase = code.allocateLocal(TypeKind.INT);
         code.aload(2).loadConstant(10).laload().l2i().istore(inputBase);
         code.aload(2).loadConstant(14).laload().l2i().istore(outputBase);
-        int accumulator = code.allocateLocal(localKind(type));
-        emitIdentity(code, type, product); store(code, type, accumulator);
+        DataType accumulationType = workingType(type);
+        int accumulator = code.allocateLocal(localKind(accumulationType));
+        emitIdentity(code, accumulationType, product); store(code, accumulationType, accumulator);
         int step = code.allocateLocal(TypeKind.INT); code.loadConstant(0).istore(step);
         int address = code.allocateLocal(TypeKind.INT);
         var loop = code.newLabel(); code.labelBinding(loop);
@@ -189,7 +191,7 @@ public final class CpuScanEmitter {
         store(code, type, value);
         if (!exclusive) emitApply(code, type, product, accumulator, value);
         code.iload(outputBase).iload(address).iload(inputBase).isub().iadd().istore(address);
-        carriers.store(type, specialization.carrierPattern().getLast(), 1, address, accumulator, true);
+        emitStore(code, carriers, type, specialization.carrierPattern().getLast(), address, accumulator, true);
         if (exclusive) emitApply(code, type, product, accumulator, value);
         code.iinc(step, 1); code.iload(step).iload(extent).branch(Opcode.IF_ICMPLT, loop);
         code.labelBinding(done);
@@ -212,8 +214,9 @@ public final class CpuScanEmitter {
             code.lload(remaining).aload(2).loadConstant(inputLayout + 2 + current).laload()
                     .ldiv().lstore(remaining);
         }
-        int accumulator = code.allocateLocal(localKind(type));
-        emitIdentity(code, type, product); store(code, type, accumulator);
+        DataType accumulationType = workingType(type);
+        int accumulator = code.allocateLocal(localKind(accumulationType));
+        emitIdentity(code, accumulationType, product); store(code, accumulationType, accumulator);
         int step = code.allocateLocal(TypeKind.LONG); code.loadConstant(0L).lstore(step);
         var emptyAxis = code.newLabel();
         code.aload(2).loadConstant(7).laload().loadConstant(0L).lcmp().branch(Opcode.IFEQ, emptyAxis);
@@ -229,7 +232,7 @@ public final class CpuScanEmitter {
         store(code, type, value);
         if (!exclusive) emitApply(code, type, product, accumulator, value);
         int outputAddress = address(code, rank, coordinates, outputLayout);
-        carriers.store(type, specialization.carrierPattern().getLast(), 1, outputAddress, accumulator);
+        emitStore(code, carriers, type, specialization.carrierPattern().getLast(), outputAddress, accumulator, false);
         if (exclusive) emitApply(code, type, product, accumulator, value);
         code.lload(step).loadConstant(1L).ladd().lstore(step);
         code.lload(step).aload(2).loadConstant(7).laload().lcmp().branch(Opcode.IFLT, elements);
@@ -254,17 +257,17 @@ public final class CpuScanEmitter {
 
     private static TypeKind localKind(DataType type) { return switch (type) {
         case FLOAT64 -> TypeKind.DOUBLE; case FLOAT32 -> TypeKind.FLOAT;
-        case INT64 -> TypeKind.LONG; case BFLOAT16, FLOAT16, INT32 -> TypeKind.INT;
+        case INT64 -> TypeKind.LONG; case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32 -> TypeKind.INT;
         case BOOL -> throw new AssertionError();
     }; }
     private static void store(CodeBuilder code, DataType type, int local) { switch (type) {
         case FLOAT64 -> code.dstore(local); case FLOAT32 -> code.fstore(local);
-        case INT64 -> code.lstore(local); case BFLOAT16, FLOAT16, INT32 -> code.istore(local);
+        case INT64 -> code.lstore(local); case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32 -> code.istore(local);
         case BOOL -> throw new AssertionError();
     } }
     private static void load(CodeBuilder code, DataType type, int local) { switch (type) {
         case FLOAT64 -> code.dload(local); case FLOAT32 -> code.fload(local);
-        case INT64 -> code.lload(local); case BFLOAT16, FLOAT16, INT32 -> code.iload(local);
+        case INT64 -> code.lload(local); case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32 -> code.iload(local);
         case BOOL -> throw new AssertionError();
     } }
     private static void emitIdentity(CodeBuilder code, DataType type, boolean product) { switch (type) {
@@ -272,91 +275,56 @@ public final class CpuScanEmitter {
         case FLOAT32 -> code.loadConstant(product ? 1.0f : 0.0f);
         case INT64 -> code.loadConstant(product ? 1L : 0L);
         case INT32 -> code.loadConstant(product ? 1 : 0);
-        case BFLOAT16 -> code.loadConstant(product ? 0x3f80 : 0);
-        case FLOAT16 -> code.loadConstant(product ? 0x3c00 : 0);
-        case BOOL -> throw new AssertionError();
+        case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, BOOL -> throw new AssertionError();
     } }
     private static void emitApply(CodeBuilder code, DataType type, boolean product,
             int accumulator, int value) {
+        if (workingType(type) != type) {
+            code.fload(accumulator);
+            CpuCastEmitter.emitLowToFloat(code, type, value);
+            if (product) code.fmul(); else code.fadd();
+            code.fstore(accumulator);
+            return;
+        }
         load(code, type, accumulator); load(code, type, value);
         switch (type) {
             case FLOAT64 -> { if (product) code.dmul(); else code.dadd(); }
             case FLOAT32 -> { if (product) code.fmul(); else code.fadd(); }
             case INT64 -> { if (product) code.lmul(); else code.ladd(); }
             case INT32 -> { if (product) code.imul(); else code.iadd(); }
-            case BFLOAT16 -> emitBfloatApply(code, product);
-            case FLOAT16 -> emitFloat16Apply(code, product);
-            case BOOL -> throw new AssertionError();
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, BOOL -> throw new AssertionError();
         }
         store(code, type, accumulator);
     }
 
-    private static void emitBfloatApply(CodeBuilder code, boolean product) {
-        int right = code.allocateLocal(TypeKind.INT), left = code.allocateLocal(TypeKind.INT);
-        code.istore(right).istore(left);
-        code.iload(left).loadConstant(16).ishl().invokestatic(FLOAT, "intBitsToFloat",
-                MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int));
-        code.iload(right).loadConstant(16).ishl().invokestatic(FLOAT, "intBitsToFloat",
-                MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int));
-        if (product) code.fmul(); else code.fadd();
-        code.invokestatic(FLOAT, "floatToRawIntBits", MethodTypeDesc.of(ConstantDescs.CD_int,
-                ConstantDescs.CD_float));
-        int bits = code.allocateLocal(TypeKind.INT); code.istore(bits);
-        var ordinary = code.newLabel(); var noRound = code.newLabel(); var round = code.newLabel();
-        var done = code.newLabel();
-        code.iload(bits).loadConstant(0x7f800000).iand().loadConstant(0x7f800000)
-                .branch(Opcode.IF_ICMPNE, ordinary);
-        code.iload(bits).loadConstant(0x7fffff).iand().branch(Opcode.IFEQ, ordinary);
-        code.iload(bits).loadConstant(16).iushr().loadConstant(0x40).ior()
-                .branch(Opcode.GOTO, done);
-        code.labelBinding(ordinary);
-        int upper = code.allocateLocal(TypeKind.INT), lower = code.allocateLocal(TypeKind.INT);
-        code.iload(bits).loadConstant(16).iushr().istore(upper);
-        code.iload(bits).loadConstant(0xffff).iand().istore(lower);
-        code.iload(lower).loadConstant(0x8000).branch(Opcode.IF_ICMPGT, round);
-        code.iload(lower).loadConstant(0x8000).branch(Opcode.IF_ICMPNE, noRound);
-        code.iload(upper).loadConstant(1).iand().branch(Opcode.IFEQ, noRound);
-        code.labelBinding(round).iinc(upper, 1);
-        code.labelBinding(noRound).iload(upper);
-        code.labelBinding(done).loadConstant(0xffff).iand();
-    }
-
-    private static void emitFloat16Apply(CodeBuilder code, boolean product) {
-        int right = code.allocateLocal(TypeKind.INT);
-        int left = code.allocateLocal(TypeKind.INT);
-        code.istore(right).istore(left);
-        code.iload(left).i2s().invokestatic(FLOAT, "float16ToFloat",
-                MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short));
-        code.iload(right).i2s().invokestatic(FLOAT, "float16ToFloat",
-                MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short));
-        if (product) code.fmul(); else code.fadd();
-        code.invokestatic(FLOAT, "floatToFloat16",
-                MethodTypeDesc.of(ConstantDescs.CD_short, ConstantDescs.CD_float));
+    /**
+     * Returns the accumulator type without changing represented input/output storage.
+     * @param type declared represented type
+     * @return FLOAT32 for low floating storage, otherwise the declared type
+     */
+    private static DataType workingType(DataType type) {
+        return type.isFloating() && type.byteWidth() < Float.BYTES ? DataType.FLOAT32 : type;
     }
 
     /**
-     * Adds two represented BFLOAT16 values by widening to FLOAT32 and rounding back to BFLOAT16.
-     *
-     * @param left unsigned 16-bit BFLOAT16 bits in the low half of the integer
-     * @param right unsigned 16-bit BFLOAT16 bits in the low half of the integer
-     * @return unsigned 16-bit BFLOAT16 bits for the rounded sum
+     * Narrows a public prefix result without changing the working accumulator for later prefixes.
+     * @param code destination method
+     * @param carriers generation-only storage emitter
+     * @param type represented output type
+     * @param carrier exact selected output carrier
+     * @param address bound output element address
+     * @param accumulator working accumulator local
+     * @param intAddress whether the address is an int heap-array index
      */
-    static int addBfloat(int left, int right) {
-        return Short.toUnsignedInt(floatToBfloat(bfloatToFloat((short) left)
-                + bfloatToFloat((short) right)));
-    }
-
-    /**
-     * Multiplies two represented BFLOAT16 values by widening to FLOAT32 and rounding back to
-     * BFLOAT16.
-     *
-     * @param left unsigned 16-bit BFLOAT16 bits in the low half of the integer
-     * @param right unsigned 16-bit BFLOAT16 bits in the low half of the integer
-     * @return unsigned 16-bit BFLOAT16 bits for the rounded product
-     */
-    static int multiplyBfloat(int left, int right) {
-        return Short.toUnsignedInt(floatToBfloat(bfloatToFloat((short) left)
-                * bfloatToFloat((short) right)));
+    private static void emitStore(CodeBuilder code, CpuCarrierEmitter carriers, DataType type,
+            CpuKernelSpecialization.CarrierAccess carrier, int address, int accumulator, boolean intAddress) {
+        int result = accumulator;
+        if (workingType(type) != type) {
+            result = code.allocateLocal(TypeKind.INT);
+            CpuCastEmitter.emitFloatToLow(code, type, accumulator);
+            code.istore(result);
+        }
+        carriers.store(type, carrier, 1, address, result, intAddress);
     }
 
     /**
@@ -398,7 +366,7 @@ public final class CpuScanEmitter {
                 packed[coordinates + axis] = coordinate;
                 long value = readBits(input, address(packed, inputLayout, coordinates), type);
                 if (!exclusive) accumulator = apply(kind, accumulator, value, type);
-                writeBits(output, address(packed, outputLayout, coordinates), type, accumulator);
+                writeBits(output, address(packed, outputLayout, coordinates), type, outputBits(type, accumulator));
                 if (exclusive) accumulator = apply(kind, accumulator, value, type);
             }
         }
@@ -408,14 +376,24 @@ public final class CpuScanEmitter {
         if (kind == 0) return 0;
         return switch (type) {
             case FLOAT64 -> Double.doubleToRawLongBits(1.0d);
-            case FLOAT32 -> Integer.toUnsignedLong(Float.floatToRawIntBits(1.0f));
-            case BFLOAT16 -> 0x3f80L;
-            case FLOAT16 -> 0x3c00L;
+            case FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 ->
+                    Integer.toUnsignedLong(Float.floatToRawIntBits(1.0f));
             case INT32, INT64 -> 1;
             case BOOL -> throw new AssertionError("BOOL scan is unsupported");
         };
     }
     private static long apply(int kind, long left, long right, DataType type) {
+        if (workingType(type) != type) {
+            float a = Float.intBitsToFloat((int) left);
+            float b = switch (type) {
+                case BFLOAT16 -> bfloatToFloat((short) right);
+                case FLOAT16 -> Float.float16ToFloat((short) right);
+                case FLOAT8_E4M3 -> Float8E4M3Bits.toFloat((byte) right);
+                case FLOAT8_E5M2 -> Float8E5M2Bits.toFloat((byte) right);
+                default -> throw new AssertionError(type);
+            };
+            return Integer.toUnsignedLong(Float.floatToRawIntBits(kind == 0 ? a + b : a * b));
+        }
         return switch (type) {
             case INT32 -> kind == 0 ? (int) left + (int) right : (int) left * (int) right;
             case INT64 -> kind == 0 ? left + right : left * right;
@@ -425,13 +403,18 @@ public final class CpuScanEmitter {
             case FLOAT32 -> Integer.toUnsignedLong(Float.floatToRawIntBits(kind == 0
                     ? Float.intBitsToFloat((int) left) + Float.intBitsToFloat((int) right)
                     : Float.intBitsToFloat((int) left) * Float.intBitsToFloat((int) right)));
-            case BFLOAT16 -> Short.toUnsignedLong(floatToBfloat(kind == 0
-                    ? bfloatToFloat((short) left) + bfloatToFloat((short) right)
-                    : bfloatToFloat((short) left) * bfloatToFloat((short) right)));
-            case FLOAT16 -> Short.toUnsignedLong(Float.floatToFloat16(kind == 0
-                    ? Float.float16ToFloat((short) left) + Float.float16ToFloat((short) right)
-                    : Float.float16ToFloat((short) left) * Float.float16ToFloat((short) right)));
-            case BOOL -> throw new AssertionError("BOOL scan is unsupported");
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, BOOL -> throw new AssertionError("unsupported working type");
+        };
+    }
+    private static long outputBits(DataType type, long accumulator) {
+        if (workingType(type) == type) return accumulator;
+        float value = Float.intBitsToFloat((int) accumulator);
+        return switch (type) {
+            case BFLOAT16 -> Short.toUnsignedLong(floatToBfloat(value));
+            case FLOAT16 -> Short.toUnsignedLong(Float.floatToFloat16(value));
+            case FLOAT8_E4M3 -> Byte.toUnsignedLong(Float8E4M3Bits.fromFloat(value));
+            case FLOAT8_E5M2 -> Byte.toUnsignedLong(Float8E5M2Bits.fromFloat(value));
+            default -> accumulator;
         };
     }
     private static long address(long[] p, int layout, int coordinates) {
@@ -445,6 +428,7 @@ public final class CpuScanEmitter {
             case FLOAT64 -> Double.doubleToRawLongBits(carrier instanceof double[] a ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_DOUBLE, address * 8));
             case FLOAT32 -> Integer.toUnsignedLong(Float.floatToRawIntBits(carrier instanceof float[] a ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_FLOAT, address * 4)));
             case BFLOAT16, FLOAT16 -> Short.toUnsignedLong(carrier instanceof short[] a ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_SHORT, address * 2));
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> Byte.toUnsignedLong(carrier instanceof byte[] a ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_BYTE, address));
             case INT32 -> carrier instanceof int[] a ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_INT, address * 4);
             case INT64 -> carrier instanceof long[] a ? a[Math.toIntExact(address)] : ((MemorySegment) carrier).get(ValueLayout.JAVA_LONG, address * 8);
             case BOOL -> throw new AssertionError("BOOL scan is unsupported");
@@ -455,6 +439,7 @@ public final class CpuScanEmitter {
             case FLOAT64 -> { double v = Double.longBitsToDouble(bits); if (carrier instanceof double[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_DOUBLE, address * 8, v); }
             case FLOAT32 -> { float v = Float.intBitsToFloat((int) bits); if (carrier instanceof float[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_FLOAT, address * 4, v); }
             case BFLOAT16, FLOAT16 -> { short v = (short) bits; if (carrier instanceof short[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_SHORT, address * 2, v); }
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> { byte v = (byte) bits; if (carrier instanceof byte[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_BYTE, address, v); }
             case INT32 -> { int v = (int) bits; if (carrier instanceof int[] a) a[Math.toIntExact(address)] = v; else ((MemorySegment) carrier).set(ValueLayout.JAVA_INT, address * 4, v); }
             case INT64 -> { if (carrier instanceof long[] a) a[Math.toIntExact(address)] = bits; else ((MemorySegment) carrier).set(ValueLayout.JAVA_LONG, address * 8, bits); }
             case BOOL -> throw new AssertionError("BOOL scan is unsupported");

@@ -29,6 +29,8 @@ import java.util.*;
  * graph supplies logical requirements, producer/consumer occurrences and unit contexts; outer
  * constants and coincident outer value identities never enter that scope. This cold owner retains
  * typed layouts and declares simultaneous old/new state and ordinary cuts before slot assignment.
+ * Low floating values retain their byte/short carriers in the same physical composition;
+ * ordinary numerical helpers own FLOAT32 work and each declared operation-result narrowing.
  * It neither executes a body nor defines a second operation-family inventory.
  */
 public final class CpuGeneralScanCompositionLowering {
@@ -113,8 +115,6 @@ public final class CpuGeneralScanCompositionLowering {
         var producerUnits = new HashMap<ValueId, Integer>();
         for (int u = 0; u < ordinary.size(); u++) {
             var lowered = ordinary.get(u);
-            CpuPartitionLowering.requirePermittedLowPrecisionUse(lowered.portableKernelIr());
-            CpuPartitionLowering.requirePermittedLowPrecisionUse(lowered.kernelIr());
             var deps = new TreeSet<Integer>();
             for (var id : lowered.boundaryValues()) {
                 Integer producer = producerUnits.get(id); if (producer != null) deps.add(producer);
@@ -269,8 +269,6 @@ public final class CpuGeneralScanCompositionLowering {
                         || declared.requiresGrad() != expected.requiresGrad())
                     throw invalid("ordinary declared semantics");
             }
-            if (!CpuPartitionLowering.permitsLowPrecisionUse(new OperationCapabilityQuery(node.operation(), operands, outputs)))
-                throw invalid("CPU low arithmetic is temporarily unsupported");
             var completed = ScanBody.closeOrdinaryLayouts(node.operation(), operands, outputs);
             for (int port = 0; port < outputs.size(); port++) {
                 if (!completed.get(port).equals(outputs.get(port))) {

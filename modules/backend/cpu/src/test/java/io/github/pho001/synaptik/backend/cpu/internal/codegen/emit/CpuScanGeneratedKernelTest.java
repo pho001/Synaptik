@@ -12,6 +12,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.reference.CpuScalarReferen
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparer;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.Float8E4M3Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E5M2Bits;
 import io.github.pho001.synaptik.model.layout.LayoutDescriptor;
 import io.github.pho001.synaptik.model.operation.Operation;
 import io.github.pho001.synaptik.model.operation.scan.CumulativeScanAttrs;
@@ -34,7 +36,6 @@ import java.lang.classfile.constantpool.MethodHandleEntry;
 
 class CpuScanGeneratedKernelTest {
     @Test void bfloatScanArtifactsAreSelfContainedTypedAndFreeOfDynamicConstructs() {
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
         for (CumulativeScanKind kind : CumulativeScanKind.values()) {
             var model = generatedModel(kind, DataType.BFLOAT16);
             List<MemberRefEntry> members = java.util.stream.StreamSupport.stream(
@@ -60,7 +61,6 @@ class CpuScanGeneratedKernelTest {
                             .flatMap(code -> code.elementStream()).noneMatch(
                                     java.lang.classfile.instruction.NewObjectInstruction.class::isInstance)));
         }
-        });
     }
 
     @Test void generatedClassContainsTypedScanLoopWithoutGenericDispatchBridge() {
@@ -97,7 +97,7 @@ class CpuScanGeneratedKernelTest {
                 DataType.INT64, true, true, new long[]{2,3,4}));
     }
 
-    @Test void retainsOrdinaryRoundingAndRejectsEachLowSpecialValueFixture() throws Throwable {
+    @Test void retainsOrdinaryAndLowRoundingAndSpecialValues() throws Throwable {
         assertArrayEquals(new int[]{Integer.MAX_VALUE, Integer.MIN_VALUE}, (int[]) invoke(
                 CumulativeScanKind.CUM_SUM, DataType.INT32, false, false,
                 new int[]{Integer.MAX_VALUE, 1}));
@@ -106,24 +106,87 @@ class CpuScanGeneratedKernelTest {
         assertEquals(Float.floatToRawIntBits(-0.0f), Float.floatToRawIntBits(floats[0]));
         assertTrue(Float.isNaN(floats[1])); assertTrue(Float.isNaN(floats[2]));
         short one = (short) 0x3f80, halfUlp = (short) 0x3b80;
-        assertThrows(IllegalArgumentException.class, () -> invoke(
+        assertArrayEquals(new short[] {one, one, (short) 0x3f81}, (short[]) invoke(
                 CumulativeScanKind.CUM_SUM, DataType.BFLOAT16, false, false,
                 new short[]{one, halfUlp, halfUlp}));
-        assertThrows(IllegalArgumentException.class, () -> invoke(
+        assertArrayEquals(new short[] {(short) 0x3f81, (short) 0x3f82}, (short[]) invoke(
                 CumulativeScanKind.CUM_SUM, DataType.BFLOAT16, false, false,
                 new short[]{(short) 0x3f81, halfUlp}));
-        assertThrows(IllegalArgumentException.class, () -> invoke(
-                CumulativeScanKind.CUM_PROD, DataType.BFLOAT16, false, false,
-                new short[]{(short) 0x8000, (short) 0x7f80, (short) 0x7f81}));
+        short[] special = (short[]) invoke(CumulativeScanKind.CUM_PROD, DataType.BFLOAT16,
+                false, false, new short[]{(short) 0x8000, (short) 0x7f80, (short) 0x7f81});
+        assertEquals((short) 0x8000, special[0]);
+        assertTrue(Float.isNaN(Float.intBitsToFloat(Short.toUnsignedInt(special[1]) << 16)));
+        assertTrue(Float.isNaN(Float.intBitsToFloat(Short.toUnsignedInt(special[2]) << 16)));
     }
 
-    @Test void generatedResultsMatchIndependentReferenceForFiveTypesKindsAndModes() throws Throwable {
+    @Test void fp8AccumulatorsStayFloatAndNarrowOnlyPrefixOutputs() throws Throwable {
+        assertArrayEquals(new byte[] {0x38, 0x38, 0x39}, (byte[]) invoke(CumulativeScanKind.CUM_SUM,
+                DataType.FLOAT8_E4M3, false, false, new byte[] {0x38, 0x18, 0x18}));
+        assertArrayEquals(new byte[] {0x3c, 0x3c, 0x3d}, (byte[]) invoke(CumulativeScanKind.CUM_SUM,
+                DataType.FLOAT8_E5M2, false, false, new byte[] {0x3c, 0x30, 0x30}));
+        byte[] e4 = (byte[]) invoke(CumulativeScanKind.CUM_PROD, DataType.FLOAT8_E4M3,
+                false, false, new byte[] {0x7e, 0x40, 0});
+        assertEquals((byte) 0x7e, e4[0]); assertTrue(Float.isNaN(Float8E4M3Bits.toFloat(e4[1])));
+        assertEquals(0, e4[2], "a narrowed NaN is not the next FLOAT32 accumulator");
+        byte[] e5 = (byte[]) invoke(CumulativeScanKind.CUM_PROD, DataType.FLOAT8_E5M2,
+                false, false, new byte[] {0x7b, 0x40, 0});
+        assertEquals((byte) 0x7b, e5[0]); assertEquals(Float.POSITIVE_INFINITY, Float8E5M2Bits.toFloat(e5[1]));
+        assertEquals(0, e5[2], "a narrowed infinity is not the next FLOAT32 accumulator");
+        for (var type : List.of(DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            byte one = type == DataType.FLOAT8_E4M3 ? (byte) 0x38 : (byte) 0x3c;
+            assertArrayEquals(new byte[] {(byte) 0x80, (byte) 0x80}, (byte[]) invoke(
+                    CumulativeScanKind.CUM_PROD, type, false, false, new byte[] {(byte) 0x80, one}));
+        }
+    }
+
+    @Test void fp8AffineSegmentScansRespectModesAndDoNotTouchGapsOrOtherSlices() throws Throwable {
+        Shape shape = Shape.of(2, 3);
+        for (var type : List.of(DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2))
+            for (var kind : CumulativeScanKind.values()) for (boolean exclusive : List.of(false, true))
+                for (boolean reverse : List.of(false, true)) {
+                    var context = CpuScatterLoweringTest.context(new Operation(kind,
+                                    new CumulativeScanAttrs(1, exclusive, reverse)), List.of(0),
+                            List.of(CpuIndexingLoweringTest.descriptor(type, shape,
+                                    LayoutDescriptor.of(shape, new long[] {8, 2}, 1, true))),
+                            CpuIndexingLoweringTest.descriptor(type, shape,
+                                    LayoutDescriptor.of(shape, new long[] {9, 2}, 2, true)));
+                    var prepared = new PrepareContext<>(context.partition(), context.nodes(), context.values(),
+                            context.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false,
+                            List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT)));
+                    var plan = new CpuPartitionPreparer().analyze(prepared).plan();
+                    var route = plan.units().getFirst().portablePlan();
+                    var generator = new CpuClassFileKernelGenerator();
+                    var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(),
+                            generator.generateClassBytes(route.specialization(), route.kernelIr()));
+                    try (Arena arena = Arena.ofConfined()) {
+                        var input = arena.allocate(24, 1); var output = arena.allocate(24, 1);
+                        var expected = arena.allocate(24, 1);
+                        input.fill((byte) 0x7f); output.fill((byte) 0x55); expected.fill((byte) 0x55);
+                        for (int k = 0; k < 3; k++) input.set(ValueLayout.JAVA_BYTE, 9 + 2L * k,
+                                type == DataType.FLOAT8_E4M3 ? Float8E4M3Bits.fromFloat(k + 1) : Float8E5M2Bits.fromFloat(k + 1));
+                        byte[] snapshot = input.toArray(ValueLayout.JAVA_BYTE);
+                        CpuScanEmitter.execute(input, expected, plan.scanGeometry().orElseThrow().pack(new long[2]), 1, 2);
+                        artifact.entryPoint().invokeExact(input, output,
+                                plan.scanGeometry().orElseThrow().pack(new long[2]), 1L, 2L);
+                        assertArrayEquals(expected.toArray(ValueLayout.JAVA_BYTE), output.toArray(ValueLayout.JAVA_BYTE));
+                        assertArrayEquals(snapshot, input.toArray(ValueLayout.JAVA_BYTE));
+                    }
+                }
+    }
+
+    @Test void generatedResultsMatchIndependentReferenceForAllNumericTypesKindsAndModes() throws Throwable {
         for (CumulativeScanKind kind : CumulativeScanKind.values())
             for (boolean exclusive : List.of(false, true)) for (boolean reverse : List.of(false, true)) {
                 compare(kind, DataType.FLOAT64, exclusive, reverse, new double[]{1,-2,3,4,0,Double.POSITIVE_INFINITY});
                 compare(kind, DataType.FLOAT32, exclusive, reverse, new float[]{1,-2,3,4,0,Float.NaN});
                 compare(kind, DataType.BFLOAT16, exclusive, reverse,
                         new short[]{(short)0x3f80,(short)0xc000,(short)0x4040,(short)0x4080,0,(short)0x7f80});
+                compare(kind, DataType.FLOAT16, exclusive, reverse,
+                        new short[]{(short)0x3c00,(short)0xc000,(short)0x4200,(short)0x4400,0,(short)0x7c00});
+                compare(kind, DataType.FLOAT8_E4M3, exclusive, reverse,
+                        new byte[]{0x38,(byte)0xc0,0x44,0x48,0,0x7f});
+                compare(kind, DataType.FLOAT8_E5M2, exclusive, reverse,
+                        new byte[]{0x3c,(byte)0xc0,0x42,0x44,0,0x7c});
                 compare(kind, DataType.INT32, exclusive, reverse,
                         new int[]{1,-2,Integer.MAX_VALUE,4,0,7});
                 compare(kind, DataType.INT64, exclusive, reverse,
@@ -207,7 +270,6 @@ class CpuScanGeneratedKernelTest {
 
     private static void compare(CumulativeScanKind kind, DataType type, boolean exclusive,
             boolean reverse, Object input) throws Throwable {
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(type, () -> {
         Object actual = invoke(kind, type, exclusive, reverse, input);
         Object expected = java.lang.reflect.Array.newInstance(input.getClass().componentType(),
                 java.lang.reflect.Array.getLength(input));
@@ -219,20 +281,20 @@ class CpuScanGeneratedKernelTest {
         if (expected instanceof double[] a) assertArrayEquals(a, (double[]) actual);
         else if (expected instanceof float[] a) assertArrayEquals(a, (float[]) actual);
         else if (expected instanceof short[] a) assertArrayEquals(a, (short[]) actual);
+        else if (expected instanceof byte[] a) assertArrayEquals(a, (byte[]) actual);
         else if (expected instanceof int[] a) assertArrayEquals(a, (int[]) actual);
         else assertArrayEquals((long[]) expected, (long[]) actual);
-        });
     }
 
     private static CpuBufferArgument argument(DataType type, Object value, boolean readOnly) {
         return switch (type) {
             case FLOAT64 -> new CpuBufferArgument.Doubles((double[]) value, 0, ((double[]) value).length * 8L, readOnly);
             case FLOAT32 -> new CpuBufferArgument.Floats((float[]) value, 0, ((float[]) value).length * 4L, readOnly);
-            case BFLOAT16 -> new CpuBufferArgument.Shorts((short[]) value, 0, ((short[]) value).length * 2L, readOnly);
+            case BFLOAT16, FLOAT16 -> new CpuBufferArgument.Shorts((short[]) value, 0, ((short[]) value).length * 2L, readOnly);
             case INT32 -> new CpuBufferArgument.Ints((int[]) value, 0, ((int[]) value).length * 4L, readOnly);
             case INT64 -> new CpuBufferArgument.Longs((long[]) value, 0, ((long[]) value).length * 8L, readOnly);
             case BOOL -> throw new AssertionError();
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU scan unsupported");
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> new CpuBufferArgument.Bytes((byte[]) value, 0, ((byte[]) value).length, readOnly);
         };
     }
 
@@ -244,9 +306,9 @@ class CpuScanGeneratedKernelTest {
         var base = CpuScanLoweringTest.context(kind, type, shape, axis, exclusive, reverse);
         CarrierAccess carrier = switch (type) {
             case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY; case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
-            case BFLOAT16 -> CarrierAccess.SHORT_ARRAY; case INT32 -> CarrierAccess.INT_ARRAY;
+            case BFLOAT16, FLOAT16 -> CarrierAccess.SHORT_ARRAY; case INT32 -> CarrierAccess.INT_ARRAY;
             case INT64 -> CarrierAccess.LONG_ARRAY; case BOOL -> throw new AssertionError();
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU scan unsupported");
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> CarrierAccess.BYTE_ARRAY;
         };
         PrepareContext<CpuPartitionAnalysisInputs> context = new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), Map.of(), new CpuPartitionAnalysisInputs(false, List.of(carrier, carrier)));
         var plan = new CpuPartitionPreparer().analyze(context).plan();

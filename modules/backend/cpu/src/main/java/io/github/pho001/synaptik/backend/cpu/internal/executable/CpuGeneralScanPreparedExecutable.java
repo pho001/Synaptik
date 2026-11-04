@@ -29,6 +29,8 @@ import java.util.*;
  * stride after producers, before any generated output/history/scratch/control write, including T=0.
  * Mutable packs and cursors are invocation-private and reset by their generated owners on every
  * helper call, including retries after value-validation failure.
+ * Low numerical composition uses these same typed bindings: FP8 bytes are not BOOL-normalized,
+ * short formats remain shorts, and per-value width/alignment is authenticated independently.
  */
 public final class CpuGeneralScanPreparedExecutable extends PreparedExecutable {
     /**
