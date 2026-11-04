@@ -689,7 +689,7 @@ public final class CpuOneDnnPrimitives {
         @Override public void execute() {
             requireOpen();
             if (!bound) throw new IllegalStateException("oneDNN primitive workspace is not bound");
-            try { enqueue(); } finally { await(); }
+            executeAndAwait();
         }
 
         @Override void enqueue() {

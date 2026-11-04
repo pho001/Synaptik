@@ -4,6 +4,11 @@ import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
 import io.github.pho001.synaptik.backend.contract.BackendDeviceId;
 import io.github.pho001.synaptik.backend.contract.DeviceClass;
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
+import io.github.pho001.synaptik.backend.cpu.CpuTraceObserver;
+import io.github.pho001.synaptik.backend.cpu.CpuPreparationDiagnostics;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuTraceProducer;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
+import io.github.pho001.synaptik.prepare.analysis.BackendPartitionPreparer;
 import io.github.pho001.synaptik.backend.cpu.internal.executable.CpuConcurrencyBudget;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuBorrowedBuffer;
 import io.github.pho001.synaptik.backend.cpu.internal.memory.CpuHostSnapshotExporter;
@@ -54,6 +59,7 @@ public final class CpuBackendComposition implements AutoCloseable {
     private final CpuPartitionPreparer preparer;
     private final CpuPartitionFinalizer finalizer;
     private final CpuPreparedScheduleAssembler assembler;
+    private final CpuTraceProducer trace;
     private final AtomicBoolean closed = new AtomicBoolean();
 
     /**
@@ -64,23 +70,31 @@ public final class CpuBackendComposition implements AutoCloseable {
      * @param qualification the non-null optional qualification associated with the coordinator
      * @param oneDnnLibrary non-null optional required native owner transferred to this composition
      * @param oneDnnApi non-null immutable API preference
+     * @param observer caller-owned observer, or null for no diagnostic producer or overhead
      * @throws NullPointerException if an argument is {@code null}
      */
     private CpuBackendComposition(CpuConcurrencyBudget budget,
             Optional<CpuOpenBlasCoordinator> coordinator,
             Optional<CpuOpenBlasQualification> qualification,
-            Optional<CpuOneDnnLibrary> oneDnnLibrary, CpuOneDnnRoutePlan.Api oneDnnApi) {
+            Optional<CpuOneDnnLibrary> oneDnnLibrary, CpuOneDnnRoutePlan.Api oneDnnApi,
+            CpuTraceObserver observer) {
         this.budget = Objects.requireNonNull(budget, "budget");
         this.coordinator = Objects.requireNonNull(coordinator, "coordinator");
         this.qualification = Objects.requireNonNull(qualification, "qualification");
         this.oneDnnLibrary = Objects.requireNonNull(oneDnnLibrary, "oneDnnLibrary");
         this.oneDnnApi = Objects.requireNonNull(oneDnnApi, "oneDnnApi");
+        this.trace = observer == null ? null : new CpuTraceProducer(observer,
+                oneDnnLibrary.isEmpty() ? CpuPreparationDiagnostics.Api.NONE : switch (oneDnnApi) {
+                    case AUTO -> CpuPreparationDiagnostics.Api.AUTO;
+                    case PRIMITIVE -> CpuPreparationDiagnostics.Api.PRIMITIVES;
+                    case GRAPH -> CpuPreparationDiagnostics.Api.GRAPH;
+                });
         this.oneDnnPolicyFingerprint = oneDnnLibrary.map(library ->
                 "onednn-policy-v2:typed-f32-literal-units:3.14.0-lp64-seq:"
                         + library.sessionIdentity() + ":" + oneDnnApi.name())
                 .orElse("onednn-policy-v2:disabled");
         this.preparer = new CpuPartitionPreparer(new CpuPartitionLowering(),
-                oneDnnLibrary.map(library -> new CpuOneDnnSelector(library, oneDnnApi)));
+                oneDnnLibrary.map(library -> new CpuOneDnnSelector(library, oneDnnApi, trace)));
         this.finalizer = new CpuPartitionFinalizer(Optional.empty(), Optional.empty(), budget,
                 coordinator, oneDnnLibrary);
         this.assembler = new CpuPreparedScheduleAssembler(() -> !closed.get());
@@ -94,7 +108,18 @@ public final class CpuBackendComposition implements AutoCloseable {
      * @throws Error if automatic discovery reports a fatal error
      */
     public static CpuBackendComposition openAutomatic() {
-        return openAutomatic(Optional.empty(), CpuOneDnnRoutePlan.Api.AUTO);
+        return openAutomatic(Optional.empty(), CpuOneDnnRoutePlan.Api.AUTO, null);
+    }
+
+    /**
+     * Opens the same automatic composition with passive cold CPU diagnostics.
+     * @param observer non-null caller-owned thread-safe observer; never closed; callback failures
+     *     disable diagnostics without affecting backend work, as specified by {@link CpuTraceObserver}
+     * @return new open composition retaining the observer for its lifetime
+     */
+    public static CpuBackendComposition openAutomatic(CpuTraceObserver observer) {
+        return openAutomatic(Optional.empty(), CpuOneDnnRoutePlan.Api.AUTO,
+                Objects.requireNonNull(observer, "observer"));
     }
 
     /**
@@ -110,10 +135,28 @@ public final class CpuBackendComposition implements AutoCloseable {
      * @throws Error if native loading, construction, or cleanup reports an error
      */
     public static CpuBackendComposition openOneDnn(Path absolutePath, CpuOneDnnRoutePlan.Api api) {
+        return openRequired(absolutePath, api, null);
+    }
+
+    /**
+     * Opens required oneDNN with the same optional diagnostic semantics as automatic composition.
+     * @param absolutePath non-null absolute exact-library path
+     * @param api non-null immutable API preference, not forced native selection
+     * @param observer non-null caller-owned thread-safe sink; never closed; observer failures
+     *     disable diagnostics without replacing native or preparation failures
+     * @return new composition owning required native state and borrowing the observer
+     */
+    public static CpuBackendComposition openOneDnn(Path absolutePath, CpuOneDnnRoutePlan.Api api,
+            CpuTraceObserver observer) {
+        return openRequired(absolutePath, api, Objects.requireNonNull(observer, "observer"));
+    }
+
+    private static CpuBackendComposition openRequired(Path absolutePath, CpuOneDnnRoutePlan.Api api,
+            CpuTraceObserver observer) {
         Objects.requireNonNull(api, "api");
         CpuOneDnnLibrary library = CpuOneDnnLibrary.open(absolutePath);
         try {
-            return openAutomatic(Optional.of(library), api);
+            return openAutomatic(Optional.of(library), api, observer);
         } catch (RuntimeException | Error failure) {
             try { library.close(); } catch (RuntimeException | Error cleanup) {
                 if (cleanup != failure) failure.addSuppressed(cleanup);
@@ -123,15 +166,15 @@ public final class CpuBackendComposition implements AutoCloseable {
     }
 
     private static CpuBackendComposition openAutomatic(Optional<CpuOneDnnLibrary> library,
-            CpuOneDnnRoutePlan.Api api) {
+            CpuOneDnnRoutePlan.Api api, CpuTraceObserver observer) {
         CpuOpenBlasDiscoverySession session;
         try {
             session = CpuOpenBlasDiscovery.discover(CpuOpenBlasDiscoveryRequest.automatic());
         } catch (RuntimeException optionalFailure) {
             return create(new CpuConcurrencyBudget(1), Optional.empty(), Optional.empty(),
-                    library, api);
+                    library, api, observer);
         }
-        return open(session, library, api);
+        return open(session, library, api, observer);
     }
 
     /**
@@ -145,11 +188,11 @@ public final class CpuBackendComposition implements AutoCloseable {
      */
     static CpuBackendComposition open(CpuOpenBlasDiscoverySession session) {
         return open(Objects.requireNonNull(session, "session"), Optional.empty(),
-                CpuOneDnnRoutePlan.Api.AUTO);
+                CpuOneDnnRoutePlan.Api.AUTO, null);
     }
 
     private static CpuBackendComposition open(CpuOpenBlasDiscoverySession session,
-            Optional<CpuOneDnnLibrary> library, CpuOneDnnRoutePlan.Api api) {
+            Optional<CpuOneDnnLibrary> library, CpuOneDnnRoutePlan.Api api, CpuTraceObserver observer) {
         CpuConcurrencyBudget budget;
         try {
             budget = new CpuConcurrencyBudget(1);
@@ -167,21 +210,21 @@ public final class CpuBackendComposition implements AutoCloseable {
             session.close();
         } catch (RuntimeException optionalFailure) {
             closeAfterFailure(coordinator, session, optionalFailure);
-            return create(budget, Optional.empty(), Optional.empty(), library, api);
+            return create(budget, Optional.empty(), Optional.empty(), library, api, observer);
         } catch (Error fatalFailure) {
             closeAfterFailure(coordinator, session, fatalFailure);
             throw fatalFailure;
         }
         return create(budget, Optional.ofNullable(coordinator), Optional.ofNullable(qualification),
-                library, api);
+                library, api, observer);
     }
 
     private static CpuBackendComposition create(CpuConcurrencyBudget budget,
             Optional<CpuOpenBlasCoordinator> coordinator,
             Optional<CpuOpenBlasQualification> qualification, Optional<CpuOneDnnLibrary> library,
-            CpuOneDnnRoutePlan.Api api) {
+            CpuOneDnnRoutePlan.Api api, CpuTraceObserver observer) {
         try {
-            return new CpuBackendComposition(budget, coordinator, qualification, library, api);
+            return new CpuBackendComposition(budget, coordinator, qualification, library, api, observer);
         } catch (RuntimeException | Error failure) {
             coordinator.ifPresent(value -> {
                 try { value.close(); } catch (RuntimeException | Error cleanup) {
@@ -211,8 +254,14 @@ public final class CpuBackendComposition implements AutoCloseable {
      */
     public PartitionPreparation<?, ?> preparation() {
         requireOpen();
-        return new PartitionPreparation<>(analysisInputs(Optional.empty(),
-                CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED), preparer, finalizer);
+        return partitionPreparation(analysisInputs(Optional.empty(),
+                CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED), preparer);
+    }
+
+    private PartitionPreparation<?, ?> partitionPreparation(CpuPartitionAnalysisInputs inputs,
+            BackendPartitionPreparer<CpuPartitionAnalysisInputs, CpuPartitionPreparationPlan> analysis) {
+        return trace == null ? new PartitionPreparation<>(inputs, analysis, finalizer)
+                : trace.preparation(inputs, analysis, finalizer);
     }
 
     /**
@@ -301,7 +350,7 @@ public final class CpuBackendComposition implements AutoCloseable {
                 return preparer.analyzeSelected(context, selectedPlan);
             }
         };
-        return new PartitionPreparation<>(inputs, selectedPreparer, finalizer);
+        return partitionPreparation(inputs, selectedPreparer);
     }
 
     private void validatePhaseOne(PrepareContext<?> context,
@@ -356,8 +405,8 @@ public final class CpuBackendComposition implements AutoCloseable {
                 .equals(matched.identity())) {
             throw new IllegalArgumentException("CPU tuning decision was not selected");
         }
-        return new PartitionPreparation<>(analysisInputs(Optional.of(decision),
-                CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED), preparer, finalizer);
+        return partitionPreparation(analysisInputs(Optional.of(decision),
+                CpuPartitionAnalysisInputs.MaterializationPolicy.DISABLED), preparer);
     }
 
     /**

@@ -204,7 +204,7 @@ final class CpuOneDnnPipeline {
         @Override public void execute() {
             requireOpen();
             if (!bound) throw new IllegalStateException("oneDNN pipeline workspace is not bound");
-            try { enqueue(); } finally { await(); }
+            executeAndAwait();
         }
         @Override void enqueue() {
             requireOpen();

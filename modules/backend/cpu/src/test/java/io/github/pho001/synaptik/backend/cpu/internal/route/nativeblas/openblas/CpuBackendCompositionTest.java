@@ -4,6 +4,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
 import io.github.pho001.synaptik.backend.cpu.CpuLocalWorkloadTuning;
+import io.github.pho001.synaptik.backend.cpu.CpuPreparationDiagnostics;
+import io.github.pho001.synaptik.backend.cpu.CpuTraceObserver;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnLibrary;
+import io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnRoutePlan;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.compiler.CompileConstantPlan;
 import io.github.pho001.synaptik.compiler.DerivativeGraphMetadata;
@@ -45,8 +49,121 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
-/** Native-free ownership-transfer, fallback, and close checks for supported composition. */
+/** Ownership-transfer and close checks, plus explicitly configured native diagnostic consumers. */
 final class CpuBackendCompositionTest {
+    @Test
+    void configuredGraphReportsActualPortableCostRejectionAndNativeSelection() throws Exception {
+        var events = new ArrayList<CpuPreparationDiagnostics>();
+        try (var library = nativeLibrary();
+                var composition = observedNative(library, event ->
+                        events.add((CpuPreparationDiagnostics) event.payload()))) {
+            try (var tiny = prepare(composition, resolvedMatmul(composition))) {
+                var selected = events.stream().filter(event ->
+                        event.stage() == CpuPreparationDiagnostics.Stage.SELECTED).findFirst().orElseThrow();
+                assertEquals(CpuPreparationDiagnostics.Api.GRAPH, selected.configuredApi());
+                assertEquals(CpuPreparationDiagnostics.Route.PORTABLE, selected.selectedRoute());
+                assertTrue(selected.units().stream().allMatch(unit ->
+                        unit.nativeApi() == CpuPreparationDiagnostics.Api.NONE));
+                assertTrue(selected.rejections().stream().anyMatch(reason ->
+                        reason.reason() == CpuPreparationDiagnostics.Reason.UNIT_COST
+                                && reason.nativeApi() == CpuPreparationDiagnostics.Api.GRAPH));
+                assertTrue(selected.rejections().stream().allMatch(reason -> reason.nativeStatus().isEmpty()));
+            }
+            events.clear();
+            var artifacts = resolvedMatmul(composition, 64, 64, 64);
+            try (var large = prepare(composition, artifacts);
+                    var result = new PreparedExecutionRunner().run(large, List.of())) {
+                var selected = events.stream().filter(event ->
+                        event.stage() == CpuPreparationDiagnostics.Stage.SELECTED).findFirst().orElseThrow();
+                var finalized = events.stream().filter(event ->
+                        event.stage() == CpuPreparationDiagnostics.Stage.FINALIZED).findFirst().orElseThrow();
+                assertEquals(CpuPreparationDiagnostics.Route.ONEDNN, selected.selectedRoute());
+                assertTrue(selected.units().stream().anyMatch(unit ->
+                        unit.route() == CpuPreparationDiagnostics.Route.ONEDNN
+                                && unit.nativeApi() == CpuPreparationDiagnostics.Api.GRAPH));
+                assertEquals(selected.preparationId(), finalized.preparationId());
+                var descriptor = artifacts.graph().values().stream().filter(value ->
+                        artifacts.graph().outputs().contains(value.id())).findFirst().orElseThrow().descriptor();
+                ByteBuffer values = ByteBuffer.wrap(composition.copyToCanonicalHostBytes(
+                        result.publicationRepresentation(0), descriptor, 64 * 64 * 4))
+                        .order(ByteOrder.BIG_ENDIAN);
+                while (values.hasRemaining()) assertEquals(64.0f, values.getFloat());
+            }
+        }
+    }
+
+    @Test
+    void graphUnsupportedRealizationKeepsItsReasonWithoutInventingNativeStatus() {
+        var events = new ArrayList<CpuPreparationDiagnostics>();
+        try (var library = nativeLibrary();
+                var composition = observedNative(library, event ->
+                        events.add((CpuPreparationDiagnostics) event.payload()))) {
+            Shape shape = Shape.of(4);
+            Tensor input = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32, shape,
+                    Optional.of(LayoutDescriptor.contiguous(shape)), false));
+            var artifacts = GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, List.of(input.abs()),
+                    Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(),
+                    PartitionScoringConfig.neutral(), List.of(new CpuCapabilityProvider()),
+                    List.of(composition.availabilitySnapshot()));
+            try (var execution = prepare(composition, artifacts)) {
+                var selected = events.stream().filter(event ->
+                        event.stage() == CpuPreparationDiagnostics.Stage.SELECTED).findFirst().orElseThrow();
+                assertEquals(CpuPreparationDiagnostics.Route.PORTABLE, selected.selectedRoute());
+                var rejection = selected.rejections().stream().filter(reason ->
+                        reason.reason() == CpuPreparationDiagnostics.Reason.UNSUPPORTED_REALIZATION)
+                        .findFirst().orElseThrow();
+                assertEquals(CpuPreparationDiagnostics.Api.GRAPH, rejection.nativeApi());
+                assertFalse(rejection.detail().isEmpty());
+                assertTrue(rejection.nativeStatus().isEmpty(), "no failing native call returned a status");
+            }
+        }
+    }
+
+    @Test
+    void finalizationFailureRemainsPrimaryWhenOutcomeObserverThrowsError() {
+        var events = new ArrayList<CpuPreparationDiagnostics>();
+        try (var library = nativeLibrary();
+                var composition = observedNative(library, event -> {
+                    var payload = (CpuPreparationDiagnostics) event.payload();
+                    events.add(payload);
+                    if (payload.stage() == CpuPreparationDiagnostics.Stage.SELECTED) library.close();
+                    if (payload.stage() == CpuPreparationDiagnostics.Stage.FINALIZATION_FAILED) {
+                        throw new AssertionError("observer must not replace the closed-library failure");
+                    }
+                })) {
+            var artifacts = resolvedMatmul(composition, 64, 64, 64);
+            var failure = assertThrows(IllegalStateException.class, () -> prepare(composition, artifacts));
+            var selected = events.stream().filter(event ->
+                    event.stage() == CpuPreparationDiagnostics.Stage.SELECTED).findFirst().orElseThrow();
+            var failed = events.stream().filter(event ->
+                    event.stage() == CpuPreparationDiagnostics.Stage.FINALIZATION_FAILED).findFirst().orElseThrow();
+            assertEquals(CpuPreparationDiagnostics.Route.ONEDNN, selected.selectedRoute());
+            assertEquals(selected.preparationId(), failed.preparationId());
+            assertEquals(failure.getClass().getName(), failed.failureType());
+            assertTrue(failed.nativeStatus().isEmpty());
+            assertTrue(events.stream().noneMatch(event ->
+                    event.stage() == CpuPreparationDiagnostics.Stage.FINALIZED));
+        }
+    }
+
+    private static CpuOneDnnLibrary nativeLibrary() {
+        String configured = System.getenv("SYNAPTIK_ONEDNN_LIBRARY");
+        org.junit.jupiter.api.Assumptions.assumeTrue(configured != null && !configured.isBlank(),
+                "explicit native library required");
+        return CpuOneDnnLibrary.open(java.nio.file.Path.of(configured));
+    }
+
+    private static CpuBackendComposition observedNative(CpuOneDnnLibrary library, CpuTraceObserver observer) {
+        return construct(CpuBackendComposition.class,
+                new Class<?>[] {
+                    io.github.pho001.synaptik.backend.cpu.internal.executable.CpuConcurrencyBudget.class,
+                    Optional.class, Optional.class, Optional.class, CpuOneDnnRoutePlan.Api.class,
+                    CpuTraceObserver.class},
+                new io.github.pho001.synaptik.backend.cpu.internal.executable.CpuConcurrencyBudget(1),
+                Optional.empty(), Optional.empty(), Optional.of(library), CpuOneDnnRoutePlan.Api.GRAPH,
+                observer);
+    }
+
     @Test
     void preparesAndMaterializesCanonicalSourceOnlyConstantsPerRun() throws Exception {
         try (CpuBackendComposition composition = CpuBackendComposition.openAutomatic()) {
@@ -355,11 +472,13 @@ final class CpuBackendCompositionTest {
                     io.github.pho001.synaptik.backend.cpu.internal.executable
                             .CpuConcurrencyBudget.class,
                     Optional.class, Optional.class, Optional.class,
-                    io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnRoutePlan.Api.class},
+                    io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnRoutePlan.Api.class,
+                    io.github.pho001.synaptik.backend.cpu.CpuTraceObserver.class},
                 new io.github.pho001.synaptik.backend.cpu.internal.executable
                         .CpuConcurrencyBudget(1),
                 Optional.empty(), Optional.of(qualification), Optional.empty(),
-                io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnRoutePlan.Api.AUTO);
+                io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn.CpuOneDnnRoutePlan.Api.AUTO,
+                null);
     }
 
     private static CpuLocalWorkloadTuning tuning(CpuBackendComposition composition) {
@@ -368,7 +487,11 @@ final class CpuBackendCompositionTest {
     }
 
     private static CompileArtifacts resolvedMatmul(CpuBackendComposition composition) {
-        Shape leftShape = Shape.of(2, 3), rightShape = Shape.of(3, 2);
+        return resolvedMatmul(composition, 2, 3, 2);
+    }
+
+    private static CompileArtifacts resolvedMatmul(CpuBackendComposition composition, int m, int k, int n) {
+        Shape leftShape = Shape.of(m, k), rightShape = Shape.of(k, n);
         Tensor left = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32, leftShape,
                 Optional.of(LayoutDescriptor.contiguous(leftShape)), false));
         Tensor right = TensorFactory.create(new TensorDescriptor(DataType.FLOAT32, rightShape,

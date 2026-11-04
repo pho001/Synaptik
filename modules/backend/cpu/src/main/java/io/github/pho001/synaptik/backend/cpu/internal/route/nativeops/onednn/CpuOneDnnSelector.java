@@ -3,6 +3,8 @@ package io.github.pho001.synaptik.backend.cpu.internal.route.nativeops.onednn;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuKernelIr;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionAnalysisInputs;
 import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan;
+import io.github.pho001.synaptik.backend.cpu.CpuPreparationDiagnostics.Reason;
+import io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuTraceProducer;
 import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis;
 import io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement;
@@ -31,6 +33,7 @@ public final class CpuOneDnnSelector {
     private static final long GRAPH_PREPARATION = 40_000;
     private final CpuOneDnnLibrary library;
     private final CpuOneDnnRoutePlan.Api preference;
+    private final CpuTraceProducer trace;
 
     private record CopyKey(ValueId value, long offset, long byteSize) { }
 
@@ -42,8 +45,20 @@ public final class CpuOneDnnSelector {
      * @throws NullPointerException if either argument is null
      */
     public CpuOneDnnSelector(CpuOneDnnLibrary library, CpuOneDnnRoutePlan.Api preference) {
+        this(library, preference, null);
+    }
+
+    /**
+     * Freezes the same policy with optional passive cold diagnostics.
+     * @param library non-null borrowed exact library
+     * @param preference non-null native API preference, never forced selection
+     * @param trace optional caller-owned cold producer, or null for no diagnostic work
+     */
+    public CpuOneDnnSelector(CpuOneDnnLibrary library, CpuOneDnnRoutePlan.Api preference,
+            CpuTraceProducer trace) {
         this.library = Objects.requireNonNull(library, "library");
         this.preference = Objects.requireNonNull(preference, "preference");
+        this.trace = trace;
     }
 
     /**
@@ -69,10 +84,13 @@ public final class CpuOneDnnSelector {
         Objects.requireNonNull(baseline, "baseline");
         Objects.requireNonNull(contractionCandidate, "contractionCandidate");
         library.requireOpen();
+        if (trace != null) trace.compared();
         var plan = contractionCandidate.plan();
         if (context.requiresBatchSize() || plan.route() != CpuPartitionPreparationPlan.Route.PORTABLE
                 || plan.openBlasTuningBatch().isPresent() || plan.materialization().isPresent()
                 || !plan.materializations().isEmpty() || plan.partialReductionRecipe().isPresent()) {
+            if (trace != null) trace.rejected(-1, null, null, Reason.COMPARISON_SKIPPED,
+                    "candidate topology is not eligible for native comparison", null);
             return baseline;
         }
         try {
@@ -80,6 +98,8 @@ public final class CpuOneDnnSelector {
         } catch (ArithmeticException unrepresentableCost) {
             // Checked Model geometry is still valid. An overflowing heuristic cannot qualify
             // a new representation or displace an already valid complete CPU plan.
+            if (trace != null) trace.rejected(-1, null, null, Reason.COST_OVERFLOW,
+                    "dimensionless native comparison cost is not representable", null);
             return baseline;
         }
     }
@@ -110,7 +130,12 @@ public final class CpuOneDnnSelector {
         for (int position = 0; position < plan.units().size(); position++) {
             var unit = plan.units().get(position);
             var projection = CpuOneDnnProjection.from(unit);
-            if (projection.isEmpty() || !CpuOneDnnCompiler.qualified(projection.orElseThrow().spec())) continue;
+            if (projection.isEmpty() || !CpuOneDnnCompiler.qualified(projection.orElseThrow().spec())) {
+                if (trace != null) trace.rejected(position,
+                        projection.isEmpty() ? null : projection.orElseThrow().spec(), null,
+                        Reason.UNQUALIFIED, "ordinary unit has no qualified native realization", null);
+                continue;
+            }
             var projected = projection.orElseThrow();
             var copiedInputs = new java.util.LinkedHashMap<CopyKey, List<Integer>>();
             for (int input = 0; input < projected.inputBoundaryPositions().size(); input++) {
@@ -142,7 +167,7 @@ public final class CpuOneDnnSelector {
             CpuOneDnnRoutePlan.Unit best = null;
             long bestCost = Long.MAX_VALUE;
             for (var api : apis()) {
-                Optional<CpuOneDnnKernelMetadata> metadata = describe(projected.spec(), api);
+                Optional<CpuOneDnnKernelMetadata> metadata = describe(position, projected.spec(), api);
                 if (metadata.isEmpty()) continue;
                 var facts = metadata.orElseThrow();
                 long steps = projected.spec() instanceof CpuOneDnnKernelSpec.Pipeline pipeline
@@ -176,6 +201,10 @@ public final class CpuOneDnnSelector {
                 selectedCost = Math.addExact(Math.subtractExact(selectedCost, portableUnit), bestCost);
                 nextWorkspace = Math.incrementExact(workspaceId);
             }
+            else if (best != null && trace != null) {
+                trace.rejected(position, projected.spec(), best.api(), Reason.UNIT_COST,
+                        "native unit heuristic does not beat the ordinary unit", null);
+            }
         }
         if (selected.isEmpty()) return baseline;
         // Common recipes remain available for semantic authentication, but their unused ordinary
@@ -200,20 +229,30 @@ public final class CpuOneDnnSelector {
                 selectedCost = Math.subtractExact(selectedCost, Math.multiplyExact(workspace.byteSize(), runs));
             } else requirements.add(requirement);
         }
-        if (selectedCost >= baselineCost) return baseline;
+        if (selectedCost >= baselineCost) {
+            if (trace != null) trace.rejected(-1, null, null, Reason.PLAN_COST,
+                    "complete native candidate heuristic does not beat the retained baseline", null);
+            return baseline;
+        }
         var route = new CpuOneDnnRoutePlan(library.sessionIdentity(), selected, baselineCost, selectedCost);
         requirements.addAll(route.workspaceRequirements());
         return new BackendPartitionAnalysis<>(candidate.partition(), plan.withOneDnn(route), requirements);
     }
 
-    private Optional<CpuOneDnnKernelMetadata> describe(CpuOneDnnKernelSpec spec,
+    private Optional<CpuOneDnnKernelMetadata> describe(int position, CpuOneDnnKernelSpec spec,
             CpuOneDnnRoutePlan.Api api) {
         try {
             return Optional.of(CpuOneDnnCompiler.describe(library, spec, api));
         } catch (CpuOneDnnCompiler.UnsupportedRealizationException unsupported) {
+            if (trace != null) trace.rejected(position, spec, api, Reason.UNSUPPORTED_REALIZATION,
+                    unsupported.getMessage(), null);
             return Optional.empty();
         } catch (CpuOneDnnLibrary.NativeStatusException failure) {
-            if (failure.status() == 2 || failure.status() == 3) return Optional.empty();
+            if (failure.status() == 2 || failure.status() == 3) {
+                if (trace != null) trace.rejected(position, spec, api, Reason.NATIVE_UNSUPPORTED,
+                        failure.getMessage(), failure.status());
+                return Optional.empty();
+            }
             throw failure;
         }
     }

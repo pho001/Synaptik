@@ -92,6 +92,8 @@ public abstract class CpuOneDnnWorkspace implements WorkspaceRepresentation {
     /**
      * Executes fixed native handles and waits synchronously without allocation or selection.
      * The caller holds the shared CPU budget reservation and prevents concurrent mutation/closure.
+     * If enqueue fails, the stream is still awaited; that original throwable remains primary and
+     * a distinct wait failure is suppressed on it. A wait-only failure propagates unchanged.
      *
      * @throws IllegalStateException if unbound, closed/inaccessible, or native execute/wait fails
      */
@@ -102,6 +104,28 @@ public abstract class CpuOneDnnWorkspace implements WorkspaceRepresentation {
 
     /** Waits for the shared invocation stream, including all preceding pipeline steps. */
     abstract void await();
+
+    /**
+     * Performs the fixed enqueue/wait sequence after the concrete workspace validates binding.
+     * Waiting is mandatory even after partial enqueue; it must not replace the enqueue failure.
+     */
+    protected final void executeAndAwait() {
+        Throwable failure = null;
+        try {
+            enqueue();
+        } catch (RuntimeException | Error problem) {
+            failure = problem;
+            throw problem;
+        } finally {
+            if (failure == null) {
+                await();
+            } else {
+                try { await(); } catch (RuntimeException | Error waitFailure) {
+                    if (waitFailure != failure) failure.addSuppressed(waitFailure);
+                }
+            }
+        }
+    }
 
     /**
      * Destroys invocation handles and releases the concrete workspace's retained kernel lease.

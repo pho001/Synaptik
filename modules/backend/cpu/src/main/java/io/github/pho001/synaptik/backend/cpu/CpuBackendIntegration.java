@@ -78,6 +78,26 @@ public final class CpuBackendIntegration implements AutoCloseable {
     }
 
     /**
+     * Opens the same default CPU composition with opt-in cold preparation diagnostics.
+     *
+     * <p>The observer is borrowed for this integration's lifetime and never closed. Callbacks run
+     * synchronously on preparing threads and may run concurrently; callers must supply a thread-safe
+     * sink. Callback RuntimeExceptions and Errors disable later diagnostics without changing route
+     * selection, finalization, or business/native failures. There is no per-run instrumentation.
+     * Events use the common trace envelope with {@link CpuPreparationDiagnostics} payloads.</p>
+     *
+     * @param observer non-null caller-owned thread-safe observer
+     * @return new open CPU integration borrowing the observer
+     * @throws NullPointerException if the observer is null
+     * @throws RuntimeException if required CPU composition construction fails
+     * @throws Error if construction or cleanup reports a fatal error, excluding observer failures
+     */
+    public static CpuBackendIntegration open(CpuTraceObserver observer) {
+        return takeComposition(CpuBackendComposition.openAutomatic(
+                Objects.requireNonNull(observer, "observer")));
+    }
+
+    /**
      * Opens CPU with an explicitly required exact oneDNN library and automatic API selection.
      *
      * @param absolutePath non-null absolute path to a oneDNN 3.14.0 LP64 SEQ shared library
@@ -96,10 +116,9 @@ public final class CpuBackendIntegration implements AutoCloseable {
      *
      * <p>The library path is never discovered or substituted. Failure to load or authenticate
      * oneDNN fails this call; independent optional OpenBLAS discovery cannot mask that failure.
-     * Only qualified bare homogeneous FLOAT32 MATMUL with K greater than one is native-eligible.
-     * Convolution, external bias, activation and other unsupported units retain the existing CPU
-     * lowering and automatic-differentiation path. Native selection and all resource requirements
-     * are fixed before execution, with no late fallback or retry.</p>
+     * Only independently qualified typed occurrences are native-eligible; unsupported operations
+     * retain their existing CPU lowering and automatic-differentiation path. Native selection and
+     * all resource requirements are fixed before execution, with no late fallback or retry.</p>
      *
      * <p>Both APIs consume common CPU lowering and canonical external buffers; Graph is not
      * automatic differentiation and is not forced by node count. The preference restricts native
@@ -117,13 +136,40 @@ public final class CpuBackendIntegration implements AutoCloseable {
      * @throws Error if construction or cleanup reports an error
      */
     public static CpuBackendIntegration openOneDnn(Path absolutePath, OneDnnApi api) {
-        Objects.requireNonNull(api, "api");
-        CpuOneDnnRoutePlan.Api internalApi = switch (api) {
+        return takeComposition(CpuBackendComposition.openOneDnn(absolutePath, internalApi(api)));
+    }
+
+    /**
+     * Opens required oneDNN with an immutable API preference and opt-in cold CPU diagnostics.
+     *
+     * <p>The preference restricts candidates, not the selected route: ordinary portable or OpenBLAS
+     * execution can still win. SELECTED events report the actual route and bounded native rejection
+     * reasons; FINALIZED or FINALIZATION_FAILED events share that preparation identity. Native
+     * status is included only when a real failing native call returned it. Required loading failures
+     * still throw before preparation and are not converted into diagnostic-only failures. Observer
+     * lifetime, threading and failure isolation follow {@link #open(CpuTraceObserver)}.</p>
+     *
+     * @param absolutePath non-null absolute exact oneDNN 3.14.0 LP64 SEQ library path
+     * @param api non-null native API preference frozen before analysis
+     * @param observer non-null caller-owned thread-safe observer, retained but never closed
+     * @return new CPU integration owning the library and borrowing the observer
+     * @throws NullPointerException if an argument is null
+     * @throws IllegalArgumentException if the path, ABI, version, runtime, or symbols are invalid
+     * @throws RuntimeException if required native loading or composition construction fails
+     * @throws Error if native loading, construction, or cleanup reports an error
+     */
+    public static CpuBackendIntegration openOneDnn(Path absolutePath, OneDnnApi api,
+            CpuTraceObserver observer) {
+        Objects.requireNonNull(observer, "observer");
+        return takeComposition(CpuBackendComposition.openOneDnn(absolutePath, internalApi(api), observer));
+    }
+
+    private static CpuOneDnnRoutePlan.Api internalApi(OneDnnApi api) {
+        return switch (Objects.requireNonNull(api, "api")) {
             case AUTO -> CpuOneDnnRoutePlan.Api.AUTO;
             case PRIMITIVES -> CpuOneDnnRoutePlan.Api.PRIMITIVE;
             case GRAPH -> CpuOneDnnRoutePlan.Api.GRAPH;
         };
-        return takeComposition(CpuBackendComposition.openOneDnn(absolutePath, internalApi));
     }
 
     private static CpuBackendIntegration takeComposition(CpuBackendComposition composition) {

@@ -8,6 +8,8 @@ import io.github.pho001.synaptik.backend.contract.BackendId;
 import io.github.pho001.synaptik.backend.contract.DeviceClass;
 import io.github.pho001.synaptik.backend.cpu.CpuBackendIntegration;
 import io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider;
+import io.github.pho001.synaptik.backend.cpu.CpuPreparationDiagnostics;
+import io.github.pho001.synaptik.backend.cpu.CpuTraceObserver;
 import io.github.pho001.synaptik.compiler.CompileArtifacts;
 import io.github.pho001.synaptik.compiler.GraphCompilationPort;
 import io.github.pho001.synaptik.config.compile.BackendIntent;
@@ -54,6 +56,79 @@ import org.junit.jupiter.api.Test;
 
 /** Uses the supported CPU SPI from a distinct package without importing CPU internals. */
 final class CpuBackendIntegrationAndCpuPreparedScheduleAssemblerPublicTest {
+    @Test
+    void coldObserverReportsActualPortableRouteAndDoesNotInstrumentRuns() throws Exception {
+        var events = new java.util.concurrent.CopyOnWriteArrayList<CpuPreparationDiagnostics>();
+        try (var integration = CpuBackendIntegration.open(event ->
+                events.add(assertInstanceOf(CpuPreparationDiagnostics.class, event.payload())));
+                var execution = prepare(integration, cpuArtifacts(integration))) {
+            var selected = events.stream().filter(event ->
+                    event.stage() == CpuPreparationDiagnostics.Stage.SELECTED).findFirst().orElseThrow();
+            var finalized = events.stream().filter(event ->
+                    event.stage() == CpuPreparationDiagnostics.Stage.FINALIZED).findFirst().orElseThrow();
+            assertEquals(selected.preparationId(), finalized.preparationId());
+            assertEquals(CpuPreparationDiagnostics.Api.NONE, selected.configuredApi());
+            assertEquals(CpuPreparationDiagnostics.Route.PORTABLE, selected.selectedRoute());
+            assertTrue(selected.units().stream().allMatch(unit ->
+                    unit.route() == CpuPreparationDiagnostics.Route.PORTABLE
+                            && unit.nativeApi() == CpuPreparationDiagnostics.Api.NONE));
+            assertTrue(selected.rejections().stream().anyMatch(reason ->
+                    reason.reason() == CpuPreparationDiagnostics.Reason.NOT_CONFIGURED));
+            assertTrue(finalized.nativeStatus().isEmpty());
+            int coldEventCount = events.size();
+            float[] values = {-2, 0, 3, 4};
+            try (var input = integration.borrow(new MemorySegmentStorage(DataType.FLOAT32, 4,
+                    MemorySegment.ofArray(values)))) {
+                var runner = new PreparedExecutionRunner();
+                for (int run = 0; run < 2; run++) {
+                    try (var result = runner.run(execution, List.of(input))) {
+                        var output = ByteBuffer.wrap(integration.copyToCanonicalHostBytes(
+                                result.publicationRepresentation(0),
+                                new TensorDescriptor(DataType.FLOAT32, Shape.of(4),
+                                        Optional.of(LayoutDescriptor.contiguous(Shape.of(4))), false),
+                                16)).order(ByteOrder.BIG_ENDIAN);
+                        for (float value : values) assertEquals(value, output.getFloat());
+                    }
+                }
+            }
+            assertEquals(coldEventCount, events.size(), "CPU tracing is cold-only");
+        }
+        assertTrue(events.stream().anyMatch(event ->
+                event.stage() == CpuPreparationDiagnostics.Stage.FINALIZED),
+                "detached facts survive integration closure");
+    }
+
+    @Test
+    void observerRuntimeExceptionsAndErrorsDoNotAbortPreparationOrExecution() throws Exception {
+        for (var failingStage : List.of(CpuPreparationDiagnostics.Stage.SELECTED,
+                CpuPreparationDiagnostics.Stage.FINALIZED)) for (boolean fatal : List.of(false, true)) {
+            var callbacks = new java.util.concurrent.atomic.AtomicInteger();
+            CpuTraceObserver observer = event -> {
+                callbacks.incrementAndGet();
+                if (((CpuPreparationDiagnostics) event.payload()).stage() != failingStage) return;
+                if (fatal) throw new AssertionError("observer");
+                throw new IllegalStateException("observer");
+            };
+            try (var integration = CpuBackendIntegration.open(observer);
+                    var execution = prepare(integration, cpuArtifacts(integration));
+                    var input = integration.borrow(new MemorySegmentStorage(DataType.FLOAT32, 4,
+                            MemorySegment.ofArray(new float[] {1, 2, 3, 4})));
+                    var result = new PreparedExecutionRunner().run(execution, List.of(input))) {
+                try (var afterDisable = prepare(integration, cpuArtifacts(integration))) {
+                    assertNotNull(afterDisable.schedule());
+                }
+                assertEquals(failingStage == CpuPreparationDiagnostics.Stage.SELECTED ? 1 : 2,
+                        callbacks.get(), "observer failure disables further callbacks");
+                var output = ByteBuffer.wrap(integration.copyToCanonicalHostBytes(
+                        result.publicationRepresentation(0),
+                        new TensorDescriptor(DataType.FLOAT32, Shape.of(4),
+                                Optional.of(LayoutDescriptor.contiguous(Shape.of(4))), false), 16))
+                        .order(ByteOrder.BIG_ENDIAN);
+                for (float expected : new float[] {1, 2, 3, 4}) assertEquals(expected, output.getFloat());
+            }
+        }
+    }
+
     @Test
     void requiredOneDnnConfigurationNeverSilentlyOpensPortable(
             @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) {

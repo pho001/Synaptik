@@ -573,7 +573,7 @@ public final class CpuOneDnnGraph {
         @Override public void execute() {
             requireOpen();
             if (!bound) throw new IllegalStateException("Graph workspace has not been bound");
-            try { enqueue(); } finally { await(); }
+            executeAndAwait();
         }
 
         @Override void enqueue() {
