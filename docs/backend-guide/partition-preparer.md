@@ -4,7 +4,7 @@
 
 This guide shows a [concrete backend](../glossary.md#concrete-backend) contributor how to implement both current [backend](../glossary.md#backend) stages of
 Synaptik's staged preparation [handoff](../glossary.md#term-handoff). Analysis accepts one validated static [partition](../glossary.md#partition) or the
-qualified ordinary or all-valid [Scan](../glossary.md#term-cumulative-scan) one-B projection and returns an [opaque](../glossary.md#term-opaque) backend plan plus exact shared [buffer](../glossary.md#term-buffer)
+qualified ordinary or all-valid [Scan](../glossary.md#general-differentiable-scan) one-B projection and returns an [opaque](../glossary.md#term-opaque) backend plan plus exact shared [buffer](../glossary.md#term-buffer)
 and workspace declarations.
 After shared [Prepare](../glossary.md#prepare) assigns [Runtime](../glossary.md#term-runtime) slots, finalization consumes those exact assignments and
 constructs an [immutable](../glossary.md#term-immutable) executable recipe.
@@ -46,7 +46,7 @@ CPU-only workflow from an explicit `ModelAutotuningRequest` carrying Config-owne
 representative inputs: Phase 1 selects local workload decisions, and Phase 2 compares complete
 prepared CPU plans.
 
-Public `GraphPreparation.prepare(...)` [coordinates](../glossary.md#axis-rank-scalar-vector-and-matrix) package-internal assignment and validates one
+Public `GraphPreparation.prepare(...)` coordinates package-internal assignment and validates one
 complete schedule supplied by an explicit assembler. CPU and [Metal](../glossary.md#term-metal) integrations currently supply
 production partition finalization, physical representation contributions, and backend-local
 complete assembly. Ordinary [Engine](../glossary.md#term-engine) composes those contributions across single-owner or mixed
@@ -88,7 +88,7 @@ types rather than either production implementation.
   exact partition, one typed candidate batch, and an optional typed decision without exposing
   backend fields.<span data-glossary-navigation="true"> ([candidate batch glossary](../glossary.md#candidate-batch))</span>
 
-“Opaque” means that shared preparation can [carry](../glossary.md#term-carry) a typed backend value without reading its
+“Opaque” means that shared preparation can carry a typed backend value without reading its
 private fields. A **[buffer](../glossary.md#term-buffer)** represents a logical [graph value](../glossary.md#graph-value); a **workspace** is temporary
 working storage. **[Alignment](../glossary.md#term-alignment)** requires an address to be a multiple of a specified byte count.
 These distinctions explain why buffer [identity](../glossary.md#term-identity-meanings), workspace identity and assigned position are
@@ -136,7 +136,7 @@ one complete candidate on equivalent representative inputs. Tuning returns a new
 original [occurrence](../glossary.md#term-occurrence) with the selected decision present. The concrete backend must still validate
 that decision against a freshly generated compatible batch before it can affect analysis.
 
-## General-[scan](../glossary.md#term-cumulative-scan) projection and resource [handoff](../glossary.md#term-handoff)
+## General-[scan](../glossary.md#general-differentiable-scan) projection and resource [handoff](../glossary.md#term-handoff)
 
 A scan **formal** is a named input role inside the repeated body; an **actual** is the outer
 value bound to that role. A **[carry](../glossary.md#term-carry)** passes state from one step to the next. A **[residual](../glossary.md#scan-residual-port-and-history-demand)**
@@ -152,7 +152,7 @@ for static [shape](../glossary.md#shape) or the [occurrence](../glossary.md#term
 sibling results and zero time steps. A directly constructed context checks locally visible uses
 and supplied logical obligations; it cannot verify unseen external edges. Local numeric IDs may
 coincide with outer IDs without identifying the same values. [Model](../glossary.md#term-model)/[Compiler](../glossary.md#term-compiler) retain ordinary body
-[inference](../glossary.md#term-inference) and [automatic differentiation](../glossary.md#autograd) ([AD](../glossary.md#autograd)); [backends](../glossary.md#backend) still qualify execution.
+[inference](../glossary.md#term-inference-meanings) and [automatic differentiation](../glossary.md#autograd) ([AD](../glossary.md#autograd)); [backends](../glossary.md#backend) still qualify execution.
 
 All-valid [symbolic Scan](../glossary.md#symbolic-scan) projection retains fixed time/[features](../glossary.md#term-feature) and unresolved symbolic
 formal/result [layouts](../glossary.md#layout); static formal/results remain [canonical](../glossary.md#term-canonical-form). The bounded [rank](../glossary.md#term-rank)-three outer
@@ -161,7 +161,7 @@ is explicit even when every byte recipe has zero slope, as with `[B,0]`. Analysi
 fixed or [run](../glossary.md#term-run)-size requirements before slots; assignment fixes [identities](../glossary.md#term-identity-meanings) and representation
 positions without evaluating [CPU](../glossary.md#term-cpu) recipes. The CPU binds actual B later, not a [sample](../glossary.md#term-sample-machine-learning-and-hyperparameters) B or a
 new resource [topology](../glossary.md#term-topology). [Prepare0014](../planning/modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md)
-tracks the implemented [FLOAT32](../glossary.md#term-float32) execution [slice](../glossary.md#slice) and its final [qualification](../glossary.md#term-qualification) separately.
+tracks the implemented [FLOAT32](../glossary.md#term-float32) execution slice and its final [qualification](../glossary.md#term-qualification) separately.
 
 Length-aware projection uses those same [owners](../glossary.md#term-owner). T is the static time count and B the [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) [extent](../glossary.md#term-extent).
 The final non-[gradient](../glossary.md#term-gradient) [INT64](../glossary.md#data-type--datatype) `[B]` lengths actual remains an outer input, never a body formal or
@@ -510,7 +510,7 @@ The assembler must describe every [bindable input](../glossary.md#bindable-input
 order. A compile-time [logical splat](../glossary.md#logical-splat) instead needs at least one `InitializedBuffer` and no caller
 input. The backend creator materializes that [constant](../glossary.md#term-constant) into a fresh [run](../glossary.md#term-run)-owned representation;
 [Runtime](../glossary.md#term-runtime) records only that the representation starts valid. Prepare also validates executable
-coverage and order, transfer and executable representation [coordinates](../glossary.md#axis-rank-scalar-vector-and-matrix), and ordered forward then
+coverage and order, transfer and executable representation coordinates, and ordered forward then
 [gradient](../glossary.md#term-gradient) publications. It invokes no creator and performs no physical work.
 
 ## Context and requirement invariants

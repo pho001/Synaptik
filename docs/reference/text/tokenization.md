@@ -20,7 +20,7 @@ flowchart TD
 
 Follow the values branch for numeric features and the counts branch for sequence boundaries.
 Neither branch creates a global [padding mask](../../glossary.md#masks-padding-and-eager-evaluation). This relationship is conceptual: the current fluent
-builder does not provide the integer-input Embedding-to-[scan](../../glossary.md#term-cumulative-scan) chain.
+builder does not provide the integer-input Embedding-to-scan chain.
 
 ## Follow one row from strings to values
 
@@ -51,7 +51,7 @@ For `WhitespaceTokenizer.of(List.of("Hello", "world"))`, `vocabularySize()` is `
 `paddingId()` is `0`, and `unknownId()` is `1`.
 
 `encode(String)` returns a fresh caller-owned `long[]`, even for empty input. It emits one ID
-per maximal nonempty [run](../../glossary.md#term-run) separated by `Character.isWhitespace(int)` code points. With that
+per maximal nonempty run separated by `Character.isWhitespace(int)` code points. With that
 vocabulary, `encode(" Hello\tworld missing ")` gives `[2,3,1]`; `encode("hello Hello,")`
 gives `[1,1]`. Each unknown run produces one UNK, not one ID per character.
 
@@ -91,11 +91,11 @@ Batch-major shape is `[B,T]`; [time-major](../../glossary.md#term-time-major) sh
 maximum encoded length. Empty outer input has B=T=0; all-empty rows have T=0.
 
 Null tokenizer, list or row throws `NullPointerException` with the [parameter](../../glossary.md#term-parameter) or row identified.
-[Coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix) input-list mutation throughout construction/batching; no transactional [snapshot](../../glossary.md#term-snapshot) is
+Coordinate input-list mutation throughout construction/batching; no transactional [snapshot](../../glossary.md#term-snapshot) is
 promised. Inputs are not retained afterward and repeated calls produce independent outputs.
 Data rejects overflowing geometry or more than `Integer.MAX_VALUE` [elements](../../glossary.md#term-element) with
 `IllegalArgumentException`; allocation failures and Model identifier exhaustion propagate.
-There is no [truncation](../../glossary.md#term-truncation-toward-zero) or sequence-limit policy. See the [Data API](../data/sequences.md) for allocation
+There is no truncation or sequence-limit policy. See the [Data API](../data/sequences.md) for allocation
 and metadata contracts.
 
 <a id="complete-example"></a>
@@ -171,7 +171,7 @@ network](../../glossary.md#term-recurrent-neural-network-rnn) ([RNN](../../gloss
 export a fresh [INT64](../../glossary.md#data-type--datatype) length [Tensor](../../glossary.md#tensor) through
 [`toScanLengthsTensor()`](../data/sequences.md#explicit-runtime-scan-lengths); Data still does not bind it
 or convert token IDs to floating [features](../../glossary.md#term-feature). The current fluent ModelBuilder accepts only floating
-inputs and has no [Embedding](../../glossary.md#embedding) recipe, so this export does not enable Text IDs → Embedding → [scan](../../glossary.md#term-cumulative-scan)
+inputs and has no [Embedding](../../glossary.md#embedding) recipe, so this export does not enable Text IDs → Embedding → scan
 in one builder chain. The [numeric inference example](../data/sequences.md#complete-numeric-inference-example)
 starts with [FLOAT32](../../glossary.md#term-float32) features, not integer IDs. Left [padding](../../glossary.md#padding) still does not extend recurrent scans
 beyond their right-valid-prefix contract, and no [backpropagation through time](../../glossary.md#term-backpropagation-through-time-bptt) ([BPTT](../../glossary.md#backpropagation-through-time-and-recurrent-state)) support is added.

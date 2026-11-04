@@ -74,7 +74,7 @@ current                  current                      current
 Read the flow from logical source facts toward invocation state. [Prepare](../../glossary.md#prepare) exposes exact [buffer](../../glossary.md#term-buffer) and
 workspace requirements through [`BackendPartitionAnalysis`](../../glossary.md#backend-partition-analysis-backendpartitionanalysis), then its current package-internal
 [handoff](../../glossary.md#term-handoff) retains source-to-slot associations and constructs the [Runtime](../../glossary.md#term-runtime) geometry. Public
-`GraphPreparation.prepare(...)` [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix) that handoff and validates one explicitly supplied
+`GraphPreparation.prepare(...)` coordinates that handoff and validates one explicitly supplied
 schedule recipe before returning [`PreparedExecution`](../../glossary.md#prepared-execution--preparedexecution). Current [`PreparedRepresentationPlan`](../../glossary.md#prepared-representation-plan--preparedrepresentationplan)
 describes [borrowed](../../glossary.md#ownership-borrowing-and-lease) inputs and concrete-[backend](../../glossary.md#backend) creators in that geometry's encounter order.
 Package-private cold setup validates all caller inputs, creates fresh [run](../../glossary.md#term-run)-owned representation

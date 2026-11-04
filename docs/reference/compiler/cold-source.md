@@ -42,7 +42,7 @@ be FORWARD and belong to the closed
 [flat source inventory](../../architecture/contracts/compiler-autograd.md#compile-lifecycle):
 ADD/MUL/NEG/[MATMUL](../../glossary.md#matrix-multiplication--matmul)/RELU/[TANH](../../glossary.md#term-tanh)/[SIGMOID](../../glossary.md#term-sigmoid), [rank-two](../../glossary.md#axis-rank-scalar-vector-and-matrix) PERMUTE `[1,0]`, and the selected floating SUB,
 [CNN](../../glossary.md#term-convolutional-neural-network-cnn)/static recurrent mappings and fixed scans listed there. All-valid [general SCAN](../../glossary.md#general-differentiable-scan) additionally carries
-an independently scoped body; its extra constructors remain body-only. Existing family [inference](../../glossary.md#term-inference)
+an independently scoped body; its extra constructors remain body-only. Existing family [inference](../../glossary.md#term-inference-meanings)
 verifies promotion, [broadcasting](../../glossary.md#broadcasting), MATMUL [rank](../../glossary.md#term-rank)/[batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters)
 semantics, attributes and exact output descriptors, with no deferred obligations. [Model](../../glossary.md#term-model) owns
 structural closure, [signature](../../glossary.md#term-signature)/attribute checks and [layout](../../glossary.md#layout) geometry. Unsupported families [fail

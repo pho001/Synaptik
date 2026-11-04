@@ -22,7 +22,7 @@ to see those calls and [the source boundary](graph.md#inputs-outputs-and-identit
 
 Sources containing `FLOAT8_E4M3` or `FLOAT8_E5M2` select `graph-model.v7`, with eight
 [ASCII](../../glossary.md#term-ascii) [magic bytes](../../glossary.md#term-magic-bytes) `SYNGRF07` and [big-endian](../../glossary.md#text-encoding-and-file-boundaries) i32 version 7. This applies to every encoded
-[descriptor](../../glossary.md#term-descriptor) and typed [scalar](../../glossary.md#term-scalar)/cast attribute, including contained [Scan](../../glossary.md#term-cumulative-scan) bodies, not just named
+[descriptor](../../glossary.md#term-descriptor) and typed [scalar](../../glossary.md#term-scalar)/cast attribute, including contained [Scan](../../glossary.md#general-differentiable-scan) bodies, not just named
 state. V7 appends [dtype](../../glossary.md#data-type--datatype) IDs 8=[E4M3](../../glossary.md#term-e4m3) and 9=[E5M2](../../glossary.md#term-e5m2) and stores exact one-byte raw [lanes](../../glossary.md#term-lane); it adds
 no scale or quantization [metadata](../../glossary.md#term-metadata) and no new [operation](../../glossary.md#operation) inventory.
 
@@ -35,7 +35,7 @@ stores source and logical values, not [FLOAT32](../../glossary.md#term-float32) 
 <a id="selective-graph-format-versions"></a>
 ## Selective [graph](../../glossary.md#graph) format versions
 
-Within the original eight-kind [slice](../../glossary.md#slice), sources containing RELU, [TANH](../../glossary.md#term-tanh) or [SIGMOID](../../glossary.md#term-sigmoid) save as
+Within the original eight-kind slice, sources containing RELU, [TANH](../../glossary.md#term-tanh) or [SIGMOID](../../glossary.md#term-sigmoid) save as
 `graph-model.v2` (`SYNGRF02`, i32 version 2).
 Other sources in that slice, including zero-[node](../../glossary.md#node) graphs, retain byte-identical `graph-model.v1`
 (`SYNGRF01`, i32 version 1). Version 2 appends opcodes 6, 7 and 8 respectively, each with one
@@ -68,9 +68,9 @@ For CNNs and static recurrence, save retains ordinary expression [provenance](..
 unresolved; [capture](../../glossary.md#term-capture-meanings)/[preflight](../../glossary.md#term-preflight) does not optimize them or force materializing copies. GATHER checks
 index [descriptors](../../glossary.md#term-descriptor) only; execution retains index-value bounds checks.
 
-For a fixed [scan](../../glossary.md#term-cumulative-scan), one constructor produces all [canonical](../../glossary.md#term-canonical-form) sibling wrappers, even if only finalCell
+For a fixed [scan](../../glossary.md#term-fixed-recurrent-scan), one constructor produces all [canonical](../../glossary.md#term-canonical-form) sibling wrappers, even if only finalCell
 is a root or downstream operands reuse a port. Copy/load/[rebind](../../glossary.md#capture-graph-ports-and-reconstruction) retain that [occurrence](../../glossary.md#term-occurrence) once;
-result-[carrier](../../glossary.md#term-storage-carrier) objects are not serialized. Static time/[batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) may be zero, and [inference](../../glossary.md#term-inference) preserves
+result-carrier objects are not serialized. Static time/[batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) may be zero, and [inference](../../glossary.md#term-inference-meanings) preserves
 the existing unresolved output layouts and [gradient](../../glossary.md#term-gradient) eligibility. Persistence itself grants no
 execution or [BPTT](../../glossary.md#term-backpropagation-through-time-bptt). Separately, ordinary [CPU](../../glossary.md#term-cpu) [Engine](../../glossary.md#term-engine) [compile](../../glossary.md#compile)/[prepare](../../glossary.md#prepare)/[run](../../glossary.md#term-run) supports static [homogeneous](../../glossary.md#term-homogeneous)
 [FLOAT32](../../glossary.md#term-float32)/[FLOAT64](../../glossary.md#term-float64) scans with resolved nonnegative read layouts and canonical outputs
@@ -92,7 +92,7 @@ rejects multiple boundaries. Do not call compute/train to validate this cold wor
 <a id="approved-general-scan-persistence-implementation-pending"></a>
 
 <a id="bounded-general-scan-persistence"></a>
-### Bounded general-[scan](../../glossary.md#term-cumulative-scan) [persistence](../../glossary.md#term-persistence)
+### Bounded general-[scan](../../glossary.md#general-differentiable-scan) [persistence](../../glossary.md#term-persistence)
 
 The [single owning v4 contract](../../architecture/contracts/extensions-training.md#canonical-graph-model-version-4)
 adds all-valid [general SCAN](../../glossary.md#general-differentiable-scan) to the outer v3 inventory and admits the pre-[Pool3d](../../glossary.md#pool3d--ncdhw-pooling) subset of the
@@ -120,7 +120,7 @@ shows save/load through existing [Model](../../glossary.md#term-model) APIs. The
 records focused evidence and main's final gate/capability acceptance.
 
 <a id="length-aware-general-scan-persistence"></a>
-### Length-aware general-[scan](../../glossary.md#term-cumulative-scan) [persistence](../../glossary.md#term-persistence)
+### Length-aware general-[scan](../../glossary.md#general-differentiable-scan) [persistence](../../glossary.md#term-persistence)
 
 [Checkpoint v5](../../architecture/contracts/extensions-training.md#canonical-graph-model-version-5)
 adds the static floating length-aware cold intersection without changing v4 records or [widening](../../glossary.md#term-widening)

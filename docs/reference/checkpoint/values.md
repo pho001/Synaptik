@@ -128,7 +128,7 @@ reconstructed candidates before one NN whole-tree installation attempt. Ordinary
 reconstruction failure changes no [target](../../glossary.md#term-target) binding. There is no cross-[owner](../../glossary.md#term-owner) [transaction](../../glossary.md#term-transaction) or
 concurrent-reader [snapshot](../../glossary.md#term-snapshot) guarantee. Save reuses the [artifact](../../glossary.md#term-artifact) [API](../../glossary.md#term-application-programming-interface-api)'s sibling temporary-file,
 force, reopen, validation, and one [atomic](../../glossary.md#resource-transaction-and-rollback)-move path. Successful return gives atomic live
-visibility of a complete prior or new file, not portable power-[loss](../../glossary.md#loss) [durability](../../glossary.md#term-durability) of the rename.
+visibility of a complete prior or new file, not portable power-loss [durability](../../glossary.md#term-durability) of the rename.
 A failed move can have provider-dependent target state; inspect the target before retrying.
 
 

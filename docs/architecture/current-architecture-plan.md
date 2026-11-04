@@ -52,7 +52,7 @@ Focused architecture documentation:
 - [Runtime / Prepare / Backend boundary](runtime-prepare-backend-boundary.md)
 - [ADR 0010: Staged backend preparation](../design/decisions/0010-staged-backend-preparation.md)
 - [ADR 0011: Per-run Runtime resource ownership and cold binding](../design/decisions/0011-per-run-runtime-resource-ownership.md)<span data-glossary-navigation="true"> ([resource ownership glossary](../glossary.md#term-resource-ownership))</span><span data-glossary-navigation="true"> ([run glossary](../glossary.md#term-run); [ownership glossary](../glossary.md#term-ownership); [binding glossary](../glossary.md#term-binding))</span>
-- [ADR 0012: Fixed recurrent scan without graph regions](../design/decisions/0012-fixed-recurrent-scan-without-regions.md)<span data-glossary-navigation="true"> ([scan glossary](../glossary.md#term-cumulative-scan); [graph glossary](../glossary.md#graph))</span>
+- [ADR 0012: Fixed recurrent scan without graph regions](../design/decisions/0012-fixed-recurrent-scan-without-regions.md)<span data-glossary-navigation="true"> ([scan glossary](../glossary.md#term-fixed-recurrent-scan); [graph glossary](../glossary.md#graph))</span>
 - [General differentiable scan: ordinary PURE CPU composition and selected first-order AD](general-differentiable-scan.md)<span data-glossary-navigation="true"> ([PURE glossary](../glossary.md#term-pure); [CPU glossary](../glossary.md#term-cpu); [AD glossary](../glossary.md#autograd))</span>
 - [ADR 0045: Bounded general differentiable scan (historical rationale)](../design/decisions/0045-general-differentiable-scan.md)
 - [ADR 0013: Prepared-execution persistent-resource lifecycle](../design/decisions/0013-prepared-execution-persistent-resource-lifecycle.md)

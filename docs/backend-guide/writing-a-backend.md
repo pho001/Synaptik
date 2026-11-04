@@ -116,7 +116,7 @@ BackendPartitionFinalizationResult result =
 
 The snippet assumes finalization has already constructed `executable`, which retains the exact
 assigned memory plan. Its other input is the resource list in physical acquisition order. This is
-the current finalizer return [shape](../glossary.md#shape). Shared [Prepare](../glossary.md#prepare) collects successful
+the current finalizer return shape. Shared [Prepare](../glossary.md#prepare) collects successful
 results in [partition](../glossary.md#partition) order, validates exact resource [identity](../glossary.md#term-identity-meanings) uniqueness, assembles and validates
 the schedule, and finally constructs `PreparedExecution(plan, schedule, resources)`. Current [CPU](../glossary.md#term-cpu)
 preparation uses the one-[argument](../glossary.md#term-argument) result constructor and therefore contributes an empty list.

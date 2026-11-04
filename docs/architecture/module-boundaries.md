@@ -43,7 +43,7 @@ how to calculate a size or access pattern without retaining the current run's [b
 
 The implemented bounded ordinary [dynamic-batch handoff](runtime-prepare-backend-boundary.md#accepted-symbolic-batch-handoff)<span data-glossary-navigation="true"> ([handoff glossary](../glossary.md#term-handoff))</span>
 and Prepare0014's bounded [FLOAT32](../glossary.md#term-float32) [symbolic Scan](../glossary.md#symbolic-scan) extension use existing [modules](../glossary.md#term-module) and unchanged
-[dependency](../glossary.md#term-dependency) edges. Final [Scan](../glossary.md#term-cumulative-scan) [qualification](../glossary.md#term-qualification) is tracked in its
+[dependency](../glossary.md#term-dependency) edges. Final [Scan](../glossary.md#general-differentiable-scan) [qualification](../glossary.md#term-qualification) is tracked in its
 [task](../planning/modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md); static paths are retained. The
 [root index](../../ARCHITECTURE.md#scope-indexed-normative-contracts) routes each concern to its sole
 [normative](../glossary.md#term-normative) [owner](../glossary.md#term-owner); [ADR 0050](../design/decisions/0050-dynamic-batch-geometry.md)<span data-glossary-navigation="true"> ([ADR glossary](../glossary.md#term-architecture-decision-record-adr))</span> records the decision.
@@ -128,7 +128,7 @@ wrappers, and exactly six public static biased or [bias](../glossary.md#term-bia
 `Tensor` has no recurrent receiver [alias](../glossary.md#aliasing-and-arena). This advanced low-level namespace is not an [NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context) layer or
 module, execution service, [registry](../glossary.md#term-registry), or [general scan](../glossary.md#general-differentiable-scan)-body abstraction. It owns no [callback](../glossary.md#term-callback) body,
 nested graph, region, captured free variable, runtime length inspection, hidden state, or
-execution loop. Current Compiler forward-only [inference](../glossary.md#term-inference) adopts the family, but every executable
+execution loop. Current Compiler forward-only [inference](../glossary.md#term-inference-meanings) adopts the family, but every executable
 route is qualified independently: CPU now implements the fixed four-floating-dtype/read-layout
 domain described below. Current NN static `RnnSequence`, `GruSequence`, and `LstmSequence` routes
 retain construction-time Java `long[]` lengths and static [unrolling](../glossary.md#term-unrolling); additive `forwardScan` routes
@@ -165,7 +165,7 @@ Owns [backend](../glossary.md#backend)-neutral [compile](../glossary.md#compile)
 
 Planning answers where work should [run](../glossary.md#term-run). It does not implement [fusion](../glossary.md#term-fusion) or [specialization](../glossary.md#term-specialization), select a concrete [kernel](../glossary.md#kernel) or [backend route](../glossary.md#backend-route), allocate physical memory, construct backend DAGs, or create prepared schedules and [runtime](../glossary.md#term-runtime) units.
 
-Planning may interpret a backend-neutral [cost model](../glossary.md#compiler-transformations-and-dominance) to choose [`BackendId`](../glossary.md#backend-identity--backendid) ownership. It never
+Planning may interpret a backend-neutral [cost model](../glossary.md#term-planning-cost-model) to choose [`BackendId`](../glossary.md#backend-identity--backendid) ownership. It never
 interprets route names, [vector species](../glossary.md#term-vector-species) or [lanes](../glossary.md#term-lane), unroll factors, thread counts, chunks, tiles, or
 other backend [parameter](../glossary.md#term-parameter) vocabulary.
 
@@ -173,7 +173,7 @@ Planning asks whether a backend supports a complete [operation](../glossary.md#o
 [`OperationCapabilityQuery`](../glossary.md#operation-capability-query--operationcapabilityquery), with no numerical selector. [Concrete backend](../glossary.md#concrete-backend) preparation, not
 Planning, qualifies and realizes a route under [Model](../glossary.md#term-model) semantics.
 
-The executable fixed recurrent [scan](../glossary.md#term-cumulative-scan) enters Planning through the unchanged
+The executable fixed recurrent [scan](../glossary.md#term-fixed-recurrent-scan) enters Planning through the unchanged
 ordinary [operation capability query](../glossary.md#operation-capability-query--operationcapabilityquery). Planning selects an owner but does not interpret cell
 variant, direction, valid-length values, active rows, loop bounds, or a recurrent execution
 route. [CPU](../glossary.md#term-cpu) advertises only its qualified fixed domain.
@@ -181,7 +181,7 @@ route. [CPU](../glossary.md#term-cpu) advertises only its qualified fixed domain
 [General Scan](../glossary.md#general-differentiable-scan) transports optional CompiledScanBody and ScanActivityPlan query [metadata](../glossary.md#term-metadata), including
 role [bindings](../glossary.md#term-binding), [residual](../glossary.md#scan-residual-port-and-history-demand) demand, full source [shapes](../glossary.md#shape) and structural activity. These are not an
 executable Runtime [graph](../glossary.md#graph). Planning selects one complete-body owner; body and binder qualify
-together, not mixed-owner body partitions. [Compiler](../glossary.md#term-compiler) owns contextual [inference](../glossary.md#term-inference) and selected actual
+together, not mixed-owner body partitions. [Compiler](../glossary.md#term-compiler) owns contextual [inference](../glossary.md#term-inference-meanings) and selected actual
 [FLOAT32](../glossary.md#term-float32)/[FLOAT64](../glossary.md#term-float64) first-order [AD](../glossary.md#autograd); [Prepare](../glossary.md#prepare) projects exact body/activity metadata.
 CPU composes every ordinary CPU-supported [PURE](../glossary.md#term-pure) unit under ordinary [dtype](../glossary.md#data-type--datatype)/[layout](../glossary.md#layout)/value/[derivative](../glossary.md#term-derivative)
 guards, reusing ordinary [lowering](../glossary.md#lowering)/emitters under the existing loop, direct same-class helpers and
@@ -204,13 +204,13 @@ See [Partition Scoring](partition-scoring.md)<span data-glossary-navigation="tru
 
 Owns [graph capture](../glossary.md#capture-graph-ports-and-reconstruction) and [compilation](../glossary.md#compiler-engine-and-execution-stage-names): [fail-closed](../glossary.md#term-fail-closed) pre-[capture](../glossary.md#term-capture-meanings) [autograd](../glossary.md#autograd) inventory, named
 [gradient](../glossary.md#term-gradient)-rule [dispatch](../glossary.md#term-dispatch), per-[compile](../glossary.md#compile) [identity](../glossary.md#term-identity-meanings)-based contribution accumulation, one phase-aware
-combined capture, indexing and ordering, [inference](../glossary.md#term-inference) and [validation](../glossary.md#term-validation), [canonicalization](../glossary.md#occurrence-identity-and-canonical-form) and combined
+combined capture, indexing and ordering, [inference](../glossary.md#term-inference-meanings) and [validation](../glossary.md#term-validation), [canonicalization](../glossary.md#occurrence-identity-and-canonical-form) and combined
 optimization, [publication](../glossary.md#term-publication) [binding](../glossary.md#term-binding), [planning](../glossary.md#term-planning) orchestration, [compile diagnostics](../glossary.md#compile-diagnostics), and
 `CompileArtifacts`.
 
 Its output is [immutable](../glossary.md#term-immutable) compile-time state. It does not create physical [buffers](../glossary.md#term-buffer), [backend](../glossary.md#backend) executables, [runtime](../glossary.md#term-runtime) workspaces, prepared schedules, or [`PreparedExecution`](../glossary.md#prepared-execution--preparedexecution), and it has no [concrete backend](../glossary.md#concrete-backend) dependencies.
 
-[Compiler](../glossary.md#term-compiler) captures each current fixed [Model](../glossary.md#term-model) [scan](../glossary.md#term-cumulative-scan) [producer](../glossary.md#term-producer) as exactly one ordinary flat [node](../glossary.md#node) and current
+[Compiler](../glossary.md#term-compiler) captures each current fixed [Model](../glossary.md#term-model) [scan](../glossary.md#term-fixed-recurrent-scan) [producer](../glossary.md#term-producer) as exactly one ordinary flat [node](../glossary.md#node) and current
 forward-only inference independently revalidates its fully static [descriptors](../glossary.md#term-descriptor). Both backward-
 capable modes reject any complete forward inventory containing fixed recurrence before any [derivative](../glossary.md#term-derivative)
 [Tensor](../glossary.md#tensor) is allocated. Fixed [BPTT](../glossary.md#term-backpropagation-through-time-bptt) remains unsupported. Compiler must not unroll fixed recurrence into
@@ -258,7 +258,7 @@ between an [occurrence](../glossary.md#term-occurrence) and its recipe.
 One Runtime `PreparedExecution` retains one exact memory plan and same-plan schedule and uniquely
 owns its persistent prepared resources. The schedule orders an optional first representation-
 creation occurrence, executable and [buffer](../glossary.md#term-buffer)-transfer occurrences, and a dense final publication
-suffix. Repeated executable or transfer occurrences [mean](../glossary.md#term-mean) repeated work and do not duplicate
+suffix. Repeated executable or transfer occurrences mean repeated work and do not duplicate
 resource [ownership](../glossary.md#term-ownership). Prepared recipes are [immutable](../glossary.md#term-immutable) and reusable. Each active complete logical [run](../glossary.md#term-run)
 has one isolated [mutable](../glossary.md#term-mutable) `RunState`, even when its schedule spans multiple [backends](../glossary.md#backend). Runtime owns logical slot
 state, [ownership](../glossary.md#term-ownership-meanings) transitions, validity/residency, cleanup orchestration, and run isolation;
@@ -278,7 +278,7 @@ the first action, traverses them in schedule order, and returns the complete sta
 [`RunResult`](../glossary.md#run-result--runresult) lease. Separate calls may share the immutable recipe but never runner-created mutable
 state.
 
-For the executable fixed recurrent [scan](../glossary.md#term-cumulative-scan), Runtime receives only ordinary caller-input
+For the executable fixed recurrent [scan](../glossary.md#term-fixed-recurrent-scan), Runtime receives only ordinary caller-input
 representations, one reusable [prepared executable](../glossary.md#prepared-executable--preparedexecutable) recipe, cold-bound direct references, and an
 isolated `RunState`. It does not inspect the valid-length value, interpret direction or
 recurrence, choose loop bounds, or compact active rows.
@@ -292,7 +292,7 @@ prepared memory validation, and [prepared schedule](../glossary.md#prepared-sche
 
 [Prepare](../glossary.md#prepare) bridges [compile artifacts](../glossary.md#compile-artifacts) to [runtime](../glossary.md#term-runtime) contracts, but shared prepare code does not contain concrete [CPU](../glossary.md#term-cpu), [Metal](../glossary.md#term-metal), or [CUDA](../glossary.md#term-cuda) [lowering](../glossary.md#lowering), [kernel](../glossary.md#kernel) selection, executable implementations, or backend-specific storage. Those belong to [concrete backend](../glossary.md#concrete-backend) [modules](../glossary.md#term-module).
 
-The executable fixed recurrent [scan](../glossary.md#term-cumulative-scan) needs no shared loop-body contract. Prepare projects one
+The executable fixed recurrent [scan](../glossary.md#term-fixed-recurrent-scan) needs no shared loop-body contract. Prepare projects one
 ordinary static-[Shape](../glossary.md#shape) partition [occurrence](../glossary.md#term-occurrence), accepts the backend's [opaque](../glossary.md#term-opaque) one-time recurrent-loop
 analysis and exact resource declarations, assigns slots, and supplies those assignments for
 finalization through the existing staged [lifecycle](../glossary.md#lifecycle).
@@ -340,7 +340,7 @@ routes, one fixed [complete-plan candidate](../glossary.md#complete-plan-candida
 multiple-[partition](../glossary.md#partition), and [MPSGraph](../glossary.md#term-mpsgraph)-only Metal plans remain ineligible. Any allowed fallback stays
 with the already-selected adapter.
 
-For a runnable fixed recurrent [scan](../glossary.md#term-cumulative-scan), Engine owns the checked typed mapping from the logical input
+For a runnable fixed recurrent [scan](../glossary.md#term-fixed-recurrent-scan), Engine owns the checked typed mapping from the logical input
 [Tensors](../glossary.md#tensor), including `INT64[batch]` valid lengths, to ordered Runtime caller-input representations
 and from publication positions to typed outputs. A length value never causes [graph capture](../glossary.md#capture-graph-ports-and-reconstruction),
 [specialization](../glossary.md#term-specialization), or preparation to repeat.
@@ -366,7 +366,7 @@ Metal also owns its [immutable](../glossary.md#term-immutable) public configurat
 construction, and partial-open [rollback](../glossary.md#term-rollback). [Engine](../glossary.md#term-engine) may own an already-opened Metal integration, but
 it neither duplicates that configuration nor interprets Metal options.
 
-A backend that implements fixed recurrent [scan](../glossary.md#term-cumulative-scan) advertises only the exact variant, floating type,
+A backend that implements fixed recurrent [scan](../glossary.md#term-fixed-recurrent-scan) advertises only the exact variant, floating type,
 fully static [Shape](../glossary.md#shape), and direction combinations it executes. Analysis lowers one ordinary [node](../glossary.md#node) to
 one bounded recurrent-loop plan and declares all resources before slot assignment; finalization
 constructs the reusable executable. Before output mutation, execution validates every length in
@@ -380,7 +380,7 @@ does not leak into [planning](../glossary.md#term-planning) or shared parameter 
 
 Backends may consume [model](../glossary.md#term-model), config, planning, [runtime](../glossary.md#term-runtime), prepare, backend-contract, and trace contracts. They must not own public [tensor](../glossary.md#tensor) APIs or global [compiler](../glossary.md#term-compiler) logic, and must not depend on engine.
 
-`modules/backend/openblas-provider` is a lower-level [leaf](../glossary.md#term-leaf) used by the [CPU](../glossary.md#term-cpu) backend. It owns loading, [symbol](../glossary.md#term-symbol) [binding](../glossary.md#term-binding), [GEMM](../glossary.md#general-matrix-multiplication--gemm) calls, and thread control only. It does not interpret config, decide fallback or [ownership](../glossary.md#term-ownership-meanings), participate in planning, manage [residency](../glossary.md#residency), or expose the Tensor [API](../glossary.md#term-application-programming-interface-api). [Dependency direction](../glossary.md#java-platform-and-build-tools) is `modules/backend/cpu -> modules/backend/openblas-provider`.
+`modules/backend/openblas-provider` is a lower-level [leaf](../glossary.md#term-dependency-leaf) used by the [CPU](../glossary.md#term-cpu) backend. It owns loading, [symbol](../glossary.md#term-symbol) [binding](../glossary.md#term-binding), [GEMM](../glossary.md#general-matrix-multiplication--gemm) calls, and thread control only. It does not interpret config, decide fallback or [ownership](../glossary.md#term-ownership-meanings), participate in planning, manage [residency](../glossary.md#residency), or expose the Tensor [API](../glossary.md#term-application-programming-interface-api). [Dependency direction](../glossary.md#java-platform-and-build-tools) is `modules/backend/cpu -> modules/backend/openblas-provider`.
 
 ## Extensions
 
@@ -432,7 +432,7 @@ without live supported storage. Mutating an export does not change counts or ano
 
 This separates immutable host declarations from [mutable](../glossary.md#term-mutable) execution inputs without making [NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context) depend
 on Data or adding another prepared/[resource owner](../glossary.md#ownership-borrowing-and-lease). The first proof uses canonical [FLOAT32](../glossary.md#term-float32)
-`[T,B,F]` numeric values and existing [scan](../glossary.md#term-cumulative-scan) Models; Text IDs → [Embedding](../glossary.md#embedding) → scan requires a separate
+`[T,B,F]` numeric values and existing scan Models; Text IDs → [Embedding](../glossary.md#embedding) → scan requires a separate
 integer-input/Embedding builder decision. [ADR 0044](../design/decisions/0044-opt-in-scan-length-tensor-export.md)<span data-glossary-navigation="true"> ([ADR glossary](../glossary.md#term-architecture-decision-record-adr))</span>
 explains the choice and its explicit [O(B)](../glossary.md#memory-management-atomic-counters-and-complexity) count-copy cost. Model retains Tensor/storage semantics;
 NN, Training and [Engine](../glossary.md#term-engine) retain their existing roles. [ADR 0042](../design/decisions/0042-data-extension-boundary.md) explains the empty foundation
@@ -456,7 +456,7 @@ are `[[2,3],[0,1]]`, with counts `[2,1]`. This preserves case and uses [UNK](../
 An application can compose the resulting [Tensor](../glossary.md#tensor) with unchanged [Embedding](../glossary.md#embedding) and public [Engine](../glossary.md#term-engine);
 the external integration project verifies actual numerical values, including an ordinary
 nonzero [PAD](../glossary.md#frozen-whitespace-tokenizer) row. Adding [NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context)/Engine to Text to perform this work would reverse the boundary.
-LEFT preparation does not change the [scan](../glossary.md#term-cumulative-scan)'s right-prefix semantics or bind [host](../glossary.md#term-host) counts at [runtime](../glossary.md#term-runtime).
+LEFT preparation does not change the scan's right-prefix semantics or bind [host](../glossary.md#term-host) counts at [runtime](../glossary.md#term-runtime).
 See [ADR 0043](../design/decisions/0043-whitespace-text-and-padded-integral-batches.md)<span data-glossary-navigation="true"> ([ADR glossary](../glossary.md#term-architecture-decision-record-adr))</span> for migration
 and the [Text API example](../reference/text/tokenization.md#complete-example) for caller-owned composition.
 Vision remains separately gated.
@@ -488,7 +488,7 @@ or runner is introduced by this NN capability.
 
 The existing static [RNN](../glossary.md#term-recurrent-neural-network-rnn), [GRU](../glossary.md#term-gated-recurrent-unit-gru), [LSTM](../glossary.md#term-long-short-term-memory-lstm), and bidirectional containers retain their snapshotted Java
 `long[]`, static unroll, compact per-step output, and final-state contracts. NN does not own the
-fixed [scan](../glossary.md#term-cumulative-scan) [operation](../glossary.md#operation) or its prepared loop, and no existing container is silently redirected to
+fixed [scan](../glossary.md#term-fixed-recurrent-scan) [operation](../glossary.md#operation) or its prepared loop, and no existing container is silently redirected to
 it. The additive one-directional `forwardScan` methods delegate to Model's matching fixed scan
 constructor using that same owned cell's current parameters, explicit [runtime](../glossary.md#term-runtime)-length Tensor,
 states and direction. For example, LSTM returns dense outputs and explicit final hidden/cell
@@ -504,7 +504,7 @@ Data integration is separate future work.
 
 ### Owned [tensor](../glossary.md#tensor) [Model](../glossary.md#term-model) composition
 
-The implemented all-valid general-[scan](../glossary.md#term-cumulative-scan) workflow uses existing Model.[graph](../glossary.md#graph)/defineTensor and cached
+The implemented all-valid general-[scan](../glossary.md#general-differentiable-scan) workflow uses existing Model.[graph](../glossary.md#graph)/defineTensor and cached
 compute/configureTraining/train [owners](../glossary.md#term-owner). Acquisition delegates to [Compiler](../glossary.md#term-compiler)'s bounded cold inventory
 through [Checkpoint](../glossary.md#term-checkpoint)'s attachment-preserving in-memory copy/[rebind](../glossary.md#capture-graph-ports-and-reconstruction), independently of [CPU](../glossary.md#term-cpu) support.
 [Canonical](../glossary.md#term-canonical-form) static [homogeneous](../glossary.md#term-homogeneous) [FLOAT32](../glossary.md#term-float32)/[FLOAT64](../glossary.md#term-float64) occurrences may compute and train where their actual
@@ -639,13 +639,13 @@ External old-model users need an explicit NN [dependency](../glossary.md#term-de
 forwarders exist. The following old-format behavior is unchanged.
 Its [artifact](../glossary.md#term-artifact) [API](../glossary.md#term-application-programming-interface-api) saves and reads one bounded file of [opaque](../glossary.md#term-opaque) named byte payloads.
 The file is forced and fully validated before one [atomic move](../glossary.md#term-atomic-move); success gives [atomic](../glossary.md#resource-transaction-and-rollback) live
-visibility, not portable power-[loss](../glossary.md#loss) persistence of the rename. It does not interpret a [payload](../glossary.md#artifact-envelope-and-atomic-publication)
+visibility, not portable power-loss persistence of the rename. It does not interpret a [payload](../glossary.md#artifact-envelope-and-atomic-publication)
 as a [Tensor](../glossary.md#tensor) or model state. The public model [facade](../glossary.md#term-facade) adds that interpretation: it [captures](../glossary.md#term-capture-meanings) one
 complete NN [snapshot](../glossary.md#term-snapshot), materializes through bounded public [Engine](../glossary.md#term-engine) compute, and exposes [detached](../glossary.md#detached-model-results)
 typed inspection. Load checks the caller fingerprints and complete file, then reconstructs [host](../glossary.md#term-host)
 Tensors and asks NN to install the entire state dictionary. A fully bound [target](../glossary.md#term-target) defines v1
 [alias](../glossary.md#aliasing-and-arena) groups; unbound/[lazy](../glossary.md#term-lazy-evaluation) targets fail. NN paths stay in [metadata](../glossary.md#term-metadata) while fixed ordinal artifact
-keys [carry](../glossary.md#term-carry) bytes. For example, a [buffer](../glossary.md#term-buffer) named `重み` is stored as metadata path `重み` while its
+keys carry bytes. For example, a [buffer](../glossary.md#term-buffer) named `重み` is stored as metadata path `重み` while its
 bytes reside at `state/00000000`. See the [model checkpoint API](../reference/checkpoint/models.md),
 [artifact API](../reference/checkpoint/artifacts.md),
 [envelope decision](../design/decisions/0032-checkpoint-artifact-envelope.md), and
@@ -712,7 +712,7 @@ Owns [ONNX](../glossary.md#term-onnx) import, export, and mapping to and from th
 evidence. It compares [commits](../glossary.md#commit-release-distribution-log-and-seed-meanings), models, and environments without selecting or mutating production
 settings.
 
-`tools/tuning` [coordinates](../glossary.md#axis-rank-scalar-vector-and-matrix) one explicit [model](../glossary.md#term-model)-[autotuning](../glossary.md#autotuning--model-autotuning) workflow. It reuses or measures [canonical](../glossary.md#term-canonical-form)
+`tools/tuning` coordinates one explicit [model](../glossary.md#term-model)-[autotuning](../glossary.md#autotuning--model-autotuning) workflow. It reuses or measures [canonical](../glossary.md#term-canonical-form)
 local workload [signatures](../glossary.md#term-signature), then measures a bounded set of complete valid [graph](../glossary.md#graph) and plan
 candidates end to end. [Compiler](../glossary.md#term-compiler), [planning](../glossary.md#term-planning), [prepare](../glossary.md#prepare), and concrete [backends](../glossary.md#backend) generate candidates for
 their own decisions. Tuning owns measurement, explicit [cache](../glossary.md#term-cache) coordination, and selection, not

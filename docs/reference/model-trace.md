@@ -41,11 +41,11 @@ The implemented `modules:trace` surface contains:
   and `TraceNativeStatusKind` vocabulary plus exact-code [`TraceNativeStatus`](../glossary.md#trace-native-status--tracenativestatus); and
 - immutable `BackendPreparationOutcome` and `BackendInvocationOutcome` payloads.
 
-The outcome payloads [carry](../glossary.md#term-carry) only trace-owned IDs and closed neutral facts. Success requires present
+The outcome payloads carry only trace-owned IDs and closed neutral facts. Success requires present
 native success; failure permits no native status or a present non-success status. `NOT_QUERIED`
 records no [cache](../glossary.md#term-cache) [lookup](../glossary.md#term-lookup) and is not a miss. The [tracing explanation](../architecture/tracing.md)
 documents exact component roles, correlation, and [ownership](../glossary.md#term-ownership-meanings) boundaries. The producer owns
-correlation allocation, uniqueness, [lifetime](../glossary.md#term-lifetime), mapping, timestamps, and emission. Broader [payload](../glossary.md#artifact-envelope-and-atomic-publication)
+correlation allocation, uniqueness, [lifetime](../glossary.md#term-lifetime), mapping, timestamps, and emission. Broader [payload](../glossary.md#trace-payload--tracepayload)
 families, [partition](../glossary.md#partition)/schedule/run IDs, typed backend attributes, [serialization](../glossary.md#term-serialization), sinks, and shared or
 generic emission facilities remain planned. Backend is a producer role, not another lifecycle
 phase.

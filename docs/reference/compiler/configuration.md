@@ -88,10 +88,10 @@ GraphOptimizationConfig standardOptimization =
 ```
 
 The first value requests that the compiler skip optional semantics-preserving optimization.
-It cannot disable [graph capture](../../glossary.md#capture-graph-ports-and-reconstruction), ordering, [inference](../../glossary.md#term-inference), validation, mandatory canonical
+It cannot disable [graph capture](../../glossary.md#capture-graph-ports-and-reconstruction), ordering, [inference](../../glossary.md#term-inference-meanings), validation, mandatory canonical
 representation, mode-required autograd, publication [binding](../../glossary.md#term-binding), planning, preparation, or execution.
 The second permits the compiler's standard optional semantics-preserving pipeline without freezing
-a pass list, pass order, internal graph [shape](../../glossary.md#shape), or implementation strategy. It permits no
+a pass list, pass order, internal graph shape, or implementation strategy. It permits no
 approximate mathematics, changed numerical semantics, backend-specific [fusion](../../glossary.md#term-fusion), preparation, or
 execution behavior. Direct construction retains either primitive [boolean](../../glossary.md#data-type--datatype) value, and both factories
 return fresh values. The package-private compiler transformation boundary consumes this

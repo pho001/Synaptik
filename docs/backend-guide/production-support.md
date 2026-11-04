@@ -78,7 +78,7 @@ typed discrete intermediates and proved coordinate semantics. This is not arbitr
 | Affine/movement/windows | Declared reshape/rank edits/permute, SELECT/checked signed-step [SLICE](../glossary.md#slice), [PAD](../glossary.md#padding)/TILE, bounded one-pass CONCAT/STACK/replacement, UNFOLD_AXIS/2D/3D and FOLD_AXIS/2D/3D | Signed/empty [materialization](../glossary.md#materialization) and negative-step extraction/update adjoints passed. Seventeen-input CONCAT/STACK passed every-input and repeated-[identity](../glossary.md#term-identity-meanings) cotangents; composed 65-input consumers also passed within checked generation limits. Raw movement covers all seven carriers. UNFOLD3D preserves raw F32/F64/BF16/F16 words; arithmetic FOLD3D remains F32/F64. Static noncontiguous RESHAPE materializes through the existing ordinal copy; the low-arithmetic lock remains. |
 | [Gather](../glossary.md#gather)/scatter/one-hot | Exact index shape and [INT32](../glossary.md#data-type--datatype)/[INT64](../glossary.md#data-type--datatype) bounds; declared NONE/ADD/MUL/MIN/MAX modes | Both types passed gather/gatherElements/gatherNd and all five scatterElements/scatterNd modes, data/update roles, duplicates and zero products. Bounds/uniqueness pre-write tests remain independent; no index cotangent. |
 | Ordering and [extrema](../glossary.md#saturation-pole-and-extremum) | Stable SORT/ARGSORT/TOP_K and exact tie/index behavior | Both types passed actual SORT/TOP_K value gradients against scalar oracles; indices have no cotangent. Tie/special/other geometry qualification is not inferred from separated-value cases. |
-| Attention | Rank>=2 Q/K/V, exact [contraction](../glossary.md#contraction-dimension) and broadcast batches, optional BOOL/[causal mask](../glossary.md#causal-mask) and normalized weights | Both types passed joint output/weights gradients for all Q/K/V roles, masked and unmasked. Literal [EXP](../glossary.md#term-expx) overflow/[underflow](../glossary.md#term-underflow) and nonempty negative-zero value contractions passed separately, including controlled single-output [Scan](../glossary.md#term-cumulative-scan) with inactive NaNs. Ordinary AD requires canonical two-output form; one-output construction is forward-only for AD. Masks have no cotangent, weights no V route. |
+| Attention | Rank>=2 Q/K/V, exact [contraction](../glossary.md#contraction-dimension) and broadcast batches, optional BOOL/[causal mask](../glossary.md#causal-mask) and normalized weights | Both types passed joint output/weights gradients for all Q/K/V roles, masked and unmasked. Literal [EXP](../glossary.md#term-expx) overflow/[underflow](../glossary.md#term-underflow) and nonempty negative-zero value contractions passed separately, including controlled single-output [Scan](../glossary.md#general-differentiable-scan) with inactive NaNs. Ordinary AD requires canonical two-output form; one-output construction is forward-only for AD. Masks have no cotangent, weights no V route. |
 | Explicit [RNG](../glossary.md#graph-rng-state--graphrngstate)/[dropout](../glossary.md#dropout--inverted-dropout) | Existing state/mask/next-state signatures and typed value semantics | No derivative for state/mask. Scan purity must follow the actual effect contract, not assume every random operation is pure. |
 | Fixed recurrent scans | Existing explicit RNN/[GRU](../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../glossary.md#term-long-short-term-memory-lstm) constructors and CPU forward [kernels](../glossary.md#kernel) | CPU evidence here covers forward execution, including shared first-product signs and both-direction RNN negative-zero sequence/final-state [publication](../glossary.md#term-publication). Shared fixed-cell first-order rules are no longer categorically deferred; actual [Metal](../glossary.md#term-metal) F32/BF16/F16 all-role proof is recorded below and does not itself qualify CPU fixed-cell training. Fixed recipes retain their own working/publication semantics rather than becoming GeneralScan recipes. |
 | General Scan / practical RNN | Ordinary CPU-supported [PURE](../glossary.md#term-pure) bodies, static/qualified one-B F32/F64, per-value typed intermediates; all-valid whole-Tensor or length-mode proved ROW(axis)/SHARED semantics | Compiler0017/CPU0081 are integrated and source/consumer-qualified: ordinary [lowering](../glossary.md#lowering)/emission, actual selected VJPs, structural activity, guards, empty/T0 caller publication, reuse and genuine old-recipe replay. The bounded public RNN train/save/load/new-train workflow remains separately qualified. Metal Scan has independent qualification below; broader cold/wire support is not inferred. |
@@ -107,7 +107,7 @@ nondifferentiable/deferred roles are classified separately. These are bounded fi
 every possible Model geometry; execution [hashes](../glossary.md#term-hash) are not numerical correctness proof.
 
 Independent forward/[derivative](../glossary.md#term-derivative) oracles passed 178 cases: 81 ordinary cases per floating type
-and sixteen [Pool3d](../glossary.md#pool3d--ncdhw-pooling) [Scan](../glossary.md#term-cumulative-scan) cases. Additional public witnesses cover promoted operands/original
+and sixteen [Pool3d](../glossary.md#pool3d--ncdhw-pooling) [Scan](../glossary.md#general-differentiable-scan) cases. Additional public witnesses cover promoted operands/original
 [cotangent](../glossary.md#cotangent) types, signed slicing/update, [variadic](../glossary.md#term-variadic)/repeated [identities](../glossary.md#term-identity-meanings) and composite special values.
 A separate generated TILE witness checked `[200001,2,3]`, [strides](../glossary.md#term-stride) `[8,3,2]`, offset `5`, split
 ranges, [heap](../glossary.md#term-heap)/segment outputs and untouched holes. Current-quotient checks prevent cyclic CPU units.
@@ -131,7 +131,7 @@ weight/bias for three steps, saved, closed and loaded bit-exact [parameters](../
 fresh training and passed another independent [oracle](../glossary.md#term-test-oracle)-checked [SGD](../glossary.md#term-stochastic-gradient-descent-sgd) step. CPU [general Scan](../glossary.md#general-differentiable-scan) also
 composed actual Conv3d forward and reverse in eight independent [finite-difference](../glossary.md#term-finite-difference-gradient-check) cases:
 all-valid/length-aware, both traversal directions, and F32/F64. There is no new 3D blacklist;
-complete body/binder [qualification](../glossary.md#term-qualification) and [Scan](../glossary.md#term-cumulative-scan) higher-order restrictions still apply.
+complete body/binder [qualification](../glossary.md#term-qualification) and [Scan](../glossary.md#general-differentiable-scan) higher-order restrictions still apply.
 
 Pool3d completion independently qualifies CPU F32/F64 and [Metal](../glossary.md#term-metal) F32/[BF16](../glossary.md#floating-point-precision-and-rounding)/[F16](../glossary.md#floating-point-precision-and-rounding) forward and
 actual backward through shared [pooling](../glossary.md#term-pooling) adjoints and `UNFOLD3D`/`FOLD3D`, without new standalone
@@ -160,7 +160,7 @@ native FP8 instruction, a [Metal](../glossary.md#term-metal) FP8 route, or a qua
 This anchor is retained for existing links; the CPU0078 lock is historical and superseded by
 the [CPU low-precision parity cutover](../architecture/contracts/backend-execution.md#cpu-low-precision-parity-cutover).
 [BFLOAT16](../glossary.md#term-bfloat16), [FLOAT16](../glossary.md#term-float16), FLOAT8_E4M3 and FLOAT8_E5M2 now reuse ordinary CPU numerical [owners](../glossary.md#term-owner),
-shared [Compiler](../glossary.md#term-compiler) first-order [AD](../glossary.md#autograd), fixed/general/length-aware [Scan](../glossary.md#term-cumulative-scan), qualified symbolic geometry
+shared [Compiler](../glossary.md#term-compiler) first-order [AD](../glossary.md#autograd), fixed/general/length-aware Scan, qualified symbolic geometry
 and Training. This is not a second executor, hidden quantization scale or [runtime](../glossary.md#term-runtime) unlock.
 Each family still checks its exact [dtype](../glossary.md#data-type--datatype)/promotion, [shape](../glossary.md#shape), [layout](../glossary.md#layout), value, resource and [alias](../glossary.md#aliasing-and-arena) domain;
 functional parity is not universal geometry, strategy or performance [qualification](../glossary.md#term-qualification).
@@ -170,7 +170,7 @@ functional parity is not universal geometry, strategy or performance [qualificat
 | Storage | [BF16](../glossary.md#floating-point-precision-and-rounding)/[F16](../glossary.md#floating-point-precision-and-rounding) use raw shorts; E4M3/E5M2 use raw bytes, never [BOOL](../glossary.md#data-type--datatype) [normalization](../glossary.md#term-normalization). |
 | Numerical operations | [Homogeneous](../glossary.md#term-homogeneous) low outputs retain their type; [FLOAT32](../glossary.md#term-float32) working arithmetic and accumulators end in one final RNE ([round-to-nearest, ties-to-even](../glossary.md#floating-point-precision-and-rounding)) narrowing per ordinary [operation](../glossary.md#operation)/public/saved boundary. Unlike low types promote to [F32](../glossary.md#floating-point-precision-and-rounding); [F64](../glossary.md#floating-point-precision-and-rounding) dominates. Existing F32/F64 behavior remains. |
 | Exact operations | Raw movement, same-type casts, ABS/NEG, comparison, ordering, winner/WHERE selection, indices, [masks](../glossary.md#term-boolean-mask) and [RNG state](../glossary.md#graph-rng-state--graphrngstate) retain exact contracts. Arithmetic [NaN payload](../glossary.md#nan-infinity-and-signed-zero) latitude does not apply to selected/copied stored [NaN](../glossary.md#term-nan) bits. |
-| Casts and FP8 range | Direct F64/integer casts round directly to the [target](../glossary.md#term-target). [Widening](../glossary.md#term-widening) preserves representable NaN sign/[payload](../glossary.md#artifact-envelope-and-atomic-publication). E4M3 has max 448 and no [infinity](../glossary.md#term-infinity): the [finite](../glossary.md#term-finite) 464 tie rounds to 448, above it/infinity input becomes [canonical NaN](../glossary.md#term-canonical-nan) 0x7f. E5M2 has max 57344 and signed infinity; numeric NaNs narrow to 0x7e. Same-type/raw import preserves every bit. |
+| Casts and FP8 range | Direct F64/integer casts round directly to the [target](../glossary.md#term-target). [Widening](../glossary.md#term-widening) preserves representable NaN sign/[payload](../glossary.md#term-nan-payload). E4M3 has max 448 and no [infinity](../glossary.md#term-infinity): the [finite](../glossary.md#term-finite) 464 tie rounds to 448, above it/infinity input becomes [canonical NaN](../glossary.md#term-canonical-nan) 0x7f. E5M2 has max 57344 and signed infinity; numeric NaNs narrow to 0x7e. Same-type/raw import preserves every bit. |
 | [Extrema](../glossary.md#saturation-pole-and-extremum) | Nonempty extrema select an original represented winner; an unrepresentable E4M3 infinity sentinel must not poison it. Empty infinity results narrow to E4M3 NaN. |
 | Training | Low [parameters](../glossary.md#term-parameter) have F32 master/[optimizer](../glossary.md#term-optimizer) values, explicitly F32/F64 [scalar](../glossary.md#term-scalar) objectives, final logical narrowing and transactional nonfinite-candidate rejection/[rollback](../glossary.md#term-rollback). |
 | Native [MATMUL](../glossary.md#matrix-multiplication--matmul) | Qualified typed low inputs, strict F32 native stage, then generated final RNE narrowing; bare K > 1 geometry only. Primitive/[Graph](../glossary.md#graph)/[API](../glossary.md#term-application-programming-interface-api)/[ISA](../glossary.md#term-instruction-set-architecture-isa) availability is independent. Graph 3.14 rejects FP8; no native FP8 on Arm is claimed. Unsupported native recipes leave ordinary CPU selected cold, never runtime fallback. F64 remains ordinary/[OpenBLAS](../glossary.md#term-openblas), not [oneDNN](../glossary.md#term-onednn). |
@@ -199,7 +199,7 @@ unbounded geometry or performance qualification is claimed.
 
 [MLP](../glossary.md#term-multilayer-perceptron-mlp), default persistable CNN1d/2d/3d and [runtime](../glossary.md#term-runtime)-length [tanh](../glossary.md#term-tanh) [RNN](../glossary.md#term-recurrent-neural-network-rnn) support compute, one configured
 [training session](../glossary.md#training-session--trainingsession), repeated fresh [batches](../glossary.md#term-batch-machine-learning-and-hyperparameters), save, close, load and newly configured training in
-their qualified [CPU](../glossary.md#term-cpu) domains. Earlier [Metal](../glossary.md#term-metal) [F32](../glossary.md#floating-point-precision-and-rounding) MLP/CNN1d/2d/3d and runtime-length general-[Scan](../glossary.md#term-cumulative-scan)
+their qualified [CPU](../glossary.md#term-cpu) domains. Earlier [Metal](../glossary.md#term-metal) [F32](../glossary.md#floating-point-precision-and-rounding) MLP/CNN1d/2d/3d and runtime-length general-[Scan](../glossary.md#general-differentiable-scan)
 RNN passed actual-[GPU](../glossary.md#term-gpu) [parameter](../glossary.md#term-parameter) updates/save/load/fresh training without CPU fallback. Current
 F32/[BF16](../glossary.md#floating-point-precision-and-rounding)/[F16](../glossary.md#floating-point-precision-and-rounding) owned MLP, [Conv3d](../glossary.md#conv3d--ncdhw)/overlapping [Pool3d](../glossary.md#pool3d--ncdhw-pooling) and explicit GeneralScan RNN evidence is below.
 
@@ -229,7 +229,7 @@ Its 924 selection rejections are historical baseline classifications, not curren
 [Model](../glossary.md#term-model)-illegal projections and nondifferentiable/deferred roles were counted separately. In
 particular, its seventeen-input CONCAT/STACK exclusion is obsolete. Current composition uses
 dynamic operand references and one disjoint direct-copy child per operand through the same
-ordinary/[Scan](../glossary.md#term-cumulative-scan) [owner](../glossary.md#term-owner), not N-wide [argument](../glossary.md#term-argument) [binding](../glossary.md#term-binding) or an intermediate pairwise [tensor](../glossary.md#tensor) chain.
+ordinary/[Scan](../glossary.md#general-differentiable-scan) [owner](../glossary.md#term-owner), not N-wide [argument](../glossary.md#term-argument) [binding](../glossary.md#term-binding) or an intermediate pairwise [tensor](../glossary.md#tensor) chain.
 The common [rank](../glossary.md#term-rank)-sixteen and checked geometry/span/[dispatch](../glossary.md#term-dispatch)/workspace bounds remain. Fresh
 complete per-operation catalogs contain 5,018 rows per [backend](../glossary.md#backend). Metal completed 908 forward and
 1,156 selected first-order AD runs without an execution-stage failure. Each F32/BF16/F16 projection
@@ -297,7 +297,7 @@ also passes a rebuilt source-matched native install, full GPU/public integration
 MLP/CNN training/[persistence](../glossary.md#term-persistence) and all-seven-[carrier](../glossary.md#term-storage-carrier) raw movement. Raw and mixed public before/after
 probes isolate and repair Foundation [host](../glossary.md#term-host)-copy retention: the named IOAccelerator category stays
 flat across repeated windows, including 3,288 retained closed handles. Full-process footprint,
-which includes [warmup](../glossary.md#term-warmup) and retained Java [metadata](../glossary.md#term-metadata), is not claimed [constant](../glossary.md#term-constant). This [finite](../glossary.md#term-finite) observation
+which includes [warmup](../glossary.md#term-warmup) and retained Java [metadata](../glossary.md#term-metadata), is not claimed [constant](../glossary.md#term-constant). This finite observation
 is not universal allocation proof. Final independent source/evidence/docs review accepted Metal0082
 with zero P1/P2 findings; the component is Complete.
 
@@ -331,7 +331,7 @@ Accepted bounded [RNN](../glossary.md#term-recurrent-neural-network-rnn) and wir
 in the coordinator's source-[snapshot](../glossary.md#term-snapshot) evidence, not inferred from [operation](../glossary.md#operation) counts.
 Another 54 ordinary and 30 indexing/ordering public cases passed independent [scalar](../glossary.md#term-scalar) forward and
 actual all-role [Compiler](../glossary.md#term-compiler) [gradients](../glossary.md#term-gradient) in both CPU types. These are [finite](../glossary.md#term-finite) [canonical](../glossary.md#term-canonical-form) geometries,
-not automatic special-value/[layout](../glossary.md#layout)/strategy or all-[PURE](../glossary.md#term-pure) [Scan](../glossary.md#term-cumulative-scan) proof.
+not automatic special-value/[layout](../glossary.md#layout)/strategy or all-[PURE](../glossary.md#term-pure) [Scan](../glossary.md#general-differentiable-scan) proof.
 
 The original general-Scan baseline rejected all 24 attempted [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding) RELU/[SOFTMAX](../glossary.md#softmax--log-softmax)/LayerNorm
 combinations across both modes/traversals. Those before-failures remain retained. The unchanged
@@ -342,7 +342,7 @@ and all twelve Javadocs. Independent final semantic/physical [ownership](../glos
 zero findings. This is component acceptance; it does not imply universal layout or performance.
 
 [Engine0022](../planning/modules/engine/tasks/0022-result-publication-and-closed-payload-cleanup.md#result)
-repairs the reproduced closed-[publication](../glossary.md#term-publication) [heap](../glossary.md#term-heap)-[payload](../glossary.md#artifact-envelope-and-atomic-publication) retention and advanced publication [rollback](../glossary.md#term-rollback)
+repairs the reproduced closed-[publication](../glossary.md#term-publication) [heap](../glossary.md#term-heap)-payload retention and advanced publication [rollback](../glossary.md#term-rollback)
 gap. Independent approval, affected gates and public both-type heap/[lifetime](../glossary.md#term-lifetime)/precedence/[race](../glossary.md#term-race) proof
 passed. The heap diagnostic is not native-memory plateau evidence or a whole-[release](../glossary.md#term-release) qualification.
 
@@ -386,7 +386,7 @@ with actual native execution records. The [CPU guide](cpu-backend.md#evidence-an
 records exact [target](../glossary.md#term-target) [identity](../glossary.md#term-identity-meanings), numerical exclusions and report-only complete-plan timings.
 
 The rebuilt, locally signed and verified Metal package passed actual [F32](../glossary.md#floating-point-precision-and-rounding)/[BF16](../glossary.md#floating-point-precision-and-rounding)/[F16](../glossary.md#floating-point-precision-and-rounding) singleton
-[publication](../glossary.md#term-publication), ordinary/[vector](../glossary.md#term-vector)/batched/transposed and controlled [Scan](../glossary.md#term-cumulative-scan) numerical checks. Its
+[publication](../glossary.md#term-publication), ordinary/[vector](../glossary.md#term-vector)/batched/transposed and controlled [Scan](../glossary.md#general-differentiable-scan) numerical checks. Its
 library [SHA-256](../glossary.md#term-sha-256) is `f9f18b2378403b65629de1900b21235b3a44e4e06b709bac81263e9904bf6334`;
 semantic identity is 43, with ABI7/schema22 unchanged.
 
@@ -441,7 +441,7 @@ with nine executed and 150 up-to-date. This accepts retained successful reports,
 that every test was freshly executed in the final command. Earlier failed commands remain
 failed evidence.
 
-The current numerical, [operation](../glossary.md#operation)-catalog, wide [Scan](../glossary.md#term-cumulative-scan), owned training and cold-replay evidence
+The current numerical, [operation](../glossary.md#operation)-catalog, wide [Scan](../glossary.md#general-differentiable-scan), owned training and cold-replay evidence
 above is distinct from the ten optional native [dispatch](../glossary.md#term-dispatch)-[observer](../glossary.md#term-observer) skips. [CPU](../glossary.md#term-cpu) low arithmetic,
 general Metal [F64](../glossary.md#floating-point-precision-and-rounding) arithmetic, arbitrary geometry/higher-order closure and trusted public
 prebuilt [publication](../glossary.md#term-publication) remain outside this acceptance.
@@ -498,7 +498,7 @@ Every one of the sixteen resolved [runtime](../glossary.md#term-runtime) JARs ma
 
 Both installations passed CPU [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding) and Metal-only F32 [MLP](../glossary.md#term-multilayer-perceptron-mlp)/[CNN](../glossary.md#term-convolutional-neural-network-cnn)/runtime-length [RNN](../glossary.md#term-recurrent-neural-network-rnn) workflows,
 [Conv3d](../glossary.md#conv3d--ncdhw) → max/average Pool3d → dense all-[parameter](../glossary.md#term-parameter) training/save/close/load/fresh training, and
-24 Pool3d [Scan](../glossary.md#term-cumulative-scan) [finite-difference](../glossary.md#term-finite-difference-gradient-check)/cold replay cases across the qualified types, both activity
+24 Pool3d [Scan](../glossary.md#general-differentiable-scan) [finite-difference](../glossary.md#term-finite-difference-gradient-check)/cold replay cases across the qualified types, both activity
 modes and both traversal directions. The documented FluentModelExample produced `6`, `25`,
 `-2` from installed [artifacts](../glossary.md#term-artifact) and independently compiled extracted classes.
 
@@ -534,7 +534,7 @@ explicit [oneDNN](../glossary.md#term-onednn) 3.14.0 [LP64](../glossary.md#term-
 | Joined root gate | `test build` and affected [Javadoc](../glossary.md#term-javadoc): BUILD SUCCESSFUL; 159 actionable tasks, 22 executed and 137 up-to-date. |
 | Active-[layout](../glossary.md#layout) [JUnit](../glossary.md#term-junit) receipts | 790 suites, 6,012 tests, 67 skips, zero failures/errors. These accepted reports include up-to-date tasks; they are not a claim that every test was freshly executed. |
 | Metal [module](../glossary.md#term-module) | 624 tests, ten skips, zero failures/errors. Independent actual-[GPU](../glossary.md#term-gpu) public scenarios are additional evidence, not inferred from the suite count. |
-| Ordinary [CPU](../glossary.md#term-cpu) workflow | 205 exact public checks across [BF16](../glossary.md#floating-point-precision-and-rounding)/[F16](../glossary.md#floating-point-precision-and-rounding)/[E4M3](../glossary.md#term-e4m3)/[E5M2](../glossary.md#term-e5m2): arithmetic, shared [Compiler](../glossary.md#term-compiler) [AD](../glossary.md#autograd), Pool2d/3d, changing/zero [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters), length-aware [Scan](../glossary.md#term-cumulative-scan), repeated [SGD](../glossary.md#term-stochastic-gradient-descent-sgd) and save/load with fresh training. Includes configured oneDNN policies where independently eligible. |
+| Ordinary [CPU](../glossary.md#term-cpu) workflow | 205 exact public checks across [BF16](../glossary.md#floating-point-precision-and-rounding)/[F16](../glossary.md#floating-point-precision-and-rounding)/[E4M3](../glossary.md#term-e4m3)/[E5M2](../glossary.md#term-e5m2): arithmetic, shared [Compiler](../glossary.md#term-compiler) [AD](../glossary.md#autograd), Pool2d/3d, changing/zero [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters), length-aware [Scan](../glossary.md#general-differentiable-scan), repeated [SGD](../glossary.md#term-stochastic-gradient-descent-sgd) and save/load with fresh training. Includes configured oneDNN policies where independently eligible. |
 | CPU recurrent workflow | 80 checks: active [RNN](../glossary.md#term-recurrent-neural-network-rnn)/[GRU](../glossary.md#term-gated-recurrent-unit-gru)/[LSTM](../glossary.md#term-long-short-term-memory-lstm), both directions, actual Compiler [gradients](../glossary.md#term-gradient) and length-aware [Model](../glossary.md#term-model) save/load across all four low types. |
 | Metal recurrent workflow | 40 corresponding real-[device](../glossary.md#term-device) checks across BF16/F16, both directions and [persistence](../glossary.md#term-persistence). No [FP8](../glossary.md#term-fp8) Metal domain is admitted. |
 | Targeted public repros and diagnostics | [Overflow](../glossary.md#term-overflow) versus [L2](../glossary.md#term-l2) point [identity](../glossary.md#term-identity-meanings), categorical zero gradients, exact [pooling](../glossary.md#term-pooling) divisor bits, [contraction](../glossary.md#contraction-dimension)-before-[bias](../glossary.md#term-bias), mixed-owner excess capacity, transactional restore, deep Scan/namespace and session-only tuning. CPU cold/fallback observers and native bounds/duplicate/[BOOL](../glossary.md#data-type--datatype) failures preserve actual context and native causes. |

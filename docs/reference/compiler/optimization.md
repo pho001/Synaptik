@@ -51,7 +51,7 @@ requires complete equality between the input and output `TensorDescriptor`, incl
 [layout](../../glossary.md#layout), [data type](../../glossary.md#data-type--datatype), and `requiresGrad`; the equal descriptor must have `requiresGrad == false`.
 The result must not be a graph output. The [occurrence](../../glossary.md#term-occurrence) phase is preserved. Duplicate [extrema](../../glossary.md#saturation-pole-and-extremum)
 compare already-remapped input IDs, while
-scalar rules require the exact `ScalarValueAttrs` [carrier](../../glossary.md#term-storage-carrier), matching scalar/input/output type, and
+scalar rules require the exact `ScalarValueAttrs` carrier, matching scalar/input/output type, and
 matching typed value. A prior bypass can therefore expose a later eligible occurrence during the
 same topological optimizer traversal, without a second pass.
 
@@ -168,7 +168,7 @@ constant descriptor closure, and before forward or gradient binding derivation, 
 Planning capability queries, partitioning, or logical-memory planning. Those consumers therefore
 observe the final descriptors. The closure asserts no [backend capability](../../glossary.md#backend-capability) and chooses no physical
 representation, allocation, storage, materialization, preparation, [kernel](../../glossary.md#kernel), or execution behavior.
-It is not a general layout-[inference](../../glossary.md#term-inference) or propagation policy.
+It is not a general layout-[inference](../../glossary.md#term-inference-meanings) or propagation policy.
 
 The Compiler then applies one operation-aware static-result logical-layout closure. A fully static,
 layout-unresolved result receives `LayoutDescriptor.contiguous(shape)` only when its exact

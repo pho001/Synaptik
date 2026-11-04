@@ -22,7 +22,7 @@ interchanged.
 ## Current [prepared publication](../../glossary.md#prepared-publication--preparedpublication) and result [lease](../../glossary.md#term-lease)
 
 [`PreparedPublication`](../../glossary.md#prepared-publication--preparedpublication) is an [immutable](../../glossary.md#term-immutable), reusable recipe for one ordered result position. It uses
-only dense [Runtime](../../glossary.md#term-runtime) [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix): a [buffer](../../glossary.md#term-buffer) position in one exact [`PreparedMemoryPlan`](../../glossary.md#prepared-memory-plan--preparedmemoryplan), a
+only dense [Runtime](../../glossary.md#term-runtime) coordinates: a [buffer](../../glossary.md#term-buffer) position in one exact [`PreparedMemoryPlan`](../../glossary.md#prepared-memory-plan--preparedmemoryplan), a
 representation position within that buffer in a matching [`RunState`](../../glossary.md#run-state--runstate), and a result position. These
 coordinates are not [compiler](../../glossary.md#term-compiler) [`TensorId`](../../glossary.md#tensorid) or [`ValueId`](../../glossary.md#logical-valueid-versus-physical-memory-slot) [identities](../../glossary.md#term-identity-meanings). During preparation, the current
 schedule assembler translates compiler logical [publication](../../glossary.md#term-publication) roles and assigned resources into

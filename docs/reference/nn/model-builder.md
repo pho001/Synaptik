@@ -97,7 +97,7 @@ the shared grouped [convolution](../../glossary.md#term-channels-first-convoluti
 
 For runtime lengths, append `rnnScan`, `gruScan` or `lstmScan` with a positive hidden width and end
 with `buildWithLengths()`, returning `Model<List<Tensor>,List<Tensor>>`. The two inputs are
-`[values, validLengths]`, with one chain result. Each recipe uses a biased FORWARD [scan](../../glossary.md#term-cumulative-scan), existing
+`[values, validLengths]`, with one chain result. Each recipe uses a biased FORWARD scan, existing
 initialization/[seeds](../../glossary.md#commit-release-distribution-log-and-seed-meanings), independent [parameters](../../glossary.md#term-parameter) and zero hidden state (also zero cell for LSTM).
 There is no hidden carry across batches. The first scan requires positive static TBF `[T,B,F]`
 and establishes shared canonical, non-gradient `INT64[B]` lengths; later scans preserve exact T/B

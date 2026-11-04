@@ -123,7 +123,7 @@ not [transpose](../../glossary.md#term-transpose) data or prove [contiguity](../
 
 [Rank](../../glossary.md#term-rank) must be at least two, and both leading axes must be [Model](../../glossary.md#term-model) `StaticDimension` values. B must
 equal the number of lengths, and each length must lie in `[0, T]`. Trailing [dimensions](../../glossary.md#dimension) are [opaque](../../glossary.md#term-opaque):
-they may be absent, zero, dynamic or expressions. A zero [feature](../../glossary.md#term-software-feature) extent does not force zero
+they may be absent, zero, dynamic or expressions. A zero [feature](../../glossary.md#term-feature) extent does not force zero
 counts. Every Model-valid [data type](../../glossary.md#data-type--datatype), including [BOOL](../../glossary.md#data-type--datatype), [gradient](../../glossary.md#term-gradient) flag, [provenance](../../glossary.md#provenance) and physical
 [layout](../../glossary.md#layout) is accepted; unresolved layout and absent storage are also accepted.
 
@@ -204,7 +204,7 @@ negative indices never wrap.
 
 [Metadata](../../glossary.md#term-metadata) wrapping reads only [immutable](../../glossary.md#term-immutable) [descriptor](../../glossary.md#term-descriptor)/[Shape](../../glossary.md#shape) metadata and host lengths. It does not call
 `hostStorage()`, check [liveness](../../glossary.md#term-liveness), obtain a segment or [lease](../../glossary.md#term-lease), attach or replace storage, close
-resources, [scan](../../glossary.md#term-cumulative-scan) values, create expressions, call `contiguous()` or execute. A [borrowed](../../glossary.md#ownership-borrowing-and-lease) storage
+resources, scan values, create expressions, call `contiguous()` or execute. A [borrowed](../../glossary.md#ownership-borrowing-and-lease) storage
 [scope](../../glossary.md#term-scope) may already be dead after its earlier [Model](../../glossary.md#term-model) attachment; wrapping adds no liveness check.
 Later replacement or clearing of the [Tensor](../../glossary.md#tensor)'s storage association remains governed by Model.
 The batch fixes references, not Tensor contents, and adds no readiness, [lifetime](../../glossary.md#term-lifetime) or thread-safety
@@ -216,7 +216,7 @@ The opt-in export below creates an ordinary [INT64](../../glossary.md#data-type-
 [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) batch-compute overload. [Padding](../../glossary.md#padding) lengths and dense [masks](../../glossary.md#term-boolean-mask) are derived concepts, not stored fields.
 
 <a id="explicit-runtime-scan-lengths"></a>
-## Explicit [runtime](../../glossary.md#term-runtime) [scan](../../glossary.md#term-cumulative-scan) lengths
+## Explicit [runtime](../../glossary.md#term-runtime) scan lengths
 
 `public Tensor PaddedSequenceBatch.toScanLengthsTensor()` exports valid counts in original row
 order. It checks RIGHT [padding](../../glossary.md#padding) first, then TIME_MAJOR logical [axes](../../glossary.md#term-axis). LEFT or BATCH_MAJOR throws
@@ -301,7 +301,7 @@ With [seed](../../glossary.md#term-seed) 42, the qualified [CPU](../../glossary.
 `[-0.47897735, -0.6437197]`. These are untrained model outputs, not calibrated [predictions](../../glossary.md#term-prediction).
 
 `gruScan(4)` and `lstmScan(4)` use the same values/lengths workflow. Without `finalHidden()` the
-[scan](../../glossary.md#term-cumulative-scan) returns dense `[T,B,H]`, not compact outputs; `lastTimeStep()` selects `T-1`, not each row's
+scan returns dense `[T,B,H]`, not compact outputs; `lastTimeStep()` selects `T-1`, not each row's
 last valid transition. A zero-length row returns its zero initial hidden state at the scan's
 final-state port, although an ordinary classifier [bias](../../glossary.md#term-bias) can subsequently make its score nonzero.
 
@@ -311,7 +311,7 @@ eligibility exactly; changing counts does not authorize arbitrary T, B or F. For
 reuse, [prepare](../../glossary.md#prepare) once and pass fresh values in `compiled.inputs()` order to `runValues`; preserve
 caller storage until its [`RunResult`](../../glossary.md#run-result--runresult) closes. Data performs neither [binding](../../glossary.md#term-binding) nor preparation.
 
-This Data consumer [slice](../../glossary.md#slice) uses canonical [contiguous](../../glossary.md#term-contiguous) offset-zero non-[view](../../glossary.md#term-view-meanings) FLOAT32 `[T,B,F]` with
+This Data consumer slice uses canonical [contiguous](../../glossary.md#term-contiguous) offset-zero non-[view](../../glossary.md#term-view-meanings) FLOAT32 `[T,B,F]` with
 `requiresGrad=false`, RIGHT/TIME_MAJOR [metadata](../../glossary.md#term-metadata) and positive static T/B/F for the fluent builder.
 Empty count export does not widen that builder contract; direct zero-T/B scans remain separate.
 [F32](../../glossary.md#floating-point-precision-and-rounding) `rnnScan` now composes NN0033's general [RNN](../../glossary.md#term-recurrent-neural-network-rnn), whose source outputs are canonical; retained

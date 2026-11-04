@@ -4,7 +4,7 @@
 
 This guide defines the [CPU](../glossary.md#term-cpu) integration boundary and helps contributors avoid treating CPU routes
 as separate [backends](../glossary.md#backend). The current CPU [module](../glossary.md#term-module) accepts the bounded, fully static portable families
-described below, plus separately bounded ordinary and all-valid [Scan](../glossary.md#term-cumulative-scan) named-[batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) slices.
+described below, plus separately bounded ordinary and all-valid [Scan](../glossary.md#general-differentiable-scan) named-[batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) slices.
 It publishes `CpuBackendIntegration` as the supported [lifecycle](../glossary.md#lifecycle) service-provider interface ([SPI](../glossary.md#term-service-provider-interface-spi))
 used by `Engine.standard()` and explicit `Engine.builder()` composition.
 `Engine.standard()` opens and owns a fresh integration, while
@@ -58,12 +58,12 @@ Here **[homogeneous](../glossary.md#term-homogeneous)** means that the numerical
 [batch dimension](../glossary.md#batch-dimension) B lets different runs supply different batch sizes while the prepared structure
 stays fixed; it does not make every [dimension](../glossary.md#dimension) changeable.
 
-An ordinary homogeneous [FLOAT32](../glossary.md#term-float32) graph may [carry](../glossary.md#term-carry) one named B with fixed [features](../glossary.md#term-feature)/[parameters](../glossary.md#term-parameter) and
+An ordinary homogeneous [FLOAT32](../glossary.md#term-float32) graph may carry one named B with fixed [features](../glossary.md#term-feature)/[parameters](../glossary.md#term-parameter) and
 [rank](../glossary.md#term-rank) at most two. CPU prepares [scalar](../glossary.md#term-scalar), single-range portable units once; invocation B only
 resolves numeric [extent](../glossary.md#term-extent)/[stride](../glossary.md#term-stride)/[contraction](../glossary.md#contraction-dimension) and byte recipes. The qualified closure includes
 [MATMUL](../glossary.md#matrix-multiplication--matmul), [tensor](../glossary.md#tensor)/scalar ADD/SUB/MUL/DIV, NEG/[TANH](../glossary.md#term-tanh)/[SIGMOID](../glossary.md#term-sigmoid), SUM/[MEAN](../glossary.md#term-mean) (full/selected and
 [SUM-to-Shape](../glossary.md#sum-to-shape)), logical splats, [singleton](../glossary.md#term-singleton)-preserving rank edits/RESHAPE, EXPAND, PERMUTE,
-same-type casts and [CONTIGUOUS](../glossary.md#term-contiguous). Bounded rank-three outer [Scan](../glossary.md#term-cumulative-scan) [seeds](../glossary.md#commit-release-distribution-log-and-seed-meanings)/histories and their
+same-type casts and [CONTIGUOUS](../glossary.md#term-contiguous). Bounded rank-three outer [Scan](../glossary.md#general-differentiable-scan) [seeds](../glossary.md#commit-release-distribution-log-and-seed-meanings)/histories and their
 [pointwise](../glossary.md#term-pointwise)/[layout](../glossary.md#layout)/reduction closure are additionally qualified, not arbitrary-rank operations.
 The actual [Compiler](../glossary.md#term-compiler)-generated first-order reverse of `mean(X @ W)`
 executes dX and dW; dW contracts K=B rather than creating a batch of parameters.
@@ -87,7 +87,7 @@ or identical [JIT](../glossary.md#term-just-in-time-compilation-jit) assembly. S
 an unmatched route-policy diagnostic, not isolated B-[binding](../glossary.md#term-binding) overhead.
 
 [Symbolic Scan](../glossary.md#symbolic-scan) has its own [whole-body qualification](#symbolic-scan-cpu-execution), not an
-automatic consequence of ordinary [operation](../glossary.md#operation) support. Neither [slice](../glossary.md#slice) enables [NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context)/Training
+automatic consequence of ordinary [operation](../glossary.md#operation) support. Neither slice enables [NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context)/Training
 one-state reuse, symbolic cold/wire support, wider [dtype](../glossary.md#data-type--datatype),
 native/mixed-[owner](../glossary.md#term-owner)/[vector](../glossary.md#term-vector)/parallel execution or tuning. Existing static routes remain separate.
 See the [public changing-B example](../user-guide/running-models.md#ordinary-cpu-execution-with-changing-batch-size).
@@ -105,7 +105,7 @@ All four low storage types use FLOAT32 [working arithmetic](../glossary.md#accum
 [round-to-nearest, ties-to-even](../glossary.md#floating-point-precision-and-rounding) (RNE) [narrowing](../glossary.md#term-narrowing) at each ordinary operation result, public output
 or saved boundary. Unlike low operands promote to FLOAT32; [FLOAT64](../glossary.md#term-float64) dominates. Exact movement,
 same-type casts, comparison, selection, indices, [masks](../glossary.md#term-boolean-mask) and state retain their original contracts.
-Raw [NaN](../glossary.md#term-nan) payloads survive movement/selection; arithmetic NaNs need not retain sign/[payload](../glossary.md#artifact-envelope-and-atomic-publication).
+Raw [NaN](../glossary.md#term-nan) payloads survive movement/selection; arithmetic NaNs need not retain sign/[payload](../glossary.md#term-nan-payload).
 Direct FLOAT64/integer casts round directly to the destination, without a lossy FLOAT32 step.
 Training uses FLOAT32 master/[optimizer](../glossary.md#term-optimizer) values for low parameters, narrows logical candidates
 at [commit](../glossary.md#term-commit), and rejects nonfinite represented candidates transactionally. [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding) remain supported;
@@ -316,7 +316,7 @@ universal backend coverage.
 The lower-level OpenBLAS provider separately implements explicit library loading, required-[symbol](../glossary.md#term-symbol)
 binding, a caller-owned [lookup](../glossary.md#term-lookup) [lifetime](../glossary.md#term-lifetime), low-level FLOAT32/FLOAT64 dense row-major [general matrix
 multiplication](../glossary.md#general-matrix-multiplication--gemm) ([GEMM](../glossary.md#general-matrix-multiplication--gemm)), and direct positive thread-count query/control. CPU preparation now
-consumes that [leaf](../glossary.md#term-leaf) through one narrow qualified MATMUL route; the provider still does not own
+consumes that [leaf](../glossary.md#term-dependency-leaf) through one narrow qualified MATMUL route; the provider still does not own
 graph interpretation, route selection, materialization, fallback, or Runtime lifetime.
 
 CPU also has an internal cold discovery foundation for composition code. It accepts disabled,
@@ -332,7 +332,7 @@ only after target, [binary](../glossary.md#term-binary-descriptor-and-metadata) 
 
 ## Fixed recurrent forward execution
 
-A fixed recurrent [scan](../glossary.md#term-cumulative-scan) is one flat RNN_TANH, GRU_RESET_AFTER or [LSTM](../glossary.md#term-long-short-term-memory-lstm) [occurrence](../glossary.md#term-occurrence) with [runtime](../glossary.md#term-runtime)
+A fixed recurrent [scan](../glossary.md#term-fixed-recurrent-scan) is one flat RNN_TANH, GRU_RESET_AFTER or [LSTM](../glossary.md#term-long-short-term-memory-lstm) [occurrence](../glossary.md#term-occurrence) with [runtime](../glossary.md#term-runtime)
 valid lengths, not a per-time-step [graph](../glossary.md#graph). [CPU](../glossary.md#term-cpu) executes all six biased/unbiased [signatures](../glossary.md#term-signature) and
 both directions using direct Java, one sequential [scalar](../glossary.md#term-scalar) range on the invoking thread. [Vector](../glossary.md#term-vector)
 preferences and parallel budgets do not promote the scan; other computation units keep their
@@ -351,7 +351,7 @@ referenced storage-[element](../glossary.md#term-element) span fits `int`, with 
 Input is `[T,B,I]`, hidden/cell state `[B,H]`, and packed [weights](../glossary.md#term-weight)/[bias](../glossary.md#term-bias) follow Model gate order.
 `I/H` are positive; `T/B` may be zero. [Heap](../glossary.md#term-heap) `double[]`/`float[]`/raw `short[]`/`long[]`, native
 and mixed exact aligned segments are accepted, including sliced physical bases and read-only inputs.
-The physical [slice](../glossary.md#slice) base and logical layout offset are independent. For example, `[2]` lengths
+The physical slice base and logical layout offset are independent. For example, `[2]` lengths
 with offset 3 and stride 2 read elements 3 and 5: their storage span is 6, not their logical count 2.
 Poisoned gaps are never lengths. An empty layout has span zero and never accesses its unused offset.
 
@@ -507,7 +507,7 @@ leave ordinary CPU candidates eligible during cold selection, not as execution-t
 
 Local M3 Max descriptor diagnostics admitted F32/BF16/F16 2×2 MATMUL and returned unsupported
 status 3 for both FP8 types and F64. Actual public cutover [smoke](../glossary.md#term-smoke-test) passed 205 scenarios across
-all four low types: arithmetic/shared [AD](../glossary.md#autograd), [pooling](../glossary.md#term-pooling), changing-B, length-aware [Scan](../glossary.md#term-cumulative-scan), [gradients](../glossary.md#term-gradient),
+all four low types: arithmetic/shared [AD](../glossary.md#autograd), [pooling](../glossary.md#term-pooling), changing-B, length-aware [Scan](../glossary.md#general-differentiable-scan), [gradients](../glossary.md#term-gradient),
 repeated [SGD](../glossary.md#term-stochastic-gradient-descent-sgd) and bit-exact save/load/fresh SGD. Three policies with changed [weights](../glossary.md#term-weight) confirmed
 native F16 AUTO/PRIMITIVES/GRAPH and BF16 AUTO/PRIMITIVES; BF16 GRAPH kept ordinary CPU
 for that [shape](../glossary.md#shape). Both FP8 types used ordinary CPU under every policy; no native FP8 execution
@@ -632,7 +632,7 @@ boundaries; it is not a replacement semantic graph, executor or [AD](../glossary
 [Shape](../glossary.md#shape)-[identity](../glossary.md#term-identity-meanings) reductions, including [singleton](../glossary.md#term-singleton)-only reductions inside a pipeline, reject before
 any native query: oneDNN 3.14 cannot create their reduction primitive, and its Graph [backend](../glossary.md#backend)
 can abort the process instead of returning an unsupported status.
-K=0/K=1 contractions, symbolic B, [Scan](../glossary.md#term-cumulative-scan) orchestration, row regions, opaque convolutions,
+K=0/K=1 contractions, symbolic B, [Scan](../glossary.md#general-differentiable-scan) orchestration, row regions, opaque convolutions,
 [contraction](../glossary.md#contraction-dimension) bias/post-operations and unqualified geometry remain preplanned CPU work.
 [F64](../glossary.md#floating-point-precision-and-rounding) CPU/[OpenBLAS](../glossary.md#term-openblas) behavior is unchanged; no F64 oneDNN support is claimed.
 
@@ -812,7 +812,7 @@ candidates, but the standard production composition does not.
 
 Cold binding checks each [carrier](../glossary.md#term-storage-carrier)'s type, [lifetime](../glossary.md#term-lifetime), accessibility, [alignment](../glossary.md#term-alignment), writable output
 region, represented span, and physical overlap. It also [captures](../glossary.md#term-capture-meanings) direct typed readers and
-primitive traversal geometry for value-dependent checks, but does not [scan](../glossary.md#term-cumulative-scan) values: all [partition](../glossary.md#partition)
+primitive traversal geometry for value-dependent checks, but does not scan values: all [partition](../glossary.md#partition)
 children are bound before an earlier child has produced its intermediate results.
 
 At each consumer invocation, the orchestrating thread runs those prebound checks after [producers](../glossary.md#term-producer)
@@ -839,7 +839,7 @@ whereas a [heuristic](../glossary.md#term-heuristic) is a rule-based estimate ra
 
 `CpuBackendIntegration.localWorkloadTuning()` returns the same retained
 `CpuLocalWorkloadTuning` collaboration while the integration is open. This is a supported
-composition [SPI](../glossary.md#term-service-provider-interface-spi) for the current exact/default [FLOAT32](../glossary.md#term-float32)/[FLOAT64](../glossary.md#term-float64) bare-[MATMUL](../glossary.md#matrix-multiplication--matmul) tuning [slice](../glossary.md#slice), not an
+composition [SPI](../glossary.md#term-service-provider-interface-spi) for the current exact/default [FLOAT32](../glossary.md#term-float32)/[FLOAT64](../glossary.md#term-float64) bare-[MATMUL](../glossary.md#matrix-multiplication--matmul) tuning slice, not an
 application tuning runner. Given the exact stable [`PrepareContext`](../glossary.md#prepare-context-preparecontext) for the supported sole
 non-empty [CPU](../glossary.md#term-cpu) [partition](../glossary.md#partition), `candidateHandoff(...)` performs fresh CPU analysis and returns a [handoff](../glossary.md#term-handoff) only
 when that analysis finds the complete eligible [OpenBLAS](../glossary.md#term-openblas)-versus-portable [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters). A valid but
@@ -868,7 +868,7 @@ or fallback composition uses `CpuBackendIntegration.partitionPreparation()` thro
 shared path.
 
 The collaboration does not bind representative inputs, [run](../glossary.md#term-run) a recipe, measure or benchmark it,
-choose a winner, manage warmups or [samples](../glossary.md#term-sample-machine-learning-and-hyperparameters), [coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix) a cache, or decide strict-versus-heuristic
+choose a winner, manage warmups or [samples](../glossary.md#term-sample-machine-learning-and-hyperparameters), coordinate a cache, or decide strict-versus-heuristic
 fallback. Those orchestration responsibilities remain outside the CPU [backend](../glossary.md#backend). Current
 `Engine.prepareTuned(...)` supplies representative execution, input [binding](../glossary.md#term-binding), cleanup, and fallback
 policy for the bounded CPU-only workflow while `tools/tuning` owns measurement, cache
@@ -907,7 +907,7 @@ persistent CPU model-plan [cache](../glossary.md#term-cache) reuse remain unimpl
 integration association. When the projection has an eligible Phase-1 local workload, the caller
 must supply the exact selected `CpuLocalWorkloadTuning.SelectedDecision`; when it does not, the
 optional must be empty. Phase 2 keeps that state fixed. Fresh [validation](../glossary.md#term-validation) may regenerate the
-Phase-1 batch to prove compatibility, but it does not enumerate, [rank](../glossary.md#term-rank), time, or substitute local
+Phase-1 batch to prove compatibility, but it does not enumerate, [rank](../glossary.md#term-ranking), time, or substitute local
 route candidates. Thus Phase 2 never repeats Phase-1 search.
 
 The returned batch contains every retained legal [topology](../glossary.md#term-topology)/representation combination in stable
@@ -992,7 +992,7 @@ meaning:
 |---|---:|---|
 | [`FLOAT64`](../glossary.md#term-float64) | 8 | Raw `double` bits, including [NaN payload](../glossary.md#nan-infinity-and-signed-zero)/sign, [infinities](../glossary.md#nan-infinity-and-signed-zero), and [signed zero](../glossary.md#term-signed-zero) |
 | [`FLOAT32`](../glossary.md#term-float32) | 4 | Raw `float` bits, including NaN payload/sign, infinities, and signed zero |
-| [`BFLOAT16`](../glossary.md#term-bfloat16) | 2 | Exact stored 16-bit [payload](../glossary.md#artifact-envelope-and-atomic-publication); no [widening](../glossary.md#term-widening), [rounding](../glossary.md#term-rounding), or [NaN](../glossary.md#term-nan) conversion |
+| [`BFLOAT16`](../glossary.md#term-bfloat16) | 2 | Exact stored 16-bit payload; no [widening](../glossary.md#term-widening), [rounding](../glossary.md#term-rounding), or [NaN](../glossary.md#term-nan) conversion |
 | [`FLOAT16`](../glossary.md#term-float16) | 2 | Exact stored [IEEE](../glossary.md#term-ieee) [binary16](../glossary.md#floating-point-precision-and-rounding) payload; no widening, rounding, or NaN conversion |
 | [`INT64`](../glossary.md#data-type--datatype) | 8 | [Two's-complement](../glossary.md#arithmetic-rearrangement-and-finite-difference-checks) 64-bit pattern |
 | [`INT32`](../glossary.md#data-type--datatype) | 4 | Two's-complement 32-bit pattern |
@@ -1079,7 +1079,7 @@ The [backend](../glossary.md#backend)-private execution package supplies two phy
 Cold [binding](../glossary.md#term-binding) classifies each selected [buffer](../glossary.md#term-buffer) independently and does not materialize bytes. An
 explicit array-form route requires an observable primitive [heap](../glossary.md#term-heap) [carrier](../glossary.md#term-storage-carrier) matching the logical [data
 type](../glossary.md#data-type--datatype); its [argument](../glossary.md#term-argument) retains that array plus the carrier-relative byte offset and exact byte size.
-A prepared segment-form route instead retains the exact selected [`MemorySegment`](../glossary.md#term-memorysegment) or [slice](../glossary.md#slice), even
+A prepared segment-form route instead retains the exact selected [`MemorySegment`](../glossary.md#term-memorysegment) or slice, even
 when a matching array is observable. Its argument reports `byteOffset() == 0` relative to that
 segment and preserves its byte size and read-only state. `Segment` is an access form, not a
 native-[provenance](../glossary.md#provenance) claim: genuine native and heap-backed segments both use it. In [JDK](../glossary.md#term-java-development-kit-jdk) 26, a
@@ -1194,7 +1194,7 @@ envelope records a format version, bounded metadata and class lengths, a class-b
 full metadata, and the class bytes. A path [digest](../glossary.md#term-digest), [specialization](../glossary.md#term-specialization) [fingerprint](../glossary.md#term-fingerprint), Java [hash code](../glossary.md#term-hash-code), or
 checksum alone is never accepted as compatibility proof. The store compares the complete
 metadata, rejects trailing or truncated data, verifies the checksum, and delegates Java class-file
-verification and exact class-[shape](../glossary.md#shape) [validation](../glossary.md#term-validation) to `CpuClassFileKernelGenerator` before definition.
+verification and exact class-shape [validation](../glossary.md#term-validation) to `CpuClassFileKernelGenerator` before definition.
 
 A missing, incompatible, or corrupt final entry is a [cache miss](../glossary.md#cache-and-memoization). The store emits deterministic
 verified bytes, writes one uniquely named temporary regular file in the final directory, forces
@@ -1557,7 +1557,7 @@ while fused/canonical-split medians were `0.503477345` and `0.494450262`. All th
 or string [constants](../glossary.md#term-constant). This validates that selected topology on the evidence [host](../glossary.md#term-host). It is not a
 universal speedup claim.
 
-The proving [slice](../glossary.md#slice) is one fully static [FLOAT64](../glossary.md#term-float64) ADD -> exact [GELU](../glossary.md#gaussian-error-linear-unit--gelu) -> MUL chain. ADD and MUL use the
+The proving slice is one fully static [FLOAT64](../glossary.md#term-float64) ADD -> exact [GELU](../glossary.md#gaussian-error-linear-unit--gelu) -> MUL chain. ADD and MUL use the
 current [Model](../glossary.md#term-model) right-aligned broadcast result, GELU preserves the ADD result [Shape](../glossary.md#shape) exactly, and all
 boundary [layouts](../glossary.md#layout) are resolved. Its ADD and
 GELU results remain graph values and [kernel](../glossary.md#kernel)-[IR](../glossary.md#term-intermediate-representation-ir) values, but they are virtual within the one fused
@@ -1597,7 +1597,7 @@ root, graph/Runtime identity, generator version, and invocation bindings. The cu
 right-aligned access system consumes Model `ShapeBroadcast` and `LayoutDescriptor` semantics. It
 supports fully static scalar, expanded-[rank](../glossary.md#term-rank), [singleton](../glossary.md#term-singleton)/multi-[axis](../glossary.md#term-axis)/zero broadcast, offsets,
 positive and zero [strides](../glossary.md#term-stride), and [heap](../glossary.md#term-heap), segment, or mixed carriers. Named-[batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) access uses the
-separate bounded ordinary/[Scan](../glossary.md#term-cumulative-scan) numeric recipes described above; other dynamic/symbolic
+separate bounded ordinary/[Scan](../glossary.md#general-differentiable-scan) numeric recipes described above; other dynamic/symbolic
 [dimensions](../glossary.md#dimension) remain fail-closed. The access family does not duplicate `WHERE`, [elementwise](../glossary.md#term-elementwise), or fused
 planners. Broadcast [gradients](../glossary.md#term-gradient) remain `SUM_TO_SHAPE` and later reduction work.
 
@@ -1647,7 +1647,7 @@ three classification, and one `WHERE`. These forms support `short[]`, native-ord
 `LAST_AXIS_BIAS`, `BLOCK_OUTER`, and `GENERAL_ODOMETER`. They are scalar only; caller-parallel
 execution reuses the same scalar generated entry, and neither low-[precision](../glossary.md#term-precision) type has a current
 [Vector API](../glossary.md#term-vector-api) route. [Vector](../glossary.md#term-vector) and parallel-vector require
-one exact [lane](../glossary.md#term-lane) type, an eligible value/[mask](../glossary.md#term-boolean-mask) [topology](../glossary.md#term-topology), and the completed [contiguous](../glossary.md#term-contiguous)-[run](../glossary.md#term-run) access
+one exact [lane](../glossary.md#term-lane) type, an eligible value/[mask](../glossary.md#term-boolean-mask) [topology](../glossary.md#term-topology), and the completed [contiguous](../glossary.md#term-contiguous)-run access
 checks:
 
 | Lane/topology | Exact vector-eligible opcodes |
@@ -1921,7 +1921,7 @@ Schema 39 adds one guarded body inside that same affine artifact for the frozen 
 [`MemorySegment`](../glossary.md#term-memorysegment), the output is `short[]`, and both layouts retain element offset 5 and their
 proved positive non-unit strides. Complete geometry-length, ordered-range, and sentinel
 address-pair guards establish the mapping for every legal half-open logical range before the body
-narrows ordinals. Its loop derives coordinates with shifts and [masks](../glossary.md#term-boolean-mask), performs a direct unaligned
+narrows ordinals. Its loop derives coordinates with shifts and masks, performs a direct unaligned
 short load, and stores the exact represented bits into the short array. A failed [guard](../glossary.md#term-guard) enters the
 unchanged typed general-long address-pair body. This bounded form changes no view composition,
 declaration, materialization, route, resource, finalization, or Runtime contract and makes no
@@ -1959,12 +1959,12 @@ occurrence map:      0, 1, 0
 ```
 
 Generated [scalar](../glossary.md#term-scalar) bodies accept arbitrary [half-open](../glossary.md#term-half-open-interval) output ranges. Cold [binding](../glossary.md#term-binding) computes the
-range-start [coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix) and base addresses once. The hot loop advances coordinates with [carry](../glossary.md#term-carry) and
+range-start [coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix) and base addresses once. The hot loop advances coordinates with carry and
 reset state; TILE wraps through the same mechanism, without per-element division or modulo.
 PAD may branch between exact fill bits and its source. Small CONCAT/STACK entries retain bounded
 ordered branches; wide entries traverse their prepared operand table and write disjoint final
 output cells. There is no reflection, Model interpretation, map [lookup](../glossary.md#term-lookup), [callback](../glossary.md#term-callback), or per-element
-allocation in generated code. Controlled [Scan](../glossary.md#term-cumulative-scan) helpers reuse their existing shared [arena](../glossary.md#term-arena), with no
+allocation in generated code. Controlled [Scan](../glossary.md#general-differentiable-scan) helpers reuse their existing shared [arena](../glossary.md#term-arena), with no
 per-step operand-table allocation. [Cardinality](../glossary.md#term-cardinality) still obeys checked list/geometry/resource limits;
 the former N-wide JVM entry budget is not a capability limit.
 
@@ -2045,7 +2045,7 @@ The generated [artifact](../glossary.md#term-artifact) records the window family
 exact 2D/3D padding bits. Extents, layout magnitudes, axis and window [parameters](../glossary.md#term-parameter),
 [spatial](../glossary.md#term-spatial-axes) grid, and arbitrary-range start coordinates remain compact cold geometry. Compatible
 cold geometry can therefore reuse the same class bytes. Generated loops advance output and
-window coordinates with [carry](../glossary.md#term-carry)/reset odometers; division and remainder are confined to cold range
+window coordinates with carry/reset odometers; division and remainder are confined to cold range
 initialization. One input and one distinct [injective](../glossary.md#term-injective) output are declared, with no workspace.
 
 Window extraction does not implement value-dependent indices, scatter, fold, or overlap
@@ -2246,7 +2246,7 @@ any input is rejected.
 
 Floating `MUL` is the deliberate algorithmic exception. Copy-then-update would either round an
 intermediate product or require exact state for every interleaved target, but the established
-resource contract provides only one exact [accumulator](../glossary.md#accumulator-type) [slice](../glossary.md#slice) per range. A floating-product range
+resource contract provides only one exact [accumulator](../glossary.md#accumulator-type) slice per range. A floating-product range
 therefore remains output-owned: for each owned output coordinate it scans the complete update
 domain, groups that target's factors, finishes one once-rounded product, and reuses the same slice.
 This is approximately `O(R * U)` work and is retained as a correctness/resource boundary, not
@@ -2426,7 +2426,7 @@ The physical input is dense `[N,C,P]`, where `P=OH*OW`; logical columns remain `
 `K=KH*KW>1`. For each output `(n,c,y,x)`, the existing fold emitter visits `ky`, then `kx`, in
 ascending order. It derives `a=y+padH-ky*dilH` and `b=x+padW-kx*dilW`, excludes negative,
 [stride](../glossary.md#term-stride)-indivisible or out-of-grid positions, and reads `[n,c,(a/strideH)*OW+b/strideW]` only after
-those checks. This inverse gathering avoids an all-columns [scan](../glossary.md#term-cumulative-scan) and preserves sequential typed
+those checks. This inverse gathering avoids an all-columns scan and preserves sequential typed
 addition from [positive zero](../glossary.md#nan-infinity-and-signed-zero). [Padding](../glossary.md#padding), ceil tails and uncovered output cells add no terms.
 
 For example, a FLOAT32 source `[2,3,4]` and a `2 x 2` kernel with unit stride, no padding and
@@ -2819,11 +2819,11 @@ The eight-[node](../glossary.md#node) bound includes producer, reduction and tai
 crossings, movement absorption, symbolic [dimensions](../glossary.md#dimension), [SUM-to-Shape](../glossary.md#sum-to-shape), other aggregates, low/integer/
 mixed dtypes, noncanonical writes and wider terminals keep their established split routes.
 CPU0048 typed-one [constant](../glossary.md#term-constant) writes are selected first and do not regain contribution loops or
-exact-state scratch. This composition neither extends the row-map region nor changes [Scan](../glossary.md#term-cumulative-scan).
+exact-state scratch. This composition neither extends the row-map region nor changes [Scan](../glossary.md#general-differentiable-scan).
 Both [artifact](../glossary.md#term-artifact) [identity](../glossary.md#term-identity-meanings) streams append `ordinary-aggregate-fusion-v1`; global envelope 71,
 existing class projections and unrelated generated keys/bytes remain unchanged.
 The [canonical](../glossary.md#term-canonical-form) envelope retains structural roles and ordered typed [topology](../glossary.md#term-topology) (including existing
-aggregate domain/state facts); a separate baked [payload](../glossary.md#artifact-envelope-and-atomic-publication) binds the new static extents, offsets,
+aggregate domain/state facts); a separate baked payload binds the new static extents, offsets,
 [strides](../glossary.md#term-stride) and address-width proof. Invocation bases, slots and ranges belong to neither identity.
 The independent recognition-fact budget remains six members; a selected seven- or eight-node
 executable can therefore omit that diagnostic fact without splitting or changing execution.
@@ -2922,10 +2922,10 @@ also shape-preserving and publish no values.
 
 The canonical family is `ordinary-softmax-backward-v1`, with a selective baked suffix in both
 [artifact](../glossary.md#term-artifact) compatibility and generated-class [identity](../glossary.md#term-identity-meanings) streams. Variant, typed sites, roles and
-structural access participate; the baked [payload](../glossary.md#artifact-envelope-and-atomic-publication) also binds extents, strides, offsets, spans,
+structural access participate; the baked payload also binds extents, strides, offsets, spans,
 domain count and exact-state facts. Graph IDs, assigned slots, carrier objects, addresses,
 invocation bases and subranges are excluded. Envelope 71 and static class projection 52 remain;
-forward, aggregate-fusion, low-fold, row/[Scan](../glossary.md#term-cumulative-scan) and unrelated identities and generated bodies are
+forward, aggregate-fusion, low-fold, row/[Scan](../glossary.md#general-differentiable-scan) and unrelated identities and generated bodies are
 unchanged. Route [validation](../glossary.md#term-validation) rejects mismatched baked facts, and the existing artifact store
 handles compatible reuse and stale payload rejection.
 
@@ -2999,7 +2999,7 @@ Floating domains use numerical order, with [negative zero](../glossary.md#nan-in
 `MAX`. Any [NaN](../glossary.md#term-nan) makes the result NaN. The CPU-local deterministic policy introduced with [schema](../glossary.md#term-schema) 21
 copies the
 [represented bits](../glossary.md#term-represented-bits) of the first NaN in canonical logical input [row-major](../glossary.md#term-row-major) traversal order; this is
-not a [Model](../glossary.md#term-model), cross-[backend](../glossary.md#backend), or future-schema [payload](../glossary.md#artifact-envelope-and-atomic-publication) promise. [BFLOAT16](../glossary.md#term-bfloat16) and [FLOAT16](../glossary.md#term-float16) values widen
+not a [Model](../glossary.md#term-model), cross-[backend](../glossary.md#backend), or future-schema [payload](../glossary.md#term-nan-payload) promise. [BFLOAT16](../glossary.md#term-bfloat16) and [FLOAT16](../glossary.md#term-float16) values widen
 only for comparison, and the selected output copies the original 16 represented bits without arithmetic
 or [rounding](../glossary.md#term-rounding).
 
@@ -3026,14 +3026,14 @@ modulo 2^32 or 2^64; no [widening](../glossary.md#term-widening), [saturation](.
 
 Unfolded aggregate analysis declares exactly `[input, output]`, one computation unit, and one generated [artifact](../glossary.md#term-artifact).
 Floating SUM, MEAN, and PROD also declare one eight-byte-aligned CPU-private workspace before
-shared slot assignment. It contains one disjoint exact-state [slice](../glossary.md#slice) for each simultaneously
+shared slot assignment. It contains one disjoint exact-state slice for each simultaneously
 executable output-cell range; zero output cells require no workspace. The workspace is allocated
 and released with the [run](../glossary.md#term-run), not retained by the [immutable](../glossary.md#term-immutable) [prepared executable](../glossary.md#prepared-executable--preparedexecutable). Integral numerical,
 extrema, and [Boolean](../glossary.md#data-type--datatype) rows declare no workspace, and no aggregate row selects [materialization](../glossary.md#materialization).
 Cold binding accepts the matching [heap](../glossary.md#term-heap) primitive arrays,
 native-order [`MemorySegment`](../glossary.md#term-memorysegment) carriers, and compatible mixed boundaries for arbitrary supported
 non-negative resolved input layouts and [injective](../glossary.md#term-injective) output layouts. It rejects complete physical
-input/output overlap and prebinds a canonical [BOOL](../glossary.md#data-type--datatype) [scan](../glossary.md#term-cumulative-scan) for invocation. Scratch-bearing rows
+input/output overlap and prebinds a canonical [BOOL](../glossary.md#data-type--datatype) scan for invocation. Scratch-bearing rows
 additionally validate workspace presence, exact size, [alignment](../glossary.md#term-alignment), accessibility, and complete
 physical non-overlap with input and output. The value scan follows [producers](../glossary.md#term-producer) and precedes
 generated output initialization or worker submission. Empty output performs no generated work.
@@ -3151,7 +3151,7 @@ dynamic binding, a [Vector API](../glossary.md#term-vector-api) reduction body, 
 `+1`. Its only source is an explicit entry in `PrepareContext.constants()`: a
 [logical splat](../glossary.md#logical-splat), meaning one [immutable](../glossary.md#term-immutable) typed [scalar](../glossary.md#term-scalar) repeated at
 every logical [coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix). A [Tensor](../glossary.md#tensor) label, factory, [shape](../glossary.md#shape) or [mutable](../glossary.md#term-mutable) [buffer](../glossary.md#term-buffer) currently containing
-ones is not such a fact. No [payload](../glossary.md#artifact-envelope-and-atomic-publication) is read to establish constancy.
+ones is not such a fact. No payload is read to establish constancy.
 
 The admitted source feeds SUM directly, or through same-[dtype](../glossary.md#data-type--datatype) `EXPAND` optionally followed by
 [`CONTIGUOUS`](../glossary.md#term-contiguous). Source, domain and result shapes must be static. Full, single/multiple-[axis](../glossary.md#term-axis),
@@ -3187,7 +3187,7 @@ The baked typed literal enters both existing [specialization](../glossary.md#ter
 [fingerprint](../glossary.md#term-fingerprint); no global [schema](../glossary.md#term-schema) bump or [Runtime](../glossary.md#term-runtime) proof mechanism is added. The
 [CPU0048 result](../planning/backends/cpu/tasks/0048-static-typed-one-count-folding.md#result)
 records focused semantic/resource/ClassFile evidence and pending final gates. This is structural
-work removal, not a benchmark, speed/parity claim, broader [constant](../glossary.md#term-constant) propagation or [Scan](../glossary.md#term-cumulative-scan) change.
+work removal, not a benchmark, speed/parity claim, broader [constant](../glossary.md#term-constant) propagation or [Scan](../glossary.md#general-differentiable-scan) change.
 
 ### Current arg-[extrema](../glossary.md#saturation-pole-and-extremum) family
 
@@ -3294,11 +3294,11 @@ worker submission, read, write, or workspace use.
 
 Analysis declares exactly three [buffer](../glossary.md#term-buffer) requirements—data read, mask read, and output write—and,
 when output cells exist, one eight-byte-aligned `AGGREGATE_EXACT_STATE` workspace. Its size is one
-existing exact-state [slice](../glossary.md#slice) per simultaneously used output-cell range. The selected count is a
+existing exact-state slice per simultaneously used output-cell range. The selected count is a
 primitive invocation local, not a declared resource. Data and mask are both read-only and may
 physically overlap; cold [binding](../glossary.md#term-binding) rejects output overlap with either input and scratch overlap with
 every buffer. It also validates [carrier](../glossary.md#term-storage-carrier) type, accessibility, alignment, complete referenced
-spans, and output [injectivity](../glossary.md#storage-mapping-contiguity-and-injectivity). The prebound mask [scan](../glossary.md#term-cumulative-scan) checks every represented byte at invocation,
+spans, and output [injectivity](../glossary.md#storage-mapping-contiguity-and-injectivity). The prebound mask scan checks every represented byte at invocation,
 after its [producer](../glossary.md#term-producer) and before the first output write or worker submission.
 
 Scalar and parallel-scalar execution divide only the flattened output-cell domain into disjoint
@@ -3343,7 +3343,7 @@ The numerical [owner](../glossary.md#term-owner) is selected while the class is 
 | Family | Current arithmetic and traversal | Workspace |
 |---|---|---|
 | `LOG_SUM_EXP` | Find the maximum, then compensate the working-[precision](../glossary.md#term-precision) sum of `exp(value - maximum)` | None |
-| `VARIANCE`, `STANDARD_DEVIATION` | Rounded exact [mean](../glossary.md#term-mean), then compensated working-precision centered squares divided by `N - correction` | Existing exact-state [slice](../glossary.md#slice) for the mean |
+| `VARIANCE`, `STANDARD_DEVIATION` | Rounded exact [mean](../glossary.md#term-mean), then compensated working-precision centered squares divided by `N - correction` | Existing exact-state slice for the mean |
 | `L1_NORM` | Exact sum of represented absolute values, rounded once | Existing exact-state slice |
 | `L2_NORM` | Working-precision squares and [compensated sum](../glossary.md#rounding-sites-fma-and-aggregate-floor) followed by [square root](../glossary.md#norms-elementary-functions-and-probability-distributions); exact [absolute value](../glossary.md#norms-elementary-functions-and-probability-distributions) for a point domain | None |
 
@@ -3411,7 +3411,7 @@ is historical evidence, not a current nonfinite-input restriction.
 
 Cold [binding](../glossary.md#term-binding) validates the exact [heap](../glossary.md#term-heap)-array or native-order [`MemorySegment`](../glossary.md#term-memorysegment) [carrier](../glossary.md#term-storage-carrier), thread
 access, [liveness](../glossary.md#term-liveness), [alignment](../glossary.md#term-alignment), complete [referenced span](../glossary.md#referenced-element-span), output writability and [injectivity](../glossary.md#storage-mapping-contiguity-and-injectivity), and
-complete input/output non-overlap. There is no separate finite-value [scan](../glossary.md#term-cumulative-scan). FLOAT16 and BFLOAT16
+complete input/output non-overlap. There is no separate finite-value scan. FLOAT16 and BFLOAT16
 storage are decoded distinctly and exactly. Heap, segment, and mixed input/output pairs are
 supported for `double[]`, `float[]`, raw-BFLOAT16/FLOAT16 `short[]` and raw-OFP8 `byte[]` carriers.
 Arbitrary resolved legal non-negative layouts are supported, including positive offsets,
@@ -3678,7 +3678,7 @@ extent is empty work: it performs no [carrier](../glossary.md#term-storage-carri
 root](../glossary.md#norms-elementary-functions-and-probability-distributions), output write, or worker submission.
 
 For a non-empty channel, the generated body makes three complete traversals. The first obtains the
-exact represented-value sum from one existing `AGGREGATE_EXACT_STATE` [slice](../glossary.md#slice) and rounds
+exact represented-value sum from one existing `AGGREGATE_EXACT_STATE` slice and rounds
 `batchMean = sum / N` once to the result computation format. The second rounds each centered
 subtraction and square in the working type, compensates their sum and performs separate divisions:
 
@@ -3798,7 +3798,7 @@ misses; no migration reader is present.
 
 ### Current [NCW](../glossary.md#term-ncw) [Conv1d composition](../glossary.md#conv1d-composition) and grouped [NCDHW](../glossary.md#conv3d--ncdhw) [Conv3d](../glossary.md#conv3d--ncdhw) family
 
-The portable [CPU](../glossary.md#term-cpu) route now closes the current channels-first dimensional-[convolution](../glossary.md#term-channels-first-convolution-layers) [slice](../glossary.md#slice) in two
+The portable [CPU](../glossary.md#term-cpu) route now closes the current channels-first dimensional-[convolution](../glossary.md#term-channels-first-convolution-layers) slice in two
 [rank](../glossary.md#term-rank)-specific ways. NCW Conv1d remains the visible four-[node](../glossary.md#node) [Model](../glossary.md#term-model) and [Compiler](../glossary.md#term-compiler) composition: two
 independent `EXPAND_DIMS(2)` values feed one ordinary [`CONV2D`](../glossary.md#convolution--conv2d), whose result feeds
 `SQUEEZE(2)`. CPU analysis recognizes only that exact [topology](../glossary.md#term-topology), mapped attributes, private
@@ -3945,7 +3945,7 @@ unsupported or uncertain suffixes keep the [canonical](../glossary.md#term-canon
 
 Vector TANH retains the existing cold selection thresholds, explicit compute preference and
 disjoint row/tile range ownership. The default remains `SCALAR`. This capability applies only to
-ordinary fully static MATMUL; it adds no symbolic or [Scan](../glossary.md#term-cumulative-scan) vector/parallel route. Focused tests
+ordinary fully static MATMUL; it adds no symbolic or [Scan](../glossary.md#general-differentiable-scan) vector/parallel route. Focused tests
 check both floating types and vector forms, heap and native-segment carriers, ordered bias,
 vector interiors and scalar tails. [Finite](../glossary.md#term-finite) checks use test-only bounds of five FLOAT32 or three
 FLOAT64 ulps against independently accumulated scalar arithmetic and `StrictMath.tanh`; [NaN](../glossary.md#term-nan),
@@ -4030,7 +4030,7 @@ selected and declares no OpenBLAS-only workspace.
 OpenBLAS MATMUL route. The deferred direct-BFLOAT16 side branch requires a concrete capability
 proving BFLOAT16 inputs and output, FLOAT32 accumulation across the complete [contraction](../glossary.md#contraction-dimension), and
 exactly one final BFLOAT16 [narrowing](../glossary.md#term-narrowing). `cblas_sbgemm`, conversion staging, a temporary FLOAT32
-output matrix, platform [inference](../glossary.md#term-inference), and relaxed semantics do not satisfy that requirement. The
+output matrix, platform [inference](../glossary.md#term-inference-meanings), and relaxed semantics do not satisfy that requirement. The
 absence of low-[precision](../glossary.md#term-precision) OpenBLAS routes does not block the FLOAT32/FLOAT64 route or its tuning work.
 
 The direct form requires expected native, type-width-aligned [`MemorySegment`](../glossary.md#term-memorysegment) storage and [canonical](../glossary.md#term-canonical-form)
@@ -4359,7 +4359,7 @@ the generated class. Where the JDK lacks a [FLOAT32](../glossary.md#term-float32
 private realization of a same-typed request, not a cross-type Model cast.
 
 FLOAT32 `RSQRT` rounds the [square root](../glossary.md#norms-elementary-functions-and-probability-distributions) at its prescribed FLOAT32 working site, then computes the
-FLOAT32 reciprocal: `1.0f / (float) StrictMath.sqrt(input)`. Scalar, [vector](../glossary.md#term-vector), remainder, [Scan](../glossary.md#term-cumulative-scan) and
+FLOAT32 reciprocal: `1.0f / (float) StrictMath.sqrt(input)`. Scalar, [vector](../glossary.md#term-vector), remainder, [Scan](../glossary.md#general-differentiable-scan) and
 regional helpers share that order; [widening](../glossary.md#term-widening) the complete reciprocal-square-root expression
 would skip a required intermediate [rounding](../glossary.md#term-rounding) boundary.
 
@@ -4387,7 +4387,7 @@ TANH preserve [signed zero](../glossary.md#term-signed-zero). [ReLU](../glossary
 zero and NaN propagates. ERF maps [infinities](../glossary.md#nan-infinity-and-signed-zero) to signed one and preserves zero sign. Sigmoid uses a
 sign-stable two-branch formula. GELU, its fixed tanh approximation, and SiLU explicitly map
 negative infinity to negative zero rather than evaluating an indeterminate infinity-times-zero
-product. NaN results have a classification promise only; [payload](../glossary.md#artifact-envelope-and-atomic-publication) and sign are unspecified.
+product. NaN results have a classification promise only; [payload](../glossary.md#term-nan-payload) and sign are unspecified.
 
 Scalar `LOG`, `LOG1P`, `EXP`, and `EXPM1` retain the Java method's at-most-one-ulp contract;
 `SQRT` is [correctly rounded](../glossary.md#nan-infinity-and-signed-zero) and scalar `TANH` permits at most 2.5 ulps. FLOAT32 vector
@@ -4508,7 +4508,7 @@ to `[+0.0, -0.0]` produces `-0.0` for every non-NaN input.
 
 Logical `AND` and `OR` use ordinary right-aligned broadcasting; `NOT` preserves [Shape](../glossary.md#shape). Each
 invocation validates external [BOOL](../glossary.md#data-type--datatype) bytes as canonical `0` or `1`, and materialized logical results
-stay canonical. The BOOL vector `NOT` [masks](../glossary.md#term-boolean-mask) the bitwise complement back to byte `0` or `1`; it
+stay canonical. The BOOL vector `NOT` masks the bitwise complement back to byte `0` or `1`; it
 never exposes `0xFF`. Generated loops perform no numeric-truthiness conversion or repeated BOOL
 [validation](../glossary.md#term-validation). Virtual floating predicate masks instead remain matching `VectorMask` locals until
 logical combination or floating `WHERE` consumption.
@@ -4524,11 +4524,11 @@ invokes the already-[prepared executable](../glossary.md#prepared-executable--pr
 
 The implemented access regimes are dense [linear](../glossary.md#term-linear-meanings), scalar/all-zero broadcast,
 last-[axis](../glossary.md#term-axis) [bias](../glossary.md#term-bias), block/outer broadcast with a [contiguous](../glossary.md#term-contiguous) inner loop, and the complete general
-positive-strided odometer fallback. [Bytecode](../glossary.md#term-bytecode) emits offset/[carry](../glossary.md#term-carry) arithmetic directly with no hot
+positive-strided odometer fallback. [Bytecode](../glossary.md#term-bytecode) emits offset/carry arithmetic directly with no hot
 cursor, virtual call, or per-element division/modulo. A cold [binding](../glossary.md#term-binding) computes the starting
 [coordinates](../glossary.md#axis-rank-scalar-vector-and-matrix)/address and exact accessed [half-open](../glossary.md#term-half-open-interval) span for its requested range. CPU 0005C
 vectorizes dense linear, scalar-broadcast, last-axis, and block/outer access only when every
-non-scalar boundary has a complete preferred-species contiguous [run](../glossary.md#term-run). General odometer access and
+non-scalar boundary has a complete preferred-species contiguous run. General odometer access and
 too-short runs select scalar compute rather than rejecting the [partition](../glossary.md#partition). There is no vector
 [gather](../glossary.md#gather). Bounded contiguous-copy candidates may represent eligible non-dense input accesses, but
 ordinary preparation selects direct and complete access semantics do not promise universal
@@ -4553,7 +4553,7 @@ or speedup.
 
 When the ordinary prepared pattern selects `MEMORY_SEGMENT`, CPU cold binding uses the exact
 selected segment even if that segment is backed by a matching primitive heap array. For example,
-an offset [slice](../glossary.md#slice) of a `double[]` remains that same slice for a generated segment entry; CPU does
+an offset slice of a `double[]` remains that same slice for a generated segment entry; CPU does
 not copy it to [native memory](../glossary.md#aliasing-and-arena) or switch to an array-specialized entry during the run. An explicitly
 prepared `DOUBLE_ARRAY` entry still requires the observable matching array carrier. Binding
 checks type, byte [extent](../glossary.md#term-extent), [alignment](../glossary.md#term-alignment), accessibility, output writability, and overlap before
@@ -4621,7 +4621,7 @@ executable](../glossary.md#prepared-executable--preparedexecutable). These works
 
 [Schema](../glossary.md#term-schema) 53 changes the existing general affine-copy body so a proved dense destination loads its
 initial address once and advances a unit-[stride](../glossary.md#term-stride) cursor. The emitted typed [heap](../glossary.md#term-heap)-array or unaligned
-segment load/store loop matches the optimal clean-Java semantic algorithm and hot-loop [shape](../glossary.md#shape). The
+segment load/store loop matches the optimal clean-Java semantic algorithm and hot-loop shape. The
 retained Class-File inspection shows no hidden Synaptik helper [dispatch](../glossary.md#term-dispatch), allocation, boxing,
 reflection, planner fact, or [Runtime](../glossary.md#term-runtime) representation choice in generated work. Generated/[oracle](../glossary.md#term-test-oracle)
 [median](../glossary.md#term-median) `1.000326680` establishes affine-copy parity for the retained case, but the complete
@@ -4682,7 +4682,7 @@ contracts are technically public below `.internal`. The supported root-package s
 contains `CpuCapabilityProvider` plus the Engine-facing `CpuBackendIntegration` [SPI](../glossary.md#term-service-provider-interface-spi); every
 preparer, finalizer, representation, route, and composition implementation remains unsupported
 under `.internal`. CPU 0005A created no native placeholder package. CPU 0010 now owns the
-exact `route.nativeblas.openblas` [leaf](../glossary.md#term-leaf) described above; the explicit [oneDNN](../glossary.md#term-onednn) route now lives in
+exact `route.nativeblas.openblas` leaf described above; the explicit [oneDNN](../glossary.md#term-onednn) route now lives in
 `route.nativeops.onednn`. Distinct Accelerate/[oneMKL](../glossary.md#term-onemkl)/[AOCL](../glossary.md#term-aocl) `route.nativeblas` leaves and
 vDSP/vForce/[VML](../glossary.md#term-vml)/AOCL-LibM/[ZenDNN](../glossary.md#term-zendnn) `route.nativeops` leaves remain later work.
 
@@ -4696,7 +4696,7 @@ Generated-class persistence is optional cold-path policy. Without a trusted root
 verifies, and defines deterministically in memory. With an explicit normalized trusted root, one
 realization performs one weak-intern [lookup](../glossary.md#term-lookup) and at most one bounded current-[schema](../glossary.md#term-schema) envelope lookup.
 The envelope is limited to 2 MiB, with at most 64 KiB of compatibility [metadata](../glossary.md#term-metadata) and 1 MiB of class
-bytes. Schema, structural key, metadata, lengths, checksum, trailing data, class [shape](../glossary.md#shape), and entry
+bytes. Schema, structural key, metadata, lengths, checksum, trailing data, class shape, and entry
 [descriptor](../glossary.md#term-descriptor) must all verify. Any absence, incompatibility, corruption, malformed class, or file or
 security failure is a safe miss; verified generation remains correct, and optional [publication](../glossary.md#term-publication)
 uses a forced temporary file plus [atomic move](../glossary.md#term-atomic-move). There is one current schema, no migration reader,
@@ -4925,7 +4925,7 @@ invocation completed without a reported failure. It does not establish particula
 |---|---|---|
 | Loading fails immediately for a short name | The operating-system loader cannot resolve the exact supplied name. | Supply an installed name the loader recognizes or use the absolute-path overload. |
 | Opening reports missing required symbols | The selected [binary](../glossary.md#term-binary-descriptor-and-metadata) is incompatible or incomplete for the four-[symbol](../glossary.md#term-symbol) contract. | Supply a compatible [OpenBLAS](../glossary.md#term-openblas) C library; do not treat a partial [binding](../glossary.md#term-binding) as available. |
-| A caller expects [scalar](../glossary.md#term-scalar) fallback after `OpenBlasLoadException` | Fallback policy was placed mentally in the [leaf](../glossary.md#term-leaf) provider. | Qualify availability before [CPU](../glossary.md#term-cpu) analysis or handle loading in composition; the provider only reports loading failure. |
+| A caller expects [scalar](../glossary.md#term-scalar) fallback after `OpenBlasLoadException` | Fallback policy was placed mentally in the [leaf](../glossary.md#term-dependency-leaf) provider. | Qualify availability before [CPU](../glossary.md#term-cpu) analysis or handle loading in composition; the provider only reports loading failure. |
 | A caller passes batched, transposed, strided, offset, or [tensor](../glossary.md#tensor)-shaped data directly to `sgemm`/`dgemm` | The low-level call was mistaken for CPU [normalization](../glossary.md#term-normalization). | Use the bounded current CPU route only for its exact eligible form; broader normalization remains future work. |
 | A selected CPU route silently falls back after provider closure or thread drift | Analysis-time ineligibility was confused with post-selection failure. | Keep the exact qualified coordinator open and its selected count installed. A selected native plan fails without reselection. |
 | A loaded library is treated as qualified | Required-symbol binding was confused with bounded compatibility evidence. | Transfer the loaded resource to its coordinator and [run](../glossary.md#term-run) the cold qualifier; loading alone never creates a route credential. |
@@ -5122,7 +5122,7 @@ arbitrary-[shape](../glossary.md#shape) SHARED [tensors](../glossary.md#tensor);
 actual with no body formal, not a [scalar](../glossary.md#term-scalar) alternative. Original AD source carries/sequences and
 emission boundaries remain ROW(0); intermediate/history ROW axes and ranks follow their proofs.
 Supported row-mixing [materialization](../glossary.md#materialization) requires exactly the same length values, not Tensor [identity](../glossary.md#term-identity-meanings).
-Structural absence differs from a present all-zero [seed](../glossary.md#term-seed); cross-[Scan](../glossary.md#term-cumulative-scan) materialization is explicit.
+Structural absence differs from a present all-zero [seed](../glossary.md#term-seed); cross-[Scan](../glossary.md#general-differentiable-scan) materialization is explicit.
 [Model](../glossary.md#term-model) remains the logical-layout [owner](../glossary.md#term-owner). CPU reuses ordinary [lowering](../glossary.md#lowering)/emitters under the existing
 loop, direct same-class helpers and [run](../glossary.md#term-run)-owned staging, not a second executor or universal
 no-copy, zero-allocation or speedup behavior.
@@ -5146,7 +5146,7 @@ end-to-end T0 caller [publication](../glossary.md#term-publication); that qualif
 and evidence below, not current whole-[feature](../glossary.md#term-software-feature) [admission](../glossary.md#term-admission).
 
 
-This route executes a fixed-count [scan](../glossary.md#term-cumulative-scan) over a captured ordinary [Tensor](../glossary.md#tensor) body. A **[carry](../glossary.md#term-carry)** is the
+This route executes a fixed-count [scan](../glossary.md#general-differentiable-scan) over a captured ordinary [Tensor](../glossary.md#tensor) body. A **[carry](../glossary.md#term-carry)** is the
 previous step's state; an **emission** is a requested per-step output. A
 [residual port](../glossary.md#scan-residual-port-and-history-demand) names an exact body value
 available for saving to a downstream consumer, including [Compiler](../glossary.md#term-compiler)'s automatic reverse scan.
@@ -5187,7 +5187,7 @@ identities/bytes remain preservation [targets](../glossary.md#term-target). No r
 
 ### Common [rank-two](../glossary.md#axis-rank-scalar-vector-and-matrix) [MATMUL](../glossary.md#matrix-multiplication--matmul) [binding](../glossary.md#term-binding)
 
-Ordinary MATMUL and [Scan](../glossary.md#term-cumulative-scan) now share exact rank-two [shape](../glossary.md#shape) [validation](../glossary.md#term-validation) in `CpuMatmulLowering` and
+Ordinary MATMUL and [Scan](../glossary.md#general-differentiable-scan) now share exact rank-two [shape](../glossary.md#shape) [validation](../glossary.md#term-validation) in `CpuMatmulLowering` and
 [scalar](../glossary.md#term-scalar) [contraction](../glossary.md#contraction-dimension) emission in `CpuMatmulEmitter`. A bound contraction is the full increasing-K
 multiply/add loop after its caller has selected typed carriers, addresses and geometry. It is not
 an entry adapter, a second body [graph](../glossary.md#graph) or a [Runtime](../glossary.md#term-runtime) object. Shape checks compare [Dimensions](../glossary.md#dimension) by
@@ -5242,7 +5242,7 @@ budget is spent and closed; no retry, additional [fork](../glossary.md#term-fork
 
 ### Common [pointwise](../glossary.md#term-pointwise) and SUM composition
 
-Ordinary and [Scan](../glossary.md#term-cumulative-scan) pointwise sites share generation-time ordering in
+Ordinary and [Scan](../glossary.md#general-differentiable-scan) pointwise sites share generation-time ordering in
 `CpuClassFileKernelGenerator.emitBoundPointwise`: entry loads, then each instruction's operand
 loads, arithmetic and producing stores, followed by exit stores. Ordinary [scalar](../glossary.md#term-scalar)/[vector](../glossary.md#term-vector) entries
 load boundaries at entry and publish after the instruction list. Flat Scan retains formal loads
@@ -5301,7 +5301,7 @@ records the rationale; the [task](../planning/backends/cpu/tasks/0073-row-map-mu
 records exact [validation](../glossary.md#term-validation) and evidence-transfer limits, not additional authority.
 
 A row map evaluates pure ordered row-local sites once and shares their values with row outputs
-and multiple terminal contractions/represented [Scan](../glossary.md#term-cumulative-scan) sums. A genuinely computed [producer](../glossary.md#term-producer) must
+and multiple terminal contractions/represented [Scan](../glossary.md#general-differentiable-scan) sums. A genuinely computed [producer](../glossary.md#term-producer) must
 reach a terminal and another retained or terminal sink; input/movement sharing alone is ineligible.
 Ordinary analysis selects one full-body unit (work=1, [0,1), including empty rows;
 [0,0) does no work, other ranges reject before writes). Scan emits the same region within its
@@ -5345,9 +5345,9 @@ closed and no new measurement or automatic successor is authorized.
 CPU0074's [mechanism contract](../architecture/contracts/backend-execution.md#cpu0074-selected-row-region-execution-exception)
 is implemented, independently reviewed and MAIN accepted; CPU0074 is Complete after bounded
 [validation](../glossary.md#term-validation). It qualifies only
-selected CPU0073-shaped regions for [feature](../glossary.md#term-software-feature) [SIMD](../glossary.md#simd), parallel-[scalar](../glossary.md#term-scalar) or parallel-[vector](../glossary.md#term-vector), preserving
+selected CPU0073-shaped regions for [feature](../glossary.md#term-feature) [SIMD](../glossary.md#simd), parallel-[scalar](../glossary.md#term-scalar) or parallel-[vector](../glossary.md#term-vector), preserving
 the historical ordinary static [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding), ordinary symbolic F32 and static/symbolic/length/combined
-[Scan](../glossary.md#term-cumulative-scan) [dtype](../glossary.md#data-type--datatype) bounds of this selected-region layer. That layer's all-valid symbolic F64 exclusion is
+[Scan](../glossary.md#general-differentiable-scan) [dtype](../glossary.md#data-type--datatype) bounds of this selected-region layer. That layer's all-valid symbolic F64 exclusion is
 not a global [general Scan](../glossary.md#general-differentiable-scan) limit. No new [layout](../glossary.md#layout)/[carrier](../glossary.md#term-storage-carrier) or general [pointwise](../glossary.md#term-pointwise) rewrite follows.
 Production scalar/thread-count-one defaults and no-region Scan execution remain unchanged.
 
@@ -5396,7 +5396,7 @@ new finite performance budget; this docs pass launches no Java/native tests or m
 Its optimal Java Scan arms retain twelve typed carry cells across T and a distinct ADD at each
 active time. Generated across-T carry promotion remains deferred; disclose that [dataflow](../glossary.md#term-dataflow) gap
 in performance interpretation, without weakening the [oracle](../glossary.md#term-test-oracle) or claiming identical traffic/parity.
-The brief records 356 authentic scalar [payload](../glossary.md#artifact-envelope-and-atomic-publication) controls and available focused/named receipts;
+The brief records 356 authentic scalar payload controls and available focused/named receipts;
 the final post-fix [module](../glossary.md#term-module) and named gates passed. Worker fault injection covers
 F32 parallel-vector Scan, not an exhaustive cross-product of every owner and realization.
 The sole performance comparison completed, but steady-state profitability remains unqualified.
@@ -5409,7 +5409,7 @@ and limitations; scalar/thread-count-one defaults remain unchanged, with no auto
 #### Implemented [scalar](../glossary.md#term-scalar) load/address reuse cutover
 
 [CPU0075's generation/compatibility contract](../architecture/contracts/backend-execution.md#cpu0075-selective-scalar-load-and-address-reuse)
-is implemented and independently reviewed. It replaces affected ordinary/[Scan](../glossary.md#term-cumulative-scan) scalar and parallel-scalar
+is implemented and independently reviewed. It replaces affected ordinary/[Scan](../glossary.md#general-differentiable-scan) scalar and parallel-scalar
 row emission in existing [owners](../glossary.md#term-owner), sharing repeated external cells only within the active row and
 folding/sharing proved affine addresses. For example, two reads of the same saved Y cell can use
 one typed local if the first load dominates the second and no intervening store can change it;
@@ -5448,7 +5448,7 @@ No further timing, production-default change or rollout follows.
 The [CPU0076 exception](../architecture/contracts/backend-execution.md#cpu0076-prospective-invariant-external-cell-load-staging)
 qualifies CPU0075's within-row-only placement. It implements generic scalar staging
 of proved external cells, not a [weight](../glossary.md#term-weight)/[RNN](../glossary.md#term-recurrent-neural-network-rnn)/root-number shortcut. An external cell is a represented
-value in an authenticated input/storage origin. [Scope](../glossary.md#term-scope) remains existing ordinary/[Scan](../glossary.md#term-cumulative-scan) [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding)
+value in an authenticated input/storage origin. [Scope](../glossary.md#term-scope) remains existing ordinary/[Scan](../glossary.md#general-differentiable-scan) [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding)
 eligibility; [SIMD](../glossary.md#simd) bodies, exact SUM, worker [ownership](../glossary.md#term-ownership-meanings) and entry/helper ABIs do not change.
 
 Placement example: a fixed `[3,2]` invariant [matrix](../glossary.md#term-matrix-meanings) has six F32 cells. If its effective address
@@ -5458,7 +5458,7 @@ must reread changed values. If the same [shape](../glossary.md#shape) instead de
 only the six cells at the current active original time after their [producer](../glossary.md#term-producer). Equal shape or
 copied-equal history values do not establish temporal invariance. Empty/all-inactive domains
 must not touch inaccessible body sources. Worker preheaders also need range-local activity.
-The current proof stages only complete actually consumed fixed-[feature](../glossary.md#term-software-feature) [views](../glossary.md#term-view-meanings), with [rank](../glossary.md#term-rank) at most
+The current proof stages only complete actually consumed fixed-[feature](../glossary.md#term-feature) [views](../glossary.md#term-view-meanings), with [rank](../glossary.md#term-rank) at most
 two and a complete regional body: each nonformal self-rooted producer is a row site, terminal or
 finish-[epilogue](../glossary.md#term-epilogue) producer. Partial/unused/empty domains or unrelated producers keep checked reads.
 ROW histories, carries and uncertain cut/bank/scratch origins are excluded; a zero-[stride](../glossary.md#term-stride) or
@@ -5522,13 +5522,13 @@ historical, not this measurement.
 Length mode uses the same [compile](../glossary.md#compile) → [Prepare](../glossary.md#prepare) → generated [CPU](../glossary.md#term-cpu) execution path. Its floating body
 is [homogeneous](../glossary.md#term-homogeneous) [FLOAT32](../glossary.md#term-float32) or [FLOAT64](../glossary.md#term-float64); one additional [INT64](../glossary.md#data-type--datatype) `[B]` actual supplies prefix lengths.
 That control actual is not a body formal, arithmetic ordinal, [invariant](../glossary.md#term-invariant) or [differentiation target](../glossary.md#functional-gradient-request).
-T, B and [feature](../glossary.md#term-software-feature) extents remain fixed by preparation. Changing length **values** changes activity,
+T, B and [feature](../glossary.md#term-feature) extents remain fixed by preparation. Changing length **values** changes activity,
 not code, slots, resource declarations or [specialization](../glossary.md#term-specialization). The
 [length-mode semantic contract](../architecture/contracts/recurrent-scan.md#length-aware-whole-batch-scan)
 owns the accepted row algebra and reverse construction.
 
 A row role identifies a batch [coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix), not an [extent](../glossary.md#term-extent) numerically equal to B. ROW(0) is
-row-leading; a [rank-two](../glossary.md#axis-rank-scalar-vector-and-matrix) [transpose](../glossary.md#term-transpose) may [carry](../glossary.md#term-carry) ROW(1). SHARED values have no batch coordinate,
+row-leading; a [rank-two](../glossary.md#axis-rank-scalar-vector-and-matrix) [transpose](../glossary.md#term-transpose) may carry ROW(1). SHARED values have no batch coordinate,
 even when F=B. CPU independently proves these roles across the whole body, including dead
 declarations. Contributor and [epilogue](../glossary.md#term-epilogue) [fusion](../glossary.md#term-fusion) must preserve the activity domain as well as [shape](../glossary.md#shape):
 an independent SHARED `[F,F]` calculation cannot move under a numerically equal ROW `[B,F]` gate.
@@ -5554,7 +5554,7 @@ Reverse traversal visits valid prefixes only. A cotangent is the [sensitivity](.
 [reverse-mode](../glossary.md#primal-adjoint-and-differentiation-seed) differentiation; padded seeds and [primal](../glossary.md#term-primal) cells are never loaded or multiplied by zero.
 
 Cold [binding](../glossary.md#term-binding) checks every selected typed span, eight-byte control [alignment](../glossary.md#term-alignment), accessibility and
-writable overlap without reading lengths. After [producers](../glossary.md#term-producer) [run](../glossary.md#term-run), the [scan](../glossary.md#term-cumulative-scan) invocation rechecks
+writable overlap without reading lengths. After [producers](../glossary.md#term-producer) [run](../glossary.md#term-run), the [scan](../glossary.md#general-differentiable-scan) invocation rechecks
 physical bindings and **all** B values in `[0,T]` before any scan output, [padding](../glossary.md#padding), history or
 workspace write. An invalid last value therefore preserves scan-local sentinels; upstream writes
 are not rolled back. T=0 still requires every length to be zero. B=0 has an empty length domain
@@ -5600,10 +5600,10 @@ path below. Cold/[persistence](../glossary.md#term-persistence)/[NN](../glossary
 
 <a id="accepted-symbolic-length-qualification-not-implemented"></a>
 
-### Symbolic-length [Scan](../glossary.md#term-cumulative-scan) [CPU](../glossary.md#term-cpu) execution
+### Symbolic-length [Scan](../glossary.md#general-differentiable-scan) [CPU](../glossary.md#term-cpu) execution
 
 [Prepare0015](../planning/modules/prepare/tasks/0015-symbolic-length-scan-cpu-vertical.md) implements
-one named B with fixed T/[features](../glossary.md#term-software-feature) and existing non-[gradient](../glossary.md#term-gradient) [INT64](../glossary.md#data-type--datatype) `[B]` lengths for [homogeneous](../glossary.md#term-homogeneous)
+one named B with fixed T/[features](../glossary.md#term-feature) and existing non-[gradient](../glossary.md#term-gradient) [INT64](../glossary.md#data-type--datatype) `[B]` lengths for [homogeneous](../glossary.md#term-homogeneous)
 [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding) generated [scalar](../glossary.md#term-scalar), single-range forward and actual [Compiler](../glossary.md#term-compiler)-generated reverse. Owning tests,
 focused [conformance](../glossary.md#term-conformance)/integration and independent code/structural review passed. Root [validation](../glossary.md#term-validation) and the sole
 bounded probe completed;
@@ -5673,7 +5673,7 @@ diagnosis requires separately authorized future work, not another campaign here.
 
 #### CPU0044 combined code-[shape](../glossary.md#shape) repair
 
-CPU0044 removed four proved redundancies only in combined symbolic-[batch](../glossary.md#term-batch-machine-learning-and-hyperparameters)/[runtime](../glossary.md#term-runtime)-length [Scan](../glossary.md#term-cumulative-scan)
+CPU0044 removed four proved redundancies only in combined symbolic-[batch](../glossary.md#term-batch-machine-learning-and-hyperparameters)/[runtime](../glossary.md#term-runtime)-length [Scan](../glossary.md#general-differentiable-scan)
 generation. The existing [FLOAT32](../glossary.md#term-float32)/[FLOAT64](../glossary.md#term-float64) forward and actual [Compiler](../glossary.md#term-compiler)-generated reverse [scope](../glossary.md#term-scope),
 arithmetic, resources and checked foreign-memory accesses are unchanged:
 
@@ -5757,7 +5757,7 @@ The exact scratch origin keeps its entry [carrier](../glossary.md#term-storage-c
 Derived [views](../glossary.md#term-view-meanings) retain their own relative [stride](../glossary.md#term-stride) recipes, and relative-offset sharing stays
 inside one emitted cell. For the [F32](../glossary.md#floating-point-precision-and-rounding) T4/F3/H2 actual reverse, the [activation](../glossary.md#term-activation)-[adjoint](../glossary.md#term-adjoint) scratch
 store and [bias](../glossary.md#term-bias)-SUM scratch load now pass their relative byte offset directly to the same
-checked foreign-memory access. At active row 3, [feature](../glossary.md#term-software-feature) 1, the relative offset is
+checked foreign-memory access. At active row 3, [feature](../glossary.md#term-feature) 1, the relative offset is
 `3 * 8 + 1 * 4 = 28` bytes; removing the proved zero base still accesses byte 28.
 Port/time-backed cuts, bank selection, [matrix](../glossary.md#term-matrix-meanings) cursor/base arithmetic, activity guards,
 represented arithmetic, required initialization and resources are unchanged.
@@ -5774,7 +5774,7 @@ At that [checkpoint](../glossary.md#term-checkpoint), both streams rejected comb
 all noncombined identities and generated bytes remain unchanged. No [API](../glossary.md#term-application-programming-interface-api), protocol, resource
 or [backend capability](../glossary.md#backend-capability) is added.
 
-#### CPU0060 combined Java loop [shape](../glossary.md#shape)
+#### CPU0060 combined Java loop shape
 
 CPU0060 introduced combined baked `|scan-symbolic-length-v7=` in both [specialization](../glossary.md#term-specialization)
 streams. V7 replaced [scalar](../glossary.md#term-scalar) initialization's [coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix) nest with a dense byte cursor and
@@ -5828,7 +5828,7 @@ speed. They introduce no new capability, architecture rule or arithmetic permiss
 ### [Symbolic Scan](../glossary.md#symbolic-scan) [CPU](../glossary.md#term-cpu) execution
 
 Current ordinary composition supports named-[batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding) forward and actual selected VJPs under
-single-B, fixed-T/[features](../glossary.md#term-software-feature) guards. The following Prepare0014 domain and evidence are historical;
+single-B, fixed-T/[features](../glossary.md#term-feature) guards. The following Prepare0014 domain and evidence are historical;
 its [FLOAT32](../glossary.md#term-float32)-only and [finite](../glossary.md#term-finite)-algebra limits are not global current [general Scan](../glossary.md#general-differentiable-scan) restrictions.
 
 Prepare0014 implements all-valid [homogeneous](../glossary.md#term-homogeneous) FLOAT32 forward and actual [Compiler](../glossary.md#term-compiler)-generated
@@ -5871,7 +5871,7 @@ control. Arithmetic, contributor/stage order, public writes and exact saved site
 These structural facts do not establish machine-cycle savings or timing parity; CPU0038's
 measurements predate this [specialization](../glossary.md#term-specialization).
 
-[Scan](../glossary.md#term-cumulative-scan)'s four-[byte alignment](../glossary.md#term-byte-alignment) and disjoint symbolic workspace regions admit exact checked
+[Scan](../glossary.md#general-differentiable-scan)'s four-[byte alignment](../glossary.md#term-byte-alignment) and disjoint symbolic workspace regions admit exact checked
 constant-plus-B frame, cut, carry-bank and workspace recipes. This is the selected mechanism,
 not a claim that every possible size recipe is affine. Only demanded histories receive
 storage/stores; exact saved TANH/SIGMOID outputs are loaded by reverse, never replayed.
@@ -5888,7 +5888,7 @@ into distinct final outputs. Every [run](../glossary.md#term-run) performs fresh
 then actual-byte/access/[alignment](../glossary.md#term-alignment) and full-capacity overlap checks. Mutable packed/access/carry
 arrays and writable resources belong to one [RunState](../glossary.md#run-state--runstate); no [Engine](../glossary.md#term-engine) [memo](../glossary.md#cache-and-memoization) or per-B relowering exists.
 
-Symbolic mode retains canonical `:symbolic-batch-v1`. CPU0039 advances only its baked [payload](../glossary.md#artifact-envelope-and-atomic-publication)
+Symbolic mode retains canonical `:symbolic-batch-v1`. CPU0039 advances only its baked payload
 to `|scan-symbolic-batch-v2=` in both specialization [identity](../glossary.md#term-identity-meanings) streams, rejecting symbolic baked
 v1 [artifacts](../glossary.md#term-artifact). It does not set the ordinary-batch Scan flag.
 [Schema](../glossary.md#term-schema)/family 71, static pointwise/shaped-v4/MATMUL-v4 and accepted ordinary keys/bytes remain
@@ -5916,7 +5916,7 @@ separates cold setup, fixed paired startup/[warmup](../glossary.md#term-warmup),
 boundaries support [compilation](../glossary.md#compiler-engine-and-execution-stage-names)-[log](../glossary.md#term-log) correlation. Post-fixed-warmup samples remain observational,
 not guaranteed [steady state](../glossary.md#term-steady-state) or full Engine admission; the single body cap includes setup/checks.
 
-### Retained static [Scan](../glossary.md#term-cumulative-scan) [qualification](../glossary.md#term-qualification) and resources
+### Retained static [Scan](../glossary.md#general-differentiable-scan) [qualification](../glossary.md#term-qualification) and resources
 
 CPU0037's [approved read-boundary extension](../architecture/contracts/recurrent-scan.md#traversal-empty-domains-and-declared-qualification)
 is implemented with focused qualification. It admits actual dense zero-offset reads whose [strides](../glossary.md#term-stride)
@@ -6151,7 +6151,7 @@ class hashes and both identity-stream hashes recorded in `general-scan-v3-proven
 `CpuGeneralScanPreparedExecutable` retains primitive geometry and one typed [MethodHandle](../glossary.md#native-numerical-library-and-instruction-architecture) spreader,
 not a [graph](../glossary.md#graph). Cold binding checks typed capacity, [alignment](../glossary.md#term-alignment) and access plus full selected
 write/scratch overlap, including tails; read/read [aliases](../glossary.md#aliasing-and-arena) remain legal. Each invocation owns its
-arrays under the existing single [RunState](../glossary.md#run-state--runstate), rechecks [liveness](../glossary.md#term-liveness) and calls each [scan](../glossary.md#term-cumulative-scan) entry once.
+arrays under the existing single [RunState](../glossary.md#run-state--runstate), rechecks [liveness](../glossary.md#term-liveness) and calls each [scan](../glossary.md#general-differentiable-scan) entry once.
 Cleanup, retry, concurrent-run isolation and result lifetime use existing [Runtime](../glossary.md#term-runtime)/[Engine](../glossary.md#term-engine) [owners](../glossary.md#term-owner).
 
 F64 binding independently enforces the exact dtype and eight-byte capacity/alignment for selected
@@ -6304,7 +6304,7 @@ late statistics, class bytes/hash/disassembly, identities, [JDK](../glossary.md#
 definition/first-entry costs are retained. [Java Flight Recorder](../glossary.md#term-java-flight-recorder-jfr) ([JFR](../glossary.md#memory-management-atomic-counters-and-complexity)) block/clock events and
 LogCompilation [logs](../glossary.md#commit-release-distribution-log-and-seed-meanings) correlate measurement windows with the exact hidden entry and oracle, with
 no `Compiler.codelist` snapshot [dependency](../glossary.md#term-dependency); stack export uses depth 128 to avoid the default
-five-frame [truncation](../glossary.md#term-truncation-toward-zero). [Inlining](../glossary.md#term-inlining) requires [qualification](../glossary.md#term-qualification)
+five-frame truncation. [Inlining](../glossary.md#term-inlining) requires [qualification](../glossary.md#term-qualification)
 of the containing compiled method; missing correlation or unstable compilation remains an
 explicit limitation. A guarded subset is supplementary, never a replacement for all 300 pairs.
 Recovery had not launched at that historical review freeze. The task's
@@ -6378,7 +6378,7 @@ records per-fork statistics, compilation correlation, separate cold costs and ev
 ## Numerical semantics and capability
 
 The numerical terms distinguish stored values from arithmetic on them. **[NaN](../glossary.md#term-nan)** means “[not a
-number](../glossary.md#nan-infinity-and-signed-zero),” a [floating-point](../glossary.md#term-floating-point) encoding used for outcomes such as invalid arithmetic; its [payload](../glossary.md#artifact-envelope-and-atomic-publication) is
+number](../glossary.md#nan-infinity-and-signed-zero),” a [floating-point](../glossary.md#term-floating-point) encoding used for outcomes such as invalid arithmetic; its [payload](../glossary.md#term-nan-payload) is
 extra encoded information, not a numerical magnitude. A **[subnormal](../glossary.md#term-subnormal)** is a nonzero floating
 value smaller in magnitude than the format's smallest normal value. [DAZ](../glossary.md#term-daz) treats such an input as
 zero at a permitted arithmetic site; [FTZ](../glossary.md#term-ftz) replaces a subnormal result with zero under that site's

@@ -16,7 +16,7 @@ The public `modules:compiler` contract surface now contains:
 - `GradientPublicationBinding`, the derivative-order and stage-local
   target-to-gradient-publication association;
 - `DerivativeGraphMetadata`, the exact [graph](../../glossary.md#graph)-adjacent per-[node](../../glossary.md#node) [derivative](../../glossary.md#term-derivative)-order sidecar, including
-  `scanActivityByNode()` associations from containing [Scan](../../glossary.md#term-cumulative-scan) IDs to exact local activity plans;
+  `scanActivityByNode()` associations from containing [Scan](../../glossary.md#general-differentiable-scan) IDs to exact local activity plans;
 - `CompileArtifacts`, the exact eight-component immutable recipe containing mode, final graph,
   maximal partitions, logical memory, publication, constants, diagnostics, and derivative
   metadata;
@@ -44,7 +44,7 @@ physical [buffer](../../glossary.md#term-buffer), transfer, [prepared schedule](
 `CompileConstantPlan.bindableInputBindings()` associates every final caller-bindable graph input
 with its originating immutable [Tensor](../../glossary.md#tensor) [identity](../../glossary.md#term-identity-meanings) in graph-input order. Its existing
 `bindableInputs()` method remains the ordered [`ValueId`](../../glossary.md#logical-valueid-versus-physical-memory-slot) projection for compatibility, and its
-constant entries [carry](../../glossary.md#term-carry) logical splats rather than dense data or storage. No source entry retains a
+constant entries carry logical splats rather than dense data or storage. No source entry retains a
 live Tensor, [descriptor](../../glossary.md#term-descriptor) copy, provenance, or [host storage](../../glossary.md#host-storage).
 `CompileDiagnostics` carries deterministic text projections rather than a public predicate
 language, [trace](../../glossary.md#trace) [schema](../../glossary.md#term-schema), or [serialization](../../glossary.md#term-serialization).

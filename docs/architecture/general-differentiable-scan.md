@@ -1,14 +1,14 @@
 # [General differentiable scan](../glossary.md#general-differentiable-scan)
 
 > [`ARCHITECTURE.md`](../../ARCHITECTURE.md) is authoritative. The incorporated
-> [recurrent-scan contract](contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([scan glossary](../glossary.md#term-cumulative-scan))</span> is the sole
+> [recurrent-scan contract](contracts/recurrent-scan.md#general-differentiable-scan)<span data-glossary-navigation="true"> ([scan glossary](../glossary.md#general-differentiable-scan))</span> is the sole
 > complete scan semantic owner; this page distinguishes current ordinary PURE CPU composition
 > and selected FLOAT32/FLOAT64 first-order AD from historical bounded qualification and
 > independently gated cold persistence/workflow/resource migration.<span data-glossary-navigation="true"> ([owner glossary](../glossary.md#term-owner); [PURE glossary](../glossary.md#term-pure); [CPU glossary](../glossary.md#term-cpu); [FLOAT32 glossary](../glossary.md#term-float32); [FLOAT64 glossary](../glossary.md#term-float64); [AD glossary](../glossary.md#autograd); [qualification glossary](../glossary.md#term-qualification); [persistence glossary](../glossary.md#term-persistence))</span>
 
 ## Purpose and [mental model](../glossary.md#term-mental-model)
 
-A fixed-count [scan](../glossary.md#term-cumulative-scan) repeats ordinary [Tensor](../glossary.md#tensor) algebra while explicitly carrying values from one
+A fixed-count [scan](../glossary.md#general-differentiable-scan) repeats ordinary [Tensor](../glossary.md#tensor) algebra while explicitly carrying values from one
 step to the next. Users describe that algebra once. [Compiler](../glossary.md#term-compiler) [automatic differentiation](../glossary.md#autograd) ([AD](../glossary.md#autograd)) makes
 an ordinary reverse sibling scan before [capture](../glossary.md#term-capture-meanings); qualified [CPU](../glossary.md#term-cpu) preparation emits the loop instead
 of interpreting the body at [runtime](../glossary.md#term-runtime). This avoids a source [graph](../glossary.md#graph) that grows once per time step
@@ -81,7 +81,7 @@ The architecture was accepted on 2026-10-21 in
 [ADR 0045](../design/decisions/0045-general-differentiable-scan.md)<span data-glossary-navigation="true"> ([ADR glossary](../glossary.md#term-architecture-decision-record-adr))</span>. Model0035 implements and validates
 the source body, [canonical](../glossary.md#term-canonical-form) result/[residual](../glossary.md#scan-residual-port-and-history-demand) wrappers, scalar header and structural compiled-body
 attachment. Planning0008 adds optional compiled-body query transport and whole-occurrence provider
-contract tests. Compiler0011 implements scoped capture/[inference](../glossary.md#term-inference), first-order reverse-scan AD and
+contract tests. Compiler0011 implements scoped capture/[inference](../glossary.md#term-inference-meanings), first-order reverse-scan AD and
 final body-bearing query/demand emission. Prepare0010 implements scoped projection, static [binding](../glossary.md#term-binding)
 checks and complete-graph demand validation through the existing resource [handoff](../glossary.md#term-handoff). CPU0030 implements
 same-shape [FLOAT32](../glossary.md#term-float32) [pointwise](../glossary.md#term-pointwise) forward execution and its actual Compiler-generated reverse when both
@@ -105,7 +105,7 @@ admission is not a provider support answer.
 ### Dense actual reads: implemented and qualified
 
 [CPU0037](../planning/backends/cpu/tasks/0037-general-scan-dense-read-views.md) adds only the
-[scan owner's read exception](contracts/recurrent-scan.md#traversal-empty-domains-and-declared-qualification)<span data-glossary-navigation="true"> ([scan glossary](../glossary.md#term-cumulative-scan); [owner glossary](../glossary.md#term-owner))</span>.
+[scan owner's read exception](contracts/recurrent-scan.md#traversal-empty-domains-and-declared-qualification)<span data-glossary-navigation="true"> ([scan glossary](../glossary.md#general-differentiable-scan); [owner glossary](../glossary.md#term-owner))</span>.
 A [view](../glossary.md#term-view-meanings) flag records [metadata](../glossary.md#term-metadata); it does not by itself change the address of a cell. For example,
 a resolved [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding) sequence `[3,2,4]` with [strides](../glossary.md#term-stride) `[8,4,1]`, offset zero and `isView=true`
 has the same addresses `0..23` as its non-view [canonical](../glossary.md#term-canonical-form) twin. Conv1d's [singleton](../glossary.md#term-singleton)-[axis](../glossary.md#term-axis) removal
@@ -122,7 +122,7 @@ Singleton CONCAT can likewise generate a dense reverse [seed](../glossary.md#ter
 and singleton-CONCAT workflows in both traversals and both [dtypes](../glossary.md#data-type--datatype), comparing outputs and connected
 [gradients](../glossary.md#term-gradient) with ordinary [unrolling](../glossary.md#term-unrolling) over the same input and [parameter](../glossary.md#term-parameter) [leaves](../glossary.md#term-leaf). Separate capability
 tests assert that the Conv1d view reaches the forward/reverse [primal](../glossary.md#term-primal) role and the CONCAT view
-reaches the actual reverse emission-seed role. This is actual reverse evidence, not an [inference](../glossary.md#term-inference)
+reaches the actual reverse emission-seed role. This is actual reverse evidence, not an [inference](../glossary.md#term-inference-meanings)
 from forward support. This [CPU](../glossary.md#term-cpu) extension does not migrate the fluent [RNN](../glossary.md#term-recurrent-neural-network-rnn) builder or alter its
 cold descriptor.
 
@@ -161,7 +161,7 @@ Compiler-[AD](../glossary.md#autograd)/backend closure qualifies, retaining thei
 ### Bounded cold [persistence](../glossary.md#term-persistence)
 
 [Checkpoint](../glossary.md#term-checkpoint) v4 stores the same bounded cold source: ordered input [descriptors](../glossary.md#term-descriptor), ordinary outer
-[provenance](../glossary.md#provenance), one independently scoped inline body per [scan](../glossary.md#term-cumulative-scan) and reachable named raw state. For the
+[provenance](../glossary.md#provenance), one independently scoped inline body per [scan](../glossary.md#general-differentiable-scan) and reachable named raw state. For the
 three-step `tanh(carry + step * weight)` example, only the [weight](../glossary.md#term-weight) has a [payload](../glossary.md#artifact-envelope-and-atomic-publication); sequence/[carry](../glossary.md#term-carry)
 [prototypes](../glossary.md#term-prototype) and [residual](../glossary.md#scan-residual-port-and-history-demand) descriptors are [metadata](../glossary.md#term-metadata), not saved [batches](../glossary.md#term-batch-machine-learning-and-hyperparameters) or [activation](../glossary.md#term-activation) histories.
 Changing T does not time-unroll the body. [Compiler](../glossary.md#term-compiler) remains the sole constructor [owner](../glossary.md#term-owner) after full
@@ -277,7 +277,7 @@ The bounded family sweep separates ordinary exact guards from additional named-[
 | Attention | Prove all three operand batch broadcasts, [embedding](../glossary.md#embedding)/sequence equalities and directional [mask](../glossary.md#term-boolean-mask) expansion, including unused weights siblings. |
 | Layer/[RMS normalization](../glossary.md#rms-normalization) and BatchNorm | Validate normalized-shape attributes against the exact input suffix and every [parameter](../glossary.md#term-parameter) against the exact [channel](../glossary.md#term-channel) [dimension](../glossary.md#dimension). |
 | [Convolution](../glossary.md#term-channels-first-convolution-layers) and [losses](../glossary.md#loss) | Prove grouped input-channel/[bias](../glossary.md#term-bias) relations and exact dense or class-axis-removed index-[target](../glossary.md#term-target) shapes. |
-| [Gather](../glossary.md#gather)/scatter, composition and fold | Reuse existing structural batch/update/channel/window equality guards; fold target shapes also pass the declared-[symbol](../glossary.md#term-symbol) vocabulary check. |
+| [Gather](../glossary.md#gather)/scatter, composition and fold | Reuse existing structural batch/update/channel/window equality guards; fold target shapes also pass the declared-[symbol](../glossary.md#dimension) vocabulary check. |
 | Other movement, ordering, window and reduction operations | Reuse ordinary family guards and validate every resulting shape; no independent or derived [batch dimension](../glossary.md#batch-dimension) is admitted. |
 
 Every shape-bearing attribute in the dispatched source inventory is checked, including normalized,
@@ -289,7 +289,7 @@ not a CPU [operation](../glossary.md#operation) whitelist or a general numerical
 statistical counts and other ordinary value/domain obligations retain their existing [owners](../glossary.md#term-owner).
 
 The source example proves construction, not backend support. Compiler0014 implements independent
-scoped [inference](../glossary.md#term-inference), actual [FLOAT32](../glossary.md#term-float32)/[FLOAT64](../glossary.md#term-float64) first-order reverse construction and fresh all-port
+scoped [inference](../glossary.md#term-inference-meanings), actual [FLOAT32](../glossary.md#term-float32)/[FLOAT64](../glossary.md#term-float64) first-order reverse construction and fresh all-port
 metadata [binding](../glossary.md#term-binding), independently reviewed and MAIN accepted after compatibility [validation](../glossary.md#term-validation).
 For X `[3,B,2]`, binding B=40 yields canonical `[3,40,2]` actual row ports, while a shared
 `[3,2,3]` history stays fixed. Every invocation checks dead local declarations and numeric-domain
@@ -344,7 +344,7 @@ result [dtypes](../glossary.md#data-type--datatype) always retain false flags. R
 A residual names an original body value that reverse formulas may need. ScanBody derives a stable,
 [identity](../glossary.md#term-identity-meanings)-unique inventory by [producer](../glossary.md#term-producer) postorder/output slot, including unused [canonical](../glossary.md#term-canonical-form) siblings
 and previous-[carry](../glossary.md#term-carry) formals. Step/[invariant](../glossary.md#term-invariant) values bind explicitly from outer inputs rather than
-duplicating saved sequences. Original [Scan](../glossary.md#term-cumulative-scan).apply construction reserves canonical residual wrappers
+duplicating saved sequences. Original [Scan](../glossary.md#general-differentiable-scan).apply construction reserves canonical residual wrappers
 after final carry and emissions. It neither replaces the producer later nor allocates stacked
 storage. This is Synaptik's [immutable](../glossary.md#term-immutable)-producer choice, not an industry mandate or a user-authored
 saved-[tensor](../glossary.md#tensor) recipe.
@@ -467,10 +467,10 @@ explains why exact saved [rounding](../glossary.md#term-rounding) sites matter a
 ## Capability, resources and generated code
 
 The implemented [Planning transport](contracts/foundational-modules.md#profile-free-capability-queries)
-can [carry](../glossary.md#term-carry) an optional [immutable](../glossary.md#term-immutable) scoped body, [descriptors](../glossary.md#term-descriptor), role [bindings](../glossary.md#term-binding) and demanded outer-port
+can carry an optional [immutable](../glossary.md#term-immutable) scoped body, [descriptors](../glossary.md#term-descriptor), role [bindings](../glossary.md#term-binding) and demanded outer-port
 indices, never source [Tensors](../glossary.md#tensor). Only `ScanKind.SCAN` may carry a body; missing-body and semantic
 mismatch questions remain representable for provider rejection. The query does not perform
-descriptor [inference](../glossary.md#term-inference) or demand analysis. [Compiler](../glossary.md#term-compiler) now supplies independently validated complete
+descriptor [inference](../glossary.md#term-inference-meanings) or demand analysis. [Compiler](../glossary.md#term-compiler) now supplies independently validated complete
 body/role/descriptor/demand facts in all [compile](../glossary.md#compile) modes. A provider must support the header, every
 body/generated [occurrence](../glossary.md#term-occurrence) and the loop binder together. Individually supported children with an
 unsupported binder reject.
@@ -493,11 +493,11 @@ Prepare tests exercise exact [buffer](../glossary.md#term-buffer)/workspace decl
 and finalization with bounded test collaborators. Buffers name only projected outer values;
 analysis-local workspaces represent scratch without promoting local body IDs into outer storage
 [identities](../glossary.md#term-identity-meanings). These checks do not prove physical zero-history bytes/stores, numerical final carry,
-[scan](../glossary.md#term-cumulative-scan) execution or detection of hidden allocations inside an [opaque](../glossary.md#term-opaque) backend plan.
+[scan](../glossary.md#general-differentiable-scan) execution or detection of hidden allocations inside an [opaque](../glossary.md#term-opaque) backend plan.
 
 CPU0030 analysis prepares the bounded [pointwise](../glossary.md#term-pointwise) body once and declares exact output, carry-bank
 and demanded-history bytes before slots; staging and body-array temporaries are zero for this
-[slice](../glossary.md#slice). After assignment, finalization emits the outer time loop with inline [scalar](../glossary.md#term-scalar)/[carrier](../glossary.md#term-storage-carrier) code
+slice. After assignment, finalization emits the outer time loop with inline [scalar](../glossary.md#term-scalar)/[carrier](../glossary.md#term-storage-carrier) code
 and explicit invocation-versus-step setup, typed locals, byte bases and ranges. It hoists [invariant](../glossary.md#term-invariant)
 setup and uses original-time offsets. CPU0032 originally used the generation-only
 `CpuGeneralScanMatmulEmitter`; CPU0071 retires it after moving cursor/indexed K control and math
@@ -627,7 +627,7 @@ The ClassFile change uses the narrowly versioned static MATMUL [artifact](../glo
 the owning exception, rather than reusing an old class under unchanged keys. Only a retained
 MATMUL stage selects the static-length exception. Existing retention results above remain historical
 evidence; unchanged namespaces still require byte-preservation [validation](../glossary.md#term-validation), not an assumption that
-common emission produces identical classes. [Scan](../glossary.md#term-cumulative-scan) activity, saved values and resource [ownership](../glossary.md#term-ownership) do
+common emission produces identical classes. [Scan](../glossary.md#general-differentiable-scan) activity, saved values and resource [ownership](../glossary.md#term-ownership) do
 not change. The [CPU0071 Result](../planning/backends/cpu/tasks/0071-common-matmul-binding-foundation.md#result)
 records frozen-corpus checks, qualified [vector](../glossary.md#term-vector) coverage and the sole completed diagnostic.
 Timing transitions prevent steady-state or speed/parity claims; the measurement budget is closed.
@@ -648,7 +648,7 @@ explains the choice. This explanation does not broaden either contract.
 A row map computes a pure local expression once per ordered row R. Several terminal outputs
 can consume that expression, but cannot send a completed reduction back into row work in the
 same pass. [CPU](../glossary.md#term-cpu) analysis recognizes a physical fusion region before cuts/resources;
-finalization emits it inside the current [Scan](../glossary.md#term-cumulative-scan) time loop. That is a wrapper around existing
+finalization emits it inside the current [Scan](../glossary.md#general-differentiable-scan) time loop. That is a wrapper around existing
 [operation](../glossary.md#operation) math, not a new semantic [DAG](../glossary.md#term-directed-acyclic-graph-dag), body interpreter or [Runtime](../glossary.md#term-runtime) executor. Ordinary [graphs](../glossary.md#graph)
 use the same core in one complete lowered execution unit. A computed [producer](../glossary.md#term-producer) must reach a
 terminal and another retained or terminal sink; sharing an input or movement alone does not qualify.
@@ -677,7 +677,7 @@ new measurement budget follows.
 
 ### Implemented and accepted row-[fusion](../glossary.md#term-fusion) [SIMD](../glossary.md#simd) and workers
 
-CPU0074 extends the selected fusion region, not all [Scan](../glossary.md#term-cumulative-scan) operations. Its
+CPU0074 extends the selected fusion region, not all [Scan](../glossary.md#general-differentiable-scan) operations. Its
 [CPU mechanism](contracts/backend-execution.md#cpu0074-selected-row-region-execution-exception),
 [terminal arithmetic exception](contracts/recurrent-scan.md#cpu0074-selected-terminal-grouping-exception)
 and [run reservation](contracts/runtime-prepare-engine.md#cpu0074-run-owned-synchronous-reservation)
@@ -688,7 +688,7 @@ records evidence and [JIT](../glossary.md#term-just-in-time-compilation-jit) [co
 CPU0073 [scalar](../glossary.md#term-scalar) v1 and all no-region Scan paths remain unchanged.
 
 The implemented [binding](../glossary.md#term-binding) works as follows: an admitted F3/H2 reverse consumes exact
-saved [activation](../glossary.md#term-activation)/previous-[carry](../glossary.md#term-carry) values. [Feature](../glossary.md#term-software-feature) SIMD evaluates H2/F3 cells within one active row,
+saved [activation](../glossary.md#term-activation)/previous-[carry](../glossary.md#term-carry) values. [Feature](../glossary.md#term-feature) SIMD evaluates H2/F3 cells within one active row,
 retaining full feature-K order; masked tails exclude nonexistent feature loads/stores. A proved
 raw W/U [transpose](../glossary.md#term-transpose) costs ten cells (40 [F32](../glossary.md#floating-point-precision-and-rounding) / 80 [F64](../glossary.md#floating-point-precision-and-rounding) bytes before [alignment](../glossary.md#term-alignment)). True invariants stage
 once per [run](../glossary.md#term-run) inside any-active gating. Changing cuts or SHARED histories stage at the proper
@@ -727,8 +727,8 @@ both [dtypes](../glossary.md#data-type--datatype), still subject to whole-[occur
 under existing family [NaN](../glossary.md#term-nan)/Inf, zero-divisor, [signed-zero](../glossary.md#nan-infinity-and-signed-zero), [overflow](../glossary.md#term-overflow)/[underflow](../glossary.md#term-underflow) and empty rules.
 Compiler's first-order inventory accepts this homogeneous [FLOAT32](../glossary.md#term-float32)/[FLOAT64](../glossary.md#term-float64) algebra and the required
 SUM/sumToShape, expand, reshape, [rank](../glossary.md#term-rank)-edit, contiguous and floating-cast closure through existing
-rule [owners](../glossary.md#term-owner). Source construction/[inference](../glossary.md#term-inference) still accept valid pure operations outside that [AD](../glossary.md#autograd)
-inventory, such as [FLOAT16](../glossary.md#term-float16) TANH and FLOAT32 RELU. Unsupported body occurrences in any original [scan](../glossary.md#term-cumulative-scan),
+rule [owners](../glossary.md#term-owner). Source construction/[inference](../glossary.md#term-inference-meanings) still accept valid pure operations outside that [AD](../glossary.md#autograd)
+inventory, such as [FLOAT16](../glossary.md#term-float16) TANH and FLOAT32 RELU. Unsupported body occurrences in any original [scan](../glossary.md#general-differentiable-scan),
 including unrelated forward branches, reject before [seeds](../glossary.md#commit-release-distribution-log-and-seed-meanings) or reverse formals are allocated.
 Low-type AD and execution need later independent qualification under existing [rounding](../glossary.md#term-rounding)/saved-state rules.
 
@@ -822,7 +822,7 @@ extension; MAIN accepted the coordinated authority on 2026-10-24 after Hume's fi
 independent Class C APPROVE, zero open P1/P2. Model0038's source/structural-[IR](../glossary.md#term-intermediate-representation-ir) implementation and
 independent review are finished; MAIN accepted the task Complete on 2026-10-24 after the combined
 integration retry passed following a test-only ledger repair. Compiler0013 now implements
-independent length [inference](../glossary.md#term-inference), first-order reverse construction and final role/demand queries.
+independent length [inference](../glossary.md#term-inference-meanings), first-order reverse construction and final role/demand queries.
 Prepare0011 adds static boundary [validation](../glossary.md#term-validation) and exact projection through the existing staged
 resource [handoff](../glossary.md#term-handoff). CPU0042 separately implements fixed T/B/[features](../glossary.md#term-feature) [FLOAT32](../glossary.md#term-float32)/[FLOAT64](../glossary.md#term-float64) forward and
 actual [Compiler](../glossary.md#term-compiler)-generated first-order reverse through the existing generated CPU path. Its
@@ -881,13 +881,13 @@ mix ROW(0), ROW(1) and SHARED. Higher-order rejection is unchanged.
 
 Shared transposed [weight](../glossary.md#term-weight) history `[T,F,H]` has no batch axis, even when F=B. Explicit roles
 survive reverse pruning; zero-filled [padding](../glossary.md#padding) never licenses padded reverse loads. [Runtime](../glossary.md#term-runtime) must
-validate all lengths after [producers](../glossary.md#term-producer) and before any [scan](../glossary.md#term-cumulative-scan)-local write, including invalid-last
+validate all lengths after [producers](../glossary.md#term-producer) and before any [scan](../glossary.md#general-differentiable-scan)-local write, including invalid-last
 and T=0 cases. Shared hoisting also needs an any-active gate.
 
 Compiler0013 constructs the reverse through existing family formulas and exact saved primals,
 without replay. Every incoming [cotangent](../glossary.md#cotangent) for a SHARED value is normalized before accumulation,
 including shared intermediates at B=1. Disconnected ROW zeros and shaped literals are explicit
-typed sequence bindings, not `0*x` or a SHARED expansion reinterpreted as ROW. [Feature](../glossary.md#term-software-feature) SUM and
+typed sequence bindings, not `0*x` or a SHARED expansion reinterpreted as ROW. [Feature](../glossary.md#term-feature) SUM and
 sumToShape adjoints restore ROW(1) through row-leading transpose/[rank](../glossary.md#term-rank)-edit/expand compositions;
 these [layout](../glossary.md#layout) operations add no arithmetic or saved-[primal](../glossary.md#term-primal) load. Outer [CSE](../glossary.md#term-common-subexpression-elimination-cse) and exact rewrites
 preserve length actual-binding sites so distinct same-shape ROW/SHARED values cannot become an
@@ -945,7 +945,7 @@ preserves original failed commands rather than claiming a clean root PASS. The
 defines the Model-only relaxation; [ADR0056](../design/decisions/0056-per-value-typed-length-scan-source.md)
 records why. No downstream capability is added.
 
-The distinction is between a loop's [bindings](../glossary.md#term-binding) and the operations inside that loop. [Scan](../glossary.md#term-cumulative-scan) keeps
+The distinction is between a loop's [bindings](../glossary.md#term-binding) and the operations inside that loop. [Scan](../glossary.md#general-differentiable-scan) keeps
 each [carry](../glossary.md#term-carry)'s declared [descriptor](../glossary.md#term-descriptor) stable; ordinary operations choose their own result [dtype](../glossary.md#data-type--datatype) and
 working [precision](../glossary.md#term-precision). Requiring every slot to have the first carry's dtype conflates those jobs.
 Removing that source restriction lets callers describe explicit working-precision transitions
@@ -968,7 +968,7 @@ and dtype: [FLOAT64](../glossary.md#term-float64) old plus FLOAT32 contribution 
 Casts preserve terminal-reduction facts and shared-state isolation, so converting a row sum
 cannot make it a legal row feedback value.
 
-[Compiler](../glossary.md#term-compiler) [inference](../glossary.md#term-inference)/AD, [Prepare](../glossary.md#prepare) and [CPU](../glossary.md#term-cpu) retain their current [homogeneous](../glossary.md#term-homogeneous) [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding) rejection
+[Compiler](../glossary.md#term-compiler) [inference](../glossary.md#term-inference-meanings)/AD, [Prepare](../glossary.md#prepare) and [CPU](../glossary.md#term-cpu) retain their current [homogeneous](../glossary.md#term-homogeneous) [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding) rejection
 domains; [cold reconstruction](../glossary.md#term-cold-reconstruction) and the [codec](../glossary.md#term-codec) still reject length mode outright. Direct raw-seam
 negative tests establish those independent boundaries, including dead/empty cases. Existing
 fixed [kernels](../glossary.md#kernel), [unrolled](../glossary.md#backpropagation-through-time-and-recurrent-state) builder/static Sequence APIs and [checkpoint](../glossary.md#term-checkpoint) compatibility stay intact.

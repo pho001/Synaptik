@@ -58,7 +58,7 @@ There is no shape [specialization](../../glossary.md#term-specialization): [64,7
 
 ### Reuse one named-batch template
 
-The qualified CPU-only exception is an explicitly symbolic ordinary or bounded all-valid [Scan](../../glossary.md#term-cumulative-scan) graph, not a static graph
+The qualified CPU-only exception is an explicitly symbolic ordinary or bounded all-valid [Scan](../../glossary.md#general-differentiable-scan) graph, not a static graph
 silently specialized at run time. [Compile](../../glossary.md#compile)/[prepare](../../glossary.md#prepare) once with [FLOAT32](../../glossary.md#term-float32) X `[B,F]` and fixed W `[F,H]`;
 `compile(List.of(X.matmul(W).mean()), List.of(scalarOne), List.of(X,W))` supports actual first-order
 gradients at changing B through existing `runValues`. Actual inputs retain type/gradient flags and
@@ -195,7 +195,7 @@ candidate fixed to the Phase-1-selected route. Phase 2 performs every exact corr
 before timing; correctness, [warmup](../../glossary.md#term-warmup), and timed executions each use a fresh preparation and fresh
 Runtime state. After winner [authentication](../../glossary.md#term-authentication) and representative cleanup, the returned production
 handle is prepared afresh. Every trial closes its result before its temporary preparation on every
-path. The `ModelAutotuningPreparation` metadata [carrier](../../glossary.md#term-storage-carrier) is not another closeable owner: its
+path. The `ModelAutotuningPreparation` metadata carrier is not another closeable owner: its
 contained `PreparedExecution` alone owns the production preparation.
 
 A tuned result has outcome `TUNED`. Its immutable evidence contains the Phase-1 workload rows and

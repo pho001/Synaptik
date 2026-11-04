@@ -3,7 +3,7 @@
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
 [Compilation](../../glossary.md#compiler-engine-and-execution-stage-names) turns an expression's meaning into a verified logical recipe. **[Capture](../../glossary.md#term-capture-meanings)** records
-its dependencies, **[inference](../../glossary.md#term-inference)** derives expected [shapes](../../glossary.md#shape) and types, and **[planning](../../glossary.md#term-planning)** assigns [backend](../../glossary.md#backend)
+its dependencies, **[inference](../../glossary.md#term-inference-meanings)** derives expected [shapes](../../glossary.md#shape) and types, and **[planning](../../glossary.md#term-planning)** assigns [backend](../../glossary.md#backend)
 [owners](../../glossary.md#term-owner) and groups consecutive owned work. **[Lowering](../../glossary.md#lowering)** is the later backend-specific translation
 into executable operations; it is not the same as capture or logical planning.
 

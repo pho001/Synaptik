@@ -159,7 +159,7 @@ These counts do not prove kernel skipping, fusion, kernel count, execution cost 
 changing the Java counts specializes a different expression topology.
 
 The same three one-directional Sequences additionally expose `forwardScan`, which constructs one
-fixed [scan](../../glossary.md#term-cumulative-scan) using that cell's current parameters. All [arguments](../../glossary.md#term-argument) are explicit:
+fixed [scan](../../glossary.md#term-fixed-recurrent-scan) using that cell's current parameters. All [arguments](../../glossary.md#term-argument) are explicit:
 
 ```java
 // Tensor lengths are checked at execution, so constructing these expressions reads no length bytes.
@@ -176,7 +176,7 @@ must have the exact configured floating type, without promotion or broadcast. `d
 and prospective initialization-count checks precede draws, Tensor identifiers and [publication](../../glossary.md#term-publication).
 Construction reads no length values or [host storage](../../glossary.md#host-storage) and creates no dummy cell expression.
 
-The returned [Model](../../glossary.md#term-model) [carrier](../../glossary.md#term-storage-carrier) has dense `outputs()` shaped `[time,batch,hiddenSize]` and
+The returned [Model](../../glossary.md#term-model) carrier has dense `outputs()` shaped `[time,batch,hiddenSize]` and
 `finalHidden()` shaped `[batch,hiddenSize]`; LSTM also has `finalCell()` of that state Shape.
 Reverse traversal consumes only each row's valid prefix and stores outputs at original time
 coordinates. For `[time,batch,hiddenSize] = [3,2,4]` and lengths `[3,1]`, row 1 has positive-zero

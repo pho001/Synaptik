@@ -236,7 +236,7 @@ They transiently inventory reachable [provenance](../../glossary.md#provenance)-
 join them by `TensorId` to final `CompiledGraph.inputs()` membership and order. This is [Model](../../glossary.md#term-model)
 expression-provenance traversal, not Compiler [IR](../../glossary.md#term-intermediate-representation-ir) traversal or Engine liveness reconstruction.
 The bounded forms accept one non-negative `maximumTotalBytes` bound on the sum of canonical
-returned [payload](../../glossary.md#artifact-envelope-and-atomic-publication) lengths; the no-limit forms delegate with `Long.MAX_VALUE`, while checked
+returned payload lengths; the no-limit forms delegate with `Long.MAX_VALUE`, while checked
 arithmetic and per-value [JVM](../../glossary.md#term-java-virtual-machine-jvm) array ceilings still apply. One
 Engine admission covers a fresh forward-only compile, prepare, run, complete forward-publication
 and aggregate-byte [preflight](../../glossary.md#term-preflight) before any copy, ordered materialization, and temporary-result
@@ -271,7 +271,7 @@ One admission covers compile, prepare, isolated [run state](../../glossary.md#ru
 close waits through that sequence; concurrent calls use distinct Runtime states. The returned
 `ScalarObjectiveBackwardResult` and its `HostTensorValue` components are detached and remain
 readable after temporary result, Engine, and caller storage close. No explicit input list, [eager](../../glossary.md#term-eager-evaluation)
-tape, Tensor mutation, inferred target, no-argument backward, or Runtime liveness [inference](../../glossary.md#term-inference) is
+tape, Tensor mutation, inferred target, no-argument backward, or Runtime liveness [inference](../../glossary.md#term-inference-meanings) is
 introduced. Explicit seeds, multiple outputs, reusable execution, `ZERO`, and higher-order/full
 request policies stay on the existing ordinary or advanced lower-level lifecycle. See the
 [complete one-shot examples](../engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle).

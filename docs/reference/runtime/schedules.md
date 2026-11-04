@@ -29,7 +29,7 @@ occurrence. Each derives `memoryPlan()` from its exact component.
 
 Construction validates each occurrence in supplied order and requires [reference identity](../../glossary.md#term-reference-identity) with
 the schedule plan; a structurally equal but separately constructed plan is not the same prepared
-association. Only after the complete [scan](../../glossary.md#term-cumulative-scan) succeeds does the schedule use `List.copyOf` to retain
+association. Only after the complete scan succeeds does the schedule use `List.copyOf` to retain
 an immutable ordered [snapshot](../../glossary.md#term-snapshot). It keeps exact step and recipe references. Empty schedules,
 repeated executable or transfer step references, and repeated recipe references are valid because
 each list position is one explicit occurrence and does not create another [ownership](../../glossary.md#term-ownership-meanings) relationship. A
@@ -37,7 +37,7 @@ creation step may occur zero or one time and, when present, must be index zero. 
 validator may require it for a runnable result; compatibility schedules may still be empty or
 executable-only. [Publication](../../glossary.md#term-publication) steps, when present, form the final suffix. Their result indices must
 be `0..N-1` in encounter order, and `publicationCount()` reports `N`. Distinct result positions
-may intentionally name the same [buffer](../../glossary.md#term-buffer) and representation [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix).
+may intentionally name the same [buffer](../../glossary.md#term-buffer) and representation coordinate.
 
 <a id="focused-schedule-example"></a>
 ### Focused schedule example

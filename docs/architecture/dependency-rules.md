@@ -83,7 +83,7 @@ does not move [cache](../glossary.md#term-cache), measurement, or [ranking](../g
 `tools/tuning -> modules/engine` edge remains forbidden and absent, so this is not a new root
 architecture decision.
 
-Generic [Checkpoint](../glossary.md#term-checkpoint) is a cold [owner](../glossary.md#term-owner), not an Engine execution layer. Arrows below [mean](../glossary.md#term-mean)
+Generic [Checkpoint](../glossary.md#term-checkpoint) is a cold [owner](../glossary.md#term-owner), not an Engine execution layer. Arrows below mean
 “is consumed by”; public signatures use API edges and Compiler remains implementation-only.
 
 ```text
@@ -146,7 +146,7 @@ execution. The [graph API](../reference/checkpoint/graph.md) explains static sig
 
 ### [Trace](../glossary.md#trace) is a [dependency leaf](../glossary.md#term-dependency-leaf)
 
-A [dependency](../glossary.md#term-dependency) **[leaf](../glossary.md#term-leaf)** needs no higher layer. A **[DTO](../glossary.md#data-transfer-object--dto)** is a [data-transfer object](../glossary.md#data-transfer-object--dto): a structured
+A [dependency](../glossary.md#term-dependency) **[leaf](../glossary.md#term-dependency-leaf)** needs no higher layer. A **[DTO](../glossary.md#data-transfer-object--dto)** is a [data-transfer object](../glossary.md#data-transfer-object--dto): a structured
 description of a fact, without the [graph](../glossary.md#graph) or execution [owner](../glossary.md#term-owner) that produced it.
 
 Every phase may emit diagnostics, so trace DTOs must be safe for every phase to reference. If trace imported graph, [runtime](../glossary.md#term-runtime), or [backend](../glossary.md#backend) types, diagnostic use would introduce reverse dependencies and make the trace [schema](../glossary.md#term-schema) inherit business logic. Trace-local identifiers and typed payloads let [producers](../glossary.md#term-producer) describe events without importing one another.
@@ -224,7 +224,7 @@ Source-level dependency tests should also protect the boundaries that type depen
 
 Tests under `testing/architecture-tests/` should fail when forbidden [module](../glossary.md#term-module) or package edges appear. They should cover every [dependency](../glossary.md#term-dependency) rule above and add focused checks for:
 
-- the [trace](../glossary.md#trace) and [model](../glossary.md#term-model) [leaf](../glossary.md#term-leaf) boundaries;
+- the [trace](../glossary.md#trace) and [model](../glossary.md#term-model) [leaf](../glossary.md#term-dependency-leaf) boundaries;
 - config independence from [concrete backend](../glossary.md#concrete-backend) classes;
 - [planning](../glossary.md#term-planning) and [compiler](../glossary.md#term-compiler) independence from [runtime](../glossary.md#term-runtime) and concrete implementations;
 - runtime and [prepare](../glossary.md#prepare) independence from concrete [backends](../glossary.md#backend);
@@ -256,5 +256,5 @@ Architecture tests enforce the contract; they do not redefine it. When a depende
 [Model](../glossary.md#term-model) owns the one family/[dtype](../glossary.md#data-type--datatype) numerical contract. [Planning](../glossary.md#term-planning) queries [occurrence](../glossary.md#term-occurrence)-specific provider
 capability without a [graph](../glossary.md#graph)-wide numerical selector; [Compiler](../glossary.md#term-compiler) keeps guarded transformation
 legality, and concrete [backends](../glossary.md#backend) qualify their routes. Config, [Prepare](../glossary.md#prepare), [Engine](../glossary.md#term-engine), [Runtime](../glossary.md#term-runtime), and [Trace](../glossary.md#trace)
-[carry](../glossary.md#term-carry) no numerical-profile [identity](../glossary.md#term-identity-meanings) or production [tolerance](../glossary.md#term-tolerance) policy. This preserves the same
+carry no numerical-profile [identity](../glossary.md#term-identity-meanings) or production [tolerance](../glossary.md#term-tolerance) policy. This preserves the same
 dependency direction without making Config a semantics [owner](../glossary.md#term-owner).

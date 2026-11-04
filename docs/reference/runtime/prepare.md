@@ -19,7 +19,7 @@ sinks are [topology](../../glossary.md#term-topology)-only: they imply no cross-
 
 [`PrepareContext`](../../glossary.md#prepare-context-preparecontext) has six [canonical](../../glossary.md#term-canonical-form) record components: `partitionDag`, `values`,
 `memoryRequirements`, [`constants`](../../glossary.md#term-constant), `backendInputs`, and `Map<NodeId, ScanActivityPlan>
-scanActivityPlans`. Activity keys name containing [Scan](../../glossary.md#term-cumulative-scan) nodes in this projection and each plan
+scanActivityPlans`. Activity keys name containing [Scan](../../glossary.md#general-differentiable-scan) nodes in this projection and each plan
 retains that occurrence's exact local body graph. Shared [`GraphPreparation`](../../glossary.md#graph-preparation--graphpreparation) projects these
 associations from `artifacts.derivatives().scanActivityByNode()`; copying or subsetting contexts
 preserves or filters applicable associations explicitly. Ordinary/synthetic constructors supply
@@ -53,7 +53,7 @@ supplied assembler for a [`ProducerlessPublishedValueResource`](../../glossary.m
 the exact stable value and logical requirement, backend owner, existing Runtime `ByteSize size`,
 and [byte alignment](../../glossary.md#term-byte-alignment). The default geometry hook is
 `producerlessPublishedValue(GraphValue, LogicalMemoryRequirement, Optional<ScalarValue>)`;
-the [scalar](../../glossary.md#term-scalar) is present only for an authenticated constant, empty only for a caller. No [payload](../../glossary.md#artifact-envelope-and-atomic-publication)
+the [scalar](../../glossary.md#term-scalar) is present only for an authenticated constant, empty only for a caller. No payload
 is read or representation allocated by this contribution. The four-argument form accepts the
 complete explicit contribution list and uses the same exact-reference, role and coverage checks.
 
@@ -67,7 +67,7 @@ zero-byte geometry. Complete source facts participate in explicit [batch](../../
 its [lowering](../../glossary.md#lowering) or relaxing Runtime defaults.
 
 `PrepareContext.validateValueShapes(List<GraphValue>)` shares the existing fixed-or-sole-named-B
-[shape](../../glossary.md#shape) proof and returns the common [symbol](../../glossary.md#term-symbol), if any. It does not establish caller-[axis](../../glossary.md#term-axis) authority,
+[shape](../../glossary.md#shape) proof and returns the common [symbol](../../glossary.md#dimension), if any. It does not establish caller-[axis](../../glossary.md#term-axis) authority,
 ROW [provenance](../../glossary.md#provenance) or backend [admission](../../glossary.md#term-admission).
 
 The complete-set operation that validates coverage and source [identity](../../glossary.md#term-identity-meanings), assigns slots, constructs
@@ -79,7 +79,7 @@ closeable prepared-resource acquisition, run-state creation, invocation binding/
 transfer, [residency](../../glossary.md#residency), constant initialization or materialization, or publication. Producerless
 contributions still require at least one non-empty planned partition and therefore do not make a
 zero-node graph executable. The supplied assembler constructs an
-immutable schedule recipe once; Prepare validates exact source, execution, [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix), and
+immutable schedule recipe once; Prepare validates exact source, execution, coordinate, and
 publication coverage before constructing the prepared root. Ordinary [Engine](../../glossary.md#term-engine) composes this
 operation from all exact partition owners, backend physical contributions, and explicit transfer
 recipes captured during cold preparation.

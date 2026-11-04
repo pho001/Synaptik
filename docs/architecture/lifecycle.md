@@ -90,7 +90,7 @@ The [owning v3 contract](contracts/extensions-training.md#canonical-graph-model-
 v1/v2 bytes for old sources and defines multi-output [normalization](../glossary.md#term-normalization). For example, a static [GRU](../glossary.md#term-gated-recurrent-unit-gru)
 remains its SELECT/[GATHER](../glossary.md#gather)/[SLICE](../glossary.md#slice)/CONCAT and arithmetic [DAG](../glossary.md#term-directed-acyclic-graph-dag), whereas an advanced RecurrentScan remains
 one producer. Reconstruction calls each public family constructor once and retains every [canonical](../glossary.md#term-canonical-form)
-output wrapper, including siblings that are not roots. Cold [scan](../glossary.md#term-cumulative-scan) [persistence](../glossary.md#term-persistence) grants no execution.
+output wrapper, including siblings that are not roots. Cold scan [persistence](../glossary.md#term-persistence) grants no execution.
 It neither optimizes nor closes raw [layouts](../glossary.md#layout). An optimized, layout-closed [artifact](../glossary.md#term-artifact) graph is not a
 reconstructible source merely because it has the same operations. The [borrowed](../glossary.md#ownership-borrowing-and-lease) source sidecar
 owns no storage or [close lifecycle](../glossary.md#ownership-borrowing-and-lease); it is not retained in graph/artifact state. Only after complete
@@ -137,7 +137,7 @@ not the names alone, determine which changes preserve meaning.
 
 Before [publication](../glossary.md#term-publication) and [planning](../glossary.md#term-planning), final static-result closure resolves proven materialized logical
 results, then propagates exact input-relative [views](../glossary.md#term-view-meanings) in topological order. [Scalar SELECT](../glossary.md#scalar-select) uses the
-existing indexing [inference](../glossary.md#term-inference); positive-step [coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix) SLICE, [target-relative crop](../glossary.md#target-relative-crop), and [shape](../glossary.md#shape)/[axis](../glossary.md#term-axis)
+existing indexing [inference](../glossary.md#term-inference-meanings); positive-step [coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix) SLICE, [target-relative crop](../glossary.md#target-relative-crop), and [shape](../glossary.md#shape)/[axis](../glossary.md#term-axis)
 views use layout inference. For example, a `[2,6]` [matrix](../glossary.md#term-matrix-meanings) product followed by a two-column gate
 slice retains row [stride](../glossary.md#term-stride) `6`, including a nonzero column-start offset, rather than acquiring a
 [contiguous](../glossary.md#term-contiguous) copy. Negative-step, empty, dynamic, and otherwise unproved extractions stay unresolved.
@@ -313,7 +313,7 @@ replace yesterday's input values without replacing the [graph](../glossary.md#gr
 [quiescent](../glossary.md#term-quiescent) [NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context) state through public Engine [materialization](../glossary.md#materialization), inspect the bounded file, then load it
 into a fully bound recreated target through NN's strict whole-tree installation. The caller owns
 [quiescence](../glossary.md#term-quiescence) and versioned configuration/input fingerprints; v1 does not infer source [alias](../glossary.md#aliasing-and-arena) identity.
-The [opaque](../glossary.md#term-opaque) [artifact](../glossary.md#term-artifact) API provides [atomic](../glossary.md#resource-transaction-and-rollback) live visibility, not power-[loss](../glossary.md#loss) [durability](../glossary.md#term-durability). [Exact training
+The [opaque](../glossary.md#term-opaque) [artifact](../glossary.md#term-artifact) API provides [atomic](../glossary.md#resource-transaction-and-rollback) live visibility, not power-loss [durability](../glossary.md#term-durability). [Exact training
 continuation](../glossary.md#exact-training-continuation) would additionally
 require Training-owned state and the caller's next-input and external-state [handoff](../glossary.md#term-handoff), coordinated
 by a separately gated optional adapter rather than by NN or the model-only project. This is a
@@ -412,7 +412,7 @@ select a Metal [device](../glossary.md#term-device). See
 [ADR 0015](../design/decisions/0015-explicit-engine-backend-composition.md)<span data-glossary-navigation="true"> ([ADR glossary](../glossary.md#term-architecture-decision-record-adr))</span> for the alternatives and
 consequences.
 
-## Planned fixed recurrent [scan](../glossary.md#term-cumulative-scan) through the [lifecycle](../glossary.md#lifecycle)
+## Planned fixed recurrent [scan](../glossary.md#term-fixed-recurrent-scan) through the [lifecycle](../glossary.md#lifecycle)
 
 The fixed recurrent scan is a current ordinary [Model](../glossary.md#term-model) expression whose `INT64[batch]`
 valid-length values are modeled as ordinary inputs while every [Shape](../glossary.md#shape) remains fully static. Model
@@ -431,7 +431,7 @@ one flat multi-output TensorProducer
 
 Current Model fixes `RNN_TANH`, `GRU_RESET_AFTER`, and [`LSTM`](../glossary.md#term-long-short-term-memory-lstm), `FORWARD` or `REVERSE`, ordered inputs and
 outputs, static [descriptor](../glossary.md#term-descriptor) rules, and dense original-time-aligned zero-filled padded results.
-Generic [capture](../glossary.md#term-capture-meanings) preserves the [occurrence](../glossary.md#term-occurrence) as one [node](../glossary.md#node), and current Compiler forward-only [inference](../glossary.md#term-inference)
+Generic [capture](../glossary.md#term-capture-meanings) preserves the [occurrence](../glossary.md#term-occurrence) as one [node](../glossary.md#node), and current Compiler forward-only [inference](../glossary.md#term-inference-meanings)
 independently revalidates its fully static descriptors. Both backward-capable modes reject a
 complete forward inventory containing recurrence before [derivative](../glossary.md#term-derivative) [Tensor](../glossary.md#tensor) allocation. Later
 [Planning](../glossary.md#term-planning), [Prepare](../glossary.md#prepare), [Engine](../glossary.md#term-engine), [Runtime](../glossary.md#term-runtime), and backend work owns the remaining execution arrows. Planning
@@ -459,7 +459,7 @@ as external [prototypes](../glossary.md#term-prototype) and [weights](../glossar
 rebinds fresh exact-descriptor inputs. Only descriptors persist for those inputs, not length or
 state prototype bytes. Static time/[batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) may be zero. Descriptor-only [preflight](../glossary.md#term-preflight) never reads length
 values or tests `[0,T]`; execution must do that later. A root at finalHidden or LSTM finalCell
-retains all [canonical](../glossary.md#term-canonical-form) sibling ports but never serializes a [carrier](../glossary.md#term-storage-carrier), prepared loop or runtime state.
+retains all [canonical](../glossary.md#term-canonical-form) sibling ports but never serializes a carrier, prepared loop or runtime state.
 Trying compute/train on that cold scan is not a persistence workflow and remains unsupported.
 
 ## State scenario

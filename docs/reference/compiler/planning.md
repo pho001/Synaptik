@@ -27,7 +27,7 @@ operation [occurrence](../../glossary.md#term-occurrence) for a [compile](../../
 `Optional<CompiledScanBody> scanBody`, and `Optional<ScanActivityPlan> scanActivityPlan`.
 Body-bearing construction supplies both optionals explicitly; there is no four-[argument](../../glossary.md#term-argument)
 constructor. The genuine three-argument ordinary/fixed-operation constructor supplies empty
-body and activity attachments. Missing-body [Scan](../../glossary.md#term-cumulative-scan) questions remain representable for provider
+body and activity attachments. Missing-body [Scan](../../glossary.md#general-differentiable-scan) questions remain representable for provider
 rejection.
 
 The [canonical](../../glossary.md#term-canonical-form) constructor checks operation and list references, scans and snapshots input
@@ -141,7 +141,7 @@ memory facts, selected [device](../../glossary.md#term-device), route, [kernel](
 Public stateless `MaximalSameOwnerPartitioning.partition(...)` accepts one immutable
 [`CompiledGraphModel`](../../glossary.md#compiled-graph--compiledgraphmodel) and one complete `Map<NodeId, BackendId>`. Equal map keys associate with graph
 nodes, but output membership always uses the exact [`NodeId`](../../glossary.md#nodeid) references from `graph.nodes()`. It
-validates all keys, graph coverage, and owners before constructing a result. For each maximal [run](../../glossary.md#term-run)
+validates all keys, graph coverage, and owners before constructing a result. For each maximal run
 it retains the exact owner reference mapped to the first node and compares later owners with
 `BackendId.equals`.
 

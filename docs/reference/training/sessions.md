@@ -74,7 +74,7 @@ Actual [backend](../../glossary.md#backend)/AD rejection follows the existing se
 Engine-choice freeze, objective callback and validation, inference-preparation closure and the
 one native [parameter](../../glossary.md#term-parameter) transition, then session [compilation](../../glossary.md#compiler-engine-and-execution-stage-names)/preparation. A failed later attempt
 can retain changed storage associations and closed inference preparations; it is not an
-effect-free fixed-[scan](../../glossary.md#term-cumulative-scan) rejection. Retry retains a successful native transition.
+effect-free fixed-[scan](../../glossary.md#term-fixed-recurrent-scan) rejection. Retry retains a successful native transition.
 No [optimizer](../../glossary.md#term-optimizer)/session history is restored by graph load; configure fresh training on restored values.
 
 Qualified [general Scan](../../glossary.md#general-differentiable-scan) sources use the same [owners](../../glossary.md#term-owner), including CPU low types under actual forward,

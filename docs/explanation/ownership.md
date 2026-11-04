@@ -14,7 +14,7 @@ An **[owner](../glossary.md#term-owner)** is responsible for [release](../glossa
 [lifetime](../glossary.md#term-lifetime) and access conditions hold. A **[lease](../glossary.md#term-lease)** keeps a defined use alive until release.
 **Detached** means the value no longer depends on that [borrowed](../glossary.md#ownership-borrowing-and-lease) resource. Keeping a Java reference
 is not the same as keeping [native memory](../glossary.md#aliasing-and-arena) alive. **[Quiescent](../glossary.md#term-quiescent)** means no conflicting work or
-mutation is in progress; it does not merely [mean](../glossary.md#term-mean) the current thread is idle.
+mutation is in progress; it does not merely mean the current thread is idle.
 
 The lifetime diagram uses nesting for required dependencies, not Java object inheritance.
 
@@ -57,7 +57,7 @@ and [the Tensor storage boundary](packages/model.md#tensor-host-storage).
 |---|---|---|
 | Imported [heap](../glossary.md#term-heap) [Tensor](../glossary.md#tensor) | [Descriptor](../glossary.md#term-descriptor), [identity](../glossary.md#term-identity-meanings) and heap-backed values | No deterministic close; avoid conflicting mutation |
 | Tensor with caller [Arena](../glossary.md#term-arena) storage | A [borrowed](../glossary.md#ownership-borrowing-and-lease) reference, not the Arena | Keep storage alive and [quiescent](../glossary.md#term-quiescent) for every borrower |
-| Owned [NN Model](../glossary.md#model-module-buffer-and-scan-distinctions) | Private working state, cached preparations/session; lazily created [Engine](../glossary.md#term-engine) if no Engine was supplied | Close the [Model](../glossary.md#term-model); [coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix) inherited [module](../glossary.md#term-module) mutation |
+| Owned [NN Model](../glossary.md#model-module-buffer-and-scan-distinctions) | Private working state, cached preparations/session; lazily created [Engine](../glossary.md#term-engine) if no Engine was supplied | Close the [Model](../glossary.md#term-model); coordinate inherited [module](../glossary.md#term-module) mutation |
 | Engine | Explicitly transferred [backend](../glossary.md#backend) integrations and public [lifecycle](../glossary.md#lifecycle) | Close after its dependent work; do not reuse transferred integrations |
 | Engine [`PreparedExecution`](../glossary.md#prepared-execution--preparedexecution) | Prepared recipe/resources under that Engine | Close after its runs; do not use with another Engine |
 | [`RunResult`](../glossary.md#run-result--runresult) | One invocation's [publication](../glossary.md#term-publication) [leases](../glossary.md#term-lease) and [run](../glossary.md#term-run)-owned state | Consume or detach results before closing |

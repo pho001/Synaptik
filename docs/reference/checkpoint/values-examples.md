@@ -121,7 +121,7 @@ For a future consumer comparing with TrainingState, require the complete paramet
 role, [data type](../../glossary.md#data-type--datatype), [Shape](../../glossary.md#shape), byte length, and raw logical bytes to match by exact path; checking only
 the first parameter or numerical equality is insufficient. [Positive zero](../../glossary.md#nan-infinity-and-signed-zero) (`00000000`) compares
 numerically equal to [negative zero](../../glossary.md#nan-infinity-and-signed-zero) but differs as stored state. Raw comparison also distinguishes
-[NaN](../../glossary.md#term-nan) sign/[payload](../../glossary.md#artifact-envelope-and-atomic-publication) bits; numerical tolerances and NaN [normalization](../../glossary.md#term-normalization) do not apply here. Low-type
+[NaN](../../glossary.md#term-nan) sign/[payload](../../glossary.md#term-nan-payload) bits; numerical tolerances and NaN [normalization](../../glossary.md#term-normalization) do not apply here. Low-type
 logical bytes are not FLOAT32 master bytes. Matching model bytes alone proves neither Training
 compatibility nor exact continuation; each [owner](../../glossary.md#term-owner) still validates its own restore.
 
@@ -231,7 +231,7 @@ or `ArtifactEnvelope` when selecting an overloaded `inspect` or `load` in diagno
 Every `ArtifactLimits` [dimension](../../glossary.md#dimension) applies even without file I/O: complete file-equivalent bytes,
 [manifest](../../glossary.md#term-manifest) bytes, entry count, kind/key [ASCII](../../glossary.md#term-ascii) length, individual payload bytes (including schema),
 and aggregate schema plus all paths. [Unicode](../../glossary.md#term-unicode) NN paths are metadata, not [artifact](../../glossary.md#term-artifact) keys and not
-sorted or normalized; fixed ordinal keys [carry](../../glossary.md#term-carry) their payloads. These are encoded/canonical-size
+sorted or normalized; fixed ordinal keys carry their payloads. These are encoded/canonical-size
 ceilings, not a bound on copies or peak memory. Keep resource budgets appropriate to the application.
 
 Model-only capture, canonical-byte access, save, inspection, and load are available; restored heap [Tensors](../../glossary.md#tensor) can be passed

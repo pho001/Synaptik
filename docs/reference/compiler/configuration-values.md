@@ -63,7 +63,7 @@ architecture's training-step direction but does not add an [optimizer](../../glo
 `optimization.optionalOptimizationsEnabled()` is `true`, so the current internal compiler may apply its
 standard optional semantics-preserving pipeline. `GraphOptimizationConfig.disabled()` returns a
 fresh false value that requests skipping only optional optimization. It cannot disable [capture](../../glossary.md#term-capture-meanings),
-ordering, [inference](../../glossary.md#term-inference), [validation](../../glossary.md#term-validation), mandatory canonical representation, mode-required autograd,
+ordering, [inference](../../glossary.md#term-inference-meanings), [validation](../../glossary.md#term-validation), mandatory canonical representation, mode-required autograd,
 publication [binding](../../glossary.md#term-binding), planning, preparation, or execution. Neither value exposes a pass list,
 pass order, numerical relaxation, backend [fusion](../../glossary.md#term-fusion) switch, or execution policy.
 

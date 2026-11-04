@@ -1,4 +1,4 @@
-# Verification [inference](../../glossary.md#term-inference) and scoped [Scan](../../glossary.md#term-cumulative-scan)
+# Verification [inference](../../glossary.md#term-inference-meanings) and scoped [Scan](../../glossary.md#general-differentiable-scan)
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md) · [Source entry point](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/CompileArtifacts.java)
 
@@ -20,7 +20,7 @@ remains a description, with no allocated history or runtime tape. See
 [runtime-length NN composition](../nn/recurrent.md) for where actual length values eventually enter.
 
 <a id="current-package-private-verification-inference"></a>
-### Current package-private verification [inference](../../glossary.md#term-inference)
+### Current package-private verification [inference](../../glossary.md#term-inference-meanings)
 
 Package-private `CapturedGraphInference.inferAndValidate(CompiledGraphModel)` is the current
 semantic boundary after [structural capture](../../glossary.md#term-structural-capture). It visits stored [nodes](../../glossary.md#node) in deterministic [topological
@@ -33,7 +33,7 @@ stored descriptor fails with node, operation-kind, output-position, and value co
 The pass covers every current forward operation-kind enum and accepted attributes variant in six
 cohesive families: [elementwise](../../glossary.md#term-elementwise), reduction/[normalization](../../glossary.md#term-normalization)/ordering, indexing,
 layout/composition/window, structured numeric/[loss](../../glossary.md#loss)/[RNG](../../glossary.md#graph-rng-state--graphrngstate)-state operations, and fixed recurrent
-[scan](../../glossary.md#term-cumulative-scan), plus independently scoped [general scan](../../glossary.md#general-differentiable-scan) bodies. [Dispatch](../../glossary.md#term-dispatch) is closed and typed. An unrecognized
+[scan](../../glossary.md#term-fixed-recurrent-scan), plus independently scoped [general scan](../../glossary.md#general-differentiable-scan) bodies. [Dispatch](../../glossary.md#term-dispatch) is closed and typed. An unrecognized
 custom [`OperationKind`](../../glossary.md#operationkind) fails rather than bypassing [validation](../../glossary.md#term-validation).
 
 Some [model](../../glossary.md#term-model) operations determine an exact output descriptor while leaving a Shape relationship
@@ -63,7 +63,7 @@ diagnostic aggregation, preparation, [backend](../../glossary.md#backend) [lower
 and after every changed graph candidate.
 
 <a id="current-scoped-scan-capture-and-first-order-ad"></a>
-### Current scoped [scan](../../glossary.md#term-cumulative-scan) [capture](../../glossary.md#term-capture-meanings) and first-order [AD](../../glossary.md#autograd)
+### Current scoped [scan](../../glossary.md#general-differentiable-scan) [capture](../../glossary.md#term-capture-meanings) and first-order [AD](../../glossary.md#autograd)
 
 Ordinary [compilation](../../glossary.md#compiler-engine-and-execution-stage-names) accepts valid all-valid pure `ScanBody` source independently of [backend](../../glossary.md#backend) support or
 the narrower AD inventory. Each scan [occurrence](../../glossary.md#term-occurrence) receives its own `CompiledScanBody.graph()`, even
@@ -74,7 +74,7 @@ when occurrences reuse one [immutable](../../glossary.md#term-immutable) source 
 
 Compiler0013 additionally supports [Model](../../glossary.md#term-model)'s bounded
 [length-aware source subset](../tensor/general-scan.md#length-aware-source-only-construction). Independent
-[inference](../../glossary.md#term-inference) validates the complete local-ID body, explicit row roles and terminal shared carries,
+[inference](../../glossary.md#term-inference-meanings) validates the complete local-ID body, explicit row roles and terminal shared carries,
 including unused declarations and empty domains. The final non-[gradient](../../glossary.md#term-gradient) [INT64](../../glossary.md#data-type--datatype) `[B]` lengths actual
 has no body formal and contributes nothing to outer gradient eligibility. ROW(0) identifies the
 leading [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix); SHARED has no batch coordinate. Original-source AD
@@ -82,7 +82,7 @@ requires every carry and every original sequence to be ROW(0), even unused/non-g
 broader forward inference does not relax this restriction. Generated reverse histories/[seeds](../../glossary.md#commit-release-distribution-log-and-seed-meanings)
 may mix explicit ROW(0), [rank-two](../../glossary.md#axis-rank-scalar-vector-and-matrix) ROW(1) and SHARED roles.
 
-Compiler0015 combines that length protocol with one named B and fixed T/[features](../../glossary.md#term-software-feature) for [homogeneous](../../glossary.md#term-homogeneous)
+Compiler0015 combines that length protocol with one named B and fixed T/[features](../../glossary.md#term-feature) for [homogeneous](../../glossary.md#term-homogeneous)
 [FLOAT32](../../glossary.md#term-float32)/[FLOAT64](../../glossary.md#term-float64) inference, actual first-order sibling AD and fresh scoped all-port binding. Every
 bind checks all actuals (including unused lengths), local obligations and latent ports; it reads
 [descriptors](../../glossary.md#term-descriptor) only, never length storage or values. For h `[Rows,2]`, X `[4,Rows,3]` and INT64 L
@@ -139,7 +139,7 @@ Every outer graph rebuild preserves body attachments and local saved sites. Fina
 closure, not retained siblings or internal body uses. Queries carry the complete validated body
 to one owner, not child-only or mixed-owner [planning](../../glossary.md#term-planning). This is metadata and first-order expression
 construction only: logical history records allocate no storage. Prepare separately validates
-projection and demand; CPU0030 executes the bounded FLOAT32 same-shape [pointwise](../../glossary.md#term-pointwise) [slice](../../glossary.md#slice) only when
+projection and demand; CPU0030 executes the bounded FLOAT32 same-shape [pointwise](../../glossary.md#term-pointwise) slice only when
 the actual forward and Compiler-generated reverse bodies independently qualify. CPU0031 adds
 homogeneous FLOAT32 broadcast, SUM/sumToShape and bounded shape/layout closure under that same
 independent [qualification](../../glossary.md#term-qualification). CPU0032 adds static homogeneous FLOAT32 rank-two MATMUL under the

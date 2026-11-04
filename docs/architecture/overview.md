@@ -21,12 +21,12 @@ The main layers are:
 
 - **Model** owns tensors, [operation](../glossary.md#operation) semantics, [shape](../glossary.md#shape), [data type](../glossary.md#data-type--datatype), [layout](../glossary.md#layout), [host storage](../glossary.md#host-storage) abstractions, and the immutable graph model. It has no backend or [runtime](../glossary.md#term-runtime) responsibility.
 - **[Planning](../glossary.md#term-planning)** makes backend-neutral compile-time decisions: intent, capability, [ownership](../glossary.md#term-ownership-meanings) scoring, partitioning, and logical memory or [materialization](../glossary.md#materialization) requirements.
-- **[Compiler](../glossary.md#term-compiler)** [captures](../glossary.md#term-capture-meanings) and transforms the graph, expands [autograd](../glossary.md#autograd) when requested, [coordinates](../glossary.md#axis-rank-scalar-vector-and-matrix) planning, and produces immutable `CompileArtifacts`.
+- **[Compiler](../glossary.md#term-compiler)** [captures](../glossary.md#term-capture-meanings) and transforms the graph, expands [autograd](../glossary.md#autograd) when requested, coordinates planning, and produces immutable `CompileArtifacts`.
 - **[Prepare](../glossary.md#prepare)** validates the transition from [compile artifacts](../glossary.md#compile-artifacts) to executable runtime state and defines the shared backend preparation contract.
 - **Backend** implementations lower their assigned partitions, fuse and specialize work, choose concrete kernel routes, and provide backend storage and workspace implementations.
 - **Runtime** executes prepared schedules and manages dynamic run state, [residency](../glossary.md#residency), transfers, materialization, and [publication](../glossary.md#term-publication).
 - **[Engine](../glossary.md#term-engine)** is the [composition root](../glossary.md#term-composition-root) and public [lifecycle](../glossary.md#lifecycle) [facade](../glossary.md#term-facade). It wires the compiler, prepare layer, runtime, and explicitly registered backends.
-- **[Trace](../glossary.md#trace)** is a [dependency](../glossary.md#term-dependency)-[leaf](../glossary.md#term-leaf) module containing typed diagnostic DTOs only.
+- **[Trace](../glossary.md#trace)** is a [dependency](../glossary.md#term-dependency)-[leaf](../glossary.md#term-dependency-leaf) module containing typed diagnostic DTOs only.
 
 See [Module Boundaries](module-boundaries.md) for detailed ownership and [Dependency Rules](dependency-rules.md) for allowed [dependency direction](../glossary.md#java-platform-and-build-tools).
 
@@ -125,7 +125,7 @@ NN's fluent `Model.builder()` instead creates private layers and retains their o
 composition](../glossary.md#tensor-composition). Only supplied [parameter](../glossary.md#term-parameter) [leaves](../glossary.md#term-leaf) pass through the zero-[node](../glossary.md#node) raw copier, before any
 expression is built. A selected default CNN or statically [unrolled](../glossary.md#backpropagation-through-time-and-recurrent-state) recurrent model saves its
 ordinary graph, then computes through the same public Engine preparations after cold loading.
-Save rejects operations outside the narrow source [slice](../glossary.md#slice) before touching a file; that failure leaves
+Save rejects operations outside the narrow source slice before touching a file; that failure leaves
 execution usable. Fixed scans persist cold only, without [backend](../glossary.md#backend) execution or [BPTT](../glossary.md#term-backpropagation-through-time-bptt). This distinction
 prevents [persistence](../glossary.md#term-persistence) limits from becoming execution limits without adding a reconstruction table.
 See [ADR 0040](../design/decisions/0040-fluent-model-builder.md)<span data-glossary-navigation="true"> ([ADR glossary](../glossary.md#term-architecture-decision-record-adr))</span>.

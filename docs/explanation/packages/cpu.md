@@ -22,7 +22,7 @@ backends. Installing a [native library](../../glossary.md#term-native-library) d
 memory, as distinct from an [accelerator](../../glossary.md#term-accelerator)'s **[device](../../glossary.md#term-device)** execution. Native CPU code still runs on the
 host: “native” means a platform-library or machine-level boundary, not “[GPU](../../glossary.md#term-gpu).” A **[carrier](../../glossary.md#term-storage-carrier)** is
 the primitive storage container for bits; its Java type alone does not determine their numeric
-meaning. For example, a `short` can [carry](../../glossary.md#term-carry) either of two different 16-bit floating formats.
+meaning. For example, a `short` can carry either of two different 16-bit floating formats.
 
 ## Read the pipeline before the packages
 
@@ -48,7 +48,7 @@ flowchart TD
 A **unit** is [CPU](../../glossary.md#term-cpu)'s selected computation region inside a [partition](../../glossary.md#partition). **[Lowering](../../glossary.md#lowering)** translates [graph](../../glossary.md#graph)
 meaning into CPU-specific instructions and access recipes. The **[intermediate representation](../../glossary.md#term-intermediate-representation-ir)
 ([IR](../../glossary.md#intermediate-representation-dag-and-ssa))** records those instructions, not live [buffers](../../glossary.md#term-buffer). A **[specialization](../../glossary.md#term-specialization)** records facts that
-[shape](../../glossary.md#shape) generated code. A **slot** identifies assigned storage in a [prepared memory plan](../../glossary.md#prepared-memory-plan--preparedmemoryplan); it is
+shape generated code. A **slot** identifies assigned storage in a [prepared memory plan](../../glossary.md#prepared-memory-plan--preparedmemoryplan); it is
 not the storage itself. A **workspace** is [run](../../glossary.md#term-run)-owned temporary storage or native invocation state.
 
 Some later shorthand describes the mechanism, not extra capabilities. **[SIMD](../../glossary.md#simd)** means [single
@@ -56,7 +56,7 @@ instruction, multiple data](../../glossary.md#simd): one [vector](../../glossary
 [fused multiply-add](../../glossary.md#rounding-sites-fma-and-aggregate-floor), with multiplication and addition combined at a defined [rounding](../../glossary.md#term-rounding) boundary.
 **[JVM](../../glossary.md#term-java-virtual-machine-jvm)** means [Java Virtual Machine](../../glossary.md#java-platform-and-build-tools); its **[JIT](../../glossary.md#term-just-in-time-compilation-jit)** (just-in-time [compiler](../../glossary.md#term-compiler)) can translate loaded
 [bytecode](../../glossary.md#term-bytecode) to [machine code](../../glossary.md#term-machine-code) later. **[ABI](../../glossary.md#term-application-binary-interface-abi)** means [application binary interface](../../glossary.md#application-binary-interface-and-native-bridge): the exact native
-calling and data-[layout](../../glossary.md#layout) agreement. **[FFM](../../glossary.md#term-ffm)** means the [JDK](../../glossary.md#term-java-development-kit-jdk) [Foreign Function and Memory API](../../glossary.md#application-binary-interface-and-native-bridge).
+calling and data-layout agreement. **[FFM](../../glossary.md#term-ffm)** means the [JDK](../../glossary.md#term-java-development-kit-jdk) [Foreign Function and Memory API](../../glossary.md#application-binary-interface-and-native-bridge).
 
 Analysis must discover storage before shared assignment. Finalization can realize an already
 selected recipe, not invent another workspace. [Runtime](../../glossary.md#term-runtime) binds and executes the result; it does not
@@ -87,7 +87,7 @@ sharing a generated class neither freezes current inputs nor erases an intermedi
 
 
 The forward `K=1` product is excluded from both native MATMUL routes. A changed example with more
-[features](../../glossary.md#term-software-feature) would change `K`, but that alone would still not guarantee native selection: exact [dtype](../../glossary.md#data-type--datatype),
+[features](../../glossary.md#term-feature) would change `K`, but that alone would still not guarantee native selection: exact [dtype](../../glossary.md#data-type--datatype),
 [layout](../../glossary.md#layout), implementation [qualification](../../glossary.md#term-qualification), resource costs and cold selection also matter. Similarly,
 changing values to [shape](../../glossary.md#shape) `[1,2]` is not reuse of the tutorial's static `[2,1]` signature; application
 [admission](../../glossary.md#term-admission) rejects a mismatched [descriptor](../../glossary.md#term-descriptor) before CPU numerical work. The tutorial and
@@ -164,7 +164,7 @@ values. Published or cross-unit values retain stores. [Pointwise](../../glossary
 unneeded physical intermediate without removing the arithmetic site that produced it. Layout
 composition derives actual bases and [strides](../../glossary.md#term-stride); a private [transpose](../../glossary.md#term-transpose) feeding [MATMUL](../../glossary.md#matrix-multiplication--matmul) can become
 strided operand reads instead of a transpose copy. Non-affine movement, indexing, scatter,
-folding, reductions, [convolution](../../glossary.md#term-channels-first-convolution-layers), [normalization](../../glossary.md#term-normalization), [loss](../../glossary.md#loss) and [Scan](../../glossary.md#term-cumulative-scan) use family-specific lowerers.
+folding, reductions, [convolution](../../glossary.md#term-channels-first-convolution-layers), [normalization](../../glossary.md#term-normalization), [loss](../../glossary.md#loss) and [Scan](../../glossary.md#general-differentiable-scan) use family-specific lowerers.
 [CpuOutputInjectivity][injectivity] proves that distinct logical output positions do not write the
 same cell. [CpuRepresentationPlanner][representation-planner] describes eligible copy alternatives;
 it is not an allocator.
@@ -266,14 +266,14 @@ use integer addressing; segment/general paths keep long addressing. Eligible [ve
 [Vector API](../../glossary.md#term-vector-api) operations and [scalar](../../glossary.md#term-scalar) tails; parallel range orchestration is outside ordinary
 unit classes. Focused families emit their own [contraction](../../glossary.md#contraction-dimension), contributor, index, movement or
 reduction loops rather than calling a generic [graph](../../glossary.md#graph) interpreter. This is not a claim that every
-body is helper-free: fixed scalar mathematics may share reference helpers, and composed [Scan](../../glossary.md#term-cumulative-scan)
+body is helper-free: fixed scalar mathematics may share reference helpers, and composed [Scan](../../glossary.md#general-differentiable-scan)
 bodies use statically emitted helper calls.
 
 Generated classes have no fields or interfaces. Generation and persisted-byte reuse both check
 JVM verification and the emission [owner](../../glossary.md#term-owner)'s complete method inventory, [descriptors](../../glossary.md#term-descriptor) and structural
 limits. Definition uses `Lookup.defineHiddenClass(..., NESTMATE)` and resolves the exact static
 entry once. A [hidden class](../../glossary.md#term-hidden-class) may contain subsidiary methods for composed work; it is not necessarily
-one giant method. These checks reject stale/malformed class [shapes](../../glossary.md#shape); they neither authenticate
+one giant method. These checks reject stale/malformed class shapes; they neither authenticate
 hostile [cache](../../glossary.md#term-cache) storage nor prove numerical execution. The [Java Virtual Machine](../../glossary.md#java-platform-and-build-tools) subsequently owns
 [just-in-time compilation](../../glossary.md#just-in-time-compilation); stored Class-File bytes are not stored [machine code](../../glossary.md#term-machine-code).
 
@@ -345,7 +345,7 @@ to copy during execution.
 
 The package also holds retained direct Java fixed-recurrence implementations, including
 [CpuRecurrentScanKernel][recurrent-kernel] and typed siblings. They are not the reference oracles
-and not the general [differentiable](../../glossary.md#derivative-and-chain-rule)-[Scan](../../glossary.md#term-cumulative-scan) implementation. They consume checked geometry and
+and not the general [differentiable](../../glossary.md#derivative-and-chain-rule)-[Scan](../../glossary.md#general-differentiable-scan) implementation. They consume checked geometry and
 invocation segments, finish projections before replacing carried [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix), and keep mutable
 [carry](../../glossary.md#term-carry)/scratch in the invocation. [General Scan](../../glossary.md#general-differentiable-scan) instead uses the emitted time-loop/body machinery
 in [lowering](../../glossary.md#lowering), [code generation](../../glossary.md#term-code-generation) and executable packages. Both paths require exact independent
@@ -361,7 +361,7 @@ facts fail before a valid executable is constructed.
 **Purpose and entry points.** [CpuPreparedExecutable][unit-executable] is the [immutable](../../glossary.md#term-immutable) direct-unit
 recipe; [CpuPreparedPartitionExecutable][partition-executable] composes fixed [topological](../../glossary.md#term-topological-order) children.
 [CpuGeneralScanPreparedExecutable][scan-executable] binds emitted [general Scan](../../glossary.md#general-differentiable-scan) work.
-[CpuWorkerGroup][workers]<span data-glossary-navigation="true"> ([CpuWorkerGroup glossary](../../glossary.md#cpu-worker-group--cpuworkergroup))</span> and [CpuConcurrencyBudget][budget]<span data-glossary-navigation="true"> ([CpuConcurrencyBudget glossary](../../glossary.md#cpu-concurrency-budget--cpuconcurrencybudget))</span> [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix) [CPU](../../glossary.md#term-cpu) execution, not [Runtime](../../glossary.md#term-runtime)
+[CpuWorkerGroup][workers]<span data-glossary-navigation="true"> ([CpuWorkerGroup glossary](../../glossary.md#cpu-worker-group--cpuworkergroup))</span> and [CpuConcurrencyBudget][budget]<span data-glossary-navigation="true"> ([CpuConcurrencyBudget glossary](../../glossary.md#cpu-concurrency-budget--cpuconcurrencybudget))</span> coordinate [CPU](../../glossary.md#term-cpu) execution, not [Runtime](../../glossary.md#term-runtime)
 [ownership](../../glossary.md#term-ownership-meanings) or [asynchronous](../../glossary.md#term-asynchronous) jobs.
 
 **Bind once, execute direct work.** Cold [binding](../../glossary.md#term-binding) checks exact memory-plan/representation positions,
@@ -372,7 +372,7 @@ executes them in list order; its [dependency](../../glossary.md#term-dependency)
 Required copy units complete before their consumers. No route is selected here.
 
 [Metadata](../../glossary.md#term-metadata) [validation](../../glossary.md#term-validation) and value validation have different timing. Index bounds, replacement
-uniqueness, [canonical](../../glossary.md#term-canonical-form) [BOOL](../../glossary.md#data-type--datatype) bytes, index-[loss](../../glossary.md#loss) [targets](../../glossary.md#term-target) or [Scan](../../glossary.md#term-cumulative-scan) lengths may depend on earlier
+uniqueness, [canonical](../../glossary.md#term-canonical-form) [BOOL](../../glossary.md#data-type--datatype) bytes, index-[loss](../../glossary.md#loss) [targets](../../glossary.md#term-target) or [Scan](../../glossary.md#general-differentiable-scan) lengths may depend on earlier
 [producers](../../glossary.md#term-producer). Their validators are prebound without reading values and execute over the current
 eligible domain after producers, before the consumer's numerical writes or worker submission.
 A physical byte carrier alone never enables BOOL validation for [FP8](../../glossary.md#term-fp8). Validation boundaries do not
@@ -456,7 +456,7 @@ production generated code was executed for this documentation change.
 [CpuOpenBlasQualifier][blas-qualifier] issues exact-session compatibility evidence;
 [CpuOpenBlasRouteSelector][blas-selector] compares a native candidate with the already-complete
 portable [lowering](../../glossary.md#lowering); [CpuOpenBlasPreparedExecutable][blas-executable] binds the selected route.
-This policy belongs to CPU, not to the [leaf](../../glossary.md#term-leaf) provider described below.
+This policy belongs to CPU, not to the [leaf](../../glossary.md#term-dependency-leaf) provider described below.
 
 **Loading is not [qualification](../../glossary.md#term-qualification) or selection.** Discovery may be disabled, use an exact name or
 absolute path, or use a fixed platform table. Loading resolves symbols only. Qualification checks
@@ -474,7 +474,7 @@ copy-in for either operand and copy-out for a noncanonical result. Each is a sep
 [run](../../glossary.md#term-run)-owned workspace before shared assignment. The cost comparison includes these transitions
 and thread configuration, not only GEMM arithmetic. Ineligibility, [overflow](../../glossary.md#term-overflow), a tie or insufficient
 benefit retains portable execution during cold selection. No benchmark/speedup follows from the
-dimensionless [cost model](../../glossary.md#compiler-transformations-and-dominance).
+dimensionless cost model.
 
 **State and threads.** [CpuOpenBlasCoordinator][blas-coordinator]<span data-glossary-navigation="true"> ([CpuOpenBlasCoordinator glossary](../../glossary.md#openblas-coordinator--cpuopenblascoordinator))</span> owns the transferred provider
 resource and coordinates calls/configuration with the common CPU budget. It [captures](../../glossary.md#term-capture-meanings) the original
@@ -503,7 +503,7 @@ required absolute path, checks exact [oneDNN](../../glossary.md#term-onednn) `3.
 automatic oneDNN discovery. Loading/[authentication](../../glossary.md#term-authentication) failure throws. API preference `AUTO`,
 `PRIMITIVES` or `GRAPH` does not force native execution. The bare [MATMUL](../../glossary.md#matrix-multiplication--matmul) baseline requires positive
 static dense/permuted-dense or normalized broadcast-[batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) [layouts](../../glossary.md#layout), [rank](../../glossary.md#term-rank) at most 12 and `K>1`.
-Neither symbolic geometry nor [Scan](../../glossary.md#term-cumulative-scan) orchestration inherits native admission.
+Neither symbolic geometry nor [Scan](../../glossary.md#general-differentiable-scan) orchestration inherits native admission.
 
 **LP64** names a native data [model](../../glossary.md#term-model) with 64-bit C `long` and pointer values and 32-bit C `int`
 values. **Little-endian** describes the [byte order](../../glossary.md#text-encoding-and-file-boundaries) within a stored multi-byte word. These are
@@ -557,7 +557,7 @@ failing a required oneDNN integration is not silently repaired by the tutorial's
 ## io.github.pho001.synaptik.[backend](../../glossary.md#backend).provider.openblas
 
 **Purpose and entry points.** This separate
-[openblas-provider module](../../../modules/backend/openblas-provider)<span data-glossary-navigation="true"> ([module glossary](../../glossary.md#term-module))</span> is a [JDK](../../glossary.md#term-java-development-kit-jdk)-only [leaf](../../glossary.md#term-leaf) below [CPU](../../glossary.md#term-cpu).
+[openblas-provider module](../../../modules/backend/openblas-provider)<span data-glossary-navigation="true"> ([module glossary](../../glossary.md#term-module))</span> is a [JDK](../../glossary.md#term-java-development-kit-jdk)-only [leaf](../../glossary.md#term-dependency-leaf) below [CPU](../../glossary.md#term-cpu).
 [OpenBlasLibrary][provider-library]<span data-glossary-navigation="true"> ([OpenBlasLibrary glossary](../../glossary.md#openblas-library-handle--openblaslibrary))</span> explicitly loads the caller's name/path;
 [FfmOpenBlasNativeAccess][provider-ffm] binds `cblas_sgemm`, `cblas_dgemm`,
 `openblas_set_num_threads` and `openblas_get_num_threads` through the [Foreign Function and Memory](../../glossary.md#application-binary-interface-and-native-bridge)
@@ -611,7 +611,7 @@ external implementation it uses; it is not an installation or publishing promise
 | Repository path / external component | Actual role and packaging distinction |
 | --- | --- |
 | [modules/backend/cpu](../../../modules/backend/cpu), especially `internal/route/nativeops/onednn` | Java [FFM](../../glossary.md#term-ffm) [bindings](../../glossary.md#term-binding) and [CPU](../../glossary.md#term-cpu)-owned recipes/[qualification](../../glossary.md#term-qualification)/[lifetime](../../glossary.md#term-lifetime) handling. [oneDNN](../../glossary.md#term-onednn) is an external exact shared library, not a checked-in C/C++ CPU bridge. |
-| [modules/backend/openblas-provider](../../../modules/backend/openblas-provider) | Java FFM [leaf](../../glossary.md#term-leaf) binding to an external [OpenBLAS](../../glossary.md#term-openblas) shared library. The provider [module](../../glossary.md#term-module) is not the OpenBLAS [binary](../../glossary.md#term-binary-descriptor-and-metadata). CPU's discovery/qualification code lives in `internal/route/nativeblas/openblas`, not here. |
+| [modules/backend/openblas-provider](../../../modules/backend/openblas-provider) | Java FFM [leaf](../../glossary.md#term-dependency-leaf) binding to an external [OpenBLAS](../../glossary.md#term-openblas) shared library. The provider [module](../../glossary.md#term-module) is not the OpenBLAS [binary](../../glossary.md#term-binary-descriptor-and-metadata). CPU's discovery/qualification code lives in `internal/route/nativeblas/openblas`, not here. |
 | External OpenBLAS name or absolute path | Provides [GEMM](../../glossary.md#general-matrix-multiplication--gemm) and thread-control symbols. Optional bounded CPU discovery is distinct from a caller explicitly opening a provider handle. |
 | Explicit external oneDNN 3.14.0 absolute path | Provides primitive/[Graph](../../glossary.md#graph) C APIs and CPU [engine](../../glossary.md#term-engine); exact [ABI](../../glossary.md#term-application-binary-interface-abi)/[runtime](../../glossary.md#term-runtime) loading is required, not optional discovery. Library and issued resources have retained lifetimes. |
 | [modules/backend/metal/macos-arm64](../../../modules/backend/metal/macos-arm64)<span data-glossary-navigation="true"> ([arm64 glossary](../../glossary.md#native-packaging-and-platform-vocabulary))</span> | The colocated native [Metal](../../glossary.md#term-metal) bridge/source/build/package tree belongs to the Metal [backend](../../glossary.md#backend), not to either CPU route. See the [Metal atlas](metal.md) for its native source accounting. |

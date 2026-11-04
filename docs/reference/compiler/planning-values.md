@@ -34,7 +34,7 @@ A present body requires `ScanKind.SCAN`; a present activity plan requires that e
 body [graph](../../glossary.md#graph) and applicable header positions, next-presence [bindings](../../glossary.md#term-binding) and ordered temporal ADDs.
 Its [canonical](../../glossary.md#term-canonical-form) constructor has five [arguments](../../glossary.md#term-argument), including both optionals. The genuine
 three-argument ordinary/fixed-operation constructor supplies empty body and activity attachments;
-there is no four-argument body-bearing constructor. Missing-body [Scan](../../glossary.md#term-cumulative-scan) questions remain
+there is no four-argument body-bearing constructor. Missing-body [Scan](../../glossary.md#general-differentiable-scan) questions remain
 representable for provider rejection. Attachment checks do not infer ordinary [descriptors](../../glossary.md#term-descriptor) or
 establish backend support. [Mutable](../../glossary.md#term-mutable) source lists cannot change a constructed query, while the
 exact operation, descriptor [elements](../../glossary.md#term-element) and optional body/activity references are retained.
@@ -172,7 +172,7 @@ has no owning graph against which to prove producer, consumer, or output relatio
 public generator establishes those graph-relative facts.
 
 These records retain `TensorDescriptor` rather than calculating element or byte counts, so
-dynamic and expression [dimensions](../../glossary.md#dimension) remain representable. They [carry](../../glossary.md#term-carry) no
+dynamic and expression [dimensions](../../glossary.md#dimension) remain representable. They carry no
 `ForwardPublicationBinding`, `GradientPublicationBinding`, [`TensorId`](../../glossary.md#tensorid), [lifetime](../../glossary.md#term-lifetime), slot,
 allocation, transfer, selected device, route, [kernel](../../glossary.md#kernel), executable, [prepared schedule](../../glossary.md#prepared-schedule--preparedschedule), or [runtime](../../glossary.md#term-runtime)
 [residency](../../glossary.md#residency). `graphOutput` is a logical preservation obligation, not a [publication](../../glossary.md#term-publication) [target](../../glossary.md#term-target) or

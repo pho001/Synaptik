@@ -58,7 +58,7 @@ or imply that any Tensor expression has been executed.
 [callback](../../glossary.md#term-callback), value [snapshot](../../glossary.md#term-snapshot) or [wire format](../../glossary.md#term-wire-format). Its public nested `Step` permits exactly
 `Sequence`, `LinearStep`, `LayerNormStep`, `EmbeddingStep`, `Conv1dStep`, `Conv2dStep`,
 `Conv3dStep` and `ActivationStep`; `ActivationKind` is RELU/[TANH](../../glossary.md#term-tanh)/[SIGMOID](../../glossary.md#term-sigmoid). `AliasGroup`
-and `StateDescriptor` [carry](../../glossary.md#term-carry) [identity](../../glossary.md#term-identity-meanings) paths and [parameter](../../glossary.md#term-parameter) [schema](../../glossary.md#term-schema). Lists are defensively
+and `StateDescriptor` carry [identity](../../glossary.md#term-identity-meanings) paths and [parameter](../../glossary.md#term-parameter) [schema](../../glossary.md#term-schema). Lists are defensively
 immutable. The constructor accepts a Sequence root and [canonical](../../glossary.md#term-canonical-form) [alias](../../glossary.md#aliasing-and-arena) groups;
 `describe(Sequential)`, `root()`, `aliases()`, `stateDescriptors()` and
 `outputDescriptor(TensorDescriptor)` are the complete declared method surface.

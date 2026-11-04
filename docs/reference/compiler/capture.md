@@ -32,7 +32,7 @@ compiler work can produce and consume:
 
 | Current contract | Meaning | Deliberate boundary |
 |---|---|---|
-| `OperationSignature` | Exact attributes variant and inclusive local input/output-count bounds | Structural [occurrence](../../glossary.md#term-occurrence) contract, not operand [inference](../../glossary.md#term-inference) or executable support |
+| `OperationSignature` | Exact attributes variant and inclusive local input/output-count bounds | Structural [occurrence](../../glossary.md#term-occurrence) contract, not operand [inference](../../glossary.md#term-inference-meanings) or executable support |
 | [`TensorProducer`](../../glossary.md#producer--tensorproducer) | [Identity](../../glossary.md#term-identity-meanings) of one pre-[capture](../../glossary.md#term-capture-meanings) expression occurrence with exact [operation](../../glossary.md#operation), ordered input [Tensors](../../glossary.md#tensor), and ordered output [descriptors](../../glossary.md#term-descriptor) | Public-expression origin, not `CompiledNode`, [graph](../../glossary.md#graph) membership, or compiler state |
 | `TensorProvenance` | Exact [producer](../../glossary.md#term-producer) plus one zero-based output index, with derived operation, inputs, and descriptor | Indexed result association, not [`NodeId`](../../glossary.md#nodeid), [`ValueId`](../../glossary.md#logical-valueid-versus-physical-memory-slot), or graph output [binding](../../glossary.md#term-binding) |
 | [`GraphRngState`](../../glossary.md#graph-rng-state--graphrngstate) | [Opaque](../../glossary.md#term-opaque) public wrapper around one explicit key/counter state-expression occurrence | Expression identity and threading boundary, not a generator, exposed numerical Tensor, [runtime](../../glossary.md#term-runtime) state, or bitstream |
@@ -100,7 +100,7 @@ values first, then each gradient value absent from that prefix at its first role
 Target roles retain boundary ordinals, so two targets can share one gradient `ValueId` without an
 identity node.
 
-Capture itself performs no [inference](../../glossary.md#term-inference), transformation, or [derivative](../../glossary.md#term-derivative)-rule selection. The
+Capture itself performs no [inference](../../glossary.md#term-inference-meanings), transformation, or [derivative](../../glossary.md#term-derivative)-rule selection. The
 following package-private boundaries revalidate, canonicalize, and optionally optimize the
 captured graph. The original graph-stage entry stops there; the complete entry derives
 [publication](../../glossary.md#term-publication), invokes [Planning](../../glossary.md#term-planning), and constructs `CompileArtifacts` only after final graph

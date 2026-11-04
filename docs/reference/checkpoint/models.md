@@ -137,7 +137,7 @@ Malformed, unsupported, incoherent or over-limit stored data and expected-input 
 remains `IllegalStateException`. File access/[publication](../../glossary.md#term-publication) failures remain `IOException`. Loading a
 values-only file automatically reports a missing definition and directs callers to [target](../../glossary.md#term-target)-load.
 Failures return no partial [model](../../glossary.md#term-model). Save retains the [artifact atomic-live-publication policy](artifacts.md#lifecycle-and-invariants),
-not portable power-[loss](../../glossary.md#loss) [durability](../../glossary.md#term-durability) or a cross-owner transaction.
+not portable power-loss [durability](../../glossary.md#term-durability) or a cross-owner transaction.
 
 For the concrete save → source closure → automatic load → fresh-Engine workflow, use the
 [running-models example](../../user-guide/running-models.md#load-a-saved-whole-model).

@@ -51,7 +51,7 @@ Model task 0025G adds [NCW](../../glossary.md#term-ncw) Conv1d only as the ordin
 `EXPAND_DIMS(2) -> EXPAND_DIMS(2) -> CONV2D -> SQUEEZE(2)` [Tensor composition](../../glossary.md#tensor-composition). Generic capture
 therefore sees two [rank](../../glossary.md#term-rank)-edit [nodes](../../glossary.md#node), one existing grouped [Conv2d](../../glossary.md#convolution--conv2d) node, and one rank-edit node; it
 does not see `CONV1D`, `ConvNd`, or a Conv1d attributes value. Existing rank-edit and Conv2d
-[inference](../../glossary.md#term-inference) and first-order gradient rules apply to those ordinary nodes without a new Compiler
+[inference](../../glossary.md#term-inference-meanings) and first-order gradient rules apply to those ordinary nodes without a new Compiler
 inventory entry or formula. This structural reuse is a current compiler fact, not a [fusion](../../glossary.md#term-fusion),
 [lowering](../../glossary.md#lowering), [backend](../../glossary.md#backend)-capability, execution, or performance claim.
 Model [`CONV3D`](../../glossary.md#conv3d--ncdhw) records one first-class grouped [NCDHW](../../glossary.md#conv3d--ncdhw) [occurrence](../../glossary.md#term-occurrence) with two or three ordered inputs,
@@ -96,7 +96,7 @@ public `FunctionalGradientRequest`, explicit forward [constant](../../glossary.m
 [`GraphOptimizationConfig`](../../glossary.md#graph-optimization-configuration--graphoptimizationconfig) directly; there is no request aggregate. It returns package-private
 mode-neutral `GraphCompilation`. `FORWARD_ONLY` requires no functional request, produces no
 `BACKWARD` nodes, and has empty gradient results. `FORWARD_AND_BACKWARD` and the current internal
-`TRAINING_STEP` path require the same request and may [carry](../../glossary.md#term-carry) one combined [graph](../../glossary.md#graph).
+`TRAINING_STEP` path require the same request and may carry one combined [graph](../../glossary.md#graph).
 `GraphCompilation` retains the final `ValidatedGraph`, ordered forward output values, and ordered
 public `GradientPublicationBinding` values. Its package-private component names remain
 `forwardOutputs` and `gradientResults`; the public [publication plan](../../glossary.md#publication-plan) instead exposes

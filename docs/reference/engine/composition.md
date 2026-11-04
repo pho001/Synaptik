@@ -21,7 +21,7 @@ live result depends on an integration the application has already released.
 <a id="current-explicit-cpu-and-metal-composition"></a>
 ## Current explicit [CPU](../../glossary.md#term-cpu) and [Metal](../../glossary.md#term-metal) composition
 
-The public composition [shape](../../glossary.md#shape) is:
+The public composition shape is:
 
 ```java
 // takeOwnership transfers integration cleanup at entry; do not close integrations separately afterward.
@@ -140,7 +140,7 @@ Pooling gradients close only where every generated [occurrence](../../glossary.m
 folds remain non-overlapping. Attention and convolution [transpose](../../glossary.md#term-transpose) still reject before preparation.
 See the [production support matrix](../../backend-guide/production-support.md#metal-production-target)
 for actual [GPU](../../glossary.md#term-gpu) Conv3d all-role and [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) training/[persistence](../../glossary.md#term-persistence) evidence. No implicit seeding,
-Metal [Scan](../../glossary.md#term-cumulative-scan) support, software FLOAT64, or unrestricted training support follows.
+Metal [Scan](../../glossary.md#general-differentiable-scan) support, software FLOAT64, or unrestricted training support follows.
 
 `MetalLocalWorkloadTuning` publicly exposes [opaque](../../glossary.md#term-opaque) candidates, session compatibility, identities,
 decision encode/decode, and trial/selected `PartitionPreparation` for the exact two-route

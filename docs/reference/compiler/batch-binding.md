@@ -26,7 +26,7 @@ for the independently qualified numerical route.
 obligations and logical [layout](../../glossary.md#layout) intent without adding a component to `CompileArtifacts`.
 `bind(actualDescriptors)` accepts fully static [descriptors](../../glossary.md#term-descriptor) in final caller-input order, derives
 one named B from every declared [occurrence](../../glossary.md#term-occurrence), and checks all obligations before storage is touched.
-An output-only/unknown [symbol](../../glossary.md#term-symbol), inconsistent B, negative derived [extent](../../glossary.md#term-extent) or arithmetic [overflow](../../glossary.md#term-overflow)
+An output-only/unknown [symbol](../../glossary.md#dimension), inconsistent B, negative derived [extent](../../glossary.md#term-extent) or arithmetic [overflow](../../glossary.md#term-overflow)
 rejects. The plan and each returned `Binding` are [immutable](../../glossary.md#term-immutable) and storage-free.
 
 `Binding.batchSize()` is actual non-negative B; `valueCount()` counts final value-list positions.
@@ -40,12 +40,12 @@ and [parameters](../../glossary.md#term-parameter), including actual first-order
 [public workflow](../engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle) and
 [CPU qualification](../../backend-guide/cpu-backend.md#ordinary-named-batch-cpu-execution).
 [Symbolic Scan](../../glossary.md#symbolic-scan) metadata [admission](../../glossary.md#term-admission) is implemented by Compiler0014, independently reviewed and
-MAIN accepted after compatibility [validation](../../glossary.md#term-validation). The separately implemented CPU execution [slice](../../glossary.md#slice) is
+MAIN accepted after compatibility [validation](../../glossary.md#term-validation). The separately implemented CPU execution slice is
 homogeneous FLOAT32, generated [scalar](../../glossary.md#term-scalar) and single-range, with fixed time/features/state widths;
 [Prepare0014](../../planning/modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md) tracks final [qualification](../../glossary.md#term-qualification).
 [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)/Training reuse, cold acquisition and symbolic wire remain separate gates.
 
-For example, a compiled all-valid [Scan](../../glossary.md#term-cumulative-scan) with X `[3,B,2]` and state `[B,3]` binds actual B=40
+For example, a compiled all-valid [Scan](../../glossary.md#general-differentiable-scan) with X `[3,B,2]` and state `[B,3]` binds actual B=40
 to X `[3,40,2]` and state `[40,3]`. Every final/emission/[residual port](../../glossary.md#scan-residual-port-and-history-demand), even a dead sibling,
 gets canonical non-view actual geometry. The original symbolic templates remain unresolved.
 Each call checks every scoped declaration and typed obligation afresh, including repeated B.

@@ -127,7 +127,7 @@ support is a separately qualified path, not a property inferred from these teach
 **Purpose and mechanism.** This is the neutral diagnostic envelope, deliberately independent of
 [Model](../../glossary.md#term-model), [Compiler](../../glossary.md#term-compiler), [Runtime](../../glossary.md#term-runtime) and concrete [backends](../../glossary.md#backend).
 [`TraceEvent<T>`](../../../modules/trace/src/main/java/io/github/pho001/synaptik/trace/TraceEvent.java)
-pairs an event [identity](../../glossary.md#term-identity-meanings), [lifecycle](../../glossary.md#lifecycle) phase, severity, monotonic nanoseconds and typed [payload](../../glossary.md#artifact-envelope-and-atomic-publication).
+pairs an event [identity](../../glossary.md#term-identity-meanings), [lifecycle](../../glossary.md#lifecycle) phase, severity, monotonic nanoseconds and typed [payload](../../glossary.md#trace-payload--tracepayload).
 Construction validates required references; it does not read a clock, emit, store, filter or
 serialize the event. Time is a reading in the [producer](../../glossary.md#term-producer)'s clock domain, not an [epoch](../../glossary.md#term-time-epoch) timestamp or
 a global ordering guarantee. The envelope is shallowly [immutable](../../glossary.md#term-immutable): an implementation of the open
@@ -236,14 +236,14 @@ modes by constructing [gradient](../../glossary.md#term-gradient) expressions be
 insert [optimizer](../../glossary.md#term-optimizer) updates.
 
 [`BackendIntent.unconstrained()` / `requiring(...)`](../../../modules/config/src/main/java/io/github/pho001/synaptik/config/compile/BackendIntent.java)
-[carry](../../glossary.md#term-carry) an optional **hard** eligibility requirement.
+carry an optional **hard** eligibility requirement.
 [`PartitionScoringConfig.neutral()` / `preferring(...)`](../../../modules/config/src/main/java/io/github/pho001/synaptik/config/compile/PartitionScoringConfig.java)
-carry a **soft** [device](../../glossary.md#term-device)-class preference. A soft preference may [rank](../../glossary.md#term-rank) eligible candidates but cannot
+carry a **soft** [device](../../glossary.md#term-device)-class preference. A soft preference may [rank](../../glossary.md#term-ranking) eligible candidates but cannot
 restore one rejected by capability or a hard requirement. Current baseline selection uses provider
-order and this coarse preference, not a calibrated numerical [cost model](../../glossary.md#compiler-transformations-and-dominance).
+order and this coarse preference, not a calibrated numerical [cost model](../../glossary.md#term-planning-cost-model).
 
 [`GraphOptimizationConfig.standard()` / `disabled()`](../../../modules/config/src/main/java/io/github/pho001/synaptik/config/compile/GraphOptimizationConfig.java)
-permits or disables optional exact optimizations. Disabling them does not disable [inference](../../glossary.md#term-inference),
+permits or disables optional exact optimizations. Disabling them does not disable [inference](../../glossary.md#term-inference-meanings),
 mandatory [canonicalization](../../glossary.md#occurrence-identity-and-canonical-form) or [validation](../../glossary.md#term-validation), and enabling them permits no approximate arithmetic.
 The optional/required references reject null; these [immutable](../../glossary.md#term-immutable) records own neither live services
 nor [runtime](../../glossary.md#term-runtime) state. Compiler and Planning consume the values; [concrete backend](../../glossary.md#concrete-backend) route selection
@@ -290,7 +290,7 @@ once for each final [node](../../glossary.md#node) [occurrence](../../glossary.m
 [`OperationCapabilityQuery`](../../../modules/planning/src/main/java/io/github/pho001/synaptik/planning/capability/OperationCapabilityQuery.java)<span data-glossary-navigation="true"> ([OperationCapabilityQuery glossary](../../glossary.md#operation-capability-query--operationcapabilityquery))</span>
 carries [operation](../../glossary.md#operation) semantics and ordered input/output [descriptors](../../glossary.md#term-descriptor); a [general Scan](../../glossary.md#general-differentiable-scan) also carries
 its complete independently scoped body and applicable activity [metadata](../../glossary.md#term-metadata). Support for individual
-body operations does not prove support for the complete [Scan](../../glossary.md#term-cumulative-scan) binder.
+body operations does not prove support for the complete [Scan](../../glossary.md#general-differentiable-scan) binder.
 
 The package-private
 [`BackendEligibility.evaluate(...)`](../../../modules/planning/src/main/java/io/github/pho001/synaptik/planning/capability/BackendEligibility.java)
@@ -395,7 +395,7 @@ and [`LinearAlgebraGradientRules`](../../../modules/compiler/src/main/java/io/gi
 Broadcasted contributions reduce back to the selected operand shape. These formulas explain the
 `[1,1]` [weight](../../glossary.md#term-weight) gradient `-40`; there is no backend-global [autograd](../../glossary.md#autograd) implementation to rediscover it.
 
-**[Inference](../../glossary.md#term-inference) and transformation.** Captured [graph](../../glossary.md#graph) inference verifies family semantics and [descriptors](../../glossary.md#term-descriptor).
+**[Inference](../../glossary.md#term-inference-meanings) and transformation.** Captured [graph](../../glossary.md#graph) inference verifies family semantics and [descriptors](../../glossary.md#term-descriptor).
 [`ForwardGraphOptimization.optimize(...)`](../../../modules/compiler/src/main/java/io/github/pho001/synaptik/compiler/ForwardGraphOptimization.java)
 performs mandatory [canonicalization](../../glossary.md#occurrence-identity-and-canonical-form)/[validation](../../glossary.md#term-validation), then, when enabled, bounded exact arithmetic
 rewriting, logical-splat folding, [dead-code elimination](../../glossary.md#term-dead-code-elimination-dce), phase/order-local [common-subexpression
@@ -435,7 +435,7 @@ all facts it is allowed to analyze without giving it the [Compiler](../../glossa
 retains an [immutable](../../glossary.md#term-immutable)
 [`PartitionDag`](../../../modules/prepare/src/main/java/io/github/pho001/synaptik/prepare/analysis/PartitionDag.java)<span data-glossary-navigation="true"> ([PartitionDag glossary](../../glossary.md#partition-dag-partitiondag))</span>,
 projected values and logical requirements, exact-typed logical splats, backend-owned immutable
-inputs, and scoped [Scan](../../glossary.md#term-cumulative-scan) activity associations. It validates [partition](../../glossary.md#partition) order, reference closure,
+inputs, and scoped [Scan](../../glossary.md#general-differentiable-scan) activity associations. It validates [partition](../../glossary.md#partition) order, reference closure,
 [descriptor](../../glossary.md#term-descriptor)/requirement agreement, [constant](../../glossary.md#term-constant) roles and the admitted static or bounded named-[batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters)
 [shape](../../glossary.md#shape) vocabulary before backend analysis. [Scan body](../../glossary.md#backpropagation-through-time-and-recurrent-state) IDs are local to their body, never [aliases](../../glossary.md#aliasing-and-arena)
 of equal-numbered outer values.
@@ -499,7 +499,7 @@ add undeclared shared requirements. The returned
 associates the exact planned partition with its finalized executable.
 
 **Schedule and [ownership](../../glossary.md#term-ownership-meanings) [transaction](../../glossary.md#term-transaction).** Backend contributions describe physical creation recipes
-for assigned buffer/workspace [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix), not alternative schedulers. The explicit assembler
+for assigned buffer/workspace coordinates, not alternative schedulers. The explicit assembler
 builds the complete schedule; shared Prepare checks exact memory-plan association, contribution
 coverage, execution order, representation coordinates and [publication](../../glossary.md#term-publication) order against the compile
 recipe. Successful construction transfers persistent-[resource ownership](../../glossary.md#term-resource-ownership) to Runtime's
@@ -679,13 +679,13 @@ Closing preparation therefore need not close an already returned result. A [back
 can keep [immutable](../../glossary.md#term-immutable) prepared physical storage alive independently. Failure after state creation
 closes the state and returns no result; if releasing the prepared lease fails after execution,
 the runner closes the unpublished result too. Cleanup preserves the triggering failure and adds
-distinct suppressed failures. Closing a result clears direct invocation-[payload](../../glossary.md#artifact-envelope-and-atomic-publication) references even
+distinct suppressed failures. Closing a result clears direct invocation-payload references even
 when cleanup fails, without closing borrowed caller storage. Plan/count/geometry inspection
 remains, not physical access. [`RunState`](../../glossary.md#run-state--runstate) and inward result objects are not [thread-safe](../../glossary.md#term-thread-safe); separate
 calls create isolated [mutable](../../glossary.md#term-mutable) state. There is no [asynchronous](../../glossary.md#term-asynchronous)/[cancellation](../../glossary.md#term-cancellation)/polling contract.
 
 [`RunMemoryGeometry`](../../../modules/runtime/src/main/java/io/github/pho001/synaptik/runtime/run/RunMemoryGeometry.java)<span data-glossary-navigation="true"> ([RunMemoryGeometry glossary](../../glossary.md#run-memory-geometry--runmemorygeometry))</span>
-is authenticated checked numeric sizing for an exact plan, not [Model](../../glossary.md#term-model) [shape](../../glossary.md#shape) [inference](../../glossary.md#term-inference). Runtime
+is authenticated checked numeric sizing for an exact plan, not [Model](../../glossary.md#term-model) [shape](../../glossary.md#shape) [inference](../../glossary.md#term-inference-meanings). Runtime
 receives no [Compiler](../../glossary.md#term-compiler) [graph](../../glossary.md#graph) for symbolic binding and performs no tuning-[cache](../../glossary.md#term-cache) [lookup](../../glossary.md#term-lookup) or route search.
 
 **In the example.** The first call's [predictions](../../glossary.md#term-prediction) and [gradient](../../glossary.md#term-gradient) belong to that call's completed
@@ -699,7 +699,7 @@ another run's mutable workspace.
 **Ordinary application entry points.**
 [`Engine`](../../../modules/engine/src/main/java/io/github/pho001/synaptik/engine/Engine.java)
 is the [composition root](../../glossary.md#term-composition-root): [`compile`](../../glossary.md#compile), [`prepare`](../../glossary.md#prepare), [`run`](../../glossary.md#term-run), `runValues`, explicit `prepareTuned`, and
-closure [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix) the [owners](../../glossary.md#term-owner) above. `Engine.standard()` transfers a [CPU](../../glossary.md#term-cpu) integration into the
+closure coordinate the [owners](../../glossary.md#term-owner) above. `Engine.standard()` transfers a [CPU](../../glossary.md#term-cpu) integration into the
 builder; it is not reflective hardware discovery. `Engine.builder().takeOwnership(...)` composes
 supported [backend](../../glossary.md#backend)-owned integrations explicitly. The builder and [Engine](../../glossary.md#term-engine) own accepted integrations;
 concrete backends do not depend back on Engine. Public `AdvancedEngine` and advanced handles expose

@@ -59,7 +59,7 @@ Mixed fixed/general sources share one configured session. Objectives still requi
 [gradient](../../glossary.md#term-gradient)-eligible [FLOAT32](../../glossary.md#term-float32)/[FLOAT64](../../glossary.md#term-float64) result; low-output objectives explicitly cast to FLOAT32/FLOAT64.
 CPU low execution retains the existing family/geometry and actual [derivative](../../glossary.md#term-derivative) guards and setup/lifecycle ordering.
 
-`Model.graph` and `defineTensor` also acquire bounded all-valid general-[scan](../../glossary.md#term-cumulative-scan) bodies through [Checkpoint](../../glossary.md#term-checkpoint) and
+`Model.graph` and `defineTensor` also acquire bounded all-valid general-[scan](../../glossary.md#general-differentiable-scan) bodies through [Checkpoint](../../glossary.md#term-checkpoint) and
 Compiler's [cold constructor inventory](../../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction).
 This does not add a ModelBuilder recipe. Cold admission preserves applicable Model dtypes, including
 low [TANH](../../glossary.md#term-tanh) bodies; it is not arbitrary [PURE](../../glossary.md#term-pure)-body support. Qualified static floating occurrences,
@@ -83,7 +83,7 @@ See the
 
 Model's separate [length-aware Scan source API](../tensor/general-scan.md#length-aware-source-only-construction)
 constructs bounded source [metadata](../../glossary.md#term-metadata) and structural [IR](../../glossary.md#term-intermediate-representation-ir) only. Its final [INT64](../../glossary.md#data-type--datatype) lengths actual has no
-body formal. Compiler independently supports length-mode [inference](../../glossary.md#term-inference), bounded first-order reverse
+body formal. Compiler independently supports length-mode [inference](../../glossary.md#term-inference-meanings), bounded first-order reverse
 construction and final role/demand queries; original-source AD requires every [carry](../../glossary.md#term-carry) and every
 original sequence to be ROW(0), including unused/non-gradient positions. Generated reverse inputs
 may retain explicit mixed roles. Prepare0011 transports those exact [bindings](../../glossary.md#term-binding) and demand through

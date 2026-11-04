@@ -87,7 +87,7 @@ capacity is ignored and distinct overlapping [Tensors](../../glossary.md#tensor)
 Callers exclude mutation, storage rebinding and closure for each whole [operation](../../glossary.md#operation). Copy/save order
 is metadata, checked geometry and save bounds, all host [admission](../../glossary.md#term-admission), BOOL [validation](../../glossary.md#term-validation)/raw copying,
 complete result/image, then file [publication](../../glossary.md#term-publication). Save uses the unchanged force/revalidate/single
-[atomic](../../glossary.md#resource-transaction-and-rollback)-move policy, not [authentication](../../glossary.md#term-authentication) or portable power-[loss](../../glossary.md#loss) [durability](../../glossary.md#term-durability). A failed move can have
+[atomic](../../glossary.md#resource-transaction-and-rollback)-move policy, not [authentication](../../glossary.md#term-authentication) or portable power-loss [durability](../../glossary.md#term-durability). A failed move can have
 provider-dependent [target](../../glossary.md#term-target) state; inspect the target. No partial source result is returned.
 
 Save/load require explicit `ArtifactLimits`, with no defaults. Let $D$ be encoded schema bytes,

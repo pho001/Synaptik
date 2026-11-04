@@ -9,7 +9,7 @@ payloads. [CPU](../glossary.md#term-cpu) preparation and ordinary [Engine](../gl
 payloads through the open marker. Generic [serialization](../glossary.md#term-serialization), storage and viewing remain unimplemented.
 
 A **trace** is a structured diagnostic record of selected facts, not another execution path.
-The **producer** supplies a fact; the **[payload](../glossary.md#artifact-envelope-and-atomic-publication)** is its typed data; the **envelope** adds
+The **producer** supplies a fact; the **[payload](../glossary.md#trace-payload--tracepayload)** is its typed data; the **envelope** adds
 identification and stage information. A **correlation identifier** lets a reader associate
 related records without retaining the live objects. These descriptions can outlive resources
 because a **[detached](../glossary.md#detached-model-results)** record does not borrow their storage.
@@ -32,7 +32,7 @@ owns only typed data-transfer objects (DTOs), so it does not traverse [graphs](.
 producer-layer domain types, or control a [lifecycle](../glossary.md#lifecycle) stage.
 Neutral envelopes, identifiers and shared payloads live in Trace. A producer-specific passive [DTO](../glossary.md#data-transfer-object--dto)
 may live in its owning module without introducing a reverse Trace [dependency](../glossary.md#term-dependency). [CPU](../glossary.md#term-cpu) preparation,
-[Engine](../glossary.md#term-engine) tuning failure resolution and [Metal](../glossary.md#term-metal) [Scan](../glossary.md#term-cumulative-scan) [validation](../glossary.md#term-validation) use that extension point. These
+[Engine](../glossary.md#term-engine) tuning failure resolution and [Metal](../glossary.md#term-metal) [Scan](../glossary.md#general-differentiable-scan) [validation](../glossary.md#term-validation) use that extension point. These
 records retain no graph, storage, [Tensor](../glossary.md#tensor), native handle or Throwable.
 
 [Runtime profiling](../glossary.md#runtime-profiling) is one possible producer activity: it passively observes actual execution and
@@ -77,7 +77,7 @@ A [monotonic clock](../glossary.md#term-monotonic-clock) measures elapsed interv
 calendar date. Two different producers' readings are not automatically comparable timestamps.
 
 The record retains its component references without copying them. Its state is shallowly
-immutable; because `TracePayload` is open, [payload](../glossary.md#artifact-envelope-and-atomic-publication) implementations must honor the documented
+immutable; because `TracePayload` is open, [payload](../glossary.md#trace-payload--tracepayload) implementations must honor the documented
 immutability contract themselves. The foundation defines no [serialization](../glossary.md#term-serialization), filtering, storage,
 sink, logging, or emission behavior.
 
@@ -105,7 +105,7 @@ its own identity. Translation may preserve a producer ID's numeric value or choo
 one; numeric equality is not part of the contract. The trace [module](../glossary.md#term-module) provides no allocator,
 translator, [registry](../glossary.md#term-registry), mapping table, or producer-object reference.
 
-The records are correlation vocabulary for later typed payloads. They do not themselves [carry](../glossary.md#term-carry) a
+The records are correlation vocabulary for later typed payloads. They do not themselves carry a
 diagnostic fact, implement [`TracePayload`](../glossary.md#trace-payload--tracepayload), emit an event, or define [serialization](../glossary.md#term-serialization).
 
 ## Current [backend](../glossary.md#backend)-execution diagnostics
@@ -131,7 +131,7 @@ backend outcome records are:
 - `BackendInvocationOutcome` additionally correlates one invocation and carries the same outcome,
   route, and optional native status, without a cache claim.
 
-`LowPrecisionTraceMetadata` is a separate [PREPARE](../glossary.md#prepare) [payload](../glossary.md#artifact-envelope-and-atomic-publication) for a selected low-[precision](../glossary.md#term-precision) custom
+`LowPrecisionTraceMetadata` is a separate [PREPARE](../glossary.md#prepare) [payload](../glossary.md#trace-payload--tracepayload) for a selected low-[precision](../glossary.md#term-precision) custom
 route. It reports that route and the ordered boundary-feed-then-[target](../glossary.md#term-target) logical [dtype](../glossary.md#data-type--datatype) names. It
 has no numerical-profile, [accumulator](../glossary.md#accumulator-type), or working-type field: [FLOAT32](../glossary.md#term-float32) low-arithmetic
 working values and accumulators belong to Model semantics, while raw-preserving operations copy
@@ -172,7 +172,7 @@ event describes.
 [`TraceLevel`](../glossary.md#trace-level--tracelevel) classifies detail or severity only. Its order does not define a filtering threshold,
 sink policy, logging integration, failure response, or process-exit behavior.
 
-## Remaining planned [payload](../glossary.md#artifact-envelope-and-atomic-publication) families
+## Remaining planned [payload](../glossary.md#trace-payload--tracepayload) families
 
 The implemented [backend](../glossary.md#backend) outcomes and selected structural/low-[precision](../glossary.md#term-precision) diagnostics are
 intentionally bounded. The following broader payload families remain conceptual:
@@ -197,7 +197,7 @@ correlations, later IDs must avoid importing [identities](../glossary.md#term-id
 [runtime](../glossary.md#term-runtime), backend-contract, or backend [modules](../glossary.md#term-module).
 
 Typed backend-specific attributes also remain planned. They will be a constrained escape hatch
-for facts that a shared [payload](../glossary.md#artifact-envelope-and-atomic-publication) cannot predict, not the primary event model.
+for facts that a shared [payload](../glossary.md#trace-payload--tracepayload) cannot predict, not the primary event model.
 
 ## Why not `Map<String,String>`
 
@@ -224,7 +224,7 @@ string such as `"backend failure"` would lose these typed facts and could incorr
 correlations `0`, independent non-negative event/prepared-unit/invocation sequences beginning at
 zero, and `System.nanoTime()` timestamps. The caller owns the [`MetalTraceObserver`](../glossary.md#metal-trace-observer--metaltraceobserver); callbacks may
 be concurrent and Metal never closes it. The existing one-[argument](../glossary.md#term-argument) `open(configuration)` path
-creates no producer, [payload](../glossary.md#artifact-envelope-and-atomic-publication), ID, clock read, or [callback](../glossary.md#term-callback).
+creates no producer, [payload](../glossary.md#trace-payload--tracepayload), ID, clock read, or [callback](../glossary.md#term-callback).
 
 After Metal fixes a route, it emits one structural [`PREPARE`](../glossary.md#prepare) event before native
 finalization. A low-[precision](../glossary.md#term-precision) program also emits `LowPrecisionTraceMetadata` before the

@@ -26,7 +26,7 @@ with [Training recovery](../training/recovery.md) before treating a loaded graph
 `GraphCheckpoint` copies or saves a bounded ordinary [Tensor](../../glossary.md#tensor) expression and named [host](../../glossary.md#term-host) values without
 executing it. Copy/load return ordinary symbolic Tensors and private [mutable](../../glossary.md#term-mutable) [heap](../../glossary.md#term-heap) state; [rebind](../../glossary.md#capture-graph-ports-and-reconstruction)
 substitutes inputs symbolically. None creates an [Engine](../../glossary.md#term-engine), [prepared execution](../../glossary.md#prepared-execution--preparedexecution) or new [Model](../../glossary.md#term-model) hierarchy.
-Copy/rebind support bounded all-valid general-[scan](../../glossary.md#term-cumulative-scan) bodies and the static floating
+Copy/rebind support bounded all-valid general-[scan](../../glossary.md#general-differentiable-scan) bodies and the static floating
 length-aware cold intersection. [V4 persistence](../../architecture/contracts/extensions-training.md#canonical-graph-model-version-4)
 retains the all-valid portion; [v5](../../architecture/contracts/extensions-training.md#canonical-graph-model-version-5)
 adds that static length-aware intersection. [V6](../../architecture/contracts/extensions-training.md#canonical-graph-model-version-6)
@@ -66,7 +66,7 @@ Short [Model](../../glossary.md#term-model) save/load overloads use NN's six cei
 The generic [facade](../../glossary.md#term-facade) remains cold and NN-free. See the
 [owned workflow](../../user-guide/running-models.md#owned-static-model-workflow).
 
-NN's implemented all-valid general-[scan](../../glossary.md#term-cumulative-scan) workflow acquires graph/definition sources through this
+NN's implemented all-valid general-[scan](../../glossary.md#general-differentiable-scan) workflow acquires graph/definition sources through this
 bounded cold inventory, independently of [CPU](../../glossary.md#term-cpu) capability. Public `Model.graph` retains Source
 list/null snapshots; definitions perform one [prototype](../../glossary.md#term-prototype) forward before acquisition. Qualified
 static canonical floating occurrences, including the four low types, can compute/train through
@@ -102,7 +102,7 @@ or implicit family extension occurs. Zero-[node](../../glossary.md#node) [graphs
 promise. No [backend](../../glossary.md#backend) [rank](../../glossary.md#term-rank)-16 ceiling is imposed by [persistence](../../glossary.md#term-persistence).
 
 <a id="general-scan-in-memory-copy-and-rebind"></a>
-### General-[scan](../../glossary.md#term-cumulative-scan) in-memory copy and [rebind](../../glossary.md#capture-graph-ports-and-reconstruction)
+### General-[scan](../../glossary.md#general-differentiable-scan) in-memory copy and [rebind](../../glossary.md#capture-graph-ports-and-reconstruction)
 
 `copy` and `rebind` accept all-valid [general SCAN](../../glossary.md#general-differentiable-scan) and the bounded static floating
 length intersection, including all six floating types and qualified mixed per-role [dtypes](../../glossary.md#data-type--datatype), through the exact

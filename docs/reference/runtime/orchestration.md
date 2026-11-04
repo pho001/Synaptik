@@ -88,7 +88,7 @@ Finalization does not create a [`RunState`](../../glossary.md#run-state--runstat
 The complete-set operation and its batch result remain package-private behind
 [`GraphPreparation`](../../glossary.md#graph-preparation--graphpreparation). The assembler returns a reusable recipe only. Prepare validates exact plan
 identity, caller-input order, constant initialization, executable coverage and order,
-representation [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix), and ordered forward-then-[gradient](../../glossary.md#term-gradient) publication before returning
+representation coordinates, and ordered forward-then-[gradient](../../glossary.md#term-gradient) publication before returning
 `PreparedExecution`. A [compile-time constant source](../../glossary.md#compile-time-constant-source) must use at least one `InitializedBuffer` and
 no caller-input occurrence; an initialized representation is rejected for a nonconstant value.
 Repeated gradient values and forward/gradient [aliases](../../glossary.md#aliasing-and-arena) remain separate publication occurrences
@@ -138,7 +138,7 @@ RunResult result = runner.run(execution, callerInputs);
 - `callerInputs` supplies dense [borrowed](../../glossary.md#ownership-borrowing-and-lease) representations in creation-plan encounter order.
 - Exactly one isolated `RunState` is created and consumed for the complete [heterogeneous](../../glossary.md#term-heterogeneous) [run](../../glossary.md#term-run).
 - Every executable, transfer, and [publication occurrence](../../glossary.md#publication-occurrence) cold-binds before the first action.
-- Traversal uses direct bound references and precomputed primitive executable [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix).
+- Traversal uses direct bound references and precomputed primitive executable coordinates.
 - The current [Runtime](../../glossary.md#term-runtime) [`RunResult`](../../glossary.md#run-result--runresult) leases the whole run state and permits borrowed access to one
   selected nominal representation while that lease is open. It exposes no host or Tensor value;
   ordinary Engine separately composes the current CPU copy into a detached host value.

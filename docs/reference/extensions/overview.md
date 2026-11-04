@@ -16,8 +16,8 @@ The implemented `extensions:data` surface pairs existing [Tensor](../../glossary
 Its values builder requires explicit order, side and counts, copies counts at the setter, and
 validates geometry without inspecting Tensor contents. Direct record construction remains available.
 `LongSequenceBatcher` instead allocates one fresh [INT64](../../glossary.md#data-type--datatype) [heap](../../glossary.md#term-heap) Tensor and pads ordered long-array
-rows to their maximum length, on either side and in either [axis](../../glossary.md#term-axis) order, without [truncation](../../glossary.md#term-truncation-toward-zero).
-Neither path binds [runtime](../../glossary.md#term-runtime) length inputs or changes recurrent-[scan](../../glossary.md#term-cumulative-scan) semantics; see the
+rows to their maximum length, on either side and in either [axis](../../glossary.md#term-axis) order, without truncation.
+Neither path binds [runtime](../../glossary.md#term-runtime) length inputs or changes recurrent-[scan](../../glossary.md#term-fixed-recurrent-scan) semantics; see the
 [Data sequence batching API](../data/sequences.md) for construction, [ownership](../../glossary.md#term-ownership-meanings) and failures.
 
 The implemented `extensions:text` surface contains final `WhitespaceTokenizer` and

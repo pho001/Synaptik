@@ -31,7 +31,7 @@ cross-[module](../glossary.md#term-module) integration service-provider interfac
 `MetalBackendConfiguration`, `MetalBackendIntegration`, [`MetalTraceObserver`](../glossary.md#metal-trace-observer--metaltraceobserver), and a closed
 occurrence-qualified domain. The [current production support matrix](../backend-guide/production-support.md)
 owns the detailed operation/type/[layout](../glossary.md#layout)/[derivative](../glossary.md#term-derivative) inventory, including attention, [normalization](../glossary.md#term-normalization)
-and [Scan](../glossary.md#term-cumulative-scan). Metal retains seven storage carriers and its own predicate domain; it has no [FP8](../glossary.md#term-fp8)
+and Scan. Metal retains seven storage carriers and its own predicate domain; it has no [FP8](../glossary.md#term-fp8)
 support. CPU low-[precision](../glossary.md#term-precision) parity does not widen Metal [admission](../glossary.md#term-admission).
 Direct [BFLOAT16](../glossary.md#term-bfloat16)/[FLOAT16](../glossary.md#term-float16) mixed-low execution remains outside the documented Metal authority;
 use explicit [FLOAT32](../glossary.md#term-float32) casts where required by that [matrix](../glossary.md#term-matrix-meanings).

@@ -42,7 +42,7 @@ not reinitialize. [Provenance](../../glossary.md#provenance) and gradient flags 
 replacement; old occurrences keep old [bindings](../../glossary.md#term-binding). Existing Java `long[]` `forward` overloads,
 compact result carriers, static training and builder recurrence remain unchanged.
 
-Execute selected [scan](../../glossary.md#term-cumulative-scan) outputs separately through public [Engine](../../glossary.md#term-engine) [compile](../../glossary.md#compile)/[prepare](../../glossary.md#prepare)/runValues with
+Execute selected [scan](../../glossary.md#term-fixed-recurrent-scan) outputs separately through public [Engine](../../glossary.md#term-engine) [compile](../../glossary.md#compile)/[prepare](../../glossary.md#prepare)/runValues with
 fresh exact descriptors in compiled input order. Fixed [CPU](../../glossary.md#term-cpu) [scalar](../../glossary.md#term-scalar) forward supports its declared
 [homogeneous](../../glossary.md#term-homogeneous) floating types, including all four low types, and resolved nonnegative read domain.
 Selected first-order [AD](../../glossary.md#autograd) uses the shared [Compiler](../../glossary.md#term-compiler) closure and qualifies actual reverse bodies independently.
@@ -58,7 +58,7 @@ with [FLOAT32](../../glossary.md#term-float32) working sites and declared state 
 ordinary [general Scan](../../glossary.md#general-differentiable-scan) for homogeneous configured floating types, including both FP8 types. It reuses the same cell
 initialization and equation, including [bias](../../glossary.md#term-bias) order, with static T/B >= 0 and positive I/H.
 Complete actual/formal/emission/latent geometry checks precede parameter [publication](../../glossary.md#term-publication) or body IDs.
-Canonical general outputs are emission port 1 and final hidden [carry](../../glossary.md#term-carry) port 0; the result [carrier](../../glossary.md#term-storage-carrier)'s
+Canonical general outputs are emission port 1 and final hidden [carry](../../glossary.md#term-carry) port 0; the result carrier's
 component names are semantic, not universal producer indices. Fixed `forwardScan` is unchanged.
 Qualified CPU reads use dense zero-offset geometry or existing proved scalar-broadcast exceptions,
 not every fixed-scan read [layout](../../glossary.md#layout). No copy, conversion or fallback repairs unsupported actuals.

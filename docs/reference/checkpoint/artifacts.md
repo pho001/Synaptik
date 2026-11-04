@@ -43,7 +43,7 @@ nonempty segments. Each segment contains only ASCII letters, digits, `_`, `-`, o
 equal `.` or `..`. Payloads are byte-exact and have no interpretation in this [API](../../glossary.md#term-application-programming-interface-api). The wire file
 contains a fixed magic/version header, [SHA-256](../../glossary.md#term-sha-256) [manifest](../../glossary.md#term-manifest) [digest](../../glossary.md#term-digest), length-prefixed manifest, and
 [contiguous](../../glossary.md#term-contiguous) payloads with individual SHA-256 digests. Unknown versions, invalid names or order,
-bad lengths or digests, [truncation](../../glossary.md#term-truncation-toward-zero), and trailing bytes are rejected.
+bad lengths or digests, truncation, and trailing bytes are rejected.
 
 `ArtifactLimits` is mandatory on both read and save. Its six ceilings cover total file bytes,
 manifest bytes, number of entries, ASCII kind/key bytes, bytes in one [payload](../../glossary.md#artifact-envelope-and-atomic-publication), and aggregate
@@ -70,7 +70,7 @@ reopens it, and verifies both complete format and exact bytes against the source
 one [atomic move](../../glossary.md#term-atomic-move). There is no non-[atomic](../../glossary.md#resource-transaction-and-rollback) fallback. Successful return gives atomic live visibility:
 a concurrent reader may see the prior complete file, absence if the target was initially missing,
 or the new complete file, not an intentionally partial final file.
-Java NIO does not portably guarantee that the rename survives power [loss](../../glossary.md#loss). A failed move can leave
+Java NIO does not portably guarantee that the rename survives power loss. A failed move can leave
 the target in a provider-dependent state; inspect it before retrying or making recovery decisions.
 Save never deliberately deletes the target and performs no filesystem work after a successful
 move. It attempts to clean its owned temporary file on failures before the move and after an explicit
@@ -103,7 +103,7 @@ int payloadBytes = checked.entries().getFirst().size(); // 2
 ```
 
 The final result is one validated `example.v1` file with a two-byte [opaque](../../glossary.md#term-opaque) payload. It proves
-neither [Tensor](../../glossary.md#tensor) compatibility nor power-[loss](../../glossary.md#loss) [persistence](../../glossary.md#term-persistence) of the rename. If the provider rejects
+neither [Tensor](../../glossary.md#tensor) compatibility nor power-loss [persistence](../../glossary.md#term-persistence) of the rename. If the provider rejects
 the [atomic move](../../glossary.md#term-atomic-move), `save` throws `IOException`; the caller inspects the [target](../../glossary.md#term-target) rather than assuming
 the old file is still present.
 

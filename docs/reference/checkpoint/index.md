@@ -1,6 +1,6 @@
 # [Checkpoint](../../glossary.md#term-checkpoint): choose what to recover
 
-Choose by what the file means, not by its extension. [Opaque](../../glossary.md#term-opaque) [artifacts](../../glossary.md#term-artifact) [carry](../../glossary.md#term-carry) named bytes; GraphCheckpoint carries a bounded cold [Tensor](../../glossary.md#tensor) source and [host](../../glossary.md#term-host) [leaves](../../glossary.md#term-leaf); ModelCheckpoint handles supported whole models or values-only recovery. None implicitly resumes an [optimizer](../../glossary.md#term-optimizer).
+Choose by what the file means, not by its extension. [Opaque](../../glossary.md#term-opaque) [artifacts](../../glossary.md#term-artifact) carry named bytes; GraphCheckpoint carries a bounded cold [Tensor](../../glossary.md#tensor) source and [host](../../glossary.md#term-host) [leaves](../../glossary.md#term-leaf); ModelCheckpoint handles supported whole models or values-only recovery. None implicitly resumes an [optimizer](../../glossary.md#term-optimizer).
 
 [Reference goals](../index.md) · [Javadoc access](../javadoc.md)
 

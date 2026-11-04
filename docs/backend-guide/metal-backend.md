@@ -34,7 +34,7 @@ indexed through their old [strides](../glossary.md#term-stride) a second time.
 Ordinary empty unary outputs, numeric SUM, K0/empty-result MATMUL and TOP_K k0 retain their real
 geometry and [identities](../glossary.md#term-identity-meanings). Empty [fused](../glossary.md#specialization-and-fusion) MATMUL epilogues use the same zero-grid step, with no source
 load or [dispatch](../glossary.md#term-dispatch). Strided numeric GeneralScan ingress uses the existing [CONTIGUOUS](../glossary.md#term-contiguous) [owner](../glossary.md#term-owner) into
-declared aligned workspace. [Canonical](../glossary.md#term-canonical-form) non-[gradient](../glossary.md#term-gradient) source-only [F64](../glossary.md#floating-point-precision-and-rounding) [Scan](../glossary.md#term-cumulative-scan) preserves raw state,
+declared aligned workspace. [Canonical](../glossary.md#term-canonical-form) non-[gradient](../glossary.md#term-gradient) source-only [F64](../glossary.md#floating-point-precision-and-rounding) [Scan](../glossary.md#general-differentiable-scan) preserves raw state,
 sequence and [invariant](../glossary.md#term-invariant) values without admitting F64 body arithmetic, [AD](../glossary.md#autograd) or affine F64 mapping.
 Dynamic-B [Metal](../glossary.md#term-metal), [rank](../glossary.md#term-rank)/[pooling](../glossary.md#term-pooling)/resource bounds and the [CPU](../glossary.md#term-cpu) low-arithmetic lock are unchanged.
 The [follow-up audit](backend-interchangeability-audit.md#15-navazující-opravy-a-aktuální-hranice)
@@ -69,7 +69,7 @@ Exact represented operations use the Model's original [carrier](../glossary.md#t
   One disjoint direct-copy child per operand serves ordinary execution and Scan without an
   N-wide argument binding or intermediate pairwise tensor chain. Actual 17/33/257-input
   FLOAT32/BFLOAT16/FLOAT16 cases include original-carrier views and last-operand-only AD;
-  zero-output CONCAT/STACK empty cotangents also execute through the public GPU Engine;<span data-glossary-navigation="true"> ([Scan glossary](../glossary.md#term-cumulative-scan); [argument glossary](../glossary.md#term-argument); [binding glossary](../glossary.md#term-binding); [views glossary](../glossary.md#term-view-meanings); [GPU glossary](../glossary.md#term-gpu); [Engine glossary](../glossary.md#term-engine))</span>
+  zero-output CONCAT/STACK empty cotangents also execute through the public GPU Engine;<span data-glossary-navigation="true"> ([Scan glossary](../glossary.md#general-differentiable-scan); [argument glossary](../glossary.md#term-argument); [binding glossary](../glossary.md#term-binding); [views glossary](../glossary.md#term-view-meanings); [GPU glossary](../glossary.md#term-gpu); [Engine glossary](../glossary.md#term-engine))</span>
 - stable SORT/ARGSORT/TOP_K and numeric ARG_MIN/ARG_MAX, with exact index/tie behavior;
 - exact FLOAT64 stored-value unary/extrema rows and promoted integral operations that require
   no software floating-point arithmetic; promoted integral MATMUL remains no-gradient.
@@ -108,7 +108,7 @@ positive-zero padding. Conv1d/Pool1d use authenticated [singleton](../glossary.m
 
 Static [FLOAT32](../glossary.md#term-float32)/[BFLOAT16](../glossary.md#term-bfloat16)/[FLOAT16](../glossary.md#term-float16) numerical bodies, typed discrete intermediates and proved all-valid
 or [runtime](../glossary.md#term-runtime)-length row semantics execute inside the existing native executable [owner](../glossary.md#term-owner). Wire 116
-and attribute 42 [carry](../glossary.md#term-carry) an authenticated bounded body/binder plan. The native time loop reuses
+and attribute 42 carry an authenticated bounded body/binder plan. The native time loop reuses
 once-prepared ordinary steps; it neither unrolls T nor invokes child [graphs](../glossary.md#graph) from Java.
 There is no copied [CPU](../glossary.md#term-cpu) evaluator, [host](../glossary.md#term-host) fallback or second numerical semantics implementation.
 
@@ -129,7 +129,7 @@ semantics remain distinct from the fixed-cell builder's working/[publication](..
 Owned [MLP](../glossary.md#term-multilayer-perceptron-mlp) and [Conv3d](../glossary.md#conv3d--ncdhw)/overlap AvgPool3d/MaxPool3d journeys exercise forward, [MSE](../glossary.md#mean-squared-error--mse), input/parameter
 AD, SGD and save/close/load/[rebind](../glossary.md#capture-graph-ports-and-reconstruction)/fresh training across all three families. Cold NN decoding
 accepts [Model](../glossary.md#term-model)-legal per-role floating types and casts without changing the public [checkpoint](../glossary.md#term-checkpoint)
-wire or weakening strict rebind [descriptors](../glossary.md#term-descriptor). General higher-order [Scan](../glossary.md#term-cumulative-scan) remains bounded.
+wire or weakening strict rebind [descriptors](../glossary.md#term-descriptor). General higher-order [Scan](../glossary.md#general-differentiable-scan) remains bounded.
 
 ### Physical [authentication](../glossary.md#term-authentication) and fixed routes
 
@@ -161,7 +161,7 @@ remain unchanged on validation failure; preceding [producer](../glossary.md#term
 Cold preparation fixes one of three package-private whole-[partition](../glossary.md#partition) routes:
 
 - `CUSTOM_SINGLE_NEG` for its existing eligible [singleton](../glossary.md#term-singleton) FLOAT32 NEG slice;
-- `CUSTOM_PROGRAM` for low-containing partitions, custom-only ordinary operations and native [Scan](../glossary.md#term-cumulative-scan);
+- `CUSTOM_PROGRAM` for low-containing partitions, custom-only ordinary operations and native [Scan](../glossary.md#general-differentiable-scan);
 - `MPSGRAPH` for the remaining independently eligible all-FLOAT32 partitions.
 
 A custom program may contain approved internal FLOAT32 MPSGraph boundary steps. That does not
@@ -316,7 +316,7 @@ Tuning remains session-scoped and non-persistent.
 
 Future asynchronous execution requires a separate cross-[module](../glossary.md#term-module) contract for completion/failure,
 [cancellation](../glossary.md#term-cancellation)/timeout, input [borrowing](../glossary.md#term-borrowing), result/workspace ownership, prepared leases through device
-completion, close races, cross-action dependencies, trace/tuning timing, and only then [pooling](../glossary.md#term-pooling).
+completion, close races, cross-action dependencies, trace/tuning timing, and only then pooling.
 Future explicit-device or multi-device work requires a real supported environment and workflow,
 stable selection/enumeration, truthful ABI and availability, planner-retained device identity,
 device-qualified resources, cross-device transfer/coherence/topology/lifetime, trace/tuning
@@ -330,7 +330,7 @@ scheduler. See [ADR 0020](../design/decisions/0020-synchronous-single-default-de
 `MetalBackendIntegration.open(configuration, observer)` retains a non-null caller-owned [observer](../glossary.md#term-observer)
 for that integration without taking [ownership](../glossary.md#term-ownership-meanings) of it. The [callback](../glossary.md#term-callback) may be concurrent and therefore
 must be [thread-safe](../glossary.md#term-thread-safe). [Metal](../glossary.md#term-metal) never closes the observer. The existing one-[argument](../glossary.md#term-argument) overload remains
-the exact no-[trace](../glossary.md#trace) fast path: it creates no [producer](../glossary.md#term-producer) or [payload](../glossary.md#artifact-envelope-and-atomic-publication), allocates no trace ID, reads no
+the exact no-[trace](../glossary.md#trace) fast path: it creates no [producer](../glossary.md#term-producer) or [payload](../glossary.md#trace-payload--tracepayload), allocates no trace ID, reads no
 clock, and makes no callback.
 
 One traced integration is one producer-defined stream. [Backend](../glossary.md#backend) and [device](../glossary.md#term-device) correlations are fixed
@@ -635,7 +635,7 @@ boundary treats every handle as untrusted.
 
 This is deliberately not a general buffer pool. Mutable outputs remain owned by [`RunResult`](../glossary.md#run-result--runresult) beyond
 the [synchronous](../glossary.md#term-synchronous) call and concurrent results require distinct writable buffers. MPSGraph address
-workspaces are mutable per-run pointer arrays. Safe [pooling](../glossary.md#term-pooling) would first require an explicit
+workspaces are mutable per-run pointer arrays. Safe pooling would first require an explicit
 async/result-[lifetime](../glossary.md#term-lifetime) contract for exclusive return, reset and validity, bounded capacity/eviction,
 context-close deferral, and cleanup failure. No [backend](../glossary.md#backend)-global [constant](../glossary.md#term-constant) [cache](../glossary.md#term-cache), pool, [registry](../glossary.md#term-registry), or
 cross-preparation reuse is added.
@@ -850,7 +850,7 @@ low Conv2d/pooling gradients still require their complete primitive-closed [topo
 Maximum pooling reconstructs its exact first winning candidate and materializes its final
 permute before reshape/fold. [Pool3d](../glossary.md#pool3d--ncdhw-pooling) compares semantic type/Shape/gradient [metadata](../glossary.md#term-metadata) after
 [materialization](../glossary.md#materialization) rather than requiring the original source [layout](../glossary.md#layout) to be [canonical](../glossary.md#term-canonical-form).
-These cases add no implicit [seed](../glossary.md#term-seed), [backend](../glossary.md#backend) [autograd](../glossary.md#autograd), Metal [Scan](../glossary.md#term-cumulative-scan) or unrestricted training [ownership](../glossary.md#term-ownership-meanings).
+These cases add no implicit [seed](../glossary.md#term-seed), [backend](../glossary.md#backend) [autograd](../glossary.md#autograd), Metal [Scan](../glossary.md#general-differentiable-scan) or unrestricted training [ownership](../glossary.md#term-ownership-meanings).
 
 ### Exact [GATHER](../glossary.md#gather) and ONE_HOT
 
@@ -909,7 +909,7 @@ inserts a [singleton](../glossary.md#term-singleton) final axis into each slice,
 [coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix) is `p*2+k`, so the windows overlap at source coordinate two and an incomplete suffix is
 omitted. Native creation independently rederives the count and every selector bound, authenticates
 canonical states and exact [Shapes](../glossary.md#shape), and proves selector integers representable before [graph](../glossary.md#graph)
-[compilation](../glossary.md#compiler-engine-and-execution-stage-names). The result preserves [signed zero](../glossary.md#term-signed-zero), [subnormal](../glossary.md#term-subnormal), [infinity](../glossary.md#term-infinity), and quiet/[signaling NaN](../glossary.md#term-signaling-nan) [payload](../glossary.md#artifact-envelope-and-atomic-publication)
+[compilation](../glossary.md#compiler-engine-and-execution-stage-names). The result preserves [signed zero](../glossary.md#term-signed-zero), [subnormal](../glossary.md#term-subnormal), [infinity](../glossary.md#term-infinity), and quiet/[signaling NaN](../glossary.md#term-signaling-nan) [payload](../glossary.md#term-nan-payload)
 bits and leaves the input unchanged. There is no [padding](../glossary.md#padding), [dilation](../glossary.md#term-dilation), [alias](../glossary.md#aliasing-and-arena), fold, two- or
 three-dimensional window, transfer [widening](../glossary.md#term-widening), [CPU](../glossary.md#term-cpu) fallback, or backward claim.
 
@@ -1072,7 +1072,7 @@ disposable source and binary were removed before production edits.
 
 Task 0023 ran one fresh disposable M3 Max Objective-C [smoke](../glossary.md#term-smoke-test) before production edits using the
 documented MPSGraph selectors. One context and one execution proved axis [GATHER](../glossary.md#gather) preserved raw
-FLOAT32 signed-zero, subnormal, infinity, and NaN-[payload](../glossary.md#artifact-envelope-and-atomic-publication) bits, and ONE_HOT produced the exact
+FLOAT32 signed-zero, subnormal, infinity, and NaN-[payload](../glossary.md#term-nan-payload) bits, and ONE_HOT produced the exact
 `[3,4]` [BOOL](../glossary.md#data-type--datatype) shape and zero/one bytes. Input [buffers](../glossary.md#term-buffer) were unchanged. The disposable source and
 binary were removed before production edits; no optimization, context, or repetition matrix was
 [run](../glossary.md#term-run).
@@ -1272,7 +1272,7 @@ unsupported type/layout combinations and over-limit programs remain false. [Mode
 promotions are checked by each owning operation, not a blanket mixed-type permission.
 Common [rank](../glossary.md#term-rank)-16, geometry and workspace bounds remain; CONCAT/STACK have no sixteen-operand
 cap. FLOAT64 overlapping numerical folds remain false. Empty support includes its proved
-source/affine/[normalization](../glossary.md#term-normalization)/[Scan](../glossary.md#term-cumulative-scan) and zero-output CONCAT/STACK paths. Rank zero is one [element](../glossary.md#term-element).
+source/affine/[normalization](../glossary.md#term-normalization)/[Scan](../glossary.md#general-differentiable-scan) and zero-output CONCAT/STACK paths. Rank zero is one [element](../glossary.md#term-element).
 The refreshed complete operation catalog has equal three-family forward/selected-AD coverage.
 Final source/[artifact](../glossary.md#term-artifact)/installation receipts are recorded separately in the production ledger;
 historical receipts do not seal the current source or [binary](../glossary.md#term-binary-descriptor-and-metadata).
@@ -1356,11 +1356,11 @@ The bounded generated-gradient closure is the exact capable [graph](../glossary.
 general backward promise.
 
 The Task-0069 specialized FLOAT32 [L1](../glossary.md#term-l1), ScatterAdd, and [singleton](../glossary.md#term-singleton) [VARIANCE](../glossary.md#term-variance) slices select the fixed
-custom program. The specialized FLOAT32 L1 [slice](../glossary.md#slice) independently authenticates unsigned-32-bit
+custom program. The specialized FLOAT32 L1 slice independently authenticates unsigned-32-bit
 [element](../glossary.md#term-element) and four-byte span bounds, one-thread [dispatch](../glossary.md#term-dispatch), distinct [buffers](../glossary.md#term-buffer), raw ABS leaves,
 contributor order, and one logical [publication](../glossary.md#term-publication). The specialized FLOAT32 ScatterAdd slice admits
 only [axis](../glossary.md#term-axis) zero, positive canonical [rank-one](../glossary.md#axis-rank-scalar-vector-and-matrix) FLOAT32 base/update/output, a materialized canonical
-rank-one [INT32](../glossary.md#data-type--datatype)/[INT64](../glossary.md#data-type--datatype) index feed, and no gradient flags. A complete [CPU](../glossary.md#term-cpu) index [scan](../glossary.md#term-cumulative-scan) precedes every
+rank-one [INT32](../glossary.md#data-type--datatype)/[INT64](../glossary.md#data-type--datatype) index feed, and no gradient flags. A complete [CPU](../glossary.md#term-cpu) index scan precedes every
 command encoding and mutation. One output thread raw-loads each base word once, retains duplicate
 matching updates in source order, and stores once; unaddressed cells select the unchanged raw word,
 and no [atomic](../glossary.md#resource-transaction-and-rollback) operation exists. The [compiler](../glossary.md#term-compiler) explicitly canonicalizes its generated zero base, so

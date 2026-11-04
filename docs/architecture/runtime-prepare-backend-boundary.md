@@ -99,8 +99,8 @@ The [resource contract](contracts/runtime-prepare-engine.md#accepted-symbolic-ba
 [CPU recipes](contracts/backend-execution.md#accepted-ordinary-symbolic-batch-cpu-contract) now
 are implemented for the bounded ordinary [homogeneous](../glossary.md#term-homogeneous) [FLOAT32](../glossary.md#term-float32), [rank](../glossary.md#term-rank)-at-most-two one-B [CPU](../glossary.md#term-cpu) closure.
 Prepare0014 additionally implements the [bounded symbolic Scan execution](#symbolic-scan-execution-and-future-geometry-reuse)
-[slice](../glossary.md#slice) through these same [owners](../glossary.md#term-owner); its task tracks final [qualification](../glossary.md#term-qualification).
-Prepare0015 implements combined one-B/fixed-T/[features](../glossary.md#term-software-feature) [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding) length-[Scan](../glossary.md#term-cumulative-scan) through this same
+slice through these same [owners](../glossary.md#term-owner); its task tracks final [qualification](../glossary.md#term-qualification).
+Prepare0015 implements combined one-B/fixed-T/[features](../glossary.md#term-feature) [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding) length-[Scan](../glossary.md#general-differentiable-scan) through this same
 handoff. Owning [validation](../glossary.md#term-validation) and independent code/structural review passed; root validation and the sole bounded
 probe completed (evidence and limits:
 [Prepare0015 Result](../planning/modules/prepare/tasks/0015-symbolic-length-scan-cpu-vertical.md#result) );
@@ -125,7 +125,7 @@ no per-[element](../glossary.md#term-element) recipe [evaluation](../glossary.md
 
 Execution mode is not a size test: `X[B,0].sum()` still requires B even when its declarations all
 have [constant](../glossary.md#term-constant) bytes. [PreparedMemoryPlan](../glossary.md#prepared-memory-plan--preparedmemoryplan)'s explicit mode rejects absent B before creators. Entries
-[carry](../glossary.md#term-carry) exact fixed bytes or immutable run-size recipes; creators receive actual bytes/[alignment](../glossary.md#term-alignment),
+carry exact fixed bytes or immutable run-size recipes; creators receive actual bytes/[alignment](../glossary.md#term-alignment),
 not a zero-[argument](../glossary.md#term-argument) closure over a guessed B. Slots, representation positions, routes and generated
 code remain fixed; all [mutable](../glossary.md#term-mutable) arrays and writable resources belong to the run. This preserves
 different-B concurrent results without shared currentB or a new lease protocol.
@@ -172,7 +172,7 @@ Prepare0014 implements bounded [homogeneous](../glossary.md#term-homogeneous) [F
 tracks final [qualification](../glossary.md#term-qualification). This execution path is separate from the still-unimplemented geometry
 [memo](../glossary.md#cache-and-memoization). The following recurrence illustrates current geometry; the miss/hit scenario below is
 explicitly future [metadata](../glossary.md#term-metadata) reuse, not a current [API](../glossary.md#term-application-programming-interface-api) or execution claim. The
-[Scan contract](contracts/recurrent-scan.md#accepted-symbolic-batch-scan)<span data-glossary-navigation="true"> ([Scan glossary](../glossary.md#term-cumulative-scan))</span> alone defines semantics;
+[Scan contract](contracts/recurrent-scan.md#accepted-symbolic-batch-scan)<span data-glossary-navigation="true"> ([Scan glossary](../glossary.md#general-differentiable-scan))</span> alone defines semantics;
 the [Engine memo contract](contracts/runtime-prepare-engine.md#accepted-engine-geometry-memo)<span data-glossary-navigation="true"> ([Engine glossary](../glossary.md#term-engine))</span>
 owns the narrow metadata exception. [ADR0051](../design/decisions/0051-symbolic-scan-and-geometry-reuse.md)
 compares the selected direction with static execution and per-B respecialization.
@@ -259,7 +259,7 @@ same-B [layout](../glossary.md#layout)/storage or overflowing latent local domai
 nor a hit can hide it. A false shortcut would retain a previous caller's dense-[view](../glossary.md#term-view-meanings) descriptor or
 shared mutable packed array because B matched; it would break publication truth or run isolation.
 
-No new type/public [signature](../glossary.md#term-signature) or Runtime [handoff](../glossary.md#term-handoff) is selected. Existing static [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding) [Scan](../glossary.md#term-cumulative-scan)/read
+No new type/public [signature](../glossary.md#term-signature) or Runtime [handoff](../glossary.md#term-handoff) is selected. Existing static [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding) [Scan](../glossary.md#general-differentiable-scan)/read
 exceptions, constituent arithmetic and compatibility [identities](../glossary.md#term-identity-meanings) remain unchanged. Length-value
 [preflight](../glossary.md#term-preflight) stays after [producers](../glossary.md#term-producer)/before Scan writes. CPU0042 implements fixed-[batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) length
 execution separately; symbolic-B plus lengths remains gated.
@@ -334,7 +334,7 @@ construction before backend analysis.
 
 `PrepareContext` stores this exact DAG as its sole node/topology component. Its derived
 `partition()` and `nodes()` delegate to the DAG. Its six components are the DAG, projected values,
-logical-memory requirements, [constants](../glossary.md#term-constant), backend inputs and the [Scan](../glossary.md#term-cumulative-scan) activity map. Structural
+logical-memory requirements, [constants](../glossary.md#term-constant), backend inputs and the [Scan](../glossary.md#general-differentiable-scan) activity map. Structural
 ScanActivityPlan [metadata](../glossary.md#term-metadata) and full source [shapes](../glossary.md#shape) accompany the scoped body; these are not an
 executable [Runtime](../glossary.md#term-runtime) [graph](../glossary.md#graph). Runtime receives prepared recipes, not another executor. The
 [runtime contract](contracts/runtime-prepare-engine.md) owns the exact context/constructor surface.
@@ -475,7 +475,7 @@ change route choice, add an undeclared shared need, or allocate per-run physical
 The [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) handoff, entry, and result remain package-private implementation details. Public
 `GraphPreparation.project(...)` and `GraphPreparation.prepare(...)` share one projection
 implementation. The former exposes an exact partition-local `PrepareContext` so [Engine](../glossary.md#term-engine) can ask a
-backend for tuning candidates; the latter [coordinates](../glossary.md#axis-rank-scalar-vector-and-matrix) the complete positionally supplied backend
+backend for tuning candidates; the latter coordinates the complete positionally supplied backend
 collaborations, producerless [constant](../glossary.md#term-constant) contributions, assignment, finalization, schedule assembly,
 [validation](../glossary.md#term-validation), [rollback](../glossary.md#term-rollback), and final [`PreparedExecution`](../glossary.md#prepared-execution--preparedexecution). Concrete backends never receive the
 `CompileArtifacts` aggregate. [Graph preparation](../glossary.md#graph-preparation--graphpreparation) does not select or discover a backend set;
@@ -492,7 +492,7 @@ to contribute physical geometry from the stable graph value, logical-memory requ
 [scalar](../glossary.md#term-scalar). Prepare still validates complete coverage and owns assignment and transactionality.
 
 Unknown/expression [Shapes](../glossary.md#shape) or symbolic geometry outside the bounded single named-B projection,
-including its [rank](../glossary.md#term-rank)-three [Scan](../glossary.md#term-cumulative-scan) closure, fail `PrepareContext` construction before backend analysis. The implemented
+including its [rank](../glossary.md#term-rank)-three [Scan](../glossary.md#general-differentiable-scan) closure, fail `PrepareContext` construction before backend analysis. The implemented
 [ordinary symbolic-batch handoff](#accepted-symbolic-batch-handoff) preserves selected routes,
 declared identities and slots; Scan still requires its independent whole-body [qualification](../glossary.md#term-qualification),
 not a per-run graph.
@@ -537,7 +537,7 @@ before trials. A safe-[heuristic](../glossary.md#term-heuristic) fallback never 
 
 <a id="planned-fixed-recurrent-scan-handoff"></a>
 
-## Fixed recurrent [scan](../glossary.md#term-cumulative-scan) [handoff](../glossary.md#term-handoff)
+## Fixed recurrent [scan](../glossary.md#term-fixed-recurrent-scan) [handoff](../glossary.md#term-handoff)
 
 [Model](../glossary.md#term-model) now represents the fixed recurrent scan and its valid-length [Tensor](../glossary.md#tensor) as ordinary expression
 [metadata](../glossary.md#term-metadata). The [CPU](../glossary.md#term-cpu) [scalar](../glossary.md#term-scalar) executable path uses an ordinary caller input whose
@@ -605,14 +605,14 @@ adding speculative control-flow state to Prepare or Runtime. See
 
 Implemented and MAIN accepted: the [CPU mechanism](contracts/backend-execution.md#cpu0074-selected-row-region-execution-exception)
 and [run-owned reservation contract](contracts/runtime-prepare-engine.md#cpu0074-run-owned-synchronous-reservation)
-permit only selected [fused](../glossary.md#specialization-and-fusion) regions to [dispatch](../glossary.md#term-dispatch) synchronous worker ranges from the emitted [Scan](../glossary.md#term-cumulative-scan)
+permit only selected [fused](../glossary.md#specialization-and-fusion) regions to [dispatch](../glossary.md#term-dispatch) synchronous worker ranges from the emitted [Scan](../glossary.md#general-differentiable-scan)
 loop. CPU0074 is Complete after final bounded [validation](../glossary.md#term-validation). Its
 [Result](../planning/backends/cpu/tasks/0074-row-fusion-simd-parallel.md#result) distinguishes
 functional acceptance from unqualified steady-state profitability; defaults and rollout are unchanged.
 Shared [Prepare](../glossary.md#prepare) and [Runtime](../glossary.md#term-runtime) APIs, one [RunState](../glossary.md#run-state--runstate) and synchronous [publication](../glossary.md#term-publication) do not change.
 
 [Lifecycle](../glossary.md#lifecycle) example with two actual participants and a capacity-two budget: analysis declares
-the bounded [feature](../glossary.md#term-software-feature)-[transpose](../glossary.md#term-transpose) scratch and two terminal partial/validity slots before assignment.
+the bounded [feature](../glossary.md#term-feature)-[transpose](../glossary.md#term-transpose) scratch and two terminal partial/validity slots before assignment.
 Cold [run](../glossary.md#term-run) [binding](../glossary.md#term-binding) creates the context/arrays/calls once. The caller acquires two permits, performs
 after-[producer](../glossary.md#term-producer) [preflight](../glossary.md#term-preflight), and enters generated code. At the selected active-time region it lends
 the same reservation to the two workers and waits without concurrent math. Workers acquire no
@@ -663,7 +663,7 @@ consumer cannot preload body cells just because another range is active. If the 
 [view](../glossary.md#term-view-meanings) of a ROW history still needs that source row's activity; it is not a SHARED source. The
 implemented scopes omit ROW/[carry](../glossary.md#term-carry)/bank/scratch origins and already-hoisted scalar actuals.
 
-Only complete consumed fixed-[feature](../glossary.md#term-software-feature) views and complete regional bodies qualify; [rank](../glossary.md#term-rank) greater
+Only complete consumed fixed-[feature](../glossary.md#term-feature) views and complete regional bodies qualify; [rank](../glossary.md#term-rank) greater
 than two or unrelated body producers keep checked reads. The shared cold query is reused with
 identical authenticated [scope](../glossary.md#term-scope)/base facts before cuts, in preparation, both cache streams and
 emission. Caller lifetime includes every demanded history base, even forwarded sources and
@@ -682,7 +682,7 @@ passed; the independent documentation pass reuses that source-matched evidence w
 
 ## [General differentiable scan](../glossary.md#general-differentiable-scan) [handoff](../glossary.md#term-handoff)
 
-This handoff is implemented for the bounded static [homogeneous](../glossary.md#term-homogeneous) [FLOAT32](../glossary.md#term-float32)/[FLOAT64](../glossary.md#term-float64) [CPU](../glossary.md#term-cpu) [scan](../glossary.md#term-cumulative-scan), including
+This handoff is implemented for the bounded static [homogeneous](../glossary.md#term-homogeneous) [FLOAT32](../glossary.md#term-float32)/[FLOAT64](../glossary.md#term-float64) [CPU](../glossary.md#term-cpu) [scan](../glossary.md#general-differentiable-scan), including
 [rank-two](../glossary.md#axis-rank-scalar-vector-and-matrix) [MATMUL](../glossary.md#matrix-multiplication--matmul) and independently qualified actual [Compiler](../glossary.md#term-compiler) first-order reverse bodies. CPU0033
 derives [F64](../glossary.md#floating-point-precision-and-rounding) spans, [strides](../glossary.md#term-stride), histories, banks and cuts from eight-byte [elements](../glossary.md#term-element), with exact checked
 resources before slots and typed capacity/[alignment](../glossary.md#term-alignment) checks at [binding](../glossary.md#term-binding). The historical Prepare0014
@@ -836,7 +836,7 @@ orchestration, and failure isolation. Concrete [backends](../glossary.md#backend
 perform allocation, [release](../glossary.md#term-release), transfer, and access.
 
 The current Runtime foundation implements the prepared origin description, package-private cold
-creation and [rollback](../glossary.md#term-rollback), structural residency, explicit per-copy [buffer validity](../glossary.md#buffer-validity), [carrier](../glossary.md#term-storage-carrier), cleanup,
+creation and [rollback](../glossary.md#term-rollback), structural residency, explicit per-copy [buffer validity](../glossary.md#buffer-validity), carrier, cleanup,
 and cold-binding portions of this flow.
 `BufferRepresentation` and `WorkspaceRepresentation` are distinct [nominal](../glossary.md#term-nominal) closeable roles with
 no physical access [API](../glossary.md#term-application-programming-interface-api). `BufferRepresentationBinding` marks one exact [buffer](../glossary.md#term-buffer) representation as
@@ -899,7 +899,7 @@ logical value; [host](../glossary.md#term-host) staging and [device](../glossary
 
 The current immutable [`PreparedPublication`](../glossary.md#prepared-publication--preparedpublication) identifies one already-created buffer representation
 with dense Runtime buffer, representation, and result positions against one exact plan. These are
-prepared/run [coordinates](../glossary.md#axis-rank-scalar-vector-and-matrix), not [compiler](../glossary.md#term-compiler) graph or [Tensor](../glossary.md#tensor) identities. Its cold binding resolves the
+prepared/run coordinates, not [compiler](../glossary.md#term-compiler) graph or [Tensor](../glossary.md#tensor) identities. Its cold binding resolves the
 selected physical representation once into a per-run [`BoundPublication`](../glossary.md#bound-publication--boundpublication). [Publication](../glossary.md#term-publication) requires
 the exact selected copy to be valid at that moment, changes only a local one-shot flag, and
 performs no [lookup](../glossary.md#term-lookup), transfer, fallback, conversion, allocation, backend [callback](../glossary.md#term-callback), validity change,
@@ -926,7 +926,7 @@ writes after success. Failure leaves those output copies invalid and closes the 
 preserving the original unchecked failure. The stateless runner supports concurrent isolated
 calls, but each call is [synchronous](../glossary.md#term-synchronous) and uses one orchestrating thread.
 
-The initial [model](../glossary.md#term-model) adds no automatic [pooling](../glossary.md#term-pooling), reuse, [aliasing](../glossary.md#term-aliasing), hidden coherence/write-back,
+The initial [model](../glossary.md#term-model) adds no automatic pooling, reuse, [aliasing](../glossary.md#term-aliasing), hidden coherence/write-back,
 distributed sharding, or multi-device scheduling. Transfer/materialization recipes and their
 success-only validity transition, [prepared publication](../glossary.md#prepared-publication--preparedpublication), result lease, executable-output
 invalidation, and schedule traversal are current. Ordinary public [Engine](../glossary.md#term-engine) output access is current
@@ -1093,5 +1093,5 @@ and [ADR 0027](../design/decisions/0027-post-cutover-capability-evolution.md)<sp
 partitions; [CPU](../glossary.md#term-cpu) retains generated and [OpenBLAS](../glossary.md#term-openblas) routes.
 The current Metal image is [schema](../glossary.md#term-schema) 20 with a 124-byte header and tuning [identity](../glossary.md#term-identity-meanings) 36; CPU generator
 schema is 70; native [ABI](../glossary.md#term-application-binary-interface-abi) 7 retains thirteen exports. CPU/Metal transfer accepts canonical or
-resolved positive-[stride](../glossary.md#term-stride) non-overlapping all-[carrier](../glossary.md#term-storage-carrier) storage [layouts](../glossary.md#layout) without [widening](../glossary.md#term-widening) [operation](../glossary.md#operation)
+resolved positive-[stride](../glossary.md#term-stride) non-overlapping all-[carrier](../glossary.md#term-storage-carrier) storage [layouts](../glossary.md#layout) without widening [operation](../glossary.md#operation)
 capability. Runtime requires no profile, [tolerance](../glossary.md#term-tolerance), [certificate](../glossary.md#formal-proof-certificate-and-trusted-assumptions), or policy [lookup](../glossary.md#term-lookup).

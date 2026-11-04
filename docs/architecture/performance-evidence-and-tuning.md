@@ -26,7 +26,7 @@ model + target + representative input/shape profiles
 ```
 
 [Benchmarking](../glossary.md#term-benchmarking) remains a separate report-only activity. [Planning](../glossary.md#term-planning) cost remains a separate
-[backend](../glossary.md#backend)-neutral estimate used to prune or [rank](../glossary.md#term-rank) [ownership](../glossary.md#term-ownership-meanings) choices. [Runtime profiling](../glossary.md#runtime-profiling) remains
+[backend](../glossary.md#backend)-neutral estimate used to prune or [rank](../glossary.md#term-ranking) [ownership](../glossary.md#term-ownership-meanings) choices. [Runtime profiling](../glossary.md#runtime-profiling) remains
 passive observation.
 
 The current public [Engine](../glossary.md#term-engine) composition implements both phases for one representative input set and
@@ -119,7 +119,7 @@ tie. Route selection remains cold and fixed; Runtime performs no timing, fallbac
 
 ## One [model](../glossary.md#term-model)-[autotuning](../glossary.md#autotuning--model-autotuning) workflow
 
-`tools/tuning` [coordinates](../glossary.md#axis-rank-scalar-vector-and-matrix) one explicit workflow with two related phases. The phases share the
+`tools/tuning` coordinates one explicit workflow with two related phases. The phases share the
 same model, [target](../glossary.md#term-target), [objective](../glossary.md#term-objective), budget, constraints, and explicit [cache](../glossary.md#term-cache) inputs, but they answer
 different questions.
 
@@ -214,7 +214,7 @@ remains dependent on backend and [lifecycle](../glossary.md#lifecycle) contracts
 ## [Planning](../glossary.md#term-planning) cost stays [backend](../glossary.md#backend)-neutral
 
 The [planning cost model](../glossary.md#term-planning-cost-model) estimates [backend ownership](../glossary.md#backend-ownership) from [graph](../glossary.md#graph), transfer, [materialization](../glossary.md#materialization), and
-boundary facts. It may prune or [rank](../glossary.md#term-rank) complete [ownership](../glossary.md#term-ownership-meanings) candidates, but it never interprets a
+boundary facts. It may prune or [rank](../glossary.md#term-ranking) complete [ownership](../glossary.md#term-ownership-meanings) candidates, but it never interprets a
 route, Java [Vector API](../glossary.md#term-vector-api) species, thread count, tile, chunk, [kernel](../glossary.md#kernel), or workload-[cache](../glossary.md#term-cache) value.
 
 [Model autotuning](../glossary.md#autotuning--model-autotuning) may measure bounded complete plans that planning generated. That does not move

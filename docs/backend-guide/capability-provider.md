@@ -336,7 +336,7 @@ Replacement scatter remains `NONE`. FOLD_AXIS and FLOAT64/BFLOAT16/FLOAT16 image
 non-overlapping; FLOAT32 FOLD2D/FOLD3D additionally accumulate overlap with one output writer.
 Every admitted [Shape](../glossary.md#shape)/[layout](../glossary.md#layout) is fully static and checked. This closes qualified static FLOAT32
 [Conv3d](../glossary.md#conv3d--ncdhw) training through [Compiler](../glossary.md#term-compiler)'s shared grouped window/MATMUL/reduction algebra, not [backend](../glossary.md#backend)
-[autograd](../glossary.md#autograd) or Metal [Scan](../glossary.md#term-cumulative-scan). See the [production matrix](production-support.md#metal-production-target)<span data-glossary-navigation="true"> ([matrix glossary](../glossary.md#term-matrix-meanings))</span>.
+[autograd](../glossary.md#autograd) or Metal [Scan](../glossary.md#general-differentiable-scan). See the [production matrix](production-support.md#metal-production-target)<span data-glossary-navigation="true"> ([matrix glossary](../glossary.md#term-matrix-meanings))</span>.
 `SORT`, `ARGSORT`, and positive-K `TOP_K` admit all seven carriers; `ARG_MAX` and `ARG_MIN` admit
 the six numeric carriers over [canonical](../glossary.md#term-canonical-form) dense ranks `1..16` with unsigned-32-bit-bounded geometry.
 

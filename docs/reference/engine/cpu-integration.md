@@ -56,7 +56,7 @@ The native [F32](../../glossary.md#floating-point-precision-and-rounding) surfac
 [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix)-proved movement and literal [MSE](../../glossary.md#mean-squared-error--mse)/BatchNorm/padded-[pooling](../../glossary.md#term-pooling) realizations, alongside bare
 [MATMUL](../../glossary.md#matrix-multiplication--matmul) with K > 1. Each API/implementation/geometry is independently admitted; the
 [CPU qualification table](../../backend-guide/cpu-backend.md#numerical-qualification-and-training)
-defines the exact boundary. Unsupported occurrences, symbolic/[Scan](../../glossary.md#term-cumulative-scan) orchestration and [opaque](../../glossary.md#term-opaque)
+defines the exact boundary. Unsupported occurrences, symbolic/[Scan](../../glossary.md#general-differentiable-scan) orchestration and [opaque](../../glossary.md#term-opaque)
 [convolution](../../glossary.md#term-channels-first-convolution-layers) or [fused](../../glossary.md#specialization-and-fusion) [activation](../../glossary.md#term-activation) replacements retain preplanned CPU execution. Literal native
 pipelines preserve the existing common unit's stores and arithmetic sites; they are neither a
 second graph nor a second [AD](../../glossary.md#autograd) system. Saved/public stores and current-[weight](../../glossary.md#term-weight) visibility remain.

@@ -180,7 +180,7 @@ export [fail closed](../../glossary.md#admission-preflight-and-fail-closed-valid
 The automatic recurrent-cell constructors similarly retain explicit hidden width, bias choice,
 floating parameter type, policy, and seed while reserving `inputWeight`, `hiddenWeight`, and
 optional `bias`. The first compatible represented cell call, [descriptor](../../glossary.md#term-descriptor)-valid `forwardScan`, or
-RNN `forwardGeneralScan` infers only a positive static input width. A [scan](../../glossary.md#term-cumulative-scan) binds even when time
+RNN `forwardGeneralScan` infers only a positive static input width. A scan binds even when time
 or [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) is zero; static [unrolling](../../glossary.md#term-unrolling) with no represented step still leaves the cell unbound.
 Sampling policies create one fresh standard `L64X128MixRandom` stream per attempt and draw
 the complete packed input [matrix](../../glossary.md#term-matrix-meanings) before the complete packed hidden matrix; each Shape derives its

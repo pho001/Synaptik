@@ -1,6 +1,6 @@
 # [Engine](../../glossary.md#term-engine): [compile](../../glossary.md#compile), [prepare](../../glossary.md#prepare) and [run](../../glossary.md#term-run)
 
-Use ordinary Engine for reusable execution, or explicit composition when you must select opened [CPU](../../glossary.md#term-cpu)/[Metal](../../glossary.md#term-metal) [owners](../../glossary.md#term-owner). [Compilation](../../glossary.md#compiler-engine-and-execution-stage-names) retains logical recipes; prepared handles and result [leases](../../glossary.md#term-lease) [carry](../../glossary.md#term-carry) separate lifetimes.
+Use ordinary Engine for reusable execution, or explicit composition when you must select opened [CPU](../../glossary.md#term-cpu)/[Metal](../../glossary.md#term-metal) [owners](../../glossary.md#term-owner). [Compilation](../../glossary.md#compiler-engine-and-execution-stage-names) retains logical recipes; prepared handles and result [leases](../../glossary.md#term-lease) carry separate lifetimes.
 
 [Reference goals](../index.md) · [Javadoc access](../javadoc.md)
 
