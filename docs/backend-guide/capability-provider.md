@@ -20,6 +20,11 @@ mixed CPU/Metal ownership selected by the current inventory when every transfer 
 A capability is a declarative answer to “can this backend own this work?” It is not a live
 executable, a kernel registry, or a route selection.
 
+An **occurrence** is one concrete use of an operation, including its ordered inputs and outputs.
+A **descriptor** describes a value's numerical type, shape, layout and gradient eligibility;
+it is not the stored data itself. Consequently, supporting one FLOAT32 matrix multiplication
+does not imply supporting every matrix size, storage mapping, low-precision type or derivative.
+
 ## Prerequisites and current contracts
 
 A provider implementation depends inward on the current planning, model, and backend-contract
@@ -34,6 +39,11 @@ The query snapshots ordered input and output list membership while retaining the
 compatibility or eventual executability.
 
 ## Profile-free low-precision capability evidence
+
+“Profile-free” means there is no caller-selected alternate numerical contract. **Low precision**
+names a stored floating format with fewer bits, not a licence to use arbitrary approximations.
+The ledger is a table of actual representative provider answers; it is neither an exhaustive
+list of possible inputs nor evidence that every listed computation executed on hardware.
 
 The checked-in
 [`low-precision-capability-ledger-v2.tsv`](../../testing/backend-conformance/src/test/resources/low-precision-capability-ledger-v2.tsv)
@@ -70,6 +80,11 @@ FLOAT32 image-fold overlap for Conv3d training; no low-type admission follows fr
 Native ABI remains 7. The ledger is not a current-schema certificate.
 
 ## Current shared identity, availability, and requirement vocabulary
+
+Keep four questions separate: **identity** names an owner or device, **availability** reports
+what is present, **capability** answers whether an occurrence is supported, and a **requirement**
+constrains which owner may be selected. A preference can influence choice among eligible owners;
+it cannot make an ineligible one eligible.
 
 The current Java API can name an ownership domain, name a device within that domain, and express
 the independent CPU-versus-accelerator category vocabulary. It can also associate one backend's
@@ -267,6 +282,10 @@ provide typed evidence only after its consumers and diagnostic vocabulary are de
   as unsupported work.
 
 ## Validation expectations
+
+Conformance means agreement between an implementation and the contract it claims to satisfy.
+For example, checking that a provider says “yes” is different from preparing that occurrence,
+running it on current inputs, and comparing the result with an independently calculated answer.
 
 Provider implementations require unit tests for supported and rejected combinations and
 architecture tests for dependency direction. The production CPU provider has focused public-

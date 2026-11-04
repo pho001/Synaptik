@@ -11,11 +11,22 @@ Prepare's transactional finalizer-result handoff, and Engine prepared-handle clo
 The guide therefore separates compilable extension patterns from conceptual
 integration steps.
 
+A **backend** owns a supported group of calculations and the physical resources used to perform
+them. A **kernel** is an executable computation routine, while a **route** is a backend-local
+implementation choice. Integrating a backend therefore means supplying ownership, preparation,
+storage and cleanup together, not merely making one numerical function callable.
+
 ## Prerequisites
 
 Read the authoritative [`ARCHITECTURE.md`](../../ARCHITECTURE.md), [module boundaries](../architecture/module-boundaries.md), [dependency rules](../architecture/dependency-rules.md), and the concrete backend's master plan. A backend module may depend on shared contracts but must not depend on engine.
 
 ## Integration lifecycle
+
+Read the flow as a sequence of decisions, not five names for the same object. Capability reports
+what can be owned; compilation selects the owner; preparation fixes implementation and resources;
+Runtime invokes that fixed recipe on one run's data. **Lowering** translates a computation into
+a more concrete form, **specialization** fixes useful known facts, and **fusion** combines eligible
+calculations without removing required observable results or rounding boundaries.
 
 ```text
 capability -> compile ownership -> backend prepare -> executable -> runtime
@@ -47,6 +58,10 @@ capability -> compile ownership -> backend prepare -> executable -> runtime
 ## Current persistent prepared-resource ownership
 
 ### Persistent-resource goal and inputs
+
+Here **persistent** means reused by runs of one prepared execution, not serialized to a file.
+A native **handle** is an identifier used to refer to a resource outside Java; possessing its
+numeric value does not establish ownership or extend its lifetime.
 
 Represent reusable backend-native state, such as a compiled executable, without exposing its
 physical handle through Runtime. The current Runtime contract is intentionally limited to
@@ -172,6 +187,11 @@ freshness across positions and concurrent runs, immutability/thread safety of re
 null/duplicate rejection, and physical cleanup.
 
 ## Current cold-binding pattern
+
+“Cold” work performs setup and compatibility checks before repeated computation. **Binding**
+connects the prepared recipe to one run's actual representations and produces direct typed
+references for the **hot path**, the execution code whose repeated overhead matters. Cold binding
+is not another opportunity to choose an owner or silently change a selected route.
 
 The following focused skeleton uses only current Runtime contracts. It is a local extension
 pattern, not a complete backend: a current Prepare finalizer supplies the exact plan and dense
@@ -362,6 +382,11 @@ resources, perform materialization, publish, or create a result. Publication rem
 runner-invoked Runtime action rather than backend behavior hidden in an executable or transfer.
 
 ## Current publication boundary for backend authors
+
+**Publication** makes an already-computed representation available as a result; **materialization**
+creates the required physical or detached form. Publishing does not itself copy bytes to the host.
+A representation's **validity** says whether that particular copy currently contains the required
+logical value, not whether its memory was merely allocated.
 
 `PreparedPublication` and `BoundPublication` are final Runtime types, not backend extension
 points. A prepared publication uses dense buffer, representation, and result positions. Its cold

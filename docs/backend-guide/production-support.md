@@ -17,7 +17,19 @@ Post-candidate source work is recorded in the
 and [public-release audit](../planning/public-release-audit-2026-11-04.md#result).
 Neither relabels the earlier distribution as rebuilt or reissued.
 
+Read each row as bounded evidence, not a promise for every tensor. A **domain** is the allowed
+combination of numerical types, dimensions, storage mappings and values. **Qualification**
+records which implementation and environment were checked. A **catalog** exercises representative
+cases; an independent **numerical oracle** calculates an expected answer without reusing the
+implementation being checked. Passing a catalog and agreeing with an oracle are different claims.
+
 ## Common Java CPU domain
+
+F32/F64 abbreviate the FLOAT32/FLOAT64 storage formats; BF16/F16 abbreviate BFLOAT16/FLOAT16.
+**Homogeneous** means the relevant numerical values use one common type. A **stride** is the
+storage step for advancing one coordinate, an **offset** is the mapping's starting displacement,
+and an **injective** output mapping gives every distinct logical coordinate a distinct address.
+These properties matter even when two tensors have the same shape.
 
 FLOAT32 and FLOAT64 are equal homogeneous production targets. The common baseline uses fully static
 shapes, exact operation geometry/promotion, resolved nonnegative read strides/offsets, checked
@@ -123,6 +135,12 @@ Metal FLOAT64 pooling/folds retain their qualified non-overlap limits; Metal F32
 overlapping pooling adjoints use shared output-owned FLOAT32 working arithmetic.
 
 ## Temporary Java low-computation lock
+
+FP8 means an eight-bit floating-point storage format; E4M3 and E5M2 split their non-sign bits
+between exponent and fraction differently, so their ranges and special values differ.
+**Working arithmetic** is the precision used during calculation, while **narrowing** converts
+the result to a smaller stored format. CPU support for those stored formats does not imply a
+native FP8 instruction, a Metal FP8 route, or a qualified device capability.
 
 This anchor is retained for existing links; the CPU0078 lock is historical and superseded by
 the [CPU low-precision parity cutover](../architecture/contracts/backend-execution.md#cpu-low-precision-parity-cutover).

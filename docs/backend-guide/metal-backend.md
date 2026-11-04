@@ -2,6 +2,13 @@
 
 ## Outcome and supported scope
 
+Metal is Apple's interface for sending work to a **graphics processing unit (GPU)**. In this
+guide, **native** means code outside the Java Virtual Machine, reached through an explicit
+Java-to-native boundary. The **application binary interface (ABI)** specifies how those calls
+and their memory records are represented; a **schema** specifies the format of a particular
+encoded program. Matching versions is necessary, but does not prove that a computation is
+supported or numerically correct.
+
 Metal is a first-production backend, not an experimental CPU fallback. One backend owns each
 complete maximal Metal partition. The active protocol is native ABI 7 with thirteen exports,
 program schema 22 (`SM22`) and its 124-byte header, operation wires `1..116`, attribute wires `0..42`,
@@ -126,6 +133,11 @@ wire or weakening strict rebind descriptors. General higher-order Scan remains b
 
 ### Physical authentication and fixed routes
 
+“Authentication” of a layout or resource here means checking that its claimed type, address
+mapping, storage extent and creating context agree with the actual resource. It is not user
+login or proof that an arbitrary file came from a trusted publisher. Likewise, a checksum
+detects changed bytes only relative to an independently trusted expected value.
+
 Java preparation and native preflight independently authenticate logical metadata, actual
 represented dense storage, referenced spans, unsigned-32-bit geometry and output injectivity.
 A logical view does not prove dense physical storage. Selected materializing outputs have their
@@ -168,6 +180,23 @@ remain mandatory.
 
 ## Prerequisites
 
+**Metal Performance Shaders (MPS)** is Apple's library of GPU computation building blocks.
+**MPSGraph** is its graph-building and compilation framework; it is not Synaptik's Model graph
+or an automatic differentiation engine for this integration. A custom **shader** is a program
+compiled for GPU execution; a compute pipeline holds the compiled setup needed to dispatch it.
+The route descriptions below distinguish framework-compiled work from the backend's own
+reviewed shader programs, not different backend owners.
+
+The JDK's **Foreign Function and Memory (FFM) API** calls native functions and accesses native
+memory. It is distinct from the older **Java Native Interface (JNI)**, which uses a different
+Java/native integration mechanism. Mentioning either mechanism is not a new supported route:
+this guide's Java boundary uses FFM.
+
+Native metadata described as **plain old data (POD)** consists of fixed fields that the two
+sides can interpret by their agreed sizes and offsets, rather than Java objects. **AIR**
+(Apple Intermediate Representation) is compiled shader output inspected in the retained source
+audits; checking it is different from checking source text alone or running a numerical oracle.
+
 Java uses JDK 26 Foreign Function and Memory (FFM) APIs. The native bridge requires an
 Apple-silicon macOS host, Xcode Command Line Tools, and Foundation, Metal, and
 MetalPerformanceShadersGraph. Build and ABI instructions are in the
@@ -206,6 +235,12 @@ test-only route forcing, native handles, Objective-C objects, and MPSGraph types
 
 ### Completion and device topology
 
+A **command queue** accepts submitted GPU work. A **command buffer** records one group of
+commands that is committed for execution; a compute encoder records compute commands inside it.
+Recording or committing a buffer does not itself mean that the device has finished.
+A **fence** is a synchronization marker used to order relevant device accesses, not a synonym
+for a returned public result or a new asynchronous API.
+
 Each `MetalBackendIntegration` owns exactly one `MetalDeviceContext` created with the system-
 default Metal device and one associated command queue. `MetalBackendConfiguration` selects only the
 native library; it exposes no physical-device selector. One Engine can own at most one Metal
@@ -222,6 +257,23 @@ Transfers and materialization remain synchronous at their existing call boundari
 resource currently serializes its native run method; this implementation detail and the one queue
 do not promise device overlap, submission or completion order, fairness, queue multiplicity, or
 throughput to concurrent callers. Their mutable run state remains isolated.
+
+Read the first two boxes as reusable prepared ownership and the remaining boxes as one
+invocation's lifecycle. The wait connects device submission to a completed result; keeping
+the result open keeps its resources leased, not its computation in flight.
+
+```mermaid
+flowchart TB
+    accTitle: Metal prepared ownership and synchronous run completion
+    accDescr: An open integration supplies context for a prepared executable. Each admitted run borrows the prepared resource, creates its own outputs and workspace, submits device commands, and waits before returning a completed result. Closing the result releases its run resources.
+    I["Open integration and context"] --> P["Prepared executable resource"]
+    P --> R["Admitted run borrows resource"]
+    R --> O["Fresh run outputs and workspace"]
+    O --> C["Encode and commit commands"]
+    C --> W["Wait for device completion"]
+    W --> S["Return completed result lease"]
+    S --> X["Result close releases run resources"]
+```
 
 Every Metal buffer, workspace, executable, splat, and route resource is authenticated against its
 exact context. Native code rejects both a foreign creating context and a foreign `MTLDevice`
@@ -307,6 +359,11 @@ misstate native lifetime and add noise. Tracing changes no capability, route, na
 ABI/schema/export, result, lifecycle, or Engine production behavior.
 
 ### Capability, whole-partition analysis, and route selection
+
+An **operation occurrence** is one specific node with its own inputs, outputs and descriptors,
+not just an operation name such as MATMUL. A **candidate** is a complete eligible implementation
+alternative for that exact context. Selecting a candidate during preparation does not leave a
+list of alternatives for Runtime to try after a failure.
 
 `MetalCapabilityProvider.supports` checks one occurrence and its exact
 descriptors. It admits only the operation-specific canonical or authenticated affine input domain;
@@ -477,6 +534,10 @@ session)` rather than a workload digest alone. The repository has no persistent 
 cache, and this cutover adds none.
 
 ### Finalization and persistent ownership
+
+Finalization turns the selected recipe into reusable native resources after shared memory slots
+have been assigned. **Persistent** here means retained across runs of that prepared execution,
+not saved to disk or reusable in a different Engine or device context.
 
 Shared Prepare assigns all declared slots before Metal finalization. The finalizer checks
 declaration identity, order, geometry, slot uniqueness, exact `MetalDeviceContext` identity,
@@ -1238,6 +1299,19 @@ Related documentation:
 - [Native ABI and build guide](../../modules/backend/metal/macos-arm64/README.md)
 
 ## Numerical semantics and capability
+
+An arithmetic **site** is a particular calculation and rounding boundary named by the Model
+formula. An **aggregate floor** requires every declared contributor exactly once, while
+retaining the specified identities, divisors and working precision; it is not a final-output
+error allowance. Its recursive application also constrains the component calculations inside
+a composite operation.
+
+**DAZ** (denormals-are-zero) can treat a subnormal arithmetic input as zero at an allowed site;
+**FTZ** (flush-to-zero) can replace a subnormal arithmetic result with zero under that site's
+sign rules. A subnormal is a nonzero floating value below the format's smallest normal magnitude.
+These permissions do not turn a stored subnormal into zero for raw copying or exact comparison.
+An **FMA** (fused multiply-add) rounds a product-plus-add once rather than rounding multiplication
+and addition separately; only the owning contract can authorize that change of boundary.
 
 Capability has no numerical-profile selector. Current exact and numerical occurrence domains
 are defined above and by the owning predicates, not by a task-era structural recipe.

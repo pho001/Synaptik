@@ -11,6 +11,11 @@ used by `Engine.standard()` and explicit `Engine.builder()` composition.
 `AdvancedEngine.takeOwnership(...)` accepts one explicitly supplied integration for advanced
 CPU-only composition. The SPI is not the ordinary end-user execution facade.
 
+The **central processing unit (CPU)** is the host processor running Java and, when selected,
+native machine-code libraries. A backend is the owner of a piece of computation; a **route** is
+one way that owner implements it. Thus “CPU supports an operation,” “a native library loaded,”
+and “this run used that library” are three separate statements.
+
 The [CPU low-precision parity cutover](production-support.md#temporary-java-low-computation-lock)
 supersedes CPU0078. BFLOAT16, FLOAT16, FLOAT8_E4M3 and FLOAT8_E5M2 reuse ordinary CPU
 execution, Compiler AD, Scan and Training owners under each family's existing geometry guards.
@@ -27,6 +32,10 @@ model.v2/SYNMOD02, definition SYNDEF02 and whole-model.v2 formats. These source 
 do not persist a compiled plan, optimizer continuation or new runtime execution policy.
 
 ## Ordinary named-batch CPU execution
+
+Here **homogeneous** means that the numerical graph uses one common floating type. A named
+batch dimension B lets different runs supply different batch sizes while the prepared structure
+stays fixed; it does not make every dimension changeable.
 
 An ordinary homogeneous FLOAT32 graph may carry one named B with fixed features/parameters and
 rank at most two. CPU prepares scalar, single-range portable units once; invocation B only
@@ -373,6 +382,39 @@ an externally installed compatible OpenBLAS or explicitly configured oneDNN bina
 JVM permission for restricted native access: `--enable-native-access=ALL-UNNAMED` for the
 classpath deployment shown here.
 
+The following vocabulary helps separate the code descriptions from the numerical and storage
+contracts. These are explanations, not additional capability claims.
+
+| Term | How to read it in this guide |
+|---|---|
+| Java Virtual Machine (JVM) | The program that loads and executes Java class files. The Java Development Kit (JDK) includes the tools used to build and run them. |
+| Intermediate representation (IR) | A structured description of computations before executable code is produced. CPU's private kernel IR is not the public Tensor graph or a Runtime interpreter. |
+| Bytecode and just-in-time (JIT) compilation | Bytecode is the instruction format in a Java class file. The JVM may translate it into processor instructions while the program runs; saving class bytes does not save those JIT results. |
+| Hidden class and lookup | A hidden class is a generated JVM class unavailable through ordinary name-based class loading. A Java `MethodHandles.Lookup` carries permission to define or access classes and methods; it is not a filesystem or tuning-cache search. |
+| Single instruction, multiple data (SIMD) and vector lanes | SIMD applies one operation to several values together. A lane is one value position in that group; a Vector API species fixes the element type and group width. Vector computation and multiple worker threads are independent choices. |
+| Affine storage mapping | An address calculated from a base offset plus coordinate-times-stride terms. For shape `[2,3]` and strides `[3,1]`, coordinate `[1,2]` selects element 5. This is different from an affine layer's scale-and-bias calculation. |
+| Contiguous storage | Values occupy consecutive positions in the specified traversal order. Canonical CPU row-major layout additionally has the documented offset and strides; merely having enough bytes does not prove that layout. |
+| Carrier and referenced span | A carrier is the actual array or memory segment holding encoded values. The referenced span is the storage range needed by the layout, including gaps, not just the number of logical values. |
+| Application binary interface (ABI) | The machine-level agreement on function arguments, integer widths, memory layout and return values. Java/native agreement is needed even when the mathematical operation names match. |
+| LP64 and `blasint` | LP64 specifies 64-bit C `long` values and pointers, with 32-bit C `int`. The BLAS dimension integer `blasint` is a separate library ABI choice; the OpenBLAS provider here requires its ordinary 32-bit form. A 64-bit process alone does not prove either interface matches. |
+| OpenBLAS and oneDNN | External native numerical libraries used by qualified CPU routes. OpenBLAS supplies Basic Linear Algebra Subprograms, including general matrix multiplication (GEMM); oneDNN supplies deep-learning primitives and compiled numeric blocks. Neither is another backend. |
+
+Read this diagram left to right: preparation creates a reusable Java artifact, while the JVM
+separately decides how to execute its bytecode. The native route is a peer choice, not the last
+stage of Java code generation.
+
+```mermaid
+flowchart LR
+    accTitle: CPU route selection and Java code generation
+    accDescr: CPU preparation selects a qualified Java or native route. The Java route turns private kernel IR into verified bytecode and a hidden class with a direct method handle. The JVM may then compile the bytecode into machine code.
+    P["CPU preparation"] --> J["Selected Java route"]
+    P --> N["Eligible native-library route"]
+    J --> I["Private kernel IR"]
+    I --> B["Verified JVM bytecode"]
+    B --> H["Hidden class and direct method handle"]
+    H --> V["JVM execution, possibly JIT-compiled"]
+```
+
 - A **route** is one backend-local implementation choice. The glossary entry for
   [backend route](../glossary.md#backend-route) explains why OpenBLAS is not a separate backend.
 - The **Foreign Function and Memory (FFM) API** is the JDK native-interoperability API used to
@@ -414,6 +456,11 @@ Both APIs consume the same common CPU intermediate representation (IR) and bind 
 external CPU buffers; native-internal layouts do not replace public or saved stores.
 
 ### Typed low MATMUL qualification
+
+Here **qualification** means evidence for a particular implementation, numerical type and
+geometry on a target. The target **instruction set architecture (ISA)** is the processor's
+machine-instruction vocabulary. A library accepting a descriptor is not by itself qualification
+of its arithmetic or permission to run every low-precision format.
 
 Native low execution is independently qualified per API, dtype, target ISA and exact geometry.
 The current low route is bare MATMUL with K > 1, not arbitrary native low graphs. Native inputs
@@ -751,6 +798,11 @@ still executes the fixed schedule and owns the existing failed-run cleanup; it a
 policy or retry.
 
 ### Cold local-workload tuning collaboration
+
+Tuning compares already valid alternatives using representative work; it is not permission to
+change an operation's meaning. A **candidate** includes the route, configuration and required
+resources needed to realize that alternative. A selected decision names a compatible candidate,
+whereas a heuristic is a rule-based estimate rather than a measurement.
 
 `CpuBackendIntegration.localWorkloadTuning()` returns the same retained
 `CpuLocalWorkloadTuning` collaboration while the integration is open. This is a supported
@@ -1747,6 +1799,10 @@ under that permission and contract.
 
 ### Current static affine view family
 
+“Affine” here concerns coordinate-to-storage addresses, not changing numerical values with a
+scale and bias. A view changes how coordinates refer to existing storage; this family can
+materialize the final mapping into a distinct output while preserving the stored bits.
+
 The portable affine family composes a closed set of existing Model view meanings during CPU
 analysis:
 
@@ -2436,6 +2492,10 @@ or performance guarantee.
 
 ### Current explicit-state RNG and dropout family
 
+RNG means **random number generator**. Explicit state makes the sequence of generated choices
+part of the operation's inputs and outputs, rather than hidden mutable state. It does not imply
+cryptographic security or a common random stream across backends.
+
 The portable random family accepts exactly one fully static, resolved-layout occurrence. An
 `INITIAL_STATE` occurrence has no input and one writable INT64 `Shape[2]` output. It writes the
 exact raw key word to logical lane zero and counter word to lane one; it does not hash either
@@ -2559,6 +2619,10 @@ logical element, keep rule, and modulo advancement; CPU owns this private mappin
 
 ### Current cumulative scan family
 
+A cumulative scan keeps a running result along one axis: for example, a running sum of
+`[1,2,3]` is `[1,3,6]`. That is distinct from general Scan's repeated body computation and from
+a reduction that returns only one result for the entire selected domain.
+
 The portable scan family accepts exactly one fully static, resolved-layout `CUM_SUM` or
 `CUM_PROD` occurrence with one read-only input and one distinct writable output. Both descriptors
 have the same non-scalar Shape and data type, the normalized axis is valid for that rank, and the
@@ -2657,6 +2721,10 @@ Shape/layout binding, in-place/overlapping execution, public scan configuration,
 Runtime scan primitive are not implemented.
 
 ### Current aggregate reduction family
+
+An aggregate combines a selected group of input values into one output cell. Each selected
+value is a **contributor**; an **accumulator** is the working state used while combining them.
+The accumulator's representation and rounding need not match the stored output representation.
 
 The portable ordinary-aggregate family accepts exactly one fully static, resolved-layout
 `SUM`, `MEAN`, `PROD`, `MIN`, `MAX`, `ALL`, or `ANY` occurrence. `SUM`, `PROD`, `MIN`, and `MAX`
@@ -3750,6 +3818,10 @@ bitwise promise.
 
 ### Current portable MATMUL family
 
+A contraction multiplies paired values along a shared dimension and combines those products.
+For matrix multiplication, K is that shared dimension: each output cell combines K products.
+“Increasing K” describes contributor order, not the order in which output cells are scheduled.
+
 The portable CPU route accepts the complete current fully static, resolved-layout `MATMUL`
 semantic family. It covers vector-vector, vector-matrix, matrix-vector, matrix-matrix, and batched
 forms. Rank-one operands are normalized internally with a unit M or N axis, then the inserted
@@ -4208,6 +4280,10 @@ the retained Java 26 environment and protocol.
 
 ### Unary numerical closure
 
+Accuracy bounds below use **ULP**, a unit in the last place: the spacing associated with a
+floating-point format at a value's magnitude. It is not a fixed decimal error or a single
+relative tolerance for the whole graph; the stated format, reference and operation still matter.
+
 Every unary occurrence remains one Model node and one CPU instruction. FLOAT64 scalar emission
 uses primitive arithmetic and permitted JDK primitive `Math` or `StrictMath` calls. Schema 30
 embeds the selected ERF, sigmoid, exact and tanh-approximation GELU, and SiLU formulas directly in
@@ -4544,6 +4620,10 @@ exact `route.nativeblas.openblas` leaf described above; the explicit oneDNN rout
 vDSP/vForce/VML/AOCL-LibM/ZenDNN `route.nativeops` leaves remain later work.
 
 ### Generated class-byte persistence and evidence
+
+Class bytes describe JVM instructions, not the processor instructions later chosen by the JIT.
+A checksum can detect changed bytes; it cannot establish who supplied them or make an
+untrusted executable-code directory safe.
 
 Generated-class persistence is optional cold-path policy. Without a trusted root, CPU emits,
 verifies, and defines deterministically in memory. With an explicit normalized trusted root, one
@@ -4953,6 +5033,11 @@ tests and keep benchmarks reproducible.
 See the [CPU master plan](../planning/backends/cpu/master-plan.md), [kernel routes](kernel-routes.md), and [CPU kernel strategy](../design/notes/cpu-kernel-strategy.md).
 
 ## Current general Scan composition
+
+General Scan repeats a captured computation body over time while passing state, called a carry,
+between steps. A demanded history saves particular per-step values for a consumer; it is not
+automatically a copy of every temporary value. The detailed row-activity rules below determine
+which batch members actually participate.
 
 Current admission composes every ordinary CPU-supported PURE unit under the same ordinary dtype,
 layout, finite/value-validation and selected derivative guards, not the finite historical algebra
@@ -6216,6 +6301,21 @@ Raw structure and campaign evidence are retained under
 records per-fork statistics, compilation correlation, separate cold costs and evidence limits.
 
 ## Numerical semantics and capability
+
+The numerical terms distinguish stored values from arithmetic on them. **NaN** means “not a
+number,” a floating-point encoding used for outcomes such as invalid arithmetic; its payload is
+extra encoded information, not a numerical magnitude. A **subnormal** is a nonzero floating
+value smaller in magnitude than the format's smallest normal value. DAZ treats such an input as
+zero at a permitted arithmetic site; FTZ replaces a subnormal result with zero under that site's
+sign rules. Neither permission authorizes changing copied stored bits.
+
+**Fused multiply-add (FMA)** computes a product plus an addend with one final rounding, unlike a
+separately rounded multiplication followed by addition. Whether it is permitted depends on the
+operation's observable boundaries. The Model's **aggregate floor** is the minimum rule that
+every declared contributor participates exactly once, with the required identities, divisors,
+working precision and permitted rounding sites. “Floor” here is a correctness baseline, not
+the integer-rounding FLOOR operation or an error threshold. A particular route, such as the
+ordinary exact SUM realization above, may provide stronger arithmetic than that minimum.
 
 CPU capability and preparation have no numerical-profile selector. They retain the true and false
 provider answers from the historical accelerator baseline and the qualified portable/generated

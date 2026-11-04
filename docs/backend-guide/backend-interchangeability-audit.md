@@ -1,5 +1,11 @@
 # CPU ↔ Metal: podrobný audit úplné zaměnitelnosti
 
+Reader navigation: [backend capability](../glossary.md#backend-capability),
+[backend ownership](../glossary.md#backend-ownership), [layout](../glossary.md#layout),
+[materialization](../glossary.md#materialization),
+[numerical semantics](../glossary.md#profile-free-numerical-semantics), and
+[general Scan](../glossary.md#general-differentiable-scan).
+
 ## 1. Závěr a platnost
 
 **CPU a Metal nejsou plně zaměnitelné ani pro FLOAT32.** Shoda názvů operací a úspěšné katalogové reprezentanty neznamenají shodu všech tvarů, layoutů, hodnotových domén, gradientových uzávěrů a připravených programů.

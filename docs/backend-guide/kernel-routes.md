@@ -14,11 +14,23 @@ run:      invoke the selected PreparedExecutable
 
 CPU routes are not separate backends. The same rule applies to MPSGraph versus custom Metal kernels and to multiple CUDA kernels.
 
+A **kernel** is a computation routine; a **route** is the implementation choice that uses such
+routines within one backend. “Generated JVM bytecode” means Java Virtual Machine instructions
+created during preparation, not a second backend or a runtime graph interpreter. SIMD/vector
+work applies operations to several value positions together; parallel work uses multiple threads.
+Those are different choices, even when one route combines them.
+
 For generated CPU computation kernels, CPU preparation owns generation and compatible artifact
 caching as part of its private lowering and finalization work. The architecture permits generated
 JVM bytecode without prescribing the API used to build it.
 
 ## Decision inputs
+
+A **candidate** is a complete valid alternative, including its resource requirements.
+**Qualification** establishes bounded compatibility/correctness evidence; **tuning** compares
+eligible alternatives using representative measurements. A **heuristic** estimates a choice
+without that measurement. None of these terms makes unsupported arithmetic legal or proves a
+universal speed advantage.
 
 A backend may consider operation semantics, data type, resolved shape and layout, alignment,
 prepare configuration, fusion opportunities, workspace needs, native availability, immutable

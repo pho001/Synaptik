@@ -9,6 +9,12 @@ and workspace declarations.
 After shared Prepare assigns Runtime slots, finalization consumes those exact assignments and
 constructs an immutable executable recipe.
 
+A **partition** is a group of graph operations assigned to one backend owner. **Analysis**
+decides how that owner will realize the work and declares its resource needs; **assignment**
+gives those declarations stable positions in a shared memory plan; **finalization** builds the
+selected executable against those positions. Declaring a 64-byte workspace is not allocating
+64 bytes, and a slot number is not a memory address.
+
 Prepare also exposes a separate cold transport for a complete backend-owned tuning candidate
 batch and an optional backend-owned selected decision. The transport keeps both values typed and
 ties them to one exact planned partition, but it is not part of `PrepareContext`, analysis,
@@ -65,6 +71,12 @@ types rather than either production implementation.
   exact partition, one typed candidate batch, and an optional typed decision without exposing
   backend fields.
 
+“Opaque” means that shared preparation can carry a typed backend value without reading its
+private fields. A **buffer** represents a logical graph value; a **workspace** is temporary
+working storage. **Alignment** requires an address to be a multiple of a specified byte count.
+These distinctions explain why buffer identity, workspace identity and assigned position are
+kept separate even when their numeric IDs happen to match.
+
 ## Ownership and lifecycle
 
 Read this flow from backend-neutral compile facts toward reusable runtime state:
@@ -108,6 +120,11 @@ original occurrence with the selected decision present. The concrete backend mus
 that decision against a freshly generated compatible batch before it can affect analysis.
 
 ## General-scan projection and resource handoff
+
+A scan **formal** is a named input role inside the repeated body; an **actual** is the outer
+value bound to that role. A **carry** passes state from one step to the next. A **residual**
+is a body value made available to save for a consumer, and a **history** stores demanded
+per-step values. Declaring a residual port does not require saving every temporary.
 
 `GraphPreparation` now preserves each scan's exact compiled body and ordered role bindings inside
 its selected partition. A residual port names a body value that may be saved as history; demand
@@ -513,6 +530,11 @@ assignment gives each workspace declaration its own stable Runtime slot; reuse a
 interference are not represented by the current API.
 
 ## Failures, ownership, and concurrency
+
+An owner must release a resource; a borrower may use it only within the owner's permitted
+lifetime. A **lease** keeps an admitted use valid until that use finishes. **Rollback** here
+releases resources acquired during a failed preparation or setup; it is not a promise to undo
+arithmetic already performed by earlier operations in a run.
 
 - Reject an unsupported partition owner, operation, descriptor, capability, configuration, or
   cached decision before producing an analysis result.
