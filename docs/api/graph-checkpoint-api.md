@@ -5,8 +5,8 @@
 `GraphCheckpoint` copies or saves a bounded ordinary Tensor expression and named host values without
 executing it. Copy/load return ordinary symbolic Tensors and private mutable heap state; rebind
 substitutes inputs symbolically. None creates an Engine, prepared execution or new Model hierarchy.
-Copy/rebind support bounded all-valid general-scan bodies and the static homogeneous
-FLOAT32/FLOAT64 length-aware cold intersection. [V4 persistence](../architecture/contracts/extensions-training.md#canonical-graph-model-version-4)
+Copy/rebind support bounded all-valid general-scan bodies and the static floating
+length-aware cold intersection. [V4 persistence](../architecture/contracts/extensions-training.md#canonical-graph-model-version-4)
 retains the all-valid portion; [v5](../architecture/contracts/extensions-training.md#canonical-graph-model-version-5)
 adds that static length-aware intersection. [V6](../architecture/contracts/extensions-training.md#canonical-graph-model-version-6)
 adds maximum and average Pool3d in outer graphs and otherwise-qualified bodies. V1–v3 remain
@@ -80,8 +80,8 @@ promise. No backend rank-16 ceiling is imposed by persistence.
 
 ### General-scan in-memory copy and rebind
 
-`copy` and `rebind` accept all-valid general SCAN and the bounded static homogeneous
-FLOAT32/FLOAT64 length intersection through the exact
+`copy` and `rebind` accept all-valid general SCAN and the bounded static floating
+length intersection, including all six floating types and qualified mixed per-role dtypes, through the exact
 [Compiler cold constructor inventory](../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction).
 A body is the scan's contained ordinary Tensor algebra, with distinct declared carry, step and
 invariant formals. This bounded inventory is not all PURE Model operations and is not a backend
@@ -95,12 +95,13 @@ lengths prototypes remain unread; explicitly named control state follows ordinar
 rules. Compatible repeated and opaque produced substitutions are supported; newly tied
 incompatible outer row roles reject, including ties to retained named state.
 
-Symbolic cold and newly Model-valid mixed/low/discrete length bodies remain unsupported.
-V5 save independently rechecks the same length-mode cold eligibility through Compiler before
+Symbolic cold remains unsupported. Floating actuals, formals and body intermediates are checked
+per role, including low types and explicit floating casts; this is not arbitrary discrete-body
+admission. Save independently rechecks the same length-mode cold eligibility through Compiler before
 dry sizing, schema allocation or named storage admission; a raw association is not an admission
 credential. Cold support alone does not qualify arbitrary numerical execution or training.
 Pool3d adds only MAX_POOL3D and AVERAGE_POOL3D to the narrow length constructor whitelist;
-static homogeneous FLOAT32/FLOAT64, ROW/SHARED, axis and terminal-SHARED restrictions remain.
+static geometry, ROW/SHARED, operation/rank, axis and terminal-SHARED restrictions remain.
 
 Normalization changes only outer IDs. The immutable compiled-body attachment keeps its own local
 IDs and ordered role bindings; equal numeric IDs in different scopes never identify the same value.
@@ -232,10 +233,11 @@ records focused evidence and main's final gate/capability acceptance.
 ### Length-aware general-scan persistence
 
 [Checkpoint v5](../architecture/contracts/extensions-training.md#canonical-graph-model-version-5)
-adds the static homogeneous FLOAT32/FLOAT64 length-aware cold intersection without changing v4
-records or widening its pre-Pool3d constructor inventory. A source needing length mode without
-Pool3d selects `graph-model.v5`; an image can contain both all-valid and length-aware occurrences.
-Sources needing neither length mode nor Pool3d keep byte-identical smallest sufficient v1-v4.
+adds the static floating length-aware cold intersection without changing v4 records or widening
+its pre-Pool3d constructor inventory. Qualified mixed per-role floating dtypes and explicit casts
+retain their exact descriptors. Non-FP8 sources needing length mode without Pool3d select
+`graph-model.v5`; Pool3d selects v6 and FP8 selects v7. An image can contain both all-valid and
+length-aware occurrences. Sources needing none of these retain smallest sufficient exact v1-v4.
 
 Save/load retain ordered ROW/SHARED roles, positional aliases, unused formals, both traversal
 directions and every canonical final/emission/residual port. Lengths is a separate outer actual,

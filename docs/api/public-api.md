@@ -763,8 +763,8 @@ surface, and ordinary typed or host-materialized results remain Engine work.
 
 The adapter does not expose CPU internals, discover backends for Runtime, run tuning policy, or
 turn OpenBLAS or oneDNN into another backend identity. CPU has no production Compiler or Engine
-dependency; its compiler-backed fixtures are tests only. Metal and the Java CPU low-arithmetic
-lock are unchanged.
+dependency; its compiler-backed fixtures are tests only. Metal retains its independently
+qualified restrictions and has no FP8 capability.
 
 The public `modules:runtime` surface now contains five focused packages:
 
@@ -1018,7 +1018,8 @@ See the [complete public example](../user-guide/running-models.md#ordinary-cpu-e
 Current symbolic Scan composes ordinary CPU-supported PURE units with fixed time/features/state
 widths and the same ordinary dtype, layout and attribute guards. Each complete forward and
 selected ordinary-VJP reverse body qualifies independently; source validity alone grants no
-CPU or derivative support. Java BFLOAT16/FLOAT16 computation remains locked. The same public lifecycle supplies actual
+CPU or derivative support. BFLOAT16, FLOAT16 and both FP8 types reuse these same CPU owners
+with FLOAT32 working arithmetic and declared logical narrowing. The same public lifecycle supplies actual
 canonical final/emission/residual descriptors and fixed parameter-shaped gradients; see the
 [Scan changing-B example](../user-guide/running-models.md#symbolic-scan-with-changing-batch-size).
 Final qualification is tracked in [Prepare0014](../planning/modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md).
@@ -1387,23 +1388,25 @@ is optional, never a prerequisite. Fixed and general recurrent sources use the e
 TrainingSession and Compiler first-order AD when their actual forward/reverse bodies qualify.
 Mixed fixed/general sources share one configured session. Objectives still require a scalar,
 gradient-eligible FLOAT32/FLOAT64 result; low-output objectives explicitly cast to FLOAT32/FLOAT64.
-The ordinary CPU low-arithmetic restriction and existing setup/lifecycle ordering are unchanged.
+CPU low execution retains the existing family/geometry and actual derivative guards and setup/lifecycle ordering.
 
 `Model.graph` and `defineTensor` also acquire bounded all-valid general-scan bodies through Checkpoint and
 Compiler's [cold constructor inventory](../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction).
 This does not add a ModelBuilder recipe. Cold admission preserves applicable Model dtypes, including
-low TANH bodies while Java low-type computation remains locked; it is not arbitrary
-PURE-body support. The all-valid compute/first-order training workflow is qualified for static,
-canonical homogeneous FLOAT32/FLOAT64 occurrences whose actual forward/reverse bodies and binders
-qualify. All-valid means every static time step participates, with no lengths or padding mask.
+low TANH bodies; it is not arbitrary PURE-body support. Qualified static floating occurrences,
+including BFLOAT16, FLOAT16 and both FP8 types, use the same compute/first-order Training owners
+when their actual forward/reverse bodies and binders qualify.
+All-valid means every static time step participates, with no lengths or padding mask.
 Acquire private state once, configure once, and pass fresh exact-descriptor batches to the same
 prepared/session owners. Connected nonempty parameter admission still applies at T=0; neither
 fixed nor general recurrence bypasses the selected backend's actual derivative qualification.
-Bounded all-valid general-body save/load uses
+Non-FP8 bounded all-valid general-body save/load uses
 [v4](../architecture/contracts/extensions-training.md#canonical-graph-model-version-4);
-the static homogeneous FLOAT32/FLOAT64 length intersection uses
-[v5](../architecture/contracts/extensions-training.md#canonical-graph-model-version-5)
-through the same Model/GraphCheckpoint owners. V1/v2/v3 remain body-free. Unsupported saves reject
+the static qualified per-role floating length intersection uses
+[v5](../architecture/contracts/extensions-training.md#canonical-graph-model-version-5),
+with Pool3d selecting v6 as needed. FP8 anywhere in the encoded source selects v7 through the
+same Model/GraphCheckpoint owners. Old-only sources retain their smallest sufficient exact
+format and bytes. V1/v2/v3 remain body-free. Unsupported saves reject
 before file effects without freezing Engine selection or disabling compute/train. Load restores
 source/current raw values, not objective/optimizer history or execution plans.
 See the
@@ -1466,24 +1469,25 @@ compact result carriers, static training and builder recurrence remain unchanged
 
 Execute selected scan outputs separately through public Engine compile/prepare/runValues with
 fresh exact descriptors in compiled input order. Fixed CPU scalar forward supports its declared
-homogeneous FLOAT32/FLOAT64 and resolved nonnegative read domain; it adds no BPTT.
+homogeneous floating types, including all four low types, and resolved nonnegative read domain.
+Selected first-order AD uses the shared Compiler closure and qualifies actual reverse bodies independently.
 Owned Models can acquire fixed expressions through `graph` or retained fixed builder recipes,
 while unsupported occurrences still reject independently. No implicit state/default-length
 overload or bidirectional migration is added. See the
 [NN recurrent contract](training-api.md#current-nn-recurrent-composition-contract) and
 [scan construction example](../user-guide/running-models.md#build-a-fluent-model).
-The BF16/FP16 fixed implementation and source constructors remain retained, but CPU numerical
-execution follows the [temporary low lock](../backend-guide/production-support.md#temporary-java-low-computation-lock).
+BFLOAT16, FLOAT16 and both FP8 fixed implementations execute through the existing CPU owner,
+with FLOAT32 working sites and declared state narrowing under the same geometry/derivative guards.
 
 `RnnSequence.forwardGeneralScan(input, validLengths, initialHidden, direction)` separately composes
-ordinary general Scan for homogeneous configured FLOAT32/FLOAT64/BFLOAT16/FLOAT16. It reuses the same cell
+ordinary general Scan for homogeneous configured floating types, including both FP8 types. It reuses the same cell
 initialization and equation, including bias order, with static T/B >= 0 and positive I/H.
 Complete actual/formal/emission/latent geometry checks precede parameter publication or body IDs.
 Canonical general outputs are emission port 1 and final hidden carry port 0; the result carrier's
 component names are semantic, not universal producer indices. Fixed `forwardScan` is unchanged.
 Qualified CPU reads use dense zero-offset geometry or existing proved scalar-broadcast exceptions,
 not every fixed-scan read layout. No copy, conversion or fallback repairs unsupported actuals.
-BFLOAT16/FLOAT16 preserve ordinary low rounding at each projection, bias/ADD and TANH result.
+All four low types preserve ordinary low rounding at each projection, bias/ADD and TANH result.
 That is a different represented program from fixed low RNN's FLOAT32 working sites followed
 by state narrowing; low builder `rnnScan` therefore deliberately keeps its fixed semantics.
 Low source acquisition/rebind/save/load does not execute CPU low arithmetic. Metal execution

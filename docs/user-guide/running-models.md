@@ -418,8 +418,8 @@ recipes opt into runtime lengths. Data integration is not part of this API.
 See the [cold scan scenario](../api/graph-checkpoint-api.md#selected-cnn-and-recurrent-persistence)
 and [CPU execution scope](../backend-guide/cpu-backend.md#fixed-recurrent-forward-execution).
 Low fixed-scan source constructors, storage and cold files remain supported in their declared
-source domain; BF16/FP16 CPU numerical execution is temporarily locked. Use F32/F64 for this
-CPU workflow, not an implicit low emulation or alternate scan executor.
+source domain. CPU BFLOAT16, FLOAT16 and both FP8 types use the existing fixed-scan owner,
+FLOAT32 working sites and declared state narrowing; geometry and actual derivative guards remain.
 
 ## Ordinary CPU execution with changing batch size
 
@@ -567,16 +567,16 @@ Code/routes/slots are reused, but writable outputs, working arrays and results a
 valid for this algebra and gives empty row outputs; the example omits it because it prints a cell.
 Other bodies can still require nonempty shared work at B=0. Changing time requires a separate
 compile/prepare, including T=0. Inconsistent B, changed fixed widths, unusable storage or unsupported
-layouts reject. Current all-valid symbolic general Scan admits FLOAT32/FLOAT64 under the guards
-above; adding lengths selects the separate length-aware rules below. Neither route grants low
-CPU computation, arbitrary symbolic geometry, ordinary symbolic F64 MATMUL, NN/Training,
-cold/copy/wire, native/mixed, vector/parallel or a geometry memo. See the
+layouts reject. Current all-valid symbolic general Scan composes ordinary CPU-supported floating
+types, including all four low types, under the same guards; adding lengths selects the separate
+length-aware rules below. Neither route grants arbitrary symbolic geometry, NN/Training reuse,
+symbolic cold/copy/wire, native/mixed-owner execution or a geometry memo. See the
 [qualified CPU domain](../backend-guide/cpu-backend.md#symbolic-scan-cpu-execution).
 
 ## Symbolic-length Scan with changing batch size
 
 For variable active prefixes, pass non-gradient INT64 `[B]` lengths to the existing `Scan.apply`
-overload. Keep time/features fixed and use a qualified homogeneous FLOAT32 or FLOAT64 body.
+overload. Keep time/features fixed and use a qualified floating body under its per-role dtype guards.
 The same Engine/CPU and JDK 26 prerequisites apply. Prepare0015 implements this path; owning
 tests and independent code/structural review passed, with root validation and the sole bounded probe completed
 (evidence and limits:
@@ -668,9 +668,9 @@ are zero. An invalid length can be repaired for a later run on the same preparat
 are not rolled back. Padding is not read in primal or adjoint work; an inactive row preserves raw
 initial carry/final-seed bits. Lengths do not make `mean(finalCarry)` divide by the active count:
 its denominator remains dense B×width, and an empty mean is NaN. Changing T or feature widths needs
-a different compilation/preparation. All-valid symbolic F64, arbitrary ordinary F64 arithmetic or
-MATMUL, low types, higher-order, native/mixed, vector/parallel, cold/copy/wire, NN/Training and a
-geometry memo remain outside this route. See the
+a different compilation/preparation. CPU low types reuse the ordinary floating/actual derivative
+owners here; this does not grant arbitrary geometry, higher-order AD, native/mixed-owner execution,
+symbolic cold/copy/wire, NN/Training reuse or a geometry memo. See the
 [exact supported occurrences](../backend-guide/cpu-backend.md#symbolic-length-scan-cpu-execution).
 
 ## Owned static Model workflow
