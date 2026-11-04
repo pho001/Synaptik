@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -13,9 +14,11 @@ import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -72,6 +75,132 @@ class WorkloadTuningCacheTest {
     }
 
     @Test
+    void cacheHitRebindsEveryExactBatchAndKeepsInterleavedSessionEvidenceInInputOrder()
+            throws Exception {
+        Path cache = directory.resolve("bound-hit.bin");
+        var seed = new WorkloadTuningTest.Batch("bound-persistent");
+        var backend = new WorkloadTuningTest.Backend(Map.of(
+                seed.id(), List.of(new WorkloadTuningTest.Candidate("winner")),
+                "bound-session", List.of(new WorkloadTuningTest.Candidate("session-winner"))));
+        WorkloadTuning.tune(
+                WorkloadTuningTest.request(
+                        cache, seed, WorkloadTuningTest.scopePersistent(), 0, 0, 1),
+                backend, new WorkloadTuningTest.CountingMeasurement(),
+                WorkloadTuningTest.clock(0, 4));
+        byte[] prior = Files.readAllBytes(cache);
+        var first = new WorkloadTuningTest.Batch(seed.id());
+        var second = new WorkloadTuningTest.Batch(seed.id());
+        var session = new WorkloadTuningTest.Batch("bound-session");
+        WorkloadTuningTest.Backend.compatibilities.put(session.id(), WorkloadTuningTest.scopeSession());
+        var occurrences = List.of(
+                WorkloadTuningTest.occurrence(first, 2, "left"),
+                WorkloadTuningTest.occurrence(session, 7, "middle"),
+                WorkloadTuningTest.occurrence(second, 3, "right"),
+                WorkloadTuningTest.occurrence(first, 5, "again"));
+        var request = new WorkloadTuningRequest<>(
+                new WorkloadTuningRequest.ModelFingerprint(1, WorkloadTuningTest.bytes("model")),
+                new WorkloadTuningRequest.ProfileFingerprint(1, WorkloadTuningTest.bytes("profile")),
+                occurrences,
+                WorkloadTuningRequest.Objective.MIN_MEDIAN_ELAPSED_NANOS,
+                new WorkloadTuningRequest.Budget(1, 1, 0, 1),
+                cache);
+        var measurement = new WorkloadTuningTest.CountingMeasurement();
+
+        var result = WorkloadTuning.tune(
+                request, backend, measurement, WorkloadTuningTest.clock(0, 7));
+
+        for (int index = 0; index < occurrences.size(); index++) {
+            var original = occurrences.get(index).handoff();
+            var selected = result.selectedHandoffs().get(index);
+            assertSame(original.partition(), selected.partition());
+            assertSame(original.candidateBatch(), selected.candidateBatch());
+            assertEquals(original.candidateBatch() == session ? "session-winner" : "winner",
+                    backend.accept(selected.candidateBatch(), selected.selectedDecision().orElseThrow()));
+        }
+        var persistentEvidence = result.evidence().workloads().getFirst();
+        var sessionEvidence = result.evidence().workloads().get(1);
+        assertAll(
+                () -> assertThrows(IllegalArgumentException.class, () -> backend.accept(
+                        second, result.selectedHandoffs().getFirst().selectedDecision().orElseThrow())),
+                () -> assertEquals(1, measurement.executions),
+                () -> assertEquals(WorkloadTuningResult.Source.CACHE_HIT, persistentEvidence.source()),
+                () -> assertTrue(persistentEvidence.candidates().isEmpty()),
+                () -> assertEquals(new WorkloadTuningResult.SampleSummary(4, 4, 4, 1),
+                        persistentEvidence.winnerSummary()),
+                () -> assertEquals(10, persistentEvidence.totalWeight()),
+                () -> assertEquals(List.of(2L, 3L, 5L), persistentEvidence.occurrences().stream()
+                        .map(WorkloadTuningResult.OccurrenceEvidence::weight).toList()),
+                () -> assertArrayEquals(WorkloadTuningTest.bytes("left"),
+                        persistentEvidence.occurrences().getFirst().contextFingerprint()),
+                () -> assertArrayEquals(WorkloadTuningTest.bytes("right"),
+                        persistentEvidence.occurrences().get(1).contextFingerprint()),
+                () -> assertArrayEquals(WorkloadTuningTest.bytes("again"),
+                        persistentEvidence.occurrences().get(2).contextFingerprint()),
+                () -> assertEquals(WorkloadTuningResult.Source.MEASURED, sessionEvidence.source()),
+                () -> assertEquals(List.of(7L),
+                        sessionEvidence.candidates().getFirst().elapsedSamplesNanos()),
+                () -> assertEquals(7, sessionEvidence.totalWeight()),
+                () -> assertArrayEquals(WorkloadTuningTest.bytes("middle"),
+                        sessionEvidence.occurrences().getFirst().contextFingerprint()),
+                () -> assertArrayEquals(prior, Files.readAllBytes(cache)),
+                () -> assertEquals(1, new WorkloadCacheFile().load(cache).size()));
+    }
+
+    @Test
+    void rejectedCacheHitRebindingPreventsPublicationOfAnEarlierMeasuredMiss() throws Exception {
+        Path cache = directory.resolve("failed-hit-rebinding.bin");
+        var seed = new WorkloadTuningTest.Batch("hit-to-rebind");
+        var seedBackend = new WorkloadTuningTest.Backend(Map.of(
+                seed.id(), List.of(new WorkloadTuningTest.Candidate("winner"))));
+        WorkloadTuning.tune(
+                WorkloadTuningTest.request(
+                        cache, seed, WorkloadTuningTest.scopePersistent(), 0, 0, 1),
+                seedBackend, new WorkloadTuningTest.CountingMeasurement(),
+                WorkloadTuningTest.clock(0, 4));
+        byte[] prior = Files.readAllBytes(cache);
+        var miss = new WorkloadTuningTest.Batch("earlier-miss");
+        var first = new WorkloadTuningTest.Batch(seed.id());
+        var rejected = new WorkloadTuningTest.Batch(seed.id());
+        var backend = new WorkloadTuningTest.Backend(Map.of(
+                miss.id(), List.of(new WorkloadTuningTest.Candidate("fresh")),
+                seed.id(), List.of(new WorkloadTuningTest.Candidate("winner")))) {
+            @Override
+            public WorkloadTuningRequest.WorkloadCompatibility compatibility(
+                    WorkloadTuningTest.Batch batch) {
+                return new WorkloadTuningRequest.WorkloadCompatibility(
+                        1, WorkloadTuningTest.bytes(batch == miss ? "miss-key" : "same-key"),
+                        WorkloadTuningRequest.ReuseScope.PERSISTENT);
+            }
+
+            @Override
+            public Optional<WorkloadTuningTest.Decision> decodeCompatibleDecision(
+                    WorkloadTuningTest.Batch batch, byte[] encoded) {
+                return batch == rejected ? Optional.empty()
+                        : super.decodeCompatibleDecision(batch, encoded);
+            }
+        };
+        var request = new WorkloadTuningRequest<>(
+                new WorkloadTuningRequest.ModelFingerprint(1, WorkloadTuningTest.bytes("model")),
+                new WorkloadTuningRequest.ProfileFingerprint(1, WorkloadTuningTest.bytes("profile")),
+                List.of(
+                        WorkloadTuningTest.occurrence(miss, 1, "miss"),
+                        WorkloadTuningTest.occurrence(first, 1, "first"),
+                        WorkloadTuningTest.occurrence(rejected, 1, "rejected")),
+                WorkloadTuningRequest.Objective.MIN_MEDIAN_ELAPSED_NANOS,
+                new WorkloadTuningRequest.Budget(1, 1, 0, 1),
+                cache);
+        var executions = new ArrayList<WorkloadTuningTest.Batch>();
+
+        assertThrows(IllegalStateException.class, () -> WorkloadTuning.tune(
+                request, backend, (batch, candidate) -> {
+                    if (batch != miss) throw new AssertionError("cache hit must not execute");
+                    executions.add(batch);
+                }, WorkloadTuningTest.clock(0, 2)));
+        assertEquals(List.of(miss), executions);
+        assertArrayEquals(prior, Files.readAllBytes(cache));
+    }
+
+    @Test
     void backendRejectedEntryIsMeasuredAsAMissAndUnrelatedEntryIsRetained() throws Exception {
         Path cache = directory.resolve("merge.bin");
         WorkloadCacheFile file = new WorkloadCacheFile();
@@ -90,7 +219,7 @@ class WorkloadTuningCacheTest {
                     rejectedCacheEntry = true;
                     return java.util.Optional.empty();
                 }
-                return java.util.Optional.of(new WorkloadTuningTest.Decision("fresh"));
+                return java.util.Optional.of(new WorkloadTuningTest.Decision(batch, "fresh"));
             }
         };
         var request = WorkloadTuningTest.request(

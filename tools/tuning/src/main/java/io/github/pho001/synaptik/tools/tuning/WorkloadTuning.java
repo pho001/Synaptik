@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,9 +20,10 @@ import java.util.Set;
  *
  * <p>The caller supplies stable evidence identities, opaque backend collaboration, and complete
  * candidate execution. This type validates and deduplicates work, reuses compatible persistent
- * decisions, measures misses, selects by integer median elapsed nanoseconds, and atomically
- * publishes compact cache state. It performs no model extraction, backend discovery, preparation,
- * Runtime execution orchestration, or graph/plan tuning.
+ * decisions, measures misses, selects by integer median elapsed nanoseconds, authenticates the
+ * selected configuration against each exact input batch, and atomically publishes compact cache
+ * state. Session-only requests never access the persistent cache. It performs no model extraction,
+ * backend discovery, preparation, Runtime execution orchestration, or graph/plan tuning.
  */
 public final class WorkloadTuning {
     private static final int OBJECTIVE_MIN_MEDIAN_NANOS = 1;
@@ -35,7 +37,11 @@ public final class WorkloadTuning {
 
     /**
      * Reuses compatible persistent decisions and measures every complete candidate for cache misses.
-     * Cache parsing and all complete-work validation finish before the first candidate execution.
+     * Cache parsing, when any workload permits persistent reuse, and all complete-work validation
+     * finish before the first candidate execution. Session-only requests do not access the cache
+     * path. Measurement is deduplicated by compatibility, but each distinct input batch receives a
+     * decision authenticated by the backend codec for that exact batch. All such authentication
+     * finishes before result or cache publication.
      *
      * @param request non-null immutable validated request; the transaction does not mutate it
      * @param backend non-null typed backend-owned collaboration retained only for this call
@@ -49,8 +55,9 @@ public final class WorkloadTuning {
      * @throws NullPointerException if any argument or required collaborator result is {@code null}
      * @throws IllegalArgumentException if request-derived work, candidates, identities, elapsed
      *     samples, or codec output violates the documented bounds or invariants
-     * @throws IllegalStateException if the monotonic clock moves backwards or a freshly encoded
-     *     decision cannot be decoded to an equal compatible decision
+     * @throws IllegalStateException if the monotonic clock moves backwards, a freshly encoded
+     *     decision does not round trip equally for its source batch, or the selected configuration
+     *     cannot be decoded compatibly for another batch with the same compatibility identity
      * @throws ArithmeticException if checked weight, invocation-count, or elapsed-time arithmetic
      *     overflows
      * @throws IOException if cache loading, validation, encoding, or atomic publication fails
@@ -79,9 +86,11 @@ public final class WorkloadTuning {
         Objects.requireNonNull(clock, "clock");
 
         List<Group<C, D, K>> groups = groupOccurrences(request, backend);
-        WorkloadCacheFile cacheFile = new WorkloadCacheFile();
+        boolean persistent = groups.stream().anyMatch(group -> group.compatibility.reuseScope()
+                == WorkloadTuningRequest.ReuseScope.PERSISTENT);
+        WorkloadCacheFile cacheFile = persistent ? new WorkloadCacheFile() : null;
         Map<WorkloadCacheFile.Key, WorkloadCacheFile.Entry> loaded =
-                cacheFile.load(request.workloadCache());
+                persistent ? cacheFile.load(request.workloadCache()) : Map.of();
 
         int missCount = identifyHitsAndMisses(groups, request.budget(), backend, loaded);
         if (missCount > request.budget().maximumDistinctCacheMisses()) {
@@ -94,32 +103,27 @@ public final class WorkloadTuning {
                 new LinkedHashMap<>(loaded);
         boolean changed = false;
         for (Group<C, D, K> group : groups) {
-            if (group.decision == null) {
+            boolean measured = group.decision == null;
+            if (measured) {
                 measure(group, request.budget(), backend, measurement, clock);
-                if (group.compatibility.reuseScope()
-                        == WorkloadTuningRequest.ReuseScope.PERSISTENT) {
-                    byte[] encoded = boundedDecisionEncoding(backend.encodeDecision(group.decision));
-                    Optional<D> decoded = Objects.requireNonNull(
-                            backend.decodeCompatibleDecision(group.batch, encoded),
-                            "decodeCompatibleDecision result");
-                    if (decoded.isEmpty() || !group.decision.equals(decoded.orElseThrow())) {
-                        throw new IllegalStateException(
-                                "persistent decision did not round trip compatibly");
-                    }
-                    WorkloadCacheFile.Entry entry = new WorkloadCacheFile.Entry(
-                            group.cacheKey,
-                            encoded,
-                            group.winnerIdentity.bytes(),
-                            group.winnerSummary);
-                    updated.put(group.cacheKey, entry);
-                    changed = true;
-                }
+            }
+            rebindDecisions(group, request, backend);
+            if (measured && group.compatibility.reuseScope()
+                    == WorkloadTuningRequest.ReuseScope.PERSISTENT) {
+                WorkloadCacheFile.Entry entry = new WorkloadCacheFile.Entry(
+                        group.cacheKey,
+                        group.encodedDecision,
+                        group.winnerIdentity.bytes(),
+                        group.winnerSummary);
+                updated.put(group.cacheKey, entry);
+                changed = true;
             }
         }
+        WorkloadTuningResult<C, D> result = result(request, groups);
         if (changed) {
             cacheFile.publish(request.workloadCache(), updated);
         }
-        return result(request, groups);
+        return result;
     }
 
     private static <C extends BackendTuningCandidateBatch,
@@ -176,6 +180,7 @@ public final class WorkloadTuning {
                 continue;
             }
             group.decision = Objects.requireNonNull(decision.orElseThrow(), "decoded decision");
+            group.encodedDecision = entry.encodedDecision();
             group.source = WorkloadTuningResult.Source.CACHE_HIT;
             group.winnerIdentity = new WorkloadTuningRequest.CandidateIdentity(entry.winnerIdentity());
             group.winnerSummary = entry.summary();
@@ -292,6 +297,50 @@ public final class WorkloadTuning {
         group.winnerSummary = evidence.get(winnerIndex).summary();
     }
 
+    /**
+     * Authenticates one selected configuration for every distinct exact input batch, without
+     * treating compatibility identity or decision equality as a substitute for batch association.
+     *
+     * @param group non-null selected compatibility group; receives exact-batch decisions and bytes
+     * @param request non-null immutable request retaining the original batch references
+     * @param backend non-null producer owning encoding, authentication, and batch association
+     * @param <C> immutable complete candidate-batch type
+     * @param <D> immutable selected-decision type
+     * @param <K> immutable complete-candidate type
+     * @throws IOException if the selected decision encoding violates the byte-length bound
+     * @throws IllegalStateException if decoding rejects a selected configuration or does not
+     *     preserve the representative batch's decision
+     * @throws NullPointerException if the codec returns a null encoding or optional
+     */
+    private static <C extends BackendTuningCandidateBatch,
+            D extends BackendTuningDecision,
+            K> void rebindDecisions(
+                    Group<C, D, K> group,
+                    WorkloadTuningRequest<C, D> request,
+                    BackendWorkloadTuning<C, D, K> backend) throws IOException {
+        if (group.encodedDecision == null) {
+            group.encodedDecision = boundedDecisionEncoding(backend.encodeDecision(group.decision));
+            Optional<D> decoded = Objects.requireNonNull(
+                    backend.decodeCompatibleDecision(group.batch, group.encodedDecision),
+                    "decodeCompatibleDecision result");
+            if (decoded.isEmpty() || !group.decision.equals(decoded.orElseThrow())) {
+                throw new IllegalStateException("selected decision did not round trip compatibly");
+            }
+            group.batchDecisions.put(group.batch, decoded.orElseThrow());
+        } else {
+            group.batchDecisions.put(group.batch, group.decision);
+        }
+        for (int index : group.occurrenceIndexes) {
+            C batch = request.occurrences().get(index).handoff().candidateBatch();
+            if (group.batchDecisions.containsKey(batch)) continue;
+            D rebound = Objects.requireNonNull(
+                    backend.decodeCompatibleDecision(batch, group.encodedDecision),
+                    "decodeCompatibleDecision result").orElseThrow(() -> new IllegalStateException(
+                            "selected decision is incompatible with a matching input batch"));
+            group.batchDecisions.put(batch, rebound);
+        }
+    }
+
     private static WorkloadTuningResult.SampleSummary summarize(long[] samples) {
         long minimum = Long.MAX_VALUE;
         long maximum = Long.MIN_VALUE;
@@ -318,7 +367,10 @@ public final class WorkloadTuning {
         List<WorkloadTuningResult.WorkloadEvidence> workloadEvidence =
                 new ArrayList<>(groups.size());
         for (Group<C, D, K> group : groups) {
-            for (int index : group.occurrenceIndexes) decisions.set(index, group.decision);
+            for (int index : group.occurrenceIndexes) {
+                C batch = request.occurrences().get(index).handoff().candidateBatch();
+                decisions.set(index, group.batchDecisions.get(batch));
+            }
             workloadEvidence.add(new WorkloadTuningResult.WorkloadEvidence(
                     group.compatibility,
                     group.totalWeight,
@@ -378,8 +430,10 @@ public final class WorkloadTuning {
         final WorkloadCacheFile.Key cacheKey;
         final List<Integer> occurrenceIndexes = new ArrayList<>();
         final List<WorkloadTuningResult.OccurrenceEvidence> occurrenceEvidence = new ArrayList<>();
+        final Map<C, D> batchDecisions = new IdentityHashMap<>();
         long totalWeight;
         D decision;
+        byte[] encodedDecision;
         List<K> candidates;
         List<WorkloadTuningRequest.CandidateIdentity> identities;
         WorkloadTuningResult.Source source;

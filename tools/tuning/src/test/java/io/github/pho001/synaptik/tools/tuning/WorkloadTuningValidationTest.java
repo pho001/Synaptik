@@ -55,7 +55,7 @@ class WorkloadTuningValidationTest {
                         () -> new WorkloadTuningRequest.Occurrence<>(
                                 new io.github.pho001.synaptik.prepare.analysis.BackendPartitionTuningHandoff<>(
                                         WorkloadTuningTest.partition(), batch,
-                                        Optional.of(new WorkloadTuningTest.Decision("chosen"))),
+                                        Optional.of(new WorkloadTuningTest.Decision(batch, "chosen"))),
                                 1,
                                 new byte[] {1})));
     }
@@ -88,6 +88,91 @@ class WorkloadTuningValidationTest {
                 () -> assertEquals(0, backend.decodeCalls),
                 () -> assertEquals(0, measurement.executions),
                 () -> assertArrayEquals(prior, Files.readAllBytes(cache)));
+    }
+
+    @Test
+    void mixedScopeCorruptCacheStopsBeforeAnyCandidateExecutionOrMutation() throws Exception {
+        Path cache = directory.resolve("mixed-corrupt.bin");
+        byte[] corrupt = WorkloadTuningTest.bytes("invalid persistent cache");
+        Files.write(cache, corrupt);
+        var session = new WorkloadTuningTest.Batch("mixed-session");
+        var persistent = new WorkloadTuningTest.Batch("mixed-persistent");
+        var backend = new WorkloadTuningTest.Backend(Map.of(
+                session.id(), List.of(new WorkloadTuningTest.Candidate("session")),
+                persistent.id(), List.of(new WorkloadTuningTest.Candidate("persistent")))) {
+            @Override
+            public WorkloadTuningRequest.WorkloadCompatibility compatibility(
+                    WorkloadTuningTest.Batch batch) {
+                return batch == session ? WorkloadTuningTest.scopeSession()
+                        : WorkloadTuningTest.scopePersistent();
+            }
+        };
+        var request = baseRequest(
+                List.of(
+                        WorkloadTuningTest.occurrence(session, 1, "session-first"),
+                        WorkloadTuningTest.occurrence(persistent, 1, "persistent-second")),
+                new WorkloadTuningRequest.Budget(2, 1, 0, 1), "mixed-corrupt.bin");
+        var measurement = new WorkloadTuningTest.CountingMeasurement();
+
+        assertThrows(IOException.class, () -> WorkloadTuning.tune(
+                request, backend, measurement, () -> {
+                    throw new AssertionError("corruption must fail before timing");
+                }));
+        assertAll(
+                () -> assertEquals(0, backend.candidatesCalls),
+                () -> assertEquals(0, measurement.executions),
+                () -> assertArrayEquals(corrupt, Files.readAllBytes(cache)));
+    }
+
+    @Test
+    void failedMeasuredRebindingLeavesEarlierPersistentSelectionsUnpublished() throws Exception {
+        for (var scope : WorkloadTuningRequest.ReuseScope.values()) {
+            String cacheName = "failed-measured-rebinding-" + scope + ".bin";
+            Path cache = directory.resolve(cacheName);
+            var file = new WorkloadCacheFile();
+            var unrelatedKey = new WorkloadCacheFile.Key(
+                    1, WorkloadTuningTest.bytes("unrelated"), 1, 0, 1);
+            var unrelated = new WorkloadCacheFile.Entry(
+                    unrelatedKey, WorkloadTuningTest.bytes("other"),
+                    WorkloadTuningTest.bytes("other"),
+                    new WorkloadTuningResult.SampleSummary(1, 1, 1, 1));
+            file.publish(cache, Map.of(unrelatedKey, unrelated));
+            byte[] prior = Files.readAllBytes(cache);
+            var earlier = new WorkloadTuningTest.Batch("earlier-selection");
+            var first = new WorkloadTuningTest.Batch("measured-rebind");
+            var rejected = new WorkloadTuningTest.Batch(first.id());
+            var backend = new WorkloadTuningTest.Backend(Map.of(
+                    earlier.id(), List.of(new WorkloadTuningTest.Candidate("earlier")),
+                    first.id(), List.of(new WorkloadTuningTest.Candidate("winner")))) {
+                @Override
+                public WorkloadTuningRequest.WorkloadCompatibility compatibility(
+                        WorkloadTuningTest.Batch batch) {
+                    return new WorkloadTuningRequest.WorkloadCompatibility(
+                            1, WorkloadTuningTest.bytes(batch.id()), batch == earlier
+                                    ? WorkloadTuningRequest.ReuseScope.PERSISTENT : scope);
+                }
+
+                @Override
+                public Optional<WorkloadTuningTest.Decision> decodeCompatibleDecision(
+                        WorkloadTuningTest.Batch batch, byte[] encoded) {
+                    return batch == rejected ? Optional.empty()
+                            : super.decodeCompatibleDecision(batch, encoded);
+                }
+            };
+            var request = baseRequest(
+                    List.of(
+                            WorkloadTuningTest.occurrence(earlier, 1, "earlier"),
+                            WorkloadTuningTest.occurrence(first, 1, "first"),
+                            WorkloadTuningTest.occurrence(rejected, 1, "rejected")),
+                    new WorkloadTuningRequest.Budget(2, 1, 0, 1), cacheName);
+            var measurement = new WorkloadTuningTest.CountingMeasurement();
+
+            assertThrows(IllegalStateException.class, () -> WorkloadTuning.tune(
+                    request, backend, measurement, WorkloadTuningTest.clock(0, 1, 2, 3)));
+            assertAll(
+                    () -> assertEquals(2, measurement.executions),
+                    () -> assertArrayEquals(prior, Files.readAllBytes(cache)));
+        }
     }
 
     @Test

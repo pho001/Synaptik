@@ -11,8 +11,9 @@ import java.util.Objects;
 /**
  * Immutable validated inputs for one exact/default cold workload-tuning transaction.
  * Caller-owned byte sequences and collection structure are snapshotted; exact immutable Prepare
- * handoff references and the explicit cache path are retained. Model and profile fingerprints
- * identify returned evidence and do not participate in workload-cache matching.
+ * handoff references and the explicit cache path are retained. The path is not accessed when every
+ * workload has session-only reuse scope. Model and profile fingerprints identify returned evidence
+ * and do not participate in workload-cache matching.
  *
  * @param <C> immutable complete candidate-batch type
  * @param <D> immutable selected-decision type

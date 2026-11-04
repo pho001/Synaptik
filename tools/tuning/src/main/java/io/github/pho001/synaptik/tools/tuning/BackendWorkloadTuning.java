@@ -57,7 +57,9 @@ public interface BackendWorkloadTuning<
     D selectedDecision(C candidateBatch, K candidate);
 
     /**
-     * Encodes one persistent decision without executable state.
+     * Encodes one selected configuration without executable state, for compatible batch rebinding
+     * and, only when its reuse scope permits, persistence. Session-scoped configurations also use
+     * this codec but their bytes are never written to the persistent cache.
      *
      * @param decision non-null backend-owned decision
      * @return a non-null, non-empty opaque encoding without executable state; callers snapshot the
@@ -66,13 +68,18 @@ public interface BackendWorkloadTuning<
     byte[] encodeDecision(D decision);
 
     /**
-     * Decodes a decision only when it remains compatible with the current complete batch.
+     * Authenticates and decodes a selected configuration for the current exact complete batch.
+     * Compatible batches may share configuration bytes without sharing decision objects: the
+     * returned decision must satisfy the backend's association checks for {@code candidateBatch},
+     * including when the bytes came from another compatible batch in this invocation.
      *
      * @param candidateBatch non-null current backend-owned batch
      * @param encodedDecision non-null opaque bytes owned by the caller for the duration of the call;
      *     the implementation must not mutate them
-     * @return a non-null optional containing an immutable compatible decision, or empty for an
-     *     ordinary cache miss; the optional must not contain {@code null}
+     * @return a non-null optional containing an immutable decision bound to the supplied exact
+     *     batch, or empty if the configuration is not compatible; an empty result for a cache lookup
+     *     is an ordinary miss, but rejection while rebinding an already selected configuration
+     *     fails the transaction
      */
     Optional<D> decodeCompatibleDecision(C candidateBatch, byte[] encodedDecision);
 }

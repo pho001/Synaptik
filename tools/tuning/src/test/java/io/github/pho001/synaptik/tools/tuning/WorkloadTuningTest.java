@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
@@ -48,8 +47,8 @@ class WorkloadTuningTest {
                 () -> assertEquals(8, measurement.executions),
                 () -> assertEquals(1, backend.candidatesCalls),
                 () -> assertEquals(1, backend.selectedDecisionCalls),
-                () -> assertEquals(new Decision("second"),
-                        result.selectedHandoffs().getFirst().selectedDecision().orElseThrow()),
+                () -> assertEquals("second", backend.accept(
+                        batch, result.selectedHandoffs().getFirst().selectedDecision().orElseThrow())),
                 () -> assertSame(batch, result.selectedHandoffs().getFirst().candidateBatch()),
                 () -> assertEquals(WorkloadTuningResult.Source.MEASURED, workload.source()),
                 () -> assertEquals(List.of(9L, 5L, 7L),
@@ -83,14 +82,51 @@ class WorkloadTuningTest {
         Decision first = result.selectedHandoffs().getFirst().selectedDecision().orElseThrow();
         Decision second = result.selectedHandoffs().get(1).selectedDecision().orElseThrow();
         assertAll(
-                () -> assertSame(first, second),
-                () -> assertEquals(new Decision("first"), first),
+                () -> assertEquals("first", backend.accept(firstBatch, first)),
+                () -> assertEquals("first", backend.accept(secondBatch, second)),
                 () -> assertEquals(1, backend.candidatesCalls),
                 () -> assertEquals(1, backend.selectedDecisionCalls),
-                () -> assertEquals(0, backend.encodeCalls),
                 () -> assertEquals(false, java.nio.file.Files.exists(directory.resolve("session.bin"))),
                 () -> assertEquals(5, result.evidence().workloads().getFirst().totalWeight()),
-                () -> assertEquals(2, result.evidence().workloads().getFirst().occurrences().size()));
+                () -> assertEquals(List.of(2L, 3L), result.evidence().workloads().getFirst()
+                        .occurrences().stream().map(WorkloadTuningResult.OccurrenceEvidence::weight)
+                        .toList()),
+                () -> assertArrayEquals(bytes("left"), result.evidence().workloads().getFirst()
+                        .occurrences().getFirst().contextFingerprint()),
+                () -> assertArrayEquals(bytes("right"), result.evidence().workloads().getFirst()
+                        .occurrences().get(1).contextFingerprint()));
+    }
+
+    @Test
+    void sessionOnlyRequestsIgnoreCorruptFilesAndDirectoryCachePaths() throws Exception {
+        Path corrupt = directory.resolve("ignored-corrupt.bin");
+        byte[] prior = bytes("not a workload cache");
+        java.nio.file.Files.write(corrupt, prior);
+        Path cacheDirectory = java.nio.file.Files.createDirectory(directory.resolve("ignored-directory"));
+        for (Path cache : List.of(corrupt, cacheDirectory)) {
+            Batch batch = new Batch("session-no-cache");
+            Backend backend = new Backend(Map.of(
+                    batch.id(), List.of(new Candidate("winner"))));
+            CountingMeasurement measurement = new CountingMeasurement();
+            var result = WorkloadTuning.tune(
+                    request(cache, batch, scopeSession(), 0, 0, 1),
+                    backend, measurement, clock(0, 3));
+
+            assertAll(
+                    () -> assertEquals("winner", backend.accept(batch,
+                            result.selectedHandoffs().getFirst().selectedDecision().orElseThrow())),
+                    () -> assertEquals(1, measurement.executions),
+                    () -> assertEquals(WorkloadTuningResult.Source.MEASURED,
+                            result.evidence().workloads().getFirst().source()),
+                    () -> assertEquals(List.of(3L), result.evidence().workloads().getFirst()
+                            .candidates().getFirst().elapsedSamplesNanos()));
+        }
+        assertAll(
+                () -> assertArrayEquals(prior, java.nio.file.Files.readAllBytes(corrupt)),
+                () -> assertEquals(true, java.nio.file.Files.isDirectory(cacheDirectory)));
+        try (var contents = java.nio.file.Files.list(cacheDirectory)) {
+            assertEquals(List.of(), contents.toList());
+        }
     }
 
     @Test
@@ -161,7 +197,7 @@ class WorkloadTuningTest {
     }
 
     record Batch(String id) implements BackendTuningCandidateBatch { }
-    record Decision(String candidate) implements BackendTuningDecision { }
+    record Decision(Batch batch, String candidate) implements BackendTuningDecision { }
     record Candidate(String id) { }
 
     static class Backend implements BackendWorkloadTuning<Batch, Decision, Candidate> {
@@ -198,7 +234,7 @@ class WorkloadTuningTest {
         @Override
         public Decision selectedDecision(Batch batch, Candidate candidate) {
             selectedDecisionCalls++;
-            return new Decision(candidate.id());
+            return new Decision(batch, candidate.id());
         }
 
         @Override
@@ -214,7 +250,14 @@ class WorkloadTuningTest {
             return candidates.getOrDefault(batch.id(), List.of()).stream()
                     .filter(candidate -> candidate.id().equals(value))
                     .findFirst()
-                    .map(candidate -> new Decision(candidate.id()));
+                    .map(candidate -> new Decision(batch, candidate.id()));
+        }
+
+        String accept(Batch batch, Decision decision) {
+            if (decision.batch() != batch) {
+                throw new IllegalArgumentException("decision belongs to another exact batch");
+            }
+            return decision.candidate();
         }
     }
 

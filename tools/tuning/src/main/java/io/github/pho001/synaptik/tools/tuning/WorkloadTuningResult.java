@@ -11,7 +11,9 @@ import java.util.Objects;
  * Immutable selected handoffs and separate rich evidence from one successful tuning transaction.
  * Collection structure and raw samples are snapshotted. Cache-hit workload evidence contains no
  * candidate evidence; measured workload evidence contains a non-empty list whose raw samples
- * correspond exactly to each summary.
+ * correspond exactly to each summary. Selected handoffs retain original occurrence order and exact
+ * batch references, with each decision authenticated for its own batch even when compatible
+ * occurrences share measurement evidence.
  *
  * @param <C> immutable complete candidate-batch type
  * @param <D> immutable selected-decision type
