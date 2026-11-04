@@ -145,6 +145,8 @@ final class ModelArtifactCodec {
     /**
      * Validates an already detached artifact's exact schema, one-to-one ordinal payloads, and
      * canonical BOOL values. It preserves all other represented payload bits without conversion.
+     * Malformed state values identify the bounded path, ordinal key, field and byte position,
+     * never the rejected payload value. Schema positions and payload positions are distinguished.
      *
      * @param envelope non-null opaque image to inspect without modifying it
      * @param limits caller-selected bounds applied to schema, payloads, manifest, and file size
@@ -165,7 +167,8 @@ final class ModelArtifactCodec {
             long stateBytes = 0;
             for (int i = 1; i < envelope.entries().size(); i++) {
                 int size = envelope.entries().get(i).size();
-                if (size > limits.maxPayloadBytes()) throw invalid();
+                if (size > limits.maxPayloadBytes())
+                    throw invalidState(i - 1, null, "payload bound", 0, invalid());
                 stateBytes = Math.addExact(stateBytes, size);
             }
             preflight(envelope.entries().size() - 1, envelope.entries().getFirst().size(),
@@ -195,46 +198,71 @@ final class ModelArtifactCodec {
             var states = new ArrayList<State>(count);
             var paths = new HashSet<String>();
             for (int i = 0; i < count; i++) {
-                require(in, 4);
-                int pathSize = in.getInt();
-                if (pathSize < 1 || pathSize > in.remaining() - 14) throw invalid();
-                byte[] pathBytes = new byte[pathSize];
-                in.get(pathBytes);
-                String path = StandardCharsets.UTF_8.newDecoder()
-                        .onMalformedInput(CodingErrorAction.REPORT)
-                        .onUnmappableCharacter(CodingErrorAction.REPORT)
-                        .decode(ByteBuffer.wrap(pathBytes)).toString();
-                if (pathLength(path) != pathSize || !paths.add(path)) throw invalid();
-                StateKind kind = kind(in.get());
-                DataType type = type(in.get(), version);
-                int rank = in.getInt();
-                if (rank < 0 || rank > in.remaining() / 8 - 1) throw invalid();
-                long[] extents = new long[rank];
-                for (int axis = 0; axis < rank; axis++) {
-                    extents[axis] = in.getLong();
-                    if (extents[axis] < 0) throw invalid();
-                }
-                long length = in.getLong();
-                if (length < 0 || length > ARRAY_CEILING) throw invalid();
-                Shape shape = Shape.of(extents);
-                checkLength(type, shape, length);
-                states.add(new State(path, kind, type, shape, (int) length));
-                ArtifactEnvelope.Entry payload = envelope.entries().get(i + 1);
-                if (!ordinal(i).equals(payload.key()) || payload.size() != length) throw invalid();
-                if (type == DataType.BOOL) {
-                    ByteBuffer logical = payload.payload();
-                    while (logical.hasRemaining()) {
-                        byte value = logical.get();
-                        if (value != 0 && value != 1) throw invalid();
+                String path = null;
+                String field = "schema path length";
+                int position = in.position();
+                try {
+                    require(in, 4);
+                    int pathSize = in.getInt();
+                    if (pathSize < 1 || pathSize > in.remaining() - 14) throw invalid();
+                    field = "schema path";
+                    position = in.position();
+                    byte[] pathBytes = new byte[pathSize];
+                    in.get(pathBytes);
+                    path = StandardCharsets.UTF_8.newDecoder()
+                            .onMalformedInput(CodingErrorAction.REPORT)
+                            .onUnmappableCharacter(CodingErrorAction.REPORT)
+                            .decode(ByteBuffer.wrap(pathBytes)).toString();
+                    if (pathLength(path) != pathSize || !paths.add(path)) throw invalid();
+                    field = "schema state kind";
+                    position = in.position();
+                    StateKind kind = kind(in.get());
+                    field = "schema data type";
+                    position = in.position();
+                    DataType type = type(in.get(), version);
+                    field = "schema rank";
+                    position = in.position();
+                    int rank = in.getInt();
+                    if (rank < 0 || rank > in.remaining() / 8 - 1) throw invalid();
+                    long[] extents = new long[rank];
+                    for (int axis = 0; axis < rank; axis++) {
+                        field = "schema extent";
+                        position = in.position();
+                        extents[axis] = in.getLong();
+                        if (extents[axis] < 0) throw invalid();
                     }
+                    field = "schema canonical length";
+                    position = in.position();
+                    long length = in.getLong();
+                    if (length < 0 || length > ARRAY_CEILING) throw invalid();
+                    Shape shape = Shape.of(extents);
+                    checkLength(type, shape, length);
+                    states.add(new State(path, kind, type, shape, (int) length));
+                    ArtifactEnvelope.Entry payload = envelope.entries().get(i + 1);
+                    field = "payload ordinal key";
+                    position = 0;
+                    if (!ordinal(i).equals(payload.key())) throw invalid();
+                    field = "payload length";
+                    if (payload.size() != length) throw invalid();
+                    if (type == DataType.BOOL) {
+                        field = "payload BOOL";
+                        ByteBuffer logical = payload.payload();
+                        while (logical.hasRemaining()) {
+                            position = logical.position();
+                            byte value = logical.get();
+                            if (value != 0 && value != 1) throw invalid();
+                        }
+                    }
+                } catch (CharacterCodingException | IllegalArgumentException | ArithmeticException
+                         | java.nio.BufferUnderflowException | ArtifactFormatException failure) {
+                    throw invalidState(i, path, field, position, failure);
                 }
             }
             if (in.hasRemaining()) throw invalid();
             Metadata metadata = encode(states, config, input, limits);
             if (!Arrays.equals(bytes, metadata.bytes())) throw invalid();
             return new ModelArtifactCandidate(metadata, envelope);
-        } catch (CharacterCodingException | IllegalArgumentException | ArithmeticException
-                 | java.nio.BufferUnderflowException ex) {
+        } catch (IllegalArgumentException | ArithmeticException | java.nio.BufferUnderflowException ex) {
             throw new ArtifactFormatException("Invalid model metadata or bounds", ex);
         }
     }
@@ -379,6 +407,34 @@ final class ModelArtifactCodec {
     }
 
     private static ArtifactFormatException invalid() { return new ArtifactFormatException("Invalid model metadata"); }
+
+    /**
+     * Reports a malformed state with bounded metadata and no payload bytes.
+     * @param ordinal expected zero-based state ordinal
+     * @param path decoded path, or null when unavailable
+     * @param field failed schema or payload field
+     * @param position zero-based byte position within the indicated schema or payload
+     * @param cause original parsing failure
+     * @return checked format failure retaining the original cause
+     */
+    private static ArtifactFormatException invalidState(int ordinal, String path, String field,
+            int position, Exception cause) {
+        String shown = "<unavailable>";
+        if (path != null) {
+            int end = Math.min(path.length(), 160);
+            if (end < path.length() && Character.isHighSurrogate(path.charAt(end - 1))) end--;
+            StringBuilder bounded = new StringBuilder(end + 3);
+            for (int i = 0; i < end; i++) {
+                char ch = path.charAt(i);
+                bounded.append(Character.isISOControl(ch) || ch == '"' || ch == '\\' ? '?' : ch);
+            }
+            if (end < path.length()) bounded.append("...");
+            shown = bounded.toString();
+        }
+        return new ArtifactFormatException("Invalid model state ordinal=" + ordinal
+                + " path=\"" + shown + "\" key=" + ordinal(ordinal)
+                + " field=" + field + " position=" + position, cause);
+    }
 
     private static byte[] bytes(ArtifactEnvelope.Entry entry) {
         byte[] copy = new byte[entry.size()];

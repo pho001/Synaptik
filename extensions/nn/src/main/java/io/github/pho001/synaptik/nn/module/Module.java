@@ -778,8 +778,15 @@ public abstract class Module {
         validateChildOwnership(candidate);
     }
 
+    /**
+     * Rejects ancestor cycles while admitting a fresh leaf in constant time. A distinct module
+     * without children cannot be an ancestor, so deep namespace imports need not repeatedly
+     * walk the entire receiving parent chain.
+     * @param candidate non-null child whose ownership is checked separately
+     * @throws IllegalArgumentException if registration would create a cycle
+     */
     private void validateChildCycle(Module candidate) {
-        if (candidate == this || isAncestor(candidate)) {
+        if (candidate == this || !candidate.children.isEmpty() && isAncestor(candidate)) {
             throw new IllegalArgumentException("child must not be this module or an ancestor");
         }
     }

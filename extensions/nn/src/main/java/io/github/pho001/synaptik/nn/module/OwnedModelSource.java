@@ -29,9 +29,7 @@ final class OwnedModelSource {
     private final StateDictionary dictionary;
     private final Map<String, Parameter> parameters;
     private final Map<String, Buffer> buffers;
-    private final List<Module> modules;
-    private final List<ForwardMode> modes;
-    private final List<Map<String, Module>> children;
+    private final List<ModuleGuard> modules = new ArrayList<>();
     private final IdentityHashMap<Tensor, HostTensorStorage> stores = new IdentityHashMap<>();
 
     /**
@@ -57,17 +55,10 @@ final class OwnedModelSource {
         dictionary = root.stateDictionary();
         parameters = root.parametersRecursively();
         buffers = root.buffersRecursively();
-        modules = new ArrayList<>();
-        modes = new ArrayList<>();
-        children = new ArrayList<>();
-        var pending = new ArrayDeque<Module>();
-        pending.add(root);
-        while (!pending.isEmpty()) {
-            Module module = pending.removeFirst();
-            modules.add(module);
-            modes.add(module.mode());
-            children.add(module.children());
-            pending.addAll(module.children().values());
+        modules.add(guard(root, -1, ""));
+        for (int i = 0; i < modules.size(); i++) {
+            for (var child : modules.get(i).children().entrySet())
+                modules.add(guard(child.getValue(), i, child.getKey()));
         }
         refreshStorage();
     }
@@ -178,6 +169,7 @@ final class OwnedModelSource {
     }
 
     /**
+     * Namespace keys retain only owner identity and local segments, not cumulative paths.
      * Adopts already-acquired graph/load leaves without a second copy and installs namespaces.
      * @param root empty private model receiving the state
      * @param source privately copied or loaded source
@@ -185,19 +177,18 @@ final class OwnedModelSource {
      * @throws IllegalArgumentException if paths are not canonical Module traversal order
      */
     static OwnedModelSource adopt(Module root, Source source) {
-        Map<String, StateNamespace> namespaces = new LinkedHashMap<>();
+        var namespaces = new IdentityHashMap<Module, Map<String, StateNamespace>>();
         for (Leaf leaf : source.leaves()) {
             if (leaf.role() == Role.CONSTANT) continue;
             String[] segments = leaf.name().split("\\.", -1);
             Module owner = root;
-            String path = "";
             for (int i = 0; i < segments.length - 1; i++) {
-                path = path.isEmpty() ? segments[i] : path + "." + segments[i];
-                StateNamespace namespace = namespaces.get(path);
+                var local = namespaces.computeIfAbsent(owner, ignored -> new LinkedHashMap<>());
+                StateNamespace namespace = local.get(segments[i]);
                 if (namespace == null) {
                     namespace = new StateNamespace();
                     owner.child(segments[i], namespace);
-                    namespaces.put(path, namespace);
+                    local.put(segments[i], namespace);
                 }
                 owner = namespace;
             }
@@ -214,19 +205,32 @@ final class OwnedModelSource {
 
     /**
      * Checks all frozen modes, topology, wrappers, Tensor bindings and storage associations.
-     * @throws IllegalStateException if the source was externally mutated
+     * The first failing guard identifies its category and captured module/state path; module
+     * paths are assembled only on failure, keeping deep-tree guard metadata linear.
+     * @throws IllegalStateException if the source was externally mutated, with category and path
      */
     void validate() {
         for (int i = 0; i < modules.size(); i++) {
-            Module module = modules.get(i);
-            if (module.mode() != modes.get(i)
-                    || !orderedEquals(module.children(), children.get(i))) changed();
+            ModuleGuard guard = modules.get(i);
+            if (guard.module().mode() != guard.mode()) changed("mode", modulePath(i));
+            if (firstMismatch(guard.children(), guard.module().children()) != null)
+                changed("topology", modulePath(i));
         }
-        if (!dictionary.equals(root.stateDictionary())
-                || !orderedEquals(parameters, root.parametersRecursively())
-                || !orderedEquals(buffers, root.buffersRecursively())) changed();
-        for (var entry : stores.entrySet()) {
-            if (entry.getKey().hostStorage().orElse(null) != entry.getValue()) changed();
+        String path = firstMismatch(parameters, root.parametersRecursively());
+        if (path != null) changed("parameter wrapper", path);
+        path = firstMismatch(buffers, root.buffersRecursively());
+        if (path != null) changed("buffer wrapper", path);
+        List<StateEntry> current = root.stateDictionary().entries();
+        for (int i = 0; i < dictionary.entries().size(); i++) {
+            StateEntry expected = dictionary.entries().get(i);
+            StateEntry actual = current.get(i);
+            if (!expected.path().equals(actual.path()) || expected.kind() != actual.kind())
+                changed("state topology", expected.path());
+            if (expected.value() != actual.value()) changed("Tensor binding", expected.path());
+        }
+        for (Leaf leaf : source.leaves()) {
+            if (leaf.tensor().hostStorage().orElse(null) != stores.get(leaf.tensor()))
+                changed("storage association", leaf.name());
         }
     }
 
@@ -238,15 +242,22 @@ final class OwnedModelSource {
     }
 
     /**
-     * Compares encounter order as well as identity (Map.equals alone ignores order).
+     * Finds the first changed ordered key or reference without allocating key snapshots.
      * @param expected captured ordered map
      * @param actual current ordered map
-     * @return true only for identical ordered keys and reference values
+     * @return captured path of the first mismatch, new key for an addition, or null if unchanged
      */
-    private static boolean orderedEquals(Map<String, ?> expected, Map<String, ?> actual) {
-        if (!new ArrayList<>(expected.keySet()).equals(new ArrayList<>(actual.keySet()))) return false;
-        for (String key : expected.keySet()) if (expected.get(key) != actual.get(key)) return false;
-        return true;
+    private static String firstMismatch(Map<String, ?> expected, Map<String, ?> actual) {
+        var old = expected.entrySet().iterator();
+        var live = actual.entrySet().iterator();
+        while (old.hasNext()) {
+            var entry = old.next();
+            if (!live.hasNext()) return entry.getKey();
+            var other = live.next();
+            if (!entry.getKey().equals(other.getKey()) || entry.getValue() != other.getValue())
+                return entry.getKey();
+        }
+        return live.hasNext() ? live.next().getKey() : null;
     }
 
     /**
@@ -272,9 +283,42 @@ final class OwnedModelSource {
                 || leaf.name().startsWith(name + ".") || name.startsWith(leaf.name() + "."));
     }
 
-    /** @throws IllegalStateException always: the capability cannot recapture mutable state */
-    private static void changed() {
-        throw new IllegalStateException("owned Model source changed; construct a replacement Model");
+    /**
+     * Formats a captured module location only after a failing guard.
+     * @param index captured module ordinal
+     * @return exact dot path, or {@code <root>} for the root
+     */
+    private String modulePath(int index) {
+        var segments = new ArrayDeque<String>();
+        for (int i = index; modules.get(i).parent() >= 0; i = modules.get(i).parent())
+            segments.addFirst(modules.get(i).name());
+        return segments.isEmpty() ? "<root>" : String.join(".", segments);
+    }
+
+    /**
+     * Captures one module without retaining its full ancestor path.
+     * @param module final owned module
+     * @param parent parent guard ordinal, or -1 for root
+     * @param name local child name, empty for root
+     * @return immutable guard over exact module identity and ordered children
+     */
+    private static ModuleGuard guard(Module module, int parent, String name) {
+        return new ModuleGuard(module, parent, name, module.mode(), module.children());
+    }
+
+    /** Linear parent/local-name location plus the existing live-source guards. */
+    private record ModuleGuard(Module module, int parent, String name, ForwardMode mode,
+            Map<String, Module> children) { }
+
+    /**
+     * Reports the existing producer's precise failure without recapturing mutable state.
+     * @param category failing association category
+     * @param path stable captured module or state path
+     * @throws IllegalStateException always: the capability requires replacement
+     */
+    private static void changed(String category, String path) {
+        throw new IllegalStateException("owned Model source changed: " + category + " at " + path
+                + "; construct a replacement Model");
     }
 
     /** Structural path namespace only; it has no forward recipe or execution responsibility. */

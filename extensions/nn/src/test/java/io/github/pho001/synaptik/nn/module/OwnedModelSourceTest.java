@@ -145,6 +145,87 @@ final class OwnedModelSourceTest {
         }
     }
 
+    @Test void deepNamespaceRoundtripPreservesSourceStateRolesAliasesAndCanonicalBytes() throws Exception {
+        String prefix = "a.".repeat(12_000) + "層🦉.";
+        Tensor input = prototype(), weight = scalar(-0.0f, true), buffer = scalar(3, false);
+        Tensor constant = scalar(7, false);
+        var leaves = List.of(parameter(prefix + "weight", weight), parameter(prefix + "alias", weight),
+                new Leaf(prefix + "buffer", Role.BUFFER, buffer), new Leaf("constant", Role.CONSTANT, constant));
+        Path first = directory.resolve("deep"), second = directory.resolve("deep-again");
+        try (var model = Model.graph(List.of(input), List.of(input.mul(weight).add(buffer).add(constant)), leaves)) {
+            assertDeepState(model, prefix);
+            model.save(first);
+        }
+        try (var loaded = Model.loadGraph(first)) {
+            assertDeepState(loaded, prefix);
+            Tensor replacement = prototype();
+            Tensor output = loaded.forward(List.of(replacement)).getFirst();
+            var outer = output.provenance().orElseThrow().inputs();
+            assertEquals(7, number(outer.get(1)));
+            var addition = outer.getFirst().provenance().orElseThrow().inputs();
+            assertSame(loaded.stateDictionary().entries().getLast().value(), addition.get(1));
+            var product = addition.getFirst().provenance().orElseThrow().inputs();
+            assertSame(replacement, product.getFirst());
+            assertSame(loaded.stateDictionary().entries().getFirst().value(), product.get(1));
+            loaded.save(second);
+        }
+        assertArrayEquals(java.nio.file.Files.readAllBytes(first), java.nio.file.Files.readAllBytes(second));
+    }
+
+    private static void assertDeepState(Model<List<Tensor>, List<Tensor>> model, String prefix) {
+        var entries = model.stateDictionary().entries();
+        assertEquals(List.of(prefix + "weight", prefix + "alias", prefix + "buffer"),
+                entries.stream().map(StateEntry::path).toList());
+        assertEquals(List.of(StateKind.PARAMETER, StateKind.PARAMETER, StateKind.BUFFER),
+                entries.stream().map(StateEntry::kind).toList());
+        assertSame(entries.getFirst().value(), entries.get(1).value());
+        assertEquals(0x80000000, Float.floatToRawIntBits(number(entries.getFirst().value())));
+        assertEquals(3, number(entries.getLast().value()));
+    }
+
+    @Test void nestedMutationDiagnosticsIdentifyCapturedModuleAndStatePaths() {
+        for (String mutation : List.of("mode", "topology", "wrapper", "tensor", "storage")) {
+            Tensor external = scalar(2, true);
+            var child = new MutableSourceModule(external);
+            try (var model = Model.defineTensor(prototype().descriptor(), topology -> {
+                topology.addModule("encoder", child);
+                return x -> x.mul(external);
+            })) {
+                String expected;
+                switch (mutation) {
+                    case "mode" -> { child.train(); expected = "mode at encoder"; }
+                    case "topology" -> {
+                        child.attach();
+                        expected = "topology at encoder";
+                    }
+                    case "wrapper" -> {
+                        child.addParameter();
+                        expected = "parameter wrapper at encoder.extra";
+                    }
+                    case "tensor" -> {
+                        child.weight.replace(scalar(5, true));
+                        expected = "Tensor binding at encoder.weight";
+                    }
+                    default -> {
+                        child.weight.value().replaceHostStorage(scalar(5, true).hostStorage().orElseThrow());
+                        expected = "storage association at encoder.weight";
+                    }
+                }
+                var failure = assertThrows(IllegalStateException.class, () -> model.forward(prototype()));
+                assertTrue(failure.getMessage().contains(expected), failure.getMessage());
+                child.eval();
+                assertThrows(IllegalStateException.class, () -> model.forward(prototype()));
+            }
+        }
+    }
+
+    private static final class MutableSourceModule extends Module {
+        final Parameter weight;
+        MutableSourceModule(Tensor tensor) { weight = parameter("weight", tensor); }
+        void attach() { child("later", new Weight(scalar(1, true))); }
+        void addParameter() { parameter("extra", scalar(1, true)); }
+    }
+
     @Test void rejectsNoncanonicalPathsRolesUnreachableStateAndUnsupportedSource() {
         Tensor x = prototype(), weight = scalar(2, true), buffer = scalar(3, false);
         assertThrows(IllegalArgumentException.class, () -> Model.graph(List.of(x),

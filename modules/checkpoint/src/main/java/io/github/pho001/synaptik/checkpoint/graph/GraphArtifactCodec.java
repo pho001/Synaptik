@@ -263,9 +263,7 @@ final class GraphArtifactCodec {
                 registrations.add(index);
             }
             if (nextState != stateCount) throw invalid("Unregistered state");
-            for (String name : names)
-                for (int dot = name.indexOf('.'); dot >= 0; dot = name.indexOf('.', dot + 1))
-                    if (uniqueNames.contains(name.substring(0, dot))) throw invalid("Leaf prefix collision");
+            GraphSource.validateNamePrefixes(names);
             var nodes = reader.nodes(version, false, values);
             var phases = phases(nodes);
             int outputCount = reader.count(4);

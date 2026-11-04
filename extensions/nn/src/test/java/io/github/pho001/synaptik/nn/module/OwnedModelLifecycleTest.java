@@ -65,7 +65,13 @@ final class OwnedModelLifecycleTest {
                             List.of(new StateEntry("weight", StateKind.PARAMETER, scalar(9, true)))));
                     default -> owned.replaceHostStorage(scalar(9, true).hostStorage().orElseThrow());
                 }
-                assertThrows(IllegalStateException.class, () -> model.compute(scalar(1, false)));
+                var failure = assertThrows(IllegalStateException.class, () -> model.compute(scalar(1, false)));
+                String category = switch (mutation) {
+                    case "mode" -> "mode at <root>";
+                    case "tensor" -> "Tensor binding at weight";
+                    default -> "storage association at weight";
+                };
+                assertTrue(failure.getMessage().contains(category), failure.getMessage());
                 assertTrue(prepared.isClosed());
                 model.eval(); // restoring the mode does not make the invalid capability reusable
                 assertThrows(IllegalStateException.class, () -> model.forward(List.of(prototype())));

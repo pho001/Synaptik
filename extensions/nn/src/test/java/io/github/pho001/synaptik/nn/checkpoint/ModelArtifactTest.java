@@ -273,6 +273,65 @@ class ModelArtifactTest {
     }
 
     @Test
+    void malformedStateDiagnosticsIdentifyOrdinalPathKeyFieldAndPositionWithoutValues() {
+        String path = "encoder.層🦉.flags";
+        var metadata = ModelArtifactCodec.encode(List.of(new ModelArtifactCodec.State(
+                path, StateKind.BUFFER, DataType.BOOL, Shape.of(3), 3)), CONFIG, null, LIMITS);
+        var invalidBool = envelope(metadata.bytes(),
+                new ArtifactEnvelope.Entry("state/00000000", new byte[] {0, 1, 127}));
+        var failure = assertThrows(ArtifactFormatException.class,
+                () -> ModelCheckpoint.inspect(invalidBool, LIMITS));
+        assertStateDiagnostic(failure, path, "payload BOOL", 2);
+        assertFalse(failure.getMessage().contains("127"));
+        var bytesFailure = assertThrows(ArtifactFormatException.class,
+                () -> ModelCheckpoint.canonicalStateBytes(invalidBool, LIMITS));
+        assertStateDiagnostic(bytesFailure, path, "payload BOOL", 2);
+
+        var badLength = envelope(metadata.bytes(),
+                new ArtifactEnvelope.Entry("state/00000000", new byte[2]));
+        assertStateDiagnostic(assertThrows(ArtifactFormatException.class,
+                () -> ModelCheckpoint.inspect(badLength, LIMITS)), path, "payload length", 0);
+        var badKey = envelope(metadata.bytes(),
+                new ArtifactEnvelope.Entry("state/00000001", new byte[3]));
+        assertStateDiagnostic(assertThrows(ArtifactFormatException.class,
+                () -> ModelCheckpoint.inspect(badKey, LIMITS)), path, "payload ordinal key", 0);
+
+        int typePosition = 49 + 4 + path.getBytes(java.nio.charset.StandardCharsets.UTF_8).length + 1;
+        byte[] schema = metadata.bytes();
+        schema[typePosition] = 99;
+        assertStateDiagnostic(assertThrows(ArtifactFormatException.class,
+                () -> ModelCheckpoint.inspect(envelope(schema,
+                        new ArtifactEnvelope.Entry("state/00000000", new byte[3])), LIMITS)),
+                path, "schema data type", typePosition);
+    }
+
+    @Test
+    void malformedStateDiagnosticBoundsAndEscapesUntrustedPathText() {
+        for (String path : List.of("x".repeat(1200), "layer\n.weight")) {
+            var metadata = ModelArtifactCodec.encode(List.of(new ModelArtifactCodec.State(
+                    path, StateKind.BUFFER, DataType.BOOL, Shape.scalar(), 1)), CONFIG, null, LIMITS);
+            var failure = assertThrows(ArtifactFormatException.class,
+                    () -> ModelCheckpoint.inspect(envelope(metadata.bytes(),
+                            new ArtifactEnvelope.Entry("state/00000000", new byte[] {127})), LIMITS));
+            String message = failure.getMessage();
+            assertTrue(message.length() < 400, "diagnostic length is independent of full path length");
+            assertFalse(message.contains("\n"));
+            assertFalse(message.contains("127"));
+            assertTrue(message.contains(path.length() > 160 ? "..." : "layer?.weight"));
+        }
+    }
+
+    private static void assertStateDiagnostic(ArtifactFormatException failure, String path,
+            String field, int position) {
+        String message = failure.getMessage();
+        assertTrue(message.contains("ordinal=0"), message);
+        assertTrue(message.contains("path=\"" + path + "\""), message);
+        assertTrue(message.contains("key=state/00000000"), message);
+        assertTrue(message.contains("field=" + field), message);
+        assertTrue(message.contains("position=" + position), message);
+    }
+
+    @Test
     void preflightRejectsLimitsAndEngineFailureLeavesNoCandidateOrBindingChange() {
         var module = new Fixture();
         Tensor value = TensorFactory.scalar(2.0f, Optional.empty(), false);

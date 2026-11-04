@@ -10,6 +10,8 @@ import io.github.pho001.synaptik.model.graph.ValueId;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorFactory;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -92,11 +94,7 @@ final class GraphSource {
             }
             registrations.add(position - source.inputs().size());
         }
-        for (String name : names) {
-            for (int dot = name.indexOf('.'); dot >= 0; dot = name.indexOf('.', dot + 1))
-                if (names.contains(name.substring(0, dot)))
-                    throw new IllegalArgumentException("Leaf name prefix collision");
-        }
+        validateNamePrefixes(names);
         var captured = GraphCompilationPort.captureSource(source.outputs());
         var remap = new HashMap<ValueId, ValueId>();
         var reachable = new IdentityHashMap<Tensor, Boolean>();
@@ -146,6 +144,25 @@ final class GraphSource {
         ValueId id = new ValueId(values.size());
         values.add(new GraphValue(id, tensor.descriptor()));
         inputs.add(id);
+    }
+
+    /**
+     * Rejects dot-prefix collisions without materializing every cumulative namespace prefix.
+     * A sorted private index finds the first name at or after each complete name plus a dot;
+     * no registration is reordered and temporary text is bounded by the supplied name lengths.
+     * @param names exact, already grammar-validated unique names in any encounter order
+     * @throws IllegalArgumentException if one name is another name's dot-delimited prefix
+     */
+    static void validateNamePrefixes(Collection<String> names) {
+        var sorted = new ArrayList<>(names);
+        Collections.sort(sorted);
+        for (String name : names) {
+            String prefix = name + ".";
+            int position = Collections.binarySearch(sorted, prefix);
+            if (position < 0) position = -position - 1;
+            if (position < sorted.size() && sorted.get(position).startsWith(prefix))
+                throw new IllegalArgumentException("Leaf name prefix collision");
+        }
     }
 
     /**
