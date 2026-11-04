@@ -63,7 +63,7 @@ class CpuAttentionGeneratedKernelTest {
           byte[] mask = maskMode == 0 ? new byte[] {1, 1, 1, 1}
               : maskMode == 1 ? new byte[] {1, 0, 0, 1} : new byte[4];
           var geometry = new CpuAttentionLowering.Geometry(new long[] {1}, 2, 2, 2, 2, 2, 8,
-              type, type, type, type, 1.0, roles, outputBoundary, 3,
+              type, type, type, type, 1.0, roles, outputBoundary, two ? 2 : 1,
               Optional.of(layout(4, 2, 1)), Optional.of(layout(4, 2, 1)),
               Optional.of(layout(4, 2, 1)), masked ? Optional.of(layout(4, 2, 1)) : Optional.empty(),
               layout(4, 2, 1), two ? Optional.of(layout(4, 2, 1)) : Optional.empty());

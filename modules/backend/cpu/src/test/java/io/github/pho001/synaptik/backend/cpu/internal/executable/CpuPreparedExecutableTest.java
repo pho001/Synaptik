@@ -126,16 +126,23 @@ class CpuPreparedExecutableTest {
                 var left = lowArray(type, one);
                 var right = lowArray(type, half);
                 var output = lowArray(type, 0);
-                try (var run = state(executable, List.of(borrowed(type, 3, left.asReadOnly()),
-                        borrowed(type, 3, right.asReadOnly()), borrowed(type, 3, output)))) {
+                // Read-only heap segments hide their array carrier on JDK 26.
+                // Select that access through the segment route; array routes borrow observable arrays.
+                var leftInput = carrier == CarrierAccess.MEMORY_SEGMENT ? left.asReadOnly() : left;
+                var rightInput = carrier == CarrierAccess.MEMORY_SEGMENT ? right.asReadOnly() : right;
+                try (var run = state(executable, List.of(borrowed(type, 3, leftInput),
+                        borrowed(type, 3, rightInput), borrowed(type, 3, output)))) {
                     var invocation = executable.bind(run);
                     invocation.execute();
                     assertEquals(sum, lowBits(type, output, 0));
                     assertEquals(one, lowBits(type, left, 0));
                     assertEquals(half, lowBits(type, right, 0));
                     invocation.execute();
-                    for (int index = 0; index < 3; index++)
+                    for (int index = 0; index < 3; index++) {
                         assertEquals(sum, lowBits(type, output, index));
+                        assertEquals(one, lowBits(type, left, index));
+                        assertEquals(half, lowBits(type, right, index));
+                    }
                 }
             }
         }
@@ -1814,7 +1821,9 @@ class CpuPreparedExecutableTest {
                             new CpuPartitionPreparer().analyze(context), Optional.empty());
                     byte[] input = {11, (byte) 0x80, (byte) 0xff, 0x7f, 22};
                     byte[] output = {33, 9, 9, 9, 9, 44};
-                    var inputSlice = MemorySegment.ofArray(input).asSlice(1, 3).asReadOnly();
+                    var inputRegion = MemorySegment.ofArray(input).asSlice(1, 3);
+                    var inputSlice = inputCarrier == CarrierAccess.MEMORY_SEGMENT
+                            ? inputRegion.asReadOnly() : inputRegion;
                     var outputSlice = MemorySegment.ofArray(output).asSlice(1, 4);
                     try (var run = state(executable, List.of(borrowed(type, 3, inputSlice),
                             borrowed(type, 4, outputSlice)))) {
@@ -1822,10 +1831,12 @@ class CpuPreparedExecutableTest {
                         invocation.execute();
                         assertArrayEquals(new byte[] {33, (byte) 0x80, (byte) 0xff,
                                 (byte) 0xff, 0x7f, 44}, output);
+                        assertArrayEquals(new byte[] {11, (byte) 0x80, (byte) 0xff, 0x7f, 22}, input);
                         input[2] = 0x7e;
                         invocation.execute();
                         assertArrayEquals(new byte[] {33, (byte) 0x80, 0x7e, 0x7e, 0x7f, 44},
                                 output);
+                        assertArrayEquals(new byte[] {11, (byte) 0x80, 0x7e, 0x7f, 22}, input);
                     }
                     byte[] unchanged = output.clone();
                     try (var wrongType = state(executable, List.of(
@@ -1836,9 +1847,11 @@ class CpuPreparedExecutableTest {
                             borrowed(type, 4, outputSlice.asReadOnly())))) {
                         assertThrows(IllegalArgumentException.class, () -> executable.bind(readOnly));
                     }
+                    var overlapRegion = outputSlice.asSlice(0, 3);
+                    var overlapInput = inputCarrier == CarrierAccess.MEMORY_SEGMENT
+                            ? overlapRegion.asReadOnly() : overlapRegion;
                     try (var overlap = state(executable, List.of(
-                            borrowed(type, 3, outputSlice.asSlice(0, 3).asReadOnly()),
-                            borrowed(type, 4, outputSlice)))) {
+                            borrowed(type, 3, overlapInput), borrowed(type, 4, outputSlice)))) {
                         assertThrows(IllegalArgumentException.class, () -> executable.bind(overlap));
                     }
                     assertArrayEquals(unchanged, output);

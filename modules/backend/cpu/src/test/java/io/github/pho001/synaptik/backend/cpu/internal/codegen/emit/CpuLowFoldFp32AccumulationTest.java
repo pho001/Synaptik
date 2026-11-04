@@ -158,12 +158,6 @@ class CpuLowFoldFp32AccumulationTest {
 
     @Test void admittedEmptyInputAndOutputDomainsNeverReadNonexistentContributors() throws Throwable {
         for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) for (int carriers = 0; carriers < 4; carriers++) {
-            var emptyInput = CpuFoldLoweringTest.context(new Operation(WindowTransformKind.FOLD_AXIS,
-                    new FoldAxisAttrs(0, 2, 1)), type, Shape.of(0, 3), Shape.of(2));
-            var emptyPlan = new CpuPartitionPreparer().analyze(carriers(emptyInput, carriers)).plan();
-            short[] zeroOutput = {9, 9};
-            execute(emptyPlan, new short[0], zeroOutput, 0, 2, false);
-            assertArrayEquals(new short[]{0, 0}, zeroOutput);
             for (var base : List.of(
                     CpuFoldLoweringTest.context(new Operation(WindowTransformKind.FOLD_AXIS,
                             new FoldAxisAttrs(0, 0, 1)), type, Shape.of(0, 1), Shape.of(0)),

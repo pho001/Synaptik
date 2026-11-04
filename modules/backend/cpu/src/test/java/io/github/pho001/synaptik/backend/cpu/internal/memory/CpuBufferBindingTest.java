@@ -49,15 +49,19 @@ class CpuBufferBindingTest {
             byte[] values = {11, (byte) 0x80, (byte) 0xff, 0x7f, 22};
             var slice = MemorySegment.ofArray(values).asSlice(1, 3).asReadOnly();
             var buffer = borrowed(type, slice, 3);
-            var argument = assertInstanceOf(CpuBufferArgument.Bytes.class, buffer.argument());
-            assertAll(() -> assertSame(values, argument.carrier()),
-                    () -> assertEquals(1, argument.byteOffset()),
-                    () -> assertEquals(3, argument.byteSize()),
+            var argument = buffer.argument();
+            assertAll(() -> assertEquals(3, argument.byteSize()),
                     () -> assertTrue(argument.readOnly()),
                     () -> assertSame(slice, buffer.segmentArgument().segment()),
-                    () -> assertEquals(type, buffer.segmentArgument().dataType()));
+                    () -> assertEquals(type, buffer.segmentArgument().dataType()),
+                    () -> assertArrayEquals(new byte[] {(byte) 0x80, (byte) 0xff, 0x7f},
+                            buffer.segment().toArray(java.lang.foreign.ValueLayout.JAVA_BYTE)),
+                    () -> assertThrows(IllegalArgumentException.class,
+                            () -> buffer.segment().set(java.lang.foreign.ValueLayout.JAVA_BYTE, 0, (byte) 0)));
+            values[2] = (byte) 0xfe;
+            assertEquals((byte) 0xfe, buffer.segment().get(java.lang.foreign.ValueLayout.JAVA_BYTE, 1));
             buffer.close();
-            assertEquals((byte) 0xff, buffer.segment().get(java.lang.foreign.ValueLayout.JAVA_BYTE, 1));
+            assertEquals((byte) 0xfe, buffer.segment().get(java.lang.foreign.ValueLayout.JAVA_BYTE, 1));
         }
     }
 
