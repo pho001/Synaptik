@@ -488,6 +488,102 @@ class MetalGeneralScanNativeTest {
         }
     }
 
+    @Test void nativeRawScanConstructorRejectsNestedMixedLowWhereButAcceptsExplicitCasts() throws Throwable {
+        Path path = library();
+        for (var left : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
+            var right = left == DataType.BFLOAT16 ? DataType.FLOAT16 : DataType.BFLOAT16;
+            var query = nestedWhereQuery(left, right, false);
+            var descriptors = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>();
+            query.inputs().forEach(d -> descriptors.add(MetalMpsGraphProgram.ValueDescriptor.from(d)));
+            query.outputs().forEach(d -> descriptors.add(MetalMpsGraphProgram.ValueDescriptor.from(d)));
+            int[] inputs = {0, 1, 2}, outputs = {3};
+            var node = MetalScanLowering.lower(query, inputs, outputs);
+            byte[] valid = new MetalMpsGraphProgram(List.of(node)).encodedProgramImage(
+                    descriptors, inputs, outputs, MetalPreparedRoute.CUSTOM_PROGRAM);
+            byte[] forged = valid.clone();
+            int dimensions = descriptors.stream().mapToInt(MetalMpsGraphProgram.ValueDescriptor::rank).sum();
+            int references = inputs.length + outputs.length + node.inputCount() + node.outputCount();
+            int payload = MetalMpsGraphProgram.HEADER_BYTES
+                    + descriptors.size() * MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES
+                    + MetalMpsGraphProgram.NODE_DESCRIPTOR_BYTES + dimensions * 2 * Long.BYTES
+                    + references * Integer.BYTES;
+            var image = ByteBuffer.wrap(forged).order(ByteOrder.LITTLE_ENDIAN);
+            long[] words = node.attributeWords();
+            int formal = Math.toIntExact(words[23]);
+            // Change only the invariant's represented carrier, consistently in both binding tables.
+            // Invariants have no workspace slot, so this two-byte change cannot alter workspace offsets.
+            for (int value = 0; value < 2; value++) formal += Math.toIntExact(words[formal]);
+            image.putInt(MetalMpsGraphProgram.HEADER_BYTES
+                    + 2 * MetalMpsGraphProgram.VALUE_DESCRIPTOR_BYTES,
+                    MetalMpsGraphProgram.dataTypeWire(right));
+            image.putLong(payload + (formal + 1) * Long.BYTES, MetalMpsGraphProgram.dataTypeWire(right));
+            image.putLong(payload + (formal + 8) * Long.BYTES, right.byteWidth());
+
+            var castQuery = nestedWhereQuery(left, right, true);
+            var castDescriptors = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>();
+            castQuery.inputs().forEach(d -> castDescriptors.add(MetalMpsGraphProgram.ValueDescriptor.from(d)));
+            castQuery.outputs().forEach(d -> castDescriptors.add(MetalMpsGraphProgram.ValueDescriptor.from(d)));
+            byte[] explicitCast = new MetalMpsGraphProgram(List.of(MetalScanLowering.lower(
+                    castQuery, inputs, outputs))).encodedProgramImage(
+                            castDescriptors, inputs, outputs, MetalPreparedRoute.CUSTOM_PROGRAM);
+            try (var api = MetalNativeApi.open(path); Arena arena = Arena.ofConfined()) {
+                var context = api.createContext();
+                try {
+                    var symbol = SymbolLookup.libraryLookup(path, arena)
+                            .find("synaptik_metal_mpsgraph_executable_create").orElseThrow();
+                    var create = Linker.nativeLinker().downcallHandle(symbol,
+                            FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT, ADDRESS));
+                    for (byte[] bytes : List.of(valid, forged, explicitCast)) {
+                        var program = arena.allocate(bytes.length, Long.BYTES);
+                        program.copyFrom(MemorySegment.ofArray(bytes));
+                        var target = arena.allocate(ADDRESS); target.set(ADDRESS, 0, MemorySegment.NULL);
+                        int status = (int) create.invokeExact(context.carrier(), program, bytes.length, target);
+                        var carrier = target.get(ADDRESS, 0);
+                        try {
+                            assertEquals(bytes == forged ? 1 : 0, status, left + "/" + right);
+                            if (bytes == forged) assertEquals(0L, carrier.address(),
+                                    "nested unsupported WHERE cannot publish an executable");
+                        } finally {
+                            if (carrier.address() != 0L) api.releaseExecutable(new MetalNativeApi.Handle(carrier));
+                        }
+                    }
+                } finally { api.releaseContext(context); }
+            }
+        }
+    }
+
+    private static OperationCapabilityQuery nestedWhereQuery(DataType left, DataType right, boolean castRight) {
+        var condition = new ValueId(0); var whenTrue = new ValueId(1); var whenFalse = new ValueId(2);
+        var selected = new ValueId(3); var widened = new ValueId(4);
+        var bool = MetalScanPlanTest.descriptor(DataType.BOOL, 2);
+        var low = MetalScanPlanTest.descriptor(left, 2);
+        var other = MetalScanPlanTest.descriptor(castRight ? right : DataType.FLOAT32);
+        var result = MetalScanPlanTest.descriptor(DataType.FLOAT32, 2);
+        var values = new ArrayList<>(List.of(new GraphValue(condition, bool), new GraphValue(whenTrue, low),
+                new GraphValue(whenFalse, other), new GraphValue(selected, result)));
+        var nodes = new ArrayList<CompiledNode>();
+        if (castRight) {
+            values.add(new GraphValue(widened, MetalScanPlanTest.descriptor(DataType.FLOAT32)));
+            nodes.add(new CompiledNode(new NodeId(0), new Operation(
+                    io.github.pho001.synaptik.model.operation.elementwise.cast.CastKind.CAST,
+                    new io.github.pho001.synaptik.model.operation.elementwise.cast.CastAttrs(DataType.FLOAT32)),
+                    List.of(whenFalse), List.of(widened)));
+        }
+        nodes.add(new CompiledNode(new NodeId(castRight ? 1 : 0), new Operation(
+                io.github.pho001.synaptik.model.operation.elementwise.selection.WhereSelectionKind.WHERE,
+                NoOperationAttrs.INSTANCE), List.of(condition, whenTrue, castRight ? widened : whenFalse),
+                List.of(selected)));
+        var phases = new HashMap<NodeId, GraphPhase>();
+        nodes.forEach(n -> phases.put(n.id(), GraphPhase.FORWARD));
+        var graph = new CompiledGraphModel(values, nodes, List.of(condition, whenTrue, whenFalse),
+                List.of(selected), phases);
+        var body = new CompiledScanBody(graph, List.of(), List.of(selected), List.of(), List.of(0));
+        var attrs = new ScanAttrs(2, 0, 1, 2, 1, 0, false);
+        return new OperationCapabilityQuery(new Operation(ScanKind.SCAN, attrs),
+                List.of(MetalScanPlanTest.descriptor(DataType.BOOL, 2, 2), low, other),
+                List.of(MetalScanPlanTest.descriptor(DataType.FLOAT32, 2, 2)), Optional.of(body), Optional.empty());
+    }
+
     @Test void rowPreservingFeatureReductionSkipsInactiveNanRows() {
         try (var run = new RawScan(rowProductQuery(), null)) {
             run.floats(0, 2, 3, Float.NaN, Float.NaN, Float.NaN, Float.NaN, Float.NaN, Float.NaN);

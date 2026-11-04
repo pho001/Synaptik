@@ -2,8 +2,10 @@
 #define SYNAPTIK_GENERAL_SCAN_VALIDATION_H
 
 /* Scan-specific physical admission, not a math inventory/evaluator. Attribute normalization and
- * operation equations remain with the same ordinary owners used by the outer executable. Actual
- * zero extents are retained. No sample batch, positive-shape stand-in or runtime data is used.
+ * operation equations remain with the same ordinary owners used by the outer executable.
+ * WHERE also retains the ordinary direct unlike-low exclusion; explicit casts keep their own
+ * original typed roles. Actual zero extents are retained. No sample batch, positive-shape
+ * stand-in or runtime data is used.
  * Include after the ordinary and joined numerical validators, before Scan plan construction.
  */
 static BOOL synaptik_scan_floating_type(uint8_t type) { return type == 1U || type == 5U || type == 7U; }
@@ -101,6 +103,7 @@ static BOOL synaptik_scan_validate_ordinary(SynaptikMetalDecodedNode node, NSArr
         case 51U:
             return inputType == 3U && synaptik_scan_floating_type(types[node.second_input])
                     && synaptik_scan_floating_type(types[node.inputs[2]])
+                    && !synaptik_is_mixed_low_pair(types[node.second_input], types[node.inputs[2]])
                     && outputType == task0066_promote_floating(types[node.second_input], types[node.inputs[2]])
                     && node.attribute_kind == 0U && node.attribute_count == 0U && node.axis == UINT32_MAX
                     && node_values_are_zero_from(node, 0U) && shape_broadcasts_exactly_to(shapes[node.second_input], shapes[node.inputs[2]], output)
