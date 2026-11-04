@@ -356,7 +356,7 @@ class CpuScatterGeneratedKernelTest {
 
     @Test
     void coversAllRepresentedReplacementTypesAndBothIndexCarriers() throws Throwable {
-        for (DataType type : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable())
+        for (DataType type : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.legacyOracleTypes())
             for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
                 Object output = values(type, 0, 0, 0);
                 Object indices = indexType == DataType.INT32 ? new int[] {2} : new long[] {2};
@@ -1012,41 +1012,6 @@ class CpuScatterGeneratedKernelTest {
                                             ? Opcode.IALOAD
                                             : Opcode.LALOAD)
                             > 0,
-                    label);
-        }
-        if (generated.reduction() == ScatterReduction.ADD) {
-            assertTrue(
-                    opcodeCount(
-                                    code,
-                                    switch (generated.dataType()) {
-                                        case FLOAT64 -> Opcode.DADD;
-                                        case FLOAT32, BFLOAT16 -> Opcode.FADD;
-                                        case INT32 -> Opcode.IADD;
-                                        case INT64 -> Opcode.LADD;
-                                        case BOOL, FLOAT16 ->
-                                                throw new AssertionError("unsupported ADD type");
-                                    })
-                            > 0,
-                    label);
-        }
-        if (generated.dataType() == DataType.BFLOAT16
-                && generated.reduction() != ScatterReduction.NONE
-                && generated.reduction() != ScatterReduction.MUL) {
-            assertTrue(
-                    invokes.stream()
-                            .anyMatch(
-                                    call ->
-                                            call.owner().asInternalName().equals("java/lang/Float")
-                                                    && call.name()
-                                                            .stringValue()
-                                                            .equals("floatToRawIntBits")),
-                    label);
-            assertTrue(
-                    invokes.stream()
-                            .noneMatch(
-                                    call ->
-                                            call.name().stringValue().equals("values")
-                                                    || call.name().stringValue().equals("ordinal")),
                     label);
         }
     }

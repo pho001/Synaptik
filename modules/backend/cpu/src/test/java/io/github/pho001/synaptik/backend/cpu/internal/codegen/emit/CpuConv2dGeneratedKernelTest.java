@@ -67,7 +67,7 @@ class CpuConv2dGeneratedKernelTest {
                             generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
                     Object input = representedArray(type, 1, half, half), weight = representedArray(right, 1, 1, 1);
                     Object output = representedArray(resultType, 0);
-                    long[] geometry = volume ? plan.conv3dGeometry().orElseThrow().pack(new long[3])
+                    long[] geometry = volume ? plan.units().getFirst().conv3dGeometry().orElseThrow().pack(new long[3])
                             : plan.conv2dGeometry().orElseThrow().pack(new long[3]);
                     handle.invokeWithArguments(input, weight, output, geometry, 0L, 1L);
                     double actual = switch (resultType) {

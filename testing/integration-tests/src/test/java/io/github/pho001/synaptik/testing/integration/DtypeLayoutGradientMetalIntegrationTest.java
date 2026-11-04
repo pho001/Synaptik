@@ -1075,6 +1075,7 @@ final class DtypeLayoutGradientMetalIntegrationTest {
           case FLOAT32, INT32 -> Integer.BYTES;
           case BFLOAT16, FLOAT16 -> Short.BYTES;
           case BOOL -> Byte.BYTES;
+          case FLOAT8_E4M3, FLOAT8_E5M2 -> throw new AssertionError("Metal does not support FP8");
         };
     MemorySegment storage = arena.allocate(width * values.length, width);
     for (int index = 0; index < values.length; index++) {
@@ -1111,6 +1112,7 @@ final class DtypeLayoutGradientMetalIntegrationTest {
           case FLOAT32, INT32 -> Integer.BYTES;
           case BFLOAT16, FLOAT16 -> Short.BYTES;
           case BOOL -> Byte.BYTES;
+          case FLOAT8_E4M3, FLOAT8_E5M2 -> throw new AssertionError("Metal does not support FP8");
         };
     ByteBuffer bytes = ByteBuffer.allocate(width * values.length).order(ByteOrder.BIG_ENDIAN);
     for (long value : values) {

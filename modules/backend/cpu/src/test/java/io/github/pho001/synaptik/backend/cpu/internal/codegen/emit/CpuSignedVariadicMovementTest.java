@@ -62,7 +62,7 @@ class CpuSignedVariadicMovementTest {
                         LayoutDescriptor.of(shape, new long[] {2}, 1, true));
                 var dense = CpuNonAffineMovementLoweringTest.descriptor(type, shape);
                 var affine = CpuNonAffineMovementLoweringTest.context(new Operation(SliceKind.SLICE,
-                        new SliceAttrs(List.of(0L), List.of(256L), List.of(0))),
+                        new SliceAttrs(List.of(0L), List.of(256L), List.of(0), List.of(1L))),
                         List.of(0), List.of(input), dense);
                 var source = arena.allocate(514, 1);
                 source.fill((byte) 0x55);

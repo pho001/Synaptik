@@ -53,10 +53,6 @@ final class CpuSoftmaxFiniteConformanceTest {
     @Test void bothKindsAndFourDtypesHandleOverflowUnderflowAndOffsets() {
         for (SoftmaxKind kind : SoftmaxKind.values()) for (DataType type : List.of(
                 DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
-            if (type == DataType.BFLOAT16 || type == DataType.FLOAT16) {
-                assertThrows(IllegalArgumentException.class, () -> fixture(kind, type));
-                continue;
-            }
             var fixture = fixture(kind, type);
             try (var integration = CpuBackendIntegration.open()) {
                 MemorySegment input = storage(type), output = storage(type);
@@ -178,9 +174,6 @@ final class CpuSoftmaxFiniteConformanceTest {
             LayoutDescriptor layout, CarrierAccess carrier, Optional<CpuWorkerGroup> workers) {
         var descriptor = new TensorDescriptor(type, shape, Optional.of(layout), false);
         var operation = new Operation(kind, new SoftmaxAttrs(axis));
-        assertEquals(type != DataType.BFLOAT16 && type != DataType.FLOAT16,
-                new CpuCapabilityProvider().supports(new OperationCapabilityQuery(operation,
-                        List.of(descriptor), List.of(descriptor))));
         var node = new CompiledNode(new NodeId(0), operation,
                 List.of(new ValueId(0)), List.of(new ValueId(1)));
         var partition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID,

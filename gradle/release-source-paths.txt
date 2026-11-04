@@ -1266,7 +1266,6 @@ modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuConvSimdPerformanceTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuConvolutionSemanticClosureTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuDataMovementGeneratedKernelTest.java
-modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuFoldCompatibilityControlTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuFoldGeneratedKernelTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuFusedGeneratedKernelTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuGeneralScanCleanJavaOracle.java
@@ -1289,7 +1288,6 @@ modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuLossPerformanceOracle.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuLossPerformanceTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuLossSemanticClosureTest.java
-modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuLowArithmeticLockTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuLowFoldCleanJavaOracle.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuLowFoldFp32AccumulationTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuMaskedAdvancedReductionSemanticClosureTest.java
@@ -1317,7 +1315,6 @@ modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuPointwiseGeneratedKernelTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuPointwiseMaskEvidenceTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuPointwiseMaskPerformanceTest.java
-modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuPointwiseSemanticClosureManifestTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuPool1dCompositionSemanticClosureTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuPool2d3dSemanticClosureTest.java
 modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuPool2dGeneratedKernelTest.java
@@ -2605,3 +2602,21 @@ tools/tuning/src/test/java/io/github/pho001/synaptik/tools/tuning/TuningPublicSh
 tools/tuning/src/test/java/io/github/pho001/synaptik/tools/tuning/WorkloadTuningCacheTest.java
 tools/tuning/src/test/java/io/github/pho001/synaptik/tools/tuning/WorkloadTuningTest.java
 tools/tuning/src/test/java/io/github/pho001/synaptik/tools/tuning/WorkloadTuningValidationTest.java
+modules/model/src/main/java/io/github/pho001/synaptik/model/datatype/Float8E4M3Bits.java
+modules/model/src/main/java/io/github/pho001/synaptik/model/datatype/Float8E5M2Bits.java
+modules/model/src/test/java/io/github/pho001/synaptik/model/datatype/Float8BitsTest.java
+modules/model/src/test/java/io/github/pho001/synaptik/model/tensor/TensorFloat8ExpressionTest.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnOutputNarrowing.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/portable/CpuRecurrentScanFloat8E4M3Kernel.java
+modules/backend/cpu/src/main/java/io/github/pho001/synaptik/backend/cpu/internal/route/portable/CpuRecurrentScanFloat8E5M2Kernel.java
+modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuExactCountDivisionTest.java
+modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuLowPrecisionBatchNormGeneratedKernelTest.java
+modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuLowPrecisionPointwiseGeneratedTest.java
+modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/executable/CpuLowPrecisionScanExecutionTest.java
+modules/backend/cpu/src/test/java/io/github/pho001/synaptik/backend/cpu/internal/route/nativeops/onednn/CpuOneDnnLowPrecisionTest.java
+modules/training/src/test/java/io/github/pho001/synaptik/training/LowPrecisionTrainingTest.java
+modules/checkpoint/src/test/java/io/github/pho001/synaptik/checkpoint/graph/GraphArtifactV7Test.java
+extensions/nn/src/test/java/io/github/pho001/synaptik/nn/module/LowPrecisionOwnedModelTest.java
+testing/backend-conformance/src/test/java/io/github/pho001/synaptik/testing/conformance/CpuLowPrecisionConformanceTest.java
+testing/backend-conformance/src/test/java/io/github/pho001/synaptik/testing/conformance/LowPrecisionValues.java
+testing/integration-tests/src/test/java/io/github/pho001/synaptik/testing/integration/CpuLowPrecisionWorkflowIntegrationTest.java

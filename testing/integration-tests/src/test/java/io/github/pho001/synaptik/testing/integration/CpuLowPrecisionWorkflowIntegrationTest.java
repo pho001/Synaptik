@@ -359,7 +359,9 @@ final class CpuLowPrecisionWorkflowIntegrationTest {
                 bits[i] = type == DataType.BFLOAT16
                         ? BFloat16Bits.fromFloat((float) lanes[i]) : Float16Bits.fromFloat((float) lanes[i]);
             }
-            return TensorFactory.fromFlatArray(descriptor, Optional.empty(), bits);
+            return type == DataType.FLOAT16
+                    ? TensorFactory.fromFlatFloat16Array(descriptor, Optional.empty(), bits)
+                    : TensorFactory.fromFlatArray(descriptor, Optional.empty(), bits);
         }
         byte[] bits = new byte[lanes.length];
         for (int i = 0; i < lanes.length; i++) {

@@ -279,7 +279,7 @@ class CpuAffineCopyGeneratedKernelTest {
     }
 
     @Test void preservesEveryRepresentedTypeAcrossEveryArraySegmentPair() {
-        for (DataType type : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) for (boolean sourceHeap : List.of(false, true))
+        for (DataType type : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.legacyOracleTypes()) for (boolean sourceHeap : List.of(false, true))
                 for (boolean resultHeap : List.of(false, true)) {
             Object source = source(type);
             Object result = array(type, 8);
@@ -416,9 +416,9 @@ class CpuAffineCopyGeneratedKernelTest {
     private static CarrierAccess arrayCarrier(DataType type) {
         return switch (type) {
             case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY; case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
-            case BFLOAT16 -> CarrierAccess.SHORT_ARRAY; case INT32 -> CarrierAccess.INT_ARRAY;
-            case INT64 -> CarrierAccess.LONG_ARRAY; case BOOL -> CarrierAccess.BYTE_ARRAY;
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU affine copy unsupported");
+            case BFLOAT16, FLOAT16 -> CarrierAccess.SHORT_ARRAY; case INT32 -> CarrierAccess.INT_ARRAY;
+            case INT64 -> CarrierAccess.LONG_ARRAY;
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> CarrierAccess.BYTE_ARRAY;
         };
     }
     private static Object source(DataType type) {
@@ -427,20 +427,20 @@ class CpuAffineCopyGeneratedKernelTest {
                     3, Double.NEGATIVE_INFINITY, 4, 5, -0.0, 6};
             case FLOAT32 -> new float[]{1, Float.intBitsToFloat(0x7fc00042), 2,
                     3, Float.NEGATIVE_INFINITY, 4, 5, -0.0f, 6};
-            case BFLOAT16 -> new short[]{1, (short)0x7fc1, 2, 3, (short)0xff80, 4,
+            case BFLOAT16, FLOAT16 -> new short[]{1, (short)0x7fc1, 2, 3, (short)0xff80, 4,
                     5, (short)0x8000, (short)0xffff};
             case INT32 -> new int[]{0, Integer.MIN_VALUE, -1, 1, Integer.MAX_VALUE, 7, 8, -9, 10};
             case INT64 -> new long[]{0, Long.MIN_VALUE, -1, 1, Long.MAX_VALUE, 7, 8, -9, 10};
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU affine copy unsupported");
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> new byte[]{1, (byte)0x7f, 2, 3, (byte)0xfc, 4, 5, (byte)0x80, (byte)0xff};
             case BOOL -> new byte[]{0, 1, 0, 1, 0, 1, 0, 1, 0};
         };
     }
     private static Object array(DataType type, int size) {
         return switch (type) {
             case FLOAT64 -> new double[size]; case FLOAT32 -> new float[size];
-            case BFLOAT16 -> new short[size]; case INT32 -> new int[size];
-            case INT64 -> new long[size]; case BOOL -> new byte[size];
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU affine copy unsupported");
+            case BFLOAT16, FLOAT16 -> new short[size]; case INT32 -> new int[size];
+            case INT64 -> new long[size];
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> new byte[size];
         };
     }
     private static MemorySegment segment(Object array) {
@@ -462,10 +462,10 @@ class CpuAffineCopyGeneratedKernelTest {
                     Double.doubleToRawLongBits(((double[]) actual)[actualIndex]));
             case FLOAT32 -> assertEquals(Float.floatToRawIntBits(((float[]) expected)[expectedIndex]),
                     Float.floatToRawIntBits(((float[]) actual)[actualIndex]));
-            case BFLOAT16 -> assertEquals(((short[]) expected)[expectedIndex], ((short[]) actual)[actualIndex]);
+            case BFLOAT16, FLOAT16 -> assertEquals(((short[]) expected)[expectedIndex], ((short[]) actual)[actualIndex]);
             case INT32 -> assertEquals(((int[]) expected)[expectedIndex], ((int[]) actual)[actualIndex]);
             case INT64 -> assertEquals(((long[]) expected)[expectedIndex], ((long[]) actual)[actualIndex]);
-            case BOOL -> assertEquals(((byte[]) expected)[expectedIndex], ((byte[]) actual)[actualIndex]);
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> assertEquals(((byte[]) expected)[expectedIndex], ((byte[]) actual)[actualIndex]);
         }
     }
 

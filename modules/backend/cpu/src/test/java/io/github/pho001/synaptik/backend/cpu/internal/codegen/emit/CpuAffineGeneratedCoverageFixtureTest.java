@@ -140,19 +140,19 @@ class CpuAffineGeneratedCoverageFixtureTest {
         return switch (type) {
             case FLOAT64 -> { double[] result = new double[length]; for (int i = 0; i < length; i++) result[i] = i + .25d; yield result; }
             case FLOAT32 -> { float[] result = new float[length]; for (int i = 0; i < length; i++) result[i] = i + .25f; yield result; }
-            case BFLOAT16 -> { short[] result = new short[length]; for (int i = 0; i < length; i++) result[i] = (short) (0x4000 + i); yield result; }
+            case BFLOAT16, FLOAT16 -> { short[] result = new short[length]; for (int i = 0; i < length; i++) result[i] = (short) (0x4000 + i); yield result; }
             case INT64 -> { long[] result = new long[length]; for (int i = 0; i < length; i++) result[i] = 10_000L + i; yield result; }
             case INT32 -> { int[] result = new int[length]; for (int i = 0; i < length; i++) result[i] = 10_000 + i; yield result; }
             case BOOL -> { byte[] result = new byte[length]; for (int i = 0; i < length; i++) result[i] = (byte) (i & 1); yield result; }
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU affine coverage unsupported");
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> { byte[] result = new byte[length]; for (int i = 0; i < length; i++) result[i] = (byte) i; yield result; }
         };
     }
 
     private static Object zeros(DataType type, int length) {
         return switch (type) {
-            case FLOAT64 -> new double[length]; case FLOAT32 -> new float[length]; case BFLOAT16 -> new short[length];
-            case INT64 -> new long[length]; case INT32 -> new int[length]; case BOOL -> new byte[length];
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU affine coverage unsupported");
+            case FLOAT64 -> new double[length]; case FLOAT32 -> new float[length]; case BFLOAT16, FLOAT16 -> new short[length];
+            case INT64 -> new long[length]; case INT32 -> new int[length];
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> new byte[length];
         };
     }
 
@@ -251,9 +251,9 @@ class CpuAffineGeneratedCoverageFixtureTest {
         SEGMENT_TO_HEAP { List<CarrierAccess> pattern(DataType type) { return List.of(CarrierAccess.MEMORY_SEGMENT, heap(type)); } };
         abstract List<CarrierAccess> pattern(DataType type);
         private static CarrierAccess heap(DataType type) { return switch (type) {
-            case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY; case FLOAT32 -> CarrierAccess.FLOAT_ARRAY; case BFLOAT16 -> CarrierAccess.SHORT_ARRAY;
-            case INT64 -> CarrierAccess.LONG_ARRAY; case INT32 -> CarrierAccess.INT_ARRAY; case BOOL -> CarrierAccess.BYTE_ARRAY;
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU affine coverage unsupported");
+            case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY; case FLOAT32 -> CarrierAccess.FLOAT_ARRAY; case BFLOAT16, FLOAT16 -> CarrierAccess.SHORT_ARRAY;
+            case INT64 -> CarrierAccess.LONG_ARRAY; case INT32 -> CarrierAccess.INT_ARRAY;
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> CarrierAccess.BYTE_ARRAY;
         }; }
     }
 }

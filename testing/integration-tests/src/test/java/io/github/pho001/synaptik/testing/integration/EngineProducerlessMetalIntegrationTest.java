@@ -354,6 +354,7 @@ final class EngineProducerlessMetalIntegrationTest {
                 case BOOL -> (index + shift) & 1;
                 case FLOAT16 -> variant == 0 ? 0x8000 : variant == 1 ? 0x7e15 : 0x3555;
                 case BFLOAT16 -> variant == 0 ? 0x8000 : variant == 1 ? 0x7fc1 : 0x3f80;
+                case FLOAT8_E4M3, FLOAT8_E5M2 -> throw new AssertionError("Metal does not support FP8");
                 case FLOAT32, INT32 -> variant == 0 ? 0x80000000L : variant == 1 ? 0x7fc12345L : 0x3f400000L;
                 case FLOAT64, INT64 -> variant == 0 ? Long.MIN_VALUE : variant == 1 ? 0x7ff8123456789abcL : 0x3fe8000000000000L;
             };

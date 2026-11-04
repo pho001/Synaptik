@@ -52,7 +52,7 @@ final class CpuLowPrecisionConformanceTest {
                     List.of(MemorySegment.ofArray(mask), MemorySegment.ofArray(codes), MemorySegment.ofArray(reverse))));
             byte[] selfEqual = new byte[256];
             for (int i = 0; i < 256; i++) selfEqual[i] = (byte) (Float.isNaN(LowPrecisionValues.decode(type, i)) ? 0 : 1);
-            assertArrayEquals(selfEqual, operation(new Operation(BinaryComparisonKind.EQ, NoOperationAttrs.INSTANCE),
+            assertArrayEquals(selfEqual, operation(new Operation(BinaryComparisonKind.EQUAL, NoOperationAttrs.INSTANCE),
                     List.of(dense, dense), descriptor(DataType.BOOL, dense.shape()),
                     List.of(MemorySegment.ofArray(codes), MemorySegment.ofArray(codes))));
         }
@@ -142,7 +142,7 @@ final class CpuLowPrecisionConformanceTest {
             float tiny = LowPrecisionValues.decode(type, 1);
             var shape = Shape.of(4); var input = descriptor(type, shape);
             float[] values = {tiny, -tiny, -0f, 1};
-            byte[] comparison = operation(new Operation(BinaryComparisonKind.GT, NoOperationAttrs.INSTANCE),
+            byte[] comparison = operation(new Operation(BinaryComparisonKind.GREATER_THAN, NoOperationAttrs.INSTANCE),
                     List.of(input, input), descriptor(DataType.BOOL, shape),
                     List.of(storage(type, values), storage(type, new float[4])));
             assertArrayEquals(new byte[] {1, 0, 0, 1}, comparison, type.toString());

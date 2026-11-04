@@ -376,11 +376,10 @@ final class EngineTypedLifecycleIntegrationTest {
         MemorySegment source = switch (dataType) {
             case FLOAT64 -> MemorySegment.ofArray((double[]) values);
             case FLOAT32 -> MemorySegment.ofArray((float[]) values);
-            case BFLOAT16 -> MemorySegment.ofArray((short[]) values);
+            case BFLOAT16, FLOAT16 -> MemorySegment.ofArray((short[]) values);
             case INT64 -> MemorySegment.ofArray((long[]) values);
             case INT32 -> MemorySegment.ofArray((int[]) values);
-            case BOOL -> MemorySegment.ofArray((byte[]) values);
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 integration fixture is unsupported");
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> MemorySegment.ofArray((byte[]) values);
         };
         MemorySegment segment = arena.allocate(source.byteSize(), dataType.byteWidth());
         MemorySegment.copy(source, 0, segment, 0, source.byteSize());

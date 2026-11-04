@@ -379,6 +379,7 @@ final class EngineOrderingMetalIntegrationTest {
             case BFLOAT16 -> (word & 0x7f80L) == 0x7f80L && (word & 0x007fL) != 0;
             case FLOAT16 -> (word & 0x7c00L) == 0x7c00L && (word & 0x03ffL) != 0;
             case INT32, INT64, BOOL -> false;
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> throw new AssertionError("Metal does not support FP8");
         };
     }
 
@@ -398,11 +399,13 @@ final class EngineOrderingMetalIntegrationTest {
                 yield ((narrowed & 0x8000) != 0 ? ~narrowed : narrowed ^ 0x8000) & 0xffffL;
             }
             case BOOL -> word;
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> throw new AssertionError("Metal does not support FP8");
         };
     }
 
     private static long[] corpus(DataType type) {
         return switch (type) {
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> throw new AssertionError("Metal does not support FP8");
             case FLOAT64 -> new long[] {
                 0x0000_0000_0000_0001L, 0x8000_0000_0000_0001L,
                 0x7ff0_0000_0000_0000L, 0xfff0_0000_0000_0000L,

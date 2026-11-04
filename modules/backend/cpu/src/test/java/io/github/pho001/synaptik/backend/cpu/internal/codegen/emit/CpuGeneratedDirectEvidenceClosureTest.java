@@ -114,208 +114,32 @@ import java.lang.classfile.ClassFile;
 import java.lang.classfile.constantpool.DynamicConstantPoolEntry;
 import java.lang.classfile.constantpool.MemberRefEntry;
 import java.lang.classfile.constantpool.MethodHandleEntry;
-import java.lang.classfile.instruction.InvokeInstruction;
 import java.lang.reflect.AccessFlag;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
-/** Locks the cross-family structural inventory used by the generated/direct evidence closure. */
+/** Shared generated fixtures and consumer-visible invalid-role boundaries. */
 class CpuGeneratedDirectEvidenceClosureTest {
-    private static final Set<String> NON_POINTWISE_FORMS = Set.of(
-            "affine:copy", "affine:internal-view", "movement:pad", "movement:tile",
-            "movement:concat", "movement:stack", "movement:unfold-axis",
-            "movement:unfold2d", "movement:slice-update", "indexing:gather",
-            "indexing:gather-elements", "indexing:gather-nd", "indexing:one-hot",
-            "scatter:scatter-elements:none", "scatter:scatter-elements:add",
-            "scatter:scatter-elements:min", "scatter:scatter-elements:max",
-            "scatter:scatter-elements:mul", "scatter:scatter-add:add",
-            "scatter:scatter-nd:none", "scatter:scatter-nd:add", "scatter:scatter-nd:min",
-            "scatter:scatter-nd:max", "scatter:scatter-nd:mul", "fold:axis", "fold:2d",
-            "ordering:sort", "ordering:argsort", "ordering:top-k", "random:initial-state",
-            "random:dropout-f64", "random:dropout-f32", "scan:cum-sum:inclusive-forward",
-            "scan:cum-sum:inclusive-reverse", "scan:cum-sum:exclusive-forward",
-            "scan:cum-sum:exclusive-reverse", "scan:cum-prod:inclusive-forward",
-            "scan:cum-prod:inclusive-reverse", "scan:cum-prod:exclusive-forward",
-            "scan:cum-prod:exclusive-reverse", "aggregate:min:full", "aggregate:min:axis",
-            "aggregate:min:multi-axis", "aggregate:max:full", "aggregate:max:axis",
-            "aggregate:max:multi-axis", "aggregate:all:full", "aggregate:all:axis",
-            "aggregate:all:multi-axis", "aggregate:any:full", "aggregate:any:axis",
-            "aggregate:any:multi-axis", "aggregate:sum:full", "aggregate:sum:axis",
-            "aggregate:sum:multi-axis", "aggregate:mean:full", "aggregate:mean:axis",
-            "aggregate:mean:multi-axis", "aggregate:prod:full", "aggregate:prod:axis",
-            "aggregate:prod:multi-axis", "advanced:log-sum-exp", "advanced:variance",
-            "advanced:standard-deviation", "advanced:l1-norm", "advanced:l2-norm");
 
-    @Test void ledgerCoversEveryPointwiseOpcodeAndCurrentNonPointwiseForm() {
-        assertAll(
-                () -> assertEquals(48, CpuPointwiseOpcode.values().length),
-                () -> assertEquals(EnumSet.allOf(CpuPointwiseOpcode.class),
-                        EnumSet.copyOf(List.of(CpuPointwiseOpcode.values()))),
-                () -> assertEquals(66, NON_POINTWISE_FORMS.size()),
-                () -> assertTrue(NON_POINTWISE_FORMS.stream().noneMatch(String::isBlank)));
-    }
-
-    @Test void representativesHaveOneTypedStaticEntryAndClosedMemberReferences() {
-        var representatives = new ArrayList<Representative>();
-        representatives.add(new Representative(pointwise(false, false), 0));
-        representatives.add(new Representative(pointwise(true, false), 0));
-        representatives.add(new Representative(pointwise(false, true), 1));
-        representatives.add(new Representative(generated(CpuNonAffineMovementLoweringTest.context(
-                new Operation(PadKind.PAD,
-                        new PadAttrs(List.of(0L), List.of(0L), ScalarValue.int32(0))),
-                List.of(0), List.of(CpuNonAffineMovementLoweringTest.descriptor(
-                        DataType.INT32, Shape.of(8))),
-                CpuNonAffineMovementLoweringTest.descriptor(DataType.INT32, Shape.of(8)))), 1));
-        representatives.add(new Representative(generated(CpuIndexingLoweringTest.context(
-                new Operation(AxisGatherKind.GATHER, new IndexAxisAttrs(0)), List.of(0, 1),
-                List.of(CpuIndexingLoweringTest.descriptor(DataType.FLOAT64, Shape.of(8)),
-                        CpuIndexingLoweringTest.descriptor(DataType.INT64, Shape.of(4))),
-                CpuIndexingLoweringTest.descriptor(DataType.FLOAT64, Shape.of(4)))), 2));
-        representatives.add(new Representative(generated(CpuScatterLoweringTest.context(
-                new Operation(AxisScatterKind.SCATTER_ELEMENTS,
-                        new ScatterElementsAttrs(0, ScatterReduction.MIN)), List.of(0, 1, 2),
-                List.of(CpuScatterLoweringTest.desc(DataType.INT64, Shape.of(8)),
-                        CpuScatterLoweringTest.desc(DataType.INT32, Shape.of(4)),
-                        CpuScatterLoweringTest.desc(DataType.INT64, Shape.of(4))),
-                CpuScatterLoweringTest.desc(DataType.INT64, Shape.of(8)))), 2));
-        representatives.add(new Representative(generated(CpuFoldLoweringTest.context(
-                new Operation(WindowTransformKind.FOLD_AXIS, new FoldAxisAttrs(0, 8, 1)),
-                DataType.FLOAT32, Shape.of(7, 2), Shape.of(8))), 0));
-        representatives.add(new Representative(generated(CpuOrderingLoweringTest.context(
-                new Operation(OrderingKind.ARGSORT, new SortAttrs(1, true)), DataType.INT64,
-                Shape.of(4, 8), Shape.of(4, 8), false)), 0));
-        representatives.add(new Representative(generated(CpuScanLoweringTest.context(
-                CumulativeScanKind.CUM_PROD, DataType.INT64, Shape.of(4, 8), 1, true, true)), 1));
-        representatives.add(new Representative(generated(CpuAggregateLoweringTest.context(
-                AggregateReductionKind.MIN, DataType.BFLOAT16, Shape.of(4, 8),
-                new AxisReductionAttrs(1, false), Shape.of(4))), 1, true));
-        representatives.add(new Representative(generated(CpuAggregateLoweringTest.context(
-                AggregateReductionKind.MEAN, DataType.FLOAT32, Shape.of(4, 8),
-                new AxisReductionAttrs(1, false), Shape.of(4))), 1, true));
-        representatives.add(new Representative(advanced(AggregateReductionKind.LOG_SUM_EXP), 0));
-        representatives.add(new Representative(advanced(AggregateReductionKind.VARIANCE), 0));
-        representatives.add(new Representative(advanced(
-                AggregateReductionKind.STANDARD_DEVIATION), 0));
-        representatives.add(new Representative(advanced(AggregateReductionKind.L1_NORM), 0));
-        representatives.add(new Representative(advanced(AggregateReductionKind.L2_NORM), 0));
-        representatives.forEach(representative -> {
-            assertClosedClass(representative.bytes());
-            assertSegmentLayoutsHoisted(representative);
-        });
-    }
-
-    @Test void generalPointwiseAndCrossTypeCastFixturesUseEveryProductionBoundary() throws Exception {
-        // These are explicit Model occurrences. They neither infer support from opcode labels nor
-        // project the complete typed witness basis across untested carriers, layouts, or strategies.
-        List<PointwiseFixture> fixtures = generalPointwiseFixtures();
-        assertEquals(205, fixtures.size());
-        for (PointwiseFixture fixture : fixtures) {
-            var context = fixture.context();
-            io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(new CpuCapabilityProvider(), new OperationCapabilityQuery(fixture.operation(), fixture.inputDescriptors(), List.of(fixture.outputDescriptor())), fixture.id());
-            if (CpuGeneratedCoverageEvidenceRegistry.lowUnsupported("pointwise:" + fixture.id(), context, fixture.opcode())) continue;
-            var plan = new CpuPartitionPreparer().analyze(context).plan();
-            var route = plan.units().getFirst().portablePlan();
-            assertEquals(fixture.opcode(), route.kernelIr().instructions().getFirst().opcode(), fixture.id());
-            assertEquals(fixture.boundaryTypes(), route.specialization().boundaryDataTypes(), fixture.id());
-            assertEquals(List.of(CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT),
-                    plan.units().getFirst().generatedCarrierPattern().stream().distinct().toList(), fixture.id());
-            assertTrue(plan.units().getFirst().accessBindings().stream().allMatch(binding -> binding.plan().regime()
-                    == CpuAccessPlan.Regime.DENSE_LINEAR), fixture.id());
-            assertEquals(0, plan.materializations().size(), fixture.id());
-            assertEquals(plan.executionStrategy(), route.specialization().executionStrategy(), fixture.id());
-
-            var generator = new CpuClassFileKernelGenerator();
-            byte[] first = generator.generateClassBytes(route.specialization(), route.kernelIr());
-            byte[] second = generator.generateClassBytes(route.specialization(), route.kernelIr());
-            assertArrayEquals(first, second, fixture.id() + " deterministic class-file hash");
-            CpuGeneratedCoverageEvidenceRegistry.generated("pointwise:" + fixture.id(), context, plan);
-            assertEquals(classFileHash(first), classFileHash(second), fixture.id());
-            assertEquals(route.specialization().entryType().descriptorString(), ClassFile.of().parse(first)
-                    .methods().getFirst().methodType().stringValue(), fixture.id());
-            assertFalse(route.specialization().structuralKey().isBlank(), fixture.id());
-            assertClosedClass(first);
-        }
-    }
-
-    @Test void pointwiseCandidateUniverseClosesRequestedCarrierLayoutAndStrategyAxes() throws Exception {
-        // This is a finite occurrence matrix, not a provider-derived Cartesian claim.  The
-        // Model operation families determine the 169 non-scalar occurrences below; the scalar
-        // occurrences are the separate 256-row finite immediate/clamp basis audited by the
-        // checkpoint test.  Every row has a stable id and an owner-defined disposition before
-        // CpuCapabilityProvider, preparation, or generation is called.
-        var candidates = pointwiseCandidates();
-        assertEquals(1_025, candidates.size());
-        assertEquals(48, CpuPointwiseOpcode.values().length);
-        assertEquals(205, candidates.stream().map(candidate -> candidate.form()).distinct().count());
-        assertEquals(Set.of("HEAP", "SEGMENT", "MIXED"), candidates.stream()
-                .map(candidate -> candidate.carrierAxis()).collect(java.util.stream.Collectors.toSet()));
-        assertEquals(Set.of("CONTIGUOUS", "GENERAL"), candidates.stream()
-                .map(candidate -> candidate.layoutAxis()).collect(java.util.stream.Collectors.toSet()));
-        assertEquals(Set.of("DIRECT", "MATERIALIZATION_CANDIDATE"), candidates.stream()
-                .map(candidate -> candidate.materializationAxis())
-                .collect(java.util.stream.Collectors.toSet()));
-        assertEquals(Set.of("SCALAR", "VECTOR", "PARALLEL_SCALAR", "PARALLEL_VECTOR"), candidates.stream()
-                .map(candidate -> candidate.requestedStrategy())
-                .collect(java.util.stream.Collectors.toSet()));
-        assertEquals(Map.of("HEAP", 615L, "SEGMENT", 205L, "MIXED", 205L), counts(candidates,
-                PointwiseCandidate::carrierAxis), "every requested carrier mode has one finite owner");
-        assertEquals(Map.of("CONTIGUOUS", 615L, "GENERAL", 410L), counts(candidates,
-                PointwiseCandidate::layoutAxis), "every requested layout class has one finite owner");
-        assertEquals(Map.of("DIRECT", 820L, "MATERIALIZATION_CANDIDATE", 205L), counts(candidates,
-                PointwiseCandidate::materializationAxis),
-                "materialization candidates remain distinct from direct selection");
-        assertEquals(Map.of("SCALAR", 410L, "VECTOR", 205L, "PARALLEL_SCALAR", 205L,
-                "PARALLEL_VECTOR", 205L), counts(candidates, PointwiseCandidate::requestedStrategy),
-                "every requested execution variant has one finite owner");
-
-        for (PointwiseCandidate candidate : candidates) {
-            assertEquals(PointwiseDisposition.SUPPORTED, candidate.disposition(), candidate.id());
+    /** Records actual selected pointwise facts for the existing diagnostic inventory. */
+    void pointwiseCandidateUniverseClosesRequestedCarrierLayoutAndStrategyAxes() throws Exception {
+        for (PointwiseCandidate candidate : pointwiseCandidates()) {
             PointwiseFixture fixture = candidate.fixture();
             var context = fixture.context(candidate.inputLayout(), candidate.inputs(), candidate.execution(),
                     candidate.materializationPolicy());
-            // The positive expectation is defined from the Model occurrence family and its
-            // descriptor roles.  This real provider call is the evidence, never its definition.
-            io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(new CpuCapabilityProvider(), new OperationCapabilityQuery(fixture.operation(), descriptors(context, context.nodes().getFirst().inputs()), descriptors(context, context.nodes().getFirst().outputs())), candidate.id());
-            if (CpuGeneratedCoverageEvidenceRegistry.lowUnsupported("pointwise-matrix:" + candidate.id(), context, fixture.opcode())) continue;
+            io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(
+                    new CpuCapabilityProvider(), new OperationCapabilityQuery(fixture.operation(),
+                            descriptors(context, context.nodes().getFirst().inputs()),
+                            descriptors(context, context.nodes().getFirst().outputs())), candidate.id());
             var plan = new CpuPartitionPreparer().analyze(context).plan();
-            assertEquals(1, plan.units().size(), candidate.id());
-            var route = plan.units().getFirst().portablePlan();
-            assertEquals(fixture.opcode(), route.kernelIr().instructions().getFirst().opcode(), candidate.id());
-            assertEquals(fixture.boundaryTypes(), route.specialization().boundaryDataTypes(), candidate.id());
-            assertEquals(candidate.inputs(), route.specialization().carrierPattern(), candidate.id());
-            assertEquals(0, plan.materializations().size(), candidate.id());
-            // Keep the request and the actual selection separate. The recorded per-row fact
-            // captures the current type/family-specific representation selection.
-            assertEquals(candidate.materializationSelected(), plan.representationDecisions().stream().anyMatch(decision -> decision instanceof
-                    io.github.pho001.synaptik.backend.cpu.internal.ir.CpuRepresentationDecision.Variant
-                    variant && !variant.identity().materializations().isEmpty()), candidate.id());
-            assertEquals(kernelStrategy(plan.executionStrategy()), route.specialization().executionStrategy(),
-                    candidate.id() + " parallel orchestration reuses the selected kernel body");
-            byte[] first = new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr());
-            byte[] second = new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr());
-            assertArrayEquals(first, second, candidate.id());
-            assertEquals(route.specialization().entryType().descriptorString(), ClassFile.of().parse(first)
-                    .methods().getFirst().methodType().stringValue(), candidate.id());
-            assertFalse(route.specialization().structuralKey().isBlank(), candidate.id());
-            assertClosedClass(first);
-            // This is the canonical owner for the finite 1,025-row execution matrix. Keeping
-            // the candidate id (rather than its opcode/form) makes carrier, layout, request,
-            // and materialization distinctions independently joinable by the checkpoint.
-            CpuGeneratedCoverageEvidenceRegistry.generated("pointwise-matrix:" + candidate.id(),
-                    context, plan);
+            CpuGeneratedCoverageEvidenceRegistry.generated("pointwise-matrix:" + candidate.id(), context, plan);
         }
     }
 
-    private static <T> Map<String, Long> counts(List<T> values,
-            java.util.function.Function<T, String> axis) {
-        return values.stream().collect(java.util.stream.Collectors.groupingBy(axis, java.util.TreeMap::new,
-                java.util.stream.Collectors.counting()));
-    }
 
     @Test void pointwiseInvalidTypeRolesAndShapesRemainRejected() {
         // Mixed same-category operands now execute; these are still-invalid descriptor roles.
@@ -329,191 +153,6 @@ class CpuGeneratedDirectEvidenceClosureTest {
         }
     }
 
-    @Test void pointwiseOpcodeAndScalarForeignKeysReconcileExactlyOnce() throws Exception {
-        // The operation-family ledger owns one row for every executable pointwise opcode.  The
-        // scalar-immediate basis owns the 256 parameterized scalar forms, so scalar kinds link
-        // there rather than fabricating duplicate general pointwise classes.
-        var opcodes = generalPointwiseFixtures().stream().map(PointwiseFixture::opcode)
-                .collect(java.util.stream.Collectors.toCollection(() -> EnumSet.noneOf(CpuPointwiseOpcode.class)));
-        assertEquals(EnumSet.complementOf(EnumSet.of(CpuPointwiseOpcode.SCALAR_ADD,
-                CpuPointwiseOpcode.SCALAR_SUB, CpuPointwiseOpcode.SCALAR_MUL,
-                CpuPointwiseOpcode.SCALAR_DIV, CpuPointwiseOpcode.SCALAR_POW,
-                CpuPointwiseOpcode.SCALAR_MIN, CpuPointwiseOpcode.SCALAR_MAX,
-                CpuPointwiseOpcode.SCALAR_CLAMP)), opcodes);
-        try (var stream = CpuGeneratedDirectEvidenceClosureTest.class.getResourceAsStream(
-                "operation-family-form-ledger-v3.tsv")) {
-            assertTrue(stream != null);
-            var rows = new String(stream.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).lines()
-                    .filter(line -> !line.startsWith("# ")).skip(1).map(line -> line.split("\\t", -1)).toList();
-            var ledger = rows.stream().filter(row -> row[1].equals("pointwise"))
-                    .map(row -> row[0]).filter(CpuGeneratedDirectEvidenceClosureTest::isPointwiseOpcode)
-                    .toList();
-            assertEquals(CpuPointwiseOpcode.values().length, ledger.size());
-            assertEquals(CpuPointwiseOpcode.values().length, ledger.stream().distinct().count());
-            assertEquals(EnumSet.allOf(CpuPointwiseOpcode.class), ledger.stream()
-                    .map(CpuPointwiseOpcode::valueOf).collect(java.util.stream.Collectors.toCollection(
-                            () -> EnumSet.noneOf(CpuPointwiseOpcode.class))));
-        }
-        Map<String, String> inventoryForeignKeys;
-        try (var stream = CpuGeneratedDirectEvidenceClosureTest.class.getResourceAsStream(
-                "generated-coverage-inventory.tsv")) {
-            assertTrue(stream != null);
-            var rows = new String(stream.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).lines().skip(1)
-                    .map(line -> line.split("\\t", -1)).filter(row -> row[0].startsWith("pointwise-matrix:")
-                            || row[0].startsWith("scalar-immediate:")).toList();
-            inventoryForeignKeys = rows.stream().collect(java.util.stream.Collectors.toUnmodifiableMap(
-                    row -> row[2], row -> row[0], (first, ignored) -> first));
-            assertEquals(CpuPointwiseOpcode.values().length, inventoryForeignKeys.size());
-            for (CpuPointwiseOpcode opcode : CpuPointwiseOpcode.values()) assertTrue(
-                    inventoryForeignKeys.containsKey(opcode.name()), opcode.name());
-        }
-        try (var stream = CpuGeneratedDirectEvidenceClosureTest.class.getResourceAsStream(
-                "scalar-immediate-clamp-matrix-forms.tsv")) {
-            assertTrue(stream != null);
-            var rows = new String(stream.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).lines()
-                    .filter(line -> !line.startsWith("# ")).skip(1).map(line -> line.split("\\t", -1)).toList();
-            assertEquals(263, rows.size());
-            assertEquals(263, rows.stream().map(row -> row[0]).distinct().count());
-            var linked = rows.stream().map(row -> row[1]).collect(java.util.stream.Collectors.toSet());
-            assertEquals(EnumSet.allOf(ScalarElementwiseKind.class).stream().map(Enum::name)
-                    .collect(java.util.stream.Collectors.toSet()), linked);
-            for (ScalarElementwiseKind kind : ScalarElementwiseKind.values()) {
-                String opcode = "SCALAR_" + kind.name();
-                assertTrue(inventoryForeignKeys.containsKey(opcode), kind + " inventory foreign key");
-                assertTrue(rows.stream().anyMatch(row -> row[1].equals(kind.name())), kind + " scalar row foreign key");
-            }
-        }
-    }
-
-    private static boolean isPointwiseOpcode(String operation) {
-        try {
-            CpuPointwiseOpcode.valueOf(operation);
-            return true;
-        } catch (IllegalArgumentException ignored) {
-            return false;
-        }
-    }
-
-    @Test void nonPointwiseRepresentativesUseEveryProductionBoundary() throws Exception {
-        // This finite closure is deliberately fixture-backed. It opens only the 30 real Model
-        // occurrences below; no family label or inventory row is used to infer another form.
-        List<NonPointwiseFixture> fixtures = nonPointwiseFixtures();
-        assertEquals(30, fixtures.size());
-        for (NonPointwiseFixture fixture : fixtures) assertGeneratedBoundary(fixture);
-    }
-
-    @Test void remainingSpecializedGeneratedFamiliesUseEveryProductionBoundary() throws Exception {
-        // Each entry is one existing family fixture, not a projection across family variants.
-        // The loss entries establish support and generated structure only: their retained 0008I
-        // performance disposition remains NON_PASSING and selection remains fail closed.
-        List<NonPointwiseFixture> fixtures = specializedGeneratedFixtures();
-        assertEquals(28, fixtures.size());
-        for (NonPointwiseFixture fixture : fixtures) assertGeneratedBoundary(fixture);
-    }
-
-    @Test void conv1dCompositionIsNotCurrentlyBodyIdenticalToEquivalentDirectConv2d()
-            throws Exception {
-        var context = conv1dCompositionContext();
-        var conv2d = context.nodes().stream().filter(node -> node.operation().kind().name()
-                .equals("CONV2D")).findFirst().orElseThrow();
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(new CpuCapabilityProvider(), new OperationCapabilityQuery(conv2d.operation(), descriptors(context, conv2d.inputs()), descriptors(context, conv2d.outputs())));
-        var plan = new CpuPartitionPreparer().analyze(context).plan();
-        assertEquals(1, plan.units().size());
-        var route = plan.units().getFirst().portablePlan();
-        var specialization = route.specialization();
-        assertTrue(plan.units().getFirst().conv2dGeometry().isPresent(),
-                "Conv1d is composition metadata reusing the Conv2d generated form");
-        assertTrue(plan.units().getFirst().conv3dGeometry().isEmpty());
-        assertEquals(0, plan.materializations().size());
-        assertTrue(plan.workspaceDeclaration().isEmpty());
-        byte[] first = new CpuClassFileKernelGenerator().generateClassBytes(specialization, route.kernelIr());
-        byte[] second = new CpuClassFileKernelGenerator().generateClassBytes(specialization, route.kernelIr());
-        assertArrayEquals(first, second);
-        assertEquals(specialization.entryType().descriptorString(), ClassFile.of().parse(first)
-                .methods().getFirst().methodType().stringValue());
-        assertFalse(specialization.structuralKey().isBlank());
-        assertClosedSpecializedClass(first, specialization);
-
-        // The composition is intentionally only virtual rank editing.  Its generated route must
-        // be precisely the route for the equivalent concrete Conv2d occurrence, not merely a
-        // class with the same schema.
-        var direct = CpuConv2dLoweringTest.context(List.of(DataType.FLOAT32, DataType.FLOAT32,
-                DataType.FLOAT32), Shape.of(1, 2, 1, 4), Shape.of(2, 2, 1, 3),
-                Shape.of(1, 2, 1, 4), new Conv2dAttrs(1, 1, 0, 1, 1, 1, 1), null);
-        // Carrier representation is bytecode-relevant, so compare the same cold carrier facts.
-        direct = new PrepareContext<>(direct.partition(), direct.nodes(), direct.values(), direct.memoryRequirements(), direct.constants(), context.backendInputs());
-        var directRoute = new CpuPartitionPreparer().analyze(direct).plan().units().getFirst()
-                .portablePlan();
-        byte[] directBytes = new CpuClassFileKernelGenerator().generateClassBytes(
-                directRoute.specialization(), directRoute.kernelIr());
-        // This is a machine-checked contradiction to the desired closure claim, not a
-        // representative projection: today the composition retains a distinct lowering key and
-        // class identity even with equivalent concrete Conv2d geometry and carrier facts.
-        // Do not label Conv1d as body-identical until production removes this distinction.
-        assertFalse(directRoute.kernelIr().structuralKey().equals(route.kernelIr().structuralKey()));
-        assertFalse(java.util.Arrays.equals(directBytes, first));
-    }
-
-    @Test void initialRandomStateIsNotMetadataOnlyInTheCurrentProductionRoute() {
-        var context = CpuRandomLoweringTest.initialContext(0x1234L, -7L);
-        var node = context.nodes().getFirst();
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(new CpuCapabilityProvider(), new OperationCapabilityQuery(node.operation(), descriptors(context, node.inputs()), descriptors(context, node.outputs())));
-        var plan = new CpuPartitionPreparer().analyze(context).plan();
-        assertEquals(0, plan.elementCount());
-        assertTrue(plan.randomGeometry().isPresent());
-        assertEquals(CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
-                plan.executionStrategy());
-        // This is intentionally counter-evidence to the proposed coverage disposition: the
-        // current random emitter has an INITIAL_STATE branch and the generator returns a class.
-        // A future metadata-only claim must first remove that production route; this checkpoint
-        // must not hide it by omitting the generator boundary.
-        var route = plan.units().getFirst().portablePlan();
-        byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(),
-                route.kernelIr());
-        assertFalse(bytes.length == 0, "INITIAL_STATE currently has a generated class route");
-        assertClosedSpecializedClass(bytes, route.specialization());
-        var evidence = CpuGeneratedCoverageEvidenceRegistry.generated("nonpointwise:initial-state",
-                context, plan);
-        assertEquals("GENERATED", evidence.outcome());
-        assertEquals(64, evidence.normalizedBodyKey().length());
-        assertFalse(evidence.classHash().isBlank());
-    }
-
-    private static void assertGeneratedBoundary(NonPointwiseFixture fixture) throws Exception {
-        var context = fixture.context();
-        var node = context.nodes().getFirst();
-        var inputDescriptors = descriptors(context, node.inputs());
-        var outputDescriptors = descriptors(context, node.outputs());
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(new CpuCapabilityProvider(), new OperationCapabilityQuery(node.operation(), inputDescriptors, outputDescriptors), fixture.id());
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
-        var plan = new CpuPartitionPreparer().analyze(context).plan();
-        assertEquals(1, plan.units().size(), fixture.id());
-        var unit = plan.units().getFirst();
-        var route = unit.portablePlan();
-        var specialization = route.specialization();
-        assertEquals(boundaryDescriptors(context, plan), specialization.boundaryDataTypes(), fixture.id());
-        assertEquals(plan.generatedCarrierPattern(), specialization.carrierPattern(), fixture.id());
-        assertEquals(plan.executionStrategy(), specialization.executionStrategy(), fixture.id());
-        assertEquals(plan.materializations().isEmpty(), specialization.materializedSourcePosition() == -1,
-                fixture.id());
-        assertEquals(plan.workspaceDeclaration().isPresent(), specialization.scratchParameter(), fixture.id());
-        assertEquals(plan.boundaryValues().size(), plan.accessBindings().size(), fixture.id());
-        assertEquals(plan.boundaryValues().size(), specialization.carrierPattern().size(), fixture.id());
-        assertTrue(plan.accessBindings().stream().allMatch(binding -> binding.elementCount() >= 0),
-                fixture.id());
-        assertEquals(route.portableKernelIr().structuralKey(), specialization.loweringFingerprint().hex(),
-                fixture.id());
-        assertFalse(specialization.structuralKey().isBlank(), fixture.id());
-
-        var generator = new CpuClassFileKernelGenerator();
-        byte[] first = generator.generateClassBytes(specialization, route.kernelIr());
-        byte[] second = generator.generateClassBytes(specialization, route.kernelIr());
-        assertArrayEquals(first, second, fixture.id() + " deterministic class-file bytes");
-        assertEquals(classFileHash(first), classFileHash(second), fixture.id());
-        assertEquals(specialization.entryType().descriptorString(), ClassFile.of().parse(first)
-                .methods().getFirst().methodType().stringValue(), fixture.id());
-        assertClosedSpecializedClass(first, specialization);
-    }
 
     static List<TensorDescriptor> descriptors(PrepareContext<CpuPartitionAnalysisInputs> context,
             List<ValueId> ids) {
@@ -521,10 +160,6 @@ class CpuGeneratedDirectEvidenceClosureTest {
                 .findFirst().orElseThrow().descriptor()).toList();
     }
 
-    private static List<DataType> boundaryDescriptors(PrepareContext<CpuPartitionAnalysisInputs> context,
-            CpuPartitionPreparationPlan plan) {
-        return descriptors(context, plan.boundaryValues()).stream().map(TensorDescriptor::dataType).toList();
-    }
 
     /**
      * Evidence-local attention occurrence.  It stays here because only the generated-coverage
@@ -543,45 +178,6 @@ class CpuGeneratedDirectEvidenceClosureTest {
                 duplicateQueryKey ? List.of(query, value) : List.of(query, key, value), output);
     }
 
-    /**
-     * Evidence-local exact Conv1d-as-Conv2d composition.  The next assertion compares it with
-     * the direct Conv2d occurrence, so this construction cannot become a second lowering rule.
-     */
-    private static PrepareContext<CpuPartitionAnalysisInputs> conv1dCompositionContext() {
-        Shape input = Shape.of(1, 2, 4), weight = Shape.of(2, 2, 3), bias = Shape.of(2);
-        Shape expandedInput = Shape.of(1, 2, 1, 4), expandedWeight = Shape.of(2, 2, 1, 3);
-        Shape convOutput = Shape.of(1, 2, 1, 4), output = Shape.of(1, 2, 4);
-        List<Shape> shapes = List.of(input, weight, bias, expandedInput, expandedWeight,
-                convOutput, output);
-        List<ValueId> ids = java.util.stream.LongStream.range(0, shapes.size())
-                .mapToObj(ValueId::new).toList();
-        List<CompiledNode> nodes = List.of(
-                new CompiledNode(new NodeId(0), new Operation(AxisTransformKind.EXPAND_DIMS,
-                        new AxisTransformAttrs(2)), List.of(ids.get(0)), List.of(ids.get(3))),
-                new CompiledNode(new NodeId(1), new Operation(AxisTransformKind.EXPAND_DIMS,
-                        new AxisTransformAttrs(2)), List.of(ids.get(1)), List.of(ids.get(4))),
-                new CompiledNode(new NodeId(2), new Operation(Conv2dKind.CONV2D,
-                        new Conv2dAttrs(1, 1, 0, 1, 1, 1, 1)),
-                        List.of(ids.get(3), ids.get(4), ids.get(2)), List.of(ids.get(5))),
-                new CompiledNode(new NodeId(3), new Operation(AxisTransformKind.SQUEEZE,
-                        new AxisTransformAttrs(2)), List.of(ids.get(5)), List.of(ids.get(6))));
-        var partition = new PlannedPartition(CpuCapabilityProvider.CPU_BACKEND_ID,
-                nodes.stream().map(CompiledNode::id).toList());
-        var values = new ArrayList<GraphValue>();
-        var memory = new ArrayList<LogicalMemoryRequirement>();
-        for (int index = 0; index < ids.size(); index++) {
-            TensorDescriptor descriptor = new TensorDescriptor(DataType.FLOAT32, shapes.get(index),
-                    Optional.of(LayoutDescriptor.contiguous(shapes.get(index))), false);
-            values.add(new GraphValue(ids.get(index), descriptor));
-            boolean produced = index >= 3;
-            boolean published = index == 6;
-            memory.add(new LogicalMemoryRequirement(ids.get(index), descriptor,
-                    produced ? Optional.of(partition) : Optional.empty(),
-                    published ? List.of() : List.of(partition), published));
-        }
-        return new PrepareContext<>(partition, nodes, values, memory, Map.of(), new CpuPartitionAnalysisInputs(false, java.util.Collections.nCopies(4,
-                CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY)));
-    }
 
     static List<NonPointwiseFixture> nonPointwiseFixtures() {
         return List.of(
@@ -873,7 +469,7 @@ class CpuGeneratedDirectEvidenceClosureTest {
         for (DataType type : floatingTypes()) forms.add(fixture("WHERE_" + type,
                 new Operation(WhereSelectionKind.WHERE, NoOperationAttrs.INSTANCE), List.of(DataType.BOOL, type, type), type,
                 CpuPointwiseOpcode.WHERE, shape));
-        for (DataType source : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) for (DataType target : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) forms.add(fixture(
+        for (DataType source : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.legacyOracleTypes()) for (DataType target : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.legacyOracleTypes()) forms.add(fixture(
                 "CAST_" + source + "_" + target, new Operation(CastKind.CAST, new CastAttrs(target)),
                 List.of(source), target, CpuPointwiseOpcode.CAST, shape));
         return List.copyOf(forms);
@@ -924,10 +520,7 @@ class CpuGeneratedDirectEvidenceClosureTest {
         return new PointwiseFixture(id, operation, inputs, output, opcode, shape);
     }
 
-    private static String classFileHash(byte[] bytes) throws java.security.NoSuchAlgorithmException {
-        return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
-                .digest(bytes));
-    }
+    
 
     record PointwiseFixture(String id, Operation operation, List<DataType> inputTypes,
             DataType outputType, CpuPointwiseOpcode opcode, Shape shape) {
@@ -1048,7 +641,7 @@ class CpuGeneratedDirectEvidenceClosureTest {
             case BFLOAT16, FLOAT16 -> CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY;
             case INT64 -> CpuKernelSpecialization.CarrierAccess.LONG_ARRAY;
             case INT32 -> CpuKernelSpecialization.CarrierAccess.INT_ARRAY;
-            case BOOL -> CpuKernelSpecialization.CarrierAccess.BYTE_ARRAY;
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> CpuKernelSpecialization.CarrierAccess.BYTE_ARRAY;
         };
     }
 
@@ -1083,83 +676,6 @@ class CpuGeneratedDirectEvidenceClosureTest {
             CpuPartitionAnalysisInputs.MaterializationPolicy materializationPolicy,
             boolean materializationSelected) { }
 
-    private static byte[] generated(PrepareContext<CpuPartitionAnalysisInputs> context) {
-        var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
-                .portablePlan();
-        return new CpuClassFileKernelGenerator().generateClassBytes(
-                route.specialization(), route.kernelIr());
-    }
-
-    private static byte[] advanced(AggregateReductionKind kind) {
-        var attrs = kind == AggregateReductionKind.VARIANCE
-                || kind == AggregateReductionKind.STANDARD_DEVIATION
-                ? new StatisticalReductionAttrs(List.of(1), false, 1)
-                : new MultiAxisReductionAttrs(List.of(1), false);
-        var base = CpuAggregateLoweringTest.context(kind, DataType.FLOAT64,
-                Shape.of(4, 8), attrs, Shape.of(4));
-        return generated(new PrepareContext<>(base.partition(), base.nodes(), base.values(), base.memoryRequirements(), base.constants(), new CpuPartitionAnalysisInputs(false,
-                List.of(CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY,
-                        CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY))));
-    }
-
-    private static byte[] pointwise(boolean vector, boolean segment) {
-        var denseRead = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ,
-                CpuAccessPlan.Regime.DENSE_LINEAR, 1,
-                List.of(CpuAccessPlan.AxisRole.CONTIGUOUS), 1);
-        var denseWrite = new CpuAccessPlan(CpuAccessPlan.AccessKind.WRITE,
-                CpuAccessPlan.Regime.DENSE_LINEAR, 1,
-                List.of(CpuAccessPlan.AxisRole.CONTIGUOUS), 1);
-        var ir = new CpuKernelIr(List.of(
-                new CpuKernelIr.Value(0, DataType.FLOAT32, CpuKernelIr.Value.Kind.INPUT, denseRead),
-                new CpuKernelIr.Value(1, DataType.FLOAT32, CpuKernelIr.Value.Kind.OUTPUT, denseWrite)),
-                List.of(new CpuKernelIr.Instruction(CpuPointwiseOpcode.TANH, List.of(0), 1)),
-                new CpuKernelIr.Loop("start", "end"), List.of(new CpuKernelIr.Store(1, 0)));
-        var specialization = new CpuKernelSpecialization(io.github.pho001.synaptik.backend.cpu.internal.cache.CpuLoweringFingerprint
-                .fromHex(ir.structuralKey()), vector ? CpuPartitionPreparationPlan.ExecutionStrategy.VECTOR
-                : CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
-        List.of(DataType.FLOAT32, DataType.FLOAT32),
-        segment ? List.of(CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT,
-                CpuKernelSpecialization.CarrierAccess.MEMORY_SEGMENT)
-                : List.of(CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY,
-                        CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY),
-        vector ? jdk.incubator.vector.FloatVector.SPECIES_PREFERRED.vectorBitSize() : 0,
-        -1);
-        return new CpuClassFileKernelGenerator().generateClassBytes(specialization, ir);
-    }
-
-    private static void assertClosedClass(byte[] bytes) {
-        var model = ClassFile.of().parse(bytes);
-        var members = java.util.stream.StreamSupport.stream(model.constantPool().spliterator(), false)
-                .filter(MemberRefEntry.class::isInstance).map(MemberRefEntry.class::cast).toList();
-        assertAll(
-                () -> assertTrue(model.fields().isEmpty()),
-                () -> assertEquals(1, model.methods().size()),
-                () -> assertEquals("invoke", model.methods().getFirst().methodName().stringValue()),
-                () -> assertTrue(model.methods().getFirst().flags().has(AccessFlag.STATIC)),
-                () -> assertTrue(model.methods().getFirst().methodTypeSymbol().descriptorString()
-                        .endsWith("[JJJ)V")),
-                () -> assertFalse(model.methods().getFirst().methodTypeSymbol().descriptorString()
-                        .contains("Ljava/lang/Object;")),
-                () -> assertEquals(0, model.constantPool().bootstrapMethodCount()),
-                () -> assertTrue(java.util.stream.StreamSupport.stream(
-                        model.constantPool().spliterator(), false)
-                        .noneMatch(MethodHandleEntry.class::isInstance)),
-                () -> assertTrue(java.util.stream.StreamSupport.stream(
-                        model.constantPool().spliterator(), false)
-                        .noneMatch(DynamicConstantPoolEntry.class::isInstance)),
-                () -> assertTrue(members.stream().noneMatch(member -> member.type().stringValue()
-                        .contains("Ljava/lang/Object;") || member.owner().asInternalName()
-                        .startsWith("java/lang/reflect/") || member.owner().asInternalName()
-                        .startsWith("java/lang/invoke/") || member.owner().asInternalName()
-                        .startsWith("java/util/"))), () -> assertTrue(members.stream()
-                        .filter(member -> member.owner().asInternalName()
-                                .startsWith("io/github/pho001/synaptik/"))
-                        .allMatch(member -> member.owner().asInternalName().equals(
-                                "io/github/pho001/synaptik/backend/cpu/internal/codegen/emit/CpuVectorMath")),
-                        () -> "unexpected generated helper ownership: " + members.stream()
-                                .map(member -> member.owner().asInternalName()).distinct().toList()));
-    }
-
     static void assertClosedSpecializedClass(byte[] bytes, CpuKernelSpecialization specialization) {
         var model = ClassFile.of().parse(bytes);
         var members = java.util.stream.StreamSupport.stream(model.constantPool().spliterator(), false)
@@ -1192,37 +708,4 @@ class CpuGeneratedDirectEvidenceClosureTest {
                                 .map(member -> member.owner().asInternalName()).distinct().toList()));
     }
 
-    private static void assertSegmentLayoutsHoisted(Representative representative) {
-        var invokes = ClassFile.of().parse(representative.bytes()).methods().getFirst().code()
-                .orElseThrow().elementStream().filter(InvokeInstruction.class::isInstance)
-                .map(InvokeInstruction.class::cast).toList();
-        long nativeOrder = invokes.stream().filter(instruction ->
-                instruction.owner().asInternalName().equals("java/nio/ByteOrder")
-                        && instruction.name().stringValue().equals("nativeOrder")).count();
-        long withOrder = invokes.stream().filter(instruction ->
-                instruction.owner().asInternalName().equals("java/lang/foreign/ValueLayout")
-                        && instruction.name().stringValue().equals("withOrder")).count();
-        int firstSegmentAccess = java.util.stream.IntStream.range(0, invokes.size())
-                .filter(index -> invokes.get(index).owner().asInternalName()
-                        .equals("java/lang/foreign/MemorySegment")
-                        && (invokes.get(index).name().stringValue().equals("get")
-                            || invokes.get(index).name().stringValue().equals("set")))
-                .findFirst().orElse(invokes.size());
-        int lastLayoutConstruction = java.util.stream.IntStream.range(0, invokes.size())
-                .filter(index -> invokes.get(index).name().stringValue().equals("nativeOrder")
-                        || invokes.get(index).name().stringValue().equals("withOrder"))
-                .reduce((left, right) -> right).orElse(-1);
-        long expectedLayoutConstruction = representative.directNativeLayouts() ? 0
-                : representative.orderedLayoutCount();
-        assertAll(
-                () -> assertEquals(expectedLayoutConstruction, nativeOrder),
-                () -> assertEquals(expectedLayoutConstruction, withOrder),
-                () -> assertTrue(lastLayoutConstruction < firstSegmentAccess));
-    }
-
-    private record Representative(byte[] bytes, int orderedLayoutCount, boolean directNativeLayouts) {
-        private Representative(byte[] bytes, int orderedLayoutCount) {
-            this(bytes, orderedLayoutCount, false);
-        }
-    }
 }

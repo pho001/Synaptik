@@ -62,7 +62,7 @@ class CpuScalarImmediateClampMatrixTest {
         var numeric = List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64,
                 DataType.INT32, DataType.INT64);
         for (var kind : ScalarElementwiseKind.values()) {
-            for (var type : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) {
+            for (var type : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.legacyOracleTypes()) {
                 boolean expected = type != DataType.BOOL
                         && (kind != ScalarElementwiseKind.CLAMP
                             && kind != ScalarElementwiseKind.DIV
@@ -179,7 +179,9 @@ class CpuScalarImmediateClampMatrixTest {
             case INT32 -> ScalarValue.int32(value);
             case INT64 -> ScalarValue.int64(value);
             case BOOL -> ScalarValue.bool(value != 0);
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU scalar clamp unsupported");
+            case FLOAT16 -> ScalarValue.float16(value);
+            case FLOAT8_E4M3 -> ScalarValue.float8E4m3(value);
+            case FLOAT8_E5M2 -> ScalarValue.float8E5m2(value);
         };
     }
 
