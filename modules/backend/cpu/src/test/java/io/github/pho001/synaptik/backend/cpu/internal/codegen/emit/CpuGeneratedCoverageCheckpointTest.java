@@ -28,6 +28,7 @@ class CpuGeneratedCoverageCheckpointTest {
         return serialize(observed);
     }
 
+
     /** Runs each finite owner matrix once; clearing makes this independent of JUnit order. */
     private static Map<String, CpuGeneratedCoverageEvidenceRegistry.Record> executeCanonicalFixtures()
             throws Exception {
@@ -75,6 +76,7 @@ class CpuGeneratedCoverageCheckpointTest {
         }
         return new TreeMap<>(CpuGeneratedCoverageEvidenceRegistry.snapshot());
     }
+
 
     private static String serialize(Map<String, CpuGeneratedCoverageEvidenceRegistry.Record> records) {
         StringBuilder text = new StringBuilder(HEADER);

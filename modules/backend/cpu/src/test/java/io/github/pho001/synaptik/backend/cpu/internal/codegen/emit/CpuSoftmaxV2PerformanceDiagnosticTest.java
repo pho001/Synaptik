@@ -25,11 +25,9 @@ import org.junit.jupiter.api.Test;
 /**
  * Opt-in, one-process v2 diagnostic for generated and directly written softmax bodies.
  *
- * <p>Admitted FLOAT32 pairs use contiguous heap carriers, three passes, binary32 working sites
- * and Kahan accumulation. Historical FLOAT16 owners instead prove explicit unsupported
- * preparation outcomes; they acquire neither generated artifacts nor timing ratios. Preparation,
- * rejection witnessing and equality checking are outside timing. This is a bounded observation,
- * not a route gate or a replacement for the historical multi-fork evidence.</p>
+ * <p>FLOAT32 and FLOAT16 pairs use contiguous heap carriers, three passes, binary32 working sites
+ * and Kahan accumulation. Preparation and equality checking are outside timing. This is a bounded
+ * observation, not a route gate or a replacement for the historical multi-fork evidence.</p>
  */
 final class CpuSoftmaxV2PerformanceDiagnosticTest {
     private static final int ROWS = 128;
@@ -48,18 +46,10 @@ final class CpuSoftmaxV2PerformanceDiagnosticTest {
     void boundedGeneratedVersusCleanJava() throws Throwable {
         assumeTrue("true".equals(System.getenv("SYNAPTIK_CPU_0033_DIAGNOSTIC")));
         List<Pair> pairs = new ArrayList<>();
-        List<String> unsupported = new ArrayList<>();
         for (SoftmaxKind kind : SoftmaxKind.values()) {
             pairs.add(floatPair(kind));
-            assertThrows(IllegalArgumentException.class, () -> halfPair(kind), kind + "/FLOAT16");
-            unsupported.add(kind + "/FLOAT16");
+            pairs.add(halfPair(kind));
         }
-        var expectedOwners = Arrays.stream(SoftmaxKind.values())
-                .flatMap(kind -> java.util.stream.Stream.of(kind + "/FLOAT32", kind + "/FLOAT16"))
-                .sorted().toList();
-        assertEquals(expectedOwners, java.util.stream.Stream.concat(
-                pairs.stream().map(Pair::name), unsupported.stream()).sorted().toList(),
-                "every historical diagnostic owner has a generated or witnessed unsupported outcome");
         for (Pair pair : pairs) {
             pair.generated.run();
             pair.direct.run();
@@ -94,7 +84,6 @@ final class CpuSoftmaxV2PerformanceDiagnosticTest {
                 System.getProperty("java.runtime.version"), System.getProperty("os.name"),
                 System.getProperty("os.arch"), ROWS, WIDTH, WARMUP_PAIRS, SAMPLES, REPEATS);
         System.out.println("case,outcome,generated_median_ns,direct_median_ns,paired_median_ratio,min_ratio,max_ratio");
-        for (String owner : unsupported) System.out.printf(Locale.ROOT, "%s,UNSUPPORTED,,,,,%n", owner);
         pairs.sort(java.util.Comparator.comparing(Pair::name));
         for (Pair pair : pairs) {
             pair.verify.run();

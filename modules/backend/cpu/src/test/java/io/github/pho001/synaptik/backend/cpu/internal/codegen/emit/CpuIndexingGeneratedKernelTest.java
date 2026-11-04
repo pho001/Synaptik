@@ -359,9 +359,9 @@ class CpuIndexingGeneratedKernelTest {
     }
     private static CarrierAccess heap(DataType t) { return switch(t) {
         case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY; case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
-        case BFLOAT16 -> CarrierAccess.SHORT_ARRAY; case INT32 -> CarrierAccess.INT_ARRAY;
-        case INT64 -> CarrierAccess.LONG_ARRAY; case BOOL -> CarrierAccess.BYTE_ARRAY;
-        case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU indexing unsupported"); }; }
+        case BFLOAT16, FLOAT16 -> CarrierAccess.SHORT_ARRAY; case INT32 -> CarrierAccess.INT_ARRAY;
+        case INT64 -> CarrierAccess.LONG_ARRAY;
+        case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> CarrierAccess.BYTE_ARRAY; }; }
     private static io.github.pho001.synaptik.model.tensor.TensorDescriptor desc(DataType t, Shape s) {
         return CpuIndexingLoweringTest.descriptor(t,s);
     }
@@ -379,7 +379,14 @@ class CpuIndexingGeneratedKernelTest {
             case BOOL -> { byte[] result = new byte[values.length];
                 for (int i = 0; i < values.length; i++) result[i] = (byte) (values[i] & 1);
                 yield result; }
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU indexing unsupported");
+            case FLOAT16 -> { short[] result = new short[values.length];
+                for (int i = 0; i < values.length; i++) result[i] = Float.floatToFloat16(values[i]);
+                yield result; }
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> { byte[] result = new byte[values.length];
+                for (int i = 0; i < values.length; i++) result[i] = type == DataType.FLOAT8_E4M3
+                        ? io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.fromFloat(values[i])
+                        : io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.fromFloat(values[i]);
+                yield result; }
         };
     }
 

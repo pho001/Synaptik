@@ -154,6 +154,7 @@ class CpuOneDimensionalCompositionGeneratedMatrixTest {
     private static void verifyPool(String id, PrepareContext<CpuPartitionAnalysisInputs> base) {
         for (Request request : Request.values()) {
             var context = configure(base, request);
+
             if (!poolRequestIsAdmitted(base.values().getFirst().descriptor().dataType(), request)) {
                 assertPoolRejection(id, request, context);
                 continue;
@@ -167,6 +168,7 @@ class CpuOneDimensionalCompositionGeneratedMatrixTest {
                     poolOccurrenceId(id, base.values().getFirst().descriptor().dataType(), request), context, plan);
         }
     }
+
 
     /**
      * Keeps the finite composition request identity separate from direct Pool2d admission.

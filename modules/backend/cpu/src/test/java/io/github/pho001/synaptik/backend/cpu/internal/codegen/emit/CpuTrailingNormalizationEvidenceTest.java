@@ -101,21 +101,20 @@ public final class CpuTrailingNormalizationEvidenceTest {
         }
     }
 
-    @Test void frozenInventoryContainsFourteenTargetsAndThreeControls() throws Throwable {
-        assertEquals(17, frozenNames().size());
-        assertEquals(14, frozenNames().stream().filter(name -> !name.startsWith("CONTROL_")).count());
-        assertEquals(List.of("CONTROL_F32_VARIANCE", "CONTROL_F32_SOFTMAX", "CONTROL_F32_ADD"),
-                frozenNames().subList(14, 17));
-    }
 
-    @Test void mixedSegmentSpecializationsUseFrozenNativeLayouts() throws Throwable {
+    @Test void mixedSegmentSpecializationsMatchIndependentNumericalLoops() throws Throwable {
         try (Arena arena = Arena.ofConfined()) {
             List<Case> cases = new ArrayList<>();
             List<String> unsupported = new ArrayList<>();
             addMixedLayer(cases, unsupported, arena);
             addMixedRms(cases, unsupported, arena);
-            assertTrue(cases.isEmpty());
-            assertEquals(List.of("MIXED_LAYER_AFFINE_GENERAL", "MIXED_RMS_SCALED_GENERAL"), unsupported);
+            assertTrue(unsupported.isEmpty(), "mixed floating normalization must prepare");
+            assertFalse(cases.isEmpty());
+            for (Case value : cases) {
+                value.generated.run();
+                value.direct.run();
+                value.verify.run();
+            }
         }
     }
 

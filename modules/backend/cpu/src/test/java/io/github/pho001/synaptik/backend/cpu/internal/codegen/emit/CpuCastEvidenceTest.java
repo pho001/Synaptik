@@ -376,11 +376,10 @@ class CpuCastEvidenceTest {
         private static CpuKernelSpecialization.CarrierAccess array(DataType type) { return switch (type) {
             case FLOAT64 -> CpuKernelSpecialization.CarrierAccess.DOUBLE_ARRAY;
             case FLOAT32 -> CpuKernelSpecialization.CarrierAccess.FLOAT_ARRAY;
-            case BFLOAT16 -> CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY;
+            case BFLOAT16, FLOAT16 -> CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY;
             case INT64 -> CpuKernelSpecialization.CarrierAccess.LONG_ARRAY;
             case INT32 -> CpuKernelSpecialization.CarrierAccess.INT_ARRAY;
-            case BOOL -> CpuKernelSpecialization.CarrierAccess.BYTE_ARRAY;
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU cast unsupported"); }; }
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> CpuKernelSpecialization.CarrierAccess.BYTE_ARRAY; }; }
     }
     private enum AccessForm { DENSE, BLOCK_OUTER, GENERAL_ODOMETER, RANK_ZERO;
         CpuAccessPlan input() { return switch (this) {

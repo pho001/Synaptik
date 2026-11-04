@@ -578,29 +578,6 @@ class CpuGeneratedKernelArtifactStoreTest {
         assertEquals(71,CpuGeneratorSchema.CURRENT_VERSION);
     }
 
-    /** Low GELU remains a real BFLOAT16 cache-admission query, not an F32 projection. */
-    @Test void lowActivationRejectsFreshArtifactAdmission() {
-        var read = new CpuAccessPlan(CpuAccessPlan.AccessKind.READ, CpuAccessPlan.Regime.DENSE_LINEAR,
-                1, List.of(CpuAccessPlan.AxisRole.CONTIGUOUS), 1);
-        var write = new CpuAccessPlan(CpuAccessPlan.AccessKind.WRITE, CpuAccessPlan.Regime.DENSE_LINEAR,
-                1, List.of(CpuAccessPlan.AxisRole.CONTIGUOUS), 1);
-        var ir = new CpuKernelIr(List.of(
-                new CpuKernelIr.Value(0, DataType.BFLOAT16, CpuKernelIr.Value.Kind.INPUT, read),
-                new CpuKernelIr.Value(1, DataType.BFLOAT16, CpuKernelIr.Value.Kind.OUTPUT, write)),
-                List.of(new CpuKernelIr.Instruction(CpuPointwiseOpcode.GELU_EXACT, List.of(0), 1)),
-                new CpuKernelIr.Loop("start", "end"), List.of(new CpuKernelIr.Store(1, 0)));
-        var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()),
-                ExecutionStrategy.SCALAR, List.of(DataType.BFLOAT16, DataType.BFLOAT16),
-                List.of(CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY,
-                        CpuKernelSpecialization.CarrierAccess.SHORT_ARRAY), 0, -1, List.of(), false, 59);
-        var store = new CpuGeneratedKernelArtifactStore(Optional.of(root));
-        CpuGeneratedKernelArtifactStore.clearLoadedForTests();
-        assertThrows(IllegalArgumentException.class,
-                () -> store.loadOrGenerateObserved(specialization, ir));
-        assertFalse(Files.exists(root.resolve(specialization.structuralKey() + ".artifact")));
-        assertFalse(CpuGeneratedKernelArtifactStore.loadedReferencesForTests()
-                .containsKey(specialization.structuralKey()));
-    }
 
     /**
      * Checks envelope-version invalidation independently on an eligible FLOAT64 activation.

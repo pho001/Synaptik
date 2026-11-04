@@ -408,7 +408,14 @@ class CpuReferenceDifferentialTest {
             case BOOL -> { byte[] result = new byte[values.length];
                 for (int i = 0; i < values.length; i++) result[i] = (byte) (values[i] & 1);
                 yield result; }
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU reference unsupported");
+            case FLOAT16 -> { short[] result = new short[values.length];
+                for (int i = 0; i < values.length; i++) result[i] = Float.floatToFloat16(values[i]);
+                yield result; }
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> { byte[] result = new byte[values.length];
+                for (int i = 0; i < values.length; i++) result[i] = type == DataType.FLOAT8_E4M3
+                        ? io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.fromFloat(values[i])
+                        : io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.fromFloat(values[i]);
+                yield result; }
         };
     }
 
@@ -418,15 +425,14 @@ class CpuReferenceDifferentialTest {
                     ((double[]) carrier).length * 8L, readOnly);
             case FLOAT32 -> new CpuBufferArgument.Floats((float[]) carrier, 0,
                     ((float[]) carrier).length * 4L, readOnly);
-            case BFLOAT16 -> new CpuBufferArgument.Shorts((short[]) carrier, 0,
+            case BFLOAT16, FLOAT16 -> new CpuBufferArgument.Shorts((short[]) carrier, 0,
                     ((short[]) carrier).length * 2L, readOnly);
             case INT32 -> new CpuBufferArgument.Ints((int[]) carrier, 0,
                     ((int[]) carrier).length * 4L, readOnly);
             case INT64 -> new CpuBufferArgument.Longs((long[]) carrier, 0,
                     ((long[]) carrier).length * 8L, readOnly);
-            case BOOL -> new CpuBufferArgument.Bytes((byte[]) carrier, 0,
+            case BOOL, FLOAT8_E4M3, FLOAT8_E5M2 -> new CpuBufferArgument.Bytes((byte[]) carrier, 0,
                     ((byte[]) carrier).length, readOnly);
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU reference unsupported");
         };
     }
 

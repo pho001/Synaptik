@@ -2141,6 +2141,11 @@ class CpuAffineMovementIndexingScatterRandomStructuralOracleTest {
             case FLOAT64 -> java.util.Arrays.fill((double[]) array, value);
             case FLOAT32 -> java.util.Arrays.fill((float[]) array, value);
             case BFLOAT16 -> java.util.Arrays.fill((short[]) array, (short) (value == 1 ? 0x3f80 : 0x4000));
+            case FLOAT16 -> java.util.Arrays.fill((short[]) array, Float.floatToFloat16(value));
+            case FLOAT8_E4M3 -> java.util.Arrays.fill((byte[]) array,
+                    io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.fromFloat(value));
+            case FLOAT8_E5M2 -> java.util.Arrays.fill((byte[]) array,
+                    io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.fromFloat(value));
             case INT64 -> java.util.Arrays.fill((long[]) array, value);
             case INT32 -> java.util.Arrays.fill((int[]) array, value);
             case BOOL -> java.util.Arrays.fill((byte[]) array, (byte) value);
