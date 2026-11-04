@@ -44,7 +44,7 @@ final class MetalScanDecoding {
                 || w[16] < 0 || w[16] > w[15] || w[17] != Math.addExact(w[19], w[20])
                 || w[17] < 0 || w[17] > w[14] || w[18] < 0 || w[18] > MetalScanEncoding.MAX_VALUES + MetalScanEncoding.MAX_UNITS
                 || w[19] < 0 || w[20] < 0 || w[21] < 0 || w[19] + w[21] > w[5]
-                || w[22] < 0 || w[23] != 32 || w[30] < 0 || w[31] < 10
+                || w[22] < 0 || w[23] != 32 || w[30] < 0 || w[31] < 15
                 || (w[22] & 7) != 0 || (w[30] & 7) != 0
                 || Math.addExact(w[30], Math.multiplyExact(w[31], 8)) != w[22]) throw malformed();
         for (int section = 23; section < 29; section++) if (w[section] > w[section + 1] || w[section + 1] > w.length) throw malformed();
@@ -224,7 +224,7 @@ final class MetalScanDecoding {
         if (cursor != w.length || activity && numeric.size() != w[5]) throw malformed();
         long roots = w[17], rootWords = Math.addExact(roots, 63) / 64, rows = lengths ? w[11] : 1;
         long membershipWords = Math.multiplyExact(Math.addExact(w[18], roots), rootWords);
-        long controlWords = Math.addExact(10, Math.addExact(membershipWords,
+        long controlWords = Math.addExact(15, Math.addExact(membershipWords,
                 Math.addExact(Math.multiplyExact(Math.multiplyExact(rows, rootWords), 2), lengths ? rows : 0)));
         if (membershipWords > MetalScanEncoding.MAX_WORDS || controlWords != w[31]) throw malformed();
         var decoded = new Decoded(w, List.copyOf(values), List.copyOf(units), formals, roles, demands,

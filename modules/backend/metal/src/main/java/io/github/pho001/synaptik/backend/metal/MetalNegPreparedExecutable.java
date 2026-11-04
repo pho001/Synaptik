@@ -30,8 +30,8 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
  * targets. The custom-program workspace carries the stable compact materialized-slot table plus
  * target aliases; generated pointwise interiors have no declared selection. The dedicated
  * singleton-NEG resource retains direct typed input/output references and has no workspace. Hot
- * Java execution makes exactly one matching native call and performs no lookup, graph inspection,
- * address marshalling, collection allocation, retry, or fallback.</p>
+ * Java execution makes exactly one matching native call. Only synchronous failure reads a bounded
+ * Scan validation record; it never replays a Scan body, inspects inactive payload or retries.</p>
  */
 final class MetalNegPreparedExecutable extends PreparedExecutable {
     private static final ValueLayout.OfInt NATIVE_INT =
@@ -350,7 +350,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         return new ProgramBoundInvocation(
                 runState, preparationPlan, programResource, replayBuffers,
                 inputCount, inputs, outputCount, outputs,
-                byteTotals, boundSplatBytes, boundSplatCount, workspaceCount);
+                byteTotals, boundSplatBytes, boundSplatCount, workspaceCount, new ScanFailureBinding[0]);
     }
 
     private BoundInvocation bindCustomProgram(
@@ -425,7 +425,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                 byteTotals,
                 boundSplatBytes,
                 boundSplatCount,
-                workspaceCount);
+                workspaceCount, workspace.scanFailures(preparationPlan));
 
     }
 
@@ -512,6 +512,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         private final long splatBytes;
         private final int splatCount;
         private final int workspaceCount;
+        private final ScanFailureBinding[] scanFailures;
 
         private ProgramBoundInvocation(
                 RunState runState,
@@ -525,7 +526,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                 InvocationByteTotals byteTotals,
                 long splatBytes,
                 int splatCount,
-                int workspaceCount) {
+                int workspaceCount, ScanFailureBinding[] scanFailures) {
             super(runState);
             this.preparationPlan = preparationPlan;
             this.resource = resource;
@@ -538,6 +539,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             this.splatBytes = splatBytes;
             this.splatCount = splatCount;
             this.workspaceCount = workspaceCount;
+            this.scanFailures = scanFailures;
         }
 
         @Override
@@ -563,6 +565,21 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             try {
                 resource.run(inputCount, inputs, outputCount, outputs);
             } catch (MetalNativeApi.NativeFailure failure) {
+                RuntimeException translated;
+                try {
+                    translated = failure.status() == MetalNativeApi.Status.RANGE_OUT_OF_BOUNDS
+                            || failure.status() == MetalNativeApi.Status.INVALID_ARGUMENT
+                            ? scanFailure(traceUnit, invocationId) : null;
+                } catch (RuntimeException | Error diagnosticFailure) {
+                    if (diagnosticFailure != failure) failure.addSuppressed(diagnosticFailure);
+                    if (traceUnit != null) traceUnit.invocationFailed(invocationId, failure);
+                    throw failure;
+                }
+                if (translated != null) {
+                    translated.initCause(failure);
+                    if (traceUnit != null) traceUnit.invocationFailed(invocationId, translated);
+                    throw translated;
+                }
                 Error observerFailure = null;
                 if (traceUnit != null) {
                     observerFailure = traceUnit.invocationFailed(invocationId, failure);
@@ -578,6 +595,7 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
                     throw failure;
                 }
                 if (reproduced != null) {
+                    reproduced.initCause(failure);
                     if (observerFailure != null) {
                         MetalTraceProducer.suppressObserverError(reproduced, observerFailure);
                     }
@@ -593,6 +611,32 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
             if (traceUnit != null) {
                 traceUnit.invocationSucceeded(invocationId);
             }
+        }
+
+        private RuntimeException scanFailure(MetalTraceProducer.PreparedUnit traceUnit,
+                TraceInvocationId invocationId) {
+            for (ScanFailureBinding binding : scanFailures) {
+                binding.workspace().readFailure(binding.offset(), binding.record());
+                MemorySegment record = binding.record();
+                long category = record.getAtIndex(NATIVE_LONG, 0);
+                if (category == 0) continue;
+                long time = record.getAtIndex(NATIVE_LONG, 1);
+                long unit = record.getAtIndex(NATIVE_LONG, 2);
+                long operand = record.getAtIndex(NATIVE_LONG, 3);
+                long ordinal = record.getAtIndex(NATIVE_LONG, 4);
+                String context = "Metal Scan time=" + time + ", unit=" + unit
+                        + ", operand=" + operand + ", ordinal=" + ordinal;
+                if (traceUnit != null && traceUnit.enabled()) {
+                    traceUnit.scanFailed(invocationId, category, time, unit, operand, ordinal);
+                }
+                return switch ((int) category) {
+                    case 1 -> new IndexOutOfBoundsException(context + ": index out of bounds");
+                    case 2 -> new IllegalArgumentException(context + ": duplicate scatter target");
+                    case 3 -> new IllegalArgumentException(context + ": non-canonical BOOL byte");
+                    default -> throw new IllegalStateException("unknown Metal Scan validation category " + category);
+                };
+            }
+            return null;
         }
 
         private RuntimeException reproduceIndexFailure() {
@@ -815,6 +859,9 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         }
     }
 
+    private record ScanFailureBinding(MetalWorkspaceRepresentation workspace,
+            long offset, MemorySegment record) {}
+
     /** Run-owned address table and explicitly declared, unpooled device scratch. */
     static final class AddressWorkspace implements WorkspaceRepresentation {
         private final MetalDeviceContext context;
@@ -865,6 +912,21 @@ final class MetalNegPreparedExecutable extends PreparedExecutable {
         int scratchCount() { return scratch.length; }
         boolean matchesScratch(long[] expected) { return java.util.Arrays.equals(scratchBytes, expected); }
         MetalNativeApi.Handle scratchHandle(int index) { return scratch[index].executionHandle(); }
+        /** Binds only fixed metadata and bounded staging; never captures tensor payloads. */
+        ScanFailureBinding[] scanFailures(MetalNegPreparationPlan plan) {
+            var failures = new java.util.ArrayList<ScanFailureBinding>();
+            int index = 0;
+            for (var node : plan.graphProgram().nodes()) {
+                if (MetalProgramWorkspace.scratchBytes(node, plan.programValueDescriptors()) == 0) continue;
+                if (node.kind() == MetalMpsGraphProgram.NodeKind.GENERAL_SCAN) {
+                    failures.add(new ScanFailureBinding(scratch[index],
+                            Math.addExact(node.attributeWords()[30], 80),
+                            arena.allocate(40, 8)));
+                }
+                index++;
+            }
+            return failures.toArray(ScanFailureBinding[]::new);
+        }
 
         synchronized void set(int index, MetalNativeApi.Handle handle) {
             if (closed) throw new IllegalStateException("Metal address workspace is closed");

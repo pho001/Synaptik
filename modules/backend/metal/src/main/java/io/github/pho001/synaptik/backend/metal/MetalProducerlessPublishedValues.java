@@ -19,7 +19,7 @@ import java.util.Optional;
  * <p>Prepare remains the source-role and complete-graph authentication owner. This contribution
  * allocates no physical resource during preparation, creates no partition or executable, borrows
  * callers through the existing input path, and reuses the existing raw-carrier constant initializer.
- * All seven Model storage types are supported independently of their arithmetic capability.</p>
+ * The seven qualified non-FP8 storage types are supported; FP8 fails before resource declaration.</p>
  */
 final class MetalProducerlessPublishedValues {
     private MetalProducerlessPublishedValues() {}
@@ -65,11 +65,12 @@ final class MetalProducerlessPublishedValues {
      * @param descriptor exact non-null fully static descriptor with resolved Model layout
      * @return non-negative physical referenced span in bytes; allocator padding is excluded
      * @throws NullPointerException if the descriptor is null
-     * @throws IllegalArgumentException if shape or layout is unresolved
+     * @throws IllegalArgumentException if shape or layout is unresolved, or the carrier is FP8
      * @throws ArithmeticException if span times carrier width overflows
      */
     static long byteSize(TensorDescriptor descriptor) {
         Objects.requireNonNull(descriptor, "descriptor");
+        MetalBackendRuntime.requireStorageType(descriptor.dataType());
         if (!descriptor.shape().isFullyStatic() || descriptor.layout().isEmpty()) {
             throw new IllegalArgumentException(
                     "Metal source publication requires a static resolved descriptor");

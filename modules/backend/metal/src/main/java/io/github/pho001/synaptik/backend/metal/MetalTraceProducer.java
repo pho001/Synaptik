@@ -613,11 +613,20 @@ final class MetalTraceProducer {
             boolean plannedCustomStepsTruncated) {}
 
     private static Optional<TraceNativeStatus> nativeFailure(Throwable failure) {
-        if (!(failure instanceof MetalNativeApi.NativeFailure nativeFailure)) {
-            return Optional.empty();
+        var pending = new ArrayDeque<Throwable>();
+        var seen = Collections.newSetFromMap(new IdentityHashMap<Throwable, Boolean>());
+        pending.add(failure);
+        while (!pending.isEmpty()) {
+            Throwable current = pending.removeFirst();
+            if (!seen.add(current)) continue;
+            if (current instanceof MetalNativeApi.NativeFailure nativeFailure) {
+                int code = nativeFailure.statusCode();
+                return Optional.of(new TraceNativeStatus(mapNativeStatus(code), code));
+            }
+            if (current.getCause() != null) pending.addLast(current.getCause());
+            for (Throwable suppressed : current.getSuppressed()) pending.addLast(suppressed);
         }
-        int code = nativeFailure.statusCode();
-        return Optional.of(new TraceNativeStatus(mapNativeStatus(code), code));
+        return Optional.empty();
     }
 
     static void suppressObserverError(Throwable primary, Error observerFailure) {
@@ -752,6 +761,14 @@ final class MetalTraceProducer {
 
         boolean enabled() {
             return producer.enabled();
+        }
+
+        /** Emits bounded native validation context only when this prepared trace remains enabled. */
+        void scanFailed(TraceInvocationId invocationId, long category, long time,
+                long unit, long operand, long ordinal) {
+            if (invocationId == null || !enabled()) return;
+            producer.emitStructural(TracePhase.RUN, TraceLevel.ERROR,
+                    new MetalScanValidationFailure(category, time, unit, operand, ordinal));
         }
 
         Error invocationFailed(

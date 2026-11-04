@@ -173,7 +173,10 @@ static int32_t synaptik_scan_validate_value_domains(SynaptikMetalProgramStep *st
                 int32_t status = synaptik_scan_validation_bytes(role, buffers, bufferCount, offsets, &contents);
                 if (status != SYNAPTIK_METAL_STATUS_OK) return status;
             }
-            if (contents[ordinal] > 1U) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            if (contents[ordinal] > 1U) {
+                synaptik_scan_failure(control, 3U, input, ordinal);
+                return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+            }
         }
     }
     if (synaptik_scan_validation_scatter(node.operation)) {
@@ -250,8 +253,10 @@ static int32_t synaptik_scan_validate_value_domains(SynaptikMetalProgramStep *st
             selected = narrow;
         } else memcpy(&selected, bytes, sizeof(selected));
         uint64_t componentBound = depth == 0U ? bound : data->dimensions[batch + ordinal % depth];
-        if (selected < 0 || (uint64_t)selected >= componentBound)
+        if (selected < 0 || (uint64_t)selected >= componentBound) {
+            synaptik_scan_failure(control, 1U, indexRole, ordinal);
             return SYNAPTIK_METAL_STATUS_RANGE_OUT_OF_BOUNDS;
+        }
     }
     return SYNAPTIK_METAL_STATUS_OK;
 }

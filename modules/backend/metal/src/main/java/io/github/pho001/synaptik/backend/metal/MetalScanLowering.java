@@ -279,7 +279,7 @@ final class MetalScanLowering {
         long scopes = query.scanActivityPlan().map(a -> (long) a.scopes().size()).orElse(0L);
         long rootWords = Math.addExact(roots, 63) / 64;
         long rows = attrs.lengthAware() ? batch : 1;
-        long controlWords = Math.addExact(10, Math.addExact(Math.multiplyExact(Math.addExact(scopes, roots), rootWords),
+        long controlWords = Math.addExact(15, Math.addExact(Math.multiplyExact(Math.addExact(scopes, roots), rootWords),
                 Math.addExact(Math.multiplyExact(Math.multiplyExact(rows, rootWords), 2), attrs.lengthAware() ? batch : 0)));
         long workspace = Math.addExact(controlOffset, Math.multiplyExact(controlWords, 8));
         var plan = new MetalScanPlan(attrs, body, values, units, graph.inputs().stream().map(ordinals::get).toList(),
@@ -345,12 +345,12 @@ final class MetalScanLowering {
     /**
      * Checks logical input geometry without mistaking a produced view for represented storage.
      * Authenticated external numeric layouts are mapped once by the ordinary CONTIGUOUS owner;
-     * produced views retain their independently proved canonical representation.
+     * descriptor-only typed controls require canonical storage; decoded produced views retain their proof.
      */
     private static void checkInputBoundary(TensorDescriptor descriptor) {
         checkTypeShape(descriptor);
-        if (descriptor.dataType() == DataType.FLOAT64 && !canonical(descriptor)) {
-            throw invalid("raw F64 Scan input requires canonical storage");
+        if (!numericCarrier(descriptor.dataType()) && !canonical(descriptor)) {
+            throw invalid("typed-control and raw F64 Scan inputs require canonical dense storage");
         }
         var physical = MetalMpsGraphProgram.ValueDescriptor.from(descriptor);
         boolean emptyView = physical.elementCount() == 0 && descriptor.layout()
@@ -365,6 +365,7 @@ final class MetalScanLowering {
         checkTypeShape(descriptor);
         if (!canonical(descriptor)) throw invalid("canonical Scan boundary required");
     }
+
 
     private static boolean canonical(TensorDescriptor descriptor) {
         return descriptor.layout().filter(layout -> layout.equals(LayoutDescriptor.contiguous(descriptor.shape()))).isPresent();

@@ -306,6 +306,7 @@ static int32_t synaptik_scatter_scan_target(
             return SYNAPTIK_METAL_STATUS_OK;
         int32_t status = synaptik_scatter_scan_read_index(
                 meta, indices, offset, idx, meta->outputDims[axis], &out[axis]);
+        if (status == SYNAPTIK_METAL_STATUS_RANGE_OUT_OF_BOUNDS) synaptik_scan_failure(control, 1U, 1U, index_ordinal);
         if (status != SYNAPTIK_METAL_STATUS_OK) return status;
     } else if (meta->operation == 70U) {
         for (uint32_t a = 0U; a < axis; ++a) out[a] = update[a];
@@ -316,6 +317,7 @@ static int32_t synaptik_scatter_scan_target(
             return SYNAPTIK_METAL_STATUS_OK;
         int32_t status = synaptik_scatter_scan_read_index(
                 meta, indices, offset, idx, meta->outputDims[axis], &out[axis]);
+        if (status == SYNAPTIK_METAL_STATUS_RANGE_OUT_OF_BOUNDS) synaptik_scan_failure(control, 1U, 1U, index_ordinal);
         if (status != SYNAPTIK_METAL_STATUS_OK) return status;
     } else {
         uint32_t depth = (uint32_t)meta->roleDims[1][q - 1U];
@@ -330,6 +332,7 @@ static int32_t synaptik_scatter_scan_target(
                 return SYNAPTIK_METAL_STATUS_OK;
             int32_t status = synaptik_scatter_scan_read_index(meta, indices, offset, idx,
                     meta->outputDims[axis + component], &out[axis + component]);
+            if (status == SYNAPTIK_METAL_STATUS_RANGE_OUT_OF_BOUNDS) synaptik_scan_failure(control, 1U, 1U, index_ordinal);
             if (status != SYNAPTIK_METAL_STATUS_OK) return status;
         }
     }
@@ -397,8 +400,10 @@ static int32_t synaptik_scatter_scan_preflight_raw(
             status = synaptik_scatter_scan_target(
                     meta, indices, offsets[1], control, step, previous, &earlier_eligible, &earlier_target);
             if (status != SYNAPTIK_METAL_STATUS_OK) return status;
-            if (earlier_eligible && target == earlier_target)
+            if (earlier_eligible && target == earlier_target) {
+                synaptik_scan_failure(control, 2U, 1U, ordinal);
                 return SYNAPTIK_METAL_STATUS_RANGE_OUT_OF_BOUNDS;
+            }
         }
     }
     return SYNAPTIK_METAL_STATUS_OK;

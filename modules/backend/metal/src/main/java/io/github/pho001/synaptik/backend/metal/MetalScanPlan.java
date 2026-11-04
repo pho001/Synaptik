@@ -28,7 +28,7 @@ import java.util.Optional;
  * @param batch fixed length-control extent, or zero in all-valid mode
  * @param workspaceBytes checked non-history invocation scratch size in bytes, including control
  * @param controlByteOffset aligned invocation workspace byte offset of the control word array
- * @param controlWords exact word count, including simultaneous-presence staging
+ * @param controlWords exact word count, including five bounded failure words and simultaneous-presence staging
  */
 record MetalScanPlan(ScanAttrs header, CompiledScanBody body, List<Value> values,
         List<Unit> units, List<Integer> formals, List<Integer> roles, List<Integer> demanded,
@@ -43,7 +43,7 @@ record MetalScanPlan(ScanAttrs header, CompiledScanBody body, List<Value> values
         roles = List.copyOf(roles);
         demanded = List.copyOf(demanded);
         Objects.requireNonNull(activity, "activity");
-        if (batch < 0 || workspaceBytes < 0 || controlByteOffset < 0 || controlWords < 10) {
+        if (batch < 0 || workspaceBytes < 0 || controlByteOffset < 0 || controlWords < 15) {
             throw new IllegalArgumentException("negative Scan geometry");
         }
     }

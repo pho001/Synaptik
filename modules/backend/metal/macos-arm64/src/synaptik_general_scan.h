@@ -14,6 +14,16 @@
  * presence is original-row-major bitsets. Lengths are prevalidated signed INT64 words.
  * All mutable storage is invocation-owned. No numeric tensor value is structural presence.
  */
+/* First-failure diagnostics occupy fixed words 10..14; membership starts at 15.
+ * Only the synchronous host validator writes them. No payload or device address escapes. */
+static void synaptik_scan_failure(const uint64_t *control, uint64_t category,
+        uint64_t operand, uint64_t ordinal) {
+    if (control == NULL || control[10] != 0U) return;
+    uint64_t *record = (uint64_t *)control;
+    record[10] = category; record[11] = control[0];
+    record[13] = operand; record[14] = ordinal;
+}
+
 typedef struct {
     uint64_t rowInner;
     uint32_t scope;

@@ -1608,6 +1608,8 @@ class MetalNegPreparedExecutionTest {
             api.runStatus = 5;
             IndexOutOfBoundsException oneHot = assertThrows(
                     IndexOutOfBoundsException.class, invocation::execute);
+            assertEquals(MetalNativeApi.Status.RANGE_OUT_OF_BOUNDS,
+                    ((MetalNativeApi.NativeFailure) oneHot.getCause()).status());
             assertArrayEquals(
                     new Throwable[] {observerFailures.get(0)}, oneHot.getSuppressed());
 
@@ -1615,6 +1617,8 @@ class MetalNegPreparedExecutionTest {
             uploadBits(buffers.get(2), 1, 2);
             IndexOutOfBoundsException gather = assertThrows(
                     IndexOutOfBoundsException.class, invocation::execute);
+            assertEquals(MetalNativeApi.Status.RANGE_OUT_OF_BOUNDS,
+                    ((MetalNativeApi.NativeFailure) gather.getCause()).status());
             assertArrayEquals(
                     new Throwable[] {observerFailures.get(1)}, gather.getSuppressed());
             assertEquals(2, api.runCalls.get());
@@ -1690,7 +1694,9 @@ class MetalNegPreparedExecutionTest {
             assertThrows(IndexOutOfBoundsException.class, invocation::execute);
 
             uploadBits(buffers.get(1), 1, 1, 1, 2);
-            assertThrows(IllegalArgumentException.class, invocation::execute);
+            var duplicate = assertThrows(IllegalArgumentException.class, invocation::execute);
+            assertEquals(MetalNativeApi.Status.RANGE_OUT_OF_BOUNDS,
+                    ((MetalNativeApi.NativeFailure) duplicate.getCause()).status());
 
             uploadBits(buffers.get(1), 2, 0, 1, 2);
             MetalNativeApi.NativeFailure unmatched = assertThrows(

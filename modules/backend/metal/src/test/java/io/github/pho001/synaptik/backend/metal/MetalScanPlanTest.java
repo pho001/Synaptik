@@ -24,6 +24,38 @@ import org.junit.jupiter.api.Test;
 
 /** Binding/resource behavior; actual arithmetic and Compiler reverse execute in the native test. */
 class MetalScanPlanTest {
+    @Test void stridedTypedControlsRejectColdWhileProvedViewsAndNumericMappingsRemainAdmitted() {
+        var numeric = additiveQuery(3, 2, true, false);
+        var inputs = new java.util.ArrayList<>(numeric.inputs());
+        inputs.set(inputs.size() - 1, mapped(inputs.getLast(), new long[] {2}, 1));
+        assertFalse(MetalScanLowering.supports(new OperationCapabilityQuery(numeric.operation(),
+                inputs, numeric.outputs(), numeric.scanBody(), numeric.scanActivityPlan())));
+        for (var type : List.of(DataType.INT32, DataType.INT64, DataType.BOOL)) {
+            var original = sourceOnlyQuery(type, 2, 2, false, false);
+            var controls = new java.util.ArrayList<>(original.inputs());
+            controls.set(1, mapped(controls.get(1), new long[] {5, 2, 1}, 1));
+            assertFalse(MetalScanLowering.supports(new OperationCapabilityQuery(original.operation(),
+                    controls, original.outputs(), original.scanBody(), original.scanActivityPlan())));
+            var physical = new java.util.ArrayList<MetalMpsGraphProgram.ValueDescriptor>();
+            original.inputs().forEach(d -> physical.add(MetalMpsGraphProgram.ValueDescriptor.from(d)));
+            original.outputs().forEach(d -> physical.add(MetalMpsGraphProgram.ValueDescriptor.from(d)));
+            var node = MetalScanLowering.lower(original, new int[] {0, 1, 2}, new int[] {3, 4, 5});
+            physical.set(1, MetalMpsGraphProgram.ValueDescriptor.from(controls.get(1),
+                    MetalMpsGraphProgram.ValueState.AFFINE_VIEW));
+            assertDoesNotThrow(() -> MetalScanLowering.validate(node, physical),
+                    "an independently proved produced representation keeps its dense physical binding");
+        }
+        assertTrue(MetalScanLowering.supports(stridedAdditiveQuery(DataType.FLOAT32, true, false)));
+    }
+
+    @Test void failurePrefixIsPartOfExactColdWorkspaceAuthentication() {
+        var plan = MetalScanLowering.plan(sourceOnlyQuery(DataType.BOOL, 2, 2, false, false));
+        assertEquals(15, plan.controlWords());
+        long[] old = MetalScanEncoding.encode(plan);
+        old[31] -= 5; old[22] -= 40;
+        assertThrows(IllegalArgumentException.class, () -> MetalScanEncoding.validate(old));
+    }
+
     @Test void bindingsRetainPreviousCarryAndRepeatedDistinctRolesWithoutTimeExpansion() {
         var small = MetalScanLowering.plan(additiveQuery(2, 3, false, false));
         var large = MetalScanLowering.plan(additiveQuery(200, 3, false, false));

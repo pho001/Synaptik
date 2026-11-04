@@ -6,9 +6,9 @@ import java.util.Objects;
 /**
  * Run-owned Metal shared-storage scratch workspace.
  *
- * <p>The workspace owns one opaque native buffer and one context child lease. It exposes no host
- * byte access, logical-buffer validity, tensor type, or transfer behavior. Closing is thread-safe,
- * idempotent, and consumes the native buffer handle at most once.</p>
+ * <p>The workspace owns one opaque native buffer and one context child lease. Its only host
+ * byte access is a bounded Scan validation record after synchronous failure; it exposes no
+ * tensor type or transfer behavior. Closing consumes the native buffer handle at most once.</p>
  */
 final class MetalWorkspaceRepresentation implements WorkspaceRepresentation {
     private final MetalDeviceContext context;
@@ -56,6 +56,19 @@ final class MetalWorkspaceRepresentation implements WorkspaceRepresentation {
         if (closed) throw new IllegalStateException("Metal numerical workspace is closed");
         return handle;
     }
+    /**
+     * Reads a bounded validation record only after synchronous native execution has failed.
+     * @param offset authenticated byte offset within this invocation's workspace
+     * @param destination live native forty-byte diagnostic staging slice owned by the run
+     * @throws IllegalStateException if the workspace or context is closed
+     */
+    synchronized void readFailure(long offset, java.lang.foreign.MemorySegment destination) {
+        if (closed) throw new IllegalStateException("Metal numerical workspace is closed");
+        if (offset < 0 || offset > byteSize - 40 || destination.byteSize() != 40)
+            throw new IllegalArgumentException("Metal Scan failure record extent disagrees");
+        context.access(() -> api.download(handle, offset, destination, 40));
+    }
+
 
     /**
      * Marks this workspace closed, consumes its native handle once, and ends its context lease.

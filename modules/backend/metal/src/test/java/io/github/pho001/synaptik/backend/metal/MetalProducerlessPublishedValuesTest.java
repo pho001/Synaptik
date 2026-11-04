@@ -27,6 +27,20 @@ import org.junit.jupiter.api.Test;
 
 /** Exact storage-only geometry and per-run ownership independent of native arithmetic kernels. */
 final class MetalProducerlessPublishedValuesTest {
+    @Test void fp8SourceDeclarationsRejectBeforeAnyPhysicalAllocation() {
+        var api = new StorageApi();
+        try (var context = MetalDeviceContext.open(api)) {
+            for (var type : List.of(DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+                var value = new GraphValue(new ValueId(1), descriptor(type, Shape.of(2)));
+                assertThrows(IllegalArgumentException.class, () -> MetalProducerlessPublishedValues.geometry(
+                        context, value, requirement(value), Optional.empty()));
+                assertThrows(IllegalArgumentException.class,
+                        () -> MetalProducerlessPublishedValues.byteSize(value.descriptor()));
+            }
+            assertEquals(0, api.creates);
+        }
+    }
+
     @Test
     void geometryRetainsExactSourceReferencesAndModelViewSpanForEveryCarrier() {
         var api = new StorageApi();

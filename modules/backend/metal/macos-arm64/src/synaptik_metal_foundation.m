@@ -9775,6 +9775,19 @@ static int32_t run_custom_program_box(
         if (value >= input_count || output_buffers[output] != input_buffers[value])
             return SYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE;
     }
+    /* Reset every invocation-private Scan record before any value/control validation.
+     * Later untouched Scans must not report a stale failure from an earlier invocation. */
+    for (SynaptikMetalProgramStep *step in box.programSteps) {
+        if (step.scanPlan == nil) continue;
+        if (step.scratchInput >= input_count) return SYNAPTIK_METAL_STATUS_INTERNAL_ERROR;
+        SynaptikMetalScanPlan *scan = step.scanPlan;
+        const uint64_t *words = scan.words.bytes;
+        SynaptikMetalBufferBox *scratch = (__bridge SynaptikMetalBufferBox *)input_buffers[step.scratchInput];
+        if (scratch.buffer.contents == NULL || words[30] > scratch.buffer.length
+                || scratch.buffer.length - words[30] < 15U * 8U)
+            return SYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE;
+        memset((uint8_t *)scratch.buffer.contents + words[30] + 10U * 8U, 0, 5U * 8U);
+    }
     int32_t bool_status = validate_canonical_bool_inputs(
             box, input_count, input_buffers, box.valueBytes);
     if (bool_status != SYNAPTIK_METAL_STATUS_OK) return bool_status;

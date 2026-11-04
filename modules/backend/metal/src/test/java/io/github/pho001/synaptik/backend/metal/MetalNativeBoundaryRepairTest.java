@@ -44,6 +44,50 @@ import org.junit.jupiter.api.Test;
 
 /** Direct native regressions for rank bounds, exact low words, and creating-context identity. */
 class MetalNativeBoundaryRepairTest {
+    @Test void publicScanBodyBoundsAndDuplicateFailuresRetainTimeUnitOperandAndNativeCause() {
+        for (boolean scatter : List.of(false, true)) {
+            Tensor formalData = external(DataType.FLOAT32, Shape.of(2), new long[] {1}, 0, false);
+            Tensor formalIndices = external(DataType.INT64, Shape.of(2), new long[] {1}, 0, false);
+            Tensor data = external(DataType.FLOAT32, Shape.of(2, 2), new long[] {2, 1}, 0, false);
+            Tensor indices = external(DataType.INT64, Shape.of(2, 2), new long[] {2, 1}, 0, false);
+            Tensor selected = scatter ? formalData.scatterElements(formalIndices, formalData, 0)
+                    : formalData.gatherElements(formalIndices, 0);
+            var body = new io.github.pho001.synaptik.model.tensor.ScanBody(
+                    List.of(), List.of(formalData, formalIndices), List.of(), List.of(), List.of(selected));
+            Tensor output = io.github.pho001.synaptik.model.tensor.Scan.apply(
+                    List.of(), List.of(data, indices), List.of(), body, false).outputs().getFirst();
+            ByteBuffer controls = ByteBuffer.allocate(32).order(ByteOrder.nativeOrder());
+            controls.putLong(0).putLong(1).putLong(0).putLong(scatter ? 0 : 2);
+            RuntimeException failure = assertThrows(scatter ? IllegalArgumentException.class
+                            : IndexOutOfBoundsException.class,
+                    () -> prepared(List.of(output), Map.of(data.id(), numeric(DataType.FLOAT32, 1, 2, 3, 4),
+                            indices.id(), controls.array()), Optional.empty()));
+            org.junit.jupiter.api.Assertions.assertTrue(failure.getMessage().contains("time=1"), failure.getMessage());
+            org.junit.jupiter.api.Assertions.assertTrue(failure.getMessage().contains("unit=0"), failure.getMessage());
+            org.junit.jupiter.api.Assertions.assertTrue(failure.getMessage().contains("operand=1"), failure.getMessage());
+            org.junit.jupiter.api.Assertions.assertInstanceOf(MetalNativeApi.NativeFailure.class, failure.getCause());
+            assertEquals(MetalNativeApi.Status.RANGE_OUT_OF_BOUNDS,
+                    ((MetalNativeApi.NativeFailure) failure.getCause()).status());
+        }
+    }
+
+    @Test void publicSourceOnlyBoolScanRejectsActiveByteAndSkipsInactivePoison() {
+        Tensor formal = external(DataType.BOOL, Shape.of(2, 1), new long[] {1, 1}, 0, false);
+        Tensor sequence = external(DataType.BOOL, Shape.of(2, 2, 1), new long[] {2, 1, 1}, 0, false);
+        Tensor lengths = external(DataType.INT64, Shape.of(2), new long[] {1}, 0, false);
+        var body = new io.github.pho001.synaptik.model.tensor.ScanBody(
+                List.of(), List.of(formal), List.of(), List.of(), List.of(formal));
+        Tensor output = io.github.pho001.synaptik.model.tensor.Scan.apply(List.of(), List.of(sequence),
+                List.of(), lengths, 0, List.of(java.util.OptionalInt.of(0)), body, false).outputs().getFirst();
+        byte[] controls = ByteBuffer.allocate(16).order(ByteOrder.nativeOrder()).putLong(2).putLong(0).array();
+        assertArrayEquals(new byte[] {1, 0, 0, 0}, prepared(List.of(output),
+                Map.of(sequence.id(), new byte[] {1, 2, 0, 2}, lengths.id(), controls), Optional.empty()).getFirst());
+        var failure = assertThrows(IllegalArgumentException.class, () -> prepared(List.of(output),
+                Map.of(sequence.id(), new byte[] {2, 2, 0, 2}, lengths.id(), controls), Optional.empty()));
+        org.junit.jupiter.api.Assertions.assertInstanceOf(MetalNativeApi.NativeFailure.class, failure.getCause());
+        org.junit.jupiter.api.Assertions.assertTrue(failure.getMessage().contains("time=0"), failure.getMessage());
+    }
+
     @Test
     void publicOrdinaryEmptyNegSumMatmulAndTopKPublishTheirCompleteOutputs() {
         for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {

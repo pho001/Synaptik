@@ -102,7 +102,7 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
             || w[15] != w[5] + w[8] + w[9] || w[14] > 4096U || w[15] > 4096U || w[5] + w[8] == 0U || w[16] > w[15]
             || w[17] != w[19] + w[20] || w[17] > w[14] || w[18] > 4608U
             || w[19] + w[21] > w[5] || w[23] != 32U || (w[22] & 7U) != 0U
-            || (w[30] & 7U) != 0U || w[30] > w[22] || w[31] < 10U
+            || (w[30] & 7U) != 0U || w[30] > w[22] || w[31] < 15U
             || w[22] > NSUIntegerMax || w[31] > (NSUIntegerMax - w[30]) / 8U
             || w[22] != w[30] + w[31] * 8U) return nil;
     for (uint32_t i = 23U; i < 29U; i++) if (w[i] > w[i + 1U] || w[i + 1U] > wordCount) return nil;
@@ -444,7 +444,7 @@ static SynaptikMetalScanPlan *synaptik_decode_scan_plan(const uint8_t *bytes, ui
     if (cursor != w[29] || (activity && numericCarries.count != w[5])
             || !synaptik_scan_multiply(w[18] + w[17], rootWords, &scopeWords)
             || !synaptik_scan_multiply(rows, rootWords, &presenceWords)
-            || !synaptik_scan_add(10U, scopeWords, &expectedWords)
+            || !synaptik_scan_add(15U, scopeWords, &expectedWords)
             || !synaptik_scan_add(expectedWords, presenceWords, &expectedWords)
             || !synaptik_scan_add(expectedWords, lengthAware ? w[11] : 0U, &expectedWords)
             || !synaptik_scan_add(expectedWords, presenceWords, &expectedWords) || expectedWords != w[31]) return nil;
@@ -661,6 +661,29 @@ static BOOL synaptik_scan_bind(SynaptikMetalScanPlan *plan, id<MTLComputeCommand
     return YES;
 }
 
+/* Binder roles have no ordinary unit. Eligibility still precedes every source read.
+ * Final carries expose retained inactive rows, and therefore validate every published byte. */
+static int32_t synaptik_scan_validate_binding_bool(const SynaptikMetalScanValueBinding *value,
+        id<MTLBuffer> buffer, NSUInteger offset, const uint64_t *control,
+        const SynaptikMetalScanStepControl *step, BOOL finalCarry, uint64_t role) {
+    if (value->type != 3U || value->elements == 0U) return SYNAPTIK_METAL_STATUS_OK;
+    const uint8_t *bytes = NULL;
+    for (uint64_t ordinal = 0U; ordinal < value->elements; ordinal++) {
+        if (!finalCarry && !synaptik_scan_control_output(control, step, ordinal)) continue;
+        if (bytes == NULL) {
+            if (buffer == nil || offset > buffer.length || value->bytes > buffer.length - offset)
+                return SYNAPTIK_METAL_STATUS_INCOMPATIBLE_RESOURCE;
+            if (buffer.contents == NULL) return SYNAPTIK_METAL_STATUS_COPY_FAILED;
+            bytes = (const uint8_t *)buffer.contents + offset;
+        }
+        if (bytes[ordinal] > 1U) {
+            synaptik_scan_failure(control, 3U, role, ordinal);
+            return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+        }
+    }
+    return SYNAPTIK_METAL_STATUS_OK;
+}
+
 /* actuals are ordered declared inputs, results are ONLY demanded roles in increasing demand
  * order. workspace includes the intrinsic header22 bytes and mapped ingress regions.
  * The caller validates context/access/alias facts at the ordinary executable boundary; this
@@ -683,6 +706,9 @@ static int32_t synaptik_run_scan_plan(SynaptikMetalScanPlan *plan, id<MTLCommand
             || plan.ingressSourceBytes.length != w[14] * sizeof(uint64_t)
             || plan.workspaceBytes < w[22] || workspace.length < plan.workspaceBytes
             || workspace.contents == NULL) return SYNAPTIK_METAL_STATUS_INVALID_ARGUMENT;
+    uint64_t *control = (uint64_t *)((uint8_t *)workspace.contents + w[30]);
+    memset(control, 0, (size_t)w[31] * 8U);
+    control[12] = UINT64_MAX;
     const uint64_t *ingressOffsets = plan.ingressOffsets.bytes;
     const uint64_t *sourceBytes = plan.ingressSourceBytes.bytes;
     for (uint32_t f = 0U; f < w[14]; f++) {
@@ -719,11 +745,9 @@ static int32_t synaptik_run_scan_plan(SynaptikMetalScanPlan *plan, id<MTLCommand
     }
     int32_t ingressStatus = synaptik_scan_flush(&ingressCommand, &ingressEncoder);
     if (ingressStatus != SYNAPTIK_METAL_STATUS_OK) return ingressStatus;
-    uint64_t *control = (uint64_t *)((uint8_t *)workspace.contents + w[30]);
-    memset(control, 0, (size_t)w[31] * 8U);
     uint64_t rootWords = (w[17] + 63U) / 64U, rows = lengthAware ? w[11] : 1U;
     control[1] = w[11]; control[2] = w[17]; control[3] = w[18] + w[17]; control[4] = rootWords;
-    control[5] = 10U; control[6] = control[5] + control[3] * rootWords;
+    control[5] = 15U; control[6] = control[5] + control[3] * rootWords;
     control[7] = control[6] + rows * rootWords; control[8] = lengthAware ? 1U : 0U; control[9] = rows;
     if (plan.scopeMemberships.length != 0U) memcpy(control + control[5], plan.scopeMemberships.bytes, plan.scopeMemberships.length);
     if (lengthAware && rows != 0U) memcpy(control + control[7], lengths, (size_t)rows * 8U);
@@ -767,6 +791,17 @@ static int32_t synaptik_run_scan_plan(SynaptikMetalScanPlan *plan, id<MTLCommand
         BOOL present = YES;
         for (uint32_t root = 0U; root < w[19]; root++)
             if (w[carryTable + root * 3U] == c) present = w[carryTable + root * 3U + 1U] != 0U;
+        if (present && v->type == 3U) {
+            BOOL published = NO;
+            for (uint32_t d = 0U; d < w[16]; d++) published |= w[w[27] + d] == c;
+            SynaptikMetalScanStepControl step = { .rowInner = v->rowInner, .rowAxis = v->rowAxis,
+                    .scope = valueScopes[w[w[25] + c]], .leftScope = UINT32_MAX, .rightScope = UINT32_MAX };
+            int32_t status = synaptik_scan_validate_binding_bool(v,
+                    ingressOffsets[c] == UINT64_MAX ? actuals[c] : workspace,
+                    ingressOffsets[c] == UINT64_MAX ? 0U : (NSUInteger)ingressOffsets[c],
+                    control, &step, published, c);
+            if (status != SYNAPTIK_METAL_STATUS_OK) { if (blit != nil) [blit endEncoding]; return status; }
+        }
         if (present) [blit copyFromBuffer:ingressOffsets[c] == UINT64_MAX ? actuals[c] : workspace
                 sourceOffset:ingressOffsets[c] == UINT64_MAX ? 0U : (NSUInteger)ingressOffsets[c]
                 toBuffer:workspace destinationOffset:(NSUInteger)v->offset size:(NSUInteger)v->bytes];
@@ -795,6 +830,7 @@ static int32_t synaptik_run_scan_plan(SynaptikMetalScanPlan *plan, id<MTLCommand
         for (uint32_t u = 0U; u < w[13]; u++) {
             const SynaptikMetalScanUnitBinding *unit = units + u;
             if (!synaptik_scan_control_any(control, unit->control.scope)) continue;
+            control[12] = u;
             BOOL requiresValidation = NO, hasOutput = NO;
             for (uint32_t i = 0U; i < unit->node.input_count; i++)
                 requiresValidation |= values[unit->node.inputs[i]].type == 3U;
@@ -824,6 +860,14 @@ static int32_t synaptik_run_scan_plan(SynaptikMetalScanPlan *plan, id<MTLCommand
             uint64_t v = w[w[26] + port]; if (values[v].bytes == 0U) continue;
             SynaptikMetalScanStepControl step = { .rowInner = values[v].rowInner, .rowAxis = values[v].rowAxis,
                     .scope = valueScopes[v], .leftScope = UINT32_MAX, .rightScope = UINT32_MAX };
+            if (values[v].type == 3U) {
+                int32_t status = synaptik_scan_flush(&command, &encoder);
+                if (status != SYNAPTIK_METAL_STATUS_OK) return status;
+                control[12] = UINT64_MAX;
+                status = synaptik_scan_validate_binding_bool(values + v, buffers[v], bindingOffsets[v],
+                        control, &step, NO, port);
+                if (status != SYNAPTIK_METAL_STATUS_OK) return status;
+            }
             if (!synaptik_scan_encoder(queue, &command, &encoder)
                     || !synaptik_scan_bind(plan, encoder, buffers[v], bindingOffsets[v], results[d], (NSUInteger)(time * values[v].bytes),
                             values[v].elements, values[v].width, 0U, workspace, (NSUInteger)w[30], step, buffers[v], bindingOffsets[v]))
@@ -843,6 +887,14 @@ static int32_t synaptik_run_scan_plan(SynaptikMetalScanPlan *plan, id<MTLCommand
             }
             SynaptikMetalScanStepControl step = { .rowInner = values[old].rowInner, .rowAxis = values[old].rowAxis,
                     .scope = scope, .leftScope = UINT32_MAX, .rightScope = UINT32_MAX };
+            if (values[next].type == 3U) {
+                int32_t status = synaptik_scan_flush(&command, &encoder);
+                if (status != SYNAPTIK_METAL_STATUS_OK) return status;
+                control[12] = UINT64_MAX;
+                status = synaptik_scan_validate_binding_bool(values + next, buffers[next], bindingOffsets[next],
+                        control, &step, NO, c);
+                if (status != SYNAPTIK_METAL_STATUS_OK) return status;
+            }
             if (!synaptik_scan_encoder(queue, &command, &encoder)
                     || !synaptik_scan_bind(plan, encoder, buffers[next], bindingOffsets[next], workspace,
                             bindingOffsets[old] == values[old].offset ? (NSUInteger)carryOffsets[c] : (NSUInteger)values[old].offset,
@@ -870,6 +922,15 @@ static int32_t synaptik_run_scan_plan(SynaptikMetalScanPlan *plan, id<MTLCommand
         }
         if (presenceWords != 0U) memcpy(control + control[6], control + nextPresenceOffset, (size_t)presenceWords * 8U);
         }
+    }
+    control[12] = UINT64_MAX;
+    for (uint32_t d = 0U; d < w[16]; d++) {
+        uint64_t port = w[w[27] + d];
+        if (port >= w[5]) continue;
+        uint64_t formal = w[w[25] + port];
+        int32_t status = synaptik_scan_validate_binding_bool(values + formal, buffers[formal],
+                bindingOffsets[formal], control, NULL, YES, port);
+        if (status != SYNAPTIK_METAL_STATUS_OK) return status;
     }
     id<MTLCommandBuffer> final = nil;
     blit = nil;

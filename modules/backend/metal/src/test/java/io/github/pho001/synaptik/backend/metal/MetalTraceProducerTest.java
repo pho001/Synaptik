@@ -83,6 +83,18 @@ class MetalTraceProducerTest {
         assertEquals("observer", missingObserver.getMessage());
     }
 
+    @Test void wrappedCreateFailureRetainsNativeStatusAndScanTraceHasBoundedTypedContext() {
+        List<TraceEvent<? extends TracePayload>> events = new ArrayList<>();
+        var producer = new MetalTraceProducer(events::add);
+        var unit = producer.prepareUnit(MetalPreparedRoute.CUSTOM_PROGRAM);
+        var nativeFailure = new MetalNativeApi.NativeFailure("create", 5);
+        unit.preparationFailed(new IllegalStateException("wrapped create failure", nativeFailure));
+        var outcome = (BackendPreparationOutcome) events.getFirst().payload();
+        assertEquals(5, outcome.nativeStatus().orElseThrow().code());
+        unit.scanFailed(unit.beginInvocation(), 2, 3, 4, 1, 7);
+        assertEquals(new MetalScanValidationFailure(2, 3, 4, 1, 7), events.getLast().payload());
+    }
+
     @Test
     void emitsExactPreparationAndInvocationFactsWithIndependentSequences() {
         List<TraceEvent<? extends TracePayload>> events = new CopyOnWriteArrayList<>();

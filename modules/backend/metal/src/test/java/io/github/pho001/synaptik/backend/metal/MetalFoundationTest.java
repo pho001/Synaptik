@@ -26,6 +26,49 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 class MetalFoundationTest {
+    @Test void fp8TypedBorrowTransferAndPublicationRejectWithoutAllocationOrCopy() {
+        var api = new FakeNativeApi();
+        try (var context = MetalDeviceContext.open(api);
+                var buffer = context.createBuffer(2)) {
+            var runtime = new MetalBackendRuntime(context);
+            for (var type : List.of(
+                    io.github.pho001.synaptik.model.datatype.DataType.FLOAT8_E4M3,
+                    io.github.pho001.synaptik.model.datatype.DataType.FLOAT8_E5M2)) {
+                var shape = io.github.pho001.synaptik.model.shape.Shape.of(2);
+                var descriptor = new io.github.pho001.synaptik.model.tensor.TensorDescriptor(type, shape,
+                        java.util.Optional.of(io.github.pho001.synaptik.model.layout.LayoutDescriptor.contiguous(shape)), false);
+                var storage = new io.github.pho001.synaptik.model.storage.MemorySegmentStorage(
+                        type, 2, MemorySegment.ofArray(new byte[] {56, 56}));
+                assertThrows(IllegalArgumentException.class, () -> runtime.borrow(storage));
+                assertFalse(runtime.acceptsStorageLayoutTransfer(buffer, descriptor));
+                assertThrows(IllegalArgumentException.class, () -> runtime.bindStorageLayoutUpload(buffer, descriptor));
+                assertThrows(IllegalArgumentException.class, () -> runtime.bindStorageLayoutDownload(buffer, descriptor));
+                assertThrows(IllegalArgumentException.class, () -> runtime.copyToCanonicalHostBytes(buffer, descriptor, 2));
+            }
+            assertEquals(List.of(2L), api.createdSizes);
+            assertEquals(0, api.uploadCalls.get());
+            assertEquals(0, api.downloadCalls.get());
+        }
+    }
+
+    @Test void emptyMaterializationChecksClosedContextBeforeEmptyFastReturn() {
+        var api = new FakeNativeApi();
+        var context = MetalDeviceContext.open(api);
+        try (var buffer = context.createBuffer(0)) {
+            var runtime = new MetalBackendRuntime(context);
+            var shape = io.github.pho001.synaptik.model.shape.Shape.of(0);
+            var descriptor = new io.github.pho001.synaptik.model.tensor.TensorDescriptor(
+                    io.github.pho001.synaptik.model.datatype.DataType.FLOAT32, shape,
+                    java.util.Optional.of(io.github.pho001.synaptik.model.layout.LayoutDescriptor.contiguous(shape)), false);
+            assertArrayEquals(new byte[0], runtime.copyToCanonicalHostBytes(buffer, descriptor, 0));
+            context.close();
+            assertThrows(IllegalStateException.class, () -> runtime.copyToCanonicalHostBytes(buffer, descriptor, 0));
+            assertEquals(0, api.downloadCalls.get());
+        } finally {
+            context.close();
+        }
+    }
+
     @Test
     void createsFreshExactGeometryAndRoundTripsOnlyRequestedBytes() {
         var api = new FakeNativeApi();

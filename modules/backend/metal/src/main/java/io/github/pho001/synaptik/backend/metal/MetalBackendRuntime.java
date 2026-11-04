@@ -147,8 +147,8 @@ final class MetalBackendRuntime implements AutoCloseable {
     /**
      * Creates one Metal-owned input representation from caller-owned host storage.
      *
-     * <p>The upload is complete before return. All seven model data types transfer their exact raw
-     * physical storage bytes. This descriptor-free borrow does not interpret BOOL bytes: later
+     * <p>The upload is complete before return. The seven qualified non-FP8 types transfer exact raw
+     * physical storage bytes; FP8 is rejected before allocation. This borrow does not interpret BOOL bytes: later
      * descriptor-aware execution, transfer, and publication paths validate logical BOOL positions
      * while leaving prefix and gap bytes uninterpreted. The representation retains the storage as a
      * non-owning borrow and owns only its Metal buffer.
@@ -157,11 +157,13 @@ final class MetalBackendRuntime implements AutoCloseable {
      * @return a new non-null Metal buffer representation owned by the caller
      * @throws NullPointerException if {@code storage} is {@code null}
      * @throws IllegalStateException if storage or the Metal context is closed or inaccessible
+     * @throws IllegalArgumentException if the storage carrier is unqualified FP8
      * @throws RuntimeException if native allocation or upload fails
      * @throws Error if allocation, upload, or rollback reports a fatal failure
      */
     BufferRepresentation borrow(HostTensorStorage storage) {
         Objects.requireNonNull(storage, "storage");
+        requireStorageType(storage.dataType());
         MemorySegment source = storage.segment();
         if (!storage.isAlive() || !source.isAccessibleBy(Thread.currentThread())) {
             throw new IllegalStateException("host storage is not alive and accessible");
@@ -191,7 +193,7 @@ final class MetalBackendRuntime implements AutoCloseable {
 
     /**
      * Reports whether one nominal representation is an exact live Metal side of a prepared
-     * storage-layout transfer for any model data type.
+     * storage-layout transfer for a qualified non-FP8 model data type.
      *
      * @param representation non-null candidate representation
      * @param descriptor non-null exact logical descriptor
@@ -275,7 +277,7 @@ final class MetalBackendRuntime implements AutoCloseable {
    * bytes.
      *
      * <p>Canonical non-view rank-0..16 publications, including scalars, and every authenticated
-   * rank-0..16 affine or SELECT/SLICE storage-layout publication support all seven model data types.
+   * rank-0..16 affine or SELECT/SLICE storage-layout publication support the seven non-FP8 types.
    * BOOL logical elements must be zero or one; prefix and gap bytes are not interpreted. The
      * logical descriptor is validated but never rewritten.
      *
@@ -296,6 +298,8 @@ final class MetalBackendRuntime implements AutoCloseable {
             long maximumBytes) {
         Objects.requireNonNull(representation, "representation");
         Objects.requireNonNull(descriptor, "descriptor");
+        requireStorageType(descriptor.dataType());
+        if (context.isClosed()) throw new IllegalStateException("Metal device context is closed");
         if (maximumBytes < 0L) {
             throw new IllegalArgumentException("maximumBytes must be non-negative");
         }
@@ -343,6 +347,7 @@ final class MetalBackendRuntime implements AutoCloseable {
         if (metal.byteSize() < physicalByteCount) {
             throw new IllegalArgumentException("Metal representation is smaller than descriptor");
         }
+        metal.executionHandle(); // Empty publications retain the same lifetime guard as downloads.
         byte[] result = new byte[Math.toIntExact(byteCount)];
         long[] dimensions = descriptor.shape().toLongArray();
         long[] strides = storagePublication ? storageLayout.strides() : layout.strides();
@@ -380,11 +385,23 @@ final class MetalBackendRuntime implements AutoCloseable {
         return result;
     }
 
+    /** Rejects unqualified FP8 storage before any typed Metal allocation or publication. */
+    static void requireStorageType(DataType type) {
+        if (!supportedStorageType(type)) {
+            throw new IllegalArgumentException("Metal does not support storage type " + type);
+        }
+    }
+
+    private static boolean supportedStorageType(DataType type) {
+        return type != DataType.FLOAT8_E4M3 && type != DataType.FLOAT8_E5M2;
+    }
+
     private static boolean isStorageTransfer(TensorDescriptor descriptor) {
     return descriptor.layout().filter(layout -> isStorageTransfer(descriptor, layout)).isPresent();
   }
 
   private static boolean isStorageTransfer(TensorDescriptor descriptor, LayoutDescriptor layout) {
+        if (!supportedStorageType(descriptor.dataType())) return false;
         if (!descriptor.shape().isFullyStatic()
                 || descriptor.shape().rank() > 16) {
             return false;

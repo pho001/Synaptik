@@ -38,6 +38,35 @@ import org.junit.jupiter.api.Test;
 
 /** Source-matched device consumers; no child-side numerical claims are made by defining them. */
 class MetalGeneralScanNativeTest {
+    @Test void sourceOnlyBoolValidatesActiveRolesAndRetainedCarryButSkipsInactivePadding() {
+        for (boolean reverse : List.of(false, true)) {
+            var query = MetalScanPlanTest.sourceOnlyQuery(DataType.BOOL, 2, 2, true, reverse);
+            try (var run = new RawScan(query, null)) {
+                run.bytes(0, new byte[] {0, 1});
+                run.bytes(1, new byte[] {1, 2, 0, 2});
+                run.bytes(2, new byte[] {1}); run.longs(3, 2, 0);
+                run.execute();
+                assertArrayEquals(new byte[] {1, 0, 0, 0}, run.outputBytes(1));
+                assertArrayEquals(new byte[] {0, 1}, run.outputBytes(0));
+                run.bytes(1, new byte[] {2, 2, 2, 2});
+                var failure = assertThrows(MetalNativeApi.NativeFailure.class, run::execute);
+                assertEquals(MetalNativeApi.Status.INVALID_ARGUMENT, failure.status());
+                assertArrayEquals(new long[] {3, reverse ? 1 : 0, -1, 1, 0}, run.failureRecord());
+                run.longs(3, 0, 0); run.bytes(2, new byte[] {2});
+                run.execute();
+                assertArrayEquals(new byte[4], run.outputBytes(1));
+                assertArrayEquals(new long[] {0, 0, -1, 0, 0}, run.failureRecord());
+                run.bytes(1, new byte[] {1, 2, 0, 2}); run.longs(3, 2, 0);
+                assertThrows(MetalNativeApi.NativeFailure.class, run::execute);
+                assertArrayEquals(new long[] {3, reverse ? 1 : 0, -1, 2, 0}, run.failureRecord());
+                run.longs(3, 0, 0);
+                run.bytes(0, new byte[] {0, 2});
+                assertThrows(MetalNativeApi.NativeFailure.class, run::execute,
+                        "inactive initial carry remains observable in demanded final carry");
+            }
+        }
+    }
+
     @Test void nativeTraversalSavesOriginalTimeAndPreviousCarryWithoutReadingPadding() {
         for (boolean reverse : List.of(false, true)) try (var run = new RawScan(MetalScanPlanTest.additiveQuery(3, 2, true, reverse), null)) {
             run.floats(0, 1, -0.0f);
@@ -757,6 +786,7 @@ class MetalGeneralScanNativeTest {
         private final List<MetalMpsGraphProgram.ValueDescriptor> descriptors;
         private final int[] outputs;
         private final int[] outputSizes;
+        private final long failureOffset;
         RawScan(OperationCapabilityQuery query, MetalMpsGraphProgram.Node replacement) {
             api = MetalNativeApi.open(library());
             var list = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>();
@@ -768,6 +798,7 @@ class MetalGeneralScanNativeTest {
             outputSizes = new int[outputs.length];
             for (int i = 0; i < outputs.length; i++) outputSizes[i] = Math.toIntExact(descriptors.get(outputs[i]).byteCount());
             var node = replacement == null ? MetalScanLowering.lower(query, inputs, outputs) : replacement;
+            failureOffset = node.attributeWords()[30] + 80;
             var program = new MetalMpsGraphProgram(List.of(node));
             try {
                 context = api.createContext(); executable = api.createProgramExecutable(context, descriptors, program, inputs, outputs, MetalPreparedRoute.CUSTOM_PROGRAM);
@@ -778,6 +809,13 @@ class MetalGeneralScanNativeTest {
         void floats(int ordinal, float... values) { upload(ordinal, MetalGeneralScanNativeTest.floats(values)); }
         void longs(int ordinal, long... values) { upload(ordinal, MetalGeneralScanNativeTest.longs(values)); }
         void bytes(int ordinal, byte[] values) { upload(ordinal, values); }
+        long[] failureRecord() {
+            try (Arena arena = Arena.ofConfined()) {
+                var target = arena.allocate(40, 8);
+                api.download(buffers.getLast(), failureOffset, target, 40);
+                return target.toArray(JAVA_LONG);
+            }
+        }
         byte[] outputBytes(int index) { if (outputSizes[index] == 0) return new byte[0]; try (Arena arena = Arena.ofConfined()) { var target = arena.allocate(outputSizes[index], 8); api.download(buffers.get(outputs[index]), 0, target, target.byteSize()); return target.toArray(JAVA_BYTE); } }
         private void upload(int ordinal, byte[] bytes) { if (bytes.length == 0) return; try (Arena arena = Arena.ofConfined()) { var source = arena.allocate(bytes.length, 8); MemorySegment.copy(bytes, 0, source, JAVA_BYTE, 0, bytes.length); api.upload(buffers.get(ordinal), 0, source, bytes.length); } }
         void poisonOutputs(int word) { for (int i = 0; i < outputs.length; i++) { var bytes = new byte[outputSizes[i]]; for (int b = 0; b < bytes.length; b++) bytes[b] = (byte) (word >>> ((b & 3) * 8)); upload(outputs[i], bytes); } }
