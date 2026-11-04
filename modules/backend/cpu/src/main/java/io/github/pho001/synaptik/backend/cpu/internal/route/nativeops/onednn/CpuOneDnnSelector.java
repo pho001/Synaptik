@@ -8,7 +8,6 @@ import io.github.pho001.synaptik.prepare.analysis.BackendPartitionAnalysis;
 import io.github.pho001.synaptik.prepare.analysis.PreparationResourceRequirement;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -111,9 +110,7 @@ public final class CpuOneDnnSelector {
         for (int position = 0; position < plan.units().size(); position++) {
             var unit = plan.units().get(position);
             var projection = CpuOneDnnProjection.from(unit);
-            if (projection.isEmpty() || !CpuOneDnnCompiler.qualified(projection.orElseThrow().spec())
-                    || !dense(projection.orElseThrow().spec().output())
-                    || projection.orElseThrow().spec().inputs().stream().anyMatch(tensor -> !dense(tensor))) continue;
+            if (projection.isEmpty() || !CpuOneDnnCompiler.qualified(projection.orElseThrow().spec())) continue;
             var projected = projection.orElseThrow();
             var copiedInputs = new java.util.LinkedHashMap<CopyKey, List<Integer>>();
             for (int input = 0; input < projected.inputBoundaryPositions().size(); input++) {
@@ -145,7 +142,9 @@ public final class CpuOneDnnSelector {
                 Optional<CpuOneDnnKernelMetadata> metadata = describe(projected.spec(), api);
                 if (metadata.isEmpty()) continue;
                 var facts = metadata.orElseThrow();
-                long perRun = Math.addExact(NATIVE_CONTROL_AND_DISPATCH,
+                long steps = projected.spec() instanceof CpuOneDnnKernelSpec.Pipeline pipeline
+                        ? pipeline.steps().size() : 1;
+                long perRun = Math.addExact(Math.multiplyExact(NATIVE_CONTROL_AND_DISPATCH, steps),
                         Math.addExact(macs(projected.spec()), elements(projected.spec().output())));
                 perRun = Math.addExact(perRun, Math.addExact(copyBytes, facts.scratchpadBytes()));
                 // Each declared workspace includes allocation, native control creation and cleanup.
@@ -169,9 +168,31 @@ public final class CpuOneDnnSelector {
                 nextWorkspace = Math.incrementExact(workspaceId);
             }
         }
-        if (selected.isEmpty() || selectedCost >= baselineCost) return baseline;
+        if (selected.isEmpty()) return baseline;
+        // Common recipes remain available for semantic authentication, but their unused ordinary
+        // accumulator state is not another native allocation. Only selected owners are removed.
+        var selectedPositions = new HashSet<Integer>();
+        var replacedWorkspaces = new HashSet<PreparationResourceRequirement.Workspace>();
+        for (var unit : selected) {
+            selectedPositions.add(unit.unitPosition());
+            plan.units().get(unit.unitPosition()).runtimeFacts().workspaceDeclaration()
+                    .ifPresent(replacedWorkspaces::add);
+        }
+        for (int position = 0; position < plan.units().size(); position++) {
+            if (!selectedPositions.contains(position)) {
+                plan.units().get(position).runtimeFacts().workspaceDeclaration()
+                        .ifPresent(replacedWorkspaces::remove);
+            }
+        }
+        var requirements = new ArrayList<PreparationResourceRequirement>();
+        for (var requirement : candidate.requirements()) {
+            if (requirement instanceof PreparationResourceRequirement.Workspace workspace
+                    && replacedWorkspaces.contains(workspace)) {
+                selectedCost = Math.subtractExact(selectedCost, Math.multiplyExact(workspace.byteSize(), runs));
+            } else requirements.add(requirement);
+        }
+        if (selectedCost >= baselineCost) return baseline;
         var route = new CpuOneDnnRoutePlan(library.sessionIdentity(), selected, baselineCost, selectedCost);
-        var requirements = new ArrayList<PreparationResourceRequirement>(candidate.requirements());
         requirements.addAll(route.workspaceRequirements());
         return new BackendPartitionAnalysis<>(candidate.partition(), plan.withOneDnn(route), requirements);
     }
@@ -234,7 +255,8 @@ public final class CpuOneDnnSelector {
         }
         var projected = CpuOneDnnProjection.from(unit);
         if (projected.isPresent()) return Math.addExact(
-                Math.multiplyExact(PORTABLE_MAC, macs(projected.orElseThrow().spec())),
+                Math.multiplyExact(projected.orElseThrow().spec() instanceof CpuOneDnnKernelSpec.Contraction
+                        ? PORTABLE_MAC : PORTABLE_ELEMENT, macs(projected.orElseThrow().spec())),
                 Math.multiplyExact(PORTABLE_ELEMENT, elements(projected.orElseThrow().spec().output())));
         long operations = unit.portablePlan() != null
                 && unit.portablePlan().portableKernelIr() instanceof CpuKernelIr ir
@@ -243,15 +265,29 @@ public final class CpuOneDnnSelector {
     }
 
     private static long macs(CpuOneDnnKernelSpec spec) {
-        long contraction = spec.inputs().getFirst().dimensions().getLast();
-        if (spec.operation() == CpuOneDnnKernelSpec.Operation.CONVOLUTION) {
-            contraction = 1;
-            var dimensions = spec.inputs().get(1).dimensions();
-            for (int axis = 1; axis < dimensions.size(); axis++) {
-                contraction = Math.multiplyExact(contraction, dimensions.get(axis));
-            }
+        if (spec instanceof CpuOneDnnKernelSpec.Pipeline pipeline) {
+            long result = 0;
+            for (var step : pipeline.steps()) result = Math.addExact(result, macs(step.spec()));
+            return result;
         }
-        return Math.multiplyExact(elements(spec.output()), contraction);
+        if (spec instanceof CpuOneDnnKernelSpec.Contraction contraction) {
+            long contributors = contraction.inputs().getFirst().dimensions().getLast();
+            if (contraction.operation() == CpuOneDnnKernelSpec.Operation.CONVOLUTION) {
+                contributors = 1;
+                var dimensions = contraction.inputs().get(1).dimensions();
+                for (int axis = 1; axis < dimensions.size(); axis++) {
+                    contributors = Math.multiplyExact(contributors, dimensions.get(axis));
+                }
+            }
+            return Math.multiplyExact(elements(spec.output()), contributors);
+        }
+        if (spec instanceof CpuOneDnnKernelSpec.Reduction reduction) return elements(reduction.input());
+        if (spec instanceof CpuOneDnnKernelSpec.Pooling pooling) {
+            long contributors = 1;
+            for (long extent : pooling.kernel()) contributors = Math.multiplyExact(contributors, extent);
+            return Math.multiplyExact(elements(pooling.output()), contributors);
+        }
+        return elements(spec.output());
     }
 
     private static long elements(CpuOneDnnKernelSpec.Tensor tensor) {
@@ -260,17 +296,4 @@ public final class CpuOneDnnSelector {
         return result;
     }
 
-    private static boolean dense(CpuOneDnnKernelSpec.Tensor tensor) {
-        var axes = new ArrayList<Integer>();
-        for (int axis = 0; axis < tensor.dimensions().size(); axis++) {
-            if (tensor.dimensions().get(axis) > 1) axes.add(axis);
-        }
-        axes.sort(Comparator.comparingLong(axis -> tensor.strides().get(axis)));
-        long expected = 1;
-        for (int axis : axes) {
-            if (tensor.strides().get(axis) != expected) return false;
-            expected = Math.multiplyExact(expected, tensor.dimensions().get(axis));
-        }
-        return true;
-    }
 }

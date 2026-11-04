@@ -414,7 +414,8 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
     /**
      * Maps partition selections to exact unit ValueIds before constructing sequential children.
      * Partition-only original constant sources retain their read roles without becoming child
-     * kernel arguments or additional outputs.
+     * kernel arguments or additional outputs. Native substitutions retain demand one and do not
+     * acquire the replaced ordinary unit's worker team or exact accumulator storage.
      * @param finalization non-null immutable analyzed topology and assigned resources, borrowed
      * @param outerSelections non-null partition buffer coordinates in declaration order, borrowed
      * @param workspaceSelections non-null exact declaration-to-workspace coordinate map, borrowed
@@ -441,7 +442,11 @@ public final class CpuPartitionFinalizer implements BackendPartitionFinalizer<Cp
             if (local.stream().anyMatch(Objects::isNull))
                 throw new IllegalArgumentException("unit boundary has no assigned selection");
             localSelections.add(local);
-            selectedWorkers.add(workers(unit));
+            int position = localSelections.size() - 1;
+            boolean nativeSelected = plan.oneDnnPlan().isPresent()
+                    && plan.oneDnnPlan().orElseThrow().units().stream()
+                        .anyMatch(selected -> selected.unitPosition() == position);
+            selectedWorkers.add(nativeSelected ? null : workers(unit));
         }
         var nativeUnits = new LinkedHashMap<Integer, CpuOneDnnRoutePlan.Unit>();
         if (plan.oneDnnPlan().isPresent()) {

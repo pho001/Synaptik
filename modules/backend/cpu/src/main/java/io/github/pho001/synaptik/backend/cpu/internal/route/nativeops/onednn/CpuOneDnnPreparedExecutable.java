@@ -33,6 +33,7 @@ public final class CpuOneDnnPreparedExecutable extends PreparedExecutable
     private final List<WorkspaceSelection> selections;
     private final long[] requiredBytes;
     private final boolean[] direct;
+    private final DataType[] dataTypes;
     private final PreparedRepresentationPlan.WorkspaceCreator invocationCreator;
 
     /**
@@ -79,14 +80,17 @@ public final class CpuOneDnnPreparedExecutable extends PreparedExecutable
         }
         requiredBytes = new long[unitBuffers.size()];
         direct = new boolean[unitBuffers.size()];
+        dataTypes = new DataType[unitBuffers.size()];
         java.util.Arrays.fill(direct, true);
         var projection = route.projection();
         for (int input = 0; input < projection.spec().inputs().size(); input++) {
             int boundary = projection.inputBoundaryPositions().get(input);
+            dataTypes[boundary] = projection.spec().inputs().get(input).dataType();
             requiredBytes[boundary] = Math.max(requiredBytes[boundary], Math.addExact(
                     projection.byteOffsets().get(input), projection.spec().inputs().get(input).byteSize()));
         }
         int output = projection.outputBoundaryPosition();
+        dataTypes[output] = projection.spec().output().dataType();
         requiredBytes[output] = Math.addExact(projection.byteOffsets().getLast(),
                 projection.spec().output().byteSize());
         for (var copy : route.inputCopies()) {
@@ -128,10 +132,19 @@ public final class CpuOneDnnPreparedExecutable extends PreparedExecutable
         }
         if (projection.outputBoundaryPosition() >= buffers.size()
                 || projection.inputBoundaryPositions().stream().anyMatch(position -> position >= buffers.size())
-                || projection.byteOffsets().stream().anyMatch(offset -> offset % Float.BYTES != 0)) {
+                || !alignedOrigins(projection)) {
             throw new IllegalArgumentException("oneDNN projection boundary or origin disagrees");
         }
         return accesses;
+    }
+
+    private static boolean alignedOrigins(CpuOneDnnProjection projection) {
+        for (int input = 0; input < projection.spec().inputs().size(); input++) {
+            int width = projection.spec().inputs().get(input).dataType() == DataType.BOOL ? 1 : Float.BYTES;
+            if (projection.byteOffsets().get(input) % width != 0) return false;
+        }
+        int width = projection.spec().output().dataType() == DataType.BOOL ? 1 : Float.BYTES;
+        return projection.byteOffsets().getLast() % width == 0;
     }
 
     /**
@@ -148,23 +161,24 @@ public final class CpuOneDnnPreparedExecutable extends PreparedExecutable
     }
 
     /**
-     * Authenticates one fixed F32 boundary without changing native handles.
+     * Authenticates one fixed typed F32 or canonical one-byte BOOL boundary without changing handles.
      *
      * @param index zero-based child-local boundary selection
      * @param representation candidate borrowed representation; null or incompatible values fail closed
-     * @return true only for a live sufficient aligned F32 span with native storage when direct and
+     * @return true only for a live sufficient dtype-aligned span with native storage when direct and
      *     write access when required; successful admission transfers no ownership
      * @throws IndexOutOfBoundsException if index is outside the retained boundary selections
      */
     @Override protected boolean acceptsBufferRepresentation(int index, BufferRepresentation representation) {
         if (!(representation instanceof CpuBufferRepresentation cpu) || !cpu.isAccessible()
-                || cpu.dataType() != DataType.FLOAT32 || cpu.byteSize() < requiredBytes[index]) return false;
+                || cpu.dataType() != dataTypes[index] || cpu.byteSize() < requiredBytes[index]) return false;
         try {
             var argument = cpu.argument(); // Preserve observable-carrier authentication even for raw copies.
             MemorySegment segment = cpu.segment();
-            return argument.byteOffset() % Float.BYTES == 0
+            int width = dataTypes[index] == DataType.BOOL ? 1 : Float.BYTES;
+            return argument.byteOffset() % width == 0
                     && (!direct[index] || segment.isNative())
-                    && segment.address() % Float.BYTES == 0
+                    && segment.address() % width == 0
                     && (bufferAccess(index) != BufferAccess.WRITE_ONLY || !argument.readOnly());
         } catch (IllegalArgumentException | IllegalStateException incompatible) { return false; }
     }

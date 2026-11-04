@@ -76,9 +76,9 @@ public final class CpuBackendComposition implements AutoCloseable {
         this.oneDnnLibrary = Objects.requireNonNull(oneDnnLibrary, "oneDnnLibrary");
         this.oneDnnApi = Objects.requireNonNull(oneDnnApi, "oneDnnApi");
         this.oneDnnPolicyFingerprint = oneDnnLibrary.map(library ->
-                "onednn-policy-v1:bare-homogeneous-f32-matmul-k>1:3.14.0-lp64-seq:"
+                "onednn-policy-v2:typed-f32-literal-units:3.14.0-lp64-seq:"
                         + library.sessionIdentity() + ":" + oneDnnApi.name())
-                .orElse("onednn-policy-v1:disabled");
+                .orElse("onednn-policy-v2:disabled");
         this.preparer = new CpuPartitionPreparer(new CpuPartitionLowering(),
                 oneDnnLibrary.map(library -> new CpuOneDnnSelector(library, oneDnnApi)));
         this.finalizer = new CpuPartitionFinalizer(Optional.empty(), Optional.empty(), budget,

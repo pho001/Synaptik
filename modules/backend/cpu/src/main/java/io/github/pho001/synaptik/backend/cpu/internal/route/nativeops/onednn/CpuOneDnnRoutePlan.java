@@ -59,7 +59,8 @@ public record CpuOneDnnRoutePlan(String sessionIdentity, List<Unit> units,
      * @param unitPosition non-negative common-unit topological index
      * @param projection non-null exact numeric/boundary projection
      * @param api non-null resolved native API, never AUTO
-     * @param scratchpadBytes non-negative exact queried user-scratch byte count
+     * @param scratchpadBytes non-negative complete queried invocation bytes, including fixed literal
+     *     intermediates/constants and native per-step scratch, charged once
      * @param implementation non-null non-blank copied native implementation identity
      * @param inputCopies non-null immutable ingress role declarations; copied
      * @param invocationWorkspace non-null private scratch declaration, aligned to 64 bytes
@@ -73,7 +74,7 @@ public record CpuOneDnnRoutePlan(String sessionIdentity, List<Unit> units,
          * @param unitPosition non-negative common-unit index
          * @param projection non-null common descriptor/boundary facts
          * @param api non-null resolved PRIMITIVE or GRAPH
-         * @param scratchpadBytes non-negative exact user-scratch bytes
+         * @param scratchpadBytes non-negative complete fixed invocation-storage bytes
          * @param implementation non-null non-blank implementation identity
          * @param inputCopies non-null copy roles, snapshotted without retaining run data
          * @param invocationWorkspace non-null private 64-byte-aligned scratch declaration

@@ -545,35 +545,20 @@ public final class CpuPartitionPreparer implements BackendPartitionPreparer<
     }
 
     /**
-     * Screens explicit configuration and static F32 MATMUL occurrences before any native query.
-     * Actual unit, layout and numerical qualification remains the selector's responsibility.
+     * Screens explicit configuration and static common occurrences before any native query.
+     * Exact typed family, layout and implementation qualification belongs to the selector.
      * Symbolic projections and frozen Phase-1 choices cannot enter native comparison.
      *
      * @param context non-null complete CPU analysis context, borrowed
-     * @return whether common contraction analysis may be considered without changing a frozen choice
+     * @return whether static common analysis may be considered without changing a frozen choice
      */
     private boolean nativeComparisonEnabled(PrepareContext<CpuPartitionAnalysisInputs> context) {
         if (oneDnnSelector.isEmpty() || context.requiresBatchSize()
                 || context.backendInputs().openBlasTuningDecision().isPresent()) return false;
-        var descriptors = new LinkedHashMap<ValueId,
-                io.github.pho001.synaptik.model.tensor.TensorDescriptor>();
         for (var value : context.values()) {
             if (!value.descriptor().shape().isFullyStatic()) return false;
-            descriptors.put(value.id(), value.descriptor());
         }
-        for (var node : context.nodes()) {
-            if (node.operation().kind()
-                    != io.github.pho001.synaptik.model.operation.linalg.MatmulKind.MATMUL
-                    || node.inputs().size() != 2 || node.outputs().size() != 1) continue;
-            var left = descriptors.get(node.inputs().getFirst());
-            var right = descriptors.get(node.inputs().get(1));
-            var result = descriptors.get(node.outputs().getFirst());
-            if (left.dataType() != DataType.FLOAT32 || right.dataType() != DataType.FLOAT32
-                    || result.dataType() != DataType.FLOAT32) continue;
-            long[] extents = left.shape().toLongArray();
-            if (extents.length > 0 && extents[extents.length - 1] > 1) return true;
-        }
-        return false;
+        return true;
     }
 
     /**
