@@ -212,9 +212,12 @@ public final class LstmSequence extends Module {
      * Produced inputs and states are accepted without copying or detaching. This module retains
      * no input, lengths, state or result; the producer retains its ordered inputs. Construction
      * has identical meaning in training and evaluation modes and preserves gradient eligibility
-     * (including trainable parameters in eval), but does not authorize scan backpropagation through
-     * time. Execute separately through the public Engine forward-only compile/prepare/run lifecycle;
-     * this method grants no {@code Model.compute/train} support or backend capability.</p>
+     * (including trainable parameters in eval). Fixed-family first-order differentiation uses
+     * the shared Compiler Scan/ordinary AD owners, preserving fixed recurrent numerical sites.
+     * Actual forward and derivative graphs must independently qualify on the selected backend;
+     * construction alone grants no execution capability. Qualified owned Models use the existing
+     * {@code Model.compute/configureTraining/train} lifecycle, without recipe conversion.
+     * Higher-order recurrent differentiation remains unsupported.</p>
      *
      * @param input non-null fully static {@code [time,batch,inputSize]} Tensor; time and batch
      *     may be zero and inputSize must be positive, with the exact configured floating type

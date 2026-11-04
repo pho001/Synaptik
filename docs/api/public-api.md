@@ -20,68 +20,23 @@ Public `GraphCompilationPort` exposes that complete constant-free pipeline as a 
 cross-module integration service-provider interface (SPI). The CPU backend exposes the supported
 `CpuBackendIntegration` lifecycle SPI, including bounded canonical host-byte materialization. The Metal backend exposes
 `MetalBackendConfiguration`, `MetalBackendIntegration`, `MetalTraceObserver`, and a closed
-occurrence-qualified domain. Its exact domain includes unary, affine, canonicalization,
-indexing, four-type floating classification, BOOL logic, the 14 supported floating `WHERE`
-signatures, replacement/fold/aggregate, no-gradient promoted INT32/INT64 MATMUL,
-ordering/top-K/numeric arg-extrema, maximum pooling, and explicit state. `SORT`, `ARGSORT`, and
-positive-K `TOP_K` admit all seven carriers, while `ARG_MIN` and `ARG_MAX` admit the six numeric
-carriers. `UNFOLD_AXIS` accepts all seven carriers, `FOLD_AXIS` all six numeric carriers, and
-2D/3D unfold/fold all four floating carriers. All 49 ordered casts are explicit.
-The supported homogeneous FLOAT32 Metal occurrences preserved at the profile-free cutover retain
-independently queried BFLOAT16 and FLOAT16 counterparts where declared, with FLOAT32 working
-values and accumulators and one final ties-to-even narrowing. This includes the admitted
-arithmetic, extrema, scalar, reductions, scans, MATMUL, MSE, convolution, average pooling,
-explicit-state dropout, rank-one L1 and ScatterAdd, and
-singleton-variance domains. Direct BFLOAT16/FLOAT16 mixed-low execution is unsupported; callers
-must insert explicit FLOAT32 casts. Maximum Pool2d/Pool3d accepts all four floating carriers under
-the one Model contract. No-gradient INT32/INT64 MATMUL uses INT64-dominant promotion and exact
-modular result arithmetic. Unsupported operation occurrences fail before native resource
-creation.
+occurrence-qualified domain. The [current production support matrix](../backend-guide/production-support.md)
+owns the detailed operation/type/layout/derivative inventory, including attention, normalization
+and Scan. Metal retains seven storage carriers and its own predicate domain; it has no FP8
+support. CPU low-precision parity does not widen Metal admission.
+Direct BFLOAT16/FLOAT16 mixed-low execution remains outside the documented Metal authority;
+use explicit FLOAT32 casts where required by that matrix.
 
-The current Metal provider additionally supports bounded, canonical, positive-rank `EXP` without
-gradient metadata for separate homogeneous FLOAT32, BFLOAT16, and FLOAT16 occurrences. FLOAT32
-uses a fixed direct MPSGraph route; BFLOAT16 and FLOAT16 each use a typed custom step with FLOAT32
-working evaluation and one final low narrowing. The input and same-type/equal-Shape output must
-be canonical, fully static rank `1..16`, and within checked byte/dispatch geometry. FLOAT64,
-gradient-bearing, scalar-rank, noncanonical, mixed-low, and over-limit Metal `EXP` remain
-unsupported. An explicit BFLOAT16/FLOAT16-to-FLOAT32 cast followed by FLOAT32 `EXP` may instead
-execute as an internal MPSGraph boundary step in a low-containing custom partition; this is a
-different composition from low-valued `EXP` and does not imply implicit conversion.
+Low-containing Metal partitions retain their qualified custom-program route rather than an
+alternate CPU route. Explicit casts are graph operations, not implicit conversion or fallback.
+Backend ABI, program schema and cache identities are implementation compatibility boundaries;
+use the backend guide and authenticated current artifacts rather than pinning copies of those
+version strings in application guidance.
 
-Every partition containing BFLOAT16 or FLOAT16 values selects `CUSTOM_PROGRAM`; this includes
-arithmetic and exact raw-preserving `RESHAPE`, simple `PERMUTE`, materializing `CONTIGUOUS`,
-`SLICE`, `CONCAT`, and `TILE`. No low-precision partition exposes MPSGraph, classic MPS, MPP, or
-CPU as an alternate whole-partition route; generated-pointwise fusion, retry, and fallback remain
-unavailable. Low-precision PREPARE trace
-reports only the selected custom route and its execution facts.
-
-Metal indexing validates complete bounds and, for replacement scatter, destination uniqueness
-before dispatch or writes. Ordering and pooling use their documented NaN, signed-zero, and stable
-logical-index rules. MATMUL accepts canonical operands or authenticated local identity-prefix
-last-two-axis transpose views. Conv1d/Pool1d use only authenticated local singleton-height
-compositions. Exact affine view results retain authenticated Shape, stride, and offset; selected
-materializing results are canonical. Eligible linear canonical FLOAT32
-`FLOOR`/`CEIL`/`SIGN`/`RELU` chains may use bounded deterministic generated units, but low-
-precision partitions never enter those routes.
-
-Bounded canonical no-gradient FLOAT32 `SIGMOID` uses a sign-guarded composed MPSGraph step.
-BFLOAT16/FLOAT16 `SIGMOID` use typed custom steps; an explicit low-to-FLOAT32 cast can place the
-FLOAT32 step inside a low-containing `CUSTOM_PROGRAM` partition without changing that route.
-
-Metal ABI 7 exposes thirteen native functions. Its bounded route-bearing program image is schema
-20 with a 124-byte header, data-type wires `1..7`, operation wires `1..115`, attribute wires `0..41`, route wires
-`1..3`, and backend-local candidate, compatibility, route-policy, workload, codec, and default-
-decision identities at version 39. Prior identities are stale: 30 was the profile-free cutover;
-31/32 added FLOAT32/low `EXP`; 33/34 added FLOAT32/low `SIGMOID`; 35 repaired native/exact-low
-boundaries; 36 corrected standalone scalar admission; 37 added dense-view MATMUL; and 38 added
-materializing RESHAPE. Current 39 adds FLOAT32 overlapping image folds for Conv3d training
-without changing ABI 7 or schema 20. Structural
-coverage is `103 / 12`; production capability is `88 / 27` over operation kinds. Canonical typed
-host ingress/publication and CPU/Metal transfer support all seven carriers. Cross-owner values
-may use exact rank-0..16 static canonical or positive-stride
-non-overlapping layouts with checked physical spans; transfer performs no conversion or fallback.
-Authenticated `SELECT`/`SLICE` publication gathers logical values from exact physical storage and
-preserves raw carrier bits.
+Canonical typed host ingress/publication and CPU/Metal transfer support Metal's seven carriers.
+Cross-owner values require the documented static rank-0..16 canonical or approved positive-stride
+non-overlapping layouts and checked physical spans. Transfer preserves carrier values and
+performs no conversion or fallback.
 `Engine.builder()` is the public explicit composition root for
 opened CPU and Metal integrations. It freezes their Planning inputs in registration order and
 supports a complete non-empty plan only when every partition has one exact registered owner. The

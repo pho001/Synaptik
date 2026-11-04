@@ -444,10 +444,15 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      * connected, nonempty parameter requirements still apply at zero time count.
      * Fixed and general recurrent sources retain their original arithmetic boundaries and use
      * the same session. Low outputs require an explicit FLOAT32/FLOAT64 objective conversion.
+     * Engine selection freezes after target/source validation and before the objective callback.
+     * Objective validation precedes inference-preparation closure and the native parameter copy;
+     * actual session compilation/preparation follows that copy. Backend or first-order AD rejection
+     * may therefore retain the successful native transition; explicit retry does not repeat it.
      * @param targetSignature non-null fully static target descriptor
      * @param objectiveBuilder non-null pure builder returning a scalar gradient-eligible FLOAT32/FLOAT64 expression
      * @param optimizer non-null immutable Training optimizer configuration
-     * @throws UnsupportedOperationException if tensor capability is absent
+     * @throws UnsupportedOperationException if tensor capability is absent or actual compilation,
+     *     differentiation or backend preparation is unsupported
      * @throws IllegalStateException if closed, busy, invalid, already configured or storage unusable
      * @throws IllegalArgumentException if boundaries, objective, native parameter or source admission rejects
      * @throws NullPointerException if an argument or objective result is null
@@ -463,12 +468,17 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
      * inference preparations close before replacement. Training owns optimizer mathematics/atomicity.
      * General-scan objectives may consume final carry and emissions together; residual-root
      * differentiation and unsupported body occurrences still reject through Compiler admission.
-     * Fixed-scan-containing sources instead reject before argument checks or any setup effect, preserving
-     * state bytes, storage associations, inference caches and the existing Engine freeze status.
+     * Fixed and mixed fixed/general sources use the same first-order admission and retain their
+     * original recipes and numerical sites. After target/source validation, Engine selection freezes
+     * before the objective callback. Objective validation precedes closing inference preparations
+     * and the one native parameter transition; session compilation/preparation follows that transition.
+     * A later backend or derivative rejection therefore need not be effect-free. Explicit retry is
+     * permitted after failed setup, but a successful native transition is retained and not repeated.
      * @param targetPrototypes non-null unique static provenance-free targets disjoint from source leaves
      * @param objectiveBuilder non-null pure one-attempt builder; arbitrary external leaves reject
      * @param optimizer non-null Training-owned immutable configuration
-     * @throws UnsupportedOperationException if tensor capability is absent or the source contains a fixed scan
+     * @throws UnsupportedOperationException if tensor capability is absent or actual compilation,
+     *     differentiation or backend preparation is unsupported
      * @throws IllegalStateException if lifecycle, source, storage or repeated configuration rejects
      * @throws IllegalArgumentException if targets, objective or Training parameter admission rejects
      * @throws NullPointerException if an argument/element/objective is null
@@ -480,11 +490,12 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Performs RESET_AND_STEP on one configured batch and target without changing Module mode.
-     * Fixed-scan-containing sources reject after lifecycle/live-source admission and before arity or arguments.
+     * Fixed recurrent presence is not a separate rejection guard; actual configured session,
+     * live-source, boundary and Training transaction admission apply.
      * @param input non-null fresh stored exact-signature input borrowed through synchronous execution
      * @param target non-null fresh stored exact-signature target with no forbidden storage overlap
      * @return detached objective and committed step metadata, readable after all owners close
-     * @throws UnsupportedOperationException if tensor capability is absent or the source contains a fixed scan
+     * @throws UnsupportedOperationException if tensor capability is absent
      * @throws IllegalStateException if unconfigured, closed, busy, invalid or storage unusable
      * @throws IllegalArgumentException if boundary, descriptor or Training overlap admission rejects
      * @throws ArithmeticException if Training rejects nonfinite gradients, staged updates or optimizer arithmetic
@@ -494,11 +505,11 @@ public abstract class Model<I, O> extends Module implements AutoCloseable {
 
     /**
      * Performs the same Training transaction for explicit ordered batch and target slots.
-     * Fixed-scan-containing sources reject after lifecycle/live-source admission without setup or mutation.
+     * Fixed and general recurrent sources share configured session and transaction admission.
      * @param inputs non-null fresh stored inputs in declared order, including eliminated slots
      * @param targets non-null fresh stored targets in declared order
      * @return detached TrainingStep after internal result closure
-     * @throws UnsupportedOperationException if tensor capability is absent or the source contains a fixed scan
+     * @throws UnsupportedOperationException if tensor capability is absent
      * @throws IllegalStateException if lifecycle/configuration/source/storage rejects
      * @throws IllegalArgumentException if arity, descriptors or overlap reject
      * @throws ArithmeticException if Training rejects nonfinite transaction values

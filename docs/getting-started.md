@@ -28,8 +28,9 @@ uses the checked-in Gradle wrapper, so a separate Gradle installation is not req
 
 The owner selected **private/internal distribution** for the first production target. No public
 project licence or redistribution grant is selected; do not publish these artifacts to public
-registries. Current archives remain qualification candidates until the final all-PURE/source-matched
-technical gate passes. No official signing or bundled third-party native implementation is implied.
+registries. Archives are qualification candidates: the active public-readiness audit and final
+source-matched technical acceptance are not replaced by historical local-candidate receipts.
+No official signing or bundled third-party native implementation is implied.
 Java CPU BF16, FP16 and both FP8 formats execute through the existing CPU owners with FLOAT32
 working values and declared low-result narrowing. Native oneDNN acceleration is independently
 qualified per occurrence and target; unavailable native FP8 remains on the ordinary CPU path,
@@ -122,7 +123,8 @@ Run these commands from the repository root:
 
 A successful command ends with `BUILD SUCCESSFUL`. The build verifies the repository under the
 active JDK. It does not exercise the opt-in real-device Metal path, publish a release, or turn
-planned CUDA and durable-persistence work into current capabilities.
+CUDA into a usable product or qualify every persisted source for backend execution. Bounded durable
+graph/Model persistence is implemented; it does not persist prepared executables or Training continuation.
 
 ## Run one CPU computation
 

@@ -40,13 +40,17 @@ first-order AD, including mixed fixed/general sources, ordinary heads and final-
 Fixed presence is not a separate inference-only admission guard. Keep the source's original
 fixed/general recipe, storage carriers and rounding boundaries; low-output objectives explicitly
 cast to FLOAT32/FLOAT64. CPU low types retain the existing family and actual derivative guards.
-Actual backend/AD rejection follows the existing setup, native transition and retry ordering.
+Actual backend/AD rejection follows the existing setup ordering: target/source validation,
+Engine-choice freeze, objective callback and validation, inference-preparation closure and the
+one native parameter transition, then session compilation/preparation. A failed later attempt
+can retain changed storage associations and closed inference preparations; it is not an
+effect-free fixed-scan rejection. Retry retains a successful native transition.
 No optimizer/session history is restored by graph load; configure fresh training on restored values.
 
-Qualified general Scan sources are different: all-valid homogeneous F32/F64 and NN0033's static
-runtime-length F32/F64 RNN support first-order training through the same owners. The explicit
-F32/F64 `rnnScan` builder uses that general composition; GRU/LSTM, low RNN and old fixed files do
-not migrate. Configure a fresh objective/optimizer after v5 load; no session history is restored.
+Qualified general Scan sources use the same owners, including CPU low types under actual forward,
+first-order derivative and binding guards. The explicit F32/F64 `rnnScan` builder uses general
+composition; GRU/LSTM, low RNN and old fixed files retain their fixed recipes and numerical sites.
+Configure fresh training after graph load; graph files restore no session history.
 
 
 `train(batch, target)` and the list form delegate `RESET_AND_STEP` to one TrainingSession.runValues.
@@ -349,7 +353,10 @@ use four bytes per element for all four low types and FLOAT32, and eight for FLO
 `restore(state)` validates the complete default
 optimizer and ordered groups (including dampening), counters, paths, schemas, finite payloads,
 and exact slot presence/lengths, including a non-negative finite adaptive second moment, before
-installing anything. This is an in-memory handoff, not a durable checkpoint format.
+installing anything. FLOAT32/FLOAT64 logical and master payloads must be raw-identical, including
+signed zeros. Low logical payloads and FLOAT32 masters remain independent exact payloads; restore
+does not require that one be the rounded form of the other. This is an in-memory handoff, not a
+durable checkpoint format.
 It restores the fixed session's documented state, not an entire program: NN buffer values and
 per-module modes, the effective `ForwardContext` values used to build the objective, the next
 input/cursor, and any external random, scheduler, or scaler state are separate caller-coordinated
