@@ -247,6 +247,8 @@ final class MetalNegRouteCandidateGenerator {
                     case INT64 -> updateLong(digest, scalar.int64Value());
                     case INT32 -> updateInt(digest, scalar.int32Value());
                     case BOOL -> updateBoolean(digest, scalar.booleanValue());
+                    case FLOAT8_E4M3, FLOAT8_E5M2 ->
+                            throw new IllegalArgumentException("Metal does not support FP8 scalars");
                 }
             }
         }

@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
 class MetalOrderingNativeTest {
     @Test
     void topKZeroPublishesBothEmptyOutputsForEmptyAndNonemptyInputsAcrossReuse() {
-        for (DataType type : DataType.values()) {
+        for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
             for (int extent : new int[] {0, 6}) {
                 for (boolean largest : List.of(false, true)) {
                     for (boolean sorted : List.of(false, true)) {
@@ -77,7 +77,7 @@ class MetalOrderingNativeTest {
 
     @Test
     void everyCarrierHonorsDescendingStabilityUnsortedCompactionAndArgTiePolicies() {
-        for (DataType type : DataType.values()) {
+        for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
             boolean numeric = type != DataType.BOOL;
             var nodes = new ArrayList<MetalMpsGraphProgram.Node>();
             nodes.add(node(MetalMpsGraphProgram.NodeKind.SORT, new int[] {0}, new int[] {1},
@@ -279,12 +279,9 @@ class MetalOrderingNativeTest {
         ByteBuffer bytes = ByteBuffer.allocate(Math.multiplyExact(words.length, width))
                 .order(ByteOrder.nativeOrder());
         for (long word : words) {
-            switch (type) {
-                case FLOAT64, INT64 -> bytes.putLong(word);
-                case FLOAT32, INT32 -> bytes.putInt((int) word);
-                case BFLOAT16, FLOAT16 -> bytes.putShort((short) word);
-                case BOOL -> bytes.put((byte) word);
-            }
+            switch (type) { case FLOAT64, INT64 -> bytes.putLong(word);
+            case FLOAT32, INT32 -> bytes.putInt((int) word);
+            case BFLOAT16, FLOAT16 -> bytes.putShort((short) word); case BOOL -> bytes.put((byte) word); case FLOAT8_E4M3, FLOAT8_E5M2 -> throw new IllegalArgumentException("Metal does not support FP8 carriers");  }
         }
         return bytes.array();
     }

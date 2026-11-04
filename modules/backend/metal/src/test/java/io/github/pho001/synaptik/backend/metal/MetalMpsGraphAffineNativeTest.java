@@ -43,7 +43,7 @@ class MetalMpsGraphAffineNativeTest {
                 MetalBackendIntegration integration = MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library))) {
             Shape shape = Shape.of(Long.MAX_VALUE, 2, 0);
-            for (DataType type : DataType.values()) {
+            for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
                 var canonical = new TensorDescriptor(type, shape,
                         java.util.Optional.of(LayoutDescriptor.contiguous(shape)), false);
                 var view = new TensorDescriptor(type, shape, java.util.Optional.of(
@@ -446,7 +446,7 @@ class MetalMpsGraphAffineNativeTest {
                             new int[] {2},
                             MetalMpsGraphProgram.AttributeKind.SLICE,
                             new long[] {1, 0, 2, 0, 2})));
-            for (DataType type : DataType.values()) {
+            for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
                 runSelectSliceCarrier(
                         api,
                         context,
@@ -610,7 +610,7 @@ class MetalMpsGraphAffineNativeTest {
         MetalNativeApi.Handle context = null;
         try {
             context = api.createContext();
-            for (DataType type : DataType.values()) {
+            for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
                 for (boolean local : new boolean[] {false, true}) {
                     runMaterializingReshape(api, context, type, local, false);
                     if (type == DataType.FLOAT32 || type == DataType.FLOAT64
@@ -717,27 +717,24 @@ class MetalMpsGraphAffineNativeTest {
     }
 
     private static long reshapeCarrierBits(DataType type, int ordinal) {
-        return switch (type) {
-            case FLOAT32, INT32 -> Integer.toUnsignedLong(ADVERSARIAL_BITS[ordinal]);
-            case FLOAT64, INT64 -> new long[] {
-                    0L, Long.MIN_VALUE, 1L, Long.MIN_VALUE | 1L,
-                    0x000fffffffffffffL, 0x800fffffffffffffL,
-                    0x0010000000000000L, 0x8010000000000000L,
-                    0x7fefffffffffffffL, 0xffefffffffffffffL,
-                    0x7ff0000000000000L, 0xfff0000000000000L,
-                    0x7ff8000000000001L, 0x7ff8123456789abcL,
-                    0xfff854321fedcba9L, 0x7ff0000000000001L
-            }[ordinal % 16];
-            case BFLOAT16 -> new int[] {
-                    0, 0x8000, 1, 0x8001, 0x007f, 0x807f, 0x0080, 0x8080,
-                    0x7f7f, 0xff7f, 0x7f80, 0xff80, 0x7fc1, 0xffd5, 0x7f81, 0x3f81
-            }[ordinal % 16];
-            case FLOAT16 -> new int[] {
-                    0, 0x8000, 1, 0x8001, 0x03ff, 0x83ff, 0x0400, 0x8400,
-                    0x7bff, 0xfbff, 0x7c00, 0xfc00, 0x7e01, 0xfe55, 0x7c01, 0x3c01
-            }[ordinal % 16];
-            case BOOL -> ordinal & 1;
-        };
+        return switch (type) { case FLOAT32, INT32 -> Integer.toUnsignedLong(ADVERSARIAL_BITS[ordinal]);
+        case FLOAT64, INT64 -> new long[] {
+                0L, Long.MIN_VALUE, 1L, Long.MIN_VALUE | 1L,
+                0x000fffffffffffffL, 0x800fffffffffffffL,
+                0x0010000000000000L, 0x8010000000000000L,
+                0x7fefffffffffffffL, 0xffefffffffffffffL,
+                0x7ff0000000000000L, 0xfff0000000000000L,
+                0x7ff8000000000001L, 0x7ff8123456789abcL,
+                0xfff854321fedcba9L, 0x7ff0000000000001L
+        }[ordinal % 16];
+        case BFLOAT16 -> new int[] {
+                0, 0x8000, 1, 0x8001, 0x007f, 0x807f, 0x0080, 0x8080,
+                0x7f7f, 0xff7f, 0x7f80, 0xff80, 0x7fc1, 0xffd5, 0x7f81, 0x3f81
+        }[ordinal % 16];
+        case FLOAT16 -> new int[] {
+                0, 0x8000, 1, 0x8001, 0x03ff, 0x83ff, 0x0400, 0x8400,
+                0x7bff, 0xfbff, 0x7c00, 0xfc00, 0x7e01, 0xfe55, 0x7c01, 0x3c01
+        }[ordinal % 16]; case BOOL -> ordinal & 1; case FLOAT8_E4M3, FLOAT8_E5M2 -> throw new IllegalArgumentException("Metal does not support FP8 carriers");  };
     }
 
     @Test

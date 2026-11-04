@@ -123,6 +123,8 @@ import java.util.Objects;
  * INITIAL_STATE and dropout mask/state remain no-gradient; other roles preserve the Model
  * differentiability relation. Common rank, unsigned-index, layout and workspace bounds remain.
  * Unlisted or unproved occurrences return false.</p>
+ * <p>OFP8 carriers are unsupported, including raw movement, comparison and explicit casts.
+ * Their Model floating classification never grants a Metal capability.</p>
  */
 public final class MetalCapabilityProvider implements BackendCapabilityProvider {
     private static final long UINT32_MAX = 0xffff_ffffL;
@@ -165,6 +167,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
     @Override
     public boolean supports(OperationCapabilityQuery query) {
         Objects.requireNonNull(query, "query");
+        if (!supportedCarriers(query.inputs(), query.outputs())) return false;
         return query.operation().kind() == io.github.pho001.synaptik.model.operation.scan.ScanKind.SCAN
                 ? MetalScanLowering.supports(query)
                 : supportsOccurrence(query.operation(), query.inputs(), query.outputs());
@@ -172,8 +175,19 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
 
     /** Qualifies original static body geometry, including genuine empty domains, without samples. */
     static boolean supportsScanBody(OperationCapabilityQuery query) {
-        return supportsOccurrence(query.operation(), query.inputs(), query.outputs())
-                || MetalScanBodySupport.supports(query);
+        return supportedCarriers(query.inputs(), query.outputs())
+                && (supportsOccurrence(query.operation(), query.inputs(), query.outputs())
+                || MetalScanBodySupport.supports(query));
+    }
+
+    private static boolean supportedCarriers(
+            List<TensorDescriptor> inputs, List<TensorDescriptor> outputs) {
+        return inputs.stream().noneMatch(input -> unsupportedCarrier(input.dataType()))
+                && outputs.stream().noneMatch(output -> unsupportedCarrier(output.dataType()));
+    }
+
+    private static boolean unsupportedCarrier(DataType type) {
+        return type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2;
     }
 
     /**
@@ -194,6 +208,7 @@ public final class MetalCapabilityProvider implements BackendCapabilityProvider 
         Objects.requireNonNull(operation, "operation");
         Objects.requireNonNull(inputs, "inputs");
         Objects.requireNonNull(outputs, "outputs");
+        if (!supportedCarriers(inputs, outputs)) return false;
         if (MetalExactSupport.handles(operation, inputs, outputs))
             return MetalExactSupport.supports(operation, inputs, outputs);
         try {

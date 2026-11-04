@@ -1518,7 +1518,7 @@ class MetalMpsGraphRawAbiNativeTest {
     void materializingReshapeRawAbiAuthenticatesOccurrenceGeometryAndImmediateSource()
             throws Throwable {
         try (RawAbi abi = new RawAbi(configuredLibrary())) {
-            for (DataType type : DataType.values()) {
+            for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
                 boolean gradient = type == DataType.FLOAT32 || type == DataType.FLOAT64
                         || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
                 for (boolean local : new boolean[] {false, true}) {
@@ -1622,7 +1622,7 @@ class MetalMpsGraphRawAbiNativeTest {
         Shape sourceShape = Shape.of(2, 3);
         Shape resultShape = Shape.of(6);
         try (RawAbi abi = new RawAbi(configuredLibrary())) {
-            for (DataType type : DataType.values()) {
+            for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
                 var source = new MetalMpsGraphProgram.ValueDescriptor(
                         type, sourceShape.toLongArray(),
                         java.util.Optional.of(LayoutDescriptor.of(

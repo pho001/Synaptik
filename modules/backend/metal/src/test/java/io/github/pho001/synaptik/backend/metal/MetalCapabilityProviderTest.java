@@ -82,6 +82,34 @@ import org.junit.jupiter.api.Test;
 
 class MetalCapabilityProviderTest {
     @Test
+    void fp8RequestsRemainUnsupportedWithoutNativeDiscoveryOrConversion() {
+        for (DataType type : List.of(DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            for (long count : new long[] {0, 3}) {
+                Shape shape = Shape.of(count);
+                var input = typed(type, shape, false);
+                var bool = typed(DataType.BOOL, shape, false);
+                var f32 = typed(DataType.FLOAT32, shape, false);
+                assertFalse(provider.supports(unaryQuery(UnaryElementwiseKind.NEG, input, input)));
+                assertFalse(provider.supports(new OperationCapabilityQuery(
+                        new Operation(BinaryComparisonKind.EQUAL, NoOperationAttrs.INSTANCE),
+                        List.of(input, input), List.of(bool))));
+                assertFalse(provider.supports(new OperationCapabilityQuery(
+                        new Operation(ShapeTransformKind.RESHAPE, new TargetShapeAttrs(shape)),
+                        List.of(input), List.of(input))));
+                assertFalse(provider.supports(new OperationCapabilityQuery(
+                        new Operation(CastKind.CAST, new CastAttrs(DataType.FLOAT32)),
+                        List.of(input), List.of(f32))));
+                assertFalse(provider.supports(new OperationCapabilityQuery(
+                        new Operation(CastKind.CAST, new CastAttrs(type)),
+                        List.of(f32), List.of(input))));
+                assertThrows(IllegalArgumentException.class,
+                        () -> new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {count}, false));
+                assertThrows(IllegalArgumentException.class, () -> MetalMpsGraphProgram.dataTypeWire(type));
+            }
+        }
+    }
+
+    @Test
     void truthfulExternalAffineUnaryComparisonAndMatmulDomainsRetainGradientBoundaries() {
         for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
             Shape shape = Shape.of(2);
@@ -149,7 +177,7 @@ class MetalCapabilityProviderTest {
 
     @Test
     void topKZeroAdmitsEmptyValuesAndIndicesButKeepsOutputShapeAndGradientValidation() {
-        for (DataType type : DataType.values()) {
+        for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
             for (long extent : new long[] {0, 3}) {
                 var input = typed(type, Shape.of(2, extent), false);
                 var values = typed(type, Shape.of(2, 0), false);
@@ -345,8 +373,8 @@ class MetalCapabilityProviderTest {
 
     @Test
     void task0059AdvertisesCastSelectAndSliceWithoutOpeningUnsafeLayouts() {
-        for (DataType source : DataType.values()) {
-            for (DataType target : DataType.values()) {
+        for (DataType source : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
+            for (DataType target : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
                 boolean expected = true;
                 assertEquals(
                         expected,
@@ -358,7 +386,7 @@ class MetalCapabilityProviderTest {
             }
         }
 
-        for (DataType type : DataType.values()) {
+        for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
             Shape dataShape = Shape.of(2, 3);
             TensorDescriptor data = typed(type, dataShape, false);
             Shape selectShape = Shape.of(3);
@@ -483,7 +511,7 @@ class MetalCapabilityProviderTest {
                 new Fold2dAttrs(Shape.of(1, 2, 3, 3), window2d));
         var fold3d = new Operation(WindowTransformKind.FOLD3D,
                 new Fold3dAttrs(Shape.of(1, 2, 3, 3, 3), window3d));
-        for (DataType type : DataType.values()) {
+        for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
             boolean supported = type == DataType.FLOAT32
                     || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
             for (boolean gradient : List.of(false, true)) {
@@ -509,7 +537,7 @@ class MetalCapabilityProviderTest {
     void task0059BothImageUnfoldKindsAcceptOnlyModelLegalFloatingCarriers() {
         var window2d = new Window2dAttrs(2, 2, 1, 1, 0, 0, 1, 1, false);
         var window3d = new Window3dAttrs(2, 2, 2, 1, 1, 1, 0, 0, 0, 1, 1, 1, false);
-        for (DataType type : DataType.values()) {
+        for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
             boolean expected = type == DataType.FLOAT64
                     || type == DataType.FLOAT32
                     || type == DataType.BFLOAT16
@@ -609,7 +637,7 @@ class MetalCapabilityProviderTest {
         Shape targetShape = Shape.of(6);
         Operation reshape = new Operation(ShapeTransformKind.RESHAPE,
                 new TargetShapeAttrs(targetShape));
-        for (DataType type : DataType.values()) {
+        for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
             boolean floating = type == DataType.FLOAT32 || type == DataType.FLOAT64
                     || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
             for (boolean gradient : floating ? List.of(false, true) : List.of(false)) {
@@ -1451,8 +1479,8 @@ class MetalCapabilityProviderTest {
                     mixedRight,
                     mixedOutput));
         }
-        for (DataType leftType : DataType.values()) {
-            for (DataType rightType : DataType.values()) {
+        for (DataType leftType : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
+            for (DataType rightType : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
                 boolean integral = (leftType == DataType.INT32 || leftType == DataType.INT64)
                         && (rightType == DataType.INT32 || rightType == DataType.INT64);
                 boolean floating = List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)

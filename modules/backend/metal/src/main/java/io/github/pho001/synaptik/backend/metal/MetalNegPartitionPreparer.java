@@ -1623,6 +1623,8 @@ final class MetalNegPartitionPreparer implements BackendPartitionPreparer<
             case INT32 -> Integer.toUnsignedLong(value.int32Value());
             case INT64 -> value.int64Value();
             case BOOL -> value.booleanValue() ? 1L : 0L;
+            case FLOAT8_E4M3, FLOAT8_E5M2 ->
+                    throw new IllegalArgumentException("Metal does not support FP8 scalars");
         };
         return new long[] {MetalMpsGraphProgram.dataTypeWire(value.dataType()), bits};
     }

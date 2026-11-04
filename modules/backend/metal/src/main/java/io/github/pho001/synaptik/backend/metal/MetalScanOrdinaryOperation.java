@@ -358,6 +358,7 @@ final class MetalScanOrdinaryOperation {
             case INT32 -> ScalarValue.int32(word32(bits));
             case INT64 -> ScalarValue.int64(bits);
             case BOOL -> ScalarValue.bool(bool(bits));
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> throw malformed();
         };
     }
 

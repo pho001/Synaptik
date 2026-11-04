@@ -256,7 +256,7 @@ class MetalMpsGraphAffineSchemaTest {
     void materializingReshapeAuthenticatesStatesOffsetsHolesAndOriginalCarriers() {
         var reshape = new MetalMpsGraphProgram(List.of(MetalMpsGraphProgram.Node.targetShape(
                 MetalMpsGraphProgram.NodeKind.RESHAPE, 0, 1, new long[] {6})));
-        for (DataType type : DataType.values()) {
+        for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
             boolean gradient = type == DataType.FLOAT32 || type == DataType.FLOAT64
                     || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
             var source = new MetalMpsGraphProgram.ValueDescriptor(type, new long[] {2, 3},

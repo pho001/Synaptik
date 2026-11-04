@@ -400,7 +400,7 @@ class MetalRemainingElementwiseNativeTest {
                         new int[] {7},
                         MetalMpsGraphProgram.AttributeKind.CROP_TO_SHAPE,
                         new long[] {1, 2, 1, 1})));
-        for (DataType carrier : DataType.values()) {
+        for (DataType carrier : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
             List<MetalMpsGraphProgram.ValueDescriptor> values = List.of(
                     typed(carrier, 4),
                     typed(DataType.INT32, 2, 1),
@@ -770,7 +770,7 @@ class MetalRemainingElementwiseNativeTest {
     @Test
     void task0059CopyRecipesPreserveEveryCarrierWidth() {
         Path library = configuredLibrary();
-        for (DataType carrier : DataType.values()) {
+        for (DataType carrier : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
             byte[] source = task0059CarrierWords(carrier);
             long fill = task0059FillWord(carrier);
             int width = carrier.byteWidth();
@@ -1464,7 +1464,7 @@ class MetalRemainingElementwiseNativeTest {
         var slice = MetalMpsGraphProgram.Node.generic(MetalMpsGraphProgram.NodeKind.SLICE,
                 new int[] {0}, new int[] {1}, MetalMpsGraphProgram.AttributeKind.SLICE,
                 new long[] {1, 2, 2, 1, -2});
-        for (DataType type : DataType.values()) {
+        for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
             byte[] source = task0059CarrierWords(type);
             var output = executeCustomBytes(library, new MetalMpsGraphProgram(List.of(slice)),
                     List.of(typed(type, 2, 3), typed(type, 2, 2)),
@@ -2158,37 +2158,29 @@ class MetalRemainingElementwiseNativeTest {
     }
 
     private static byte[] task0059CarrierWords(DataType carrier) {
-        return switch (carrier) {
-            case FLOAT64 -> bytes64(
-                    0x8000_0000_0000_0000L,
-                    0x7ff8_0000_0000_0042L,
-                    0x0000_0000_0000_0001L,
-                    0x3ff0_0000_0000_0000L,
-                    0xfff8_0000_0000_1234L,
-                    0x8000_0000_0000_0001L);
-            case FLOAT32 -> bytes32(
-                    0x8000_0000, 0x7fc1_2345, 0x0000_0001,
-                    0x3f80_0000, 0xffc5_4321, 0x8000_0001);
-            case BFLOAT16 -> bytes16(0x8000, 0x7fc1, 0x0001, 0x3f80, 0xffc5, 0x8001);
-            case INT64 -> bytes64(
-                    Long.MIN_VALUE, Long.MAX_VALUE, -1L, 0L, 1L, 0x0123_4567_89ab_cdefL);
-            case INT32 -> bytes32(
-                    Integer.MIN_VALUE, Integer.MAX_VALUE, -1, 0, 1, 0x1234_5678);
-            case BOOL -> new byte[] {0, 1, 0, 1, 1, 0};
-            case FLOAT16 -> bytes16(0x8000, 0x7e01, 0x0001, 0x3c00, 0xfe22, 0x8001);
-        };
+        return switch (carrier) { case FLOAT64 -> bytes64(
+                0x8000_0000_0000_0000L,
+                0x7ff8_0000_0000_0042L,
+                0x0000_0000_0000_0001L,
+                0x3ff0_0000_0000_0000L,
+                0xfff8_0000_0000_1234L,
+                0x8000_0000_0000_0001L);
+        case FLOAT32 -> bytes32(
+                0x8000_0000, 0x7fc1_2345, 0x0000_0001,
+                0x3f80_0000, 0xffc5_4321, 0x8000_0001);
+        case BFLOAT16 -> bytes16(0x8000, 0x7fc1, 0x0001, 0x3f80, 0xffc5, 0x8001);
+        case INT64 -> bytes64(
+                Long.MIN_VALUE, Long.MAX_VALUE, -1L, 0L, 1L, 0x0123_4567_89ab_cdefL);
+        case INT32 -> bytes32(
+                Integer.MIN_VALUE, Integer.MAX_VALUE, -1, 0, 1, 0x1234_5678); case BOOL -> new byte[] {0, 1, 0, 1, 1, 0}; case FLOAT8_E4M3, FLOAT8_E5M2 -> throw new IllegalArgumentException("Metal does not support FP8 carriers"); case FLOAT16 -> bytes16(0x8000, 0x7e01, 0x0001, 0x3c00, 0xfe22, 0x8001); };
     }
 
     private static long task0059FillWord(DataType carrier) {
-        return switch (carrier) {
-            case FLOAT64 -> 0xfff8_0000_0000_5678L;
-            case FLOAT32 -> Integer.toUnsignedLong(0xffa2_2222);
-            case BFLOAT16 -> 0xffa2L;
-            case INT64 -> 0x7654_3210_fedc_ba98L;
-            case INT32 -> Integer.toUnsignedLong(0x8765_4321);
-            case BOOL -> 1L;
-            case FLOAT16 -> 0xfe22L;
-        };
+        return switch (carrier) { case FLOAT64 -> 0xfff8_0000_0000_5678L;
+        case FLOAT32 -> Integer.toUnsignedLong(0xffa2_2222);
+        case BFLOAT16 -> 0xffa2L;
+        case INT64 -> 0x7654_3210_fedc_ba98L;
+        case INT32 -> Integer.toUnsignedLong(0x8765_4321); case BOOL -> 1L; case FLOAT8_E4M3, FLOAT8_E5M2 -> throw new IllegalArgumentException("Metal does not support FP8 carriers"); case FLOAT16 -> 0xfe22L; };
     }
 
     private static byte[] task0059ScalarBytes(long word, int width) {
@@ -2216,13 +2208,10 @@ class MetalRemainingElementwiseNativeTest {
                 .order(ByteOrder.nativeOrder());
         for (int index = 0; index < count; index++) {
             int value = seed + index;
-            switch (carrier) {
-                case FLOAT64, INT64 ->
-                    words.putLong(0x0102_0304_0000_0000L | Integer.toUnsignedLong(value));
-                case FLOAT32, INT32 -> words.putInt(0x0100_0000 | value);
-                case BFLOAT16, FLOAT16 -> words.putShort((short) (0x0100 | value));
-                case BOOL -> words.put((byte) (value & 1));
-            }
+            switch (carrier) { case FLOAT64, INT64 ->
+                words.putLong(0x0102_0304_0000_0000L | Integer.toUnsignedLong(value));
+            case FLOAT32, INT32 -> words.putInt(0x0100_0000 | value);
+            case BFLOAT16, FLOAT16 -> words.putShort((short) (0x0100 | value)); case BOOL -> words.put((byte) (value & 1)); case FLOAT8_E4M3, FLOAT8_E5M2 -> throw new IllegalArgumentException("Metal does not support FP8 carriers");  }
         }
         return words.array();
     }
@@ -2295,43 +2284,39 @@ class MetalRemainingElementwiseNativeTest {
 
   private static byte[] simpleCastExpected(DataType source, DataType target) {
     boolean boolSource = source == DataType.BOOL;
-    return switch (target) {
-      case FLOAT64 ->
-          boolSource
-              ? bytes64(
-                  Double.doubleToRawLongBits(0.0),
-                  Double.doubleToRawLongBits(1.0),
-                  Double.doubleToRawLongBits(1.0),
-                  Double.doubleToRawLongBits(0.0))
-              : bytes64(
-                  Double.doubleToRawLongBits(0.0),
-                  Double.doubleToRawLongBits(-1.0),
-                  Double.doubleToRawLongBits(1.0),
-                  Double.doubleToRawLongBits(2.0));
-      case FLOAT32 ->
-          boolSource
-              ? bytes32(
-                  Float.floatToRawIntBits(0.0f),
-                  Float.floatToRawIntBits(1.0f),
-                  Float.floatToRawIntBits(1.0f),
-                  Float.floatToRawIntBits(0.0f))
-              : bytes32(
-                  Float.floatToRawIntBits(0.0f),
-                  Float.floatToRawIntBits(-1.0f),
-                  Float.floatToRawIntBits(1.0f),
-                  Float.floatToRawIntBits(2.0f));
-      case BFLOAT16 ->
-          boolSource
-              ? bytes16(0x0000, 0x3f80, 0x3f80, 0x0000)
-              : bytes16(0x0000, 0xbf80, 0x3f80, 0x4000);
-      case INT64 -> boolSource ? bytes64(0L, 1L, 1L, 0L) : bytes64(0L, -1L, 1L, 2L);
-      case INT32 -> boolSource ? bytes32(0, 1, 1, 0) : bytes32(0, -1, 1, 2);
-      case BOOL -> boolSource ? new byte[] {0, 1, 1, 0} : new byte[] {0, 1, 1, 1};
-      case FLOAT16 ->
-          boolSource
-              ? bytes16(0x0000, 0x3c00, 0x3c00, 0x0000)
-              : bytes16(0x0000, 0xbc00, 0x3c00, 0x4000);
-    };
+    return switch (target) { case FLOAT64 ->
+        boolSource
+            ? bytes64(
+                Double.doubleToRawLongBits(0.0),
+                Double.doubleToRawLongBits(1.0),
+                Double.doubleToRawLongBits(1.0),
+                Double.doubleToRawLongBits(0.0))
+            : bytes64(
+                Double.doubleToRawLongBits(0.0),
+                Double.doubleToRawLongBits(-1.0),
+                Double.doubleToRawLongBits(1.0),
+                Double.doubleToRawLongBits(2.0));
+    case FLOAT32 ->
+        boolSource
+            ? bytes32(
+                Float.floatToRawIntBits(0.0f),
+                Float.floatToRawIntBits(1.0f),
+                Float.floatToRawIntBits(1.0f),
+                Float.floatToRawIntBits(0.0f))
+            : bytes32(
+                Float.floatToRawIntBits(0.0f),
+                Float.floatToRawIntBits(-1.0f),
+                Float.floatToRawIntBits(1.0f),
+                Float.floatToRawIntBits(2.0f));
+    case BFLOAT16 ->
+        boolSource
+            ? bytes16(0x0000, 0x3f80, 0x3f80, 0x0000)
+            : bytes16(0x0000, 0xbf80, 0x3f80, 0x4000);
+    case INT64 -> boolSource ? bytes64(0L, 1L, 1L, 0L) : bytes64(0L, -1L, 1L, 2L);
+    case INT32 -> boolSource ? bytes32(0, 1, 1, 0) : bytes32(0, -1, 1, 2); case BOOL -> boolSource ? new byte[] {0, 1, 1, 0} : new byte[] {0, 1, 1, 1}; case FLOAT8_E4M3, FLOAT8_E5M2 -> throw new IllegalArgumentException("Metal does not support FP8 carriers"); case FLOAT16 ->
+        boolSource
+            ? bytes16(0x0000, 0x3c00, 0x3c00, 0x0000)
+            : bytes16(0x0000, 0xbc00, 0x3c00, 0x4000); };
   }
 
   private static byte[] bytes64(long... values) {

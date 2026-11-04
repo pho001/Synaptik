@@ -29,7 +29,7 @@ class MetalOrderingCapabilityTest {
         Shape inputShape = Shape.of(2, 4, 3);
         Shape topShape = Shape.of(2, 2, 3);
         Shape argShape = Shape.of(2, 3);
-        for (DataType type : DataType.values()) {
+        for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
             boolean gradient = type.isDifferentiable();
             TensorDescriptor input = descriptor(type, inputShape, gradient);
             assertTrue(supports(new Operation(OrderingKind.SORT, new SortAttrs(1, true)),

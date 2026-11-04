@@ -936,7 +936,7 @@ class MetalNegPreparedExecutionTest {
         MetalDeviceContext context = MetalDeviceContext.open(api);
         MetalBackendRuntime runtime = new MetalBackendRuntime(context);
         try (Arena arena = Arena.ofConfined()) {
-            for (DataType type : DataType.values()) {
+            for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
                 int width = type.byteWidth();
                 MemorySegment source = arena.allocate(width, width);
                 for (int index = 0; index < width; index++) {
@@ -2516,33 +2516,30 @@ class MetalNegPreparedExecutionTest {
                     MetalPreparedSplatResource.readableBuffer(binding)
                             .download(0L, downloaded, 0L, width * 3L);
                     for (long index = 0L; index < 3L; index++) {
-                        switch (scalar.dataType()) {
-                            case FLOAT64 -> assertEquals(
-                                    Double.doubleToRawLongBits(scalar.float64Value()),
-                                    downloaded.getAtIndex(
-                                            java.lang.foreign.ValueLayout.JAVA_LONG, index));
-                            case FLOAT32 -> assertEquals(
-                                    Float.floatToRawIntBits(scalar.float32Value()),
-                                    downloaded.getAtIndex(JAVA_INT, index));
-                            case BFLOAT16 -> assertEquals(
-                                    scalar.bfloat16Bits(),
-                                    downloaded.getAtIndex(
-                                            java.lang.foreign.ValueLayout.JAVA_SHORT, index));
-                            case FLOAT16 -> assertEquals(
-                                    scalar.float16Bits(),
-                                    downloaded.getAtIndex(
-                                            java.lang.foreign.ValueLayout.JAVA_SHORT, index));
-                            case INT32 -> assertEquals(
-                                    scalar.int32Value(),
-                                    downloaded.getAtIndex(JAVA_INT, index));
-                            case INT64 -> assertEquals(
-                                    scalar.int64Value(),
-                                    downloaded.getAtIndex(
-                                            java.lang.foreign.ValueLayout.JAVA_LONG, index));
-                            case BOOL -> assertEquals(
-                                    (byte) 1,
-                                    downloaded.getAtIndex(JAVA_BYTE, index));
-                        }
+                        switch (scalar.dataType()) { case FLOAT64 -> assertEquals(
+                                Double.doubleToRawLongBits(scalar.float64Value()),
+                                downloaded.getAtIndex(
+                                        java.lang.foreign.ValueLayout.JAVA_LONG, index));
+                        case FLOAT32 -> assertEquals(
+                                Float.floatToRawIntBits(scalar.float32Value()),
+                                downloaded.getAtIndex(JAVA_INT, index));
+                        case BFLOAT16 -> assertEquals(
+                                scalar.bfloat16Bits(),
+                                downloaded.getAtIndex(
+                                        java.lang.foreign.ValueLayout.JAVA_SHORT, index));
+                        case FLOAT16 -> assertEquals(
+                                scalar.float16Bits(),
+                                downloaded.getAtIndex(
+                                        java.lang.foreign.ValueLayout.JAVA_SHORT, index));
+                        case INT32 -> assertEquals(
+                                scalar.int32Value(),
+                                downloaded.getAtIndex(JAVA_INT, index));
+                        case INT64 -> assertEquals(
+                                scalar.int64Value(),
+                                downloaded.getAtIndex(
+                                        java.lang.foreign.ValueLayout.JAVA_LONG, index)); case BOOL -> assertEquals(
+                                (byte) 1,
+                                downloaded.getAtIndex(JAVA_BYTE, index)); case FLOAT8_E4M3, FLOAT8_E5M2 -> throw new IllegalArgumentException("Metal does not support FP8 carriers");  }
                     }
                 } finally {
                     binding.close();
@@ -2989,7 +2986,7 @@ class MetalNegPreparedExecutionTest {
         RecordingNativeApi api = new RecordingNativeApi();
         MetalDeviceContext context = MetalDeviceContext.open(api);
         try {
-            for (DataType type : DataType.values()) {
+            for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
                 boolean gradient = type == DataType.FLOAT32 || type == DataType.FLOAT64
                         || type == DataType.BFLOAT16 || type == DataType.FLOAT16;
                 ValueId sourceId = new ValueId(29_000);
@@ -3299,7 +3296,7 @@ class MetalNegPreparedExecutionTest {
         MetalBackendRuntime runtime = new MetalBackendRuntime(context);
         try {
             int ordinal = 0;
-            for (DataType type : DataType.values()) {
+            for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
                 Shape inputShape = Shape.of(3, 4);
                 Shape outputShape = Shape.of(4);
                 LayoutDescriptor inputLayout =

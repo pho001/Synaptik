@@ -49,7 +49,7 @@ final class MetalPreparedSplatResource implements PreparedResource {
      *
      * @param context exact non-null device context
      * @param byteSize positive logical extent aligned to the scalar carrier width
-     * @param scalar exact non-null scalar in any current carrier type
+     * @param scalar exact non-null scalar in a supported non-FP8 Metal carrier type
      * @return a new open prepared owner
      * @throws IllegalArgumentException if type or extent is outside the Metal splat domain
      * @throws RuntimeException if native allocation, upload, or cleanup fails
@@ -84,9 +84,9 @@ final class MetalPreparedSplatResource implements PreparedResource {
      *
      * @param context exact non-null live device context
      * @param byteSize non-negative whole-carrier extent, including zero
-     * @param scalar exact non-null scalar in any of the seven Model carrier types
+     * @param scalar exact non-null scalar in one of the seven supported non-FP8 Metal carrier types
      * @return a fresh initialized Metal representation owned by the run
-     * @throws IllegalArgumentException if the byte extent is negative or carrier-misaligned
+     * @throws IllegalArgumentException if the scalar is FP8 or the byte extent is negative or carrier-misaligned
      * @throws IllegalStateException if the context is closed
      * @throws RuntimeException if allocation, upload or rollback fails
      * @throws Error if allocation, upload or rollback reports a fatal failure
@@ -112,6 +112,8 @@ final class MetalPreparedSplatResource implements PreparedResource {
                     case BFLOAT16, FLOAT16 ->
                             source.setAtIndex(JAVA_SHORT, index, (short) rawBits);
                     case BOOL -> source.setAtIndex(JAVA_BYTE, index, (byte) rawBits);
+                    case FLOAT8_E4M3, FLOAT8_E5M2 ->
+                            throw new IllegalArgumentException("Metal does not support FP8 scalars");
                 }
             }
             buffer.upload(0L, source, 0L, byteSize);
@@ -241,6 +243,8 @@ final class MetalPreparedSplatResource implements PreparedResource {
             case INT64 -> scalar.int64Value();
             case INT32 -> scalar.int32Value() & 0xffff_ffffL;
             case BOOL -> scalar.booleanValue() ? 1L : 0L;
+            case FLOAT8_E4M3, FLOAT8_E5M2 ->
+                    throw new IllegalArgumentException("Metal does not support FP8 scalars");
         };
     }
 

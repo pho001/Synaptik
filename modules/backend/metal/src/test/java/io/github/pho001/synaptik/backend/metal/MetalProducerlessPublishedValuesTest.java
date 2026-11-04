@@ -31,7 +31,7 @@ final class MetalProducerlessPublishedValuesTest {
     void geometryRetainsExactSourceReferencesAndModelViewSpanForEveryCarrier() {
         var api = new StorageApi();
         try (var context = MetalDeviceContext.open(api)) {
-            for (DataType type : DataType.values()) {
+            for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
                 for (var descriptor : List.of(
                         new TensorDescriptor(type, Shape.of(2, 3),
                                 Optional.of(LayoutDescriptor.of(Shape.of(2, 3), new long[] {5, 2}, 1, true)), false),
@@ -108,7 +108,7 @@ final class MetalProducerlessPublishedValuesTest {
     void onePreparedRecipeInitializesFreshRunOwnedRawBuffersIncludingEmptyConstants() {
         var api = new StorageApi();
         try (var context = MetalDeviceContext.open(api)) {
-            for (DataType type : DataType.values()) for (long count : new long[] {3, 0, 1}) {
+            for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) for (long count : new long[] {3, 0, 1}) {
                 ScalarValue scalar = scalar(type);
                 var value = new GraphValue(new ValueId(1), descriptor(type, Shape.of(count)));
                 long bytes = count * type.byteWidth();
@@ -205,27 +205,21 @@ final class MetalProducerlessPublishedValuesTest {
     }
 
     private static ScalarValue scalar(DataType type) {
-        return switch (type) {
-            case BOOL -> ScalarValue.bool(true);
-            case FLOAT16 -> ScalarValue.float16Bits((short) rawBits(type));
-            case BFLOAT16 -> ScalarValue.bfloat16Bits((short) rawBits(type));
-            case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat((int) rawBits(type)));
-            case FLOAT64 -> ScalarValue.float64(Double.longBitsToDouble(rawBits(type)));
-            case INT32 -> ScalarValue.int32((int) rawBits(type));
-            case INT64 -> ScalarValue.int64(rawBits(type));
-        };
+        return switch (type) {  case BOOL -> ScalarValue.bool(true); case FLOAT8_E4M3, FLOAT8_E5M2 -> throw new IllegalArgumentException("Metal does not support FP8 carriers"); case FLOAT16 -> ScalarValue.float16Bits((short) rawBits(type));
+        case BFLOAT16 -> ScalarValue.bfloat16Bits((short) rawBits(type));
+        case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat((int) rawBits(type)));
+        case FLOAT64 -> ScalarValue.float64(Double.longBitsToDouble(rawBits(type)));
+        case INT32 -> ScalarValue.int32((int) rawBits(type));
+        case INT64 -> ScalarValue.int64(rawBits(type)); };
     }
 
     private static long rawBits(DataType type) {
-        return switch (type) {
-            case BOOL -> 1;
-            case FLOAT16 -> 0x7e15;
-            case BFLOAT16 -> 0x7fc1;
-            case FLOAT32 -> 0x7fc12345L;
-            case FLOAT64 -> 0x7ff8123456789abcL;
-            case INT32 -> 0x80000001L;
-            case INT64 -> Long.MIN_VALUE + 1;
-        };
+        return switch (type) {  case BOOL -> 1; case FLOAT8_E4M3, FLOAT8_E5M2 -> throw new IllegalArgumentException("Metal does not support FP8 carriers"); case FLOAT16 -> 0x7e15;
+        case BFLOAT16 -> 0x7fc1;
+        case FLOAT32 -> 0x7fc12345L;
+        case FLOAT64 -> 0x7ff8123456789abcL;
+        case INT32 -> 0x80000001L;
+        case INT64 -> Long.MIN_VALUE + 1; };
     }
 
     /** Storage-only seam recording exact allocation, byte transfer, and release ownership. */

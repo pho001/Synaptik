@@ -3564,6 +3564,8 @@ abstract class MetalNativeApi implements AutoCloseable {
                     case BFLOAT16 -> BFLOAT16;
                     case INT64 -> INT64;
                     case FLOAT16 -> FLOAT16;
+                    case FLOAT8_E4M3, FLOAT8_E5M2 ->
+                            throw new IllegalArgumentException("Metal does not support FP8 carriers");
                 };
             }
         }

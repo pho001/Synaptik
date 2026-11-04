@@ -123,7 +123,7 @@ class MetalOrderingComparatorProofTest {
 
     @Test
     void allSmallBoundarySequencesHaveUniqueStableRanksTopKCompactionAndArgTies() {
-        for (DataType type : DataType.values()) {
+        for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
             long[] alphabet = alphabet(type);
             for (int length = 1; length <= 4; length++) {
                 long combinations = 1;
@@ -269,18 +269,15 @@ class MetalOrderingComparatorProofTest {
     }
 
     private static long key(DataType type, long word) {
-        return switch (type) {
-            case FLOAT64 -> (word & Long.MIN_VALUE) != 0 ? ~word : word ^ Long.MIN_VALUE;
-            case INT64 -> word ^ Long.MIN_VALUE;
-            case FLOAT32 -> Integer.toUnsignedLong(
-                    (int) word < 0 ? ~(int) word : (int) word ^ Integer.MIN_VALUE);
-            case INT32 -> Integer.toUnsignedLong((int) word ^ Integer.MIN_VALUE);
-            case BFLOAT16, FLOAT16 -> {
-                int narrowed = (int) word & 0xffff;
-                yield ((narrowed & 0x8000) != 0 ? ~narrowed : narrowed ^ 0x8000) & 0xffffL;
-            }
-            case BOOL -> word;
-        };
+        return switch (type) { case FLOAT64 -> (word & Long.MIN_VALUE) != 0 ? ~word : word ^ Long.MIN_VALUE;
+        case INT64 -> word ^ Long.MIN_VALUE;
+        case FLOAT32 -> Integer.toUnsignedLong(
+                (int) word < 0 ? ~(int) word : (int) word ^ Integer.MIN_VALUE);
+        case INT32 -> Integer.toUnsignedLong((int) word ^ Integer.MIN_VALUE);
+        case BFLOAT16, FLOAT16 -> {
+            int narrowed = (int) word & 0xffff;
+            yield ((narrowed & 0x8000) != 0 ? ~narrowed : narrowed ^ 0x8000) & 0xffffL;
+        } case BOOL -> word; case FLOAT8_E4M3, FLOAT8_E5M2 -> throw new IllegalArgumentException("Metal does not support FP8 carriers");  };
     }
 
     private static boolean isNaN(DataType type, long word) {
@@ -296,21 +293,18 @@ class MetalOrderingComparatorProofTest {
     }
 
     private static long[] alphabet(DataType type) {
-        return switch (type) {
-            case FLOAT64 -> new long[] {
-                0xfff8_0000_0000_0001L, Long.MIN_VALUE, 0,
-                0xbff0_0000_0000_0000L, 0x3ff0_0000_0000_0000L,
-                0x7ff0_0000_0000_0001L
-            };
-            case FLOAT32 -> new long[] {
-                0xffc0_0001L, 0x8000_0000L, 0, 0xbf80_0000L,
-                0x3f80_0000L, 0x7f80_0001L
-            };
-            case BFLOAT16 -> new long[] {0xffc1, 0x8000, 0, 0xbf80, 0x3f80, 0x7f81};
-            case FLOAT16 -> new long[] {0xfe01, 0x8000, 0, 0xbc00, 0x3c00, 0x7c01};
-            case INT32 -> new long[] {Integer.MIN_VALUE, -1, 0, 1, Integer.MAX_VALUE};
-            case INT64 -> new long[] {Long.MIN_VALUE, -1, 0, 1, Long.MAX_VALUE};
-            case BOOL -> new long[] {0, 1};
+        return switch (type) { case FLOAT64 -> new long[] {
+            0xfff8_0000_0000_0001L, Long.MIN_VALUE, 0,
+            0xbff0_0000_0000_0000L, 0x3ff0_0000_0000_0000L,
+            0x7ff0_0000_0000_0001L
         };
+        case FLOAT32 -> new long[] {
+            0xffc0_0001L, 0x8000_0000L, 0, 0xbf80_0000L,
+            0x3f80_0000L, 0x7f80_0001L
+        };
+        case BFLOAT16 -> new long[] {0xffc1, 0x8000, 0, 0xbf80, 0x3f80, 0x7f81};
+        case FLOAT16 -> new long[] {0xfe01, 0x8000, 0, 0xbc00, 0x3c00, 0x7c01};
+        case INT32 -> new long[] {Integer.MIN_VALUE, -1, 0, 1, Integer.MAX_VALUE};
+        case INT64 -> new long[] {Long.MIN_VALUE, -1, 0, 1, Long.MAX_VALUE}; case BOOL -> new long[] {0, 1}; case FLOAT8_E4M3, FLOAT8_E5M2 -> throw new IllegalArgumentException("Metal does not support FP8 carriers");  };
     }
 }

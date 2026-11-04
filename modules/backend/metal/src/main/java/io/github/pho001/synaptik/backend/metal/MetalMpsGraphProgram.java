@@ -445,6 +445,7 @@ final class MetalMpsGraphProgram {
                 boolean requiresGrad,
                 boolean densePhysical) {
             this.dataType = Objects.requireNonNull(dataType, "dataType");
+            dataTypeWire(dataType);
             this.dimensions = Objects.requireNonNull(dimensions, "dimensions").clone();
             this.layout = Objects.requireNonNull(layout, "layout");
             if (this.dimensions.length > MAX_RANK) {
@@ -1657,6 +1658,8 @@ final class MetalMpsGraphProgram {
             case BFLOAT16 -> 5;
             case INT64 -> 6;
             case FLOAT16 -> 7;
+            case FLOAT8_E4M3, FLOAT8_E5M2 ->
+                    throw new IllegalArgumentException("Metal does not support FP8 carriers");
         };
     }
 

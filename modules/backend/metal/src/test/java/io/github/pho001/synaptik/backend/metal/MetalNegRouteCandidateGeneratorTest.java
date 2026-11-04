@@ -115,7 +115,7 @@ class MetalNegRouteCandidateGeneratorTest {
         try (MetalDeviceContext device = MetalDeviceContext.open(api)) {
             Operation reshape = new Operation(ShapeTransformKind.RESHAPE,
                     new TargetShapeAttrs(Shape.of(6)));
-            for (DataType type : DataType.values()) {
+            for (DataType type : new DataType[] {DataType.FLOAT32, DataType.INT32, DataType.BOOL, DataType.FLOAT64, DataType.BFLOAT16, DataType.INT64, DataType.FLOAT16}) {
                 TensorDescriptor source = new TensorDescriptor(type, Shape.of(2, 3),
                         Optional.of(LayoutDescriptor.of(Shape.of(2, 3),
                                 new long[] {9, 2}, 3L, true)), false);
