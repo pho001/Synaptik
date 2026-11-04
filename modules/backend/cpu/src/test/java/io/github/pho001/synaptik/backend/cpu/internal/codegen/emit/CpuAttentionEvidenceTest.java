@@ -114,7 +114,9 @@ class CpuAttentionEvidenceTest {
                   -1,
                   List.of(),
                   true,
-                  CpuKernelSpecialization.ATTENTION_LITERAL_EXP_SCHEMA);
+                  boundaryTypes.getLast() == DataType.FLOAT64
+                      ? CpuKernelSpecialization.ATTENTION_LITERAL_EXP_SCHEMA
+                      : CpuKernelSpecialization.EXACT_CONTRIBUTOR_COUNT_SCHEMA);
               String key = specialization.structuralKey();
               assertTrue(keys.add(key), "duplicate specialization " + key);
               byte[] bytes = generator.generateClassBytes(specialization, ir);
@@ -371,7 +373,9 @@ class CpuAttentionEvidenceTest {
     CpuAttentionIr attention = attention(mapping, masked, causal, outputs, types);
     var ir = attention.encodedKernelIr();
     var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers, 0, -1, List.of(),
-    true, CpuKernelSpecialization.ATTENTION_LITERAL_EXP_SCHEMA);
+    true, types.getLast() == DataType.FLOAT64
+        ? CpuKernelSpecialization.ATTENTION_LITERAL_EXP_SCHEMA
+        : CpuKernelSpecialization.EXACT_CONTRIBUTOR_COUNT_SCHEMA);
     byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(specialization, ir);
     return new Generated(specialization.structuralKey(), specialization, ir, types, bytes);
   }

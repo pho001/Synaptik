@@ -119,7 +119,9 @@ class CpuPool3dGeneratedKernelTest {
         var ir=pool.encodedKernelIr();
         var specialization=new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,List.of(type,type),
         List.of(inputCarrier,outputCarrier),0,-1,List.of(),false,
-                type.byteWidth() == 1 || kind == CpuPool3dIr.Kind.AVERAGE && type.byteWidth() == 2 ? 77 : 56);
+                kind == CpuPool3dIr.Kind.AVERAGE && type != DataType.FLOAT64
+                        ? CpuKernelSpecialization.EXACT_CONTRIBUTOR_COUNT_SCHEMA
+                        : type.byteWidth() == 1 ? 77 : 56);
         var generator=new CpuClassFileKernelGenerator();
         byte[] bytes=generator.generateClassBytes(specialization,ir);
         return new Fixture(geometry,generator.defineClassBytes(specialization, ir, bytes).entryPoint(),bytes);

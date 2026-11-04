@@ -47,9 +47,9 @@ public final class CpuAttentionEmitter {
    */
   public void emit(CodeBuilder c, CpuKernelSpecialization s, CpuKernelIr ir) {
     if (!ir.familyIdentity().startsWith("attention:")
-        || (s.classIdentitySchema() != CpuKernelSpecialization.ATTENTION_LITERAL_EXP_SCHEMA
-            && !(s.classIdentitySchema() == CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA
-                && s.boundaryDataTypes().stream().anyMatch(CpuNormEmitter::low)))
+        || s.classIdentitySchema() != (s.boundaryDataTypes().getLast() == DataType.FLOAT64
+            ? CpuKernelSpecialization.ATTENTION_LITERAL_EXP_SCHEMA
+            : CpuKernelSpecialization.EXACT_CONTRIBUTOR_COUNT_SCHEMA)
         || !s.scratchParameter()
         || s.executionStrategy().compute()
             != io.github.pho001.synaptik.backend.cpu.internal.prepare.CpuPartitionPreparationPlan

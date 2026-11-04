@@ -53,8 +53,9 @@ public final class CpuPool3dEmitter {
                 || specialization.boundaryDataTypes().size() != 2
                 || specialization.boundaryDataTypes().get(1) != type
                 || !type.isFloating()
-                || specialization.classIdentitySchema() != (type.byteWidth() == 1
-                        || average && type.byteWidth() == 2 ? 77 : 56)
+                || specialization.classIdentitySchema() != (average && type != DataType.FLOAT64
+                        ? CpuKernelSpecialization.EXACT_CONTRIBUTOR_COUNT_SCHEMA
+                        : type.byteWidth() == 1 ? 77 : 56)
                 || !ir.familyIdentity().contains(":type=" + type + ":")
                 || !ir.familyIdentity().endsWith(":realization=DIRECT_SCALAR")
                 || specialization.executionStrategy().compute()

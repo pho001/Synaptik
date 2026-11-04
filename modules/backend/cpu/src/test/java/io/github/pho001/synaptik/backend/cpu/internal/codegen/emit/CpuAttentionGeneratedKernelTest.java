@@ -33,7 +33,7 @@ class CpuAttentionGeneratedKernelTest {
         CpuLoweringFingerprint.fromHex(ir.structuralKey()),
         CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types,
         java.util.Collections.nCopies(5, CarrierAccess.FLOAT_ARRAY),
-        0, -1, List.of(), true, CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA);
+        0, -1, List.of(), true, CpuKernelSpecialization.EXACT_CONTRIBUTOR_COUNT_SCHEMA);
     var generator = new CpuClassFileKernelGenerator();
     var handle = generator.defineClassBytes(specialization, ir,
         generator.generateClassBytes(specialization, ir)).entryPoint();
@@ -89,7 +89,7 @@ class CpuAttentionGeneratedKernelTest {
           var specialization = new CpuKernelSpecialization(
               CpuLoweringFingerprint.fromHex(ir.structuralKey()),
               CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types, carriers,
-              0, -1, List.of(), true, CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA);
+              0, -1, List.of(), true, CpuKernelSpecialization.EXACT_CONTRIBUTOR_COUNT_SCHEMA);
           var generator = new CpuClassFileKernelGenerator();
           var handle = generator.defineClassBytes(specialization, ir,
               generator.generateClassBytes(specialization, ir)).entryPoint();
@@ -146,7 +146,7 @@ class CpuAttentionGeneratedKernelTest {
       var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()),
           CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR, types,
           java.util.Collections.nCopies(5, carrier), 0, -1, List.of(), true,
-          CpuKernelSpecialization.LOW_PRECISION_ARITHMETIC_SCHEMA);
+          CpuKernelSpecialization.EXACT_CONTRIBUTOR_COUNT_SCHEMA);
       var generator = new CpuClassFileKernelGenerator();
       var handle = generator.defineClassBytes(specialization, ir,
           generator.generateClassBytes(specialization, ir)).entryPoint();
@@ -209,7 +209,7 @@ class CpuAttentionGeneratedKernelTest {
         -1,
         List.of(),
         true,
-        CpuKernelSpecialization.ATTENTION_LITERAL_EXP_SCHEMA);
+        CpuKernelSpecialization.EXACT_CONTRIBUTOR_COUNT_SCHEMA);
     assertThrows(IllegalArgumentException.class, () -> new CpuKernelSpecialization(
         specialization.loweringFingerprint(), specialization.executionStrategy(),
         specialization.boundaryDataTypes(), specialization.carrierPattern(),
