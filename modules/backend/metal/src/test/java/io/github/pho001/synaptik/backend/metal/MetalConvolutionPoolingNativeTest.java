@@ -6,6 +6,29 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import io.github.pho001.synaptik.backend.contract.BackendAvailabilitySnapshot;
+import io.github.pho001.synaptik.backend.contract.BackendDeviceId;
+import io.github.pho001.synaptik.backend.contract.DeviceClass;
+import io.github.pho001.synaptik.compiler.GraphCompilationPort;
+import io.github.pho001.synaptik.config.compile.BackendIntent;
+import io.github.pho001.synaptik.config.compile.CompileMode;
+import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
+import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
+import io.github.pho001.synaptik.model.graph.ValueId;
+import io.github.pho001.synaptik.model.tensor.Scan;
+import io.github.pho001.synaptik.model.tensor.ScanBody;
+import io.github.pho001.synaptik.model.tensor.Tensor;
+import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
+import io.github.pho001.synaptik.model.tensor.TensorFactory;
+import io.github.pho001.synaptik.model.tensor.TensorId;
+import io.github.pho001.synaptik.prepare.GraphPreparation;
+import io.github.pho001.synaptik.prepare.PartitionPreparation;
+import io.github.pho001.synaptik.runtime.resource.BufferRepresentation;
+import io.github.pho001.synaptik.runtime.run.PreparedExecutionRunner;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.OptionalInt;
+import java.util.concurrent.atomic.AtomicReference;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.Float16Bits;
@@ -22,6 +45,186 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class MetalConvolutionPoolingNativeTest {
+    /**
+     * Executes the shared convolution body under length-aware Scan control in both directions.
+     * Inactive sequence cells contain NaN and must neither contribute nor publish a bias value.
+     */
+    @Test
+    void scanConvolutionAddsBiasAfterContractionAndSkipsInactiveCells() {
+        String library = System.getenv("SYNAPTIK_METAL_TEST_LIBRARY");
+        assumeTrue(library != null && !library.isBlank(), "SYNAPTIK_METAL_TEST_LIBRARY is not set");
+        for (boolean threeDimensional : List.of(false, true)) {
+            for (boolean reverse : List.of(false, true)) {
+                long[] cellShape = threeDimensional
+                        ? new long[] {2, 1, 1, 1, 2} : new long[] {2, 1, 1, 2};
+                long[] weightShape = threeDimensional
+                        ? new long[] {1, 1, 1, 1, 2} : new long[] {1, 1, 1, 2};
+                long[] sequenceShape = threeDimensional
+                        ? new long[] {2, 2, 1, 1, 1, 2} : new long[] {2, 2, 1, 1, 2};
+                Tensor cell = scanTensor(DataType.FLOAT32, cellShape);
+                Tensor weight = scanTensor(DataType.FLOAT32, weightShape);
+                Tensor bias = scanTensor(DataType.FLOAT32, 1);
+                Tensor convolution = threeDimensional
+                        ? cell.conv3d(weight, bias,
+                                new io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs(
+                                        1, 1, 1, 0, 0, 0, 1, 1, 1, 1))
+                        : cell.conv2d(weight, bias,
+                                new io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs(
+                                        1, 1, 0, 0, 1, 1, 1));
+                Tensor sequence = scanTensor(DataType.FLOAT32, sequenceShape);
+                Tensor actualWeight = scanTensor(DataType.FLOAT32, weightShape);
+                Tensor actualBias = scanTensor(DataType.FLOAT32, 1);
+                Tensor lengths = scanTensor(DataType.INT64, 2);
+                var body = new ScanBody(List.of(), List.of(cell), List.of(weight, bias),
+                        List.of(), List.of(convolution));
+                var scan = Scan.apply(List.of(), List.of(sequence), List.of(actualWeight, actualBias),
+                        lengths, 0, List.of(OptionalInt.of(0)), body, reverse);
+                var availability = new BackendAvailabilitySnapshot(MetalCapabilityProvider.METAL_BACKEND_ID,
+                        Map.of(new BackendDeviceId(MetalCapabilityProvider.METAL_BACKEND_ID, "default"),
+                                DeviceClass.ACCELERATOR));
+                var artifacts = GraphCompilationPort.compile(CompileMode.FORWARD_ONLY, scan.outputs(),
+                        Optional.empty(), GraphOptimizationConfig.disabled(), BackendIntent.unconstrained(),
+                        PartitionScoringConfig.neutral(), List.of(new MetalCapabilityProvider()),
+                        List.of(availability));
+                assertEquals(1, artifacts.partitions().size());
+                List<ValueId> publications = new ArrayList<>();
+                artifacts.publication().forwardBindings().forEach(binding -> publications.add(binding.valueId()));
+                try (MetalDeviceContext context = MetalDeviceContext.open(Path.of(library));
+                        Arena arena = Arena.ofConfined()) {
+                    var analyzed = new AtomicReference<MetalNegPreparationPlan>();
+                    var preparer = new MetalNegPartitionPreparer();
+                    var preparation = new PartitionPreparation<>(new MetalNegAnalysisInputs(context),
+                            prepareContext -> {
+                                var result = preparer.analyze(prepareContext);
+                                analyzed.set(result.plan());
+                                return result;
+                            }, new MetalNegPartitionFinalizer(context));
+                    try (var execution = GraphPreparation.prepare(artifacts, List.of(preparation),
+                            scheduleContext -> new MetalNegPreparedScheduleAssembler(
+                                    context, analyzed.get(), publications).assemble(scheduleContext))) {
+                        Map<TensorId, MetalBufferRepresentation> buffers = new HashMap<>();
+                        try {
+                            putScanInput(buffers, sequence, floatWords(1, 1, 1, 1, 1, 1,
+                                    Float.NaN, Float.NaN), context, arena);
+                            putScanInput(buffers, actualWeight, floatWords(0x1.0p24f, -0x1.0p24f),
+                                    context, arena);
+                            putScanInput(buffers, actualBias, floatWords(1), context, arena);
+                            putScanInput(buffers, lengths, ByteBuffer.allocate(16).order(ByteOrder.nativeOrder())
+                                    .putLong(2).putLong(1).array(), context, arena);
+                            var inputs = artifacts.constants().bindableInputBindings().stream()
+                                    .<BufferRepresentation>map(binding -> buffers.get(binding.tensorId())).toList();
+                            try (var result = new PreparedExecutionRunner().run(execution, inputs)) {
+                                var output = (MetalBufferRepresentation) result.publicationRepresentation(0);
+                                var host = arena.allocate(output.byteSize(), Float.BYTES);
+                                output.download(0, host, 0, host.byteSize());
+                                assertArrayEquals(floatWords(1, 1, 1, 0), host.toArray(
+                                        java.lang.foreign.ValueLayout.JAVA_BYTE));
+                            }
+                        } finally {
+                            for (var buffer : buffers.values()) buffer.close();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Creates a canonical non-gradient Scan input.
+     *
+     * @param type original storage carrier
+     * @param dimensions concrete logical extents
+     * @return a fresh symbolic input with contiguous layout
+     */
+    private static Tensor scanTensor(DataType type, long... dimensions) {
+        Shape shape = Shape.of(dimensions);
+        return TensorFactory.create(new TensorDescriptor(type, shape,
+                Optional.of(LayoutDescriptor.contiguous(shape)), false));
+    }
+
+    /**
+     * Uploads one invocation input and records its owned buffer for cleanup.
+     *
+     * @param buffers invocation-owned buffers indexed by input identity
+     * @param tensor symbolic input receiving the buffer
+     * @param bytes exact represented input bytes
+     * @param context owning Metal context
+     * @param arena lifetime owner of the temporary host upload segment
+     */
+    private static void putScanInput(Map<TensorId, MetalBufferRepresentation> buffers,
+            Tensor tensor, byte[] bytes, MetalDeviceContext context, Arena arena) {
+        var buffer = context.createBuffer(bytes.length);
+        buffers.put(tensor.id(), buffer);
+        var host = arena.allocate(bytes.length, 8);
+        host.copyFrom(MemorySegment.ofArray(bytes));
+        buffer.upload(0, host, 0, bytes.length);
+    }
+
+    /**
+     * Cancellation must finish in FLOAT32 before bias addition and the sole carrier narrowing.
+     * Both ranks also exercise the absent-bias path, where no third operand may be read.
+     */
+    @Test
+    void convolutionAddsBiasAfterCancellationForBothRanksAndFloatingCarriers() {
+        for (boolean threeDimensional : List.of(false, true)) {
+            for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+                for (boolean biased : List.of(false, true)) {
+                    long[] inputShape = threeDimensional
+                            ? new long[] {1, 1, 1, 1, 2} : new long[] {1, 1, 1, 2};
+                    long[] outputShape = threeDimensional
+                            ? new long[] {1, 1, 1, 1, 1} : new long[] {1, 1, 1, 1};
+                    int output = biased ? 3 : 2;
+                    var convolution = node(
+                            threeDimensional ? MetalMpsGraphProgram.NodeKind.CONV3D
+                                    : MetalMpsGraphProgram.NodeKind.CONV2D,
+                            biased ? new int[] {0, 1, 2} : new int[] {0, 1},
+                            new int[] {output},
+                            threeDimensional ? MetalMpsGraphProgram.AttributeKind.CONV_3D
+                                    : MetalMpsGraphProgram.AttributeKind.CONV_2D,
+                            threeDimensional ? new long[] {1, 1, 1, 0, 0, 0, 1, 1, 1, 1}
+                                    : new long[] {1, 1, 0, 0, 1, 1, 1});
+                    var values = new ArrayList<MetalMpsGraphProgram.ValueDescriptor>();
+                    values.add(gradient(type, inputShape));
+                    values.add(gradient(type, inputShape));
+                    if (biased) values.add(gradient(type, 1));
+                    values.add(gradient(type, outputShape));
+                    var inputs = new ArrayList<byte[]>();
+                    inputs.add(type == DataType.FLOAT32 ? floatWords(1, 1) : lowWords(type, 4096, 4096));
+                    inputs.add(type == DataType.FLOAT32
+                            ? floatWords(0x1.0p24f, -0x1.0p24f) : lowWords(type, 4096, -4096));
+                    if (biased) inputs.add(type == DataType.FLOAT32 ? floatWords(1) : lowWords(type, 1));
+                    List<byte[]> actual = execute(new MetalMpsGraphProgram(List.of(convolution)), values,
+                            biased ? new int[] {0, 1, 2} : new int[] {0, 1}, new int[] {output}, inputs);
+                    assertArrayEquals(type == DataType.FLOAT32 ? floatWords(biased ? 1 : 0)
+                                    : lowWords(type, biased ? 1 : 0),
+                            actual.getFirst(), type + " rank=" + inputShape.length + " bias=" + biased);
+                }
+            }
+        }
+    }
+
+    /** The shared Conv2d anchor must supply the post-contraction bias value to fused ADD. */
+    @Test
+    void fusedConvolutionEpilogueReceivesPostContractionBias() {
+        var convolution = node(MetalMpsGraphProgram.NodeKind.CONV2D,
+                new int[] {0, 1, 2}, new int[] {3},
+                MetalMpsGraphProgram.AttributeKind.CONV_2D, 1, 1, 0, 0, 1, 1, 1);
+        var program = new MetalMpsGraphProgram(List.of(convolution,
+                MetalMpsGraphProgram.Node.binary(MetalMpsGraphProgram.NodeKind.ADD, 3, 4, 5)));
+        var values = List.of(typed(DataType.FLOAT32, 1, 1, 1, 2),
+                typed(DataType.FLOAT32, 1, 1, 1, 2), typed(DataType.FLOAT32, 1),
+                typed(DataType.FLOAT32, 1, 1, 1, 1), typed(DataType.FLOAT32, 1),
+                typed(DataType.FLOAT32, 1, 1, 1, 1));
+        int[] feeds = {0, 1, 2, 4};
+        int[] targets = {5};
+        assertEquals(MetalPointwiseFusionPlan.StepKind.ANCHOR_EPILOGUE,
+                MetalPointwiseFusionPlanner.plan(program, values, feeds, targets,
+                        MetalPreparedRoute.CUSTOM_PROGRAM).steps().getFirst().kind());
+        assertArrayEquals(floatWords(3), execute(program, values, feeds, targets,
+                List.of(floatWords(1, 1), floatWords(0x1.0p24f, -0x1.0p24f),
+                        floatWords(1), floatWords(2))).getFirst());
+    }
+
     @Test
     void groupedMixedCarrierConvolutionAndPaddingMultiplicationAreLiteral() {
         var grouped = node(
@@ -43,27 +246,6 @@ class MetalConvolutionPoolingNativeTest {
                         floatWords(0.5f, 1.0f)));
         assertArrayEquals(floatWords(2.5f, 4.5f, 6.5f, 8.5f, -4, -5, -6, -7),
                 actual.getFirst());
-        var biasFirst = node(
-                MetalMpsGraphProgram.NodeKind.CONV2D,
-                new int[] {0, 1, 2}, new int[] {3},
-                MetalMpsGraphProgram.AttributeKind.CONV_2D,
-                1, 1, 0, 0, 1, 1, 1);
-        List<byte[]> biasFirstActual = execute(
-                new MetalMpsGraphProgram(List.of(biasFirst)),
-                List.of(
-                        typed(DataType.FLOAT32, 1, 1, 1, 2),
-                        typed(DataType.FLOAT32, 1, 1, 1, 2),
-                        typed(DataType.FLOAT32, 1),
-                        typed(DataType.FLOAT32, 1, 1, 1, 1)),
-                new int[] {0, 1, 2}, new int[] {3},
-                List.of(
-                        floatWords(1, 1),
-                        floatWords(0x1.0p24f, -0x1.0p24f),
-                        floatWords(1)));
-        assertArrayEquals(floatWords(0), biasFirstActual.getFirst(),
-                "bias is the initial promoted accumulator");
-
-
         var padded = node(
                 MetalMpsGraphProgram.NodeKind.CONV2D,
                 new int[] {0, 1}, new int[] {2},
