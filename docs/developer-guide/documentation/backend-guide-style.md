@@ -6,6 +6,13 @@ A backend guide teaches a backend contributor how to integrate a concrete backen
 
 Apply [General style](general-style.md), [Developer guide style](developer-guide-style.md), and the [example format](example-format.md) where relevant.
 
+A **backend** supplies an implementation of supported computation for an execution target.
+**Lowering** converts the shared description into that backend's implementation steps.
+**Native** code runs through libraries outside Java's managed execution environment.
+**Conformance** means following the required shared behavior; **qualification** is the recorded,
+bounded evidence used to accept a particular implementation. Neither a native library's presence
+nor one successful example establishes the backend's entire supported domain.
+
 ## Required content
 
 - State the backend integration goal and supported capability scope.

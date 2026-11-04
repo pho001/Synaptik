@@ -6,6 +6,11 @@ These profiles make documentation expectations explicit without forcing every do
 
 The profiles explain how to present existing contracts and behavior. [`ARCHITECTURE.md`](../../../ARCHITECTURE.md) remains the authoritative architecture contract, and the [documentation workflow](../documentation-rules.md) remains mandatory.
 
+A documentation **profile** is a writing checklist selected by the reader's goal, not a runtime
+configuration or a numerical mode. A **contract** states behavior or responsibilities that must
+be preserved; a profile tells you how to explain that contract. Start with the table's purpose
+column, not with the name of the directory where a file happens to live.
+
 ## How to use the profiles
 
 1. Decide what the reader is trying to accomplish.

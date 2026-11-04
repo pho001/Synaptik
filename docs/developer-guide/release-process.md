@@ -28,12 +28,41 @@ packaging manifest of selected source paths and hashes, not proof of publisher i
 The coordinator owns final audit verification and receipts; repair workers do not manufacture
 acceptance by reusing an older package.
 
+For this workflow, an **artifact** is a concrete build output or stored file, such as a Java
+archive or distribution ZIP. A **manifest** inventories files and metadata. A **checksum** is a
+value calculated from bytes to detect a change; SHA-256 is the hash algorithm used here. A
+matching accompanying checksum can detect accidental corruption, but does not prove who produced
+the file. **Source provenance** records which source bytes produced the candidate; it is distinct
+from authenticating a publisher.
+
+Read the diagram left to right. Local technical acceptance and permission to distribute publicly
+are separate gates; neither an archive nor a passed check supplies the owner's missing grant.
+
+```mermaid
+flowchart LR
+    accTitle: Technical candidate acceptance and separate publication permission
+    accDescr: Repaired source and reviewed checks lead to matched artifacts and provenance, then clean installed consumers and recorded local acceptance. Public publication also requires a separate owner licence and publisher decision, which is currently blocked.
+    S[Repaired source and reviewed checks] --> A[Matched artifacts and provenance]
+    A --> C[Clean installed consumers]
+    C --> L[Recorded local acceptance]
+    L --> P[Public publication gate]
+    O[Owner licence and publisher decision: Blocked] --> P
+```
+
 ## Candidate outputs
 
 The root `releaseDistribution` task uses ordinary Gradle Java/Maven publications for eighteen
 implemented products. Each has binary, source and Javadoc artifacts in the versioned local
 Maven repository. Grouping, test, benchmark, CUDA, ONNX and CLI marker projects are not supported
 publications. Their retained source is not silently promoted into the release API.
+
+**Gradle** is the build tool running these tasks. **Maven** names both another build tool and
+the repository layout used to resolve Java dependencies. A publication's **coordinates** identify
+its group, artifact name and version, often shortened to **GAV**. Its **POM** (Project Object Model)
+is the metadata file describing that publication and its declared dependencies. Binary artifacts
+contain compiled classes; source artifacts contain source files; Javadoc artifacts contain
+generated API documentation. A local Maven repository is a directory of these outputs and
+metadata, not evidence of a public registry upload.
 
 The task creates source, repository and binary ZIPs below `build/release/<version>/`, plus
 `source-provenance.json` and `SHA256SUMS`. The binary ZIP contains the same Java repository and

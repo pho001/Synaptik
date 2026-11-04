@@ -6,6 +6,11 @@ A developer guide teaches a contributor how a Synaptik concept or internal workf
 
 Apply [General style](general-style.md) and the [example format](example-format.md) alongside this profile.
 
+A **mental model** is a small explanation of how the important parts relate. A **prerequisite**
+is something the reader needs before following the guide. A **lifecycle** traces creation, use
+and release; an **invariant** states what must remain true during that sequence. Teach these
+relationships with a concrete case rather than requiring the reader to infer them from identifiers.
+
 ## Required content
 
 Every substantive developer guide must include:

@@ -7,6 +7,12 @@ heuristic fallback or rejected a request, and where Metal Scan validation failed
 optional and caller-owned. The ordinary overloads create no diagnostic producer, event IDs or
 clock readings. There is no generic log file, serializer or trace viewer.
 
+An **observer** is a callback supplied by the caller to receive diagnostic events. A **trace**
+records facts about work at selected observation points; it is not a second execution controller.
+Each event has an **envelope** containing common identification information and a **payload**
+containing the producer's specific facts. A **route** is the backend's chosen implementation path,
+not merely the caller's preferred configuration.
+
 ## Where to observe
 
 ```mermaid
@@ -19,10 +25,18 @@ flowchart LR
     ME --> OBS
 ```
 
+Read the diagram from each producer on the left to the shared observer on the right. The three
+producers explain different boundaries; receiving an event from one does not enable the others.
+
 Every event uses the existing `TraceEvent` envelope. Read the typed payload instead of parsing
 exception text to select a route or recovery policy. Events contain detached facts, not graph,
 Tensor, storage, native-handle or Throwable references. Monotonic timestamps are not wall-clock
 times; compare them only within the producer's documented clock domain.
+
+A **correlation identifier** connects facts about the same preparation or invocation without
+retaining the live objects. **Detached** facts remain usable without keeping those objects alive.
+A **monotonic clock** measures elapsed progression rather than a calendar date: two timestamps
+are comparable only when they share the documented clock source and scope.
 
 ## CPU: configured policy is not the selected implementation
 

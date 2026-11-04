@@ -6,6 +6,11 @@ A user guide helps a user complete a concrete Synaptik task. Organize it around 
 
 Apply [General style](general-style.md) and the [example format](example-format.md) alongside this profile.
 
+A **prerequisite** is something the reader must already have or know. **Configuration** is the
+explicit set of choices supplied to the program. An **observable result** is something the reader
+can inspect, such as returned values, a saved file or a specific failure. State what each result
+demonstrates without treating one successful example as proof of every supported case.
+
 ## Required content
 
 - State the task and the result the user will obtain.

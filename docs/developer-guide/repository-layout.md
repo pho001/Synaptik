@@ -1,5 +1,11 @@
 # Repository layout
 
+Use this map to find the owner of a change before choosing files. Three names can describe the
+same component without being interchangeable: a **directory** is its location on disk, a
+**Gradle project path** identifies it to the build tool, and a **Java package** groups types under
+an import namespace. A **module boundary** describes responsibility and permitted dependencies;
+moving a directory does not by itself change that boundary.
+
 The repository is organized around the module boundaries defined by [`ARCHITECTURE.md`](../../ARCHITECTURE.md):
 
 - `modules/` contains model, compiler, planning, prepare, runtime, engine, generic training, configuration, backend contracts, tracing, and concrete backend projects;
@@ -12,6 +18,12 @@ The repository is organized around the module boundaries defined by [`ARCHITECTU
 - `docs/` contains explanatory documentation and working implementation plans.
 
 Implementation plans live under [`docs/planning/`](../planning/README.md). They coordinate non-trivial work but do not override the root architecture contract. Production Java packages use the `io.github.pho001.synaptik.*` namespace.
+
+In this inventory, **native integration** means code connecting Java to a platform library outside
+the JVM. **Conformance tests** check required shared behavior; **integration tests** check that
+components work together. A **scaffold** marks incomplete infrastructure, not an implemented or
+qualified backend. The path-migration tables below explain why a current directory and a retained
+historical command can legitimately use different names.
 
 Data is registered at `extensions/data`, using the default Gradle path `:extensions:data`
 and namespace `io.github.pho001.synaptik.data`, exporting only Model through

@@ -4,6 +4,12 @@
 
 An example should let a newcomer connect an input to an observable result and explain why the result matters. Use this format in developer, user, API, and backend documentation at the level of completeness appropriate to the document type.
 
+**Pseudocode** illustrates an algorithm without promising executable syntax; a **runnable example**
+uses the real interface and includes the setup needed to execute it. A test **fixture** is the
+prepared data and environment for a repeatable test. A **mock** substitutes controlled behavior
+for a collaborator. If an example uses either, name what is supplied or substituted so the reader
+does not mistake the demonstration for evidence about a real backend or installation.
+
 ## Required structure
 
 For a substantive example, provide:

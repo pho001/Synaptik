@@ -9,6 +9,11 @@ authority index. Only the six scoped contracts it explicitly incorporates are no
 their stated scopes. Documentation profiles and all other documentation control presentation and
 review; they do not create architecture, change module ownership, or override the contract.
 
+Here **normative** means that a document states binding rules within its assigned scope;
+**explanatory** material helps readers understand those rules without creating new ones.
+An **API contract** describes what callers can rely on. **Javadoc** is Java's documentation
+comment format and the tool-generated reference built from those comments.
+
 ## Select the document type
 
 Before drafting or reviewing documentation:
@@ -35,6 +40,10 @@ For ordinary internal changes that do not meet those triggers, the implementer p
 review. Update affected Javadocs and documents when needed; otherwise record
 `Documentation impact: none; <reason>`. A Java visibility modifier does not determine risk:
 durable internal lifecycle or behavior changes may still require an independent pass.
+
+A **clean review context** is a separate review pass with an explicit handoff, rather than the
+implementer's own recollection of what changed. A **diff** is the set of changes being reviewed.
+The aim is to check the affected claims independently, not to repeat every historical check.
 
 Every review is targeted to the actual diff. Read the selected documentation profiles, affected
 source and focused tests, directly affected documentation, and exact authoritative contract
@@ -91,3 +100,7 @@ Use the validation section in the selected profile. At minimum:
 Evidence identifies the reviewer, selected profile, files or topics reviewed, and exact validation
 commands with outcomes. Name a separate context only when one was required. Keep detailed logs in
 CI or tool artifacts. A no-change conclusion must include a reason; `N/A` alone is not evidence.
+
+**Continuous integration (CI)** means automated checks run by the project's integration service.
+CI logs can retain detailed evidence, but a job's success still applies only to the source,
+configuration and checks that job actually exercised.

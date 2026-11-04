@@ -6,6 +6,12 @@ Planning documentation coordinates executable implementation work. It defines sc
 
 The authoritative planning format and workflow are in the [Planning Guide](../../planning/planning-guide.md). Apply [General style](general-style.md) only where it improves clarity without turning a task brief into teaching material.
 
+A **directed acyclic graph (DAG)** is a set of items joined by one-way relationships with no loop
+back to an item. In a plan, “A depends on B” means B must be satisfied before A can start.
+An **authorized frontier** is the work currently allowed to start after those prerequisites and
+scope checks, not every task whose predecessors look finished. **Acceptance criteria** state
+observable outcomes; **validation** is the activity that checks them and records evidence.
+
 ## Required content
 
 Master plans are concise dependency maps. They keep ownership, package direction, an explicit DAG,

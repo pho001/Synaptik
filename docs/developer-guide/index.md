@@ -4,6 +4,15 @@ Application users should start with the [learning journey](../tutorials/index.md
 for changing the framework, diagnosing its internals or maintaining its private distribution.
 It is deliberately separate from the beginner path and historical qualification records.
 
+You do not need to know the contributor vocabulary before starting. A **module** owns a part of
+the framework; a **dependency** means one part uses another; a **contract** states the behavior or
+boundary that changes must preserve. The [glossary](../glossary.md) supplies the shared definitions.
+The guides below explain the local meaning before asking you to use a tool or inspect evidence.
+
+Keep two questions separate: “which component owns this change?” and “what evidence shows that
+it works?” A passing test answers only the cases it checked. **Qualification** records acceptance
+for a stated source revision, environment and supported domain, not permission to publish.
+
 ## Find the responsibility before changing code
 
 1. Follow [one program through the framework](../explanation/framework.md).

@@ -6,6 +6,12 @@ An architecture decision record (ADR) preserves why a significant decision was n
 
 An ADR records a decision; it does not override [`ARCHITECTURE.md`](../../../ARCHITECTURE.md). When a decision changes architecture, update the contract and other required artifacts in the same overall change.
 
+Read an ADR as “problem, alternatives, choice, consequences,” not as instructions to reproduce an
+old implementation. **Superseded** means a later decision replaces the stated scope of an earlier
+one; it does not mean the earlier record should be rewritten as if the later choice had always
+been made. A **retrospective** record describes a decision after the event and must distinguish
+known evidence from unavailable original deliberation.
+
 ## Required content
 
 - **Status and date:** proposed, accepted, superseded, or another defined state, with timing.

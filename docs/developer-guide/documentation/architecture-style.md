@@ -6,6 +6,12 @@ Architecture documentation explains the principles, boundaries, and rationale of
 
 Architecture explanations remain subordinate to [`ARCHITECTURE.md`](../../../ARCHITECTURE.md). Apply [General style](general-style.md) with this profile.
 
+A **boundary** separates responsibilities: who may decide something, depend on something, or own
+a resource. **Ownership** includes responsibility for retaining and releasing that resource.
+A **lifecycle** is the sequence from creation through use to release. Explain those relationships
+before listing class names. An **architecture decision record (ADR)** preserves the reasons for a
+choice; it is not another source of architecture authority.
+
 ## Required content
 
 - Open with an authority statement linking to the architecture contract.

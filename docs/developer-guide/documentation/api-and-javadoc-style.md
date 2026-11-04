@@ -4,6 +4,16 @@
 
 API documentation and Javadoc define contracts that callers can rely on without reading implementation source. They explain semantics, valid use, observable behavior, and failures precisely.
 
+An **application programming interface (API)** is the set of types and operations that callers use.
+**Javadoc** turns specially structured Java comments into browsable reference pages. Document what
+an operation means, not just how to call it: **semantics** means its behavior, an **invariant** is a
+condition that must remain true, and **nullability** says whether a value may be absent as `null`.
+
+Do not confuse an API with a **service provider interface (SPI)**, a contract implemented by a
+component supplying a service, or an **application binary interface (ABI)**, the compiled calling
+and data-layout agreement. Backend implementers may implement an SPI; a native bridge must also
+respect its ABI. Describing those boundaries does not make an internal interface a public API.
+
 Apply [General style](general-style.md) with this profile. The mandatory Java documentation rules in [`AGENTS.md`](../../../AGENTS.md) still apply.
 
 ## Required content

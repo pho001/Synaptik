@@ -24,6 +24,42 @@ designing a harness.
   representative inputs, target, policy, and fresh production preparation.
 - **Runtime profiling** passively observes actual prepared execution.
 
+The **harness** is the program that sets up, repeats and measures the workload. A **warmup** is
+an untimed execution before retained measurements; it lets effects such as Java's compilation of
+frequently used code occur, but does not prove that later measurements are stable. A **sample**
+here is one retained timing observation, not a training example.
+
+**Latency** is the elapsed time for a defined action, such as one complete run. **Throughput** is
+completed work per unit time, such as runs per second. They answer different questions: concurrent
+work can increase throughput without reducing the time experienced by one request. Always name
+the measured action and what its timing includes.
+
+A **regression** is a loss of previously expected behavior, such as a wrong answer or slower
+execution for a specified workload. A **regression test** checks a retained case to detect its
+return. Timing variation alone is not enough to establish a performance regression; interpret
+the comparison using its declared measurement protocol and limits.
+
+A **performance distribution** describes how measurements vary, rather than reducing them to one
+number. The **minimum** is the smallest observation, the **maximum** the largest, and the
+**median** the middle after sorting. For an odd sample count, this guide's integer-middle rule
+selects the single middle observation. A median alone cannot show occasional long delays or
+explain their cause.
+
+Read the following diagram left to right: warmups are not retained timing samples, and summaries
+describe the retained samples rather than replacing the evidence needed to interpret them.
+
+```mermaid
+flowchart LR
+    accTitle: Warmups, timing samples and benchmark interpretation
+    accDescr: A fixed workload first receives untimed warmups, then retained timed samples. The samples support both summaries and a view of variation, which must be interpreted with the recorded environment and measurement boundary.
+    W[Fixed workload and measurement boundary] --> U[Untimed warmups]
+    U --> S[Retained timed samples]
+    S --> M[Minimum, median and maximum]
+    S --> V[Variation across observations]
+    M --> I[Interpret with environment and protocol]
+    V --> I
+```
+
 ## Mental model
 
 ```text

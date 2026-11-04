@@ -8,6 +8,12 @@ Training and NN dependency/admission checks, and Runtime dependency and direct-h
 from [Runtime 0014](../planning/modules/runtime/tasks/0014-runtime-architecture-enforcement.md).
 Coverage remains incomplete: these are focused assertions, not enforcement of every architecture rule.
 
+An **architecture test** checks how parts of the program may depend on one another, rather than
+only checking a calculated answer. A dependency **edge** points from the part that uses something
+to the part it uses. A **dependency leaf** adds no further project dependencies; a **hot path** is
+code executed repeatedly during actual computation. Here, NN means the neural-network extension.
+Gradle is the build tool that selects and runs the test project.
+
 ## Prerequisites and authority
 
 Read [`ARCHITECTURE.md`](../../ARCHITECTURE.md) and [Dependency rules](../architecture/dependency-rules.md). Tests enforce those rules; they do not create new module ownership.
@@ -23,6 +29,12 @@ module/package edges + forbidden API references + hot-path type usage
 ```
 
 Examples include keeping trace as a dependency leaf, preventing runtime from depending on concrete backends, ensuring `Operation` has no `supportedBackends()`, and keeping `Operation` and `CompiledNode` out of the runtime hot path.
+
+Read the flow as “collect relationships, compare them with the contract, then report a violation.”
+For example, a unit test could produce the right answer while Runtime incorrectly imports a
+concrete backend. An architecture test targets that forbidden relationship. A backend-conformance
+test instead checks whether a backend follows the shared behavior required of it; neither kind
+of test proves all possible inputs or all architecture rules.
 
 ## Run the current module
 
