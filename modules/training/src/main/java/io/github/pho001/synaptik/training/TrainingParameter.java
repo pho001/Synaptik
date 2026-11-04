@@ -944,10 +944,13 @@ final class TrainingParameter {
     /**
      * Validates this path's detached payload and assigned slot schema before restore.
      *
+     * <p>FLOAT32 and FLOAT64 logical/master payloads must be raw-identical, including zero signs:
+     * they describe the same stored parameter. Low-format logical values and FLOAT32 masters
+     * remain separate exact payloads and need not satisfy a rounding relationship.</p>
+     *
      * @param state non-null detached payload expected to match this path and schema
-     * @throws IllegalArgumentException if schema, width, finiteness, second-moment sign, or
-     *     disabled-momentum slot
-     *     values are incompatible
+     * @throws IllegalArgumentException if schema, width, full-precision logical/master identity,
+     *     finiteness, second-moment sign, or disabled-momentum slot values are incompatible
      */
     void validateState(TrainingState.ParameterState state) {
         Objects.requireNonNull(state, "state");
@@ -969,6 +972,12 @@ final class TrainingParameter {
             throw new IllegalArgumentException(
                     "training state payload size mismatch at path " + path);
         }
+        if ((dataType == DataType.FLOAT32 || dataType == DataType.FLOAT64)
+                && !Arrays.equals(
+                        state.parameterBytesInternal(), state.masterParameterBytesInternal())) {
+            throw new IllegalArgumentException(
+                    "training state logical/master parameter bytes differ at path " + path);
+        }
         if (adaptive == null && ((Sgd) optimizer).momentum() == 0.0d
                 && containsNonZeroMomentum(state)) {
             throw new IllegalArgumentException(
@@ -980,6 +989,9 @@ final class TrainingParameter {
     /**
      * Stages all restored slots and parameter bytes before any installation.
      *
+     * <p>Full-precision logical/master identity has already been validated, so staging reads
+     * their shared value only from the logical payload. Low-format masters are staged separately.</p>
+     *
      * @param state non-null, fully validated detached state with this parameter's schema
      */
     void stageRestore(TrainingState.ParameterState state) {
@@ -988,8 +1000,6 @@ final class TrainingParameter {
         if (adaptive != null) ensureSecondMomentCandidate();
         stagedMomentumHasNegativeZero = false;
         ByteBuffer parameterBuffer = ByteBuffer.wrap(state.parameterBytesInternal())
-                .order(ByteOrder.BIG_ENDIAN);
-        ByteBuffer masterBuffer = ByteBuffer.wrap(state.masterParameterBytesInternal())
                 .order(ByteOrder.BIG_ENDIAN);
         ByteBuffer momentumBuffer = ByteBuffer.wrap(state.momentumBytesInternal())
                 .order(ByteOrder.BIG_ENDIAN);
@@ -1002,7 +1012,6 @@ final class TrainingParameter {
                 parameterRollback64[index] = segment.get(
                         ValueLayout.JAVA_DOUBLE, (long) index * Double.BYTES);
                 parameterCandidate64[index] = parameterBuffer.getDouble();
-                masterBuffer.getDouble();
                 double restoredMomentum = momentumBuffer.getDouble();
                 momentumCandidate64[index] = restoredMomentum;
                 if (secondBuffer != null) secondMomentCandidate64[index] = secondBuffer.getDouble();
@@ -1015,7 +1024,6 @@ final class TrainingParameter {
                 parameterRollback32[index] = segment.get(
                         ValueLayout.JAVA_FLOAT, (long) index * Float.BYTES);
                 parameterCandidate32[index] = parameterBuffer.getFloat();
-                masterBuffer.getFloat();
                 float restoredMomentum = momentumBuffer.getFloat();
                 momentumCandidate32[index] = restoredMomentum;
                 if (secondBuffer != null) secondMomentCandidate32[index] = secondBuffer.getFloat();
@@ -1024,6 +1032,8 @@ final class TrainingParameter {
                 accumulatedCandidate32[index] = accumulatedBuffer.getFloat();
             }
         } else {
+            ByteBuffer masterBuffer = ByteBuffer.wrap(state.masterParameterBytesInternal())
+                    .order(ByteOrder.BIG_ENDIAN);
             for (int index = 0; index < elementCount; index++) {
                 saveLowRollback(index, readLowBits(index));
                 masterRollback32[index] = master32[index];

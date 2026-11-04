@@ -704,9 +704,12 @@ public final class TrainingSession implements AutoCloseable {
      * <p>Lifecycle admission precedes inspection of {@code state}. The exact default algorithm and
      * ordered parameter-group configurations,
      * counters, parameter count, ordered paths, data types, Shapes, logical and master payload
-     * lengths, slot presence, finite payload values, non-negative adaptive second moments,
+     * lengths, raw-identical logical/master bytes for FLOAT32 and FLOAT64 (including zero signs),
+     * slot presence, finite payload values, non-negative adaptive second moments,
      * momentum-disabled SGD slot values, and current source/storage
-     * view all validate before any parameter write. Success atomically installs logical and master
+     * view all validate before staging or any parameter write. Low-format logical bytes and
+     * FLOAT32 masters remain separate exact payloads, with no rounding-relationship requirement.
+     * Success atomically installs logical and master
      * parameter values in path order, then publishes optimizer slots, pending gradients, and counters.
      * Failure before commit leaves all current state unchanged and discards newly staged inactive
      * accumulation or zero-momentum buffers. The supplied immutable state is not retained.</p>
@@ -718,8 +721,8 @@ public final class TrainingSession implements AutoCloseable {
      * @param state non-null detached captured or reconstructed state compatible with this session's
      *     exact optimizer configuration, ordered groups, and parameter schema
      * @throws NullPointerException if {@code state} is {@code null} after successful admission
-     * @throws IllegalArgumentException if optimizer, counters, paths, schemas, or finite payloads
-     *     differ
+     * @throws IllegalArgumentException if optimizer, counters, paths, schemas, or payload invariants
+     *     are incompatible, including non-finite values or unequal FLOAT32/FLOAT64 logical/master bytes
      * @throws IllegalStateException if the Engine is closed, close has begun, another operation is
      *     active, the inward preparation is closed, or current source/storage state changed
      * @throws RuntimeException if validated host parameter installation unexpectedly fails

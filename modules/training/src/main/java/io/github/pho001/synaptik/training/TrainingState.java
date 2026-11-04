@@ -22,13 +22,17 @@ import java.util.Optional;
  * the parameter's declared type; optimizer slots, master, and accumulation use {@code FLOAT64}
  * for {@code FLOAT64} parameters and
  * {@code FLOAT32} otherwise. Successful session snapshots contain only finite represented payload
- * values; restore revalidates this invariant before installation. The snapshot retains no Module,
+ * values and raw-identical logical/master bytes for {@code FLOAT32} and {@code FLOAT64}, including
+ * zero signs; restore revalidates these invariants before staging or installation. Low-format
+ * logical bytes and FLOAT32 masters remain separate exact payloads, with no required rounding
+ * relationship on restore. The snapshot retains no Module,
  * Parameter, Tensor, storage, Engine, prepared execution, backend resource, or closeable owner and
  * remains readable after the originating session closes.</p>
  *
  * <p>Callers may reconstruct this value from its exposed configuration, schema, counters, and
  * canonical bytes. Public construction checks structure only; it does not establish payload
- * finiteness, optimizer-slot validity, group membership, or compatibility with a session.
+ * finiteness, full-precision logical/master identity, optimizer-slot validity, group membership,
+ * or compatibility with a session.
  * {@link TrainingSession#restore(TrainingState)} performs complete validation before installation.
  * Construction preserves exact bytes, including signed zero and pending sums even when the
  * pending run count is zero.</p>
@@ -197,7 +201,9 @@ public final class TrainingState {
      * read-only views. This state owns its bytes independently of parameter storage and remains
      * readable after the originating session closes. Public constructors copy caller arrays
      * without numeric conversion or normalization and validate schema and byte widths only;
-     * restore validates represented values and session-specific slot requirements.</p>
+     * restore validates represented values, raw logical/master identity for FLOAT32 and FLOAT64
+     * (including zero signs), and session-specific slot requirements. Low-format logical bytes and
+     * FLOAT32 masters are restored independently without a rounding-relationship check.</p>
      */
     public static final class ParameterState {
         private enum PayloadOwnership {
@@ -221,8 +227,8 @@ public final class TrainingState {
          * later writes through a caller-retained reference cannot change this state. Canonical
          * bytes are big-endian: logical bytes use the declared type, while all other payloads
          * use FLOAT64 for FLOAT64 parameters and FLOAT32 otherwise. This overload has no second
-         * moment. Bytes are preserved exactly; finiteness and algorithm-specific slot validity
-         * are checked by restore, not construction.</p>
+         * moment. Bytes are preserved exactly; finiteness, full-precision logical/master identity,
+         * and algorithm-specific slot validity are checked by restore, not construction.</p>
          *
          * @param path non-null, non-blank stable source {@link TrainingParameters.Entry#path()} value
          * @param dataType non-null supported floating parameter type
@@ -254,8 +260,9 @@ public final class TrainingState {
          * <p>Every payload is copied and its exact big-endian bytes are retained without numeric
          * conversion or normalization. Logical bytes use the declared type; master, first moment,
          * second moment, and pending sums use FLOAT64 for FLOAT64 parameters and FLOAT32 otherwise.
-         * Construction checks schema and byte widths only, not finiteness, second-moment sign,
-         * or session compatibility. Restore performs those checks before installation.</p>
+         * Construction checks schema and byte widths only, not finiteness, full-precision
+         * logical/master identity, second-moment sign, or session compatibility. Restore performs
+         * those checks before staging or installation.</p>
          *
          * @param path non-null, non-blank stable source {@link TrainingParameters.Entry#path()} value
          * @param dataType non-null supported floating type
@@ -419,7 +426,9 @@ public final class TrainingState {
          * Returns an independent read-only big-endian view of canonical master parameter bytes.
          *
          * <p>The payload uses {@code FLOAT64} elements for a {@code FLOAT64} parameter and
-         * {@code FLOAT32} elements for every other supported floating parameter type.</p>
+         * {@code FLOAT32} elements for every other supported floating parameter type. Restore
+         * requires raw identity with logical bytes for FLOAT32 and FLOAT64, including zero signs;
+         * low-format masters remain independent exact values with no rounding-relationship check.</p>
          *
          * @return a fresh view with position zero and exact optimizer-width payload limit
          */

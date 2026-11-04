@@ -173,6 +173,84 @@ final class TrainingStateReconstructionTest {
         }
     }
 
+    @Test
+    void rejectsMismatchingLastFullPrecisionMasterWithoutChangingAnyLiveState() {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
+            try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+                Parameters module = new Parameters(arena, type);
+                try (TrainingSession session = TrainingSession.open(
+                        engine, module, module.objective(), optimizers().get(1))) {
+                    session.run(List.of(), GradientMode.RESET_AND_STEP);
+                    session.run(List.of(), GradientMode.ACCUMULATE);
+                    TrainingState before = session.state();
+                    List<byte[]> liveBefore = module.values.stream()
+                            .map(TrainingStateReconstructionTest::liveBytes).toList();
+                    for (int mismatch = 0; mismatch < 3; mismatch++) {
+                        var entries = new ArrayList<TrainingState.ParameterState>();
+                        byte[] changed = optimizerBytes(type, 7.0d, 8.0d);
+                        for (int index = 0; index < before.parameters().size(); index++) {
+                            var entry = before.parameters().get(index);
+                            byte[] logical = changed;
+                            byte[] master = changed;
+                            if (index == before.parameters().size() - 1) {
+                                if (mismatch == 0) {
+                                    master = optimizerBytes(type, 7.0d, 9.0d);
+                                } else {
+                                    logical = optimizerBytes(type, mismatch == 1 ? 0.0d : -0.0d, 8.0d);
+                                    master = optimizerBytes(type, mismatch == 1 ? -0.0d : 0.0d, 8.0d);
+                                }
+                            }
+                            entries.add(new TrainingState.ParameterState(entry.path(), type,
+                                    entry.shape(), logical, master, changed, changed, changed));
+                        }
+                        TrainingState invalid = new TrainingState(
+                                before.optimizer(), before.parameterGroups(), 5, 3, 2, entries);
+                        assertThrows(IllegalArgumentException.class, () -> session.restore(invalid));
+                        assertStateEquals(before, session.state());
+                        assertEquals(before.executions(), session.executions());
+                        assertEquals(before.optimizerSteps(), session.optimizerSteps());
+                        assertEquals(before.accumulatedGradientRuns(), session.accumulatedGradientRuns());
+                        for (int index = 0; index < module.values.size(); index++) {
+                            assertArrayEquals(liveBefore.get(index), liveBytes(module.values.get(index)));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    void restoresRawIdenticalFullPrecisionParametersAndIndependentLowMasters() {
+        for (DataType type : TYPES) {
+            try (Arena arena = Arena.ofShared(); Engine engine = Engine.standard()) {
+                Parameters module = new Parameters(arena, type);
+                try (TrainingSession session = TrainingSession.open(
+                        engine, module, module.objective(), optimizers().get(1))) {
+                    TrainingState initial = session.state();
+                    session.run(List.of(), GradientMode.RESET_AND_STEP);
+                    session.run(List.of(), GradientMode.ACCUMULATE);
+                    var entries = new ArrayList<TrainingState.ParameterState>();
+                    for (var entry : initial.parameters()) {
+                        byte[] logical = bytes(entry.parameterBytes());
+                        // Low masters intentionally do not narrow to the supplied logical values.
+                        byte[] master = type == DataType.FLOAT32 || type == DataType.FLOAT64
+                                ? logical : optimizerBytes(type, 7.0d, 8.0d);
+                        entries.add(new TrainingState.ParameterState(entry.path(), type,
+                                entry.shape(), logical, master, optimizerBytes(type, -0.0d, 3.0d),
+                                optimizerBytes(type, 4.0d, -0.0d), optimizerBytes(type, 5.0d, -0.0d)));
+                    }
+                    TrainingState restored = new TrainingState(
+                            initial.optimizer(), initial.parameterGroups(), 5, 3, 2, entries);
+                    session.restore(restored);
+                    assertStateEquals(restored, session.state());
+                    assertEquals(5, session.executions());
+                    assertEquals(3, session.optimizerSteps());
+                    assertEquals(2, session.accumulatedGradientRuns());
+                }
+            }
+        }
+    }
+
     private static List<Optimizer> optimizers() {
         return List.of(new Sgd(0.1d, 0.5d, 0.25d, 0.01d, false),
                 new Adam(0.1d, 0.5d, 0.25d, 0.01d, -0.0d),
