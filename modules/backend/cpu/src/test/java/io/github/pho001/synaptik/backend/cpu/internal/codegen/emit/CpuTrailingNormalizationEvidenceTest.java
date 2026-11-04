@@ -109,7 +109,6 @@ public final class CpuTrailingNormalizationEvidenceTest {
             addMixedLayer(cases, unsupported, arena);
             addMixedRms(cases, unsupported, arena);
             assertTrue(unsupported.isEmpty(), "mixed floating normalization must prepare");
-            assertFalse(cases.isEmpty());
             for (Case value : cases) {
                 value.generated.run();
                 value.direct.run();

@@ -43,7 +43,7 @@
   storage until each final output is narrowed; low weights siblings do not replace that work.
   Independent raw validation preserves canonical batch-statistic siblings, labels, masks and
   exact gradient role flags. FLOAT16 attention accepts its documented FLOAT32 scale metadata
-  in both public construction and captured inference; CPU low arithmetic restrictions are unchanged.
+  in both public construction and captured inference; CPU follows its independent low-precision cutover.
 - Removed the Metal CONCAT/STACK sixteen-operand binding limit through dynamic references and
   disjoint copies directly into final storage, shared by ordinary and controlled Scan execution.
   Actual public GPU qualification covers 17/33/257 whole inputs, last-operand-only gradients,

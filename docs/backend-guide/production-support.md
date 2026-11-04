@@ -143,14 +143,20 @@ functional parity is not universal geometry, strategy or performance qualificati
 
 The historical [CPU0078 receipt](../planning/backends/cpu/tasks/0078-temporary-low-arithmetic-lock.md#result)
 records the earlier rejection/retention gate and six-step F32-master Training consumer, not today's
-low admission. Current public cutover smoke passed 205 scenarios across all four low types:
+low admission. The public cutover smoke passed 205 numerical scenarios across all four low types:
 arithmetic/shared Compiler AD, Pool2d/3d, changing-B (including B=0), length-aware Scan with
 inactive NaNs, gradients, repeated SGD, bit-exact save/close/load and fresh SGD. It also covered
-all 256 FP8 raw encodings through transpose and 12 unlike-low ADD promotions. Three configured
-policies with changed weights confirmed F16 native AUTO/PRIMITIVES/GRAPH and BF16 native
-AUTO/PRIMITIVES; BF16 GRAPH kept ordinary execution for that shape. Both FP8 types stayed
-ordinary CPU on M3 under all policies. Local descriptor diagnostics returned status 3 for FP8
-and F64. No native FP8 execution, final affected test/catalog gate, rebuilt-release acceptance,
+all 256 FP8 raw encodings through transpose and 12 unlike-low ADD promotions. Another 80
+numerical scenarios passed active RNN/GRU/LSTM forward and actual Compiler gradients in both
+directions, plus owned runtime-length Model save/load, for every low type.
+The nine-type operation catalog completed 6,872 rows across all 115 ordinary kinds and 137
+signatures: 1,398 forward and 2,160 actual AD runs, with no preparation/execution-stage gaps.
+Illegal dtype/body projections and nondifferentiable roles remain separate classifications.
+Catalog execution is not an independent numerical oracle for every row.
+Three configured policies with changed weights confirmed F16 native AUTO/PRIMITIVES/GRAPH and
+BF16 native AUTO/PRIMITIVES; BF16 GRAPH kept ordinary execution for that shape. Both FP8 types
+stayed ordinary CPU on M3 under all policies. Local descriptor diagnostics returned status 3 for
+FP8 and F64. No native FP8 execution, final affected-test gate, rebuilt-release acceptance,
 unbounded geometry or performance qualification is claimed.
 
 ## Owned source and persistence boundaries
