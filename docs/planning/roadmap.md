@@ -53,6 +53,11 @@ The area rows summarize status. Only an explicitly Ready brief at an authorized 
 new execution. Training 0004 and bounded Checkpoint
 [0004A](extensions/checkpoint/tasks/0004a-direct-leaf-model-save.md) are Complete after independent
 review and configured integration gates.
+The [framework-wide public-release audit](public-release-audit-2026-11-04.md) now owns the active
+cross-area repair frontier. “None” below describes the linked area task queue, not a veto on the
+audit's explicitly Ready repairs. Completed task rows and earlier qualification remain historical;
+the coordinator has not yet recorded final acceptance of the changed audit source/artifacts.
+
 [Checkpoint 0005](extensions/checkpoint/tasks/0005-training-state-reconstruction.md) is Complete:
 defensive reconstruction, external-package tests, final Javadoc/example validation, and independent
 API review passed. [Checkpoint 0005A](extensions/checkpoint/tasks/0005a-model-envelope-composition.md)
@@ -110,9 +115,9 @@ after Euclid's final APPROVE and main's root gate; NN0028 is Complete under the 
 | [Compiler](modules/compiler/master-plan.md) | Capture/AD/binding,0018 cold,0017A/B lexical/shared checked construction and0019 RESHAPE are Complete. General Scan0017 composes ordinary selected-proof/activity semantics withCPU0081. Conv3d0006C is Complete after CPU F32/F64 and Metal F32 numerical/train/persist proof, independent reviews, root test/build/distribution and fresh Maven/no-Git-source consumers. |
 | [Prepare](modules/prepare/master-plan.md) | Complete0011–0015 includes accepted static/named-B F32/F64 length projection/execution. Neutral activity/context-copy/typed projection is integrated with qualified CPU0081 under the existing resource owners. |
 | [OpenBLAS provider](backends/openblas-provider/master-plan.md) | 0001–0003 Complete. Optional direct BF16 0004 Blocked on ABI and one-final-narrowing evidence; F32/F64 unaffected. |
-| [CPU](backends/cpu/master-plan.md) | General Scan0081, Conv3d/Pool3d training and operation-audit gap closure are qualified in the accepted F32/F64 matrix. Promoted operands, signed movement, bounded variadic composition and physical-layout proofs reuse existing owners. Ordinary named-B and the retained low-arithmetic lock remain separately bounded. |
-| [Engine](modules/engine/master-plan.md) | Engine0021–0024 lifecycle and standard18-product distribution mechanisms are Complete. The private/internal 0.1.0 Pool3d/CPU/Metal audit candidate passed joined root and fresh Maven/no-Git-source consumers; exact final artifact receipts control acceptance. No public licence/upload or universal capability claim. |
-| [Metal](backends/metal/master-plan.md) | Identity41/schema21/ABI7 qualifies the explicit F32 ordinary families, Conv3d/Pool3d training and native general Scan with runtime-length RNN. Exact/raw carrier and lower-precision domains retain their own predicates. Actual M3 Max source-matched package and installed consumers passed; hosted GPU CI0047 and official trusted prebuilt publication remain separate. |
+| [CPU](backends/cpu/master-plan.md) | General Scan0081, Conv3d/Pool3d and operation-audit closure retain their bounded F32/F64 receipts. The approved BF16/F16/E4M3/E5M2 parity cutover supersedes CPU0078's lock through existing CPU owners; optional oneDNN has target/API-specific qualification, with native F64 excluded. Current numerical/exact-count and diagnostic repairs are in the public-release audit; final joined qualification is pending. |
+| [Engine](modules/engine/master-plan.md) | Engine0021–0024 lifecycle and standard eighteen-product local distribution mechanisms are Complete. Earlier private/internal 0.1.0 root/consumer receipts bind their own source/artifacts. Audit lifecycle/tuning-diagnostic repairs require new joined qualification; public publication is Blocked pending the owner's licence/publisher decision. |
+| [Metal](backends/metal/master-plan.md) | Current shared typed source covers bounded F32/BF16/F16 ordinary, convolution/pooling, fixed-cell first-order and native Scan domains; exact/raw F64 is not general F64 arithmetic, and CPU parity grants no FP8 capability. Identity41/schema21 is a historical candidate, not the current source frontier. The public-release audit owns native repair/authentication and new source-matched device/package/consumer qualification; hosted GPU CI0047 and official trusted prebuilt publication remain separate. |
 | [CUDA](backends/cuda/master-plan.md) | Marker/native scaffold only; no executable CUDA backend. 0001 Draft. |
 | [ONNX](extensions/onnx/master-plan.md) | Marker only; no importer/exporter. Area Draft; first mapping task not yet defined. |
 | [Data](extensions/data/master-plan.md) | 0001–0003 Complete; [0003 shared padded representation and INT64 batching](extensions/data/tasks/0003-padded-integral-sequence-batching.md) accepted after final independent APPROVE and module/architecture-consumer gates, 2026-10-20; Text program root join complete, 2026-10-21. Frontier None; broader batching Draft, no runtime binding. |
@@ -265,11 +270,34 @@ Engine orchestration, tuning or generic execution abstraction. CPU0023 remains D
 
 ## Current priority and next design decision
 
-The user-agreed [production release goal](production-release-goal.md) is locally accepted for the
-explicit [production matrix](../backend-guide/production-support.md#accepted-local-candidate-pool3d-and-operation-audit-closure):
+Current priority: the [public-release readiness audit](public-release-audit-2026-11-04.md) and its
+[Ready preserving-repair packet](public-release-audit-2026-11-04.md#confirmed-finding-repair-frontiers).
+The user requested framework-wide stabilization and actionable diagnostics before first public
+release. Numerical/exact-count boundaries, categorical AD, Scan traversal/admission, lifecycle,
+restore/import integrity, tuning and Metal/native diagnostics are the authorized slices there.
+Independent review and the coordinator's joined source/native/Javadoc/artifact/clean-consumer
+qualification follow integration; no unrun repair acceptance is claimed here.
+
+The approved [CPU low-parity cutover](../architecture/contracts/backend-execution.md#cpu-low-precision-parity-cutover)
+supersedes CPU0078's temporary BF16/F16 lock and includes both FP8 formats through ordinary CPU
+owners. Optional oneDNN is already a qualified CPU realization within its own API/target limits;
+F64 is not a oneDNN native type. Metal retains its
+[separate bounded domain](../architecture/contracts/backend-execution.md#metal-backend), including
+qualified F32/BF16/F16 and exact/raw carriers, not CPU-derived FP8 or general F64 arithmetic.
+
+Public readiness is the product goal, but the owner retains **no public redistribution grant
+for now**. Public publication is **Blocked** pending the licence/publisher decision. Technical
+stabilization and local candidate qualification continue; no registry, signing identity, hosted
+GPU runner or trusted prebuilt is selected by this roadmap.
+
+### Historical Pool3d and operation-audit candidate
+
+The [production goal](production-release-goal.md) had local acceptance for the explicit
+[earlier production matrix](../backend-guide/production-support.md#accepted-local-candidate-pool3d-and-operation-audit-closure):
 Java CPU F32/F64, qualified production Metal, MLP/CNN/runtime-length RNN, Conv3d/Pool3d training
-and ordinary-unit general Scan. Java BF16/FP16 arithmetic remains intentionally locked without
-deleting its implementation or retained storage/conversion/discrete paths.
+and ordinary-unit general Scan. At that checkpoint Java BF16/FP16 arithmetic was intentionally
+locked while storage/conversion/discrete paths were retained; the later CPU parity cutover
+supersedes that lock, not the historical receipt.
 
 The comprehensive operation audit replayed all 115 ordinary kinds/137 legal signature fixtures.
 CPU completed 804 forward/736 actual AD runs and Metal 744/494, with zero execution-stage gaps.
@@ -281,12 +309,13 @@ Maven consumer and independently compiled no-Git source.
 [Compiler0017](modules/compiler/tasks/0017-per-value-typed-length-scan-inference-and-ad.md) and
 [CPU0081](backends/cpu/tasks/0081-ordinary-unit-general-scan-composition.md) are integrated and
 qualified under the accepted authority, not pending Ready launch or a ReLU-only subset.
-The joined test/build/releaseDistribution passed; versioned source/native/artifact receipts,
-retained failures/skips and documentation-only byte preservation bind the exact local candidate.
-Metal identity41/schema21/ABI7 uses a locally built/signed/verified package, not hosted CI or a
-trusted public prebuilt. oneDNN stays later work, not a v1 dependency or an automatic design grant.
-Fixed RNN/GRU/LSTM BPTT, general Metal F64 neural arithmetic, arbitrary geometry/higher-order Scan
-and public licence/registry decisions remain outside this explicit accepted matrix.
+That checkpoint's joined test/build/releaseDistribution passed; versioned source/native/artifact
+receipts, retained failures/skips and documentation-only byte preservation bind that exact local
+candidate, not the changed audit source. Its Metal identity41/schema21/ABI7 package was locally
+built, ad-hoc signed and verified, not hosted CI or a trusted public prebuilt. oneDNN and
+fixed-cell BPTT were outside that then-accepted matrix; later component source/evidence does not
+rewrite it. General Metal F64 arithmetic and arbitrary geometry/higher-order Scan remain bounded
+or excluded by current contracts; public publication still lacks owner authorization.
 
 ### Historical Conv3d-only checkpoint
 

@@ -2,14 +2,16 @@
 
 ## Purpose and status
 
-Deliver Synaptik's first production release for Java CPU inference and training with equally
-supported FLOAT32 (F32) and FLOAT64 (F64), trainable networks and reliable model save/load.
-Production-supported Metal is also required in this first release. The path is practical recurrent
-workflow → capability audit and scope freeze → required CPU/Metal fixes → release acceptance.
+Prepare Synaptik's first public production release for Java CPU inference and training, with
+equally supported FLOAT32 (F32) and FLOAT64 (F64), trainable networks, reliable model save/load
+and production-supported Metal. Current work is framework-wide audit → preserving repairs →
+independent review → source-matched candidate qualification.
 
-Status: user-agreed first-production scope (2026-11-01), with accepted component implementations.
-Final candidate readiness is determined by exact-source/artifact/install/native/root qualification
-receipts, not by this goal's status.
+Status: technical stabilization is active under the
+[public-release audit and Ready repair packet](public-release-audit-2026-11-04.md#confirmed-finding-repair-frontiers).
+Earlier private/internal candidates have bounded acceptance receipts; those do not qualify the
+changed audit source or its future artifacts. Public publication is **Blocked** by the owner's
+decision to retain **no public redistribution grant for now**.
 This goal is not an architecture contract, certification, Ready task or implementation grant.
 Current behavior follows [architecture authority](../../ARCHITECTURE.md#authority-incorporation-and-precedence) and the
 [existing lifecycle](../../ARCHITECTURE.md#core-lifecycle). Any later contract change needs its
@@ -20,17 +22,16 @@ using established framework practice for technical decisions. MAIN owns scoped R
 contract coordination, independent review and truthful verification. This execution authorization
 does not waive the numerical, compatibility, lifecycle or release requirements below.
 
-The owner explicitly selected **private/internal distribution** for this release. Do not invent a
-public project licence, SPDX grant or POM licence, upload to public registries, or advertise a
-trusted public prebuilt. Preserve and package the existing Cephes/Gradle third-party notices.
-The licensing decision is resolved for this internal scope; future public redistribution needs
-separate owner authorization. This changes no technical acceptance or required backend/workflow.
+Public readiness supersedes the earlier private-only product assumption, not the owner's control
+of distribution. Do not invent a public project licence, SPDX grant, POM licence, registry upload
+or trusted public prebuilt. Public publication requires a separate licence/publisher decision.
+Preserve and package the existing Cephes/Gradle third-party notices; they grant no rights to
+Synaptik's own code. Technical stabilization and local candidate qualification continue.
 
-The [reviewed support matrix](../backend-guide/production-support.md) freezes the first-release
-scope and separates execution counts from independent numerical/workflow proof. Required code
-repairs and bounded local source/runtime qualification are accepted. The separate documentation-
-only artifact-freeze receipt binds final candidate acceptance to the actual archive checksums
-and preservation of the qualified non-documentation bytes; it is not an open implementation gate.
+The [production support ledger](../backend-guide/production-support.md) separates current
+capability, component evidence and exact historical candidate receipts. A previous documentation-
+only artifact freeze does not extend acceptance to later numerical, lifecycle, persistence,
+diagnostic or native repairs. The coordinator records final audit receipts after joined checks.
 
 ## Engineering acceptance
 
@@ -49,22 +50,31 @@ forward/backward support, user workflows and applicable execution strategies. Eq
 capability parity, not equal speed or bit-identical floating results between dtypes or routes.
 Support on another backend does not satisfy this Java CPU requirement.
 
-Temporarily lock BFLOAT16 (BF16) and FLOAT16 (FP16) floating computation on Java CPU for this
-production target. Retain the existing implementation without further capability expansion;
-do not delete it. The implemented lock is qualified in the support ledger; unlocking requires
-a later explicit decision. No implicit emulated low-precision CPU fallback belongs to the target.
+The approved [CPU low-precision parity cutover](../architecture/contracts/backend-execution.md#cpu-low-precision-parity-cutover)
+supersedes the temporary CPU0078 BFLOAT16 (BF16)/FLOAT16 (F16) arithmetic lock. BF16, F16,
+FLOAT8_E4M3 and FLOAT8_E5M2 reuse ordinary CPU numerical, derivative, recurrent, symbolic and
+training owners within their qualified family predicates. Low arithmetic uses F32 working values
+and one final declared narrowing; raw movement, casts, guards and publication retain exact rules.
+Parity is not universal geometry, strategy or performance qualification, and retained code alone
+is not acceptance evidence.
 
-Shared Model data types, host storage, raw transfers and conversion helpers remain available;
-the floating-compute lock does not remove them. INT32, INT64 and BOOL semantics needed for
-indices, lengths, masks and control values remain necessary inside F32/F64 networks; this is not
-a ban on per-value internal types.
+Optional oneDNN is a cold-selected CPU route, not a separate backend or a condition of portable
+CPU availability. Native F64 is excluded; F64 remains ordinary CPU/qualified OpenBLAS. Native
+low-type support depends on the qualified API, geometry and target; no native FP8 on Arm or
+oneDNN Graph FP8 execution is claimed. See the
+[owning route limits](../architecture/contracts/backend-execution.md#cpu-low-precision-parity-cutover).
+INT32, INT64 and BOOL remain necessary for indices, lengths, masks and control values.
 
 ## Metal target
 
 Metal must be production-supported in the first release, not deferred or labelled experimental.
-Freeze its declared operation, dtype, shape/layout and forward/backward matrix against actual
-hardware support. Java CPU F32/F64 parity does not imply Metal F64 capability or cross-backend
-feature parity; document Metal's own supported domains and limitations explicitly.
+Its separate bounded domain includes qualified F32/BF16/F16 ordinary numerical, convolution/
+pooling, fixed-cell first-order and native general Scan occurrences. CPU low parity grants Metal
+no FP8 capability, general F64 numerical arithmetic or additional mixed-low permission. Exact/raw
+F64 carriers do not imply F64 arithmetic. Follow the
+[current Metal contract](../architecture/contracts/backend-execution.md#metal-backend) and
+[support ledger](../backend-guide/production-support.md#metal-production-target), not old identity
+numbers or a cross-backend parity assumption.
 
 Release acceptance requires source-matched native packaging, installation and supported consumer
 workflows verified on a real Metal device. Ordinary JVM success, compile-only CI or skipped
@@ -93,9 +103,9 @@ not a second RNN executor or dedicated replacement mathematical primitives. Keep
 static-unrolled `.rnn` unchanged by this entry. NN0032's second-order compatibility gates remain;
 first-order length support does not waive them or authorize that separate migration.
 
-Metal now independently qualifies the static FLOAT32 runtime-length recurrent workflow through
-its native general Scan and existing ordinary kernels. This does not grant Metal FLOAT64
-numerical parity, widen low domains, or add BPTT to the three fixed-recurrent signatures.
+Metal has separate component evidence for bounded static F32/BF16/F16 runtime-length general
+Scan and selected first-order fixed RNN/GRU/LSTM workflows. Those two recurrent paths retain
+their distinct working/publication semantics; neither grants F64 arithmetic or higher-order AD.
 
 ## General Scan composition target
 
@@ -128,37 +138,46 @@ reconstruction, AD, execution and persistence are separate admissions. The
 and [row-role rules](../architecture/contracts/recurrent-scan.md#bounded-row-role-analysis) describe
 current boundaries, unchanged here; successors are not thereby implemented or Ready.
 
-## Project order and release scope freeze
+## Project order and current frontier
 
-The user's project order is:
+The earlier project order delivered practical runtime-length RNN, CPU F32/F64 and Scan closure,
+Conv3d/Pool3d training, then bounded production Metal. Optional oneDNN and the approved CPU
+low-parity cutover now have their own source and evidence; the old “oneDNN later” and CPU0078
+lock decisions are not current implementation restrictions. Completed task rows and their
+original failed commands remain historical records.
 
-1. Finish the practical RNN length workflow: accepted Compiler0018 cold reconstruction →
-   accepted Checkpoint0014 v5 → NN0033 compute/train/save/load using general Scan. Cold means
-   reconstructing tensor expressions without execution. All three have independent reviews,
-   affected gates and public numerical proof; the complete all-PURE composition target remains below.
-2. Audit missing Java CPU capability, including F32/F64 parity, CNN training, all-pure-operation
-   Scan composition and the temporary Java low-precision arithmetic lock, preserving its existing
-   implementation without expansion. Classify findings as release blocker, documented exclusion
-   or later enhancement, then freeze the capability scope. Exclusions require an explicit reason
-   and cannot silently relax the mandatory targets above.
-3. Fix required CPU release blockers. Add no further features without a stated link to v1 acceptance.
-4. Complete Metal for production support in the first release, then work on a oneDNN backend,
-   in the user's requested order.
+The current authorized frontier is the
+[framework-wide audit repair packet](public-release-audit-2026-11-04.md#confirmed-finding-repair-frontiers),
+including the Metal and diagnostic joins recorded there. It covers numerical and exact-count
+boundaries, categorical AD, Scan traversal/admission, lifecycle/storage ownership, transactional
+restore, source/import scaling and tuning diagnostics. This goal creates no additional task,
+contract change or implementation grant.
 
-The release gate flow is scope freeze → required CPU/Metal blocker fixes → a frozen release
-candidate (RC) and the checklist below. oneDNN is not a prerequisite for the first release.
-Metal's production role and qualified hardware-bounded scope are settled by the accepted support
-matrix. No new oneDNN architecture, build layout, native binary interface or dependencies are selected.
-
-Compiler0017 and CPU0081's complete all-valid/length typed selected-proof/activity/ordinary-unit
-cutover is integrated and qualified. Pool3d training and the CPU/Metal operation audit additionally
-passed independent numerical, joined-root and installed-artifact/source consumer gates. Historical
-Ready/dirty-source launch records do not describe the current implementation state.
+After ordered integration and independent review, the coordinator runs joined verification and
+qualifies a new exact-source/native/artifact candidate through clean external consumers. Earlier
+operation-catalog execution totals and accepted local packages remain evidence for their own
+snapshots, not proof that the repaired framework passed.
 
 ## Release acceptance checklist
 
-The checked items below are accepted for the explicit bounded matrix and local candidate recorded
-in the [support ledger](../backend-guide/production-support.md#accepted-local-candidate-pool3d-and-operation-audit-closure).
+Current audit candidate requirements are open until the coordinator records their actual results:
+
+- [ ] Close confirmed release-critical findings with preserving repairs and independent review;
+  update the support/disposition record without turning execution counts into numerical proof.
+- [ ] Pass changed public paths, affected gates and the joined repository/native/Javadoc checkpoint,
+  recording original failures, recovery, skips, target limitations and performance observations.
+- [ ] Freeze matched repaired source, native package and versioned artifacts; verify exact-path
+  provenance, checksums and dependency closure, then exercise clean external source/Maven/Gradle
+  consumers and the required CPU/real-device Metal workflows.
+- [ ] Obtain the owner's public licence/publisher decision before public publication. No grant is
+  selected now; local hashes and ad-hoc signing are not an official publisher trust chain.
+
+### Historical private/internal candidate checklist
+
+The checked items below describe only the earlier bounded candidate recorded in the
+[Pool3d/operation-audit receipt](../backend-guide/production-support.md#accepted-local-candidate-pool3d-and-operation-audit-closure).
+They retain that checkpoint's scope and then-current CPU lock; they are not the current audit
+checklist, a claim of unrun repair acceptance or public redistribution permission.
 
 - [x] Publish a truthful operation × dtype × shape/layout × forward/backward × backend matrix,
   including applicable strategies and whole generated derivative closure. Java CPU F32/F64 have
@@ -194,15 +213,11 @@ in the [support ledger](../backend-guide/production-support.md#accepted-local-ca
 ## Later scope and open choices
 
 Full higher-order Scan, nested control flow/arbitrary while, all generic dynamic dimensions,
-exact full training resume, autotuning and backends beyond required Java CPU and Metal are not
-automatic v1 prerequisites. Recording this goal does not itself lock or retire any existing
-supported feature. Retaining, not expanding and temporarily locking Java CPU low-precision
-computation remains part of the target; unlocking requires a later explicit decision. CNN,
-F64 parity and all-pure-operation Scan composition do not move into optional later work.
-Existing compatibility gates remain in force.
+exact full training resume, broader autotuning and backends beyond required Java CPU and Metal
+are not automatic release prerequisites. Existing compatibility gates remain in force. CNN,
+F64 parity and ordinary-operation Scan composition do not move into optional later work; their
+current bounded admissions and qualification remain distinct from the complete product target.
 
-The 3D CNN scope and Metal's required first-release production role are settled. The Pool3d
-and CPU/Metal operation-audit candidate is locally accepted against its explicit support
-matrix and exact artifact receipts, not as universal operation/geometry coverage or public
-distribution approval. The [roadmap](roadmap.md#current-priority-and-next-design-decision)
-remains the execution index; no successor tasks or implementation grants are created here.
+The [roadmap](roadmap.md#current-priority-and-next-design-decision) indexes current execution.
+Public publication remains Blocked pending the owner's licence/publisher decision even if local
+technical qualification succeeds. No historical success or failure is rewritten by this goal.
