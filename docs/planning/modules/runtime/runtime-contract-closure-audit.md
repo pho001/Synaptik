@@ -1,5 +1,23 @@
 # [Runtime](../../../glossary.md#term-runtime) contract closure audit
 
+> **Editorial historical reading key.**
+>
+> This audit records an earlier checkpoint: its BLOCKING_GAP verdict and deferred Engine/backend work
+> describe that inspected repository, not today's implementation status. Its central boundary remains
+> useful: Prepare translates logical plans, backends implement physical representations and actions,
+> Engine composes public access, and Runtime binds already-prepared work to one isolated state. Exact
+> plan references and dense coordinates cross the Runtime seams; Compiler graph identities and Tensor
+> values do not. Publication preserves result occurrences without copying their bytes.
+>
+> The cleanup finding concerns distinct owned resources throwing the same Throwable object:
+> self-suppression could interrupt attempt-all cleanup. Preserve that defect report as evidence, while
+> reading [current run-state
+> cleanup](../../../reference/runtime/creation.md#run-state-lifecycle-and-failures) for the repaired
+> contract. [Current publication
+> leases](../../../reference/runtime/publication.md#current-prepared-publication-and-result-lease)
+> also distinguish today's borrowed representation access from detached Engine copies. Borrowed inputs
+> remain caller-owned throughout the result lease.
+
 ## Executive conclusion and closure verdict
 
 Verdict: `BLOCKING_GAP`.

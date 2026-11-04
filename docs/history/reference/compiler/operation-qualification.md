@@ -4,6 +4,22 @@ This is an archived, composite qualification narrative preserved from the pre-re
 
 **Known supersessions:** [CPU](../../../glossary.md#term-cpu) low-[precision](../../../glossary.md#term-precision) parity, fixed-cell first-order [BPTT](../../../glossary.md#term-backpropagation-through-time-bptt), bounded static length-aware cold/[owned Model](../../../glossary.md#model-module-buffer-and-scan-distinctions) workflows and wire versions through v7, shared [normalization](../../../glossary.md#term-normalization) [derivatives](../../../glossary.md#term-derivative), and ordinary [backend](../../../glossary.md#backend) preparation/execution are implemented. The archive does not retract or widen any current qualification. Use [current reference goals](../../../reference/index.md), [Compiler AD](../../../reference/compiler/autograd.md)<span data-glossary-navigation="true"> ([Compiler glossary](../../../glossary.md#term-compiler); [AD glossary](../../../glossary.md#autograd))</span>, [owned Model execution](../../../reference/nn/owned-model.md), and [current backend qualification](../../../backend-guide/production-support.md) instead of the inventories below. Symbolic cold/wire, arbitrary [PURE](../../../glossary.md#term-pure)-body copying, higher-order recurrence and unqualified backend routes are not granted by these supersessions.
 
+## Editorial reading key: three different acceptances
+
+The Model module defines an operation's meaning. The application supplies Tensor expressions;
+the Compiler captures their producing operations and validates compatible descriptions.
+A backend capability claim then concerns executing an exact occurrence, including its input and
+output types, shapes and layouts. Acceptance at the first two boundaries is not proof of the third.
+Likewise, a publication binding associates identities; it does not contain or own result bytes.
+
+Read [capture and graph-value construction](../../../reference/compiler/capture.md) to understand
+why one producer can have several output positions, and
+[functional differentiation](../../../reference/compiler/autograd.md) for why constructing a
+gradient expression neither evaluates it nor updates parameters. The
+[run/result lifecycle](../../../reference/engine/lifecycle.md) explains who keeps input storage
+alive and who closes a completed result. The archived operation counts and numerical policies
+remain statements of their original checkpoints.
+
 <a id="operation-capture-and-numerical-qualification-notes"></a>
 
 ## Preserved historical text

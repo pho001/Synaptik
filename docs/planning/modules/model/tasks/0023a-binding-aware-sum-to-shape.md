@@ -1,5 +1,31 @@
 # Task 0023A: [Binding](../../../../glossary.md#term-binding)-Aware [Sum-to-Shape](../../../../glossary.md#sum-to-shape)
 
+**Editorial reading key (current context, not a status update).**
+
+This record completes model expression construction, not binding or execution. The caller supplies a
+receiver Tensor and exact target `Shape`; `Tensor.sumToShape` delegates to the package-private
+helper. `SumToShapeAttrs` retains that Shape description, not target values or a buffer. Provenance
+identifies the producing SUM occurrence and its input; the fresh, storage-free result neither
+aggregates values nor owns a result buffer. Model semantic responsibility is not storage ownership;
+execution providers realize supported routes rather than redefine meaning.
+
+Right alignment matches trailing axes: `[2, 3, 4]` to `[3, 1]` removes the leading axis and sums the
+last while retaining one position. Unresolved dimensions defer target-one-or-equal proof to later
+binding. Consult the current [sum-to-Shape
+contract](../../../../reference/tensor/reductions.md#binding-aware-sum-to-shape-expressions) for
+mapping, FP8 acceptance beyond this record’s historical type list, and bit-preserving no-reduction
+cases; consult [numeric aggregate
+semantics](../../../../reference/tensor/reductions.md#numeric-aggregate-expressions) for current
+floating rules. Empty reduced domains yield positive zero; final-cell zero-sign permissions do not
+authorize intermediate changes. These current descriptions do not expand this task’s historical
+scope.
+
+**Mathematical reading illustration.** For real source entries $x_{ij}$ with row $i\in\{1,2\}$ and
+column $j\in\{1,2,3\}$, targeting Shape `[1,3]` gives $y_{1j}=x_{1j}+x_{2j}$. Rows $(1,2,3)$ and
+$(4,5,6)$ therefore give $(5,7,9)$. The leading singleton is retained while row contributions
+combine. This real-number interpretation does not prescribe a floating accumulation order or imply
+reduction when source and target Shapes already agree.
+
 ## Status
 
 Complete

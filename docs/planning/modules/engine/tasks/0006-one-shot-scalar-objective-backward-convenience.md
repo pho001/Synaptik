@@ -1,5 +1,23 @@
 # Task 0006: One-Shot [Scalar](../../../../glossary.md#term-scalar)-[Objective](../../../../glossary.md#term-objective) Backward Convenience
 
+> **Editorial historical reading key.**
+>
+> Here the caller supplies one scalar objective, explicit ordered targets and a byte ceiling; Engine
+> discovers candidate leaves but Compiler determines final inputs and derivative semantics. The absent
+> cotangent means positive one for the scalar objective, so the requested first derivatives need no
+> caller seed Tensor. ERROR remains the fixed disconnected-target policy. Compiler closes the
+> source-only seed's logical descriptor; Prepare validates its contribution and assigns a slot; CPU
+> declares geometry and creates an initialized representation; Runtime owns each isolated run and
+> result lease. Engine validates objective-first, target-ordered occurrences and copies aliases
+> independently.
+>
+> Caller storage stays borrowed through cleanup; the returned carrier contains detached values, not a
+> tape or closeable run. Compare the [current backward
+> lifecycle](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+> with [shared preparation and
+> rollback](../../../../reference/runtime/orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization).
+> Historical CPU scope, rejected compositions and later-task statuses remain unchanged.
+
 ## Status
 
 Complete

@@ -1,5 +1,15 @@
 # Task CP0010 Fluent [CNN](../../../../glossary.md#term-convolutional-neural-network-cnn) and static recurrent [graph](../../../../glossary.md#graph) [persistence](../../../../glossary.md#term-persistence)
 
+> **Editorial reading context — not a status update.** The application may use layer recipes,
+> but this task stores their resulting Tensor dependency graph, not a recipe interpreter.
+> Reachable zero initial states and row-index Tensors are named constants, distinct from NN
+> trainable parameters. Load reconstructs expressions and private state without Engine;
+> compute or newly configured training is a later call with its own capability checks.
+> Multi-output producers must retain every canonical output identity, not just the requested
+> root. Today's [selected CNN/recurrent format](../../../../reference/checkpoint/graph-formats.md#selected-cnn-and-recurrent-persistence)
+> explains that source slice, while the [builder](../../../../reference/nn/model-builder.md#fluent-model-builder)
+> explains the layer-to-expression side.
+
 ## Status
 
 Complete jointly with CP0011 on 2026-10-20 after independent final APPROVE and main's focused

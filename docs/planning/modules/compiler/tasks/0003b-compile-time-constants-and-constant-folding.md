@@ -1,5 +1,16 @@
 # Task 0003B: [Compile](../../../../glossary.md#compile)-time [Constants](../../../../glossary.md#term-constant) and [Constant Folding](../../../../glossary.md#term-constant-folding)
 
+> **Editorial reading key — not part of the historical record.**
+>
+> A logical splat is one exact typed value repeated at every logical coordinate, supplied through
+> explicit compiler ingress. It is not a snapshot inferred from mutable Tensor storage. A
+> provenance-free leaf still means only no producing expression; absent explicit constant ingress
+> it remains bindable. The constant sidecar fixes source meaning while Prepare and the backend
+> separately arrange physical materialization. Scalar operation attributes and graph-value
+> constant facts have different roles.
+>
+> Current reading: [structural capture and exact leaf identities](../../../../reference/compiler/capture.md#current-package-private-structural-capture); [exact graph transformations and final logical layouts](../../../../reference/compiler/optimization.md#current-package-private-canonicalization-and-whole-graph-optimization).
+
 ## Status
 
 Complete

@@ -1,5 +1,21 @@
 # Task 0002: [Model](../../../../glossary.md#term-model) Correlation Identifiers
 
+## Editorial reading key: identifiers correlate, not retain
+
+A producer is the component reporting an event. It translates its own Tensor, graph-node or
+graph-value identity into a Trace identifier before constructing diagnostic data. A graph node
+names one operation occurrence; a graph value names one logical input or output; a Tensor is the
+public expression/state object. The three Trace record types prevent accidentally mixing those
+roles even when their numeric contents are equal.
+
+Here “owns the mapping” means the producer chooses the correspondence within its event stream.
+It does not mean Trace owns, copies or keeps alive the associated Tensor or storage.
+Read [correlation identifiers](../../../../architecture/tracing.md#current-model-correlation-identifiers)
+for that separation and [Compiler capture](../../../../reference/compiler/capture.md) for why graph
+identities differ from public Tensor identities. The original task's later-work statuses remain
+historical.
+
+
 ## Status
 
 Complete

@@ -1,5 +1,12 @@
 # Task 0017K: [Tensor Composition](../../../../glossary.md#tensor-composition) Semantics
 
+**Editorial reading key (later context, not a status update).**
+
+Concat joins inputs along an existing axis; stack inserts an axis to hold same-shaped inputs; unstack requests separate outputs with one selected axis removed. This original family gives each unstack result an indexed UNSTACK meaning because its provenance cannot yet group outputs. Here Model defines a typed meaning for later construction code; this semantic-family task neither receives stored operands nor evaluates them. Its completion is not evidence of Compiler capture, derivatives or backend execution.
+
+Focused current reading: [Current composition and repeated-select unstack explanation](../../../../reference/tensor/composition.md#tensor-composition-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

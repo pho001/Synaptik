@@ -1,5 +1,26 @@
 # Task 0018L: Shared Multi-Output [Tensor](../../../../glossary.md#tensor) [Provenance](../../../../glossary.md#provenance)
 
+**Editorial reading key (current context, not a status update).**
+
+This task records the original shared-producer migration, not today’s full contract. An expression
+helper passes an operation, ordered input Tensor references and output descriptors to the
+package-private factory; these are descriptions and references, not computed result values. A
+producer identifies one operation occurrence; provenance selects its zero-based output slot. For
+negation, slot zero describes the result, without evaluating it. Equal-looking calls remain distinct
+occurrences, and descriptor agreement requires the same object, not merely equal fields. Model
+semantics defines meaning; execution providers realize supported routes rather than redefine it.
+Semantic responsibility is not buffer ownership: storage-free expressions neither execute nor own
+result buffers.
+
+Read the current [producer
+contract](../../../../reference/tensor/identity.md#expression-producers-and-indexed-provenance) for
+the later canonical-wrapper lookup and producer/result reference cycle, contrasting with this task’s
+prohibition on retaining outputs. Current invalid-index exceptions also differ from those specified
+here. The [multi-output identity
+section](../../../../reference/tensor/identity.md#multi-output-and-hidden-output-identity) explains
+hidden sibling slots in current descriptions; those examples do not expand this task’s historical
+scope or imply shared physical storage.
+
 ## Status
 
 Complete

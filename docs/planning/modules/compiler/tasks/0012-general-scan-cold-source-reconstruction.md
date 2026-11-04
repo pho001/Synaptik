@@ -1,5 +1,16 @@
 # Task Compiler0012: General-[scan](../../../../glossary.md#term-cumulative-scan) cold source reconstruction
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Cold reconstruction rebuilds expressions through selected public constructors; it is not the
+> same admission gate as general-Scan inference or differentiation. The caller supplies positional
+> outer substitutions, while each rebuilt body gets fresh local formals and a call-local identity
+> table. Body-only constructors do not automatically become legal flat source constructors.
+> Borrowed leaves carry no transferred storage ownership, and successful reconstruction does not
+> establish Checkpoint wire support or NN execution.
+>
+> Current reading: [raw source capture and positional reconstruction](../../../../reference/compiler/cold-source.md#current-cold-source-capture-and-reconstruction); [scoped Scan capture, roles and first-order differentiation](../../../../reference/compiler/verification-scan.md#current-scoped-scan-capture-and-first-order-ad).
+
 ## Status
 
 Complete — main accepted implementation, independent review and final gates on 2026-10-23 (~05:42 UTC).

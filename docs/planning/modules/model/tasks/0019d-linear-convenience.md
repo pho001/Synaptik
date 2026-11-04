@@ -1,5 +1,26 @@
 # Task 0019D: [Linear](../../../../glossary.md#term-linear-meanings) Convenience
 
+**Editorial reading key (current context, not a status update).**
+
+This completed task records a Model convenience, not a stateful layer or execution feature; its
+historical scope and evidence remain distinct from current descriptions. The caller supplies the
+input receiver, weight, and optional bias; the helper validates them before calling transpose,
+MATMUL, and ADD builders. These calls pass Tensor descriptions and operand identities, not evaluated
+values. A producer records an operation and ordered inputs; provenance identifies its output. In the
+recorded example, input `[2, 3]`, weight `[4, 3]`, and bias `[4]` describe output `[2, 4]`, ending
+in ADD rather than LINEAR.
+
+Follow the current [linear
+contract](../../../../reference/tensor/matmul-linear.md#linear-projection-convenience) for strict
+bias equality and the stateless Tensor/stateful NN distinction. Semantic responsibility does not
+imply buffer ownership: these storage-free expressions neither execute nor own result buffers. Model
+primitives define meaning; execution providers realize supported routes without redefining it.
+Tensor composition retains operand references; an owned NN Model builder instead copies supplied
+parameter values into private Model state. The [state lifetime
+explanation](../../../../explanation/ownership.md#in-the-learning-project) shows why later training
+does not mutate the caller’s original parameter. MATMUL and ADD retain separate numerical
+boundaries; composition grants no cross-node rewrite freedom.
+
 ## Status
 
 Complete

@@ -1,5 +1,16 @@
 # Task 0004A: Exact-composition [Gradient](../../../../glossary.md#term-gradient)-rule Extensions
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Exact composition means Compiler expresses each admitted derivative using existing ordinary
+> Tensor operations, not that compilation evaluates the derivative numerically. Preflight checks
+> the selected input role and whether the whole formula can be constructed before derivative
+> identities are allocated. Repeated operand positions contribute separately even when they refer
+> to the same Tensor. Unsupported symbolic inverses remain rejected rather than guessed from
+> hypothetical runtime values.
+>
+> Current reading: [pre-capture differentiation and functional requests](../../../../reference/compiler/autograd.md#current-package-private-pre-capture-autograd); [descriptor verification and deferred constraints](../../../../reference/compiler/verification-scan.md#current-package-private-verification-inference).
+
 ## Status
 
 Complete

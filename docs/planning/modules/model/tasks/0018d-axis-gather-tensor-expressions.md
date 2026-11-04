@@ -1,5 +1,12 @@
 # Task 0018D: [Axis](../../../../glossary.md#term-axis) [Gather](../../../../glossary.md#gather) [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (later context, not a status update).**
+
+Axis gather consumes ordered data and integer-index inputs; index positions select source coordinates, not Boolean eligibility. The application is the caller of the data Tensor method and supplies an indices Tensor plus axis. The helper inspects descriptors to derive the selected shape rule but never reads index values or checks their numerical bounds. The old gather/gatherAxis/take spellings below remain historical evidence. The application calls the public Tensor method; its model helper validates available descriptions and returns a fresh storage-free expression with exact input references. It neither copies input values nor calculates the result. Compiler consumes this provenance later; actual storage and execution are separate downstream concerns.
+
+Focused current reading: [Current gather/gatherElements taxonomy](../../../../reference/tensor/gather.md#axis-gather-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

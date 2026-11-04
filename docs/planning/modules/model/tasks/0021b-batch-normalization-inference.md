@@ -1,5 +1,33 @@
 # Task 0021B: [Batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)-[Normalization](../../../../glossary.md#term-normalization) [Inference](../../../../glossary.md#term-inference)
 
+**Editorial reading key (current context, not a status update).**
+
+This record preserves the inference-only task and its recorded completion evidence, not today’s
+capability boundary. The caller invokes `batchNormInference` on the data Tensor, supplying scale,
+bias, running mean, and running variance as four explicit vectors; axis and typed epsilon are
+semantic attributes, not Tensor operands. The helper validates descriptions and records five ordered
+inputs and one storage-free result: no values are read, no formula executes, and no result buffer is
+owned. For Shape `[2, 3, 4]` with channel axis `1`, all four vectors describe `[3]`; matching
+channel coordinates reuse their entries. “Running” names supplied statistics, not an update
+lifecycle or storage owner.
+
+For present type/epsilon rules and downstream handoffs, follow [current inference
+semantics](../../../../reference/tensor/normalization.md#batch-normalization-inference-expressions):
+Model defines meaning; execution providers realize supported routes rather than redefine it. Unlike
+this historical scope, current descriptions include additional low floating types and
+compiler/derivative routes. Follow [current special-value and arithmetic
+rules](../../../../reference/tensor/normalization.md#negative-variance-and-special-values) before
+interpreting the historical wider-intermediate/reassociation permission: current primitive-site
+restrictions govern, negative radicands remain NaN, and finite test tolerances are not production
+permissions.
+
+**Mathematical reading illustration.** For one finite real channel, let $x$ be an input value, $\mu$
+the supplied mean, $v\ge0$ the supplied variance, $\gamma$ scale, $\beta$ bias and $\varepsilon>0$
+epsilon. Then $y=\gamma(x-\mu)/\sqrt{v+\varepsilon}+\beta$. For $x=5$, $\mu=1$, $v=3$,
+$\varepsilon=1$, $\gamma=2$, $\beta=0$, $y=4$. The statistics are inputs, not recomputed from this
+value. The illustration assumes finite real arithmetic and does not replace special-value or
+rounding rules.
+
 ## Status
 
 Complete

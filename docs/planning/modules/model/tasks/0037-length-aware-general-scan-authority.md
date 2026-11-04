@@ -1,5 +1,25 @@
 # Task Model0037: Length-aware [general Scan](../../../../glossary.md#general-differentiable-scan) authority
 
+**Editorial reading key (current context, not a status update).**
+
+This records Model0037’s documentation-only authority decision, not implementation delivery; current
+reference descriptions must not be read back into that checkpoint. The caller supplies actual
+Tensors to `Scan.apply`, binding declared formals by position in a `ScanBody` step template. Carry
+passes state between steps; sequences supply time slices; invariants stay unchanged. A leaf has no
+producing expression, not necessarily stored values. Follow [source
+binding](../../../../reference/tensor/general-scan.md#formals-actual-positions-and-source-closure)
+for these positional boundaries: construction reads descriptions, not input values, and storage-free
+expressions neither execute nor own result buffers.
+
+ROW identifies a proved independent batch coordinate; SHARED lacks that coordinate, regardless of
+equal sizes. Residuals name retainable internal values; demand selects needed histories, not
+automatic storage. The semantic owner defines meaning; Compiler handles capture/AD, Prepare projects
+bindings/demand, and providers realize supported routes without redefining semantics. Semantic
+responsibility is not buffer ownership. Follow [length-aware
+boundaries](../../../../reference/tensor/general-scan.md#length-aware-source-construction-and-qualified-execution)
+for current qualification and value checks: a zero-length row preserves raw initial carry, emits +0
+padding, and skips inactive loads/arithmetic.
+
 ## Status
 
 Complete — authority only, accepted by MAIN on 2026-10-24 after Hume's final overall independent

@@ -1,5 +1,16 @@
 # Task 0002: [Compile](../../../../glossary.md#compile) Modes and [Graph Optimization Configuration](../../../../glossary.md#graph-optimization-configuration--graphoptimizationconfig)
 
+> **Editorial reading key — not part of the historical record.**
+>
+> CompileMode requests which graph is built; GraphOptimizationConfig permits optional exact
+> transformations. Neither value invokes Compiler, computes derivatives or runs an optimizer
+> update. Disabling optional optimization cannot disable mandatory verification and canonical
+> representation. TRAINING_STEP is graph-scope vocabulary, not a training-session resource. The
+> original statements that consumers were not yet implemented remain milestone history; current
+> consumption is documented separately.
+>
+> Current reading: [hard intent, compile scope and optional optimization](../../../../reference/compiler/configuration.md#current-compile-configuration-inputs); [ordinary and advanced Engine compile boundaries](../../../../reference/compiler/entry-points.md#current-ordinary-and-advanced-engine-compile-boundaries).
+
 ## Status
 
 Complete

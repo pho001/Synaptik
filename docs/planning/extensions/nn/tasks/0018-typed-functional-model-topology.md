@@ -1,5 +1,14 @@
 # Task 0018: Typed Functional [Model](../../../../glossary.md#term-model) [Topology](../../../../glossary.md#term-topology)
 
+> **Editorial reading context — not a status update.** Model.define calls the application's
+> definition callback once to collect children and obtain a forward function. Topology names
+> permanent child ownership, not a captured Tensor graph or execution schedule. Later forward
+> calls invoke that function with the application's Java input and return its described
+> result. Collecting exact modules does not copy their state or grant ownership of external
+> resources captured by a callback. Today's [typed Model contract](../../../../reference/nn/composition.md#current-nn-typed-model-composition-contract)
+> explains this boundary; [owned tensor Models](../../../../reference/nn/owned-model.md#owned-tensor-model-capability)
+> are a separate capability with private state acquisition, not a property of every generic Model.
+
 ## Status
 
 Complete

@@ -1,5 +1,29 @@
 # Task 0022B: Index-[Target](../../../../glossary.md#term-target) Categorical Cross-Entropy with Logits
 
+**Editorial reading key (current context, not a status update).**
+
+This completed task records model-only construction, not the extent of current execution support.
+The caller invokes the logits Tensor’s loss method; `TensorLossExpressions` validates metadata and
+delegates to the factory for one storage-free producer. Logits are unnormalized class scores; an
+index target names one class per coordinate outside the class axis. Ordered inputs describe
+`[logits, target]`; the exact typed ignore scalar is attributes metadata, not a third Tensor input.
+Construction neither reads operand values nor executes or owns result buffers.
+
+For today’s boundary, follow the [categorical-loss
+reference](../../../../reference/tensor/statistics-losses.md#categorical-cross-entropy-with-logits-expressions):
+it distinguishes current compiler differentiation and qualified execution routes from this
+historical scope. Model semantics defines the loss; providers realize supported routes rather than
+redefine it. Ignore matching precedes bounds and logits evaluation: target `-1` with exact INT32
+ignore `-1` contributes positive zero even for NaN logits. `MEAN` counts only non-ignored targets;
+an empty or all-ignored domain yields NaN. Deferred value checks and semantic responsibility do not
+imply Model storage ownership.
+
+**Mathematical reading illustration.** For $G\ge1$ groups, let $I$ be the subset of group positions
+whose targets are not ignored, and let $\ell_g$ be each included group's finite real loss. When
+$|I|>0$, $L=\sum_{g\in I}\ell_g/|I|$. For two groups with only the first included and $\ell_1=\log
+2$, $L=\log 2$, not $(\log 2)/2$. No formula is evaluated for ignored logits. An empty $I$ uses the
+specified NaN rule, not this positive-denominator illustration.
+
 ## Status
 
 Complete

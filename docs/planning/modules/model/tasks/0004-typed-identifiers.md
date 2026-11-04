@@ -1,5 +1,12 @@
 # Task 0004: Typed Identifiers
 
+**Editorial reading key (later context, not a status update).**
+
+A TensorId names public Tensor state; NodeId names one calculation occurrence inside a graph; ValueId names one described input or result there. Equal numbers do not make these roles interchangeable, and a graph value is not the array holding its eventual values. Constructors validate identifier values; later factory/compiler callers allocate identities in their own contexts. Semantic ownership of these small types does not mean Model owns the graph-building process or the data's lifetime.
+
+Focused current reading: [Current identifier scopes](../../../../reference/tensor/identifiers.md#typed-identifiers). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

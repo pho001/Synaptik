@@ -1,5 +1,32 @@
 # Task 0021A: [RMS Normalization](../../../../glossary.md#rms-normalization) Semantics and [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (current context, not a status update).**
+
+This completed task records the historical RMS-only expression baseline, not today's execution
+coverage. The caller invokes `rmsNorm` on the input Tensor; the Model helper validates Shape/type
+metadata and records ordered operands `[input]` or `[input, scale]`. Scale is an explicit
+elementwise operand, not an owned parameter or broadcast value. Epsilon is a typed positive scalar
+attribute inside the square root. A trailing slice is normalized without centering: for Shape `[2,
+3]` and normalized Shape `[3]`, each row uses its own average of squares. Construction passes
+descriptions and Tensor references, not evaluated values, producing a storage-free expression that
+neither executes nor owns a result buffer.
+
+Read the [current RMS
+contract](../../../../reference/tensor/normalization.md#rms-normalization-expressions) for today's
+types, numerical rules and downstream boundaries. It includes broader floating types, FLOAT32
+epsilon for FLOAT16/FP8 results, and primitive-site arithmetic rather than this record's blanket
+wider-intermediate permission. Empty and NaN/infinity/signed-zero boundaries remain distinct from
+finite rounding. Model semantics defines meaning; compiler owners handle capture, constraints and
+derivative expressions, while execution providers realize supported routes without redefining it.
+Those responsibilities do not imply storage ownership or turn this historical completion into a
+current support claim.
+
+**Mathematical reading illustration.** For two finite real inputs $x_1,x_2$ and positive real
+epsilon $\varepsilon$, the unscaled result is $y_i=x_i/\sqrt{(x_1^2+x_2^2)/2+\varepsilon}$ for
+$i\in\{1,2\}$. At $x=(1,1)$ and $\varepsilon=3$, both outputs are one half. Unlike layer
+normalization, RMS normalization does not subtract the mean: a constant row need not become zero.
+This is a real-number illustration, not an alternative rounded algorithm.
+
 ## Status
 
 Complete

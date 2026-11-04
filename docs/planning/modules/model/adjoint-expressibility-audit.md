@@ -1,5 +1,14 @@
 # [Adjoint](../../../glossary.md#term-adjoint) Expressibility Audit
 
+**Editorial reading key (later context, not a status update).**
+
+This audit asks whether forward operation descriptions are sufficient building blocks for a later derivative program; it does not install that program. Model supplies the meanings and result descriptors. Compiler is the component that would consume those descriptions, propagate incoming sensitivities, and manage saved values. A public Tensor identifies an expression result; its producer identifies the particular occurrence, while a graph value identifies a separately captured logical value. None is the array of numbers itself. Read the regular-domain formulas together with their boundary rows: representability of a formula does not select behavior at a discontinuity or prove backend execution.
+
+**Mathematical reading example (not an added audit rule).** For finite real inputs $x_1,x_2\in\mathbb{R}$ and $y=x_1+x_2$, let $g\in\mathbb{R}$ be an incoming sensitivity at $y$. Each input contribution is $g$, since $\partial y/\partial x_1=\partial y/\partial x_2=1$. Thus $g=3$ contributes $3$ to each input, not $3/2$. Broadcasting generalizes the reverse direction by adding contributions from repeated uses; the audit rows still govern domains and deferred boundaries.
+
+Focused current reading: [Current producer and output-slot explanation](../../../reference/tensor/identity.md#expression-producers-and-indexed-provenance); [Current sum-to-Shape explanation](../../../reference/tensor/reductions.md#binding-aware-sum-to-shape-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Purpose and authority
 
 This [planning](../../../glossary.md#term-planning) [artifact](../../../glossary.md#term-artifact) records whether each selected public [Tensor](../../../glossary.md#tensor) [operation](../../../glossary.md#operation) has an exact

@@ -1,5 +1,15 @@
 # Task 0001A: Bound Training [Parameter](../../../../glossary.md#term-parameter) [Snapshot](../../../../glossary.md#term-snapshot) Byte Sizes
 
+> **Editorial reading context — not a status update.** Native parameter storage can be
+> larger than a Java array, but a detached session snapshot still needs array-sized payloads.
+> Training checks both represented parameter bytes and optimizer working-width bytes before
+> allocating that parameter's staging state. Low-precision logical values can therefore fit
+> while their wider master/optimizer payload does not. This is a representation/admission
+> bound, not a general memory budget or a native-allocation ownership change.
+> Today's [parameter domain](../../../../reference/training/parameters.md#initial-parameter-domain)
+> explains those widths and [snapshot state](../../../../reference/training/optimizers.md#atomicity-state-concurrency-and-close)
+> explains what the detached payloads contain.
+
 ## Status
 
 Complete

@@ -1,5 +1,32 @@
 # Task 0025C: Portable Functional-Scatter Reduction Semantics
 
+**Editorial reading key (current context, not a status update).**
+
+This historical task records documentation-only forward semantics, not numerical execution or
+gradient policy. The caller invokes `scatterElements` or `scatterNd` on base `data`, supplying index
+and update Tensor references plus attributes. Model construction records descriptions and ordered
+provenance, not copied scalar values or executed reductions; the storage-free result owns no result
+buffer. Model owns meaning, Compiler chooses derivative expressions, and execution providers realize
+supported routes rather than redefine semantics. Semantic responsibility is not storage ownership.
+
+A target group contains the base once and every addressed update once; duplicates remain distinct.
+For example, base two and two updates of three give integral `MUL` eighteen. ND tuples apply this
+grouping separately to each suffix-slice scalar; an untouched coordinate preserves its exact base
+representation. Crucially, the historical once-rounded exact floating-product target differs from
+the [current Scatter Elements
+rules](../../../../reference/tensor/scatter.md#scatter-elements-expressions): follow these for
+permitted rounded multiplication trees, FLOAT32 working arithmetic for low types, and
+rounding/DAZ/FTZ boundaries. Overflow before multiplication by zero can yield NaN; this is not an
+algebraic-equivalence promise. Current extrema still propagate NaN and distinguish zero signs, while
+integral multiplication wraps at fixed width. None of these forward rules chooses derivative
+behavior.
+
+**Mathematical reading illustration.** At one integral target before overflow, let base $b=2$ and
+distinct addressed updates $u_1=u_2=3$. Multiplication includes the base once:
+$r=b\prod_{j=1}^{2}u_j=18$. Duplicate destinations do not deduplicate update contributions. The same
+real-number product is not permission to use exact-product-then-one-rounding for floating execution;
+the current rounded-tree contract and special-value boundaries remain separate.
+
 ## Status
 
 Complete

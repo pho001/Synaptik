@@ -1,5 +1,14 @@
 # Task 0002: [Shape](../../../../glossary.md#shape) and [Dimension](../../../../glossary.md#dimension) [Model](../../../../glossary.md#term-model)
 
+**Editorial reading key (later context, not a status update).**
+
+An application or an expression helper supplies ordered extents to Shape; Shape describes which coordinates exist without storing elements. Rank counts axes, not values: a scalar has no axes but one logical value, while an extent of zero makes a tensor empty. Local broadcasting compares axes from the right and permits the singleton repetitions selected here; it neither repeats bytes nor binds a named dimension at runtime. The symbolic forms in the current reference are later context, not additions to this task's two-variant contract.
+
+**Shape reading example.** For a fully static shape with rank $r\in\mathbb{Z}_{\ge0}$ and extents $d_0,\ldots,d_{r-1}\in\mathbb{Z}_{\ge0}$, the logical element count is $n=\prod_{i=0}^{r-1}d_i$. The empty product for $r=0$ is $1$, explaining the scalar; for shape $[2,0,3]$, $n=0$. These are logical counts, not memory capacities. The original contract below determines unknown counts and checked overflow.
+
+Focused current reading: [Current dimension model](../../../../reference/tensor/shapes.md#shapes-and-dimensions); [Current local broadcasting reference](../../../../reference/tensor/shapes.md#broadcasting). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

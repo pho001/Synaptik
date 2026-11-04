@@ -1,5 +1,24 @@
 # Task 0024A: GraphValue [Tensor](../../../../glossary.md#tensor)-Status [Javadoc](../../../../glossary.md#term-javadoc) Correction
 
+**Editorial reading key (current context, not a status update).**
+
+This historical task corrected one status adjective in `GraphValue` Javadoc; its closure evidence
+does not claim execution completeness. In current terminology, `Tensor` is mutable public expression
+state, while `GraphValue` is immutable graph-local identity plus a descriptor (logical type, shape
+and layout facts), not stored numerical values. A caller supplies IDs and descriptors to graph
+constructors; `CompiledNode` records an operation occurrence and ordered value IDs, not Tensor
+references. Follow [Graph values and compiled
+nodes](../../../../reference/tensor/compiled-graph.md#graph-values-and-compiled-nodes) for those
+structural boundaries and separate publication associations.
+
+For example, calling `input.neg()` creates a result wrapper whose provenance identifies its producer
+and output slot; it neither evaluates negation nor allocates a result buffer. A leaf lacks a
+producing expression, not necessarily storage. Follow [Public Tensor
+state](../../../../reference/tensor/identity.md#public-tensor-state) for retained references and
+borrowed storage. Model semantics defines operation meaning; execution providers realize supported
+routes without redefining it. That semantic responsibility is not storage ownership, and expression
+identity proves neither graph capture nor physical sharing.
+
 ## Status
 
 Complete

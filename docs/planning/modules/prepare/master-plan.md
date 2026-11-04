@@ -1,5 +1,24 @@
 # [Prepare](../../../glossary.md#prepare) Master Plan
 
+> **Editorial historical reading key.**
+>
+> This master plan is a historical implementation map, not semantic authority or a live launch
+> instruction. Its dated frontier narratives and task-table statuses must remain distinct from current
+> support references. Engine supplies concrete partition collaborators; shared Prepare projects
+> Compiler artifacts, invokes backend analysis, assigns slots, finalizes and validates a complete
+> schedule. Backends retain authority over lowering, routes and physical geometry; shared code
+> transports their plans opaquely.
+>
+> The [current preparation
+> handoff](../../../reference/runtime/orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization)
+> details finalizer ownership before return, Prepare rollback afterward, and successful transfer of
+> unique persistent resources to Runtime. Schedule occurrences do not multiply owners. [Current batch
+> metadata
+> binding](../../../reference/compiler/batch-binding.md#ordinary-named-batch-metadata-binding)
+> separates Compiler’s descriptor obligations from numeric resource sizing and backend admission.
+> Caller payloads remain borrowed; completed run resources belong to result leases, not the planning
+> map.
+
 ## Goal and authority
 
 [Prepare](../../../glossary.md#prepare) [coordinates](../../../glossary.md#axis-rank-scalar-vector-and-matrix) the validated transition from [immutable](../../../glossary.md#term-immutable) [compile artifacts](../../../glossary.md#compile-artifacts) to one complete

@@ -1,5 +1,23 @@
 # Task 0003: [Ownership](../../../../glossary.md#term-ownership-meanings) Candidates and Baseline Scoring
 
+> **Editorial historical reading key.**
+>
+> Read “scoring” here as a deterministic preference comparison, not a numerical cost model. The
+> internal selector receives BackendEligibility as the authoritative candidate set,
+> PartitionScoringConfig as a soft class preference, and snapshots for equal-BackendId association. It
+> returns the exact first eligible identity matching that preference, or the first eligible identity
+> otherwise. It never calls providers again or restores excluded backends; even an empty matching
+> snapshot is only a preference nonmatch. Planning owns this comparison, while provider capability and
+> prior hard eligibility remain separate authorities. No device, executable, memory, or cleanup owner
+> is created.
+>
+> The [current Planning
+> contract](../../../../reference/compiler/planning.md#current-operation-capability-contracts) retains
+> these baseline rules within BackendOwnerPlanning. The [current Compiler
+> pipeline](../../../../reference/compiler/artifacts.md#current-complete-artifact-compilation-and-integration-port)
+> now consumes that public collaboration per final node. This task’s absent-consumer and
+> deferred-orchestration statements remain historical.
+
 ## Status
 
 Complete

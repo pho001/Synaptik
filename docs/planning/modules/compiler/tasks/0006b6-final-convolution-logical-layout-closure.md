@@ -1,5 +1,16 @@
 # Task 0006B6: Final [Convolution](../../../../glossary.md#term-channels-first-convolution-layers) Logical-[Layout](../../../../glossary.md#layout) Closure
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Convolution output layout is logical geometry selected by Compiler before Planning queries, not
+> a backend memory allocation or kernel layout decision. Public Conv1d is a composition whose
+> direct squeeze must preserve view geometry from the newly closed Conv2d result. Model
+> construction remains unresolved where recorded; providers still check exact final descriptors
+> and capability. Static closure cannot make dynamic shapes concrete or turn a supported forward
+> operation into supported derivatives.
+>
+> Current reading: [exact graph transformations and final logical layouts](../../../../reference/compiler/optimization.md#current-package-private-canonicalization-and-whole-graph-optimization); [capability queries and hard-eligible owner selection](../../../../reference/compiler/planning.md#current-operation-capability-contracts).
+
 ## Status
 
 Complete

@@ -1,5 +1,22 @@
 # Task 0009: Public Complete-Plan [Autotuning](../../../../glossary.md#autotuning--model-autotuning) Composition
 
+> **Editorial historical reading key.**
+>
+> Here Engine integrates already-owned contracts: it passes the authenticated Phase-1 decision to
+> CPU's complete-plan producer, adapts opaque candidates and decisions to tools/tuning, and supplies
+> representative correctness and execution callbacks. CPU defines legal alternatives and fresh
+> preparation; tools/tuning owns budgets, correctness-before-timing order, measurement, and ranking;
+> Engine owns publication semantics, canonical reference bytes, evidence authentication, admission,
+> and fallback. Config carries declarations rather than executing policy. Representative input storage
+> remains caller-owned, and no trial becomes the returned production preparation. Current [lifecycle
+> documentation](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+> explains result-then-trial cleanup and the sole closeable handle inside tuning metadata. The
+> [composition
+> reference](../../../../reference/engine/composition.md#current-explicit-cpu-and-metal-composition)
+> distinguishes this historical CPU-only slice from today's bounded Metal integration. SESSION
+> evidence is not persistent compatibility authority; the recorded eligible native-path skip remains a
+> limitation of that historical evidence.
+
 ## Status
 
 Complete

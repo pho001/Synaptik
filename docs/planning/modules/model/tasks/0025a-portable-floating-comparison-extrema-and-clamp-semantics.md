@@ -1,5 +1,24 @@
 # Task 0025A: Portable Floating Comparison, [Extrema](../../../../glossary.md#saturation-pole-and-extremum), and Clamp Semantics
 
+**Editorial reading key (current context, not a status update).**
+
+This record documents a forward-contract clarification, not execution or derivative completion; its
+compiler-planning statements describe that historical scope. A caller supplies a receiver Tensor, a
+right Tensor for binary methods, or exact same-typed `ScalarValue` attributes for scalar methods.
+Model construction records ordered input references and operation descriptions, not calculated
+elements. Provenance means the producing operation and inputs; a leaf lacks a producing expression,
+not necessarily storage. Storage-free results own no result buffers. Model semantic responsibility
+is not storage ownership; execution providers realize supported routes without redefining meaning.
+
+For current comparison rules, follow [binary
+comparisons](../../../../reference/tensor/arithmetic.md#binary-comparison-expressions): numeric
+equality equates opposite signed zeros but never NaN, unlike raw-bit metadata equality. For clamp
+ordering and separately described current compiler derivatives, follow [scalar arithmetic and
+clamps](../../../../reference/tensor/elementwise.md#scalar-arithmetic-and-clamp-expressions). Clamp
+applies maximum with the lower bound before minimum with the upper bound, yet records one producer.
+Thus bounds `[+0, -0]` yield negative zero for every non-NaN input; any NaN input or bound yields
+NaN without a payload promise.
+
 ## Status
 
 Complete

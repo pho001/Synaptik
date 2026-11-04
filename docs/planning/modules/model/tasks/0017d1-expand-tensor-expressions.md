@@ -1,5 +1,12 @@
 # Task 0017D1: Expand [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (later context, not a status update).**
+
+The application supplies a target Shape, and expansion compares source and target axes from the right. It may repeat source singletons but may not shrink an ordinary non-singleton. A zero stride describes repeated use of one source position; deriving it does not attach shared memory or duplicate bytes. The result is a storage-free expression with exact input provenance. This historical task rejects unresolved unequal pairs; the linked current reference describes later retained binding obligations, not an original capability of this checkpoint.
+
+Focused current reading: [Current expansion and retained obligations](../../../../reference/tensor/reshape-expand.md#expand-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

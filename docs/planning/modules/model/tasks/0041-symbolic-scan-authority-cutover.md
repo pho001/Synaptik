@@ -1,5 +1,26 @@
 # Task Model0041: [Symbolic Scan](../../../../glossary.md#symbolic-scan) and geometry-reuse authority cutover
 
+**Editorial reading key (current context, not a status update).**
+
+This record accepts authority, not implementation; its review evidence concerns documents, not
+symbolic execution. Current references describe later, separately qualified support. A Scan body is
+a step template: carry changes, sequences supply slices, invariants stay fixed. The caller supplies
+formal Tensor placeholders to `ScanBody`, then positional actual Tensors to `Scan.apply`;
+construction checks descriptions without reading values. A leaf has no producing expression, not
+necessarily stored values. Storage-free expressions neither execute nor own result buffers. Follow
+[source
+binding](../../../../reference/tensor/general-scan.md#formals-actual-positions-and-source-closure)
+for these distinctions.
+
+Model semantics defines meaning; Compiler captures and differentiates, Prepare projects resources,
+and execution providers realize qualified routes rather than redefine semantics. Semantic
+responsibility is not buffer ownership. One named batch extent leaves time/features fixed; [shape
+rules](../../../../reference/tensor/shapes.md#shapes-and-dimensions) explain symbolic dimensions.
+The historical 64→64→40→40→64 witness describes a single-entry geometry memo: miss, hit, miss, hit,
+miss—not executable caching or result reuse. Only immutable numeric metadata qualifies; binding and
+run resources stay fresh. Zero batch still requires shared work; zero time preserves initial carry
+raw bits.
+
 ## Status
 
 Complete — AUTHORITY ONLY; MAIN accepted 2026-10-25 after independent frozen review

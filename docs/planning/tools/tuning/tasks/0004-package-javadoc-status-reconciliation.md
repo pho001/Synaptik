@@ -1,5 +1,20 @@
 # Task 0004: Tuning Package [Javadoc](../../../../glossary.md#term-javadoc) Status Reconciliation
 
+## Editorial reading key: composition does not move authority
+
+This historical repair corrected which component calls which: an application calls
+`Engine.prepareTuned`, and Engine connects the generic tuning transactions to CPU candidate
+production and fresh preparation. The tool still controls bounded measurement, comparison and
+cache coordination. The backend still defines candidate meaning and legality; Engine's lifecycle
+collaboration still manages representative values and cleanup. “Ownership” of a decision and
+cleanup responsibility are distinct.
+
+Read [the two tuning transactions](../../../../developer-guide/benchmarking.md#current-tuning-capabilities)
+for their inputs and returned decisions and
+[Engine's lifecycle](../../../../reference/engine/lifecycle.md) for the prepared/run resources.
+The launch frontier, review evidence and remaining limitations below are preserved as recorded.
+
+
 ## Status
 
 Complete

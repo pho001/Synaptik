@@ -1,5 +1,22 @@
 # Task 0010: [General scan](../../../../glossary.md#general-differentiable-scan) projection and resource [handoff](../../../../glossary.md#term-handoff)
 
+> **Editorial historical reading key.**
+>
+> This completed historical task concerns a metadata and resource handoff, not a Scan executor.
+> Compiler supplies the exact scoped body, role bindings and final demand; GraphPreparation checks
+> complete-graph obligations before sending each partition owner a PrepareContext. Local IDs remain
+> local even when their numbers equal outer IDs. Model/Compiler own operation semantics and
+> differentiation; backend qualification is separate from Prepare acceptance.
+>
+> Backend analyzers declare outer buffers and local workspaces; shared Prepare assigns slots, and
+> backend finalizers receive the exact declarations and shared plan. Under the [current finalization
+> protocol](../../../../reference/runtime/orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization),
+> backend failure rollback precedes Prepare rollback responsibility, then successful ownership
+> transfers to Runtime. The [current capability
+> contract](../../../../reference/compiler/planning.md#current-operation-capability-contracts)
+> separately requires whole-body/binder support. Historical metadata tests, including T=0, do not
+> establish physical history allocation or numerical execution.
+
 ## Status
 
 Complete — main accepted 2026-10-22 after independent Class C code/docs APPROVE and the exact compatibility [checkpoint](../../../../glossary.md#term-checkpoint).

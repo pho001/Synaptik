@@ -1,5 +1,15 @@
 # Task 0006B10: [Compile](../../../../glossary.md#compile) integration status reconciliation
 
+> **Editorial reading key — not part of the historical record.**
+>
+> This reconciliation concerns who calls whom, not a new compile algorithm. Engine invokes
+> GraphCompilationPort to cross a Java package/module integration boundary; the port delegates to
+> Compiler and returns immutable compile artifacts. Ordinary application code uses Engine. Public
+> visibility of the port does not make it a resource-owning executor or transfer preparation into
+> Compiler. The CPU-only composition wording below is the recorded historical integration state.
+>
+> Current reading: [complete compile artifacts and the integration port](../../../../reference/compiler/artifacts.md#current-complete-artifact-compilation-and-integration-port); [ordinary and advanced Engine compile boundaries](../../../../reference/compiler/entry-points.md#current-ordinary-and-advanced-engine-compile-boundaries).
+
 ## Status
 
 Complete

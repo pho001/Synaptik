@@ -1,5 +1,15 @@
 # Task 0025A: Dimensional-[Convolution](../../../../glossary.md#term-channels-first-convolution-layers) User-Capability [Checkpoint](../../../../glossary.md#term-checkpoint)
 
+> **Editorial reading context — not a status update.** “Checkpoint” in this title means an
+> integration acceptance milestone, not a saved model artifact. The application/test loads
+> literal Tensor bindings into NN, builds convolution expressions, then asks Engine to evaluate
+> them. The independent oracle is separate arithmetic used for comparison, not another
+> production implementation. Closing result/prepared/Engine resources does not close the
+> application's input Arena; detached values outlive result closure.
+> Today's [strict-load-and-execute example](../../../../reference/nn/convolution.md#example-strict-load-and-execute-a-conv2d-layer)
+> explains that bridge. The historical Conv3d rejection and recorded fixture limits below
+> remain unchanged even where current references describe later capabilities.
+
 ## Status
 
 Complete

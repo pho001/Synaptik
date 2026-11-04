@@ -1,5 +1,12 @@
 # Task 0012I: [Bernoulli](../../../../glossary.md#term-bernoulli-distribution) Random [Tensor](../../../../glossary.md#tensor) Creation
 
+**Editorial reading key (later context, not a status update).**
+
+The caller supplies a probability and RandomGenerator; the factory draws immediately and compares each draw with that probability to populate BOOL storage. Bernoulli means a two-outcome distribution, not a floating tensor of probabilities or a dropout expression. Endpoint probabilities still consume source calls under this record's rule, so the generator's state advances even when all stored outcomes are predetermined. The resulting Tensor is a leaf with values, not the generator's resource owner or a deferred random producer.
+
+Focused current reading: [Current Bernoulli example](../../../../reference/tensor/random-initialization.md#complete-bernoulli-random-example). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

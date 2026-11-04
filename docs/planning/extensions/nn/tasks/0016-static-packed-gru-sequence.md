@@ -1,5 +1,14 @@
 # Task 0016: Static Packed [GRU](../../../../glossary.md#term-gated-recurrent-unit-gru) Sequence
 
+> **Editorial reading context — not a status update.** The GRU sequence owns one exact
+> cell and reuses its learned parameters across statically constructed time steps. Copied
+> Java lengths select compact active rows; they are not runtime Tensor bindings. Each step's
+> next-hidden expression feeds later represented work, while final-state assembly restores
+> original batch order. Independent cells/types, not a shared erased recurrent interface,
+> preserve the signature. Read today's [static cell/sequence contract](../../../../reference/nn/recurrent-layers.md#current-nn-recurrent-composition-contract)
+> and [runtime-length alternative](../../../../reference/nn/recurrent.md#nn-runtime-length-recurrent-composition)
+> to distinguish construction-time packing from execution-time counts.
+
 ## Status
 
 Complete

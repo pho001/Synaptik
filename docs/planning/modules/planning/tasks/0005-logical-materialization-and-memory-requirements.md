@@ -1,5 +1,23 @@
 # Task 0005: Logical [Materialization](../../../../glossary.md#materialization) and Memory Requirements
 
+> **Editorial historical reading key.**
+>
+> “Materialization” here names a logical availability obligation, not a command to copy bytes. The
+> derivation caller supplies a closed graph and ordered complete partitions; Planning validates
+> coverage/maximality and produces one requirement per graph value. Model graph relationships
+> authorize producers, uses, descriptors, and graph-output status. Consumer partitions are distinct in
+> partition order; absent producers denote graph inputs, not missing stored bytes. Exact descriptors
+> preserve dynamic/expression geometry without inventing physical sizes. The resulting metadata
+> acquires no resources and owns no cleanup.
+>
+> The [current artifact
+> pipeline](../../../../reference/compiler/artifacts.md#current-complete-artifact-compilation-and-integration-port)
+> now invokes logical-memory derivation and separately owns publication roles. [Current preparation
+> orchestration](../../../../reference/runtime/orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization)
+> handles assignment and backend finalization, including rollback before resource transfer to Runtime.
+> This task’s package-private generator and deferred Compiler/Prepare/Runtime statements describe its
+> historical boundary, not present availability.
+
 ## Status
 
 Complete

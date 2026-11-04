@@ -1,5 +1,18 @@
 # Task 0004: [Compiler](../../../../glossary.md#term-compiler)-owned Pre-[capture](../../../../glossary.md#term-capture-meanings) [Autograd](../../../../glossary.md#autograd) and [Graph](../../../../glossary.md#graph) [Compilation](../../../../glossary.md#compiler-engine-and-execution-stage-names)
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Compiler calls preflight and ordinary Tensor-operation constructors to build derivative
+> expressions before assigning graph-local identities. A cotangent is an incoming output
+> sensitivity, not a stored Tensor gradient. For a real scalar illustration, let $x\in\mathbb{R}$
+> be the input, let $s\in\mathbb{R}$ be the seed and let $f:\mathbb{R}\to\mathbb{R}$ be
+> $f(x)=x^2$. The reverse contribution is $g=s f'(x)=2sx$. At $x=3$ and $s=2$, $g=12$: the seed
+> scales sensitivity, not the forward value. This illustration does not replace the recorded
+> floating-point rules. One combined capture records forward and derivative roots; no numerical
+> backend execution occurs during this construction.
+>
+> Current reading: [pre-capture differentiation and functional requests](../../../../reference/compiler/autograd.md#current-package-private-pre-capture-autograd); [structural capture and exact leaf identities](../../../../reference/compiler/capture.md#current-package-private-structural-capture).
+
 ## Status
 
 Complete

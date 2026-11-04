@@ -1,5 +1,12 @@
 # Task 0018C: [Axis](../../../../glossary.md#term-axis) [Gather](../../../../glossary.md#gather) Semantics
 
+**Editorial reading key (later context, not a status update).**
+
+Axis gather consumes ordered data and integer-index inputs; index positions select source coordinates, not Boolean eligibility. This historical taxonomy distinguishes reduced-shape GATHER, rank-changing GATHER_AXIS and aligned TAKE_ALONG_AXIS. The current reference uses a later normalized taxonomy, so equal-looking names across revisions must not be assumed equivalent. Here Model defines a typed meaning for later construction code; this semantic-family task neither receives stored operands nor evaluates them. Its completion is not evidence of Compiler capture, derivatives or backend execution.
+
+Focused current reading: [Current gather/gatherElements taxonomy](../../../../reference/tensor/gather.md#axis-gather-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

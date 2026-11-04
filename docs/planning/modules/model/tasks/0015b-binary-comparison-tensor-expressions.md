@@ -1,5 +1,12 @@
 # Task 0015B: [Binary](../../../../glossary.md#term-binary-descriptor-and-metadata) Comparison [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (later context, not a status update).**
+
+An elementwise comparison produces a truth value for each corresponding pair, not a numerical minimum or an ordering of the whole tensor. The receiver and argument retain ordered roles, and right-aligned broadcasting determines corresponding positions. The output is BOOL with no gradient eligibility; promotion concerns comparison operands, not the output type. The floating-only historical admission is narrower than the linked current reference. The application calls the public Tensor method; its model helper validates available descriptions and returns a fresh storage-free expression with exact input references. It neither copies input values nor calculates the result. Compiler consumes this provenance later; actual storage and execution are separate downstream concerns.
+
+Focused current reading: [Current comparison reference](../../../../reference/tensor/arithmetic.md#binary-comparison-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

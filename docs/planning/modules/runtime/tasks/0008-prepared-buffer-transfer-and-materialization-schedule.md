@@ -1,5 +1,22 @@
 # Task 0008: [Prepared Buffer Transfer](../../../../glossary.md#prepared-buffer-transfer--preparedbuffertransfer) and [Materialization](../../../../glossary.md#materialization) Schedule
 
+> **Editorial historical reading key.**
+>
+> This task establishes one explicit transfer between two already-created representations of the same
+> logical buffer. The caller of `bind` supplies an exact-plan open `RunState`; Runtime resolves and
+> checks coordinates, then backend hooks check concrete compatibility and construct a bound action
+> retaining typed source/destination references. On execution, Runtime owns the destination-valid
+> no-op and success-only validity transition; the backend owns physical copying. Neither recipe nor
+> bound action owns or closes those representations. Failed physical work may leave partial
+> destination bytes without making that copy valid.
+>
+> Here materialization means this same inward representation transfer, not detached host-value
+> creation. Compare the [current transfer
+> contract](../../../../reference/runtime/transfers.md#current-prepared-buffer-transfer) and [current
+> runner](../../../../reference/runtime/orchestration.md#current-prepared-runner): traversal is now
+> implemented, whereas its absence and the unchanged record requirement belong to this historical
+> milestone.
+
 ## Status
 
 Complete

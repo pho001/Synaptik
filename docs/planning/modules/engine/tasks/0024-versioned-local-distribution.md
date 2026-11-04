@@ -1,5 +1,23 @@
 # Task 0024: Versioned local production [distribution](../../../../glossary.md#term-distribution)
 
+> **Editorial historical reading key.**
+>
+> This document records a local distribution mechanism and one exercised source snapshot, not
+> authorization to publish a public release. Gradle Java/Maven components carry implemented products
+> and their actual API dependencies across the checkout-to-consumer boundary; the reviewed inventory
+> and provenance identify which dirty source bytes produced those artifacts. Packaging owns selection
+> and delivery, not numerical semantics, backend discovery, or execution ownership.
+>
+> The [current composition
+> contract](../../../../reference/engine/composition.md#current-explicit-cpu-and-metal-composition)
+> explains why public backend construction types require API-visible dependencies and why callers
+> transfer integrations to Engine. The [current compilation
+> port](../../../../reference/compiler/artifacts.md#current-complete-artifact-compilation-and-integration-port)
+> distinguishes a cross-module SPI from an ordinary-user facade. Shipping either surface does not
+> change cleanup responsibilities. Preserve the archive omission, correction, consumer results, and
+> legal caveats as historical evidence; later source changes require a new reviewed inventory and
+> freeze.
+
 ## Status
 
 Complete — MAIN integrated the exact reviewed source after actual archive/[publication](../../../../glossary.md#term-publication), uncached

@@ -1,5 +1,15 @@
 # Task 0002: [Module](../../../../glossary.md#term-module)-Tree [Ownership](../../../../glossary.md#term-ownership-meanings) and Recursive Mode Propagation
 
+> **Editorial reading context — not a status update.** Parent ownership here is permanent
+> membership in an NN module tree, not storage ownership. An application-built parent registers
+> an exact child; discovery walks that tree to produce stable names such as encoder.weight.
+> Mode propagation changes descendants' forward-behavior choices but performs no gradient
+> calculation or parameter update. Discovery snapshots contain wrappers, so later wrapper reads
+> can observe replacement; they are not detached value snapshots. Today's
+> [module topology explanation](../../../../reference/nn/composition.md#current-nn-typed-model-composition-contract)
+> and [state export ordering](../../../../reference/nn/state.md#current-nn-state-dictionary-contract)
+> explain these related but distinct structures.
+
 ## Status
 
 Complete

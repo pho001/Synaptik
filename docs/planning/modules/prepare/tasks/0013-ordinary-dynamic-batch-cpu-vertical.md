@@ -1,5 +1,29 @@
 # Task Prepare0013: Ordinary dynamic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) [CPU](../../../../glossary.md#term-cpu) forward and first-order backward
 
+> **Editorial historical reading key.**
+>
+> This historical vertical implements one immutable symbolic-B recipe across fresh runs, not per-B
+> recompilation. Compiler binds descriptor obligations; Prepare fixes declarations and slots; CPU
+> binds numeric geometry; Runtime creates isolated run resources; Engine validates caller storage
+> before borrowing and publishes actual descriptors. Caller storage remains usable through result
+> close; preparation owns persistent resources, while materialized host values are detached. See
+> [current metadata
+> binding](../../../../reference/compiler/batch-binding.md#ordinary-named-batch-metadata-binding) and
+> the [current
+> lifecycle](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle).
+>
+> Preserve the recorded reused-test evidence and timing confounds; neither proves general performance
+> parity or broader backend/workflow support.
+>
+> **Mathematical reading example.** In the all-one witness, let $B$ be a positive integer row count,
+> $X\in\mathbb{R}^{B\times4}$ the input, $W\in\mathbb{R}^{4\times3}$ the weights, $Y=XW$, and $L$ the
+> mean of all $3B$ entries of $Y$. In real arithmetic, each output is $4$, each output derivative is
+> $1/(3B)$, each input derivative sums three contributions to $1/B$, and each weight derivative sums
+> $B$ contributions to $1/3$. For $B=2$, these derivatives are $1/2$ and $1/3$. Actual floating-point
+> evaluation retains the archive's rounding rules. This positive-domain explanation does not apply at
+> $B=0$: empty MEAN, empty input gradients and nonempty zero weight gradients follow their separate
+> policies.
+
 ## Status
 
 Complete — MAIN accepted 2026-10-24; JAVA FROZEN 2026-10-24 19:34:25 UTC.

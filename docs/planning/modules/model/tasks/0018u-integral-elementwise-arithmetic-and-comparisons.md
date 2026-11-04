@@ -1,5 +1,24 @@
 # Task 0018U: Integral [Elementwise](../../../../glossary.md#term-elementwise) Arithmetic and Comparisons
 
+**Editorial reading key (current context, not a status update).**
+
+This completed record concerns expression construction, not execution; its deferred-work statements
+describe that historical scope, not current capability. The caller invokes a Tensor method: the
+receiver is the left operand, the argument the right. Model helpers validate descriptors and record
+ordered provenance—the producing operation and input references—without reading element values. A
+scalar instead crosses this boundary as an exact typed attribute, not another Tensor input: INT32
+multiplied by an INT32 scalar retains INT32; an INT64 scalar is rejected. Storage-free results
+neither execute nor own result buffers; semantic responsibility is not storage ownership.
+
+For current promotion, broadcasting and modular-wrap meaning, follow [binary arithmetic
+expressions](../../../../reference/tensor/arithmetic.md#binary-arithmetic-expressions). Promotion
+selects an operation domain without inserting a cast. For the distinction between that domain and
+the output, follow [binary comparison
+expressions](../../../../reference/tensor/arithmetic.md#binary-comparison-expressions): comparing
+INT32 with INT64 uses signed INT64 ordering but describes a BOOL result, not computed truth values.
+Model semantics defines these meanings; execution providers realize supported routes rather than
+redefine them.
+
 ## Status
 
 Complete

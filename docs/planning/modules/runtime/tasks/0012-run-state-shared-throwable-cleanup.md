@@ -1,5 +1,22 @@
 # Task 0012: [Run](../../../../glossary.md#term-run)-State Shared-Throwable Cleanup
 
+> **Editorial historical reading key.**
+>
+> Read this as the historical, narrowly scoped repair of failure aggregation in `RunState.close()`,
+> not as a redesign of resource ownership or milestone closure. The close caller enters Runtime's
+> cleanup orchestration; Runtime marks the state closed, invokes workspace and owned-buffer callbacks
+> in reverse order, and leaves physical release to each concrete representation. Borrowed buffers
+> never cross into Runtime cleanup ownership. The significant boundary is failure identity: distinct
+> resources can return the very same primary throwable, which must not be passed back to itself
+> through Java suppression.
+>
+> The focused current [run-state lifecycle
+> contract](../../../../reference/runtime/creation.md#run-state-lifecycle-and-failures) states that
+> exact behavior. The [representation
+> foundation](../../../../reference/runtime/representations.md#current-per-run-representation-foundation)
+> separately explains ownership transfer on successful state construction. The task's test counts and
+> Draft follow-ups remain historical evidence, not new verification or present delivery status.
+
 ## Status
 
 Complete

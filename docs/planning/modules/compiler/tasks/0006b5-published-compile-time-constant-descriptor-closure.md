@@ -1,5 +1,15 @@
 # Task 0006B5: Published [Compile](../../../../glossary.md#compile)-Time [Constant](../../../../glossary.md#term-constant) [Descriptor](../../../../glossary.md#term-descriptor) Closure
 
+> **Editorial reading key — not part of the historical record.**
+>
+> This closure applies to an explicitly fixed splat that survives as a published, source-only
+> graph value. Compiler derives canonical logical geometry from its static shape; it does not
+> discover constancy from a leaf or materialize bytes. Publication membership controls eligibility
+> after optimization, so an earlier unused/consumed classification is insufficient. Prepare and
+> the backend must independently arrange a real representation before the value can be delivered.
+>
+> Current reading: [exact graph transformations and final logical layouts](../../../../reference/compiler/optimization.md#current-package-private-canonicalization-and-whole-graph-optimization); [complete compile artifacts and the integration port](../../../../reference/compiler/artifacts.md#current-complete-artifact-compilation-and-integration-port).
+
 ## Status
 
 Complete

@@ -1,5 +1,12 @@
 # Task 0017E: [Axis](../../../../glossary.md#term-axis)-Transform Semantics
 
+**Editorial reading key (later context, not a status update).**
+
+Permutation reorders coordinate axes; singleton insertion/removal changes rank without changing the logical element sequence. For permutation, each output position names the input axis that moves there, not an element value to sort. Attribute constructors check normalized lists/positions, while later Tensor helpers know the actual input rank and can validate the request. Model defines meaning, not a data-moving algorithm; transpose is the rank-two permutation convenience selected here rather than a distinct kernel kind.
+
+Focused current reading: [Current output-to-input permutation explanation](../../../../reference/tensor/axis-transforms.md#permute-and-transpose-expressions); [Current singleton rank edits](../../../../reference/tensor/axis-transforms.md#expand-dimensions-and-squeeze-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

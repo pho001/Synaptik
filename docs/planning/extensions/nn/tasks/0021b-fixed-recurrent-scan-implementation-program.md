@@ -1,5 +1,14 @@
 # Task NN0021B Fixed recurrent [scan](../../../../glossary.md#term-cumulative-scan) forward execution program
 
+> **Editorial reading context — not a status update.** This packet coordinates acceptance;
+> CPU owns the implementation of the prepared recurrent loop. One Model occurrence is not
+> one graph node per time step, even though its backend implementation visits valid steps.
+> Input states and returned final states remain explicit, so repeated runs do not silently
+> carry state between batches. Existing cold persistence is a prerequisite, not proof the
+> saved source executes. Today's [runtime-length construction/execution distinction](../../../../reference/nn/recurrent.md#nn-runtime-length-recurrent-composition)
+> and [owned execution contract](../../../../reference/nn/owned-model.md#owned-tensor-model-capability)
+> provide current context without extending the original CPU/type/gradient qualification.
+
 ## Status
 
 Complete — main accepted CPU0028 and this bounded program after independent approval and the

@@ -1,5 +1,24 @@
 # Task 0025F: Recurrent-[Scan](../../../../glossary.md#term-cumulative-scan) Expression Namespace Correction
 
+**Editorial reading key (current context, not a status update).**
+
+This record concerns API placement: six provisional Tensor receiver overloads became
+`RecurrentScan.rnn/gru/lstm`, not a general scan body. Ordinary NN callers use sequence containers;
+advanced callers pass Tensor descriptions of input, runtime lengths, explicit states and parameters
+to the static namespace. A producer is one identity-distinct operation occurrence; canonical
+wrappers identify its ordered outputs. Construction validates descriptors, not length values, and
+returns storage-free expressions: it neither executes recurrence nor owns result buffers. Model’s
+semantic responsibility is not storage ownership.
+
+The historical Compiler rejection and deferred execution statements describe this task’s scope, not
+current support. Follow the [current fixed-scan
+reference](../../../../reference/tensor/fixed-scans.md#fixed-recurrent-scan-expressions) for
+construction, execution and NN-route distinctions. Model defines meaning; execution providers
+realize supported routes without redefining it. For example, a row of length two in a three-step
+input reverses only its first two positions under `REVERSE`; the third output position is positive
+zero. Length zero preserves initial states semantically. These are value-level rules, not results
+computed by the namespace.
+
 ## Status
 
 Complete

@@ -1,5 +1,23 @@
 # Task 0005A: Automatic Input Discovery and Compute Convenience
 
+> **Editorial historical reading key.**
+>
+> This task records the replacement of explicit-input one-shot `forward(...)` with four `compute(...)`
+> forms. The caller supplies output expressions; Engine follows Model provenance to inventory exact
+> Tensor objects, then joins leaves by TensorId to Compiler's final input membership and order. A leaf
+> has no producing expression: it need not already contain stored bytes. Discovery does not establish
+> storage usability, backend support or liveness, and unselected leaves' storage is not inspected.
+> Model `forward` constructs expressions; Engine orchestrates execution rather than adding execution
+> to Tensor.
+>
+> Selected storage remains caller-owned through synchronous cleanup; Engine closes its borrow wrappers
+> and temporary run resources, while returned host values are detached copies. See the [current
+> one-shot
+> lifecycle](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+> and [Compiler source
+> classification](../../../../reference/compiler/artifacts.md#current-complete-artifact-compilation-and-integration-port).
+> This archive's CPU-only limitations and prerequisite statuses describe its completion period.
+
 ## Status
 
 Complete

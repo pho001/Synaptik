@@ -1,5 +1,19 @@
 # [CLI](../../../glossary.md#term-cli) Master Plan
 
+## Editorial reading key: an outer adapter is a proposed caller
+
+A command-line interface (CLI) turns a person's command and arguments into calls to existing
+public APIs, then formats the returned data. Here “outer adapter” means the proposed command
+handlers would call Engine or tooling; they would not define operation semantics, choose backend
+eligibility or implement Runtime execution. A partition dump would describe which backend
+executes a group of graph operations, not transfer ownership of application memory.
+
+The plan remains Draft and promises no runnable command. For the existing calls such an adapter
+would compose, read [Engine's execution lifecycle](../../../reference/engine/lifecycle.md).
+For an existing read-only diagnostic API rather than a promised CLI, read
+[tuning artifact inspection](../../../developer-guide/benchmarking.md#inspecting-current-tuning-artifacts-and-evidence).
+
+
 ## Goal
 
 Provide command-line diagnostics for [graph](../../../glossary.md#graph), [partition](../../../glossary.md#partition), scoring, [trace](../../../glossary.md#trace), benchmark, and [model](../../../glossary.md#term-model) workflows.

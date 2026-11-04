@@ -1,5 +1,22 @@
 # Task 0002: Standard Built-In Composition
 
+> **Editorial historical reading key.**
+>
+> This task introduces ordinary construction and lifetime only: an application calls
+> Engine.standard(), Engine opens one fresh CPU integration, and a private AdvancedEngine receives
+> cleanup ownership. No Tensor expression, input binding, or publication crosses this new ordinary
+> surface at this stage. The wrapper delegates closure rather than creating another lifecycle
+> protocol; construction failure cleans the current owner while retaining the original failure. CPU’s
+> optional OpenBLAS route is internal implementation policy, not another Engine backend.
+>
+> The three-method inventory and statements that typed execution is planned are historical contracts,
+> not present limitations. The [current ordinary
+> lifecycle](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+> includes compilation, preparation, binding, and materialization. Its standard factory remains
+> CPU-only, while [current explicit
+> composition](../../../../reference/engine/composition.md#current-explicit-cpu-and-metal-composition)
+> uses builder-owned integration transfer without discovery or runtime fallback.
+
 ## Status
 
 Complete

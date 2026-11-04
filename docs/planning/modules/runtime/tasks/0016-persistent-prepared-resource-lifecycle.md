@@ -1,5 +1,24 @@
 # Task 0016: Persistent Prepared-Resource [Lifecycle](../../../../glossary.md#lifecycle)
 
+> **Editorial historical reading key.**
+>
+> This task separates reusable prepared-resource ownership from one run's mutable state. The
+> constructor caller transfers an identity-unique resource list only after successful
+> `PreparedExecution` construction. Runtime owns admission and reverse attempt-all cleanup; backend
+> `PreparedResource` implementations own physical release mechanics. The runner acquires an opaque
+> lease before inspecting inputs and releases it after synchronous execution. Closing preparation
+> rejects new leases without waiting; the last admitted lease may perform deferred cleanup, including
+> reporting its failure.
+>
+> The current [prepared owner
+> contract](../../../../reference/runtime/prepared-execution.md#current-prepared-execution) preserves
+> identity equality and this lifecycle. Current [aggregate
+> orchestration](../../../../reference/runtime/orchestration.md#current-aggregate-and-run-orchestration)
+> additionally describes Prepare's acquisition-ordered transfer and Engine handle ownership. Those
+> integrations were explicitly downstream here. Neither repeated schedule occurrences nor returned
+> result leases create duplicate prepared-resource owners; completed result state has its own cleanup
+> lifetime.
+
 ## Status
 
 Complete

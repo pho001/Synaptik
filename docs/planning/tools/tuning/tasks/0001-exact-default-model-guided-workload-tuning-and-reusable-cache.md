@@ -1,5 +1,22 @@
 # Task 0001: Exact/Default [Model](../../../../glossary.md#term-model)-Guided Workload Tuning and Reusable [Cache](../../../../glossary.md#term-cache)
 
+## Editorial reading key: the caller can be framework composition
+
+The caller here is code that already connects a concrete backend to an execution lifecycle.
+It calls `WorkloadTuning.tune` with the request, a backend-aware collaborator and an execution
+action. Tuning calls that collaborator to enumerate and authenticate candidates, then calls the
+action to perform complete trials. “Opaque” means tuning can pass the typed candidate onward
+without interpreting backend-private settings. The composition still arranges comparable input
+values and execution resources; a selected decision is not an executed result.
+
+Request-owned byte sequences and collections are snapshots, while exact partition/batch
+references remain references. This is not a blanket copy or cleanup transfer.
+Read [local workload tuning](../../../../developer-guide/benchmarking.md#phase-1-local-workload-transaction)
+and [candidate responsibility](../../../../architecture/performance-evidence-and-tuning.md#candidate-ownership-and-opaque-orchestration).
+The original “no Engine facade” and future-integration statements below describe this earlier
+task's frontier, not today's callable surface.
+
+
 ## Status
 
 Complete

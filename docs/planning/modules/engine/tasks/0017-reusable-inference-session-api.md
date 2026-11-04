@@ -1,5 +1,20 @@
 # Task 0017: Reusable [Inference](../../../../glossary.md#term-inference) Session [API](../../../../glossary.md#term-application-programming-interface-api)
 
+> **Editorial historical reading key.**
+>
+> Read this as the historical introduction of a thin InferenceSession facade, not as the current API.
+> The caller supplied an Engine-owned CompiledGraph; Engine prepared it once, and the session owned
+> that hidden preparation while borrowing the Engine. Runs delegated Tensor identity, descriptor and
+> storage validation to Engine; CompiledGraph.inputs() remained input-order authority, while Runtime
+> supplied isolated run state and its lease protocol. Closing the session released preparation, not
+> returned results or caller storage; materialization separately produced detached copies. The
+> recorded review explains admission precedence and result-before-preparation-before-integration
+> cleanup, without introducing another runner. The [current
+> lifecycle](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+> explicitly removes this facade in favor of prepare/run. [Current
+> composition](../../../../reference/engine/composition.md#current-explicit-cpu-and-metal-composition)
+> distinguishes backend partition ownership from ownership of caller memory.
+
 ## Status
 
 Complete

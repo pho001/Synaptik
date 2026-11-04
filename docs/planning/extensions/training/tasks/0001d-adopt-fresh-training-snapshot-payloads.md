@@ -1,5 +1,15 @@
 # Task 0001D: Adopt Fresh Training [Snapshot](../../../../glossary.md#term-snapshot) Payloads
 
+> **Editorial reading context — not a status update.** Trusted adoption is internal:
+> TrainingParameter has just allocated and filled arrays that no external caller can retain,
+> so ParameterState can take those arrays without a redundant clone. Public/caller-supplied
+> array construction remains defensive. This removes a copy inside snapshot creation, not
+> the snapshot's detached storage or its immutability. Returned read-only views still have
+> independent movable cursors and survive session closure.
+> Today's [snapshot ownership](../../../../reference/training/optimizers.md#atomicity-state-concurrency-and-close)
+> and [external reconstruction example](../../../../reference/training/optimizers.md#example-reconstruct-a-detached-training-value)
+> explain why an internal transfer and an external defensive copy have different obligations.
+
 ## Status
 
 Complete

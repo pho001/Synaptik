@@ -1,5 +1,23 @@
 # Task 0002: Per-Query [Backend Hard Eligibility](../../../../glossary.md#backend-hard-eligibility)
 
+> **Editorial historical reading key.**
+>
+> This milestone introduces an internal evaluator, not a public backend-selection workflow. Its caller
+> supplies one query, BackendIntent, ordered providers, and matching immutable availability snapshots.
+> Planning validates the complete association, filters by available-device membership and exact hard
+> requirements, then calls each surviving provider once. Providers remain authoritative for
+> backend-level semantic support; snapshots establish matching availability, not device-specific
+> operation support. The result retains the query and exact provider-returned BackendIds, not
+> providers, snapshots, selected devices, or storage. Evaluation acquires no closeable resources and
+> transfers no cleanup duty.
+>
+> See the [current capability and eligibility
+> contract](../../../../reference/compiler/planning.md#current-operation-capability-contracts) for the
+> subsequent public BackendOwnerPlanning composition. The [current Compiler
+> integration](../../../../reference/compiler/artifacts.md#current-complete-artifact-compilation-and-integration-port)
+> distinguishes this internal empty-list fact from Compiler’s contextual terminal failure. Historical
+> claims that no external consumer exists belong to this task’s completion point.
+
 ## Status
 
 Complete

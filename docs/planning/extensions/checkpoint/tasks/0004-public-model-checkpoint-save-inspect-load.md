@@ -1,5 +1,14 @@
 # Task 0004: Public [model](../../../../glossary.md#term-model) [checkpoint](../../../../glossary.md#term-checkpoint) save, inspect, and strict load
 
+> **Editorial reading context — not a status update.** The application recreates a compatible
+> NN target and supplies the expected configuration identity. Save asks Engine for values;
+> inspection reports validated descriptions; load rebuilds values and asks NN to install a
+> complete state dictionary. Inspection is not permission to skip a later read or validation.
+> An alias here means several target paths holding the same exact Tensor, not equal numbers.
+> Loaded heap values need no Checkpoint-owned Arena; source storage remains its original owner's
+> responsibility. See today's [values-only core contracts](../../../../reference/checkpoint/values.md#core-contracts)
+> and [ownership consequences](../../../../reference/checkpoint/values.md#inputs-outputs-and-ownership).
+
 ## Status
 
 Complete after [CPU 0024](../../../backends/cpu/tasks/0024-default-segment-route-heap-carrier-binding.md)<span data-glossary-navigation="true"> ([CPU glossary](../../../../glossary.md#term-cpu))</span>

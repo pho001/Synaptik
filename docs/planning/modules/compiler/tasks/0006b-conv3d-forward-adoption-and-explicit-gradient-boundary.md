@@ -1,5 +1,16 @@
 # Task 0006B: [Conv3d](../../../../glossary.md#conv3d--ncdhw) Forward Adoption and Explicit [Gradient](../../../../glossary.md#term-gradient) Boundary
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Forward adoption means Compiler can independently verify a Conv3d occurrence and transport its
+> operation, attributes and ordered descriptors into Planning. A deferred spatial relation is a
+> later binding obligation, not evidence that runtime dimensions fit. The backward exclusion and
+> provider expectations below are historical milestone boundaries. Neither this task nor a
+> successful synthetic provider query establishes lowering, physical storage or numerical
+> convolution execution.
+>
+> Current reading: [descriptor verification and deferred constraints](../../../../reference/compiler/verification-scan.md#current-package-private-verification-inference); [pre-capture differentiation and functional requests](../../../../reference/compiler/autograd.md#current-package-private-pre-capture-autograd).
+
 ## Status
 
 Complete

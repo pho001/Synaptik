@@ -1,5 +1,12 @@
 # Task 0012A: [JVM](../../../../glossary.md#term-java-virtual-machine-jvm)-Managed [Heap](../../../../glossary.md#term-heap) [Host Storage](../../../../glossary.md#host-storage) Allocation
 
+**Editorial reading key (later context, not a status update).**
+
+The application calls allocate with a resolved descriptor. The factory reserves a fresh primitive array large enough for the layout's referenced span, then wraps its heap segment; a strided span need not equal logical element count. This is real allocation, unlike storage-free create, but no numerical operation is executed. The JVM's automatic heap scope keeps the array reachable: there is no hidden Arena for the caller or Tensor to close. The storage wrapper remains non-owning even though the factory created the underlying array.
+
+Focused current reading: [Current allocation contract](../../../../reference/tensor/creation.md); [Referenced-span explanation](../../../../reference/tensor/layouts.md#resolved-layouts). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

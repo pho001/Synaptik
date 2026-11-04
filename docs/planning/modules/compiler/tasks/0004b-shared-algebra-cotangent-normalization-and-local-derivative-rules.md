@@ -1,5 +1,16 @@
 # Task 0004B: Shared-algebra [Cotangent Normalization](../../../../glossary.md#cotangent-normalization) and [Local Derivative](../../../../glossary.md#derivative-and-chain-rule) Rules
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Local derivative rules produce cotangents that must match the selected input shape and floating
+> type. Compiler uses ordinary shape reduction and cast expressions for that normalization; it
+> does not introduce gradient-only arithmetic. A selected zero or tie convention is a
+> differentiation decision, while forward NaN, infinity and cast meaning remains Model-owned.
+> Generated expressions still need the same verification and independent backend qualification as
+> forward work.
+>
+> Current reading: [pre-capture differentiation and functional requests](../../../../reference/compiler/autograd.md#current-package-private-pre-capture-autograd); [descriptor verification and deferred constraints](../../../../reference/compiler/verification-scan.md#current-package-private-verification-inference).
+
 ## Status
 
 Complete

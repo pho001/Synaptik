@@ -1,5 +1,12 @@
 # Task 0014D: [Unary](../../../../glossary.md#term-unary) [Elementwise](../../../../glossary.md#term-elementwise) [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (later context, not a status update).**
+
+A unary elementwise transform acts independently at each input coordinate, rather than combining a row or axis into one total. The expression retains the input type/Shape while leaving output geometry unresolved. Gradient eligibility is only metadata here, including for discontinuous functions; the recorded task does not attach derivative rules. The application calls the public Tensor method; its model helper validates available descriptions and returns a fresh storage-free expression with exact input references. It neither copies input values nor calculates the result. Compiler consumes this provenance later; actual storage and execution are separate downstream concerns.
+
+Focused current reading: [Current unary-transform reference](../../../../reference/tensor/elementwise.md#unary-numeric-transforms-and-floating-classifications). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

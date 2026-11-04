@@ -1,5 +1,12 @@
 # Task 0012E: Range and Prefix Population
 
+**Editorial reading key (later context, not a status update).**
+
+The factory caller supplies range bounds or a typed source prefix and a target shape. It immediately populates a fresh dense leaf; there is no Range operation awaiting Compiler capture. Strict prefix uses the required leading values; cyclic prefix repeats the source pattern rather than borrowing the caller's array. This eager copying differs from storage association, which retains an existing region. Logical empty-output rules and the historical non-empty-range rule are separate decisions, not consequences of leaf provenance.
+
+Focused current reading: [Current range example](../../../../reference/tensor/random-initialization.md#complete-integer-range-example); [Current import/population boundary](../../../../reference/tensor/creation.md). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

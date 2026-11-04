@@ -1,5 +1,16 @@
 # [Compiler](../../../glossary.md#term-compiler) Master Plan
 
+> **Editorial reading key — not part of the historical record.**
+>
+> The application supplies Tensor expression roots through Engine; Engine composes the call into
+> Compiler. Compiler captures identities, checks descriptions, constructs requested derivative
+> expressions and orchestrates Planning to produce an immutable recipe. Backend providers answer
+> capability questions; later preparation and execution own physical resources and values. A leaf
+> means a Tensor with no producing expression, not necessarily a Tensor containing stored numbers.
+> The task rows below retain their original milestone-specific statuses and evidence.
+>
+> Current reading: [structural capture and exact leaf identities](../../../reference/compiler/capture.md#current-package-private-structural-capture); [ordinary and advanced Engine compile boundaries](../../../reference/compiler/entry-points.md#current-ordinary-and-advanced-engine-compile-boundaries).
+
 ## Goal and authority
 
 [Compile](../../../glossary.md#compile) [Tensor](../../../glossary.md#tensor) expressions into [immutable](../../../glossary.md#term-immutable) [compile artifacts](../../../glossary.md#compile-artifacts) through phase-aware [capture](../../../glossary.md#term-capture-meanings),

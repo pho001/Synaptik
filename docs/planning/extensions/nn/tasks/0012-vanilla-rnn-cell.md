@@ -1,5 +1,18 @@
 # Task 0012: Vanilla [Tanh](../../../../glossary.md#term-tanh) [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn) Cell
 
+> **Editorial reading context — not a status update.** An application calls the cell with
+> input and previous hidden state. The cell owns projection parameters but retains neither
+> hidden state nor execution history; its returned Tensor describes the next state for the
+> application to thread onward. One higher-rank call is not an implicit time loop. The current
+> [recurrent layer contract](../../../../reference/nn/recurrent-layers.md#current-nn-recurrent-composition-contract)
+> contrasts cells with sequence containers.
+>
+> **Mathematical reading example.** For finite real scalar input $x$, hidden state $h$,
+> input weight $w$, hidden weight $u$ and bias $b$, one transition is
+> $h'=\tanh(wx+b+uh)$. Taking $x=1,h=0,w=1,u=2,b=0$ gives $h'=\tanh(1)$,
+> about $0.762$. The cell returns a description of that transition, not this evaluated number;
+> actual arithmetic remains governed by the recorded Model operations.
+
 ## Status
 
 Complete

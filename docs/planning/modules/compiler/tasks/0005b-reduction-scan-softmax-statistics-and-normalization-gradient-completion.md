@@ -1,5 +1,16 @@
 # Task 0005B: Reduction, [Scan](../../../../glossary.md#term-cumulative-scan), [Softmax](../../../../glossary.md#softmax--log-softmax), Statistics, and [Normalization](../../../../glossary.md#term-normalization) [Gradient](../../../../glossary.md#term-gradient) Completion
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Compiler constructs reduction and normalization sensitivities from ordinary operations and
+> canonical saved outputs. Counts represented by reductions of logical ones remain graph
+> expressions, not host-computed runtime dimensions. Binding-aware expansion can retain a shape
+> obligation without resolving it. The distinction matters at empty or symbolic domains: a
+> constructible derivative is still subject to its recorded local convention, later metadata
+> binding and independent execution qualification.
+>
+> Current reading: [pre-capture differentiation and functional requests](../../../../reference/compiler/autograd.md#current-package-private-pre-capture-autograd); [descriptor verification and deferred constraints](../../../../reference/compiler/verification-scan.md#current-package-private-verification-inference).
+
 ## Status
 
 Complete

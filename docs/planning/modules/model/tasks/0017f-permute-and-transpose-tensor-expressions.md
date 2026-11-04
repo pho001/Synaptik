@@ -1,5 +1,12 @@
 # Task 0017F: Permute and [Transpose](../../../../glossary.md#term-transpose) [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (later context, not a status update).**
+
+The application supplies a complete output-to-input axis order: for rank three, [1, 2, 0] puts former axis one first. The model helper reorders Dimension and stride descriptions and records one input, but does not transpose stored bytes. A logical view retains geometry/offset without promising actual storage sharing. Transpose is exactly rank-two permutation [1, 0], not an independent semantic occurrence kind. Compiler and the eventual backend decide supported capture and physical realization separately.
+
+Focused current reading: [Current permutation/transpose reference](../../../../reference/tensor/axis-transforms.md#permute-and-transpose-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

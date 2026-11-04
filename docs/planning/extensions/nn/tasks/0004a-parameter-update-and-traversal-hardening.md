@@ -1,5 +1,14 @@
 # Task 0004A: [Parameter](../../../../glossary.md#term-parameter) Update and Traversal Hardening
 
+> **Editorial reading context — not a status update.** The downstream consumer obtains a
+> Parameter wrapper through module discovery and asks that wrapper to install a compatible
+> Tensor. The wrapper preserves its name, type and Shape; old expressions keep their old
+> Tensor references. This enables a consumer boundary, not an optimizer implementation.
+> Iterative traversal addresses deep ownership trees, while array-size checks address eager
+> initializer storage; these are different limits. Today's [replacement contract](../../../../reference/nn/state.md#current-nn-parameter-update-contract)
+> and [automatic/eager initialization distinction](../../../../reference/nn/composition.md#current-nn-automatic-parameter-initialization-contract)
+> explain why neither hardening change establishes execution capability or general thread safety.
+
 ## Status
 
 Complete

@@ -1,5 +1,15 @@
 # Task 0003A: Exact Arithmetic Rewriting
 
+> **Editorial reading key — not part of the historical record.**
+>
+> The rewrite input is an operation plus exact typed scalar metadata, not a Tensor whose stored
+> contents happen to equal zero or one. Matching a rule permits bypassing an internal expression
+> only under the recorded descriptor, phase, gradient and output-boundary guards. Model numerical
+> semantics determine legality; Config merely permits the optional pass. Neither host-value
+> inspection nor a familiar real-number identity justifies a wider floating-point rewrite.
+>
+> Current reading: [exact graph transformations and final logical layouts](../../../../reference/compiler/optimization.md#current-package-private-canonicalization-and-whole-graph-optimization); [structural capture and exact leaf identities](../../../../reference/compiler/capture.md#current-package-private-structural-capture).
+
 ## Status
 
 Complete

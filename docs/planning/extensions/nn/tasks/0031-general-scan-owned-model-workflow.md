@@ -1,5 +1,15 @@
 # Task NN0031: General-[scan](../../../../glossary.md#term-cumulative-scan) [owned Model](../../../../glossary.md#model-module-buffer-and-scan-distinctions) workflow
 
+> **Editorial reading context — not a status update.** The application supplies source once;
+> NN acquires private parameter state through Checkpoint/Compiler, then prepares execution for
+> repeated fresh batches. An optional cold forward reconstructs expressions but is not the
+> per-batch compute/train path. General-scan constructor support, backend numerical support,
+> first-order differentiation and disk persistence are separate gates.
+> Today's [owned execution](../../../../reference/nn/owned-model.md#owned-tensor-model-capability)
+> and [general-scan copy/rebind](../../../../reference/checkpoint/graph.md#general-scan-in-memory-copy-and-rebind)
+> explain those boundaries. Later wire/length support in the references does not change this
+> task's all-valid qualification or its recorded native-environment integration evidence.
+
 ## Status
 
 Complete — main accepted implementation, independent review, final [module](../../../../glossary.md#term-module) [validation](../../../../glossary.md#term-validation) and the

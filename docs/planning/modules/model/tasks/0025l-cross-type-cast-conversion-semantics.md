@@ -1,5 +1,23 @@
 # Task 0025L: Cross-type CAST conversion semantics
 
+**Editorial reading key (current context, not a status update).**
+
+This record completes a six-type, 36-pair semantic contract; its CPU deferrals and FLOAT16 follow-up
+describe that historical scope, not current status. The current [cast
+reference](../../../../reference/tensor/selection-casts.md#cast-expressions) explains the expanded
+type vocabulary and pair-specific rules. Model defines conversion meaning; execution providers
+realize supported routes rather than redefine it. Semantic responsibility does not confer storage
+ownership. Direct rounding means rounding once to the target, not through FLOAT32; same-type bit
+preservation, widening NaN mapping, and lossy NaN canonicalization remain distinct.
+
+A caller’s `Tensor.cast` request passes a target-type description into expression construction,
+recording the input reference without reading values, executing, or owning result buffers. By
+contrast, `CastValueConversions.convert` receives an exact typed scalar value and returns one: NaN
+becomes integral zero but Boolean true. A same-type scalar call returns its source, whereas a
+same-type Tensor call creates a fresh expression. Compiler supplies floating-only reverse casts
+under the same conversion meaning; integral or BOOL roles have no cotangent. The recorded example
+observes metadata, not conversion execution.
+
 ## Status
 
 Complete

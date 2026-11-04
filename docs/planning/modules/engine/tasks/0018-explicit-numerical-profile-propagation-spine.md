@@ -1,5 +1,21 @@
 # Task 0018: Explicit Numerical-Profile Propagation Spine
 
+> **Editorial historical reading key.**
+>
+> This completed task records a historical profile-propagation cutover: callers selected an
+> Engine-wide profile at construction; Engine forwarded it through Compiler, Planning queries and
+> Prepare projections to backend plan/cache identities. Compiler and Prepare transported the value
+> rather than interpreting numerical semantics. CPU and Metal independently rejected ACCELERATOR at
+> capability and preparation boundaries; identity isolation did not authorize relaxed arithmetic.
+> Runtime, run state, results and Trace acquired no profile field or per-run policy lookup. Ownership
+> remained with the existing Engine/preparation/result lifecycle, not with profile records. Preserve
+> the exact signatures and version advances as historical contracts: the supplied [current artifact
+> reference](../../../../reference/compiler/artifacts.md#current-complete-artifact-compilation-and-integration-port)
+> describes different component shapes. Model 0032 later removed the profile API and propagation; the
+> [current Engine
+> lifecycle](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+> is profile-free. This later removal does not alter this task’s recorded delivery.
+
 ## Status
 
 Complete

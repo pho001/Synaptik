@@ -1,5 +1,24 @@
 # Task 0027: Explicit Numerical-Profile Semantic Authority
 
+**Editorial reading key (current context, not a status update).**
+
+This historical task establishes Model’s numerical meaning, not backend capability or a
+configuration API. `STRICT_IEEE` retains each operation’s existing contract; `ACCELERATOR` permits
+only the listed operation-specific alternatives, not generic tolerance. DAZ means treating a
+permitted subnormal input as same-signed zero; FTZ means flushing a permitted subnormal arithmetic
+result to zero. For example, accelerator arithmetic may flush a tiny result, but a selected `WHERE`
+value gains no such permission. Scan traversal and exclusive identities remain fixed; NaN exclusions
+still apply.
+
+The profile names belong to this historical decision. The current [data-type and arithmetic
+boundaries](../../../../reference/tensor/data-types.md#data-types) explain working formats and exact
+movement without restoring graph-selectable profiles. A caller supplies a kind and compatible
+immutable attributes to form an `Operation` description; input values belong to particular
+occurrences, not that reusable descriptor. Signatures count input/output positions, not elements,
+and establish neither numerical validity nor backend support. Model defines meaning; execution
+providers realize supported routes without redefining it. This semantic responsibility is not buffer
+ownership, and describing an operation does not execute it.
+
 ## Status
 
 Complete

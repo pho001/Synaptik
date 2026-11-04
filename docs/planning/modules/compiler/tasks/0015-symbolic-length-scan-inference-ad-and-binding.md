@@ -1,5 +1,16 @@
 # Task Compiler0015: Symbolic-length [Scan](../../../../glossary.md#term-cumulative-scan) [inference](../../../../glossary.md#term-inference), first-order [AD](../../../../glossary.md#autograd) and scoped [binding](../../../../glossary.md#term-binding)
 
+> **Editorial reading key — not part of the historical record.**
+>
+> There are two independent inputs to this admission: a named batch dimension in descriptions and
+> integer lengths supplied as values only at execution. Compiler and BatchBindingPlan inspect
+> metadata, so binding the same batch size again does not validate new lengths payloads. Explicit
+> ROW/SHARED roles survive reverse construction even when batch and feature extents coincide. The
+> test-local numerical oracle below exercises generated expressions; it is not a production
+> executor or a widened downstream gate.
+>
+> Current reading: [scoped Scan capture, roles and first-order differentiation](../../../../reference/compiler/verification-scan.md#current-scoped-scan-capture-and-first-order-ad).
+
 ## Status
 
 Complete — MAIN accepted the exact [Compiler](../../../../glossary.md#term-compiler)-only [scope](../../../../glossary.md#term-scope) on 2026-10-26; all required gates passed.

@@ -1,5 +1,25 @@
 # Task Model0045: Per-value typed length-aware [Scan](../../../../glossary.md#term-cumulative-scan) source
 
+**Editorial reading key (current context, not a status update).**
+
+This record’s acceptance is source-only: its failed commands remain failed, and later qualified
+routes in the [current Scan
+reference](../../../../reference/tensor/general-scan.md#length-aware-source-construction-and-qualified-execution)
+do not enlarge that historical acceptance. Follow that section to distinguish present admission from
+this task’s closed consumer gates. The caller supplies actual Tensors to `Scan.apply`; `ScanBody`
+supplies formal placeholders and ordinary expression roots. Carry passes state, sequences supply
+step slices, and invariants stay fixed. A leaf has no producing expression, not necessarily stored
+values. Binding checks descriptions, including INT64 lengths metadata, without reading lengths or
+executing the body.
+
+Per-value typing means no loop-wide compute dtype: a FLOAT16 carry can use explicit FLOAT32 work and
+cast back; a SHARED accumulator’s contribution must match its own shape and dtype despite ordinary
+promotion. ROW identifies a proved independent batch coordinate; SHARED has none. Model semantics
+defines meaning; providers realize supported routes. [Port and residual
+rules](../../../../reference/tensor/general-scan.md#canonical-results-residual-metadata-and-eligibility)
+explain why storage-free output/history descriptions own no result buffers; semantic responsibility
+is not storage ownership.
+
 ## Status
 
 Complete — SOURCE ONLY, MAIN accepted 2026-11-01 after independent Class C source/tests/[Javadoc](../../../../glossary.md#term-javadoc)/docs

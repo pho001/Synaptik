@@ -1,5 +1,14 @@
 # Task 0007: [Embedding](../../../../glossary.md#embedding) Layer
 
+> **Editorial reading context — not a status update.** An embedding maps integer labels to
+> rows of a floating table. The application supplies table state and index Tensors; the layer
+> retains its weight binding and describes an axis-zero Gather, appending the table's feature
+> width to the index Shape. Construction does not read index values or perform lookup.
+> A token ID called padding still selects an ordinary trainable row unless a separate contract
+> says otherwise. See the current [embedding convenience](../../../../reference/tensor/gather.md#embedding-convenience)
+> for producer/Shape meaning and [Text token IDs](../../../../reference/text/tokenization.md#frozen-token-ids)
+> for the separate vocabulary boundary; Text's naming does not change NN gradient semantics.
+
 ## Status
 
 Complete

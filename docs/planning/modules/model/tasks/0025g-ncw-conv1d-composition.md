@@ -1,5 +1,25 @@
 # Task 0025G: [NCW](../../../../glossary.md#term-ncw) [Conv1d Composition](../../../../glossary.md#conv1d-composition)
 
+**Editorial reading key (current context, not a status update).**
+
+Read this completed task as historical Model scope, not a current execution-status statement. NCW
+means batch, channel, width; groups isolate channel subsets, and cross-correlation does not reverse
+the kernel. The caller supplies input, weight and optional bias Tensor descriptions to
+`Tensor.conv1d`; its helper delegates to two expansions, Conv2d and squeeze. `Conv1dAttrs` becomes
+`Conv2dAttrs`, not a retained Conv1d operation. The [current composition
+reference](../../../../reference/tensor/convolution.md#grouped-ncw-conv1d-composition) explains this
+mapping: inserting height one leaves width as the varying spatial axis; bias passes directly to
+Conv2d.
+
+Model semantics defines meaning; supported execution providers realize it rather than redefine it.
+Compiler consumes provenance and descriptors, not computed convolution values. These storage-free
+expressions neither execute nor own result buffers; convolution’s semantic responsibility is not
+storage ownership. Conceptual positive-zero padding still multiplies infinite weights. Follow the
+[current numerical and metadata
+policy](../../../../reference/tensor/convolution.md#numerical-and-metadata-policy) for that boundary
+and qualified execution descriptions; this record’s unavailable-execution and future-Conv3d
+statements remain historical.
+
 ## Status
 
 Complete

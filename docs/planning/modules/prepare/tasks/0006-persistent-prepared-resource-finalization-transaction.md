@@ -1,5 +1,23 @@
 # Task 0006: Persistent Prepared-Resource Finalization [Transaction](../../../../glossary.md#term-transaction)
 
+> **Editorial historical reading key.**
+>
+> This task records a three-stage ownership transaction, not ownership inferred from executable
+> reachability. Shared Prepare calls each backend finalizer with assigned resources; the backend
+> returns an executable plus acquisition-ordered persistent resources. Before successful return, the
+> backend must clean up its own acquisitions. After return, Prepare owns rollback through schedule
+> assembly and aggregate construction; successful Runtime `PreparedExecution` construction transfers
+> final ownership. CPU’s empty resource list is a concrete implementation fact, not a prohibition on
+> other backends.
+>
+> Compare the [current finalization
+> handoff](../../../../reference/runtime/orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization)
+> and [Runtime prepared
+> owner](../../../../reference/runtime/prepared-execution.md#current-prepared-execution). Preserve the
+> archived duplicate-scanning algorithm as history: Prepare 0009 later repairs trailing-resource
+> rollback. Likewise, Engine ownership and Metal follow-up statuses describe this checkpoint, not
+> current support. Repeated schedule occurrences never multiply cleanup ownership.
+
 ## Status
 
 Complete

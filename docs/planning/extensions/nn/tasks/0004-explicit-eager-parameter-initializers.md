@@ -1,5 +1,18 @@
 # Task 0004: Explicit [Eager](../../../../glossary.md#term-eager-evaluation) [Parameter](../../../../glossary.md#term-parameter) Initializers
 
+> **Editorial reading context — not a status update.** Eager initialization creates stored
+> starting values immediately, unlike forward expression construction. The application supplies
+> the random generator; the utility consumes it for the call but retains no hidden stream.
+> A leaf has no producing expression; these particular leaves also have allocated values.
+> Today's [initialization ownership](../../../../reference/nn/composition.md#current-nn-automatic-parameter-initialization-contract)
+> and [scripted sampling example](../../../../reference/tensor/random-initialization.md#complete-normal-random-example)
+> separate policy, random source and allocation.
+>
+> **Mathematical reading example.** For positive integer input/output widths $i,o$, Glorot-normal
+> uses real standard deviation $\sigma=\sqrt{2/(i+o)}$. With $i=3,o=5$, $\sigma=1/2$.
+> This describes a distribution's scale, not every sampled weight; the recorded implementation
+> below determines actual floating-point evaluation and narrowing.
+
 ## Status
 
 Complete

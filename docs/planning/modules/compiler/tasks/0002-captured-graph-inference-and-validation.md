@@ -1,5 +1,16 @@
 # Task 0002: Captured-[Graph](../../../../glossary.md#graph) [Inference](../../../../glossary.md#term-inference) and [Validation](../../../../glossary.md#term-validation)
 
+> **Editorial reading key — not part of the historical record.**
+>
+> CapturedGraphInference receives a graph description, not arrays of computed answers. It
+> independently derives expected shapes, types and layouts from operations and operand
+> descriptions, compares them with recorded outputs, and retains relationships that require later
+> dimension binding. Successful verification is therefore not execution or proof of index
+> contents. Model owns operation meaning; Compiler owns this semantic check; a backend must still
+> qualify the resulting work.
+>
+> Current reading: [descriptor verification and deferred constraints](../../../../reference/compiler/verification-scan.md#current-package-private-verification-inference); [capability queries and hard-eligible owner selection](../../../../reference/compiler/planning.md#current-operation-capability-contracts).
+
 ## Status
 
 Complete

@@ -1,5 +1,14 @@
 # Text Extension Master Plan
 
+> **Editorial reading context — not a status update.** The application gives Text a frozen
+> vocabulary and strings. Tokenization produces integer labels; Text's batch adapter calls
+> Data to pad them and record valid counts. The application, not Text, then connects ordinary
+> Tensor IDs to NN Embedding and Engine computation. PAD naming does not freeze a table row
+> or mask all later operations. Today's [token identity rules](../../../reference/text/tokenization.md#frozen-token-ids)
+> and [Text/Data delegation](../../../reference/text/tokenization.md#explicit-batch-configuration)
+> explain these boundaries, including copied vocabulary, fresh outputs and the absence of
+> a fluent integer-Embedding-scan execution chain.
+
 ## Goal
 
 Add one [frozen whitespace tokenizer](../../../glossary.md#frozen-whitespace-tokenizer) and a fluent adapter that delegates integral [padding](../../../glossary.md#padding) to Data.

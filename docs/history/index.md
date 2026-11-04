@@ -4,6 +4,24 @@ These inventories preserve earlier implementation/qualification descriptions. Th
 “current”, “planned” and “unsupported” describe those earlier slices, not today's product.
 They are maintenance evidence, not a learning path or a second [API](../glossary.md#term-application-programming-interface-api) authority.
 
+## Reading the boundaries in these records
+
+An operation being **describable** means an application can construct Tensor metadata for it.
+Compiler acceptance means the Compiler can capture and validate that description; backend
+qualification means a particular provider can execute the exact type, shape and layout combination.
+These are separate claims. A completed task at one boundary does not complete the others.
+
+For example, an application calls Tensor expression methods to describe work and calls Engine to
+compile, prepare and run it. A leaf Tensor has no producing expression; it need not already contain
+data. Neither that label nor a graph identifier gives the Compiler ownership of application memory.
+Read [expression capture](../reference/compiler/capture.md) for how descriptions become graph
+values, and [Engine's input-borrowing and result lifecycle](../reference/engine/lifecycle.md)
+for when actual storage must stay valid. Use those focused explanations to interpret the vocabulary
+below, not to renew an archived execution claim.
+
+## Preserved inventories
+
+
 | Earlier inventory | Historical record |
 |---|---|
 | [Tensor](../glossary.md#tensor) introduction and qualification lists | [Qualification overview](reference/tensor/qualification-overview.md) |

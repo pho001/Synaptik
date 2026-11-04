@@ -1,5 +1,14 @@
 # Task 0001: [Module](../../../../glossary.md#term-module), [Parameter](../../../../glossary.md#term-parameter), [Buffer](../../../../glossary.md#term-buffer), and Forward-Context Foundation
 
+> **Editorial reading context — not a status update.** A concrete module declares wrappers
+> around Tensor references: a parameter is selected for learning, whereas a persistent buffer
+> belongs to model state without becoming an optimizer target. Owning a wrapper does not mean
+> owning every backing memory resource or copying its Tensor. ForwardContext is an immutable
+> behavior choice passed to a layer, not a run handle. The foundation below has no universal
+> forward or execution operation. Read today's [binding/state explanation](../../../../reference/nn/state.md#current-nn-state-dictionary-contract)
+> and [session responsibilities](../../../../reference/training/sessions.md#purpose-and-implementation-status)
+> to distinguish NN state from numerical training.
+
 ## Status
 
 Complete

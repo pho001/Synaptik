@@ -1,5 +1,13 @@
 # [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) 0025B — Export [Model](../../../../glossary.md#term-model) types required by the public NN [API](../../../../glossary.md#term-application-programming-interface-api)
 
+> **Editorial reading context — not a status update.** Gradle api makes Model's Tensor,
+> Shape and DataType available when an application depends on NN's public signatures.
+> An implementation dependency would be hidden from that consumer's compile classpath.
+> This visibility repair neither adds a new semantic owner nor makes NN execute tensors.
+> Today's [typed Model boundary](../../../../reference/nn/composition.md#current-nn-typed-model-composition-contract)
+> shows the public types crossing from the application into NN, while [state references](../../../../reference/nn/state.md#current-nn-state-dictionary-contract)
+> show that access to a type is unrelated to copying values or acquiring storage ownership.
+
 ## Status
 
 Complete

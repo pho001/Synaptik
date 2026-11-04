@@ -1,5 +1,25 @@
 # Task 0018T: [Scalar](../../../../glossary.md#term-scalar) Arithmetic Family [Normalization](../../../../glossary.md#term-normalization)
 
+**Editorial reading key (current context, not a status update).**
+
+This completed record concerns floating-only vocabulary normalization, not execution; its follow-up
+statuses and evidence remain historical. The caller supplies a Tensor receiver and exact typed
+scalar to Tensor’s facade; the scalar helper checks receiver/type compatibility, while Operation
+checks family-owned attributes and input/output counts. ScalarValueAttrs retains the scalar as
+immutable metadata, not a second Tensor input. For example, FLOAT32 multiplication needs a FLOAT32
+ScalarValue; the double convenience supplies FLOAT64, never inferred narrowing. Fresh storage-free
+results describe producers, not calculated values or owned result buffers.
+
+For current eligibility and compiler distinctions, follow [scalar arithmetic and
+clamps](../../../../reference/tensor/elementwise.md#scalar-arithmetic-and-clamp-expressions):
+selected integral forms and later compiler rules are outside this task’s scope. Pairwise
+minimum/maximum differ from aggregate min/max; clampMin records MAX, while range CLAMP remains one
+producer with ordered extrema meaning. NaNs propagate and opposite signed zeros retain directional
+extrema rules. [Exact typed
+scalars](../../../../reference/tensor/data-types.md#exact-typed-scalar-values) explains bit identity
+versus numerical selection. Model semantics defines meaning; execution providers realize supported
+routes without redefining it or acquiring storage ownership through semantic responsibility.
+
 ## Status
 
 Complete

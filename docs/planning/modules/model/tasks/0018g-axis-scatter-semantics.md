@@ -1,5 +1,12 @@
 # Task 0018G: [Axis](../../../../glossary.md#term-axis) Scatter Semantics
 
+**Editorial reading key (later context, not a status update).**
+
+Functional scatter describes a new data-shaped result, never in-place mutation of the receiver. Its ordered roles are base data, integer destination indices and update values; gather reads in the opposite direction. A reduction combines all addressed updates, whereas replacement NONE requires unambiguous targets. Attribute records describe axis/reduction choices but cannot inspect duplicate coordinates or index bounds without values. This historical three-kind taxonomy predates the current normalized gather/scatter names. Model owns those meanings; Compiler/backend integration and actual destination storage are separate responsibilities.
+
+Focused current reading: [Current gather-compatible Scatter Add](../../../../reference/tensor/scatter.md#gather-compatible-scatter-add-expressions); [Current Scatter Elements reduction policy](../../../../reference/tensor/scatter.md#scatter-elements-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

@@ -1,5 +1,15 @@
 # Task NN0030: General-[scan](../../../../glossary.md#term-cumulative-scan) [owned Model](../../../../glossary.md#model-module-buffer-and-scan-distinctions) [admission](../../../../glossary.md#term-admission) decision
 
+> **Editorial reading context — decision-stage findings, not a new implementation claim.**
+> Cold admission asks whether supported source can be reconstructed, not whether CPU can
+> numerically execute or differentiate it. Model acquisition must privately copy named state;
+> retaining a definition callback would leave an external-weight path around that ownership
+> boundary. Checkpoint preserves the contained body, Compiler reconstructs its semantics,
+> and NN integrates the acquired source with Engine/Training.
+> Today's [general-scan cold boundary](../../../../reference/checkpoint/graph.md#general-scan-in-memory-copy-and-rebind)
+> and [owned Model consumer](../../../../reference/checkpoint/graph.md#owned-nn-model-consumer)
+> explain the completed surrounding concepts; predecessor findings below retain their decision-time meaning.
+
 ## Status
 
 Complete — approved limited direction/[planning](../../../../glossary.md#term-planning) decision only, not [module](../../../../glossary.md#term-module) implementation.

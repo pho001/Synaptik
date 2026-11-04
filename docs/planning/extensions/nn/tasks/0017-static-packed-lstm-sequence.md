@@ -1,5 +1,13 @@
 # Task 0017: Static Packed [LSTM](../../../../glossary.md#term-long-short-term-memory-lstm) Sequence
 
+> **Editorial reading context — not a status update.** The LSTM sequence compacts both
+> hidden and cell state for each active-row set, but exposes hidden outputs by step and
+> returns both final states in original row order. Its owned cell retains learned weights,
+> not those caller-provided recurrent states. Java lengths specialize the expression being
+> built; later execution is a separate owner. Today's [recurrent sequence contract](../../../../reference/nn/recurrent-layers.md#current-nn-recurrent-composition-contract)
+> explains the state/result distinction, and [runtime-length construction](../../../../reference/nn/recurrent.md#nn-runtime-length-recurrent-composition)
+> shows why a dense scan result is not a silent replacement for this compact historical result.
+
 ## Status
 
 Complete

@@ -1,5 +1,31 @@
 # Task 0028: [ACCELERATOR](../../../../glossary.md#term-accelerator) Reduction Exact-Zero Sign Freedom
 
+**Editorial reading key (current context, not a status update).**
+
+This completed task records a historical, operation-specific `ACCELERATOR` refinement, not backend
+enablement or a current readiness report. Model defines allowed results; execution providers realize
+supported routes without redefining that meaning. In today’s [numeric aggregate
+reference](../../../../reference/tensor/reductions.md#numeric-aggregate-expressions), follow the
+construction details to distinguish descriptions from values: a caller invokes Tensor reduction
+methods with axis choices; the API returns storage-free expressions recording operation, input
+references, and result Shape, without reading values, executing, or owning result buffers. Semantic
+authority is not storage ownership.
+
+Here, “declared terms” are exactly the contributors selected by axes, masking, and target mapping;
+“root” is the final addition of a permitted tree. Historically, FLOAT32 SUM/SUM_TO_SHAPE with at
+least two terms gained either zero sign only at an exact-zero root; MEAN gained it only at an
+exact-zero mandatory positive-count quotient. This is distinct from flushing a subnormal result.
+STRICT_IEEE, nonzero results, and NaN/infinity rules stayed unchanged. For example, one-term
+negative zero remains negative zero; empty SUM remains positive zero. Follow [sum-to-Shape
+semantics](../../../../reference/tensor/reductions.md#binding-aware-sum-to-shape-expressions) for
+mapping and bit-preserving equal-Shape cases, not added arithmetic.
+
+**Zero-sign reading illustration.** In real arithmetic, contributors $a=1$ and $b=-1$ give $a+b=0$.
+Floating representations distinguish positive and negative zero even though both represent this real
+number. The historical permission concerns the sign at the specified final root or quotient, not
+dropping either contributor, changing a one-term move, or flushing every small intermediate. A zero
+result and a nonzero subnormal result therefore require different reasoning.
+
 ## Status
 
 Complete

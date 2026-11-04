@@ -1,5 +1,14 @@
 # Task 0004A: Direct [leaf](../../../../glossary.md#term-leaf)-[model](../../../../glossary.md#term-model) save
 
+> **Editorial reading context — not a status update.** A leaf is a Tensor with no producing
+> expression; that fact alone says nothing about whether it has stored values. This task's
+> fully bound leaves do have accessible storage. Checkpoint creates a raw-preserving
+> contiguous-output request so Engine can materialize them, rather than asking the application
+> to disguise them with arithmetic. The request does not replace NN bindings or transfer
+> ownership of source storage. A Tensor is not universally closeable: its backing Arena, when
+> present, has the relevant lifetime. The current [capture lifecycle](../../../../reference/checkpoint/values.md#lifecycle-and-invariants)
+> explains this narrow bridge, not generic Engine support for every leaf output.
+
 ## Status
 
 Complete — implementation, independent review, and configured coordinator gate passed on 2026-10-14.

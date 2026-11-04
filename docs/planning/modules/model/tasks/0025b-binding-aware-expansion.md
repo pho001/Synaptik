@@ -1,5 +1,24 @@
 # Task 0025B: [Binding](../../../../glossary.md#term-binding)-Aware Expansion
 
+**Editorial reading key (current context, not a status update).**
+
+This record concerns Model expression construction, not execution. The caller supplies a source
+Tensor and requested dimensions to `Tensor.expand`; Model’s helper checks right-aligned
+compatibility and records `EXPAND` provenance. A Shape describes extents; an unresolved Dimension
+lacks a static extent, not necessarily a stored value. The exact-Shape overload retains the
+immutable target reference; the raw-array overload normalizes dimensions without retaining the
+caller’s array. Neither reads tensor values. For an unknown source extent expanding to four, later
+proof must establish that the source is one or four; a target singleton does not authorize
+shrinking.
+
+The historical compiler non-adoption statements belong to this task’s scope, not a current status
+update. Follow [Expand
+expressions](../../../../reference/tensor/reshape-expand.md#expand-expressions) for today’s
+compiler-proof and inverse-reduction account, plus layout details. Zero strides describe repeated
+logical coordinates, not physical aliasing. Model defines meaning; execution providers realize
+supported routes rather than redefine it. This semantic responsibility does not confer storage
+ownership: the fresh storage-free expression neither executes nor owns a result buffer.
+
 ## Status
 
 Complete

@@ -1,5 +1,19 @@
 # Task 0002: Prepared Memory and Workspace Contracts
 
+> **Editorial historical reading key.**
+>
+> Read this completed task as the historical introduction of Runtime’s geometry carrier, not an
+> allocator or execution owner. Shared Prepare is the intended caller of the record constructors:
+> backend analysis supplies buffer/workspace requirements, and Prepare translates them into ordered
+> slot identities, byte sizes and alignments while retaining source-to-slot associations outside
+> Runtime. Runtime defines the carrier’s validation and nominal identity rules; it neither interprets
+> graph values nor frees storage. Snapshotting list membership retains exact immutable entries rather
+> than copying payload bytes. The [current memory
+> contract](../../../../reference/runtime/memory.md#current-prepared-memory-plan) preserves that
+> distinction. Assignment and finalization described here as later work now have a [current Prepare
+> handoff](../../../../reference/runtime/orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization),
+> with explicit persistent-resource rollback and ownership transfer separate from geometry.
+
 ## Status
 
 Complete

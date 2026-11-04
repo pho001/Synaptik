@@ -1,5 +1,15 @@
 # Task 0025: Channels-First Conv1d, [Conv2d](../../../../glossary.md#convolution--conv2d), and [Conv3d](../../../../glossary.md#conv3d--ncdhw) Layers
 
+> **Editorial reading context — not a status update.** NCW, NCHW and NCDHW name logical
+> batch/channel/spatial axes for one, two and three spatial dimensions. The application fixes
+> output channels and kernel geometry; the layer infers only input channels and owns its
+> complete weight/bias publication. Forward delegates ordinary Tensor convolution composition,
+> not a backend kernel call. Groups partition channel connections and therefore affect both
+> weight Shape and initialization fan counts.
+> Today's [NN convolution contract](../../../../reference/nn/convolution.md#current-nn-channels-first-convolution-contract)
+> connects those roles to examples; [strict state loading](../../../../reference/nn/state.md#current-nn-state-dictionary-contract)
+> explains the separate path that installs supplied exact references without running an initializer.
+
 ## Status
 
 Complete

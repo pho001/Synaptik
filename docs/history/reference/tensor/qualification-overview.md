@@ -4,6 +4,20 @@ This is an archived, composite qualification narrative preserved from the pre-re
 
 **Known supersessions:** [CPU](../../../glossary.md#term-cpu) low-[precision](../../../glossary.md#term-precision) parity, fixed-cell first-order [BPTT](../../../glossary.md#term-backpropagation-through-time-bptt), bounded static length-aware cold/[owned Model](../../../glossary.md#model-module-buffer-and-scan-distinctions) workflows and wire versions through v7, shared [normalization](../../../glossary.md#term-normalization) [derivatives](../../../glossary.md#term-derivative), and ordinary [backend](../../../glossary.md#backend) preparation/execution are implemented. The archive does not retract or widen any current qualification. Use [current reference goals](../../../reference/index.md), [Compiler AD](../../../reference/compiler/autograd.md)<span data-glossary-navigation="true"> ([Compiler glossary](../../../glossary.md#term-compiler); [AD glossary](../../../glossary.md#autograd))</span>, [owned Model execution](../../../reference/nn/owned-model.md), and [current backend qualification](../../../backend-guide/production-support.md) instead of the inventories below. Symbolic cold/wire, arbitrary [PURE](../../../glossary.md#term-pure)-body copying, higher-order recurrence and unqualified backend routes are not granted by these supersessions.
 
+## Editorial reading key: read a qualification as a bounded claim
+
+A qualification identifies which exact operation, type, geometry and backend were exercised at a
+checkpoint. A count of operation kinds does not mean every input shape or data type executes.
+The application constructs Tensor descriptions and later supplies actual input values to Engine;
+the Compiler and backend have different jobs between those calls.
+
+A Tensor leaf means no producing expression, not “allocated input array.” The application may
+associate storage with it, but borrowing that storage does not transfer the application's memory
+scope to the Tensor. Read [storage association](../../../reference/tensor/storage-association.md)
+for that distinction and the [Engine lifecycle](../../../reference/engine/lifecycle.md) for how long
+run inputs remain borrowed and why materializing a result creates a detached copy.
+These explanations help interpret the inventory without updating its historical counts or routes.
+
 <a id="tensor-qualification-context"></a>
 <a id="purpose-and-mental-model"></a>
 

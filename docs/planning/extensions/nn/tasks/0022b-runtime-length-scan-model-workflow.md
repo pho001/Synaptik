@@ -1,5 +1,15 @@
 # Task NN0022B [Runtime](../../../../glossary.md#term-runtime) length [scan](../../../../glossary.md#term-cumulative-scan) [Model](../../../../glossary.md#term-model) workflow
 
+> **Editorial reading context — not a status update.** The builder describes a two-input
+> Model whose positions are values then valid lengths; the application supplies fresh stored
+> Tensors for those positions at compute. finalHidden selects the state after each row's
+> last valid transition, unlike lastTimeStep, which selects the final rectangular time index.
+> Each scan ignores its own padded suffix; ordinary bias or sigmoid layers do not acquire a
+> model-wide padding mask. Private Model state is acquired once, not copied anew per batch.
+> Today's [builder contract](../../../../reference/nn/model-builder.md#fluent-model-builder) and
+> [runtime-length composition](../../../../reference/nn/recurrent.md#nn-runtime-length-recurrent-composition)
+> distinguish these meanings and identify later capabilities separately from the historical inference-only gate.
+
 ## Status
 
 Complete — accepted 2026-10-20 after independent reviews and the coordinator's final root gate.

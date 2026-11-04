@@ -1,5 +1,12 @@
 # Task 0008: [Graph Value](../../../../glossary.md#graph-value) and [Node](../../../../glossary.md#node) [Model](../../../../glossary.md#term-model)
 
+**Editorial reading key (later context, not a status update).**
+
+Compiler-facing callers construct GraphValue records for described logical data and CompiledNode records for particular calculations. A node consumes and produces ordered ValueIds; neither record holds the numerical payload. A graph input has no producing node, just as a public leaf has no producing expression, but that says nothing about whether a caller has stored values ready. List snapshots isolate collection structure, not copies of tensor data. Whole-graph validation belongs to the container, and graph capture belongs to Compiler rather than these Model records.
+
+Focused current reading: [Current graph record explanation](../../../../reference/tensor/compiled-graph.md#graph-values-and-compiled-nodes). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

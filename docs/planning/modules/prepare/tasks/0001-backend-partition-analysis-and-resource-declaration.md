@@ -1,5 +1,23 @@
 # Task 0001: [Backend](../../../../glossary.md#backend) [Partition](../../../../glossary.md#partition) Analysis and Resource Declaration
 
+> **Editorial historical reading key.**
+>
+> Read this completed task as the initial analysis-only boundary, not as the current full preparation
+> API. Shared Prepare supplies a partition-scoped context to a concrete backend's
+> `BackendPartitionPreparer`; the backend returns its opaque selected plan and ordered
+> buffer/workspace declarations. Model descriptors and Planning identities provide semantic facts,
+> while the backend owns lowering and route meaning. Shared Prepare validates projections but does not
+> interpret backend-private state. Byte requirements describe storage needs, not allocations or
+> ownership transfers, so this stage introduces no cleanup owner.
+>
+> The historical fully-static restriction and six-component context belong to this milestone. The
+> [current Prepare
+> projection](../../../../reference/runtime/prepare.md#prepare-declarations-assignment-and-finalization)
+> uses `PartitionDag` and additional scoped metadata. The [current finalization
+> handoff](../../../../reference/runtime/orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization)
+> distinguishes shared assignment, backend resource acquisition, rollback, and eventual Runtime
+> ownership.
+
 ## Status
 
 Complete

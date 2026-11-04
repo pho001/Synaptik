@@ -1,5 +1,21 @@
 # Task 0004: [Prepared Executable](../../../../glossary.md#prepared-executable--preparedexecutable) and [Bound Invocation](../../../../glossary.md#bound-invocation--boundinvocation)
 
+> **Editorial historical reading key.**
+>
+> The participants here are a backend’s immutable `PreparedExecutable` subclass, Runtime’s final
+> binding template, one matching open `RunState`, and the backend’s per-run `BoundInvocation`
+> subclass. During `bind`, dense selections resolve nominal representations; backend compatibility
+> hooks check their concrete types before `bindCompatible` receives ordered arrays and builds direct
+> typed fields. Runtime supplies association and lifecycle validation, not route choice or numerical
+> semantics. `execute()` then guards state openness and delegates region work without rebinding.
+> Neither invocation nor executable acquires cleanup ownership through this boundary; binding failure
+> needs no resource rollback because auxiliary closeable acquisition is forbidden. See the [current
+> binding
+> contract](../../../../reference/runtime/executables.md#current-prepared-executable-and-bound-invocation).
+> Persistent prepared-resource ownership, excluded here, belongs to the [current prepared
+> owner](../../../../reference/runtime/prepared-execution.md#current-prepared-execution), not repeated
+> operand selections.
+
 ## Status
 
 Complete

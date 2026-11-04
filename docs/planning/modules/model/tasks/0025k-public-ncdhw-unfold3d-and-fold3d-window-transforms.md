@@ -1,5 +1,31 @@
 # Task 0025K: Public [NCDHW](../../../../glossary.md#conv3d--ncdhw) unfold3d and fold3d window transforms
 
+**Editorial reading key (current context, not a status update).**
+
+This record covers Model-only construction for BFLOAT16, FLOAT32 and FLOAT64, not today’s broader
+routes. NCDHW names logical batch, channel, depth, height and width axes; canonical columns flatten
+channel/kernel positions and spatial window positions, with width fastest. The caller supplies
+window geometry, an optional same-typed padding scalar, and an explicit fold target Shape. Tensor
+receivers delegate to TensorWindowExpressions: descriptions and input references cross this
+boundary, not sampled values. Fresh storage-free results record a producer but neither execute nor
+own result buffers; Model’s semantic responsibility is not storage ownership.
+
+Unfold describes extraction with positive-zero or exact typed padding; fold excludes out-of-range
+coordinates geometrically and adds overlaps in canonical order, without averaging. For a one-channel
+three-by-three-by-three target and two-by-two-by-two unit-stride windows without padding, the center
+receives eight contributions. Follow the [current window
+contract](../../../../reference/tensor/windows.md#window-transform-expressions) for typed
+arithmetic, special-value boundaries, and later Compiler/backend descriptions, including FP8
+support. Those current descriptions do not expand this historical task’s scope: providers realize
+supported routes rather than redefine Model meaning.
+
+**Overlap reading illustration.** Let a one-channel real volume have three positions on each spatial
+axis and use size-two windows at stride one without padding. For a target coordinate $p$, let $W(p)$
+be the extracted sample occurrences that map back to it; fold computes $f(p)=\sum_{w\in W(p)}c_w$,
+where $c_w$ is that column occurrence's value. The center has eight occurrences, so unit columns
+give eight, not one. This explains overlap membership rather than authorizing a different floating
+addition order.
+
 ## Status
 
 Complete

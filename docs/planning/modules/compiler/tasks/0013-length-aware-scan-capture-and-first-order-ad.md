@@ -1,5 +1,16 @@
 # Task Compiler0013: Length-aware [Scan](../../../../glossary.md#term-cumulative-scan) [capture](../../../../glossary.md#term-capture-meanings) and first-order [AD](../../../../glossary.md#autograd)
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Length-aware inference sees an INT64 lengths descriptor, not its runtime contents. ROW(axis)
+> explicitly names a batch-coordinate role; SHARED means no such coordinate, not merely an
+> equal-looking shape. Compiler preserves these roles while constructing joint reverse expressions
+> and normalizing shared contributions before accumulation. A symbolic history description
+> allocates no history storage, and the historical rejection gates below distinguish compiler
+> construction from later skipping, cold reconstruction and real execution.
+>
+> Current reading: [scoped Scan capture, roles and first-order differentiation](../../../../reference/compiler/verification-scan.md#current-scoped-scan-capture-and-first-order-ad).
+
 ## Status
 
 Complete — MAIN accepted implementation, independent review and [validation](../../../../glossary.md#term-validation) on 2026-10-24.

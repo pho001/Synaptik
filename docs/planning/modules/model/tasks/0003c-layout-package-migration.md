@@ -1,5 +1,12 @@
 # Task 0003C: [Layout](../../../../glossary.md#layout) Package Migration
 
+**Editorial reading key (later context, not a status update).**
+
+This task moves the types that describe resolved element geometry. Application or internal callers supply a Shape and geometry; the layout package checks the description, but does not allocate or close memory. Its package-private helper is implementation structure, not a new public capability. The move keeps the shape dependency and the original non-negative-stride restriction; the current reference is a navigation destination, not a replacement completion record.
+
+Focused current reading: [Current layout package and geometry](../../../../reference/tensor/layouts.md#resolved-layouts). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

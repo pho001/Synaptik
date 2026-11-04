@@ -1,5 +1,23 @@
 # Task 0007: [Partition](../../../../glossary.md#partition) Preparer Guide Status Reconciliation
 
+> **Editorial historical reading key.**
+>
+> This is a completed guide-status repair, not a new preparation implementation. Its participants are
+> the Engine composition root, shared `GraphPreparation`, concrete backend preparers/finalizers, and
+> Runtime. Engine supplies explicit collaborations; Prepare coordinates declarations, slot assignment,
+> finalization, and schedule validation. Backend finalizers construct executable recipes and may
+> return persistent resources; shared Prepare holds those resources transactionally until Runtime
+> accepts ownership. Per-run representations and their cleanup belong to Runtime’s invocation
+> lifetime, not the illustrative guide example.
+>
+> The [current finalization
+> contract](../../../../reference/runtime/orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization)
+> separates coordination from backend acquisition. The [current explicit composition
+> section](../../../../reference/engine/composition.md#current-explicit-cpu-and-metal-composition)
+> supersedes this checkpoint’s planned mixed-owner status: callers transfer CPU/Metal integrations
+> into Engine, while caller input memory remains caller-owned. Preserve the recorded review evidence
+> and unsupported-feature inventory as historical, rather than treating every limitation as current.
+
 ## Status
 
 Complete

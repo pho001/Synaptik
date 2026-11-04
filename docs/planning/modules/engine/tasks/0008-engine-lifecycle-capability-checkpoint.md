@@ -1,5 +1,21 @@
 # Task 0008: [Engine](../../../../glossary.md#term-engine) [Lifecycle](../../../../glossary.md#lifecycle) Capability [Checkpoint](../../../../glossary.md#term-checkpoint)
 
+> **Editorial historical reading key.**
+>
+> Read this as a completed historical evidence checkpoint, not a new execution mechanism or a
+> statement of today's entire support surface. The application supplies Tensor expressions and
+> caller-owned storage to Engine; Compiler determines final input membership, publication meaning, and
+> eligible convolution descriptor closure. Planning evaluates those final descriptors, CPU supplies
+> concrete lowering and copying, Prepare arranges reusable recipes, and Runtime owns isolated run
+> state. Engine integrates these participants rather than taking over their semantic authority.
+> Storage association snapshots do not copy input bytes; result leases protect completed resources
+> until close, while explicit materialization produces detached values. A leaf has no producing
+> expression, whether or not storage is attached. See the [current
+> lifecycle](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+> and [current explicit
+> composition](../../../../reference/engine/composition.md#current-explicit-cpu-and-metal-composition);
+> this checkpoint's CPU-only and deferred-capability statements remain historical.
+
 ## Status
 
 Complete

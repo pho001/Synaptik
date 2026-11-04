@@ -1,5 +1,22 @@
 # [Prepare](../../../../glossary.md#prepare) 0009 — Complete [rollback](../../../../glossary.md#term-rollback) after duplicate-resource rejection
 
+> **Editorial historical reading key.**
+>
+> Read the duplicate lists as resource identities, not equal values or repeated execution requests. A
+> successful backend-finalizer return transfers the entire resource list to shared Prepare. Thus
+> `[A,A,B]` must be rejected, but trailing fresh owner B cannot be abandoned merely because the second
+> A was encountered first. The repair collects every unique identity from that returned result,
+> preserves the first duplicate diagnostic, then rolls back in reverse order. It neither invokes later
+> finalizers nor validates or uses the rejected executable.
+>
+> The [current finalization
+> transaction](../../../../reference/runtime/orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization)
+> supplies the ownership boundary; the [Runtime prepared-owner
+> contract](../../../../reference/runtime/prepared-execution.md#current-prepared-execution) governs
+> transfer only after successful construction. Here failure occurs before that transfer, so Prepare
+> owns attempt-all cleanup, with distinct cleanup failures suppressed on the primary failure. The
+> integration evidence remains the historical record, not a new verification claim.
+
 ## Status
 
 Complete

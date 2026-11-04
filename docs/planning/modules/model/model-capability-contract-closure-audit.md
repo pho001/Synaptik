@@ -1,5 +1,12 @@
 # [Model](../../../glossary.md#term-model) Capability and Contract Closure Audit
 
+**Editorial reading key (later context, not a status update).**
+
+The initial verdict and the closure addendum answer different historical checkpoints; the later navigation here changes neither. ‘Closed model representation’ means that selected meanings and metadata can be represented and constructed, not that every described operation executes. The application-facing Tensor can change its borrowed-storage association; GraphValue instead pairs a graph-local identity with an immutable description. Neither is a physical buffer. The audit's integration inventory checks those distinctions, while ownership of actual compilation, preparation and invocation resources stays with the downstream components named below.
+
+Focused current reading: [Current Tensor state reference](../../../reference/tensor/identity.md#public-tensor-state); [Current graph-value reference](../../../reference/tensor/compiled-graph.md#graph-values-and-compiled-nodes). The original record below retains its own scope, decisions and evidence.
+
+
 ## Executive conclusion and closure verdict
 
 **Verdict: `BLOCKING_GAP`.**

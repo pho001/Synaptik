@@ -1,5 +1,23 @@
 # Task 0014: Explicit [Backend Composition](../../../../glossary.md#backend-composition) Architecture
 
+> **Editorial historical reading key.**
+>
+> This is the architecture decision stage preceding implementation: its selected builder and Metal
+> lifecycle were explicitly not yet callable. Consult [current explicit
+> composition](../../../../reference/engine/composition.md#current-explicit-cpu-and-metal-composition)
+> for the implemented surface and later mixed-owner support. The caller opens CPU or Metal
+> integrations and transfers each to Builder at ownership-overload entry; Builder owns construction
+> rollback, then a successful build transfers the accepted set to Engine. Metal, not Engine, owns
+> native-path validation and context acquisition.
+>
+> Compiler asks backend providers about exact operation semantics and retains selected owner
+> identities; Engine supplies the frozen inventory and routes preparation. The [current capability
+> contract](../../../../reference/compiler/planning.md#current-operation-capability-contracts)
+> distinguishes semantic support from availability and owner selection. Captured
+> ingress/materialization adapters cross host/backend boundaries without runtime discovery. Reverse
+> cleanup ownership is separate from these non-owning adapters. Single-owner rejection and CPU-only
+> tuning remain this decision's historical first-slice limits.
+
 ## Status
 
 Complete

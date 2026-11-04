@@ -1,5 +1,24 @@
 # Task 0032A: Stored-[subnormal](../../../../glossary.md#term-subnormal) provider regressions
 
+**Editorial reading key (current context, not a status update).**
+
+This historical task records backend-local observations, not a stronger Model contract or a current
+execution report. Model defines allowed results; the test caller exercises CPU generated
+scalar/Vector routes and Metal’s `CUSTOM_PROGRAM` callee, which realize supported routes rather than
+redefine semantics. Here, stored means input values whose raw bits are inspected: `0x00000001` is
+the smallest positive `FLOAT32` subnormal; `0x00000000` is positive zero. In the recorded
+three-element example, `ARG_MAX` selects index 1; FIRST/LAST choose among genuinely tied candidates,
+not different unique winners.
+
+Keep the historical `ACCELERATOR` DAZ allowance distinct from the current [data-type
+contract](../../../../reference/tensor/data-types.md#data-types), which describes stored comparisons
+as exact; DAZ treats permitted inputs as zero, whereas FTZ concerns results. Follow [exact typed
+scalar values](../../../../reference/tensor/data-types.md#exact-typed-scalar-values) to distinguish
+a tensor/scalar operation’s exact-bit parameter from Tensor storage. Tensor expressions carry
+descriptions, not executed results; provider execution consumes actual inputs and produces
+predicate, extremum or index values. Model’s semantic authority does not imply ownership of those
+buffers.
+
 ## Status
 
 Complete — the sole serial [Model](../../../../glossary.md#term-model) test frontier before Draft 0032. Model 0030/0031, [CPU](../../../../glossary.md#term-cpu) 0017,

@@ -1,5 +1,23 @@
 # Task 0008: General-[scan body](../../../../glossary.md#backpropagation-through-time-and-recurrent-state)-bearing capability query
 
+> **Editorial historical reading key.**
+>
+> This task implemented historical four-component Scan-body transport, not Scan execution. Compiler
+> was to supply validated descriptors, the independently scoped compiled body and demand;
+> BackendOwnerPlanning forwarded the exact question to providers. Model constructors owned graph and
+> attachment structure, while a provider’s true answer had to qualify the complete Scan header, body,
+> bindings, demand and loop binder—even for zero steps. Supporting child operations alone was
+> insufficient.
+>
+> The [current query
+> contract](../../../../reference/compiler/planning.md#current-operation-capability-contracts) now has
+> five components, including ScanActivityPlan, and no four-argument body-bearing constructor. [Current
+> preparation
+> orchestration](../../../../reference/runtime/orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization)
+> describes the later resource handoff. Query snapshots retain immutable metadata references, not
+> source Tensor storage or runtime resources; backend finalizers, shared Prepare rollback and Runtime
+> ownership govern cleanup only at those later boundaries.
+
 ## Status
 
 Complete; main accepted the bounded Planning0008 transport foundation on 2026-10-22 after final

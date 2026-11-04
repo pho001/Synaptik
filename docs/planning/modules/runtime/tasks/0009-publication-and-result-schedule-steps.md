@@ -1,5 +1,22 @@
 # Task 0009: [Publication](../../../../glossary.md#term-publication) and Result Schedule Steps
 
+> **Editorial historical reading key.**
+>
+> Publication here names an existing valid copy; it neither computes nor copies a value. Compiler
+> supplies logical forward/gradient roles, and Prepare is responsible for translating them into
+> Runtime's dense buffer, representation and result positions. `PreparedPublication.bind` resolves one
+> exact representation; `publish` checks the open state, one-shot flag and selected copy's validity.
+> Distinct result positions may alias that representation without duplicating cleanup ownership. Only
+> successful construction transfers the whole-state close obligation to `RunResult`; partial
+> publication leaves cleanup with the run's owner, and borrowed inputs remain caller-owned throughout
+> the result lease.
+>
+> The historical result intentionally exposed no representation accessor. Today's [publication
+> SPI](../../../../reference/runtime/publication.md#current-prepared-publication-and-result-lease)
+> permits borrowed representation access; [ordinary Engine
+> binding/results](../../../../reference/runtime/engine-boundary.md#current-ordinary-engine-boundary)
+> separately provide authenticated publication metadata and explicit detached host copies.
+
 ## Status
 
 Complete

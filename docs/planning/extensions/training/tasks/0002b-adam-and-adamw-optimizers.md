@@ -1,5 +1,21 @@
 # Task 0002B: [Adam](../../../../glossary.md#adaptive-optimizer--adam-adamw) and [AdamW](../../../../glossary.md#adaptive-optimizer--adam-adamw) [optimizer state](../../../../glossary.md#term-optimizer-state)
 
+> **Editorial reading context — not a status update.** Adam/AdamW are immutable algorithm
+> configurations; TrainingSession owns per-parameter moment history, staging and commit.
+> A first moment tracks gradients and a second moment tracks squared gradients. Adam couples
+> decay into the gradient; AdamW applies it separately to the parameter. These slots and
+> the global step are not restored by a model-only file. Today's
+> [optimizer formulas/modes](../../../../reference/training/optimizers.md#optimizers-and-gradient-modes)
+> and [state ownership](../../../../reference/training/optimizers.md#atomicity-state-concurrency-and-close)
+> explain the boundary.
+>
+> **Mathematical reading example.** Let a finite real gradient be $g=2$, initial moments
+> $m_0=v_0=0$, and decay coefficients $\beta_1=\beta_2=1/2$. At the first step,
+> $m_1=1$ and $v_1=2$; bias correction gives $\widehat m_1=2$ and $\widehat v_1=4$.
+> Thus the adaptive subtraction has magnitude $2\eta/(2+\epsilon)$ for real learning rate
+> $\eta>0$ and stabilizer $\epsilon>0$, before any separate decay. This illustrates history
+> and correction, not permission to reorder the recorded rounded arithmetic.
+
 ## Status
 
 Complete

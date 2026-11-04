@@ -1,5 +1,25 @@
 # Task 0018Q: [Masked Reduction](../../../../glossary.md#masked-reduction) Redesign
 
+**Editorial reading key (current context, not a status update).**
+
+Read this completed task as the historical replacement of heuristic mask-axis mapping, not as a
+current execution report. The caller supplies a floating input, BOOL mask and axis to `Tensor.sum`
+or `Tensor.mean`; the helper validates descriptions—Shape, type and normalized axis—not stored
+values. “Broadcast exactly to input” means right alignment without enlarging the input domain. For
+`[batch, time, 4]`, explicitly expanding `[batch, time]` to `[batch, time, 1]` makes time selection
+visible; reducing time yields `[batch, 4]`.
+
+A “first-class occurrence” is one masked operation retaining ordered `[input, alignedMask]`
+references, not arithmetic decomposition. Its storage-free result describes computation without
+executing or owning a result buffer. Model semantics defines exclusion before arithmetic, including
+excluded NaN/infinity, and empty-selection zero SUM versus NaN MEAN; providers realize supported
+routes without redefining meaning. Semantic responsibility is not storage ownership. Follow the
+[current masked-reduction
+contract](../../../../reference/tensor/masked-index-reductions.md#masked-sum-and-mean-expressions)
+for construction boundaries and later FLOAT32 contributor, positive-zero and mandatory-division
+constraints; this task’s unspecified numerical details are historical scope, not current blanket
+freedoms.
+
 ## Status
 
 Complete

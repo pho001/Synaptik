@@ -1,5 +1,24 @@
 # Task 0004: Explicit [Host](../../../../glossary.md#term-host) [Materialization](../../../../glossary.md#materialization) Boundary
 
+> **Editorial historical reading key.**
+>
+> Materialization here crosses three distinct boundaries: the caller selects an exact publication
+> occurrence and byte ceiling; Engine authenticates that occurrence and serializes access against
+> result close; Runtime lends its indexed representation; CPU validates physical compatibility and
+> copies canonical bytes. Runtime publication itself does not copy. HostTensorValue defensively
+> retains detached immutable bytes, not the representation, storage arena, or result lease. Caller
+> input storage remains caller-owned, and the copying operation does not close the lent
+> representation.
+>
+> The byte budget measures canonical logical payload, not a strided source span: a scalar counts as
+> one element, any zero extent makes the count zero, and remaining products use checked arithmetic.
+> Keep those archival rules and code unchanged. Six-type CPU-only support is historical; consult
+> [current Engine
+> results](../../../../reference/runtime/engine-boundary.md#current-ordinary-engine-boundary) and
+> [Runtime publication
+> leasing](../../../../reference/runtime/publication.md#current-prepared-publication-and-result-lease)
+> separately.
+
 ## Status
 
 Complete

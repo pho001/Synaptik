@@ -1,5 +1,22 @@
 # Tuning Master Plan
 
+## Editorial reading key: requests, decisions and executable resources
+
+An application requests optional tuning through Engine. Engine composes the generic tool with a
+backend that supplies complete legal candidates. The tool measures and selects among those
+candidates; it does not learn their private fields or define their numerical meaning.
+Phase 1 chooses a reusable local-workload decision; Phase 2 compares complete supplied plans
+without repeating that local search.
+
+Decision ownership means authority to define and validate a candidate, not ownership of the
+application's input bytes. Engine's execution collaboration handles representative inputs,
+reference-result bytes and cleanup. A compact cache stores a decision and summary, not a live
+prepared executable or the raw measurement history. Read
+[candidate responsibility](../../../architecture/performance-evidence-and-tuning.md#candidate-ownership-and-opaque-orchestration)
+and [the two operational transactions](../../../developer-guide/benchmarking.md#current-tuning-capabilities)
+to follow those separate boundaries. The recorded task statuses and evidence remain unchanged.
+
+
 ## Goal
 
 [Coordinate](../../../glossary.md#axis-rank-scalar-vector-and-matrix) explicit, bounded [model autotuning](../../../glossary.md#autotuning--model-autotuning) before [Runtime](../../../glossary.md#term-runtime): reuse compatible local workload

@@ -1,5 +1,22 @@
 # Task 0023: [Reentrant](../../../../glossary.md#memory-management-atomic-counters-and-complexity) close and failure-[atomic](../../../../glossary.md#resource-transaction-and-rollback) [lease](../../../../glossary.md#term-lease) [admission](../../../../glossary.md#term-admission)
 
+> **Editorial historical reading key.**
+>
+> This historical correction separates Engine operation admission from Runtime’s prepared-resource
+> lease and Metal’s native-context child lease. A Metal observer calls back synchronously into its
+> owning Engine; closing that same Engine from an admitted thread would otherwise wait for its own
+> operation. The task records rejection before lifecycle mutation, while cleanup-thread recursion
+> remains an idempotent no-op. Token construction must precede publishing either lease count so
+> allocation failure cannot strand ownership.
+>
+> The [current advanced lifecycle](../../../../reference/engine/advanced.md#advanced-engine-lifecycle)
+> locates Engine admission and shutdown responsibility; the [Runtime prepared
+> owner](../../../../reference/runtime/prepared-execution.md#current-prepared-execution) defines the
+> sole prepared-resource lease and deferred cleanup. These references supply lifecycle context, not
+> replacement evidence for this task’s exact reentrancy and OOM findings. Caller storage ownership is
+> unchanged. The Trace dependency amendment exposes an existing public callback type, not a new
+> execution service.
+
 ## Status
 
 Complete — exact reviewed nine-file correction is integrated. Actual component/[Javadoc](../../../../glossary.md#term-javadoc) and repaired

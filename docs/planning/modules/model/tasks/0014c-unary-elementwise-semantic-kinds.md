@@ -1,5 +1,12 @@
 # Task 0014C: [Unary](../../../../glossary.md#term-unary) [Elementwise](../../../../glossary.md#term-elementwise) Semantic Kinds
 
+**Editorial reading key (later context, not a status update).**
+
+A unary elementwise transform acts independently at each input coordinate, rather than combining a row or axis into one total. Parameterless kinds identify the requested functions; a fast variant is an explicit approximation request, not a backend capability flag. Here Model defines a typed meaning for later construction code; this semantic-family task neither receives stored operands nor evaluates them. Its completion is not evidence of Compiler capture, derivatives or backend execution.
+
+Focused current reading: [Current unary-transform reference](../../../../reference/tensor/elementwise.md#unary-numeric-transforms-and-floating-classifications). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

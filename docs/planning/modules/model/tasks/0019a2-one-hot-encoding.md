@@ -1,5 +1,25 @@
 # Task 0019A2: [One-Hot Encoding](../../../../glossary.md#one-hot-encoding)
 
+**Editorial reading key (current context, not a status update).**
+
+This completed record concerns model construction, not execution support. The caller invokes
+`indices.oneHot(depth)`; the receiver supplies the sole integer-index input, while positive `depth`
+supplies a static trailing class-axis extent. The helper passes a descriptor and
+operation/provenance description to derived construction, not computed BOOL values. A producer
+records the producing occurrence; provenance identifies its output. The storage-free result neither
+executes encoding nor owns a result buffer. Conceptually, scalar index `2` at depth `4` requests
+`[false, false, true, false]`, not a lookup of stored feature values.
+
+Model semantics fixes that meaning; execution providers realize supported routes rather than
+redefine it. Semantic responsibility is not storage ownership. Negative or out-of-range indices are
+invalid, never all-false rows. Follow the current [one-hot
+contract](../../../../reference/tensor/gather.md#one-hot-encoding-expressions) for shape and
+metadata details, and [execution
+boundary](../../../../reference/tensor/gather.md#failures-and-execution-boundary) for current
+capture and qualified execution descriptions. Those later descriptions do not enlarge this
+historical task’s metadata-only scope; structural acceptance of a large depth does not promise
+materializability.
+
 ## Status
 
 Complete

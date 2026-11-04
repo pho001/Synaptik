@@ -1,5 +1,25 @@
 # Task Model0042: Static and [symbolic Scan](../../../../glossary.md#symbolic-scan) source foundation
 
+**Editorial reading key (current context, not a status update).**
+
+This record concerns Model0042’s all-valid source foundation, not execution authorization. The
+caller declares a `ScanBody` step template, then supplies actual Tensors to `Scan.apply`: carry
+advances between steps, sequences supply time slices, and invariants remain unchanged. Formals are
+storage-free leaves—no producing expression, not necessarily stored values—and actuals bind by
+position with exact shapes, dtypes and gradient flags. Construction checks descriptions without
+reading values or binding a numeric batch. For example, sequence `[10,Rows,16]` supplies ten
+`[Rows,16]` slices; substituting batch 32 does not bind `Rows`.
+
+Model semantics defines meaning; providers realize independently supported routes. Canonical ports
+and residuals (potential retained histories) describe results, not allocated buffers; semantic
+responsibility is not storage ownership. Storage-free expressions neither execute nor own result
+buffers. Follow the [current construction
+account](../../../../reference/tensor/general-scan.md#static-and-symbolic-construction-through-the-same-api)
+for later Compiler/execution qualifications, and [length-aware
+scope](../../../../reference/tensor/general-scan.md#length-aware-source-construction-and-qualified-execution)
+for subsequent admission beyond this task’s symbolic-length rejection. Those current descriptions do
+not revise its historical fail-closed handoff.
+
 ## Status
 
 Complete — [Model](../../../../glossary.md#term-model) source, consumer guards, documentation and source-matched [validation](../../../../glossary.md#term-validation) accepted.

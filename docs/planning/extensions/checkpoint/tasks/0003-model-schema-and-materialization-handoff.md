@@ -1,5 +1,15 @@
 # Task 0003: [Model](../../../../glossary.md#term-model) [schema](../../../../glossary.md#term-schema) and [Engine](../../../../glossary.md#term-engine) [materialization](../../../../glossary.md#materialization) [handoff](../../../../glossary.md#term-handoff)
 
+> **Editorial reading context — not a status update.** The capture helper calls NN for one
+> state dictionary: names, roles and current Tensor references, not detached numbers. It
+> preflights their descriptors, then calls public Engine computation to obtain values.
+> The schema records how to interpret each payload; the outer envelope merely carries bytes.
+> The application keeps source storage accessible and excludes mutation during capture.
+> A returned detached candidate retains neither that storage nor an Engine handle.
+> Today's [values-only lifecycle](../../../../reference/checkpoint/values.md#lifecycle-and-invariants)
+> explains materialization and validation; the [NN state contract](../../../../reference/nn/state.md#current-nn-state-dictionary-contract)
+> explains why exporting references is not itself a value snapshot.
+
 ## Status
 
 Complete. Frontier was verified at `e96fa174`: [Checkpoint](../../../../glossary.md#term-checkpoint) 0002 is Complete with focused [validation](../../../../glossary.md#term-validation),

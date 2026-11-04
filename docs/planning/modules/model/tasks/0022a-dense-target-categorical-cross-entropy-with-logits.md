@@ -1,5 +1,30 @@
 # Task 0022A: Dense-[Target](../../../../glossary.md#term-target) Categorical Cross-Entropy with Logits
 
+**Editorial reading key (current context, not a status update).**
+
+This record concerns the historical dense-target addition, not today’s full API or execution
+coverage. The caller uses logits (unnormalized class scores) as receiver and supplies an exact-shape
+floating target, class axis, and reduction. Model construction records ordered inputs `[logits,
+target]`, normalized-axis metadata, and one storage-free loss producer; descriptions cross this
+boundary, not evaluated values. It neither executes nor owns a result buffer. Dense weights are
+caller-obligated to be finite, non-negative, and normalized; construction does not inspect or
+renormalize them.
+
+A group is one class slice: three class scores with target `[0, 0, 1]` measure disagreement with the
+last class. Dense `MEAN` divides by the number of groups, not classes. Zero weights contribute
+positive zero without erasing the specified NaN-logit boundaries. Follow the [current
+categorical-loss
+reference](../../../../reference/tensor/statistics-losses.md#categorical-cross-entropy-with-logits-expressions)
+to distinguish later index/ignore forms, compiler responsibilities, and qualified execution routes
+from this task’s exclusions. Model semantics defines meaning; execution providers realize supported
+routes, not redefine it. Semantic responsibility does not imply storage ownership.
+
+**Mathematical reading illustration.** For one group with $C\ge1$ classes, finite real logits $z_j$
+and non-negative target weights $t_j$ summing to one, define $q_j=\exp(z_j)/\sum_{r=1}^{C}\exp(z_r)$
+and loss $\ell=-\sum_{j=1}^{C}t_j\log q_j$, where $j,r\in\{1,\ldots,C\}$. For $C=2$, $z=(0,0)$ and
+$t=(0,1)$, $\ell=\log 2$. These real-number probabilities explain the target meaning; they do not
+authorize a separate rounded softmax-then-log implementation or alter exceptional-value rules.
+
 ## Status
 
 Complete

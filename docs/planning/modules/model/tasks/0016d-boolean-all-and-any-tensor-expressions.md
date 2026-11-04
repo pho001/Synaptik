@@ -1,5 +1,12 @@
 # Task 0016D: [Boolean](../../../../glossary.md#data-type--datatype) All and Any [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (later context, not a status update).**
+
+The application calls all/any to describe combining an entire truth domain, not elementwise logicalAnd/logicalOr with a second Tensor. Axis removal/retention changes result shape in the same way as other aggregates, but the result remains BOOL and cannot request gradients. The model helper reads the input descriptor, not truth bytes, and allocates only expression metadata. A structurally accepted zero extent does not itself decide the truth value of an empty conjunction or disjunction in this historical record.
+
+Focused current reading: [Current Boolean-reduction reference](../../../../reference/tensor/masked-index-reductions.md#boolean-aggregate-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

@@ -1,5 +1,21 @@
 # Task 0003: [Run](../../../../glossary.md#term-run)-State and [Runtime](../../../../glossary.md#term-runtime) Resource Foundation
 
+> **Editorial historical reading key.**
+>
+> This historical foundation starts after representations already exist: a caller supplies one exact
+> memory plan, ordered buffer bindings and workspace representations to `RunState`. Runtime validates
+> counts and object identities, copies list structure into arrays, and accepts cleanup responsibility
+> only after successful construction. Backends implement physical representation cleanup; Runtime
+> orchestrates reverse-order, attempt-all closure, skipping borrowed buffers. Dense indices select
+> plan-list positions, not numeric slot identifiers. The [current representation
+> contract](../../../../reference/runtime/representations.md#current-per-run-representation-foundation)
+> adds validity and residency semantics beyond this milestone’s deliberately neutral carrier. The
+> [current closure and failure
+> rules](../../../../reference/runtime/creation.md#run-state-lifecycle-and-failures) explain
+> ownership-sensitive cleanup. Historical exclusions of results, creators and execution describe this
+> task’s boundary, not their present absence. Sharing a plan does not make one mutable state
+> thread-safe.
+
 ## Status
 
 Complete

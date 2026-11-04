@@ -1,5 +1,14 @@
 # Task 0026: Declarative [model](../../../../glossary.md#term-model) specification and reconstruction
 
+> **Editorial reading context — not a status update.** A declarative specification records
+> supported layer configuration and identity-sharing paths as data, not trained numbers or
+> arbitrary Java forward code. NN reconstruction creates fully bound descriptor-only parameter
+> placeholders. “Bound” here means wrappers hold real Tensor references; those leaves need
+> not have stored values. Strict state load is the distinct value-installation bridge.
+> Today's [declarative composition contract](../../../../reference/nn/declarative.md#current-nn-declarative-composition-contract)
+> explains that skeleton, and [whole-model persistence](../../../../reference/checkpoint/models.md#whole-model-save-and-automatic-load)
+> explains the later composition of definition plus values without retroactively adding a wire codec to this NN task.
+
 ## Status
 
 Complete — implementation frozen; final code/documentation APPROVE; coordinator gates passed.

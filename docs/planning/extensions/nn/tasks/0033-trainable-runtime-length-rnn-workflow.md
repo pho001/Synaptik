@@ -1,5 +1,14 @@
 # Task 0033: Trainable [runtime](../../../../glossary.md#term-runtime)-length [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn) [Model](../../../../glossary.md#term-model) workflow
 
+> **Editorial reading context — not a status update.** This explicit F32/F64 rnnScan path
+> composes an ordinary general-scan step from the NN cell's weights, rather than redirecting
+> the older static rnn recipe. The application supplies fresh value/count batches; NN delegates
+> execution and configured updates to Engine and TrainingSession. Saving captures current
+> source and weights, so a loaded Model needs fresh training configuration, not restored
+> optimizer history. Today's [runtime-length composition](../../../../reference/nn/recurrent.md#nn-runtime-length-recurrent-composition)
+> and [owned training responsibilities](../../../../reference/training/sessions.md#owned-model-training-convenience)
+> explain this end-to-end boundary without treating first-order qualification as second-order compatibility.
+
 ## Status
 
 Complete — MAIN accepted 2026-11-01 after independent core/init and numerical/[persistence](../../../../glossary.md#term-persistence)

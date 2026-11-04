@@ -1,5 +1,12 @@
 # Task 0015G: Cast Semantic Kind and Attributes
 
+**Editorial reading key (later context, not a status update).**
+
+A cast requests conversion of each value to a target type; it is not merely changing the label on existing bytes. The target type is intrinsic attributes state, while the source type comes from the eventual operand descriptor. Numerical conversion policy remains unselected at this checkpoint. Here Model defines a typed meaning for later construction code; this semantic-family task neither receives stored operands nor evaluates them. Its completion is not evidence of Compiler capture, derivatives or backend execution.
+
+Focused current reading: [Current cast and conversion-policy reference](../../../../reference/tensor/selection-casts.md#cast-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

@@ -1,5 +1,12 @@
 # Task 0010: [Host Storage](../../../../glossary.md#host-storage) Abstraction
 
+**Editorial reading key (later context, not a status update).**
+
+The application or a factory supplies an existing MemorySegment to MemorySegmentStorage; the wrapper retains that exact region with type and capacity metadata. It borrows, rather than copies, the bytes. For arena-backed memory, the component that owns the Arena must keep it open while the data is used and close it according to that scope's rules. The wrapper and Tensor are not universal closeable resource owners. Capacity counts physical elements; a later Tensor/layout boundary determines whether those elements cover the described coordinates.
+
+Focused current reading: [Current borrowed host-storage contract](../../../../reference/tensor/host-storage.md#host-visible-storage); [Arena lifetime example](../../../../reference/tensor/host-storage.md#borrowed-lifetime-example). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

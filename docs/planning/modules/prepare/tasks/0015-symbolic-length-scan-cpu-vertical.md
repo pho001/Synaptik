@@ -1,5 +1,28 @@
 # Task Prepare0015: Symbolic-length [Scan](../../../../glossary.md#term-cumulative-scan) [CPU](../../../../glossary.md#term-cpu) vertical
 
+> **Editorial historical reading key.**
+>
+> This completed historical task qualifies changing B together with runtime INT64[B] lengths for
+> bounded FLOAT32/FLOAT64 Scan; it does not extend the separate all-valid symbolic FLOAT32
+> qualification by implication. The caller passes values and lengths through Engine runValues.
+> Compiler owns differentiation and named-axis obligations; Prepare validates all scoped declarations
+> before analysis; CPU owns typed resource recipes, active-prefix arithmetic and post-producer length
+> checks before Scan writes. Lengths control activity, not Shapes or gradient targets. Ordinary exact
+> reductions and Scan's sequential producing-site sums are deliberately different algorithms.
+>
+> Engine coordinates fresh descriptor/storage admission and publication; Runtime retains numeric
+> geometry and owns isolated run resources, while caller storage stays borrowed through result
+> closure. Consult [current metadata
+> binding](../../../../reference/compiler/batch-binding.md#ordinary-named-batch-metadata-binding) and
+> [current runner ownership](../../../../reference/runtime/orchestration.md#current-prepared-runner).
+> The timing ratios describe the recorded bounded experiment, not established parity or causation.
+>
+> **Mean-domain reading example.** For integer row count $B\ge0$ and fixed positive output width $H$,
+> the mean domain contains $BH$ entries. Row lengths $\ell_r\in\{0,\ldots,T\}$, for rows
+> $r=1,\ldots,B$ and fixed nonnegative step count $T$, control Scan activity, not that divisor. With
+> $B=2$, $H=3$, $T\ge1$ and lengths $(1,0)$, the divisor is $6$, not the length sum $1$. At $B=0$ the
+> mean follows the separate empty-domain NaN policy, not division by zero as a real-number derivation.
+
 ## Status
 
 Complete — MAIN accepted 2026-10-27 after independent Class C code/docs APPROVE (0 P1/P2), owning [validation](../../../../glossary.md#term-validation), the sole bounded timing probe and configured root test/[Javadoc](../../../../glossary.md#term-javadoc) PASS.

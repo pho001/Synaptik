@@ -1,5 +1,25 @@
 # Task 0025H: [NCDHW](../../../../glossary.md#conv3d--ncdhw) [Conv3d](../../../../glossary.md#conv3d--ncdhw) Semantics and [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (current context, not a status update).**
+
+This record’s Complete status concerns Model construction, not downstream execution; its Draft
+Compiler boundaries and inventory counts are historical. NCDHW means batch, channel, depth, height,
+width. The caller invokes the input Tensor’s conv3d method with weight, optional bias, and immutable
+geometry/group attributes; the Model helper validates metadata and returns a storage-free
+expression. Provenance retains exact input and attribute references, not copied numerical buffers.
+For example, two groups with four input channels give each output channel access to two input
+channels; cross-correlation does not reverse the kernel.
+
+For current geometry and deferred obligations, follow [Grouped NCDHW Conv3d
+expressions](../../../../reference/tensor/convolution.md#grouped-ncdhw-conv3d-expressions):
+unresolved dimensions are not proven valid bindings. For current compiler responsibilities,
+qualified execution descriptions, and arithmetic boundaries, follow [Numerical and provenance
+policy](../../../../reference/tensor/convolution.md#numerical-and-provenance-policy). Model
+semantics defines meaning; execution providers realize supported routes rather than redefine it.
+Semantic responsibility is not buffer ownership: this expression neither executes nor owns result
+storage. Conceptual padded positive zero still multiplies infinite weights; permitted reassociation
+does not promise bitwise-identical results.
+
 ## Status
 
 Complete

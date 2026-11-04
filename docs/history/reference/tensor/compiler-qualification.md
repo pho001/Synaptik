@@ -4,6 +4,21 @@ This is an archived, composite qualification narrative preserved from the pre-re
 
 **Known supersessions:** [CPU](../../../glossary.md#term-cpu) low-[precision](../../../glossary.md#term-precision) parity, fixed-cell first-order [BPTT](../../../glossary.md#term-backpropagation-through-time-bptt), bounded static length-aware cold/[owned Model](../../../glossary.md#model-module-buffer-and-scan-distinctions) workflows and wire versions through v7, shared [normalization](../../../glossary.md#term-normalization) [derivatives](../../../glossary.md#term-derivative), and ordinary [backend](../../../glossary.md#backend) preparation/execution are implemented. The archive does not retract or widen any current qualification. Use [current reference goals](../../../reference/index.md), [Compiler AD](../../../reference/compiler/autograd.md)<span data-glossary-navigation="true"> ([AD glossary](../../../glossary.md#autograd))</span>, [owned Model execution](../../../reference/nn/owned-model.md), and [current backend qualification](../../../backend-guide/production-support.md) instead of the inventories below. Symbolic cold/wire, arbitrary [PURE](../../../glossary.md#term-pure)-body copying, higher-order recurrence and unqualified backend routes are not granted by these supersessions.
 
+## Editorial reading key: the Compiler is a consumer of descriptions
+
+Here the application builds forward Tensor expressions, and internal Compiler components call
+capture and differentiation helpers on those expressions. A producer records one requested
+operation and its ordered outputs; an output index selects a result of that operation, not a
+memory address. A leaf has no producing expression, even if no storage is attached to it.
+Generated zero/one leaves can therefore describe constants without allocating a dense array.
+
+The Model module supplies this semantic vocabulary, while the Compiler builds the graph and
+derivative expressions. Neither role by itself assumes cleanup responsibility for application
+storage. Read [capture's leaf and constant-ingress distinction](../../../reference/compiler/capture.md)
+and [Compiler differentiation boundaries](../../../reference/compiler/autograd.md) before treating
+the older coverage lists below as evidence. For actual borrowing and result cleanup, use the
+[Engine lifecycle](../../../reference/engine/lifecycle.md), not the presence of a Tensor wrapper.
+
 <a id="compiler-qualification-context"></a>
 
 ## Preserved historical text

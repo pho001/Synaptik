@@ -1,5 +1,31 @@
 # [Model](../../../../glossary.md#term-model) 0033 — Decide stable [softmax](../../../../glossary.md#softmax--log-softmax) [overflow](../../../../glossary.md#term-overflow) semantics
 
+**Editorial reading key (current context, not a status update).**
+
+This historical task records the decision, implementation scope and reported evidence for replacing
+literal unshifted exponentiation on finite softmax slices; it is not a current status update. In the
+current [boundary
+explanation](../../../../architecture/softmax-numerical-semantics.md#responsibilities-and-boundaries),
+Model defines meaning; CPU realizes its supported route rather than redefining it. SoftmaxKind
+describes the operation, while runtime tensor values reach CPU validation after producers execute
+and before consumer writes. This semantic responsibility does not establish storage ownership.
+
+A normalization slice groups values along the selected axis; finite excludes NaN and infinity.
+Working precision means calculation format, not necessarily output storage format. The current
+[worked
+scenarios](../../../../architecture/softmax-numerical-semantics.md#scenario-that-follows-the-boundary)
+explain why FLOAT32 `[1000, 1000]` yields `[0.5, 0.5]`, and why LOG_SOFTMAX need not be the
+logarithm of rounded SOFTMAX output. That finite rule does not extend to non-finite slices: Model
+retains separate special-value semantics, while CPU rejects such inputs before output mutation. Nor
+does it authorize analogous changes to attention or loss formulas; the recorded tests, artifact
+identity and timing evidence belong to this task’s historical scope.
+
+**Mathematical reading illustration.** For a nonempty finite real slice $x_1,\ldots,x_n$ with
+positive integer $n$, let $m=\max_{1\le j\le n}x_j$ and $Z=\sum_{j=1}^{n}\exp(x_j-m)$. Probabilities
+are $p_i=\exp(x_i-m)/Z$ for $1\le i\le n$. At $n=2$ and $x=(1000,1000)$, both shifts are zero and
+$Z=2$, so $p=(1/2,1/2)$. This explains the finite shift; non-finite inputs use a different branch,
+and the specified working-site rounding remains authoritative.
+
 ## Status
 
 Complete

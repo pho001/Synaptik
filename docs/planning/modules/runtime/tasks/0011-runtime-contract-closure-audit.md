@@ -1,5 +1,24 @@
 # Task 0011: [Runtime](../../../../glossary.md#term-runtime) Contract Closure Audit
 
+> **Editorial historical reading key.**
+>
+> This is a completed historical audit task, not a successful closure verdict: its recorded outcome is
+> `BLOCKING_GAP`, with cleanup-failure identity, architecture-status prose and architecture-test
+> enforcement findings left for separate planning. Architecture supplies semantic authority;
+> source/tests are the audit's primary implementation evidence, while generated Javadocs and task
+> history support comparison. The audit orchestrates inspection and reporting only—it owns no
+> execution resource and authorizes no implementation repair. Its lifecycle assessment distinguishes
+> caller-borrowed inputs, backend physical mechanics, Runtime-owned state cleanup and the result's
+> whole-state lease.
+>
+> Do not read its then-missing downstream capabilities as current limitations. Today's
+> [prepare/finalization
+> handoff](../../../../reference/runtime/orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization)
+> and [ordinary Engine
+> lifecycle](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+> describe implemented integration and ownership. Those references do not retroactively change this
+> audit's verdict or independently resolve every recorded finding.
+
 ## Status
 
 Complete

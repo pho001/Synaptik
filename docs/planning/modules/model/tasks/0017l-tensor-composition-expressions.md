@@ -1,5 +1,12 @@
 # Task 0017L: [Tensor Composition](../../../../glossary.md#tensor-composition) Expressions
 
+**Editorial reading key (later context, not a status update).**
+
+Concat joins inputs along an existing axis; stack inserts an axis to hold same-shaped inputs; unstack requests separate outputs with one selected axis removed. The application supplies ordered input Tensors and an axis; collection snapshots preserve their order and exact identities, not copies of their data. This historical UNSTACK representation differs from the current repeated-SELECT convenience, whose outputs have independent producers. The application calls the public Tensor method; its model helper validates available descriptions and returns a fresh storage-free expression with exact input references. It neither copies input values nor calculates the result. Compiler consumes this provenance later; actual storage and execution are separate downstream concerns.
+
+Focused current reading: [Current composition and repeated-select unstack explanation](../../../../reference/tensor/composition.md#tensor-composition-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

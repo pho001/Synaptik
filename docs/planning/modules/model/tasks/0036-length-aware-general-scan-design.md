@@ -1,5 +1,33 @@
 # Task Model0036: Length-aware [general scan](../../../../glossary.md#general-differentiable-scan) and first-order [AD](../../../../glossary.md#autograd) proposal
 
+**Editorial reading key (current context, not a status update).**
+
+This record closes proposal delivery only; its length roles, AD rules and wire changes remain
+historical proposals, not approvals. For later descriptions, follow [current length-aware Scan
+boundaries](../../../../reference/tensor/general-scan.md#length-aware-source-construction-and-qualified-execution),
+not this task’s status. A caller binds actual Tensors to body formals: carry passes state between
+steps, sequences supply time slices, and invariants supply unchanged inputs. Lengths are an extra
+actual, not a body formal. Model defines meaning; Compiler constructs derivatives, Prepare validates
+bindings/demand, and execution providers realize supported routes rather than redefine semantics.
+These responsibilities do not confer buffer ownership: storage-free expressions neither execute nor
+own result buffers; a leaf has no producing expression, not necessarily stored values.
+
+ROW(axis) declares a proved independent row coordinate; SHARED has none, regardless of equal sizes.
+Original length-AD requires every carry and original sequence to be ROW(0), including unused
+positions; generated reverse inputs differ. A residual names a retainable internal value; [canonical
+results and
+demand](../../../../reference/tensor/general-scan.md#canonical-results-residual-metadata-and-eligibility)
+explain why a port does not allocate history. Concretely, an empty row preserves initial carry and
+final cotangent raw bits, while inactive emissions receive positive zero; skipping padded arithmetic
+is not evaluating it then masking. Lengths do not change an outer mean’s denominator.
+
+**Length-guard reading illustration.** For one row with non-negative integer length $\ell\le T$, let
+$T$ be allocated time positions and $h_t$ carry before time $t\in\{0,\ldots,T-1\}$. A forward body
+runs only when $t<\ell$; otherwise carry stays unchanged and that emission is positive-zero padding.
+With $T=3$ and $\ell=1$, only time zero runs. A padded NaN is not first evaluated then multiplied by
+zero: inactive work is skipped. The example explains the proposed guard, not implementation
+delivery.
+
 ## Status
 
 Complete — proposal delivery only, after independent final Class C APPROVE and MAIN acceptance

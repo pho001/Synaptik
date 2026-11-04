@@ -1,5 +1,24 @@
 # Task 0003: [Prepare](../../../../glossary.md#prepare) Orchestration and [Validation](../../../../glossary.md#term-validation)
 
+> **Editorial historical reading key.**
+>
+> Here the integration caller supplies `CompileArtifacts`, positional typed backend collaborations,
+> and a schedule assembler to `GraphPreparation.prepare`. Compiler remains authoritative for graph
+> membership, source roles, and publication order. Prepare projects every context before analysis,
+> coordinates assignment/finalization, and validates the assembler's Runtime recipe; concrete backends
+> determine physical creators, transfers, and executable compatibility. The assembler's structural
+> coverage does not prove numerical or device correctness.
+>
+> `InitializedBuffer` communicates that a backend creator has already produced a valid constant
+> representation; Runtime neither interprets the scalar nor initializes its bytes itself. The [current
+> creation
+> contract](../../../../reference/runtime/creation.md#current-prepared-representation-creation)
+> separates borrowed inputs from created run-owned resources and setup rollback. This task's
+> Compiler-bearing schedule context and resource-free aggregate are historical: the [current
+> orchestration
+> contract](../../../../reference/runtime/orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization)
+> uses Compiler-free schedule facts and explicit persistent-resource ownership transfer.
+
 ## Status
 
 Complete

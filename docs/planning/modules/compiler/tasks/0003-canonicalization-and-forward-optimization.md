@@ -1,5 +1,16 @@
 # Task 0003: [Canonicalization](../../../../glossary.md#occurrence-identity-and-canonical-form) and Forward Optimization
 
+> **Editorial reading key — not part of the historical record.**
+>
+> GraphCanonicalization changes local numbering and representation; optional dead-code elimination
+> removes unneeded work, while common-subexpression elimination shares equivalent occurrences only
+> under its guards. These passes consume verified graph descriptions and return revalidated
+> descriptions, not computed tensor values. Config permits optional work but cannot turn off
+> correctness checks. Requested output identity and multi-output occurrence boundaries explain why
+> apparently duplicate work can remain.
+>
+> Current reading: [exact graph transformations and final logical layouts](../../../../reference/compiler/optimization.md#current-package-private-canonicalization-and-whole-graph-optimization); [hard intent, compile scope and optional optimization](../../../../reference/compiler/configuration.md#current-compile-configuration-inputs).
+
 ## Status
 
 Complete

@@ -1,5 +1,24 @@
 # Task 0025N: Recurrent [Engine](../../../../glossary.md#term-engine) status reconciliation
 
+**Editorial reading key (current context, not a status update).**
+
+This completed task records a historical wording correction, not a recurrent-execution delivery:
+Engine already composed public lifecycles, while public recurrent execution and exception
+translation remained future work in that record. Model defines operation meaning; execution
+providers realize supported routes without redefining it. That semantic responsibility is not
+ownership of result storage. The [current fixed-scan
+reference](../../../../reference/tensor/fixed-scans.md#fixed-recurrent-scan-expressions)
+distinguishes storage-free construction from supported CPU execution; its later capabilities must
+not be read back into this task.
+
+A caller supplies Tensor arguments to `RecurrentScan`; construction checks descriptors—shape and
+type descriptions—not the stored length values, and returns expressions without executing or owning
+result buffers. At execution, the backend must validate every length value before writing any scan
+output. A valid length counts active steps, not allocated time slots: a zero-length row retains its
+initial state and has positive-zero dense outputs. Engine's lifecycle role is distinct from this
+backend duty; the historical correction assigns Engine any future public exception translation
+without choosing an exception type.
+
 ## Status
 
 Complete

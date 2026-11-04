@@ -1,5 +1,24 @@
 # Task 0018M1: Dynamic [Extent](../../../../glossary.md#term-extent) Adoption in Pad, Tile, and Concat
 
+**Editorial reading key (current context, not a status update).**
+
+This record concerns adopting existing symbolic-extent arithmetic in pad, tile, and concat, not
+adding execution. An extent is an axis length; a symbolic extent describes a length not yet
+supplied. Callers pass Tensor inputs and operation arguments to Tensor methods; their helpers pass
+Dimension descriptions to `DimensionExpressions` and receive canonical dimensions, not tensor
+values. Padding an axis of length five by two positions before and three after describes length ten
+without producing padded data. See [symbolic extent
+expressions](../../../../reference/tensor/shapes.md#symbolic-extent-expressions) for canonical
+identities, checked arithmetic, and structural equality. The current reference includes
+dimension-to-dimension products beyond this task’s historical six-method boundary.
+
+Model semantics determines meaning; execution providers realize supported routes rather than
+redefine it. Semantic responsibility does not imply storage ownership: these storage-free
+expressions neither execute nor own result buffers, and precise logical lengths leave physical
+layout unresolved. Here, neutral arithmetic may preserve a Dimension reference while the Tensor
+operation remains fresh. Concat still requires structural equality on other axes; formula
+construction neither binds symbols nor solves equalities.
+
 ## Status
 
 Complete

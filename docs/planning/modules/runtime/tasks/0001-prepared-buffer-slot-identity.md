@@ -1,5 +1,21 @@
 # Task 0001: Prepared [Buffer](../../../../glossary.md#term-buffer)-Slot [Identity](../../../../glossary.md#term-identity-meanings)
 
+> **Editorial historical reading key.**
+>
+> This is the historical identity-only foundation, when BufferSlot was implemented and later Runtime
+> contracts were intentionally still planned. The immediate caller constructs a non-negative numeric
+> token; later Prepare and backend preparation use that token within an owning memory-plan context.
+> Runtime defines its nominal meaning and validation, but the record stores no plan reference, graph
+> ValueId, address or resource. Equal numeric components therefore do not prove shared storage or
+> cross-plan membership. No execution or cleanup responsibility crosses this constructor boundary.
+>
+> Read [current slot identities](../../../../reference/runtime/memory.md#current-slot-identities) for
+> the continuing token contract and [current executable
+> binding](../../../../reference/runtime/executables.md#current-prepared-executable-and-bound-invocation)
+> for its later consumer boundary: executable selections use dense list indices, not slot numbers.
+> Allocation and release belong to later concrete representations and lifecycle owners, not to
+> BufferSlot. The four-test evidence and later-task Draft statements remain historical.
+
 ## Status
 
 Complete

@@ -1,5 +1,32 @@
 # Task 0020: [NCHW](../../../../glossary.md#term-nchw) [Conv2d](../../../../glossary.md#convolution--conv2d) Semantics and [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (current context, not a status update).**
+
+This record concerns the original Conv2d Model-expression scope, not the broader compiler/execution
+descriptions in the current reference. The caller supplies the receiver input, weight, optional bias
+and geometry to `Tensor.conv2d`; the helper records Shape, promoted type and ordered provenance, not
+computed values. NCHW means batch, channel, height, width; groups isolate contiguous channel
+subsets; cross-correlation uses the kernel without reversal. With four input channels and two
+groups, each output channel uses two input channels. Follow [Conv2d
+expressions](../../../../reference/tensor/convolution.md#grouped-nchw-conv2d-expressions) for
+geometry and deferred symbolic obligations.
+
+Model semantics defines meaning, not storage ownership: the storage-free result neither executes
+convolution nor owns a result buffer. Compiler capture/proof and provider preparation/execution are
+separate responsibilities; providers realize supported routes rather than redefine convolution.
+Follow [numerical and metadata
+policy](../../../../reference/tensor/convolution.md#numerical-and-metadata-policy) to distinguish
+current descriptions from this historical scope: conceptual positive-zero padding still multiplies
+infinite weights, bias participates once, and permitted reassociation does not promise bitwise
+agreement.
+
+**Geometry reading illustration.** Along one spatial axis, let positive integers $L,K,S,D$ denote
+input length, kernel size, stride and dilation, and let non-negative integers $P_0,P_1$ denote
+before/after padding. Effective kernel width $E=D(K-1)+1$ gives output length
+$O=1+\lfloor(L+P_0+P_1-E)/S\rfloor$ where that window domain is valid. For $L=5$, $K=3$, $S=D=1$ and
+no padding, $O=3$. Apply the geometry independently to height and width; it describes locations, not
+convolution values.
+
 ## Status
 
 Complete

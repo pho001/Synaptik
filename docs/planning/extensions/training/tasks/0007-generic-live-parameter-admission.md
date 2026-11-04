@@ -1,5 +1,14 @@
 # Task 0007: Generic live [parameter](../../../../glossary.md#term-parameter) [admission](../../../../glossary.md#term-admission) and native-copy cutover
 
+> **Editorial reading context — not a status update.** The application or NN adapter
+> supplies ordered stable paths and exact Tensor references through TrainingParameters.
+> validateUnchanged must consult the live owner again: comparing a frozen list to itself
+> cannot detect replacement. Training separately checks descriptors, current storage and
+> values, then borrows that fixed state for the session. NN's adapter owns module traversal;
+> generic Training does not import NN to perform it. Today's [live-source admission](../../../../reference/training/parameters.md#generic-live-parameter-admission)
+> and [explicit native-copy boundary](../../../../reference/training/parameters.md#explicit-native-parameter-copy)
+> explain the dependency inversion, live validation and continuing application-owned Arena lifetime.
+
 ## Status
 
 Complete — Pascal's definitive APPROVE and coordinator acceptance received. Authorized Training

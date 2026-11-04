@@ -1,5 +1,12 @@
 # Task 0017F1: Expand-[Dimensions](../../../../glossary.md#dimension) and Squeeze [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (later context, not a status update).**
+
+The application calls expandDims to insert an extent-one axis or squeeze to remove one proven extent-one axis. Neither repeats logical values as expand can. Insertion positions are interpreted in the resulting rank; squeeze addresses the existing input rank, which explains their different negative-axis ranges. The helper edits Shape/stride descriptions and records a fresh storage-free expression, retaining no physical alias. Dynamic singleton guesses and physical copy decisions are not supplied by this boundary.
+
+Focused current reading: [Current rank-editing reference](../../../../reference/tensor/axis-transforms.md#expand-dimensions-and-squeeze-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

@@ -1,5 +1,23 @@
 # 0001 — Reproducible [CPU](../../../../glossary.md#term-cpu) [lifecycle](../../../../glossary.md#lifecycle) baseline
 
+## Editorial reading key: interpreting the recorded baseline
+
+In this task the harness, not a user-facing neural-network layer, calls `Engine.standard()` and
+the compile/prepare/run lifecycle on deterministic inputs. It observes a checksum after an
+explicit host copy. That checksum makes the result observable; it does not prove every numerical
+edge case or justify a production route change. The historical `InferenceSession` wording below
+does not name the current prepared handle; consult the
+[Engine lifecycle and migration boundary](../../../../reference/engine/lifecycle.md).
+
+The table's durations are nanoseconds, not per-element costs. As a unit-reading example only,
+$422500\,\mathrm{ns}=0.4225\,\mathrm{ms}$ because one millisecond contains $10^6$ nanoseconds.
+This converts the first recorded pointwise run sample; it neither reruns that workload nor
+compares it with a later machine. Read
+[benchmark sample interpretation](../../../../developer-guide/benchmarking.md#prerequisites-and-terms)
+for warmup, sample and median meanings. All table values and original verification claims below
+remain unchanged.
+
+
 Status: Complete
 Follow-up required: None for the fixed CPU lifecycle baseline. Broader [operation](../../../../glossary.md#operation)-family and [model](../../../../glossary.md#term-model) suites remain owned by tasks 0002 and 0003.
 

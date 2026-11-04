@@ -1,5 +1,14 @@
 # Task 0009: [Owned Model](../../../../glossary.md#model-module-buffer-and-scan-distinctions) [activation](../../../../glossary.md#term-activation) source and [persistence](../../../../glossary.md#term-persistence)
 
+> **Editorial reading context — not a status update.** An activation changes a projection's
+> output, for example replacing negative values with zero for RELU. Admitting its ordinary
+> source description and assigning its wire opcode are separate responsibilities: Compiler
+> validates/reconstructs semantics, Checkpoint encodes the supported inventory, and NN consumes
+> that cold boundary to acquire private state. A newly readable source is not a new kernel or
+> derivative rule. The current [selective format rules](../../../../reference/checkpoint/graph-formats.md#selective-graph-format-versions)
+> explain why activation-containing files choose a version while older sources retain theirs;
+> [owned execution](../../../../reference/nn/owned-model.md#owned-tensor-model-capability) explains the separate execution owner.
+
 ## Status
 
 Complete — main accepted 2026-10-19 after Archimedes's final Astra/xhigh APPROVE, zero findings,

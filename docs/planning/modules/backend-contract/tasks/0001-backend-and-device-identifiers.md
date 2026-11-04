@@ -1,5 +1,15 @@
 # Task 0001: [Backend](../../../../glossary.md#backend) and [Device](../../../../glossary.md#term-device) Identifiers
 
+> **Editorial reading key — not part of the historical record.**
+>
+> A component constructing BackendId or BackendDeviceId supplies names, not live implementation
+> objects. The device token is interpreted only inside its backend namespace: the same token under
+> two backend names denotes different identities. The records retain the supplied immutable
+> component references; constructing either record neither copies tensor values nor acquires a
+> device. Later Planning can use these names without receiving resource handles.
+>
+> Current reading: [backend identities, supplied availability and requirements](../../../../reference/backend-identities.md).
+
 ## Status
 
 Complete

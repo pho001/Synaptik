@@ -1,5 +1,15 @@
 # Task 0001C: Explicit [Native Parameter Copy](../../../../glossary.md#native-parameter-copy--trainingparameterstorage) Before Training
 
+> **Editorial reading context — not a status update.** The application explicitly calls
+> the storage-copy utility before opening a session. It copies exact represented values into
+> the application's shared native Arena and changes each existing Tensor's storage association,
+> not its identity or the Parameter wrapper. Old expressions therefore still identify the
+> same parameters. The application keeps that Arena alive through session close; the helper
+> neither returns a new owner nor performs a device transfer.
+> Today's [explicit native-copy contract](../../../../reference/training/parameters.md#explicit-native-parameter-copy)
+> explains allocation/rollback and its later generic parameter-source signature; [session admission](../../../../reference/training/sessions.md#session-construction-and-input-mapping)
+> explains why open itself does not silently perform this copy.
+
 ## Status
 
 Complete

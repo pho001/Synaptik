@@ -1,5 +1,25 @@
 # Task 0018O: Indexing Taxonomy and Unstack [Normalization](../../../../glossary.md#term-normalization)
 
+**Editorial reading key (current context, not a status update).**
+
+This record concerns a historical model-only vocabulary migration, not present execution coverage.
+Here, the caller invokes Tensor indexing methods; model helpers derive descriptors and
+producer/provenance metadata from the receiver, index Tensor descriptors, and axis attributes—not
+index values. Gather inserts the complete indices Shape; Gather Elements uses aligned indices and
+retains their Shape. Follow [axis-gather
+expressions](../../../../reference/tensor/gather.md#axis-gather-expressions) for current
+distinctions, including conveniences outside this task. Model semantics defines meaning; execution
+providers realize supported routes rather than redefine it. Semantic responsibility does not imply
+storage ownership: these storage-free results neither execute nor own result buffers.
+
+Unstack means ordered independent scalar selections: Shape `[2, 3, 4]` on axis `1` gives three
+Shape-`[2, 4]` expressions. A producer identifies one operation occurrence; the provenance output
+index identifies its result. Each selection therefore has its own producer and output index zero,
+unlike the shared producer used in the record’s prospective top-K comparison. Follow [tensor
+composition expressions](../../../../reference/tensor/composition.md#tensor-composition-expressions)
+for current count-validation and logical-view rules; a resolved view descriptor does not promise
+physical aliasing.
+
 ## Status
 
 Complete

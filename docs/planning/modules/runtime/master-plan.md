@@ -1,5 +1,22 @@
 # [Runtime](../../../glossary.md#term-runtime) Master Plan
 
+> **Editorial historical reading key.**
+>
+> Read this master plan as a non-authoritative implementation map whose task rows retain their
+> historical sequence. Prepare and Engine deliver already-selected recipes and borrowed input
+> representations to Runtime; the runner does not rediscover graph semantics, backend owners or
+> routes. Backend implementations supply concrete allocation, access, transfer and release mechanics.
+> Runtime checks exact-plan associations, binds direct actions, tracks per-copy validity and leases
+> completed state to results. Repeated schedule occurrences describe work, not additional resource
+> owners.
+>
+> Two cleanup lifetimes matter: PreparedExecution owns identity-unique persistent resources, while
+> each RunResult owns one run's state; caller inputs remain borrowed. See [current prepared-owner
+> lifecycle](../../../reference/runtime/prepared-execution.md#current-prepared-execution) and [current
+> runner orchestration](../../../reference/runtime/orchestration.md#current-prepared-runner). Task
+> 0011's BLOCKING_GAP is preserved audit history, not a live blocker after the recorded repairs;
+> passive-observation scope is not a claim that the runner emits Trace events.
+
 ## Goal and authority
 
 [Runtime](../../../glossary.md#term-runtime) executes already-prepared schedules and owns the logical state, resources, [residency](../../../glossary.md#residency),

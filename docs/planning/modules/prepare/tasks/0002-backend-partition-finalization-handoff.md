@@ -1,5 +1,23 @@
 # Task 0002: [Backend Partition Finalization](../../../../glossary.md#backend-partition-finalization) [Handoff](../../../../glossary.md#term-handoff)
 
+> **Editorial historical reading key.**
+>
+> This task records the resource-free version of finalization. Prepare's package-private handoff
+> receives expected partitions and typed context/analysis/finalizer entries, validates the complete
+> set, assigns Runtime geometry, then calls each owning backend's finalizer. Backend identity
+> establishes which implementation may finalize; it does not confer ownership of caller memory. The
+> backend retains authority over its opaque lowering plan, while Prepare owns source association,
+> assignment order, and exact shared-plan checks.
+>
+> Repeated buffer declarations share maximum size and alignment; workspace declarations remain
+> separate. These are geometry rules, not physical allocation or aliasing claims. Historically,
+> finalizers returned only executables and could acquire no closeable resources. The [current
+> finalization
+> protocol](../../../../reference/runtime/orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization)
+> adds explicit acquisition and rollback transfer; the [current Runtime prepared
+> owner](../../../../reference/runtime/prepared-execution.md#current-prepared-execution) owns
+> persistent resources and their lease-governed cleanup.
+
 ## Status
 
 Complete

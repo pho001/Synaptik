@@ -1,5 +1,12 @@
 # Task 0017G: [Slice](../../../../glossary.md#slice) Semantics
 
+**Editorial reading key (later context, not a status update).**
+
+A slice selects coordinate ranges; its step advances logical coordinates, whereas a layout stride measures storage-element spacing. The original positive-step attributes describe normalized bounds and distinct axes, not input values. Raw negative bounds require an input extent and therefore belong to expression construction. Here Model defines a typed meaning for later construction code; this semantic-family task neither receives stored operands nor evaluates them. Its completion is not evidence of Compiler capture, derivatives or backend execution.
+
+Focused current reading: [Current slicing reference](../../../../reference/tensor/slicing.md#slice-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

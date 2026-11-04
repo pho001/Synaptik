@@ -1,5 +1,20 @@
 # Task 0001: Core [Trace Event Envelope](../../../../glossary.md#trace-event-envelope)
 
+## Editorial reading key: who supplies an event?
+
+The “caller” constructing `TraceEvent` is the diagnostic producer: framework code observing
+compilation, preparation or execution. It supplies the ID, phase, severity, clock reading and typed
+payload. The record retains those references; it neither deep-copies the payload nor takes over
+the observed work's storage or cleanup. A diagnostic consumer reads the event rather than calling
+it to execute work. Nanoseconds describe the producer's clock reading, not a calendar timestamp.
+
+Read [the event foundation](../../../../architecture/tracing.md#current-event-foundation) for the
+reference-retention and clock-domain distinction, then
+[actual observation points](../../../../developer-guide/debugging-trace.md#where-to-observe) for
+how producers deliver events. The commands and completion evidence below belong to the original
+implementation; this reading note does not repeat them.
+
+
 ## Status
 
 Complete

@@ -1,5 +1,15 @@
 # Task 0005A: [Derivative](../../../../glossary.md#term-derivative) Policy and [Elementwise](../../../../glossary.md#term-elementwise)/[Activation](../../../../glossary.md#term-activation) [Gradient](../../../../glossary.md#term-gradient) Completion
 
+> **Editorial reading key — not part of the historical record.**
+>
+> The new material in this task is a set of compiler-owned first-order derivative conventions, not
+> new forward numerical semantics. Preflight selects exact operation/input roles; the elementwise
+> owner builds ordinary Tensor expressions and typed constant facts. A formula-shaped result or a
+> passing construction test does not demonstrate backend behavior at ties, infinities or
+> singularities. Those generated operations must independently qualify when prepared and executed.
+>
+> Current reading: [pre-capture differentiation and functional requests](../../../../reference/compiler/autograd.md#current-package-private-pre-capture-autograd); [capability queries and hard-eligible owner selection](../../../../reference/compiler/planning.md#current-operation-capability-contracts).
+
 ## Status
 
 Complete

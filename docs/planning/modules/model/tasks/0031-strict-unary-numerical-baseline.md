@@ -1,5 +1,24 @@
 # Task 0031: STRICT [Unary](../../../../glossary.md#term-unary) Numerical Baseline
 
+**Editorial reading key (current context, not a status update).**
+
+This completed record documents the historical `STRICT_IEEE` baseline for nineteen unary kinds in
+BFLOAT16, FLOAT32 and FLOAT64; its bounds and retained CPU evidence are not a current capability
+statement. The current [unary
+reference](../../../../reference/tensor/elementwise.md#unary-numeric-transforms-and-floating-classifications)
+explains today’s type coverage, primitive-site rules and special values: finite thresholds are
+route-qualified, not public error envelopes. Historical ordered distance counts representation
+steps; it does not override domain, NaN, infinity, signed-zero or subnormal requirements.
+
+Unary means one input; elementwise means each position is transformed independently. A caller
+invoking `input.gelu()` asks the Model Tensor API to record a description, not calculate values: the
+callee retains the receiver reference and returns a fresh, storage-free expression with producer
+provenance. A leaf has no producing expression, not necessarily stored values. For example, the
+supplied GELU example preserves FLOAT32 and shape without computing GELU. Model owns numerical
+meaning, not result-buffer storage; execution providers realize supported routes rather than
+redefine semantics. Composite primitive sites specify numerical dependencies, not stored
+intermediate expressions or a whole-result tolerance.
+
 ## Status
 
 Complete

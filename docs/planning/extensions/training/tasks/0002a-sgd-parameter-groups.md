@@ -1,5 +1,15 @@
 # Task 0002A: [SGD](../../../../glossary.md#term-stochastic-gradient-descent-sgd) [parameter](../../../../glossary.md#term-parameter) groups
 
+> **Editorial reading context — not a status update.** The application names disjoint
+> parameter paths and supplies a configuration for each explicit group; unlisted parameters
+> use the default. TrainingSession resolves those choices before execution and still commits
+> one update across all parameters with one global step counter. A group neither freezes its
+> members nor owns a separate executor or clock. Ordered group/path configuration is part
+> of restore identity even when reordering would leave arithmetic unchanged.
+> Today's [session group mapping](../../../../reference/training/sessions.md#session-construction-and-input-mapping)
+> and [optimizer/gradient modes](../../../../reference/training/optimizers.md#optimizers-and-gradient-modes)
+> explain these roles, including later optimizer algorithms without adding them to this original SGD task.
+
 ## Status
 
 Complete

@@ -1,5 +1,12 @@
 # Task 0012G: Uniform Random [Tensor](../../../../glossary.md#tensor) Creation
 
+**Editorial reading key (later context, not a status update).**
+
+The factory calls the application's RandomGenerator immediately with the supplied lower-inclusive, upper-exclusive binary64 bounds. It then narrows samples into the requested floating format and copies them into a fresh dense leaf. An upper bound excluded in the sampling format can still round to the same stored representation as that bound; the interval promise and storage rounding are different stages. The generator remains caller-controlled mutable state, not retained Tensor provenance or a backend service.
+
+Focused current reading: [Current uniform example](../../../../reference/tensor/random-initialization.md#complete-continuous-uniform-example). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

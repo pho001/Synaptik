@@ -1,5 +1,26 @@
 # Task 0048: Shared per-output ordinary [Scan](../../../../glossary.md#term-cumulative-scan) value semantics
 
+**Editorial reading key (current context, not a status update).**
+
+This record documents the historical shared-semantics cutover, not current execution coverage. Model
+validation, independent Compiler inference and derivative bookkeeping call Scan’s descriptor-only
+seam after their own checks. Descriptors describe types/shapes; per-output facts describe coordinate
+roles and direct value/control input positions, not numerical values or derivative eligibility.
+ROW(axis) identifies a proved batch coordinate; SHARED has none; terminal marks active-aggregation
+taint that cannot feed ROW. For example, attention weights depend on queries, keys and an optional
+mask, not values, even when values supply a broadcast batch domain. Follow [per-output coordinate
+facts](../../../../reference/tensor/general-scan.md#per-output-ordinary-coordinate-facts) for that
+distinction.
+
+The [current Scan construction
+contract](../../../../reference/tensor/general-scan.md#general-scan-source-construction) separates
+this historical prerequisite from later qualified composition. Model defines meaning; execution
+providers realize supported routes without redefining it. These metadata calls neither execute the
+body nor own result buffers: semantic responsibility is not storage ownership. Source acceptance
+does not grant AD, retained-header, Prepare/CPU or cold/wire admission; those consumers retain
+independent predicates. Recorded test counts and byte-retention evidence belong to this task’s
+historical scope.
+
 ## Status
 
 Complete — MAIN integrated fourteen exact source/test paths after independent mapping, source-

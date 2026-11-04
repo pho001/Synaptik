@@ -1,5 +1,14 @@
 # Task 0005: [Linear](../../../../glossary.md#term-linear-meanings) Layer
 
+> **Editorial reading context — not a status update.** The application calls Linear.forward
+> with an input Tensor; the layer reads its current weight/bias bindings and delegates to
+> Tensor.linear to describe a projection. Supplied-state construction retains exact references;
+> initialized construction creates values. Neither means forward numerically multiplies them.
+> Weight stores output features by input features, so the expression transposes that orientation
+> for matrix multiplication. Today's [linear producer chain](../../../../reference/tensor/matmul-linear.md#linear-projection-convenience)
+> explains that composition, and [parameter bindings](../../../../reference/nn/state.md#current-nn-parameter-update-contract)
+> explain why replacing a weight does not rewrite an earlier projection.
+
 ## Status
 
 Complete

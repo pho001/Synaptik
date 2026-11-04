@@ -1,5 +1,12 @@
 # Task 0016F: [Masked Reduction](../../../../glossary.md#masked-reduction) Semantics and [Axis](../../../../glossary.md#term-axis) Mapping
 
+**Editorial reading key (later context, not a status update).**
+
+The historical attribute maps each mask dimension to an input axis. A mask contains participation decisions, not numeric weights; omitted axes in this mapping imply logical broadcast repetition, not copied bytes. The semantic record stores axis positions rather than live mask/data Tensors, leaving shape-aware mapping to the next task. This mapping policy is not the current API: the linked current reference uses explicit right alignment instead. Keep that contrast separate from the original all-false mean and mapping decisions retained below.
+
+Focused current reading: [Current masked-reduction alignment](../../../../reference/tensor/masked-index-reductions.md#masked-sum-and-mean-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

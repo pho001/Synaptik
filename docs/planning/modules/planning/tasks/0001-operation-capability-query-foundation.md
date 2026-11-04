@@ -1,5 +1,23 @@
 # Task 0001: [Operation](../../../../glossary.md#operation) Capability-Query Foundation
 
+> **Editorial historical reading key.**
+>
+> This completed task records the original three-component capability question, not the entire current
+> Planning API. An explicitly supplied compile-time caller gives a named backend provider an Operation
+> and ordered input/output descriptors; supports answers semantic ownership capability, not
+> availability or executable success. Model Operation remains the semantic authority, Planning owns
+> the question/provider contract, and the concrete provider supplies its backend’s support answer.
+> Only list membership is copied: operation and descriptor references are retained, with no storage or
+> cleanup ownership transferred.
+>
+> The [current capability
+> contract](../../../../reference/compiler/planning.md#current-operation-capability-contracts)
+> includes Scan body/activity attachments beyond this historical record. The [current compilation
+> port](../../../../reference/compiler/artifacts.md#current-complete-artifact-compilation-and-integration-port)
+> shows Engine integration requesting Compiler orchestration, which retains selected BackendIds rather
+> than providers. Statements here that production providers and consumers remain planned describe this
+> milestone.
+
 ## Status
 
 Complete

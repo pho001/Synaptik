@@ -1,5 +1,14 @@
 # Task Checkpoint0012: General-[scan](../../../../glossary.md#term-cumulative-scan) in-memory copy and [rebind](../../../../glossary.md#capture-graph-ports-and-reconstruction)
 
+> **Editorial reading context — not a status update.** A general scan contains a step body
+> with its own local identities. Checkpoint preserves that attachment while renumbering the
+> outer graph; Compiler, not a second Checkpoint body interpreter, reconstructs it. Copy reads
+> named state into private storage; rebind substitutes exact-descriptor inputs symbolically
+> and reads no values. These in-memory operations are independent of disk encoding and backend
+> execution. Today's [general-scan copy/rebind explanation](../../../../reference/checkpoint/graph.md#general-scan-in-memory-copy-and-rebind)
+> includes later capability context; the temporary NN guards and native-environment exception
+> recorded below remain facts of this task's own stage.
+
 ## Status
 
 Complete — main accepted implementation, independent review and scoped [validation](../../../../glossary.md#term-validation) on 2026-10-23,

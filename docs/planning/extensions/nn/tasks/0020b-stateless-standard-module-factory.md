@@ -1,5 +1,15 @@
 # Task 0020B: Stateless [Standard Module Factory](../../../../glossary.md#standard-module-factory)
 
+> **Editorial reading context — not a status update.** The application calls a factory
+> recipe to construct a fresh concrete module, then separately calls Topology.addModule to
+> give that exact module a permanent owner and state path. The factory owns neither resulting
+> modules nor retained random sources; each concrete constructor owns its own initialization
+> timing and validation. Thus Embedding can initialize eagerly while Linear waits for an input
+> width, even though both are requested through one facade.
+> Today's [typed composition and factory example](../../../../reference/nn/composition.md#current-nn-typed-model-composition-contract)
+> and [initialization rules](../../../../reference/nn/composition.md#current-nn-automatic-parameter-initialization-contract)
+> explain those distinct calls instead of treating “factory” as a new lifecycle owner.
+
 ## Status
 
 Complete

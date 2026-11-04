@@ -1,5 +1,31 @@
 # Task 0046: Empty-[carry](../../../../glossary.md#term-carry) [Scan](../../../../glossary.md#term-cumulative-scan) and explicit length-mode source
 
+**Editorial reading key (current context, not a status update).**
+
+This record documents a source-representation cutover, not execution enablement. Callers declare
+step placeholders (formals) in `ScanBody`; `Scan.apply` binds actual Tensor references by position
+and returns canonical output descriptions, without reading values or running the body. Carry passes
+state between steps; emissions collect step outputs. Empty carry therefore permits an emission-only
+scan, not an empty body. The [source-binding
+contract](../../../../reference/tensor/general-scan.md#formals-actual-positions-and-source-closure)
+explains these positions and required roots. Model defines meaning; providers realize independently
+supported routes, not redefine it. Semantic responsibility does not imply buffer ownership:
+storage-free expressions own no result buffers.
+
+Explicit `lengthAware` distinguishes length mode from all-valid mode even with zero ROW carries. ROW
+identifies a proved batch coordinate; SHARED has none. For example, an emission-only length scan
+still receives lengths last, with no lengths formal; its batch comes from the lengths descriptor,
+not a first carry. The [length-mode
+contract](../../../../reference/tensor/general-scan.md#length-aware-source-construction-and-qualified-execution)
+explains these roles and separate consumer admission. Its current descriptions do not enlarge this
+task’s historical compiler, execution or frozen-wire scope.
+
+**Emission-only reading illustration.** Over finite real scalars, take step inputs $x_0=2$, $x_1=3$
+and an emission root $e_t=2x_t$ for $t\in\{0,1\}$. With no carry slots, stacked emissions are
+$(4,6)$ and the final-carry list is empty. There is still a body and time traversal; empty carry
+does not mean no outputs or that length mode can be inferred from a carry count. The example is
+mathematical, not evidence of execution admission.
+
 ## Status
 
 Complete for bounded source only — exact reviewed source/caller/[guard](../../../../glossary.md#term-guard) and sole-formatter cutover

@@ -1,5 +1,23 @@
 # [Planning](../../../glossary.md#term-planning) Master Plan
 
+> **Editorial historical reading key.**
+>
+> Treat the task statuses and authorized frontiers here as historical checkpoints, not a current
+> support inventory. Compiler supplies exact operation occurrences, providers, availability snapshots,
+> and intent to Planning; Planning determines backend ownership, consecutive same-owner partitions,
+> and logical per-value requirements. Compiler owns graph-wide sequencing and owner-map assembly. A
+> provider’s semantic-support answer is neither availability nor a device, route, kernel, or
+> executable selection.
+>
+> The [current capability and partition
+> contracts](../../../reference/compiler/planning.md#current-operation-capability-contracts) explain
+> the implemented per-occurrence collaboration. The [current artifact
+> pipeline](../../../reference/compiler/artifacts.md#current-complete-artifact-compilation-and-integration-port)
+> shows how Compiler integrates its results. Planning’s immutable identities and descriptors cross
+> that boundary without physical buffers or cleanup ownership; Prepare, backends, Runtime, and Engine
+> retain downstream responsibilities. In particular, this plan’s pending activity/query frontier and
+> older body-query constructor narrative must not override the current five-component query contract.
+
 ## Goal
 
 Make [backend](../../../glossary.md#backend)-neutral [compile](../../../glossary.md#compile)-time [ownership](../../../glossary.md#term-ownership-meanings), partitioning, capability, and logical memory decisions.

@@ -1,5 +1,16 @@
 # [Backend](../../../glossary.md#backend) Contract Master Plan
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Read this milestone as the shared vocabulary used between components, not as a backend service.
+> A supplying composition context constructs identities and availability facts; Config records
+> requested restrictions; Planning evaluates those facts and capability answers. A selected
+> backend identity names responsibility for planned work, not ownership of an open device or
+> buffer. The original completion and validation statements below belong to this historical
+> milestone.
+>
+> Current reading: [backend identities, supplied availability and requirements](../../../reference/backend-identities.md); [capability queries and hard-eligible owner selection](../../../reference/compiler/planning.md#current-operation-capability-contracts).
+
 ## Goal
 
 Define minimal [backend](../../../glossary.md#backend) [identities](../../../glossary.md#term-identity-meanings), [device](../../../glossary.md#term-device) identities, availability snapshots, and declarative requirements.

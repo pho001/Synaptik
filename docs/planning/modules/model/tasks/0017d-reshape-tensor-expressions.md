@@ -1,5 +1,12 @@
 # Task 0017D: Reshape [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (later context, not a status update).**
+
+The application supplies raw extents or an exact Shape to reshape. The helper normalizes request-only -1, checks provable element counts and records a new expression; it does not shuffle or copy stored values. A resolved contiguous input can justify logical view geometry, but the returned Tensor still has no attached storage alias. Unknown count equality is a later Compiler obligation, not proof that arbitrary dynamic sizes fit. Model owns that semantic boundary; physical view-versus-copy decisions stay downstream.
+
+Focused current reading: [Current reshape explanation](../../../../reference/tensor/reshape-expand.md#reshape-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

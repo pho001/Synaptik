@@ -1,5 +1,25 @@
 # Task 0024: [Model](../../../../glossary.md#term-model) Capability and Contract Closure Audit
 
+**Editorial reading key (current context, not a status update).**
+
+This planning-only audit records `BLOCKING_GAP`: the audit finished, but stale `GraphValue` Javadoc
+left the model milestone open. Its counts and checkpoint results are historical evidence, not
+current inventories or execution-support claims. In current terminology, an `Operation` is a
+reusable calculation description; a producer or `CompiledNode` identifies one occurrence. A
+signature admits an exact attributes class and input/output position counts—not tensor rank,
+numerical validity, or backend support. Follow [operation
+signatures](../../../../reference/tensor/operation-foundation.md#operation-semantic-foundation) to
+interpret the audited pairings.
+
+A caller constructing a `CompiledNode` passes an operation and ordered value IDs, not tensor
+contents; the node snapshots those lists. A `GraphValue` pairs an ID with a descriptor, not a
+buffer. For example, the current identity example connects scalar value 0 to distinct value 1
+without allocating either. Model semantics defines meaning; execution providers realize supported
+routes rather than redefine it. Semantic responsibility is not storage ownership: storage-free
+expressions neither execute nor own result buffers. Follow [graph
+boundaries](../../../../reference/tensor/compiled-graph.md#graph-values-and-compiled-nodes) for
+publication associations and structural versus execution responsibilities.
+
 ## Status
 
 Complete

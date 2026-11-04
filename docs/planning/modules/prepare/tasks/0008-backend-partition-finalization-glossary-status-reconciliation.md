@@ -1,5 +1,23 @@
 # Task 0008: [Backend partition finalization](../../../../glossary.md#backend-partition-finalization) glossary status reconciliation
 
+> **Editorial historical reading key.**
+>
+> This repair concerns one glossary paragraph’s CPU status, not a new public finalization workflow.
+> Its key distinction is visibility versus supported entry point: a public class under CPU `.internal`
+> remains unsupported implementation detail. Package-private Engine composition obtains the finalizer
+> through `CpuBackendIntegration`; applications use the Engine lifecycle rather than calling that
+> internal finalizer. The finalizer realizes an already-selected plan using shared assignments,
+> without selecting routes again or widening topology, and CPU returns no persistent prepared
+> resources.
+>
+> The [current finalization
+> section](../../../../reference/runtime/orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization)
+> explains the executable/resource handoff and transactional cleanup. The [current composition
+> section](../../../../reference/engine/composition.md#current-explicit-cpu-and-metal-composition)
+> distinguishes transferred integration ownership from caller-memory ownership and now supports
+> explicit CPU/Metal composition. Keep this task’s CPU-only framing historical; the unchanged general
+> rollback and ownership paragraphs were deliberately outside its edit scope.
+
 ## Status
 
 Complete

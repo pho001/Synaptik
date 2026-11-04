@@ -1,5 +1,29 @@
 # Dynamic [batch](../../../glossary.md#term-batch-machine-learning-and-hyperparameters) geometry and resource contract proposal
 
+> **Editorial historical reading key.**
+>
+> Read this as an approved historical design packet whose proposed declarations and embedded ADR
+> remain archival, not a current signature reference. Compiler binds semantic descriptors and
+> obligations; Prepare fixes slots, declarations and mode; CPU owns numeric access and sizing recipes;
+> Runtime resolves same-plan geometry and creates isolated resources; Engine borrows caller storage
+> and publishes actual descriptors. Borrowing does not copy or free that storage; result closure ends
+> the borrow, while explicit materialization returns detached bytes.
+>
+> Consult [current metadata
+> binding](../../../reference/compiler/batch-binding.md#ordinary-named-batch-metadata-binding) and
+> [current execution
+> lifecycle](../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+> for implemented scope and cleanup.
+>
+> **Mathematical reading example.** In the all-one witness, let $B$ be a positive integer row count,
+> $X\in\mathbb{R}^{B\times4}$ the input, $W\in\mathbb{R}^{4\times3}$ the weights, $Y=XW$, and $L$ the
+> mean of all $3B$ entries of $Y$. In real arithmetic, each output is $4$, each output derivative is
+> $1/(3B)$, each input derivative sums three contributions to $1/B$, and each weight derivative sums
+> $B$ contributions to $1/3$. For $B=2$, these derivatives are $1/2$ and $1/3$. Actual floating-point
+> evaluation retains the archive's rounding rules. This positive-domain explanation does not apply at
+> $B=0$: empty MEAN, empty input gradients and nonempty zero weight gradients follow their separate
+> policies.
+
 ## Purpose and status
 
 Complete — reviewed DESIGN delivery, 2026-10-24; user architecture approval is now recorded.

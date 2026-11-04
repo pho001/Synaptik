@@ -1,5 +1,23 @@
 # Task 0004: Maximal Same-[Owner](../../../../glossary.md#term-owner) Partitioning
 
+> **Editorial historical reading key.**
+>
+> This task groups an already-owned graph; it does not choose owners. The generator’s caller supplies
+> the closed CompiledGraphModel and a complete NodeId-to-BackendId map. Model supplies authoritative
+> stored topological order; Planning validates coverage and groups only consecutive equal-owner nodes.
+> Output partitions retain exact graph NodeIds and the first node’s owner reference. Independent
+> adjacent nodes can join, while connected equal-owner nodes separated by another owner cannot. Graph
+> outputs, phases, and multi-output ports introduce no extra split. Immutable membership snapshots
+> transfer neither storage nor cleanup responsibility.
+>
+> The [current partition
+> recipe](../../../../reference/compiler/planning.md#current-planned-partition-recipe) documents the
+> generator’s later public visibility and Compiler caller, unlike this historical internal surface.
+> [Current preparation
+> orchestration](../../../../reference/runtime/orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization)
+> assigns resources and invokes backend finalizers afterward; partition membership itself promises
+> neither fusion nor executable-resource ownership.
+
 ## Status
 
 Complete

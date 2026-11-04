@@ -1,5 +1,24 @@
 # Task 0007: Optional [Model](../../../../glossary.md#term-model)-[Autotuning](../../../../glossary.md#autotuning--model-autotuning) Composition
 
+> **Editorial historical reading key.**
+>
+> This completed task records the original CPU-only, single-local-workload `prepareTuned` composition.
+> The caller provides Config, opaque model identity and live representative Tensors; Engine translates
+> requests and evidence, coordinates one admission and cleanup, and publishes a fresh prepared owner.
+> Tools/tuning owns measurements, ranking and cache transactions; CPU owns candidate compatibility,
+> decisions and preparation; Runtime executes recipes without tuning policy. Model/profile labels do
+> not authorize cache hits or selection. Request list and identity-byte snapshots do not copy
+> representative payloads.
+>
+> Engine closes trial results and wrappers while caller storage remains usable; the metadata carrier
+> is not closeable, but its contained prepared handle owns preparation. See the [current two-phase
+> tuning
+> lifecycle](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+> and [current CPU/Metal
+> composition](../../../../reference/engine/composition.md#current-explicit-cpu-and-metal-composition).
+> Later complete-plan evidence and Metal tuning must not be read back into this archive's exact API or
+> exclusions.
+
 ## Status
 
 Complete

@@ -1,5 +1,15 @@
 # Task 0006: Whole-[model](../../../../glossary.md#term-model) TrainingCheckpoint save, [inference](../../../../glossary.md#term-inference) load and [resume](../../../../glossary.md#schema-serialization-and-checkpoint)
 
+> **Editorial reading context — proposal, not an implemented adapter.** The proposed adapter
+> would coordinate three meanings: NN's model definition/state, Training's objective recipe and
+> optimizer/session state, and Checkpoint's encoding/publication. Coordination does not let the
+> byte envelope decide NN compatibility or optimizer validity. The application would still own
+> excluded progress and external random state, so restoring stored fields would not by itself
+> establish exact next-input continuation. Read the implemented
+> [model-only workflow](../../../../reference/checkpoint/models.md#purpose-and-mental-model) and
+> [caller-coordinated recovery](../../../../reference/training/recovery.md#caller-coordinated-in-memory-recovery)
+> as contrasts, not as implementations of the Draft API below.
+
 ## Status
 
 Draft — revised primary product, not implementation authorization.

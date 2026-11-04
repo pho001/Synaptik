@@ -1,5 +1,14 @@
 # Task Data0003: Padded integral sequence batching
 
+> **Editorial reading context — not a status update.** Unlike metadata wrapping, the
+> long-sequence batcher reads application arrays and writes fresh INT64 values into a rectangular
+> Tensor. LEFT means valid suffix, RIGHT means valid prefix; neither uses a numeric sentinel
+> to discover length. Returned heap storage has garbage-collected lifetime, not a Data-owned
+> Arena or close protocol. A LEFT batch is valid preparation data without becoming valid
+> right-prefix scan input. See today's [integral batching](../../../../reference/data/sequences.md#integral-sequence-batching)
+> for allocation/array ownership and [count export](../../../../reference/data/sequences.md#explicit-runtime-scan-lengths)
+> for the distinct opt-in runtime input boundary.
+
 ## Status
 
 Complete — independently approved and accepted by main for the local Data [scope](../../../../glossary.md#term-scope), 2026-10-20.

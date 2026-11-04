@@ -1,5 +1,24 @@
 # Task 0019B: Explicit [Graph RNG State](../../../../glossary.md#graph-rng-state--graphrngstate) Foundation
 
+**Editorial reading key (current context, not a status update).**
+
+This record covers the state foundation only; its dropout examples are prospective, not APIs
+delivered by this task. The current [explicit-state dropout
+description](../../../../reference/tensor/graph-randomness.md#explicit-state-dropout-construction)
+explains the later caller/callee boundary: the caller supplies a floating Tensor, drop probability,
+and opaque state; Tensor construction records value, auxiliary mask, and next-state output
+descriptions, not sampled values or allocated result buffers.
+
+A key names a caller-selected stream/domain; a counter names its next logical sample position. Both
+preserve unsigned 64-bit patterns carried by Java `long`. Equal words request the same abstract
+position, not equal object identities. For example, six-element dropout starting at counter zero
+requests six positions; threading its next state starts at six, whereas reusing the original state
+repeats the interval. See [state advancement and replay
+boundaries](../../../../reference/tensor/graph-randomness.md#state-advancement-branching-and-edge-cases)
+for empty inputs and bounded replay. Model semantics defines these meanings; providers realize
+supported routes, not redefine them. Semantic responsibility is not storage ownership: the
+storage-free state expression neither executes nor owns result buffers.
+
 ## Status
 
 Complete

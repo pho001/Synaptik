@@ -1,5 +1,12 @@
 # Task 0015H: Cast [Tensor](../../../../glossary.md#tensor) Expression
 
+**Editorial reading key (later context, not a status update).**
+
+A cast requests conversion of each value to a target type; it is not merely changing the label on existing bytes. The application supplies a target DataType. The resulting description preserves logical shape and records even same-type requests as new occurrences. The current conversion matrix supplies later numeric meaning; it must not be read as execution performed or policy already selected by this task. The application calls the public Tensor method; its model helper validates available descriptions and returns a fresh storage-free expression with exact input references. It neither copies input values nor calculates the result. Compiler consumes this provenance later; actual storage and execution are separate downstream concerns.
+
+Focused current reading: [Current cast and conversion-policy reference](../../../../reference/tensor/selection-casts.md#cast-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

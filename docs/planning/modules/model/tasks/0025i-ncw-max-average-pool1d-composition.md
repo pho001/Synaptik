@@ -1,5 +1,25 @@
 # Task 0025I: [NCW](../../../../glossary.md#term-ncw) Max/Average [Pool1d Composition](../../../../glossary.md#pool1d-composition)
 
+**Editorial reading key (current context, not a status update).**
+
+This record concerns Model’s NCW (batch, channel, width) composition, not a first-class Pool1d
+operation. The caller supplies a Tensor and immutable width attributes; Tensor delegates
+construction to its package-private composition owner. What passes through this API is an expression
+description, not evaluated samples: expand axis two, apply Pool2d, then squeeze axis two. These
+storage-free results neither execute pooling nor own result buffers. Model defines meaning; Compiler
+owns capture and derivatives; execution providers realize supported component routes rather than
+redefine semantics. See [NCW Pool1d
+composition](../../../../reference/tensor/pooling.md#ncw-pool1d-composition) for the mapping and
+capability boundary.
+
+Read the completion evidence and deferred follow-ups historically, not as current capability limits.
+In particular, historical accumulation-order wording is not a current cross-backend bitwise
+guarantee. The [current average numerical
+policy](../../../../reference/tensor/pooling.md#numerical-empty-and-metadata-policy) explains the
+fixed divisor and special-value boundaries: a width-three window containing one value of three and
+two padding positions averages to one, not three. Maximum instead excludes padding; all-padding
+windows yield negative infinity, versus positive zero for average.
+
 ## Status
 
 Complete

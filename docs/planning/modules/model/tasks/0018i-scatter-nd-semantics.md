@@ -1,5 +1,25 @@
 # Task 0018I: [Scatter-ND](../../../../glossary.md#scatter-nd) Semantics
 
+**Editorial reading key (current context, not a status update).**
+
+This completed record concerns semantic identity and immutable parameters, not public expression
+construction. `SCATTER_ND` names functional tuple scatter; `ScatterNdAttrs` carries a normalized
+shared-leading-batch count and explicit reduction, not operands or tuple depth. Tuple depth is the
+final indices extent: with data Shape `[2, 3]` and indices Shape `[2]`, one two-coordinate tuple
+requires scalar updates `[]`, while the result remains `[2, 3]`. Follow the current [semantic
+contract](../../../../reference/tensor/operation-indexing.md#scatter-nd-semantic-kind-and-attributes)
+for these roles and reduction meanings.
+
+In the current [expression
+boundary](../../../../reference/tensor/scatter.md#scatter-nd-expressions), the caller invokes
+`data.scatterNd` with indices and updates Tensor references; construction checks descriptions,
+records those references, and returns a storage-free expression—not computed values or an owned
+result buffer. Bounds and duplicate detection require values; `NONE` forbids duplicate targets.
+Follow that section for validation and numerical rules, including exact untouched representations.
+Model responsibility for meaning is not storage ownership; execution providers realize supported
+routes without redefining semantics. These current descriptions do not expand this task’s historical
+scope.
+
 ## Status
 
 Complete

@@ -1,5 +1,16 @@
 # Task 0017: Typed all-[PURE](../../../../glossary.md#term-pure) [Scan](../../../../glossary.md#term-cumulative-scan) demand, first-order proof and compiled activity
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Read selected demand as exact output-to-input routes over the finite time domain, not every
+> possible pair of roots and targets. Compiler proves construction using the same ordinary
+> derivative bodies, then captures typed saved primals and structural activity metadata. Absence
+> means do not evaluate a contribution; it is not an evaluated numerical zero. Planning/Prepare
+> transport these facts, while CPU owns physical realization and execution. Broader source typing
+> alone grants neither cold/wire admission nor Metal Scan support.
+>
+> Current reading: [scoped Scan capture, roles and first-order differentiation](../../../../reference/compiler/verification-scan.md#current-scoped-scan-capture-and-first-order-ad); [capability queries and hard-eligible owner selection](../../../../reference/compiler/planning.md#current-operation-capability-contracts).
+
 ## Status
 
 Complete — MAIN integrated the coordinated Compiler0017/CPU0081 cutover after exact [Ready](../../../../glossary.md#term-ready)/source

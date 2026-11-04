@@ -1,5 +1,21 @@
 # Task Engine0021: [Prepared execution](../../../../glossary.md#prepared-execution--preparedexecution) and [fresh-value binding](../../../../glossary.md#fresh-value-binding--enginerunvalues)
 
+> **Editorial historical reading key.**
+>
+> This historical cutover removes InferenceSession and makes Engine PreparedExecution the sole
+> ordinary prepared owner. Callers pass it to exact-ID run or explicitly choose runValues, whose
+> positions follow Compiler-authoritative CompiledGraph.inputs(); fresh Tensor IDs do not replace that
+> ordering authority. Engine validates descriptors and snapshots storage associations before
+> borrowing, without copying or pinning input bytes. Runtime remains the unique run-lease authority;
+> outward handle checks add neither another runner nor a lock held through execution. Result closure
+> ends borrowed-input use, while materialization creates detached copies. Training's migration changes
+> its internal prepared handle, not its optimizer transactions or TrainingSession ownership. The
+> [current
+> lifecycle](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+> documents the resulting API; [Runtime prepared
+> ownership](../../../../reference/runtime/prepared-execution.md#current-prepared-execution) explains
+> nonwaiting close and deferred resource cleanup.
+
 ## Status
 
 Complete — implemented in a clean context after user authorization and verified [Ready](../../../../glossary.md#term-ready) launch.

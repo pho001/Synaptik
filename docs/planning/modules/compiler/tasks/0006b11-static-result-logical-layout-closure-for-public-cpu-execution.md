@@ -1,5 +1,16 @@
 # Task 0006B11: Static-Result Logical-[Layout](../../../../glossary.md#layout) Closure for Public [CPU](../../../../glossary.md#term-cpu) Execution
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Logical layout closure fills proved shape/stride/offset descriptions before Compiler asks
+> capability providers about final operations. It does not allocate a buffer, make an unresolved
+> input contiguous, or copy a view. CPU still owns exact capability admission and
+> complete-partition physical validation. The separate affine access-plan correction concerns two
+> different address-description domains, not permission to weaken their respective bounds checks.
+> The public execution claims below remain the task's original evidence.
+>
+> Current reading: [exact graph transformations and final logical layouts](../../../../reference/compiler/optimization.md#current-package-private-canonicalization-and-whole-graph-optimization); [capability queries and hard-eligible owner selection](../../../../reference/compiler/planning.md#current-operation-capability-contracts).
+
 ## Status
 
 Complete

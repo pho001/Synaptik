@@ -1,5 +1,15 @@
 # Task 0006B7: Final NEG Logical-[Layout](../../../../glossary.md#layout) Closure
 
+> **Editorial reading key — not part of the historical record.**
+>
+> The exact NEG occurrence and explicit constant sidecar identify the two eligible roles in this
+> historical pass. Provenance absence, factory names and equal scalar contents do not prove a
+> constant. Compiler changes logical descriptors before capability questions; the Metal backend
+> separately owns materialization and execution. The later operation-aware static-result closure
+> is described in the current reference without rewriting this narrower pass's original evidence.
+>
+> Current reading: [exact graph transformations and final logical layouts](../../../../reference/compiler/optimization.md#current-package-private-canonicalization-and-whole-graph-optimization); [structural capture and exact leaf identities](../../../../reference/compiler/capture.md#current-package-private-structural-capture).
+
 ## Status
 
 Complete

@@ -1,5 +1,25 @@
 # Task 0047: Ordinary checked [descriptor](../../../../glossary.md#term-descriptor) seam
 
+**Editorial reading key (current context, not a status update).**
+
+This record concerns the historical three-argument `ScanBody.describeOrdinary` seam, not all-PURE
+Scan execution or release completion; its aggregate evidence is not a clean full-root pass. The
+caller supplies an already canonical operation, ordered input descriptors and output count. A
+descriptor describes type, shape, layout and gradient eligibility, not numerical contents.
+`ScanBody` selects the ordinary family owner, whose synchronous completion callback returns the same
+operation and every canonical output descriptor. “Siblings” are outputs of one operation: a Top-K
+check includes indices even when only values are wanted.
+
+Model family guards define meaning; execution providers realize supported routes rather than
+redefine it. Semantic ownership does not mean buffer ownership: this seam creates no Tensor identity
+or storage, and storage-free expressions neither execute nor own result buffers. Follow
+[descriptor-only ordinary
+checks](../../../../reference/tensor/general-scan.md#descriptor-only-ordinary-checks) for the
+current scoped overload and its limits, and [per-output ordinary coordinate
+facts](../../../../reference/tensor/general-scan.md#per-output-ordinary-coordinate-facts) for why
+descriptor validity alone proves neither an independent batch-row coordinate nor differentiation
+eligibility. Those current contracts do not expand this task’s historical scope.
+
 ## Status
 
 Complete — exact reviewed implementation is integrated in MAIN after Model0046 acceptance.

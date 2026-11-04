@@ -1,5 +1,24 @@
 # Task 0019C: Sort and Argsort
 
+**Editorial reading key (current context, not a status update).**
+
+This record documents the historical SORT/ARGSORT construction task; its Draft top-K follow-up and
+inventories are historical, not current limits. A caller invokes a Tensor method; the model
+validates axis metadata and returns a storage-free expression wrapper with a descriptor (type and
+Shape) and provenance (the producing occurrence and output slot), not computed values. Separate sort
+and argsort calls describe independent single-output producers. Model ownership of meaning is not
+ownership of result storage: construction neither reads input values nor allocates result buffers.
+
+For the ordering rules and metadata boundary, follow [stable sort and argsort
+expressions](../../../../reference/tensor/sort-topk.md#stable-sort-and-argsort-expressions). Stable
+means equal keys retain logical axis-index order, not memory-offset order; argsort requests those
+indices. For example, ascending ordering puts negative zero before positive zero, with NaNs last in
+either direction. Execution providers realize supported routes without redefining that meaning.
+Follow [Top-K values and
+indices](../../../../reference/tensor/sort-topk.md#top-k-values-and-indices) for the current
+paired-output contract and its separate TopKKind identity, rather than treating this task’s proposed
+enum extension as current API.
+
 ## Status
 
 Complete

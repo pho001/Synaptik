@@ -1,5 +1,16 @@
 # Task 0010: First RNN_TANH [scan](../../../../glossary.md#term-cumulative-scan) [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt) proposal
 
+> **Editorial reading key — not part of the historical record.**
+>
+> This is explicitly a superseded proposal. Its fixed public adjoint, saved-history strategy and
+> future gates are preserved design history, not current implementation instructions or
+> authorization. Read BPTT as reverse propagation through time-dependent recurrence, and
+> distinguish constructing such a graph from retaining physical hidden-state values during a run.
+> The selected general-Scan approach constructs ordinary derivative expressions with explicit
+> saved-primal bindings instead; current support must be read from that focused explanation.
+>
+> Current reading: [scoped Scan capture, roles and first-order differentiation](../../../../reference/compiler/verification-scan.md#current-scoped-scan-capture-and-first-order-ad); [pre-capture differentiation and functional requests](../../../../reference/compiler/autograd.md#current-package-private-pre-capture-autograd).
+
 ## Status and goal
 
 Superseded — user selected [general differentiable scan](../../../../glossary.md#general-differentiable-scan) on 2026-10-21. Replaced by

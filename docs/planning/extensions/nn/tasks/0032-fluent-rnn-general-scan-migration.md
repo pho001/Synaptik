@@ -1,5 +1,15 @@
 # Task NN0032: Fluent [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn) general-[scan](../../../../glossary.md#term-cumulative-scan) migration compatibility decision
 
+> **Editorial reading context — paused compatibility decision.** First-order differentiation
+> constructs gradients; second-order compilation asks for derivatives of derivative expressions.
+> Passing a first-order training journey cannot establish preservation of that advanced
+> compilation capability. This record therefore keeps ordinary static rnn separate from the
+> explicit runtime-length recipe and does not authorize a fallback or migration.
+> Today's [builder distinction](../../../../reference/nn/model-builder.md#fluent-model-builder) and
+> [general versus fixed RNN composition](../../../../reference/nn/recurrent.md#nn-runtime-length-recurrent-composition)
+> explain the two paths. Neither current navigation nor later first-order evidence resolves
+> the user scope choice, compile regression or missing runtime Hessian proof recorded below.
+
 ## Status
 
 Draft — **blocked on a confirmed advanced second-order [CPU](../../../../glossary.md#term-cpu) [compile](../../../../glossary.md#compile) [regression](../../../../glossary.md#term-regression)**. Implementation frontier:

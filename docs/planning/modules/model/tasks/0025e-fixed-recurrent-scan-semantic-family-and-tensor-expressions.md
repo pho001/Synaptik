@@ -1,5 +1,29 @@
 # Task 0025E: Fixed Recurrent-[Scan](../../../../glossary.md#term-cumulative-scan) Semantic Family and [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (current context, not a status update).**
+
+This record documents Model-only construction through historical Tensor receiver methods; its
+completion and evidence do not describe today’s execution surface. The current [fixed recurrent-scan
+reference](../../../../reference/tensor/fixed-scans.md#fixed-recurrent-scan-expressions) explains
+the replacement caller boundary: callers pass input, runtime-length, state and parameter Tensors to
+static `RecurrentScan.rnn`, `.gru` or `.lstm` methods. A scan carries state across ordered time
+positions; one flat producer describes the whole recurrence, and canonical wrappers identify its
+exact output slots. Construction checks descriptors, not length values, and its storage-free
+expressions neither execute nor own result buffers.
+
+Model semantics defines the transitions, traversal and padding; execution providers realize
+supported routes rather than redefine meaning. Semantic responsibility is not storage ownership. For
+example, a reverse row of length two in three time positions visits position one then zero, leaves
+positive-zero padding at position two, and returns explicit final states. The linked current section
+separately describes Compiler and CPU routes and numerical boundaries; these do not retroactively
+expand this task’s scope or imply fixed-scan backward support.
+
+**Recurrence reading illustration.** For finite real scalar steps $x_t$, carry $h_t$, and emitted
+value $e_t$, define $h_{t+1}=h_t+x_t$ and $e_t=h_{t+1}$ for integer time $t\in\{0,1\}$ with $h_0=0$.
+Steps $x_0=2$, $x_1=3$ yield emissions $(2,5)$ and final carry five. This is only an illustration of
+state crossing time, not the RNN, GRU or LSTM transition equations preserved below, nor an execution
+claim.
+
 ## Status
 
 Complete

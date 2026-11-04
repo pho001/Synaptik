@@ -1,5 +1,15 @@
 # Task 0006: Supported training recipe and owned reusable [run](../../../../glossary.md#term-run)
 
+> **Editorial reading context — proposed convenience, not an implemented TrainingRun.**
+> A recipe would describe objective and input semantics; an owned run would coordinate model
+> transfer, native Arena lifetime and an ordinary TrainingSession. That proposal would hide
+> routine setup, not replace Engine execution or optimizer authority. Optimizer/group history
+> would still come from TrainingState, while the application's excluded cursor/random state
+> would remain outside automatic restoration. Compare today's implemented
+> [owned Model training convenience](../../../../reference/training/sessions.md#owned-model-training-convenience)
+> and [advanced native-copy setup](../../../../reference/training/parameters.md#explicit-native-parameter-copy).
+> Those APIs are related explanations, not evidence that this Draft recipe/run surface exists.
+
 ## Status
 
 Draft — necessary owning capability for [Checkpoint](../../../../glossary.md#term-checkpoint) 0006, not a new [persistence](../../../../glossary.md#term-persistence) implementation.

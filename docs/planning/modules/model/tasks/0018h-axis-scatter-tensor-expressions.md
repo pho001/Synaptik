@@ -1,5 +1,26 @@
 # Task 0018H: [Axis](../../../../glossary.md#term-axis) Scatter [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (current context, not a status update).**
+
+This completed record concerns metadata-only construction, not execution. The caller supplies
+indices, updates and a raw axis to the data Tensor; Tensor delegates to its helper, which validates
+descriptors and records ordered operand references, not copied values. Data is the unchanged base;
+indices select targets; updates supply contributions. A duplicate target receives multiple updates;
+`NONE` requires uniqueness, which metadata cannot establish. The fresh, storage-free result
+describes a data-shaped value without executing or owning a result buffer. Gradient eligibility is
+not backward support.
+
+Historical names and limits are not current contracts: this task distinguishes reduced-rank
+`scatterAdd` from rank-changing `scatterAxisAdd` and requires floating fixed-add inputs. Follow
+[current Scatter
+Add](../../../../reference/tensor/scatter.md#gather-compatible-scatter-add-expressions) for
+Gather-compatible Shapes and integral eligibility: data `[2, 3, 4]`, axis `1`, indices `[5, 6]`
+require updates `[2, 5, 6, 4]`. Follow [Scatter
+Elements](../../../../reference/tensor/scatter.md#scatter-elements-expressions) for current
+reduction and special-value rules, rather than extending historical numerical exclusions. Model
+semantics defines meaning; providers realize supported routes, not redefine it. Semantic
+responsibility does not imply storage ownership.
+
 ## Status
 
 Complete

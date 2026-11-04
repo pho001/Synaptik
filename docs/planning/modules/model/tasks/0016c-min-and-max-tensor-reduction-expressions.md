@@ -1,5 +1,12 @@
 # Task 0016C: Min and Max [Tensor](../../../../glossary.md#tensor) Reduction Expressions
 
+**Editorial reading key (later context, not a status update).**
+
+The zero-argument or axis min/max overload reduces a domain to one extreme value per remaining coordinate. It differs from pairwise min/max, which compares corresponding positions of two Tensors. The application supplies the receiver and optional axis/retention choice; the helper derives a descriptor and one-input provenance, not the selected numeric winner or a storage copy. Equal extreme values need not imply the same derivative allocation, so the forward-value and backward-tie questions remain distinct as recorded here.
+
+Focused current reading: [Current aggregate extrema reference](../../../../reference/tensor/reductions.md#numeric-aggregate-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

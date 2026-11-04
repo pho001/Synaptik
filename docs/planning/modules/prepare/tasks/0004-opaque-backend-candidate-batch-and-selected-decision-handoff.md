@@ -1,5 +1,23 @@
 # Task 0004: [Opaque](../../../../glossary.md#term-opaque) [Backend](../../../../glossary.md#backend) Candidate-[Batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) and Selected-Decision [Handoff](../../../../glossary.md#term-handoff)
 
+> **Editorial historical reading key.**
+>
+> The participants here are CPU cold analysis, a caller retaining the concrete CPU batch/decision
+> types, and Prepare's opaque transport record. `BackendPartitionTuningHandoff` associates exact
+> references with one partition; it neither enumerates candidates nor authenticates a winner. CPU owns
+> candidate completeness, compatibility, and applying or rejecting a selected decision against a fresh
+> batch. Prepare owns only the typed association. Transport acquires no physical resource, so it
+> creates no cleanup obligation or transfer of caller-memory ownership.
+>
+> Treat the statements that operational tuning remains downstream as historical milestone limits. The
+> [current tuned
+> lifecycle](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+> describes Engine-coordinated trials, correctness checks, selection, and result-before-preparation
+> cleanup. The [current integration
+> contract](../../../../reference/engine/composition.md#current-explicit-cpu-and-metal-composition)
+> distinguishes backend-owned opaque tuning collaborations from Engine orchestration. Neither current
+> workflow turns these method-free markers into a shared candidate schema.
+
 ## Status
 
 Complete

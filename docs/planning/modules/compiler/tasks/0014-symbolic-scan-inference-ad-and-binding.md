@@ -1,5 +1,16 @@
 # Task Compiler0014: [Symbolic Scan](../../../../glossary.md#symbolic-scan) [inference](../../../../glossary.md#term-inference), first-order [AD](../../../../glossary.md#autograd) and scoped [binding](../../../../glossary.md#term-binding)
 
+> **Editorial reading key — not part of the historical record.**
+>
+> The named batch dimension is a metadata variable, not a sampled batch of stored values. Compiler
+> verifies each body scope and constructs actual derivative expressions; BatchBindingPlan later
+> checks fresh concrete descriptors and all local obligations for each binding. Equal numeric
+> local IDs in two reused bodies do not identify the same value. This metadata binding owns
+> neither buffers nor backend executables and cannot substitute a successful symbolic proof for
+> physical execution qualification.
+>
+> Current reading: [scoped Scan capture, roles and first-order differentiation](../../../../reference/compiler/verification-scan.md#current-scoped-scan-capture-and-first-order-ad); [descriptor verification and deferred constraints](../../../../reference/compiler/verification-scan.md#current-package-private-verification-inference).
+
 ## Status
 
 Complete — independently reviewed and MAIN accepted 2026-10-25 after the named compatibility [checkpoint](../../../../glossary.md#term-checkpoint).

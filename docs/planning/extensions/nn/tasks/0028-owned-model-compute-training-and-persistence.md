@@ -1,5 +1,15 @@
 # Task NN0028: [Owned Model](../../../../glossary.md#model-module-buffer-and-scan-distinctions) compute training and [persistence](../../../../glossary.md#term-persistence)
 
+> **Editorial reading context — not a status update.** An application-built owned Model
+> acquires supplied parameter values into private state rather than continuing to borrow the
+> application's weight storage. Graph load adopts its already-private loaded leaves. This is
+> different from generic Module reference retention or a shallow state dictionary.
+> Model coordinates calls to Engine and TrainingSession; those components retain execution
+> and optimizer authority. A borrowed Engine is not closed by Model, whereas lazily opened
+> model-owned resources are. Today's [owned capability](../../../../reference/nn/owned-model.md#owned-tensor-model-capability)
+> and [Checkpoint's NN consumer](../../../../reference/checkpoint/graph.md#owned-nn-model-consumer)
+> explain acquisition, reuse and cleanup without implying that every Tensor or generic Model has the same ownership behavior.
+
 ## Status
 
 Complete — coordinator accepted 2026-10-19 after definitive independent approval and source-matched native-enabled root gate.

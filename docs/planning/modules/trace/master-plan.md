@@ -1,5 +1,19 @@
 # [Trace](../../../glossary.md#trace) Master Plan
 
+## Editorial reading key: recording a fact does not own the work
+
+Trace supplies data-transfer objects: records that carry diagnostic facts between the component
+observing work and the component displaying or collecting those facts. The observing component
+(for example, a backend integration) constructs the event and supplies its identifiers and clock
+reading. Trace does not execute the work, own its memory or close its resources.
+
+“Dependency leaf” here means Trace imports no other Synaptik module; it is unrelated to a Tensor
+leaf, which has no producing expression. The plan's integration owner is the person coordinating
+edits, not a resource-lifetime owner. Read [tracing participants and correlation](../../../architecture/tracing.md#mental-model)
+for that separation and [diagnostic observation points](../../../developer-guide/debugging-trace.md#where-to-observe)
+for the public opt-in path. Historical task statuses and receipts below are unchanged.
+
+
 ## Goal
 
 Define typed, serializable diagnostic DTOs shared by [compile](../../../glossary.md#compile), [prepare](../../../glossary.md#prepare), [run](../../../glossary.md#term-run), and [backend](../../../glossary.md#backend) [trace](../../../glossary.md#trace) [producers](../../../glossary.md#term-producer).

@@ -1,5 +1,20 @@
 # Tuning 0005 — Bound [model](../../../../glossary.md#term-model)-plan [cache](../../../../glossary.md#term-cache) encoding before allocation
 
+## Editorial reading key: a file limit must protect allocation too
+
+The tuning cache publisher calls the internal encoder with selected-plan records. Each record can
+obey its own field limits while their combined encoded bytes exceed the whole-file limit.
+Preflight therefore counts every record, length prefix, fixed field and checksum before allocating
+the complete output. This protects temporary encoder memory as well as the destination file.
+The publisher, not Runtime, owns the temporary-file and replacement transaction.
+
+This repair is resource safety, not a new candidate-selection rule or permission to serialize
+prepared executables. Read [persistent cache bounds](../../../../architecture/performance-evidence-and-tuning.md#persistent-caches-and-compatibility)
+for the aggregate limit and [read-only inspection](../../../../developer-guide/benchmarking.md#inspecting-current-tuning-artifacts-and-evidence)
+for the separate consumer of accepted bytes. Original finding, revisions and test receipts remain
+unchanged below.
+
+
 ## Status
 
 Complete

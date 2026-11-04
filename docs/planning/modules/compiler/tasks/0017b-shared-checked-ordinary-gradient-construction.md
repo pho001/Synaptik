@@ -1,5 +1,16 @@
 # Task 0017B: Shared checked ordinary [gradient](../../../../glossary.md#term-gradient) construction
 
+> **Editorial reading key — not part of the historical record.**
+>
+> One ordinary derivative body is used in two ways: real construction returns Tensor expressions;
+> metadata construction proves those same operation requests without creating Tensor identities or
+> storage. Model guards own construction meaning, Compiler independently checks descriptors, and
+> the adapter only connects those existing boundaries. Lazy primal binding and canonical saved
+> siblings remain distinct from source-role metadata. This parity prerequisite is not itself
+> finite-demand proof, runtime execution or an extension of cold reconstruction.
+>
+> Current reading: [scoped Scan capture, roles and first-order differentiation](../../../../reference/compiler/verification-scan.md#current-scoped-scan-capture-and-first-order-ad); [pre-capture differentiation and functional requests](../../../../reference/compiler/autograd.md#current-package-private-pre-capture-autograd).
+
 ## Status
 
 Complete — MAIN integrated seventeen exact source/test paths after independent primitive,

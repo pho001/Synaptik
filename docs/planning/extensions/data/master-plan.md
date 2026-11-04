@@ -1,5 +1,15 @@
 # Data Extension Master Plan
 
+> **Editorial reading context — not a status update.** Data prepares numerical inputs; it
+> does not call a model on the application's behalf. Wrapping an existing Tensor borrows
+> its reference; host counts are copied when immutable length metadata is created. Batching
+> long arrays instead allocates and fills new values. Logical time/batch order is a declaration,
+> not a transpose. Padding counts describe valid positions without installing a global mask
+> on later NN operations.
+> The current [Data mental model](../../../reference/data/sequences.md#purpose-and-mental-model)
+> and [explicit count export](../../../reference/data/sequences.md#explicit-runtime-scan-lengths)
+> explain how the application passes ordinary values and lengths onward, without adding a Data-owned resource lifetime.
+
 ## Goal
 
 [Prepare](../../../glossary.md#prepare) numeric [host](../../../glossary.md#term-host) sequences outside [NN](../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) computation. The delivered [slice](../../../glossary.md#slice) pads caller

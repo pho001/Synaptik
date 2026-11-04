@@ -1,5 +1,12 @@
 # Task 0016E: Arg-Max [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (later context, not a status update).**
+
+Arg-max describes the coordinate of a largest candidate along one axis, not its numeric value and not an offset into physical storage. The application supplies the axis and possibly a tie policy; the helper normalizes metadata and describes an INT64 result without comparing any values. Keeping the selected axis retains extent one for shape alignment, not a list of tied winners. The current arg-extrema reference includes later names and empty/special-value policy; those do not replace this record's explicitly deferred choices.
+
+Focused current reading: [Current arg-min/arg-max reference](../../../../reference/tensor/masked-index-reductions.md#arg-extrema-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

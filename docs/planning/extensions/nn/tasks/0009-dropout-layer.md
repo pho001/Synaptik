@@ -1,5 +1,14 @@
 # Task 0009: [Dropout](../../../../glossary.md#dropout--inverted-dropout) Layer
 
+> **Editorial reading context — not a status update.** The application explicitly threads
+> graph random-number state into Dropout.forward and keeps the returned next state for a later
+> construction. The layer owns neither a generator nor a hidden advancing counter. A supplied
+> ForwardContext chooses training construction or evaluation's exact-reference bypass.
+> Training's result describes output and next-state positions of one producer; no draw happens
+> merely because forward returns. Today's [explicit-state dropout](../../../../reference/tensor/graph-randomness.md#explicit-state-dropout-construction)
+> explains those positions and [state advancement](../../../../reference/tensor/graph-randomness.md#state-advancement-branching-and-edge-cases)
+> explains branching versus threading, without extending this historical layer's execution evidence.
+
 ## Status
 
 Complete

@@ -1,5 +1,14 @@
 # Task Data0001: Data extension boundary and build foundation
 
+> **Editorial reading context — not a status update.** This foundation exposes Model types
+> to Data consumers through a Gradle API dependency; it implements no batcher. Dependency
+> visibility means an application can name Tensor in public signatures, not that Data owns
+> Tensor semantics, Engine execution or storage cleanup. Host sequence preparation and NN
+> expression construction remain separate calls made by the application.
+> Today's [Data purpose and boundary](../../../../reference/data/sequences.md#purpose-and-mental-model)
+> illustrates the later consumer, while [metadata borrowing](../../../../reference/data/sequences.md#validation-failures-and-borrowing)
+> explains why a batch wrapper is not a new Tensor lifetime owner.
+
 ## Status
 
 Complete — accepted 2026-10-20 after Franklin's [binding](../../../../glossary.md#term-binding) final APPROVE (zero findings) and

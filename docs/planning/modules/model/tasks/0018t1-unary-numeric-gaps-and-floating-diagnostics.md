@@ -1,5 +1,25 @@
 # Task 0018T1: [Unary](../../../../glossary.md#term-unary) Numeric Gaps and Floating Diagnostics
 
+**Editorial reading key (current context, not a status update).**
+
+This completed record concerns metadata construction, not execution. A caller invoking
+`input.log1p()` or `input.isNaN()` passes the receiver Tensor to the corresponding construction
+helper: descriptors and input references cross that boundary, not evaluated elements. Unary means
+one input; elementwise means positions are treated independently. A descriptor specifies type,
+shape, layout and gradient eligibility; provenance identifies the producing occurrence and output.
+Transforms preserve floating type and eligibility; classifications describe BOOL results with
+eligibility false, not Java booleans or trace diagnostics. These storage-free expressions neither
+execute nor own result buffers; Model’s semantic responsibility is not storage ownership.
+
+For example, `isNaN()` describes true at NaN positions without inspecting them; `rsqrt()` maps
+negative zero to negative infinity when evaluated. Execution providers realize supported routes, not
+redefine meaning. Follow the [current unary
+contract](../../../../reference/tensor/elementwise.md#unary-numeric-transforms-and-floating-classifications)
+for today’s vocabulary and numerical boundaries: this task’s three-type inventory and
+future-conformance language are historical scope. The [metadata
+example](../../../../reference/tensor/elementwise.md#complete-transform-and-classification-example)
+illustrates descriptions rather than calculated values.
+
 ## Status
 
 Complete

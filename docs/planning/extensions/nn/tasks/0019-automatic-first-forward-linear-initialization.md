@@ -1,5 +1,14 @@
 # Task 0019: Automatic First-Forward [Linear](../../../../glossary.md#term-linear-meanings) Initialization
 
+> **Editorial reading context — not a status update.** The first compatible input descriptor
+> tells this Linear its input width; its contents are not sampled to infer architecture.
+> The layer creates stored weights and optional bias, publishes the complete local group,
+> then constructs the ordinary projection expression. A later layer's failure does not undo
+> that initialized prefix. Synchronizing first publication is not synchronizing the whole Model.
+> Today's [automatic initialization contract](../../../../reference/nn/composition.md#current-nn-automatic-parameter-initialization-contract)
+> explains that two-phase boundary and the successor policy name; [linear composition](../../../../reference/tensor/matmul-linear.md#linear-projection-convenience)
+> explains the returned expression. Historical identifiers below remain unchanged.
+
 ## Status
 
 Complete

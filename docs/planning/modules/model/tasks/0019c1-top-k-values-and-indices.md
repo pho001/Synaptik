@@ -1,5 +1,22 @@
 # Task 0019C1: Top-K Values and Indices
 
+**Editorial reading key (current context, not a status update).**
+
+This completed record concerns model construction, not execution; its six-type inventory and
+deferred-execution language belong to that historical scope. The current [Top-K
+reference](../../../../reference/tensor/sort-topk.md#top-k-values-and-indices) supplies expanded
+type descriptions and bounded Metal execution context without changing this task’s meaning. A caller
+invokes `input.topK`; the construction helper passes an operation, the input Tensor reference, and
+two output descriptors to the factory. These describe a request, not computed values. The returned
+storage-free wrappers share producer provenance—an occurrence description—with values at slot zero
+and INT64 indices at slot one; they neither execute nor own result buffers.
+
+“Logical index” means an axis coordinate, not a memory offset. For the recorded row, largest-three
+selection chooses indices `[0, 4, 3]`; “unsorted” returns those same pairs in index order `[0, 3,
+4]`, not arbitrary order. NaNs remain last in either direction, and signed zeros remain distinct.
+Model semantics fixes these rules; execution providers realize supported routes rather than redefine
+them. Semantic responsibility does not imply storage ownership.
+
 ## Status
 
 Complete

@@ -1,5 +1,14 @@
 # Task 0003: Validated [Parameter](../../../../glossary.md#term-parameter) and [Buffer](../../../../glossary.md#term-buffer) [Binding](../../../../glossary.md#term-binding) Replacement
 
+> **Editorial reading context — not a status update.** The declaring module calls replacement
+> to change which Tensor its stable wrapper returns. It does not edit a previously returned
+> Tensor, detach its values or rewrite expressions already built from it. Thus a later forward
+> can use new state while an earlier expression still refers to old state. The historical
+> non-null-only policy below predates the later permanent parameter schema; it is not today's
+> replacement contract. Compare the current [parameter replacement rules](../../../../reference/nn/state.md#current-nn-parameter-update-contract)
+> and [strict whole-tree load](../../../../reference/nn/state.md#current-nn-state-dictionary-contract).
+> Neither operation alone is an optimizer step or a general storage-ownership transfer.
+
 ## Status
 
 Complete

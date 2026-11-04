@@ -1,5 +1,31 @@
 # Task 0030: Total Recursive [ACCELERATOR](../../../../glossary.md#term-accelerator) Numerical Floor
 
+**Editorial reading key (current context, not a status update).**
+
+This completed task records a documentation-only change to numerical meaning, not expanded backend
+capability; its Metal blockers and evidence remain historical. In current terminology, a caller
+supplies Tensor inputs and an operation description: kind identifies the calculation, attributes fix
+semantic parameters, and a producer identifies its occurrence. Descriptions specify work; operand
+values are what that work consumes. Model defines meaning; execution providers realize supported
+routes within it, without acquiring semantic authority or implying ownership of operand storage. The
+graph-selectable profiles in this record are historical. Follow [current data-type and arithmetic
+boundaries](../../../../reference/tensor/data-types.md#data-types) for working-format and
+exact-movement distinctions, rather than treating the historical accelerator floor as a current
+graph option.
+
+Here, “recursive” means applying the selected graph profile at each formula site, including
+generated-gradient operations. The aggregate floor retains every declared contributor once: a
+two-value mean still includes both values and divides by two. Exact guards, selections, and state
+transitions are not approximation budgets. The elementary ceiling counts ordered binary32
+representation steps, not five ULP or final-output tolerance; NaN, infinity, domain, and sign
+requirements remain separate constraints.
+
+**Aggregate reading illustration.** For finite real inputs $x_1=2$ and $x_2=4$, define mean
+$m=(x_1+x_2)/2=3$. Both declared terms and the mandatory divisor remain present even when a
+permitted implementation chooses a rounded addition tree. An elementary-function error bound
+controls a particular arithmetic site; it does not grant the same bound to this entire composite or
+permit omitting a term. This is a real-number interpretation, not a rounded execution oracle.
+
 ## Status
 
 Complete

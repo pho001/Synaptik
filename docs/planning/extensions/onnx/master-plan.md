@@ -1,5 +1,13 @@
 # [ONNX](../../../glossary.md#term-onnx) Master Plan
 
+> **Editorial reading context — Draft direction, not an importer.** ONNX (Open Neural Network
+> Exchange) describes models in an external interchange format. Import/export would map that
+> description to/from Synaptik's semantic model; it would not itself prepare a backend or run
+> stored values. A graph description needs operation occurrences, ordered value identities and
+> descriptors, not just a bag of weights. The current [graph-value/node explanation](../../../reference/tensor/compiled-graph.md#graph-values-and-compiled-nodes)
+> provides that internal vocabulary, while [cold persistence](../../../reference/checkpoint/graph.md#purpose-and-mental-model)
+> illustrates description/value separation. Neither page supplies the unplanned ONNX mapping or changes the Draft status below.
+
 ## Goal
 
 Provide isolated [ONNX](../../../glossary.md#term-onnx) import, export, and mapping to and from the Synaptik [model](../../../glossary.md#term-model).

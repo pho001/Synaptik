@@ -1,5 +1,16 @@
 # Task 0005C: [Layout](../../../../glossary.md#layout), Window, Indexing, Scatter, Ordering, and Stochastic [Gradient](../../../../glossary.md#term-gradient) Completion
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Index, mask and saved-output roles are data dependencies even when they are not differentiation
+> targets. Compiler routes cotangents using the exact original ordering, top-K indices or dropout
+> mask associated with an occurrence; it cannot substitute an equal-looking producer. Preflight
+> checks formula constructibility from descriptions, not actual index bounds or scatter duplicates
+> in stored values. Constructing the inverse expression neither allocates a runtime tape nor
+> grants backend support.
+>
+> Current reading: [pre-capture differentiation and functional requests](../../../../reference/compiler/autograd.md#current-package-private-pre-capture-autograd); [structural capture and exact leaf identities](../../../../reference/compiler/capture.md#current-package-private-structural-capture).
+
 ## Status
 
 Complete

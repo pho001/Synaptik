@@ -1,5 +1,12 @@
 # Task 0015F: Where Selection [Tensor](../../../../glossary.md#tensor) Expression
 
+**Editorial reading key (later context, not a status update).**
+
+WHERE makes a per-position true/false choice, unlike scalar-index select, which fixes a coordinate. The application passes condition, true branch and false branch explicitly to the static method. It records all three in that order, combines their shapes, and derives the result type from the floating branches. No condition byte is read and neither branch is chosen at construction. The application calls the public Tensor method; its model helper validates available descriptions and returns a fresh storage-free expression with exact input references. It neither copies input values nor calculates the result. Compiler consumes this provenance later; actual storage and execution are separate downstream concerns.
+
+Focused current reading: [Current conditional-selection reference](../../../../reference/tensor/selection-casts.md#conditional-selection-expression). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

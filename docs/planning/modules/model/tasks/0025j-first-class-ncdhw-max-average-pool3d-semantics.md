@@ -1,5 +1,24 @@
 # Task 0025J: First-class [NCDHW](../../../../glossary.md#conv3d--ncdhw) max/average [Pool3d](../../../../glossary.md#pool3d--ncdhw-pooling) semantics
 
+**Editorial reading key (current context, not a status update).**
+
+Here, NCDHW means batch, channel, depth, height, width; “first-class” means one Pool3d operation
+occurrence, not depth-dependent Pool2d composition. The caller supplies a Tensor receiver and
+immutable window attributes; Tensor delegates to the matching family-specific construction helper.
+Descriptors and exact input/attribute references enter provenance, not sampled numerical values. The
+canonical output is the producer’s output-zero Tensor: a storage-free expression that neither
+executes nor owns a result buffer. Model defines meaning; execution providers realize supported
+routes rather than redefine it. Semantic responsibility is not storage ownership.
+
+“Complete” records this task’s historical Model-only scope, including its three accepted floating
+types and then-Draft downstream work. For present type coverage and qualified Compiler/CPU/Metal
+routes, follow the [current Pool3d
+contract](../../../../reference/tensor/pooling.md#ncdhw-pool3d-expressions), not those historical
+status statements. Literal ceil retains terminal all-padding windows: maximum means negative
+infinity there, average positive zero. Maximum excludes padding and resolves ties in
+depth-height-width order; average counts padding in its fixed kernel-position divisor. Neither
+construction nor passive `requiresGrad` metadata evaluates these values or constructs gradients.
+
 ## Status
 
 Complete

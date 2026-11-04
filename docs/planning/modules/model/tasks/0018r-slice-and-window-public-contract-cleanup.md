@@ -1,5 +1,23 @@
 # Task 0018R: [Slice](../../../../glossary.md#slice) and Window Public-Contract Cleanup
 
+**Editorial reading key (current context, not a status update).**
+
+This record documents the historical signed-slice cleanup and removal of public `foldAxis`, not
+today’s API inventory. A caller supplies raw bounds to Tensor’s slice helper; it normalizes them
+into `SliceAttrs` descriptions of finite coordinate sequences, not Tensor values. For extent five,
+start four, end minus six, and step minus one select coordinates four through zero; raw minus one is
+not an end sentinel. Follow [slice
+expressions](../../../../reference/tensor/slicing.md#slice-expressions) for normalization and the
+newer length-defined extraction that can defer dynamic upper bounds.
+
+A producer records the operation and input Tensor; its storage-free result neither executes nor owns
+a result buffer. Logical view metadata promises no physical alias, and unresolved negative-step
+layout mandates no copy. Model defines meaning; execution providers realize supported routes without
+redefining it. Semantic responsibility is not storage ownership. Follow [window-transform
+expressions](../../../../reference/tensor/windows.md#window-transform-expressions) for today’s
+restored public `foldAxis`, symbolic image windows, and 3D forms: fold adds overlaps rather than
+generally undoing unfold. These current descriptions do not extend this task’s historical scope.
+
 ## Status
 
 Complete

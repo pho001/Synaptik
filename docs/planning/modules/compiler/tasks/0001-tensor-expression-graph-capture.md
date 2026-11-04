@@ -1,5 +1,16 @@
 # Task 0001: [Tensor](../../../../glossary.md#tensor) Expression [Graph Capture](../../../../glossary.md#capture-graph-ports-and-reconstruction)
 
+> **Editorial reading key — not part of the historical record.**
+>
+> The internal caller gives GraphCapture ordered Tensor roots. Capture follows
+> producing-expression links, assigns graph-local value and node identifiers, and records every
+> output position of each encountered producer. A leaf has no producing expression; it may be
+> storage-free and is not automatically a constant. Distinct equal-looking leaves remain distinct
+> inputs. Immutable graph collection snapshots copy membership, not numerical payloads, and the
+> graph does not retain live Tensor or storage references.
+>
+> Current reading: [structural capture and exact leaf identities](../../../../reference/compiler/capture.md#current-package-private-structural-capture).
+
 ## Status
 
 Complete

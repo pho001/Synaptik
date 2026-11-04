@@ -1,5 +1,15 @@
 # Task 0005B: Whole-[model](../../../../glossary.md#term-model) save and automatic [inference](../../../../glossary.md#term-inference) load
 
+> **Editorial reading context — not a status update.** Unlike values-only restore into an
+> application-built target, whole-model load reads a supported layer definition as well as state.
+> NN reconstructs the supported structure; the checkpoint layer validates and installs values
+> into a private candidate before returning it. “Usable” does not mean already prepared for a
+> backend: numerical execution still needs Engine, and optimizer history is absent.
+> An input fingerprint is an identity the application has verified, not proof Checkpoint
+> inspected the external tokenizer or dataset. Compare today's
+> [whole-model workflow](../../../../reference/checkpoint/models.md#whole-model-save-and-automatic-load) and
+> [expected input identity](../../../../reference/checkpoint/models.md#expected-input-identity).
+
 ## Status
 
 Complete — 2026-10-15. Frozen implementation on accepted packet base `7d65f660051becc9bc6adc6f08af155b08096b59`,

@@ -1,5 +1,16 @@
 # Task 0019: Static materializing RESHAPE logical [layout](../../../../glossary.md#layout) closure
 
+> **Editorial reading key — not part of the historical record.**
+>
+> RESHAPE first tries to preserve an exact view. Where validated static cardinality instead
+> requires a materialized logical result, Compiler closes its result geometry without allocating
+> or copying values. That distinction is what the before/after descriptor probe establishes.
+> Backends still decide whether and how to execute the actual movement; a canonical non-view
+> descriptor is not evidence that bytes moved, aliases are safe or a Metal provider accepts the
+> occurrence.
+>
+> Current reading: [exact graph transformations and final logical layouts](../../../../reference/compiler/optimization.md#current-package-private-canonicalization-and-whole-graph-optimization); [capability queries and hard-eligible owner selection](../../../../reference/compiler/planning.md#current-operation-capability-contracts).
+
 ## Status
 
 Complete — independent final source/[Javadoc](../../../../glossary.md#term-javadoc)/evidence/documentation APPROVE0; exact source is

@@ -1,5 +1,23 @@
 # Task 0003A: [Immutable](../../../../glossary.md#term-immutable) [Partition](../../../../glossary.md#partition)-Local [DAG](../../../../glossary.md#term-directed-acyclic-graph-dag) Analysis Projection
 
+> **Editorial historical reading key.**
+>
+> This interleave moves structural reconstruction into Prepare, not backend policy into a shared graph
+> engine. `GraphPreparation`, while holding the complete compile graph, constructs one `PartitionDag`
+> per planned partition and passes it through `PrepareContext` to backend analysis. Exact node and
+> port occurrences cross that boundary; the complete graph does not. Repeated inputs and multi-output
+> ports remain distinct. External inputs and local sinks establish only local topology, not transfer
+> needs, publication obligations, fusion legality, or ownership of physical memory.
+>
+> The [current Prepare
+> projection](../../../../reference/runtime/prepare.md#prepare-declarations-assignment-and-finalization)
+> retains this topology-versus-policy separation and documents later context metadata. The DAG
+> acquires no closeable resources; cleanup remains with explicit prepared/run owners, not its
+> occurrence lists. The [current prepared
+> owner](../../../../reference/runtime/prepared-execution.md#current-prepared-execution) defines that
+> lifecycle. The archived five-component context and source-compatible constructor do not promise
+> binary or record-reflection compatibility.
+
 ## Status
 
 Complete

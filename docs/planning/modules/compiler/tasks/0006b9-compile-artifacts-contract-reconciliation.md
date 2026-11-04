@@ -1,5 +1,16 @@
 # Task 0006B9: [Compile](../../../../glossary.md#compile)-[artifacts](../../../../glossary.md#term-artifact) contract reconciliation
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Eight artifact components describe one compile-time recipe: graph meaning, backend ownership,
+> logical memory, publication/input roles, diagnostics and derivative metadata. They are not eight
+> resource owners. Compiler produces and validates that recipe; later preparation interprets it
+> into resources and executable work. This record reconciles a normative description with
+> then-current source, without moving execution into Compiler or renewing the recorded tests.
+> Follow the focused reference for the current component boundary.
+>
+> Current reading: [complete compile artifacts and the integration port](../../../../reference/compiler/artifacts.md#current-complete-artifact-compilation-and-integration-port).
+
 ## Status
 
 Complete

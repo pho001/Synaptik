@@ -1,5 +1,24 @@
 # [Planning](../../../glossary.md#term-planning) Contract Closure Audit
 
+> **Editorial historical reading key.**
+>
+> The CLOSED verdict applies to the selected historical Planning milestone: five public declarations
+> and four internal operations, before a concrete Compiler consumer existed. Its source inventories,
+> visibility findings, dependency block, deferred-work list, and checkpoint counts describe that
+> boundary, not today’s API inventory. Planning owns semantic capability questions, deterministic
+> ownership rules, partition generation, and logical producer/consumer/output facts; it does not own
+> graph-wide integration or physical realization.
+>
+> The [current planning
+> contracts](../../../reference/compiler/planning.md#current-operation-capability-contracts) document
+> the later public per-occurrence owner-selection collaboration and expanded query. The [current
+> artifact
+> pipeline](../../../reference/compiler/artifacts.md#current-complete-artifact-compilation-and-integration-port)
+> places complete sequencing, publication bindings, and artifact validation in Compiler. Immutable
+> list snapshots preserve element references rather than copying tensor payloads. No physical resource
+> or cleanup duty transfers through these logical recipes; downstream preparation and execution owners
+> supply those lifetimes.
+
 ## Executive conclusion and closure verdict
 
 Verdict: `CLOSED`

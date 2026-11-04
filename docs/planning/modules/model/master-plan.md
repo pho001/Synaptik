@@ -1,5 +1,12 @@
 # [Model](../../../glossary.md#term-model) Master Plan
 
+**Editorial reading key (later context, not a status update).**
+
+Use this map to distinguish responsibility for meaning from responsibility for integration and resources. Model defines Tensor descriptions, operations and immutable graph records. Compiler constructs/transforms graphs; downstream components turn admitted descriptions into executable work and invocation storage. A public Tensor is neither a graph-local ValueId nor its stored payload: its optional host-storage association borrows a wrapper. A leaf simply lacks a producing expression, even when no values have been allocated. The historical task rows and execution gates remain separate from the current reference pages linked here; a Complete Model row alone is not proof of numeric execution.
+
+Focused current reading: [Current public Tensor state](../../../reference/tensor/identity.md#public-tensor-state); [Current graph representation](../../../reference/tensor/compiled-graph.md#graph-values-and-compiled-nodes). The original record below retains its own scope, decisions and evidence.
+
+
 ## Goal and authority
 
 This is the current implementation map for [Model](../../../glossary.md#term-model) [identity](../../../glossary.md#term-identity-meanings), [descriptors](../../../glossary.md#term-descriptor), [provenance](../../../glossary.md#provenance), value types,

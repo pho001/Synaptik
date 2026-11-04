@@ -1,5 +1,24 @@
 # Task 0005: Producerless Published-[Constant](../../../../glossary.md#term-constant) Resource [Handoff](../../../../glossary.md#term-handoff) and Shared Slot Assignment
 
+> **Editorial historical reading key.**
+>
+> Read this completed task as the historical constant-only assignment seam, not today’s full
+> producerless-source API. Compiler supplies the final value and constant classification; Planning
+> supplies the producerless, consumerless output obligation. The composing caller supplies
+> backend-derived byte geometry to shared Prepare, which validates exact artifact references and
+> coverage, appends slots, and exposes assignments to the schedule assembler—not partition finalizers.
+> No payload crosses this contribution boundary, and assignment neither allocates nor initializes
+> storage.
+>
+> The [current preparation
+> handoff](../../../../reference/runtime/orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization)
+> uses `ProducerlessPublishedValueResource`, includes caller sources and ByteSize recipes, and gives
+> the three-argument form a discovery hook. Backend creators perform initialization; Runtime owns run
+> resources and result leases. The [current Engine
+> lifecycle](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+> distinguishes those leases from detached materialization. The archived CPU/Engine Draft statuses
+> remain historical.
+
 ## Status
 
 Complete

@@ -1,5 +1,32 @@
 # Task 0022: [Mean](../../../../glossary.md#term-mean)-Squared-Error [Loss](../../../../glossary.md#loss)
 
+**Editorial reading key (current context, not a status update).**
+
+This completed record concerns the original exact-shape MSE expression, not today’s full loss or
+execution surface. The caller supplies prediction as the Tensor receiver, target as the second
+ordered input, and an explicit `LossReduction`; the construction helper records one producer and a
+storage-free result description, without reading operand values or allocating a result buffer. MSE
+means squared coordinatewise disagreement: prediction one against target three contributes four.
+`NONE` preserves coordinates; `SUM` totals contributions; `MEAN` divides by every logical element,
+not merely batch size. Empty `SUM` is positive zero; empty `MEAN` is NaN. Deferred Dimension
+equality is an obligation, not broadcasting.
+
+For present-day distinctions, follow the [current MSE
+contract](../../../../reference/tensor/statistics-losses.md#mean-squared-error-loss-expressions): it
+describes expanded floating types and qualified compiler/backend routes separately from expression
+construction. Model semantics defines meaning; providers realize supported routes rather than
+redefine it, and semantic responsibility does not imply buffer ownership. In particular, the
+historical equal-or-wider/reassociation allowance must not be read as today’s blanket permission:
+current arithmetic floors constrain arithmetic sites and observable boundaries. Preserve the
+recorded NaN, infinity, signed-zero, and empty-domain distinctions rather than inferring algebraic
+interchangeability.
+
+**Mathematical reading illustration.** For finite real prediction and target vectors
+$p,t\in\mathbb{R}^{n}$ with integer $n>0$, mean squared error is
+$L=\frac1n\sum_{i=1}^{n}(p_i-t_i)^2$. With $n=2$, $p=(1,3)$ and $t=(3,3)$, contributions are four
+and zero, so $L=2$. The denominator counts both coordinates. This real-number identity does not
+define the empty case or permit changing rounded arithmetic.
+
 ## Status
 
 Complete

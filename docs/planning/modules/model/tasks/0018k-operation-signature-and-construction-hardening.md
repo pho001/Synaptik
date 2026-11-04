@@ -1,5 +1,25 @@
 # Task 0018K: [Operation Signature](../../../../glossary.md#operation-signature) and Construction Hardening
 
+**Editorial reading key (current context, not a status update).**
+
+This task records historical construction hardening, not today’s operation inventory or provenance
+scope. An `Operation` pairs a kind (calculation meaning) with attributes (fixed parameters); its
+constructor calls the kind’s exact-class signature resolver. A signature permits input/output
+position counts, not tensor axes or elements: binary addition takes two inputs even when each has a
+million elements. Fixed means equal bounds, bounded means differing bounds, and effectively variadic
+uses the inclusive `Integer.MAX_VALUE` ceiling. `CompiledNode` checks final list sizes after
+structural checks, not operand compatibility or executability. Follow the [signature
+foundation](../../../../reference/tensor/operation-foundation.md#operation-semantic-foundation) for
+current variants.
+
+The historical multi-output deferral does not describe current [producer
+identity](../../../../reference/tensor/identity.md#expression-producers-and-indexed-provenance):
+follow it for shared occurrences and indexed results. Callers supply operation descriptions and
+Tensor references, not computed result values. Storage-free expressions neither execute nor own
+result buffers. Model semantics defines meaning; execution providers realize supported routes
+without redefining it. Semantic responsibility is not storage ownership, and shared producer
+identity does not imply shared storage.
+
 ## Status
 
 Complete

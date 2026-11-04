@@ -1,5 +1,25 @@
 # Task 0008A: Representative Complete-Plan Correctness [Oracle](../../../../glossary.md#term-test-oracle)
 
+> **Editorial historical reading key.**
+>
+> This historical task introduces Engine's private correctness primitive, not the later public Phase-2
+> transaction. The representative session receives a fresh prepared recipe, uses already-bound
+> borrowed inputs, calls Runtime's runner, and copies every ordered publication through the backend's
+> canonical-copy seam while the result lease is open. Compiler publication specifications authorize
+> meanings and order; backend code supplies physical encoding; Engine owns comparison semantics,
+> detached reference bytes, and cleanup coordination. Only an opaque reference and MATCH/MISMATCH
+> cross toward generic tuning, never Tensor descriptors or payloads. Exact bytes distinguish signed
+> zero and NaN payloads. Consult [current tuning
+> composition](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+> and [publication
+> leases](../../../../reference/runtime/publication.md#current-prepared-publication-and-result-lease)
+> for today's integration and ownership boundaries.
+>
+> **Arithmetic reading example.** For integer candidate count $N\ge1$, warmup count $W\ge0$, and
+> positive odd timed-sample count $S$, the execution count is $N(1+W+S)$. With $N=2$, $W=1$ and $S=3$,
+> this is $2(1+1+3)=10$ executions: two correctness, two warmup and six timed. This illustrates the
+> budget, not a recorded measurement.
+
 ## Status
 
 Complete

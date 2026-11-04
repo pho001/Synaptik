@@ -1,5 +1,16 @@
 # Task 0005: [Publication](../../../../glossary.md#term-publication), [Planning](../../../../glossary.md#term-planning) Orchestration, and [Compile Artifacts](../../../../glossary.md#compile-artifacts)
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Compiler is the caller coordinating Planning here: it submits each final operation and ordered
+> operand/result descriptors, collects backend identities, then derives partitions and logical
+> memory. Planning owns eligibility and owner-selection semantics; Compiler owns graph-wide
+> sequencing and the artifact boundary. Publication bindings describe which logical results were
+> requested, not delivery or copies. The immutable result retains no provider or physical buffer;
+> later lifecycle owners prepare and execute it.
+>
+> Current reading: [complete compile artifacts and the integration port](../../../../reference/compiler/artifacts.md#current-complete-artifact-compilation-and-integration-port); [capability queries and hard-eligible owner selection](../../../../reference/compiler/planning.md#current-operation-capability-contracts).
+
 ## Status
 
 Complete

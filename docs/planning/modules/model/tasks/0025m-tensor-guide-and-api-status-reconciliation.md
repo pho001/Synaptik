@@ -1,5 +1,24 @@
 # Task 0025M: [Tensor](../../../../glossary.md#tensor) guide and [API](../../../../glossary.md#term-application-programming-interface-api) status reconciliation
 
+**Editorial reading key (current context, not a status update).**
+
+This completed record concerns a narrow documentation reconciliation, not an expansion of execution
+support. In current terminology, the caller supplies a descriptor (type, shape and layout) and an
+array to TensorFactory’s flat import; values are copied into independent host storage. By contrast,
+creation with existing storage retains a borrowed association, not a copy. A leaf has no producing
+expression, whether or not it has storage. The [creation
+contracts](../../../../reference/tensor/creation.md) explain these distinct description, allocation
+and value-import boundaries.
+
+For the recorded unary workflow, negation constructs a storage-free result description: its producer
+records the operation and exact input, while provenance selects output slot zero. It neither
+evaluates negation nor owns a result buffer. Follow [expression producers and indexed
+provenance](../../../../reference/tensor/identity.md#expression-producers-and-indexed-provenance) to
+interpret those identities. Model defines operation meaning; Engine composes compile/prepare/run and
+result access through supported execution routes, not new semantics. Semantic responsibility does
+not transfer ownership of borrowed storage; synchronized association access does not guarantee
+raw-memory lifetime or thread safety.
+
 ## Status
 
 Complete

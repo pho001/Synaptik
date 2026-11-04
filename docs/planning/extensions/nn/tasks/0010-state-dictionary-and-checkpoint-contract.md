@@ -1,5 +1,14 @@
 # Task 0010: State Dictionary and [Checkpoint](../../../../glossary.md#term-checkpoint) Contract
 
+> **Editorial reading context — not a status update.** The application asks Module to export
+> exact current Tensor references under complete state paths. The dictionary copies its list,
+> not the Tensor values or their backing storage. Loading first validates every target path
+> and schema, then installs exact references; it does not calculate numbers or create a file.
+> “Atomic” here concerns validation-before-install under application coordination, not a
+> simultaneous view for racing readers. Compare today's [state-dictionary contract](../../../../reference/nn/state.md#current-nn-state-dictionary-contract)
+> with [values-only checkpoint capture](../../../../reference/checkpoint/values.md#values-only-recovery):
+> the latter separately materializes values and validates a persistent schema.
+
 ## Status
 
 Complete

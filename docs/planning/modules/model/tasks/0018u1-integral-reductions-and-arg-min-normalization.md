@@ -1,5 +1,24 @@
 # Task 0018U1: Integral Reductions and Arg-Min [Normalization](../../../../glossary.md#term-normalization)
 
+**Editorial reading key (current context, not a status update).**
+
+This completed task records a historical model-only scope: integral ordinary reductions and the
+alias-free migration to shared arg-extrema types, not execution support. The caller invokes a Tensor
+method; its construction helper records normalized axes, attributes (operation parameters), result
+descriptors and provenance (the producing operation and exact input references). These descriptions
+cross the construction boundary, not reduced values. Storage-free results neither execute nor own
+result buffers; Model’s semantic responsibility is not storage ownership. Execution providers
+realize supported routes rather than redefine meaning.
+
+For interpretation, reducing axis one of shape `[2, 3]` with retention records shape `[2, 1]`, not
+computed row totals. Integral sum/product retain exact-width modular meaning; signed extrema use
+bounded empty identities. Arg-extrema return INT64 logical coordinates, not values or storage
+offsets; NaNs win, and negative zero precedes positive zero. Follow [numeric
+aggregates](../../../../reference/tensor/reductions.md#numeric-aggregate-expressions) for current
+numerical rules beyond this task’s historical scope, and
+[arg-extrema](../../../../reference/tensor/masked-index-reductions.md#arg-extrema-expressions) for
+ties, positive-selected-axis obligations and separately described provider limits.
+
 ## Status
 
 Complete

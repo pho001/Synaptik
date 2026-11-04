@@ -1,5 +1,22 @@
 # Task 0014: [Runtime](../../../../glossary.md#term-runtime) Architecture Enforcement
 
+> **Editorial historical reading key.**
+>
+> Read this as a historical enforcement checkpoint: the architecture-test suite consumes repository
+> build declarations and Java source text through JDK file APIs, not live Runtime objects or backend
+> values. Its exact dependency list and exhaustive hot/non-hot manifest are review locks; they do not
+> become semantic architecture authority or a permanent inventory of today's sources. The synthetic
+> negative cases exercise the checker without transferring resources or executing a model.
+>
+> The current [prepared
+> runner](../../../../reference/runtime/orchestration.md#current-prepared-runner) explains the
+> protected execution boundary: Runtime traverses already-prepared work using bound references rather
+> than inspecting Model graph operations. Current [cold invocation
+> binding](../../../../reference/runtime/executables.md#current-prepared-executable-and-bound-invocation)
+> assigns compatibility checks and typed invocation construction to backend hooks; invocations own
+> neither state nor representations. Historical milestone closure and Engine absence remain dated
+> assertions, not claims about current coverage or execution availability.
+
 ## Status
 
 Complete

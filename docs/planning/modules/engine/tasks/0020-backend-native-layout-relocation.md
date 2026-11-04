@@ -1,5 +1,21 @@
 # Task Engine0020: Mechanical [backend](../../../../glossary.md#backend) and native [layout](../../../../glossary.md#layout) cutover
 
+> **Editorial historical reading key.**
+>
+> This task changes physical repository locations, not execution authority. Gradle callers retained
+> :backends project identities through explicit parent/child projectDir mappings; build scripts,
+> architecture checks and native packaging tools received repaired paths. Java packages, native ABI,
+> kernels, dependency direction and resource lifetimes were to remain unchanged. In particular, moving
+> Metal sources under modules/backend did not make Engine the interpreter of Metal configuration or
+> the allocator of backend resources. Callers still open integrations and transfer them through
+> Builder; Engine orchestrates preparation and runs, while each backend supplies its concrete
+> execution and cleanup mechanics. [Current
+> composition](../../../../reference/engine/composition.md#current-explicit-cpu-and-metal-composition)
+> explains that boundary, and [current prepared
+> ownership](../../../../reference/runtime/prepared-execution.md#current-prepared-execution)
+> identifies persistent-resource cleanup. Old paths, hashes and commands remain dated relocation
+> evidence, not live instructions or renewed certification.
+
 ## Status
 
 Complete — integrated and validated on 2026-10-16 after independent review with no P1/P2.

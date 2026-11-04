@@ -1,5 +1,16 @@
 # Task 0006B3: [Engine](../../../../glossary.md#term-engine)-Facing Complete [Compile](../../../../glossary.md#compile) [Integration Port](../../../../glossary.md#term-integration-port)
 
+> **Editorial reading key — not part of the historical record.**
+>
+> The future Engine caller described below needed a legal cross-package call into package-private
+> Compiler implementation. GraphCompilationPort supplies that narrow integration seam and empty
+> explicit forward-constant ingress; it delegates rather than copying arguments or implementing a
+> second compiler. A leaf has no producing expression, not necessarily stored values, and this
+> port leaves reachable forward leaves caller-bindable. Current Engine composition is explained
+> separately from the original future-tense record.
+>
+> Current reading: [complete compile artifacts and the integration port](../../../../reference/compiler/artifacts.md#current-complete-artifact-compilation-and-integration-port); [ordinary and advanced Engine compile boundaries](../../../../reference/compiler/entry-points.md#current-ordinary-and-advanced-engine-compile-boundaries).
+
 ## Status
 
 Complete

@@ -1,5 +1,12 @@
 # Task 0014F: [Scalar](../../../../glossary.md#term-scalar) Arithmetic and Clamp [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (later context, not a status update).**
+
+A scalar attribute is one fixed parameter applied across positions, not an additional Tensor input; clamp constrains values to an inclusive range. Provenance records the receiver once and retains the supplied parameters in attributes, not in a copied value array. The exact-typed scalar boundary in the current reference is later context, not the conversion policy of this historical task. The application calls the public Tensor method; its model helper validates available descriptions and returns a fresh storage-free expression with exact input references. It neither copies input values nor calculates the result. Compiler consumes this provenance later; actual storage and execution are separate downstream concerns.
+
+Focused current reading: [Current scalar/clamp reference](../../../../reference/tensor/elementwise.md#scalar-arithmetic-and-clamp-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

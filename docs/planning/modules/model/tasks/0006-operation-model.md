@@ -1,5 +1,12 @@
 # Task 0006: [Operation](../../../../glossary.md#operation) [Model](../../../../glossary.md#term-model)
 
+**Editorial reading key (later context, not a status update).**
+
+The constructor receives an immutable kind and immutable attributes and retains those exact references: this boundary does not copy tensor values or even receive a Tensor. An Operation is reusable semantic description; a producer or CompiledNode identifies one occurrence with particular ordered inputs. Model's responsibility for that description does not extend to choosing a backend or owning result buffers. The absence of family compatibility checks is the original stage recorded here; the linked current signature contract documents a later layer of validation.
+
+Focused current reading: [Current operation foundation](../../../../reference/tensor/operation-foundation.md#operation-semantic-foundation). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

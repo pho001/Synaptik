@@ -1,5 +1,30 @@
 # Task 0029: [ACCELERATOR](../../../../glossary.md#term-accelerator) [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) Exact-Zero Sign Freedom
 
+**Editorial reading key (current context, not a status update).**
+
+This record documents a historical Model contract refinement, not a backend capability or status
+update. In the current API, a caller invokes `left.matmul(right)` to construct a storage-free
+expression: operand descriptions and ordered input references establish a contraction, the shared
+axis whose paired products contribute to each output cell. Construction neither reads operand values
+nor executes or owns result buffers. Model defines numerical meaning; execution providers realize
+supported routes without redefining it. Semantic responsibility is not storage ownership.
+
+Here, “publication” means the completed cell’s observable value, not an intermediate arithmetic
+result. For nonempty FLOAT32 `ACCELERATOR` MATMUL, positive zero multiplied by negative one still
+produces negative zero, but that one-term cell may publish either zero sign, without an added
+accumulator or FMA. Empty contractions remain positive zero; `STRICT_IEEE`, convolution, nonzero
+results and classifications retain their boundaries. Follow the current [numerical meaning and
+result
+metadata](../../../../reference/tensor/matmul-linear.md#data-type-numerical-meaning-and-result-metadata)
+explanation to distinguish expression construction from evaluation and locate the final-publication
+rule; it does not extend to a subsequent linear-projection bias addition.
+
+**Zero-sign reading illustration.** For a one-cell, one-term FLOAT32 contraction, let $a=+0$ and
+$b=-1$. The product has representation $-0$; the historical permission lets the completed nonempty
+cell publish either zero sign. That permission is not a second arithmetic operation: it adds no
+accumulator, fusion or bias. An empty contraction has no product at all and retains its separate
+positive-zero identity.
+
 ## Status
 
 Complete

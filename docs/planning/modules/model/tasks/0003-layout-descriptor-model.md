@@ -1,5 +1,14 @@
 # Task 0003: [Layout](../../../../glossary.md#layout) [Descriptor](../../../../glossary.md#term-descriptor) [Model](../../../../glossary.md#term-model)
 
+**Editorial reading key (later context, not a status update).**
+
+A caller supplies Shape, strides and offset to the layout constructor; the returned descriptor describes element positions, not an owned memory allocation. A stride is the change in position for a one-coordinate step; offset is the starting position. The referenced span can differ from logical element count because of gaps or repeated zero-stride positions. A logical view flag therefore does not establish actual buffer sharing or force a copy. Negative strides remain outside this historical task even where later slicing requests support reverse traversal.
+
+**Layout reading example.** For a nonempty rank-two shape, let $(i,j)$ be valid zero-based coordinates, $s_0,s_1$ non-negative element strides, and $o$ the non-negative element offset. The referenced position is $p=o+i s_0+j s_1$. With shape $[2,3]$, strides $[3,1]$, offset $2$, and coordinate $(1,2)$, $p=2+3+2=7$. Position $7$ is an element index, not seven bytes and not an allocation request.
+
+Focused current reading: [Current resolved-layout explanation](../../../../reference/tensor/layouts.md#resolved-layouts). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

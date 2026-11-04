@@ -1,5 +1,12 @@
 # Task 0012D: [Constant](../../../../glossary.md#term-constant) [Tensor](../../../../glossary.md#tensor) Creation
 
+**Editorial reading key (later context, not a status update).**
+
+The application requests eager stored constants from TensorFactory, rather than describing a future arithmetic producer. A scalar is rank zero with one logical value; zerosLike/onesLike borrow only the template's shape/type information, not its data or storage ownership. Every result is a new producerless leaf, so ‘leaf’ here does not mean unknown or unallocated. Explicit type, label and gradient intent avoid silently inheriting unrelated template state. Heap storage has automatic lifetime; Tensor itself is not a general closeable resource.
+
+Focused current reading: [Current constant-creation example](../../../../reference/tensor/constants.md#complete-constant-creation-example). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

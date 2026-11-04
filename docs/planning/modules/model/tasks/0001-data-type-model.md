@@ -1,5 +1,12 @@
 # Task 0001: [DataType](../../../../glossary.md#data-type--datatype) [Model](../../../../glossary.md#term-model)
 
+**Editorial reading key (later context, not a status update).**
+
+The caller supplies DataType values to model utilities; those utilities return format/category facts or scalar bit conversions, not allocated tensor storage. Promotion chooses a common floating type rather than converting an array. BFLOAT16 conversion changes one represented scalar and does not imply that any backend supports that format. The six-type inventory and the original promotion ordering belong to this checkpoint, not to every later revision.
+
+Focused current reading: [Current type inventory](../../../../reference/tensor/data-types.md#data-types); [Current promotion rules](../../../../reference/tensor/data-types.md#numeric-promotion). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

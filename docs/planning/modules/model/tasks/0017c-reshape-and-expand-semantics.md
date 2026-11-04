@@ -1,5 +1,12 @@
 # Task 0017C: [Reshape and Expand Semantics](../../../../glossary.md#reshape-and-expand-semantics)
 
+**Editorial reading key (later context, not a status update).**
+
+Reshape regroups one ordered logical element sequence into new coordinates; expand logically repeats singleton positions or adds repeated leading axes. Sharing target-Shape attributes does not make those meanings equivalent. Construction code supplies the immutable target description; the semantic attributes do not hold result values, bind symbols, choose a view or request a physical buffer. Numeric -1 is future public request syntax in this record, not a negative extent stored in Shape.
+
+Focused current reading: [Current reshape request/target distinction](../../../../reference/tensor/reshape-expand.md#reshape-expressions); [Current expansion explanation](../../../../reference/tensor/reshape-expand.md#expand-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

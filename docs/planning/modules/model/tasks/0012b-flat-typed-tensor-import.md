@@ -1,5 +1,12 @@
 # Task 0012B: Flat Typed [Tensor](../../../../glossary.md#tensor) Import
 
+**Editorial reading key (later context, not a status update).**
+
+Here the application passes actual primitive-array values, not an expression description. fromFlatArray validates the supplied descriptor, allocates independent dense storage and copies the values; later changes to the source array do not change that imported storage. This copy boundary is specific to import: it must not be generalized to create or borrowed storage association. The result is a producerless leaf with populated heap memory, and its automatic lifetime does not require closing Tensor. BOOL normalization and BFLOAT16 raw-bit import have different meanings.
+
+Focused current reading: [Current allocation/import contract](../../../../reference/tensor/creation.md); [Current flat-import example](../../../../reference/tensor/import.md#complete-flat-import-example). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

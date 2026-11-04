@@ -1,5 +1,15 @@
 # Task 0003: [Partition Scoring Configuration](../../../../glossary.md#partition-scoring-configuration--partitionscoringconfig)
 
+> **Editorial reading key — not part of the historical record.**
+>
+> A soft class preference is consulted only after hard requirements, availability and capability
+> establish eligible owners. It cannot make an unsupported accelerator eligible or weaken an exact
+> CPU requirement. Config retains this request as immutable data; Planning compares eligible
+> choices, and the backend later chooses routes and resources. No scalar cost formula, device
+> selection or performance guarantee is implied by the word scoring in this task.
+>
+> Current reading: [hard intent, compile scope and optional optimization](../../../../reference/compiler/configuration.md#current-compile-configuration-inputs); [capability queries and hard-eligible owner selection](../../../../reference/compiler/planning.md#current-operation-capability-contracts).
+
 ## Status
 
 Complete

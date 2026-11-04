@@ -1,5 +1,23 @@
 # Task 0006A: Representative Tuning Execution and Safe Fallback Foundation
 
+> **Editorial historical reading key.**
+>
+> This foundation is package-private, not a public tuning API. AdvancedEngine admits the operation and
+> the representative session orders explicit Tensor inputs by Compiler metadata, validates all
+> selected storage, and borrows wrappers once. For each supplied trial recipe, Runtime creates
+> isolated mutable state, completes publications and returns a result that Engine closes without
+> reading or copying payloads. Completion therefore establishes lifecycle consumption, not numerical
+> equivalence. CPU owns recipe preparation; the later tuning consumer owns invocation counts, timing,
+> ranking and cache work.
+>
+> Caller storage remains live and unmodified through session cleanup. Execution failure poisons the
+> session; fallback is permitted only after proven cleanup and eligible recoverable failure, never for
+> Error or lifecycle rejection. See the [current synchronous
+> runner](../../../../reference/runtime/orchestration.md#current-prepared-runner) and [current tuned
+> preparation
+> lifecycle](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle).
+> The archive's blocked consumer and CPU-only inventory are historical.
+
 ## Status
 
 Complete

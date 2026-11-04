@@ -1,5 +1,12 @@
 # Task 0016F1: Masked Sum and [Mean](../../../../glossary.md#term-mean) [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (later context, not a status update).**
+
+The application passes a data Tensor, axis and BOOL mask; the helper resolves the historical ordered mask-to-input-axis mapping and records exact [input, mask] references. It does not reshape stored bytes, count selected elements or divide a mean. A mask excludes positions rather than multiplying them by zero, which matters for exceptional floating values. The linked current API uses right-aligned masks and a different empty-mean rule; read it as later navigation, not as an assertion that this task already selected those behaviors.
+
+Focused current reading: [Current masked-reduction contract](../../../../reference/tensor/masked-index-reductions.md#masked-sum-and-mean-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

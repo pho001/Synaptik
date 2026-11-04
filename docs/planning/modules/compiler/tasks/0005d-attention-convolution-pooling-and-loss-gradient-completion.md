@@ -1,5 +1,16 @@
 # Task 0005D: Attention, [Convolution](../../../../glossary.md#term-channels-first-convolution-layers), [Pooling](../../../../glossary.md#term-pooling), and [Loss](../../../../glossary.md#loss) [Gradient](../../../../glossary.md#term-gradient) Completion
 
+> **Editorial reading key — not part of the historical record.**
+>
+> These rule owners consume original operand roles and canonical auxiliary outputs to construct
+> attention, convolution, pooling and loss derivatives. In particular, saved attention weights
+> belong to the same producer occurrence; recomputing plausible weights is not the recorded
+> contract. Shapes and generated operations cross Compiler verification and capability boundaries
+> as descriptions. The historical supported/fail-closed matrix below is its checkpoint inventory,
+> not a statement of every current backend or derivative capability.
+>
+> Current reading: [pre-capture differentiation and functional requests](../../../../reference/compiler/autograd.md#current-package-private-pre-capture-autograd); [capability queries and hard-eligible owner selection](../../../../reference/compiler/planning.md#current-operation-capability-contracts).
+
 ## Status
 
 Complete.

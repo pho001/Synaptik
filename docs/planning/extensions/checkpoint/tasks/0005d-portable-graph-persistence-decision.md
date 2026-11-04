@@ -1,5 +1,15 @@
 # Task CP0005D: [Model](../../../../glossary.md#term-model) execution and [persistence](../../../../glossary.md#term-persistence) program decision
 
+> **Editorial reading context — not a status update.** Completion here is completion of a
+> planning/review decision, not evidence that the proposed execution program ran. The central
+> distinction is between rebuilding output expressions for every actual batch and retaining
+> one source whose prepared execution receives fresh values. Persistence stores supported source
+> and state, not a prepared execution. Today's
+> [owned Model execution](../../../../reference/nn/owned-model.md#owned-tensor-model-capability) explains
+> the application-facing integration, and [graph persistence](../../../../reference/checkpoint/graph.md#purpose-and-mental-model)
+> explains the separate cold reconstruction boundary. Those current explanations do not widen
+> this packet's original authorization.
+
 ## Status
 
 Complete — bounded [planning](../../../../glossary.md#term-planning)/review only, frozen 2026-10-16 after independent Astra/xhigh review,

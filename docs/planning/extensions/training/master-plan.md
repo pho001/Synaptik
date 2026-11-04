@@ -1,5 +1,16 @@
 # Training Master Plan
 
+> **Editorial reading context — not a status update.** The application supplies a scalar
+> objective, live parameter source, optimizer configuration and Engine. TrainingSession calls
+> Engine for reusable forward/backward execution, stages updates and owns optimizer slots and
+> counters; the optimizer configuration itself is not an executor or resource owner. NN owns
+> module bindings/buffers, while the application owns data progress and borrowed storage.
+> A detached TrainingState is neither a model file nor complete program continuation.
+> Today's [session roles](../../../reference/training/sessions.md#purpose-and-implementation-status),
+> [optimizer state](../../../reference/training/optimizers.md#atomicity-state-concurrency-and-close) and
+> [recovery protocol](../../../reference/training/recovery.md#caller-coordinated-in-memory-recovery)
+> explain those owners without revising historical gates.
+
 ## Goal
 
 Maintain [backend](../../../glossary.md#backend)-agnostic [optimizers](../../../glossary.md#term-optimizer)/session state and generalize [parameter](../../../glossary.md#term-parameter) [admission](../../../glossary.md#term-admission) independently

@@ -1,5 +1,15 @@
 # Task Training0008: Fresh-value [TrainingSession](../../../../glossary.md#training-session--trainingsession) runs
 
+> **Editorial reading context — not a status update.** The application passes fresh stored
+> batch/target Tensors in session.inputs order, not replacement expressions to capture.
+> Training inserts its fixed parameter and cotangent-seed bindings into final compiled
+> positions and delegates to Engine.runValues on the existing preparation. This does not
+> replace prototype storage or recopy parameters each run. Fresh input storage is borrowed
+> through the synchronous operation and internal result closure; the session retains its
+> optimizer history, not those batches. Today's [positional input mapping](../../../../reference/training/sessions.md#session-construction-and-input-mapping)
+> and [shared optimizer transaction](../../../../reference/training/optimizers.md#atomicity-state-concurrency-and-close)
+> explain why fresh identities are allowed but Training's stronger overlap rejection still applies.
+
 ## Status
 
 Complete — main accepted after Euclid's definitive code/docs APPROVE, no findings, and the

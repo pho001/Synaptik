@@ -1,5 +1,12 @@
 # Task 0003B: [Shape](../../../../glossary.md#shape) Package Migration
 
+**Editorial reading key (later context, not a status update).**
+
+This migration moves shape descriptions and their local algebra, not tensor values. Layout code is the consumer of Shape: it needs axis extents to describe geometry, while Shape itself does not need storage positions. Thus the stated layout-to-shape dependency describes code responsibility, not resource ownership. Updating imports preserves this direction and does not create runtime dimension binding or graph-wide inference.
+
+Focused current reading: [Current Shape contracts](../../../../reference/tensor/shapes.md#shapes-and-dimensions); [Current layout consumer](../../../../reference/tensor/layouts.md#resolved-layouts). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

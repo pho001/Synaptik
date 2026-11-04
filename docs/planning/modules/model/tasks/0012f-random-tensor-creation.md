@@ -1,5 +1,12 @@
 # Task 0012F: Random [Tensor](../../../../glossary.md#tensor) Creation
 
+**Editorial reading key (later context, not a status update).**
+
+The application passes its RandomGenerator to the factory, which calls that generator now and imports the sampled carrier into a new dense leaf. The generator is mutable source state supplied by the caller, not a retained service or graph input. A normal distribution is specified by its center (mean) and spread (standard deviation); storage narrowing is an additional representation step. Reproducibility therefore depends on generator implementation, state and call sequence, not only a seed. This is eager initialization, not a random operation executed later by a backend.
+
+Focused current reading: [Current explicit-source normal example](../../../../reference/tensor/random-initialization.md#complete-normal-random-example). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

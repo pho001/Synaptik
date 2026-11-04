@@ -1,5 +1,14 @@
 # Task 0001: [Model](../../../../glossary.md#term-model) [Checkpoint](../../../../glossary.md#term-checkpoint) [module](../../../../glossary.md#term-module) boundary
 
+> **Editorial reading context — not a status update.** This task authorized a dependency
+> boundary, not a save operation. “Downstream” means the new project could call public NN
+> and Engine APIs; it did not acquire their semantic or resource responsibilities. NN describes
+> model state, Engine supplies evaluated values, and file transport is a separate concern.
+> Later relocation must not be read back into this original dependency decision. Today's
+> [artifact/model separation](../../../../reference/checkpoint/artifacts.md#purpose-and-mental-model)
+> explains the distinction, while [recovery](../../../../reference/training/recovery.md#caller-coordinated-in-memory-recovery)
+> shows why model values alone are not a resumed training program.
+
 ## Status
 
 Complete. Implementation, focused [validation](../../../../glossary.md#term-validation), independent Class C documentation/architecture

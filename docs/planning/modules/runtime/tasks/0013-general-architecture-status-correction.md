@@ -1,5 +1,22 @@
 # Task 0013: General Architecture Status Correction
 
+> **Editorial historical reading key.**
+>
+> This task records a historical correction to explanatory status, not a change to architecture or
+> executable behavior. Its participants are documentation editors reviewing source inventories, tests,
+> audits, and delivery plans; those observations cross into subordinate explanatory prose, while
+> `ARCHITECTURE.md` remains the stated rule authority. The exact replacement passages deliberately
+> distinguish implemented Runtime contracts from the then-absent Engine/backend integration. Preserve
+> both those passages and the recorded Ready/Complete instructions as archival context.
+>
+> For present execution, the focused [ordinary Engine
+> lifecycle](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+> now describes callers supplying Tensor expressions and inputs to Engine, Compiler determining input
+> membership, and Runtime managing execution leases. Current [explicit
+> composition](../../../../reference/engine/composition.md#current-explicit-cpu-and-metal-composition)
+> assigns integration ownership to Builder and Engine. This documentation-only task itself transfers
+> no storage, preparation, result, or cleanup ownership.
+
 ## Status
 
 Complete

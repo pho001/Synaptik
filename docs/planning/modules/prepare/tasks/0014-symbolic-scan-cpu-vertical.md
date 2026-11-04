@@ -1,5 +1,29 @@
 # Task Prepare0014: [Symbolic Scan](../../../../glossary.md#symbolic-scan) [CPU](../../../../glossary.md#term-cpu) vertical
 
+> **Editorial historical reading key.**
+>
+> Read this as the completed historical qualification of all-valid FLOAT32 symbolic Scan, not
+> authorization for another implementation or a universal Scan support promise. The caller supplies
+> fresh Tensor values to one retained Engine preparation. Compiler owns generated reverse semantics
+> and named-B obligations; Prepare validates scoped declarations and projects backend contexts; CPU
+> qualifies each actual forward/reverse body and supplies numeric resource recipes and generated
+> execution. Engine coordinates fresh metadata/storage admission and actual publication descriptors
+> without moving graph semantics into Runtime. The affine resource expressions mean fixed bytes plus a
+> per-row contribution multiplied by B, not a maximum-batch allocation.
+>
+> Caller storage remains borrowed through result closure; Runtime owns isolated run resources and the
+> preparation lease. See [current Engine
+> lifecycle](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+> and [current preparation/resource
+> handoff](../../../../reference/runtime/orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization).
+> Recorded gates and timings remain historical evidence.
+>
+> **Geometry reading example.** An affine byte-size recipe has the form $c+fB$, where nonnegative
+> integers $c$ and $f$ denote fixed bytes and bytes per row, and $B\ge0$ is the actual integer row
+> count. As an illustrative recipe, $c=8$, $f=4$ and $B=3$ require $20$ bytes. This is exact
+> actual-row geometry, not a claim that the archive uses those particular coefficients or reserves a
+> maximum batch.
+
 ## Status
 
 Complete — MAIN accepted 2026-10-25 after independent code/docs APPROVE and the configured root gate.

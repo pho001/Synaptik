@@ -1,5 +1,16 @@
 # Task Compiler0011: [General scan](../../../../glossary.md#general-differentiable-scan) [capture](../../../../glossary.md#term-capture-meanings) and first-order [AD](../../../../glossary.md#autograd)
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Compiler receives a scoped step expression whose formals are local placeholders, not stored
+> per-step values. It checks the body, binds exact forward primals to residual/step/invariant
+> reverse formals, constructs one joint opposite-traversal derivative Scan, then captures forward
+> and derivative work together. A residual port names needed forward information; it does not
+> itself allocate a history buffer. Final demand and capability queries cross into later
+> preparation/backend responsibility without granting execution.
+>
+> Current reading: [scoped Scan capture, roles and first-order differentiation](../../../../reference/compiler/verification-scan.md#current-scoped-scan-capture-and-first-order-ad); [capability queries and hard-eligible owner selection](../../../../reference/compiler/planning.md#current-operation-capability-contracts).
+
 ## Status
 
 Complete; accepted by main 2026-10-22 after independent Class C code/docs APPROVE and compatibility [checkpoint](../../../../glossary.md#term-checkpoint).

@@ -1,5 +1,30 @@
 # Task 0019E: [Scaled Dot-Product Attention](../../../../glossary.md#scaled-dot-product-attention)
 
+**Editorial reading key (current context, not a status update).**
+
+This record concerns the original one-output attention construction, not today’s broader compiler or
+attention surface. The caller uses query as the Tensor receiver and supplies key, value, optional
+BOOL eligibility mask, and scale/causal attributes; the construction helper validates these
+descriptions and delegates to the Tensor factory. It records ordered input references and result
+metadata, not computed values. These storage-free expressions neither execute attention nor own
+result buffers. Model semantics defines meaning; compiler proofs and execution-provider routes do
+not redefine it. Semantic responsibility is not storage ownership.
+
+A score measures query/key similarity; softmax turns eligible scores into weights for combining
+value rows. For example, at the first query position, causal selection admits only the first key,
+subject also to the explicit mask. Exclusion precedes arithmetic: an excluded NaN value is ignored,
+whereas an eligible zero-weight NaN need not be. Follow [current attention
+expressions](../../../../reference/tensor/attention.md#scaled-dot-product-attention-expressions) to
+distinguish the original output-only calls from later weights-returning calls, and [eligibility
+rules](../../../../reference/tensor/attention.md#eligibility-and-special-values) for the
+special-value boundaries behind the historical schematic.
+
+**Mathematical reading illustration.** For two eligible finite real scores $s_1=s_2=0$, define
+weights $w_j=\exp(s_j)/(\exp(s_1)+\exp(s_2))$ for key position $j\in\{1,2\}$. For scalar values
+$v_1=2$, $v_2=6$, the weighted output $y=w_1v_1+w_2v_2=4$ because both weights are one half. This
+real-number example assumes a nonempty eligible set; it does not cover excluded values, all-masked
+rows, NaN/infinity, or prescribe floating evaluation.
+
 ## Status
 
 Complete

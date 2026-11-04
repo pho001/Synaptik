@@ -1,5 +1,16 @@
 # Task 0006B8: Bounded functional [autograd](../../../../glossary.md#autograd) contract and documentation reconciliation
 
+> **Editorial reading key — not part of the historical record.**
+>
+> The distinction being reconciled is between Compiler's bounded functional request and
+> Engine.backward's narrower convenience mapping. Compiler owns selected derivative routes, seeds,
+> disconnected-result policy and derivative-order meaning; Engine owns lifecycle composition and
+> materialized delivery. Neither API stores gradients on Tensor objects. A documentation
+> correction aligns the owning contract with existing behavior; it does not make every seed
+> policy, higher order or backend route available through the ordinary convenience call.
+>
+> Current reading: [pre-capture differentiation and functional requests](../../../../reference/compiler/autograd.md#current-package-private-pre-capture-autograd); [ordinary and advanced Engine compile boundaries](../../../../reference/compiler/entry-points.md#current-ordinary-and-advanced-engine-compile-boundaries).
+
 ## Status
 
 Complete

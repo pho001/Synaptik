@@ -1,5 +1,24 @@
 # Task 0005: One-Shot Forward Convenience
 
+> **Editorial historical reading key.**
+>
+> This completed task records the historical explicit-input `Engine.forward(...)` contract, not the
+> current public method names. The application supplied output expressions, input Tensors and an
+> aggregate payload ceiling; Engine coordinated Compiler compilation, Prepare preparation, Runtime
+> execution and CPU host copying. Compiler's final TensorId inventory governed binding, while Engine
+> checked publication occurrences and arranged their independent materialization. Input association
+> snapshots did not copy or pin caller bytes: storage and arenas remained caller-owned through
+> synchronous cleanup. The temporary result owned completed run resources and borrow wrappers; this
+> task historically described temporary preparation as resource-free.
+>
+> For today's automatic-discovery `compute(...)` forms and result-before-preparation cleanup, consult
+> the [current
+> lifecycle](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle).
+> The [current prepared
+> owner](../../../../reference/runtime/prepared-execution.md#current-prepared-execution) separately
+> explains persistent-resource ownership and run leases. Preserve this task's CPU-only scope and
+> recorded completion evidence as historical assertions.
+
 ## Status
 
 Complete

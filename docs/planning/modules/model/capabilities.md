@@ -1,5 +1,12 @@
 # [Model](../../../glossary.md#term-model) Capability Baseline
 
+**Editorial reading key (later context, not a status update).**
+
+Here ‘Model owns’ means responsibility for backend-independent meaning and valid descriptions, not possession of every tensor buffer. An application calls Tensor methods to describe operations; Compiler consumes that provenance to build graph records; Prepare and a backend supply executable realizations, and Runtime manages an invocation. A leaf has no producing expression and can be storage-free or backed by supplied values. These planning capability classes therefore do not establish execution support. The baseline contains later amendments as well as older selections; use the focused current references for the present vocabulary without applying their later choices retroactively to individual task records.
+
+Focused current reading: [Current operation/signature reference](../../../reference/tensor/operation-foundation.md#operation-semantic-foundation); [Creation versus allocation and import](../../../reference/tensor/creation.md). The original record below retains its own scope, decisions and evidence.
+
+
 ## Purpose and authority
 
 This document selects the [backend](../../../glossary.md#backend)-independent [tensor](../../../glossary.md#tensor) capabilities that Synaptik intends to expose

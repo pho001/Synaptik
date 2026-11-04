@@ -1,5 +1,16 @@
 # Config Master Plan
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Config records immutable requests supplied by application or lifecycle-composition code.
+> Compiler interprets graph scope and optional exact transformations; Planning enforces
+> eligibility before soft ranking; tuning measures already eligible alternatives; Engine composes
+> their lifecycle. None of those responsibilities makes a Config value an executor or resource
+> owner. In particular a representative-profile identity names tuning evidence, while the retired
+> numerical-profile identity below is a different historical concept.
+>
+> Current reading: [hard intent, compile scope and optional optimization](../../../reference/compiler/configuration.md#current-compile-configuration-inputs); [declarative tuning budgets and their lifecycle consumers](../../../reference/compiler/configuration-values.md).
+
 ## Goal
 
 Keep [compile](../../../glossary.md#compile), [prepare](../../../glossary.md#prepare), [run](../../../glossary.md#term-run), [publication](../../../glossary.md#term-publication), [planning](../../../glossary.md#term-planning)-cost, and [model](../../../glossary.md#term-model)-[autotuning](../../../glossary.md#autotuning--model-autotuning) requests as [immutable](../../../glossary.md#term-immutable)

@@ -1,5 +1,23 @@
 # Task 0007: Capability Provider Status Reconciliation
 
+> **Editorial historical reading key.**
+>
+> This completed documentation repair records the point at which the guide acknowledged the production
+> CPU capability provider and its Engine compile consumer. Engine composition supplies the provider
+> explicitly to GraphCompilationPort; that public integration SPI delegates compilation to
+> package-private GraphCompiler. Compiler orchestrates graph-wide questions, while the concrete
+> provider answers semantic support for each described operation occurrence and Planning selects
+> eligible ownership. A support answer neither prepares nor executes values.
+>
+> Read the [current capability
+> collaboration](../../../../reference/compiler/planning.md#current-operation-capability-contracts)
+> alongside [current explicit Engine
+> composition](../../../../reference/engine/composition.md#current-explicit-cpu-and-metal-composition).
+> The task’s CPU-only and no-Metal scope is historical, not a present prohibition on explicit
+> CPU/Metal composition. Provider queries carry metadata, not caller payload ownership; today’s
+> builder transfers integrations to Engine, whose shutdown releases them after dependent execution
+> owners.
+
 ## Status
 
 Complete

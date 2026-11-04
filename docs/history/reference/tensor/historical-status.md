@@ -4,6 +4,19 @@ This is an archived, composite [qualification](../../../glossary.md#term-qualifi
 
 **Known supersessions:** [CPU](../../../glossary.md#term-cpu) low-[precision](../../../glossary.md#term-precision) parity, fixed-cell first-order [BPTT](../../../glossary.md#term-backpropagation-through-time-bptt), bounded static length-aware cold/[owned Model](../../../glossary.md#model-module-buffer-and-scan-distinctions) workflows and wire versions through v7, shared [normalization](../../../glossary.md#term-normalization) [derivatives](../../../glossary.md#term-derivative), and ordinary [backend](../../../glossary.md#backend) preparation/execution are implemented. The archive does not retract or widen any current qualification. Use [current reference goals](../../../reference/index.md), [Compiler AD](../../../reference/compiler/autograd.md)<span data-glossary-navigation="true"> ([Compiler glossary](../../../glossary.md#term-compiler); [AD glossary](../../../glossary.md#autograd))</span>, [owned Model execution](../../../reference/nn/owned-model.md), and [current backend qualification](../../../backend-guide/production-support.md) instead of the inventories below. Symbolic cold/wire, arbitrary [PURE](../../../glossary.md#term-pure)-body copying, higher-order recurrence and unqualified backend routes are not granted by these supersessions.
 
+## Editorial reading key: an absence list has a date and a boundary
+
+“Not implemented” below belongs to the recorded stage, not to every later release or every
+component. Model construction describes an operation; Compiler acceptance validates and
+transforms that description; Engine coordinates preparation and runs with actual values.
+Resource cleanup is a further responsibility: a graph description neither owns application input
+memory nor replaces the lifetime of a run result.
+
+Use [Compiler capture](../../../reference/compiler/capture.md) to distinguish structural graph
+support from execution, and [Engine's preparation, input borrowing and result cleanup](../../../reference/engine/lifecycle.md)
+to interpret the old lifecycle omissions. The nested “Planned contracts” passage is preserved
+evidence, not a checklist of features still missing today.
+
 <a id="historical-implementation-status-notes"></a>
 <a id="planned-contracts"></a>
 

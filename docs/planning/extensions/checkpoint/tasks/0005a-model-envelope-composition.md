@@ -1,5 +1,14 @@
 # Task 0005A: [Model](../../../../glossary.md#term-model)-envelope composition
 
+> **Editorial reading context — not a status update.** “Composition” here means an application
+> can obtain model bytes in memory and compare them with Training-owned state without staging a
+> file. NN still owns path and binding semantics; the model codec validates schema and payloads;
+> TrainingSession still owns restore validation. Canonical bytes make comparisons meaningful
+> across host byte orders, but do not create a transaction between those owners.
+> Each returned read-only ByteBuffer has its own movable cursor; read-only bytes do not make
+> that cursor immutable. See [file-free operations](../../../../reference/checkpoint/values.md#core-contracts)
+> and their [detached ownership](../../../../reference/checkpoint/values.md#inputs-outputs-and-ownership).
+
 ## Status
 
 Complete — implementation, independent Class C [API](../../../../glossary.md#term-application-programming-interface-api)/documentation review, and coordinator gates

@@ -1,5 +1,16 @@
 # Task 0006A: Fixed Recurrent-[Scan](../../../../glossary.md#term-cumulative-scan) Forward Adoption and Explicit [BPTT](../../../../glossary.md#term-backpropagation-through-time-bptt) Boundary
 
+> **Editorial reading key — not part of the historical record.**
+>
+> This historical adoption treats each fixed recurrent producer as one flat multi-output
+> description, not one graph node per time step. Compiler verifies metadata and forwards an exact
+> capability question; a recording provider in a test does not implement recurrence. The
+> whole-forward backward rejection below records the boundary at this milestone, not a timeless
+> current-support claim. Neither compact graph construction nor an immutable saved-value
+> description allocates an execution history.
+>
+> Current reading: [descriptor verification and deferred constraints](../../../../reference/compiler/verification-scan.md#current-package-private-verification-inference); [pre-capture differentiation and functional requests](../../../../reference/compiler/autograd.md#current-package-private-pre-capture-autograd).
+
 ## Status
 
 Complete

@@ -1,5 +1,16 @@
 # Task 0008: Cold source [capture](../../../../glossary.md#term-structural-capture) and reconstruction
 
+> **Editorial reading key — not part of the historical record.**
+>
+> The cold-source caller asks GraphCompilationPort to capture or reconstruct expressions without
+> running them. Capture returns a raw graph plus a borrowed list of exact producer-free leaves; no
+> stored values are required. Reconstruction associates supplied Tensors by input position and
+> preserves their ordinary upstream provenance. It copies list membership, not tensor payloads,
+> and its temporary lookup table owns no storage or cleanup lifecycle. Optimized compile artifacts
+> are not interchangeable with this raw source representation.
+>
+> Current reading: [raw source capture and positional reconstruction](../../../../reference/compiler/cold-source.md#current-cold-source-capture-and-reconstruction); [structural capture and exact leaf identities](../../../../reference/compiler/capture.md#current-package-private-structural-capture).
+
 ## Status
 
 Complete — final independent approval and coordinator Class C [checkpoint](../../../../glossary.md#term-checkpoint) passed (2026-10-17).

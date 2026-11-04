@@ -1,5 +1,25 @@
 # Task 0032: Profile-free numerical-semantics reset
 
+**Editorial reading key (current context, not a status update).**
+
+This record documents the 2026 profile-removal cutover; its route observations and validation counts
+are historical evidence, not current support guarantees. In current terms, callers construct an
+`Operation` from a calculation kind and fixed attributes; input/output counts describe positions,
+not tensor size. These descriptions are not evaluated values. Storage-free Tensor expressions
+describe work without executing or owning result buffers. Model defines meaning; CPU/Metal providers
+realize supported occurrences, not redefine semantics. Semantic responsibility is not buffer
+ownership. Follow [operation
+semantics](../../../../reference/tensor/operation-foundation.md#operation-semantic-foundation) for
+that description/support boundary.
+
+Here, an “exception” is a scoped numerical rule, not a thrown error. DAZ treats a permitted
+arithmetic input as signed zero; FTZ may zero a permitted subnormal result. Neither licenses
+changing stored comparisons or raw moves: moving BFLOAT16 `0x0001` preserves bits even where
+multiplication may zero. Finite tolerances exclude special-value boundaries and do not justify
+Compiler rewrites. Follow [data types](../../../../reference/tensor/data-types.md#data-types) for
+current precision boundaries, including FP8 descriptions beyond this task’s historical low-type
+scope.
+
 ## Status
 
 Complete — 2026-10-08. The approved profile-free contract, coordinated executable cutover,

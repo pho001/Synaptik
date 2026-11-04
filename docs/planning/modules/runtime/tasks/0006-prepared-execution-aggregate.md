@@ -1,5 +1,20 @@
 # Task 0006: [Prepared Execution](../../../../glossary.md#prepared-execution--preparedexecution) Aggregate
 
+> **Editorial historical reading key.**
+>
+> This task’s `PreparedExecution` is historically a non-closeable two-component record, not today’s
+> lifecycle-bearing Runtime owner. Its constructor caller supplies an exact memory plan and schedule;
+> Runtime checks their reference association and retains both without traversing work, binding inputs
+> or accepting resources. Prepare was the intended future producer, while each later invocation would
+> keep mutation and cleanup in a separate `RunState`. Ordinary record equality here remains distinct
+> from the constructor’s exact-plan identity test. The [current Runtime
+> contract](../../../../reference/runtime/prepared-execution.md#current-prepared-execution) explicitly
+> replaces that value model with an identity-bearing closeable owner, persistent-resource transfer and
+> run leases. The [current aggregate
+> orchestration](../../../../reference/runtime/orchestration.md#current-aggregate-and-run-orchestration)
+> locates backend acquisition, Prepare rollback and transfer to Runtime. Preserve the old API and
+> evidence as the bounded milestone they document.
+
 ## Status
 
 Complete

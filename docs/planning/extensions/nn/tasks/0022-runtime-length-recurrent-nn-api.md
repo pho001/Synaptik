@@ -1,5 +1,14 @@
 # Task NN0022 [Runtime](../../../../glossary.md#term-runtime) length recurrent [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) expressions
 
+> **Editorial reading context — not a status update.** The application calls a sequence's
+> forwardScan with input, an ordinary INT64 lengths Tensor, explicit state and direction.
+> The sequence reads its owned cell parameters and constructs one fixed scan; it does not
+> read length values or run a loop during that call. Dense outputs and final states differ
+> from the older compact list produced with Java construction-time lengths.
+> Today's [runtime-length composition contract](../../../../reference/nn/recurrent.md#nn-runtime-length-recurrent-composition)
+> explains that boundary, while [static recurrent composition](../../../../reference/nn/recurrent-layers.md#current-nn-recurrent-composition-contract)
+> explains the retained alternative. Later capabilities in those references are not claims about this packet's execution scope.
+
 ## Status
 
 Complete — accepted 2026-10-20 after Mencius final APPROVE, zero findings, and coordinator [validation](../../../../glossary.md#term-validation).

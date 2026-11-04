@@ -1,5 +1,25 @@
 # Task 0018J: [Scatter-ND](../../../../glossary.md#scatter-nd) [Tensor](../../../../glossary.md#tensor) Expression
 
+**Editorial reading key (current context, not a status update).**
+
+This completed task records metadata-only construction, not execution support. The caller invokes
+`data.scatterNd`; `Tensor` delegates to `TensorScatterNdExpressions`, which validates descriptors
+and records ordered references to data, indices, and updates—not their values. Data is the unchanged
+base; indices describe coordinate tuples; updates supply replacement values or suffix slices. Tuple
+depth counts addressed axes; the batch prefix identifies shared leading dimensions. For data
+`[2,3,4]`, zero-batch indices `[5,2]` require updates `[5,4]`, while the result remains `[2,3,4]`.
+
+Follow the current [Scatter-ND
+contract](../../../../reference/tensor/scatter.md#scatter-nd-expressions) for overloads and
+validation, and [Scatter Elements
+semantics](../../../../reference/tensor/scatter.md#scatter-elements-expressions) for the reduction
+rules now shared by Scatter-ND. Those current numerical descriptions extend beyond this task’s
+historical scope. Duplicate targets mean multiple tuples address the same destination; `NONE`
+requires uniqueness, not checked here. Model semantics defines meaning; execution providers realize
+supported routes rather than redefine it. Semantic responsibility is not buffer ownership: this
+storage-free expression neither executes nor owns result buffers. Gradient eligibility does not
+promise a backward rule.
+
 ## Status
 
 Complete

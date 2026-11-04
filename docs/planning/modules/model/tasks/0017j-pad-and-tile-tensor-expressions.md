@@ -1,5 +1,12 @@
 # Task 0017J: Pad and Tile [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (later context, not a status update).**
+
+Padding adds constant-filled border positions; tiling repeats the complete pattern along each axis, rather than repeating each individual element consecutively. The application supplies widths/constant or per-axis repeats. The helper derives provable shape changes, leaves layout unresolved and records one input; it does not fill or tile an array. The exact-typed constants and symbolic arithmetic in the current reference are later additions, not policies selected here. The application calls the public Tensor method; its model helper validates available descriptions and returns a fresh storage-free expression with exact input references. It neither copies input values nor calculates the result. Compiler consumes this provenance later; actual storage and execution are separate downstream concerns.
+
+Focused current reading: [Current pad/tile reference](../../../../reference/tensor/composition.md#pad-and-tile-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

@@ -1,5 +1,14 @@
 # Task 0020A: Initialized [Embedding](../../../../glossary.md#embedding)
 
+> **Editorial reading context — not a status update.** Vocabulary size and embedding width
+> are explicit architecture/schema choices, so this constructor can allocate its entire table
+> immediately rather than inspect a first input. The table is a stored parameter leaf;
+> later forward still describes lookup without reading IDs. A Text tokenizer's padding ID
+> names an ordinary row and does not freeze, zero or mask its gradients.
+> Today's [Embedding initialization rules](../../../../reference/nn/composition.md#current-nn-automatic-parameter-initialization-contract)
+> explain eager policy/seed ownership, and [Text's output boundary](../../../../reference/text/tokenization.md#explicit-batch-configuration)
+> explains how integer IDs and host valid counts reach the application separately from NN computation.
+
 ## Status
 
 Complete

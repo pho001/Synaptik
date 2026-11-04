@@ -1,5 +1,16 @@
 # Task 0005E: First-order [Gradient](../../../../glossary.md#term-gradient) Coverage Closure [Checkpoint](../../../../glossary.md#term-checkpoint)
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Read D, ND and FC as different derivative-route dispositions: an implemented contribution, an
+> intentionally non-differentiable boundary, or a route that must reject. An audit of formulas and
+> dispatch establishes construction coverage, not numerical execution. The nested first-order
+> probe is not a public promise of arbitrary derivative order. Inventory totals and test results
+> below remain the original source-backed checkpoint, while the current reference explains later
+> requests and support boundaries.
+>
+> Current reading: [pre-capture differentiation and functional requests](../../../../reference/compiler/autograd.md#current-package-private-pre-capture-autograd).
+
 ## Status
 
 Complete

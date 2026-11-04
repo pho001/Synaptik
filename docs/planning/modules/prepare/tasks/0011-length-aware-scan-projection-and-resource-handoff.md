@@ -1,5 +1,23 @@
 # Task Prepare0011: Length-aware [Scan](../../../../glossary.md#term-cumulative-scan) projection and resource [handoff](../../../../glossary.md#term-handoff)
 
+> **Editorial historical reading key.**
+>
+> This historical extension admits length-aware metadata through Prepare, not length-value execution.
+> Compiler supplies proven row roles, exact saved-primal bindings and actual reverse bodies. Prepare
+> separates the final lengths actual from body formals, validates static boundary descriptors and
+> complete outer demand, then projects the unchanged attachment to its selected backend analyzer.
+> Equal extents do not turn SHARED histories into row histories; numerical ID collisions do not merge
+> scopes.
+>
+> Test analyzers declare lengths, boundary and demanded-history geometry; Prepare assigns declarations
+> rather than allocating their bytes. The [current finalization
+> handoff](../../../../reference/runtime/orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization)
+> explains backend acquisition, staged rollback and Runtime ownership. The [current capability
+> contract](../../../../reference/compiler/planning.md#current-operation-capability-contracts) keeps
+> complete-body support separate. Historical CPU/cold/codec rejection checks record then-retained
+> gates, not a permanent current prohibition; these fixtures prove neither skipping nor physical
+> history stores.
+
 ## Status
 
 Complete — MAIN accepted 2026-10-24 13:00:15 UTC after independent Class C code/docs APPROVE, zero open P1/P2.

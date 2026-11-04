@@ -1,5 +1,24 @@
 # Task 0015: [CPU](../../../../glossary.md#term-cpu)/[Metal](../../../../glossary.md#term-metal) Single-[Owner](../../../../glossary.md#term-owner) [Engine](../../../../glossary.md#term-engine) Composition
 
+> **Editorial historical reading key.**
+>
+> This task implements the preceding composition decision as a single-owner vertical slice. Its
+> mixed-owner rejection and pre-trial Metal tuning rejection describe that delivery, not today's full
+> surface; [current
+> composition](../../../../reference/engine/composition.md#current-explicit-cpu-and-metal-composition)
+> documents later extensions. Builder receives caller-opened integrations at method entry, records
+> aligned identity/provider/availability facts, and transfers accepted ownership to Engine only on
+> successful build. Registration and native-wrapper publication failures retain their own rollback
+> responsibilities.
+>
+> Compiler selects semantic owners from the captured inventory; Engine routes cold preparation and
+> retains direct backend adapters. Metal supplies native context ownership, host upload, canonical
+> download, and physical cleanup. Runtime executes prepared references rather than consulting the
+> registry. The [current ordinary
+> lifecycle](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+> distinguishes borrowed caller storage, result-owned completed resources, and explicit detached
+> copies. The recorded review iterations and execution evidence remain completion-time history.
+
 ## Status
 
 Complete

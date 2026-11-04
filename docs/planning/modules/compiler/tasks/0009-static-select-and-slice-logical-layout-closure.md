@@ -1,5 +1,16 @@
 # Task 0009 Static SELECT and [SLICE](../../../../glossary.md#slice) logical [layout](../../../../glossary.md#layout) closure
 
+> **Editorial reading key — not part of the historical record.**
+>
+> SELECT and SLICE close as logical views: their offsets and strides describe how later execution
+> addresses existing logical data, not a newly dense copy. Compiler reuses family inference after
+> preceding outputs resolve, preserving noncontiguous geometry. Providers and preparation still
+> qualify actual physical bindings. The task's public CPU regressions establish their recorded
+> execution slice; they do not widen cold reconstruction or silently migrate NN recurrent
+> builders.
+>
+> Current reading: [exact graph transformations and final logical layouts](../../../../reference/compiler/optimization.md#current-package-private-canonicalization-and-whole-graph-optimization).
+
 ## Status
 
 Complete — Feynman final Class C APPROVE, zero findings; main's combined native root gate passed on the unchanged reviewed [snapshot](../../../../glossary.md#term-snapshot) (2026-10-19).

@@ -1,5 +1,15 @@
 # Task 0002: [Device](../../../../glossary.md#term-device) Classification
 
+> **Editorial reading key — not part of the historical record.**
+>
+> DeviceClass classifies a reported device, not the algorithm that will execute an operation. A
+> backend can report CPU devices while choosing scalar, vector or library routes internally; enum
+> order does not rank those routes. The supplying context associates a class with a device through
+> availability data. Planning, not the enum, interprets any later preference, and no resource
+> ownership follows from classification.
+>
+> Current reading: [backend identities, supplied availability and requirements](../../../../reference/backend-identities.md); [hard intent, compile scope and optional optimization](../../../../reference/compiler/configuration.md#current-compile-configuration-inputs).
+
 ## Status
 
 Complete

@@ -1,5 +1,24 @@
 # Task 0019A: Modern [Activation](../../../../glossary.md#term-activation) Semantics and [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (current context, not a status update).**
+
+This completed record covers Model expression construction, not activation execution. Unary means
+one input; elementwise means positions are transformed independently. The caller selects exact GELU,
+fixed tanh-approximation GELU, or SiLU through a Tensor method; `TensorUnaryExpressions.apply`
+validates metadata and delegates derived construction to `TensorFactory`. Descriptors describe type,
+Shape and gradient eligibility; provenance records the selected operation and exact receiver. No
+element values cross this construction boundary. For example, `input.gelu()` records one GELU
+producer, not computed activation values; its fresh, storage-free result owns no result buffer.
+
+The historical three-type scope and deferred numerical details remain historical. Follow the current
+[unary
+reference](../../../../reference/tensor/elementwise.md#unary-numeric-transforms-and-floating-classifications)
+for expanded floating-type coverage and Model-owned primitive-site numerical rules. Model defines
+meaning; execution providers realize supported routes rather than redefine it, and semantic
+responsibility is not storage ownership. Exact and tanh GELU remain distinct targets. Negative
+infinity maps to negative zero, signed zero is preserved, and NaN remains NaN—not a promise that
+literal primitive composition preserves these boundaries.
+
 ## Status
 
 Complete

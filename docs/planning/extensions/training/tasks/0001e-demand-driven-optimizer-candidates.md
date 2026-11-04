@@ -1,5 +1,14 @@
 # Task 0001E: Demand-driven [optimizer](../../../../glossary.md#term-optimizer) candidate [buffers](../../../../glossary.md#term-buffer)
 
+> **Editorial reading context — not a status update.** An active optimizer slot contains
+> committed history; an inactive candidate array holds a possible next state before commit.
+> They are Training arrays, not Runtime memory slots or NN Buffers. Allocating a candidate
+> only when accumulation, momentum or restore needs it reduces idle staging memory without
+> removing committed history or rollback data. Signed-zero payloads still matter even when
+> their numerical value compares as zero.
+> Today's [optimizer atomicity and allocation timing](../../../../reference/training/optimizers.md#atomicity-state-concurrency-and-close)
+> explains that distinction and why complete candidate validation still precedes parameter writes.
+
 ## Status
 
 Complete

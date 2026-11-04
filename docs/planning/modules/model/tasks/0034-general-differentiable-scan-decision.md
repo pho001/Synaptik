@@ -1,5 +1,31 @@
 # Task Model0034: [General differentiable scan](../../../../glossary.md#general-differentiable-scan) architecture decision/cutover
 
+**Editorial reading key (current context, not a status update).**
+
+This record closes an architecture-only decision, not implementation permission; current reference
+descriptions do not retroactively widen its scope. The caller supplies `ScanBody` formals (declared
+input placeholders) and binds actual Tensors by position through `Scan.apply`. Carry passes state
+between steps, sequences supply slices, and invariants stay unchanged. A leaf has no producing
+expression, not necessarily stored values. See [source
+bindings](../../../../reference/tensor/general-scan.md#formals-actual-positions-and-source-closure)
+for these identity and closure rules.
+
+Model defines meaning; Compiler captures scoped bodies and constructs reverse expressions using
+exact original primal bindings; Prepare validates bindings and demand; providers realize
+independently supported routes, not new semantics. These responsibilities do not confer buffer
+ownership. Storage-free expressions neither execute nor own result buffers. For “add the step to
+carry, emit previous carry,” the emission describes pre-update state. A residual names a retainable
+internal value; demand selects needed histories, rather than reserving storage for every port. See
+[canonical
+results](../../../../reference/tensor/general-scan.md#canonical-results-residual-metadata-and-eligibility)
+for this distinction and zero-step preservation of initial raw bits.
+
+**Recurrence reading illustration.** Over finite real scalars, let initial carry $h_0=0$, steps
+$x_0=2$, $x_1=3$, transition $h_{t+1}=h_t+x_t$ and emission $e_t=h_t$ for $t\in\{0,1\}$. The final
+carry is five, but emissions are $(0,2)$ because this body emits the previous carry. Changing the
+emission root changes the source description, not merely its storage. This is a real-number body
+illustration, not a floating reordering permission.
+
 ## Status
 
 Complete — ARCHITECTURE DECISION/CUTOVER ONLY, accepted by main on 2026-10-21 after final independent

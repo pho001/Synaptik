@@ -1,5 +1,19 @@
 # Task 0006: [Layer Normalization](../../../../glossary.md#layer-normalization) Layer
 
+> **Editorial reading context — not a status update.** LayerNorm owns scale/bias bindings
+> and an exact typed epsilon; the application supplies the input. Forward delegates a
+> normalization expression to Model rather than reading its values. Scale and bias span the
+> selected trailing slice and are reused over leading axes. The current
+> [layer-normalization explanation](../../../../reference/tensor/normalization.md#layer-normalization-expressions)
+> teaches the formula and separates it from backend execution.
+>
+> **Mathematical reading example.** For a finite real slice $(x_1,x_2)=(1,3)$, its population
+> mean is $\mu=(x_1+x_2)/2=2$ and variance is
+> $v=((x_1-\mu)^2+(x_2-\mu)^2)/2=1$.
+> With real $\epsilon>0$, scale one and bias zero, the normalized pair is
+> $(-1,1)/\sqrt{1+\epsilon}$. This is a semantic illustration, not a claim about rounded
+> execution, special values or the historical tests.
+
 ## Status
 
 Complete

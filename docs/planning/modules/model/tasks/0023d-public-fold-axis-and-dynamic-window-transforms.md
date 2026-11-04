@@ -1,5 +1,23 @@
 # Task 0023D: Public Fold [Axis](../../../../glossary.md#term-axis) and Dynamic Window Transforms
 
+**Editorial reading key (current context, not a status update).**
+
+This record concerns Task 0023D’s Model-only construction boundary; its method counts and deferred
+compiler/backend work are historical, not current capability descriptions. The caller supplies a
+Tensor, window attributes, and optionally a typed padding scalar; the Tensor helper validates these
+descriptions and returns a fresh storage-free expression recording its input producer. It neither
+reads samples nor owns a result buffer. Model defines the meaning; execution providers realize
+supported routes without redefining it. Semantic responsibility is not storage ownership.
+
+Unfold exposes samples as canonical rank-three columns; fold adds overlapping contributions rather
+than undoing extraction or averaging. For a one-channel three-by-three image and two-by-two windows
+at unit stride, folding unchanged columns counts the center four times. Symbolic products describe
+unresolved extents without binding them; dynamic fold requires structurally matching formulas.
+Direct padding means positive zero; explicit padding retains same-typed scalar bits, including NaNs,
+infinities, and signed zero, also for ceil-grid tails. Follow [current window-transform
+expressions](../../../../reference/tensor/windows.md#window-transform-expressions) for these
+contracts and their distinction from later compiler/provider capabilities.
+
 ## Status
 
 Complete

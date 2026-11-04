@@ -1,5 +1,15 @@
 # Task 0020: Automatic Recurrent Initialization and Sequence Defaults
 
+> **Editorial reading context — not a status update.** Initialization policy is immutable
+> algorithm configuration; the cell owns parameter Shapes, seed use and publication.
+> In a static unroll, one cell's exact weight leaves feed many fresh step expressions, allowing
+> Compiler to combine gradient contributions to the same parameters. Default zero states are
+> newly supplied starting values, not hidden memory retained across calls. A zero-step unroll
+> may never visit an automatic cell and therefore leave its parameters unbound.
+> Read today's [initialization contract](../../../../reference/nn/composition.md#current-nn-automatic-parameter-initialization-contract)
+> and [recurrent sequence contract](../../../../reference/nn/recurrent-layers.md#current-nn-recurrent-composition-contract)
+> to separate parameter lifetime, expression construction and explicit recurrent state.
+
 ## Status
 
 Complete

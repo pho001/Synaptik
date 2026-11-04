@@ -1,5 +1,22 @@
 # Task 0006: [Planning](../../../../glossary.md#term-planning) Contract Closure Audit
 
+> **Editorial historical reading key.**
+>
+> This is the historical exit gate for the selected Planning milestone, not a claim that downstream
+> execution layers remain absent today. Its five-public-declaration and four-internal-operation
+> conclusions belong to that checkpoint. The participants are backend capability providers answering
+> exact occurrence questions, Planning applying ownership and logical-recipe rules, and a then-future
+> Compiler assembling graph-wide results. Descriptors, backend identities, node IDs and logical value
+> relationships cross these boundaries—not allocated buffers or live backend services.
+>
+> For the present consumer boundary, see [Compiler artifact
+> integration](../../../../reference/compiler/artifacts.md#current-complete-artifact-compilation-and-integration-port);
+> for current selection and partition contracts, see [Planning
+> contracts](../../../../reference/compiler/planning.md#current-operation-capability-contracts).
+> Planning supplies semantic rules, Compiler orchestrates their graph-wide application, and later
+> resource owners—not these immutable recipes—carry cleanup responsibility. The recorded audit checks
+> remain historical evidence.
+
 ## Status
 
 Complete

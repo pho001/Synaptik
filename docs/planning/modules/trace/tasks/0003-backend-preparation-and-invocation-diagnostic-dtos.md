@@ -1,5 +1,20 @@
 # Task 0003: [Backend](../../../../glossary.md#backend) Preparation and Invocation Diagnostic DTOs
 
+## Editorial reading key: an outcome is not a resource handle
+
+Backend code constructs these records after observing preparation (building executable state) or
+invocation (running that state). Trace accepts neutral IDs, route labels and status values, not the
+backend's live handles or input tensors. A consumer can correlate outcomes without acquiring
+cleanup responsibility for the underlying prepared unit or run.
+
+The backend remains responsible for the meaning of its native status codes; Trace supplies the
+shared diagnostic vocabulary. The source revision and profile-bearing schema below describe
+this task's historical implementation, not the present record shape. Read
+[backend diagnostic records](../../../../architecture/tracing.md#current-backend-execution-diagnostics)
+for the current boundary and [Metal observation](../../../../developer-guide/debugging-trace.md)
+for how an application opts in without selecting an execution route through its observer.
+
+
 ## Status
 
 Complete

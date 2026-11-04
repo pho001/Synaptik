@@ -1,5 +1,25 @@
 # Task 0018P: [Elementwise](../../../../glossary.md#term-elementwise) Semantic Cleanup
 
+**Editorial reading key (current context, not a status update).**
+
+This record concerns the atomic reciprocal rename and removal of route-oriented fast variants, not
+today’s full elementwise inventory. Its thirteen unary methods and deferred numerical policies
+describe that historical scope. Unary means one input; elementwise means each position is
+transformed independently. For the expanded vocabulary and current numerical boundaries, follow
+[unary
+transforms](../../../../reference/tensor/elementwise.md#unary-numeric-transforms-and-floating-classifications);
+those descriptions do not retroactively enlarge this task.
+
+The caller invokes `input.reciprocal()`; Tensor delegates to `TensorUnaryExpressions.apply`, which
+records `RECIPROCAL`, parameterless attributes, the exact input reference, and a fresh output
+descriptor/provenance at index zero—not calculated reciprocals. The storage-free result neither
+executes nor owns a result buffer. Model defines meaning; backend prepare selects supported
+implementation routes without redefining it. Semantic responsibility is not storage ownership. `EXP`
+and `TANH` name functions, not algorithms or accuracy guarantees. The adjacent [scalar
+contract](../../../../reference/tensor/elementwise.md#scalar-arithmetic-and-clamp-expressions)
+explains typed attribute values, unlike parameterless unary requests: a FLOAT32 multiplier must be
+explicitly FLOAT32, and retained NaN or signed-zero bits are metadata, not evidence of evaluation.
+
 ## Status
 
 Complete

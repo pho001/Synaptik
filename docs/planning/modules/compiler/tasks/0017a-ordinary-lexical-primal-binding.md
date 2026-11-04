@@ -1,5 +1,16 @@
 # Task 0017A: Complete ordinary lexical [primal](../../../../glossary.md#term-primal) [binding](../../../../glossary.md#term-binding)
 
+> **Editorial reading key — not part of the historical record.**
+>
+> The primal resolver is an internal call boundary: FirstOrderAutograd supplies each rule owner a
+> function mapping an original operand or saved output to the exact value available in its lexical
+> context. Contribution keys still use original identity. Reading a descriptor does not require
+> reading a primal; building a value operation does. Supplying fresh detached numerical values in
+> a test demonstrates this binding discipline, not permission to replay forward expressions or
+> widen Scan eligibility.
+>
+> Current reading: [scoped Scan capture, roles and first-order differentiation](../../../../reference/compiler/verification-scan.md#current-scoped-scan-capture-and-first-order-ad); [pre-capture differentiation and functional requests](../../../../reference/compiler/autograd.md#current-package-private-pre-capture-autograd).
+
 ## Status
 
 Complete — nine reviewed source files integrated against frozen preimages. Independent combined

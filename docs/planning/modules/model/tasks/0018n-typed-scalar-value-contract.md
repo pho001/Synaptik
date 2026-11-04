@@ -1,5 +1,25 @@
 # Task 0018N: [Typed Scalar Value](../../../../glossary.md#typed-scalar-value--scalarvalue) Contract
 
+**Editorial reading key (current context, not a status update).**
+
+This record covers the six-type scalar migration, not execution; its exclusions and follow-up
+statuses are historical. The current [exact-scalar
+reference](../../../../reference/tensor/data-types.md#exact-typed-scalar-values) explains the
+expanded format surface and raw-bit versus conversion factories. `ScalarValue` means an immutable
+type-and-bits parameter, not a Tensor or executable constant. For example, FLOAT32 multiplication
+requires `ScalarValue.float32(0.5f)`; the `double` convenience supplies FLOAT64, not an inferred
+conversion. Raw factories preserve signed zeros and NaN payloads; named numeric conversions have
+separate rounding and NaN rules.
+
+The caller supplies that value to a receiver-aware Tensor helper, which checks exact type agreement
+and retains it in operation attributes. `OperationSignature` checks attribute class and cardinality,
+not operand compatibility; compiler occurrence validation must enforce the latter for arbitrary
+operations. These are semantic responsibilities, not storage ownership: derived expressions describe
+work without executing or owning result buffers. Model semantics defines meaning; providers realize
+supported routes rather than redefine it. The current [data-type
+contract](../../../../reference/tensor/data-types.md#data-types) distinguishes logical formats from
+backend support.
+
 ## Status
 
 Complete

@@ -1,5 +1,14 @@
 # Task 0011: [Unary](../../../../glossary.md#term-unary) [Tensor](../../../../glossary.md#tensor) [Module](../../../../glossary.md#term-module) Composition and Sequential
 
+> **Editorial reading context — not a status update.** Unary means the entire call boundary
+> is one Tensor in and one Tensor out. Sequential owns exact child modules and passes each
+> returned reference to the next child; it does not copy or execute intermediate values.
+> This boundary cannot silently hide BatchNorm's context or Dropout's explicit random state.
+> If a later child fails, earlier expression construction is not undone.
+> Today's [unary composition contract](../../../../reference/nn/declarative.md#current-nn-unary-composition-contract)
+> explains the reference flow and exclusions; [typed topology](../../../../reference/nn/composition.md#current-nn-typed-model-composition-contract)
+> shows the different application-defined forward boundary above individual modules.
+
 ## Status
 
 Complete

@@ -1,5 +1,26 @@
 # Task 0020A: [NCHW](../../../../glossary.md#term-nchw) Max Pool2d Semantics and [Tensor](../../../../glossary.md#tensor) Expression
 
+**Editorial reading key (current context, not a status update).**
+
+This completed record concerns Model expression construction, not execution; its type limits and
+deferred downstream work describe that historical scope. NCHW means batch, channel, height, width.
+The caller invokes `input.maxPool2d(attrs)`; the Tensor helper validates geometry and delegates to
+the factory, returning a storage-free expression. Attributes describe windows; descriptor and
+provenance record shape, type, input and producing operation—not computed values or owned result
+buffers. Model defines meaning; execution providers realize supported routes rather than redefine
+it.
+
+Read [current maximum-pooling
+expressions](../../../../reference/tensor/pooling.md#nchw-maximum-pooling-expressions) for today's
+floating-type coverage and geometry, and [extrema and padding
+policy](../../../../reference/tensor/pooling.md#extrema-and-padding-policy) for selection and
+compiler/execution boundaries. These current descriptions do not expand this task retrospectively.
+Padding is excluded, not zero-filled: a window containing only an in-bounds negative value selects
+it; an all-padding window returns negative infinity. Literal ceil mode retains terminal windows.
+NaNs dominate, positive zero outranks negative zero, and equal candidates retain the first
+height-then-width sample; NaN representation remains unspecified. Semantic responsibility does not
+confer storage ownership.
+
 ## Status
 
 Complete

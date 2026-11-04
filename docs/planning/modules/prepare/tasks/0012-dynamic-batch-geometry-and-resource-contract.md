@@ -1,5 +1,22 @@
 # Task Prepare0012: Dynamic [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) geometry and resource contract
 
+> **Editorial historical reading key.**
+>
+> This is a completed design delivery, not the implementation of its proposed signatures. Its packet
+> assigns semantic dimension constraints to Compiler, stable declaration identities to Prepare,
+> numeric geometry recipes to CPU, per-run resources to Runtime, and actual publication descriptors to
+> Engine. It explicitly separates shape/byte admission from later producer-ordered length-value
+> checks; neither establishes an outer loss mask.
+>
+> The historical statement that Java dynamic batch was unsupported belongs to this design checkpoint.
+> For implemented metadata behavior, see [named-batch
+> binding](../../../../reference/compiler/batch-binding.md#ordinary-named-batch-metadata-binding); for
+> qualified execution, see the [current ordinary
+> lifecycle](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle).
+> Caller input storage remains borrowed through result closure, while Runtime owns run resources and
+> preparation owns persistent resources. Detached materialization is a separate copy. The design's
+> approval does not itself grant Scan, NN, persistence or native capability.
+
 ## Status
 
 Complete — reviewed DESIGN delivery; independent Class C design/docs APPROVE, zero open P1/P2,

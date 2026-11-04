@@ -1,5 +1,15 @@
 # [NN](../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) Extension Master Plan
 
+> **Editorial reading context — not a status update.** There are two different structures:
+> the NN module tree owns named state and children, while Tensor expressions describe which
+> computations depend on that state. A forward call builds the latter; it is not automatically
+> a numerical run or optimizer step. TrainingSession coordinates Engine execution and updates;
+> Checkpoint transports supported source/value state. The application connects those boundaries
+> and keeps borrowed resources alive. Today's [composition explanation and diagram](../../../reference/nn/composition.md#current-nn-typed-model-composition-contract),
+> [owned execution](../../../reference/nn/owned-model.md#owned-tensor-model-capability) and
+> [session roles](../../../reference/training/sessions.md#purpose-and-implementation-status)
+> provide current context without replacing the capability gates recorded below.
+
 ## Goal and authority
 
 This plan is the current map for the stateful neural-network ([NN](../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context)) composition layer: [ownership](../../../glossary.md#term-ownership-meanings) of

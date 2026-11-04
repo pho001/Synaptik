@@ -1,5 +1,15 @@
 # Task 0001B: Remove Repeated [Parameter](../../../../glossary.md#term-parameter) Overlap [Scan](../../../../glossary.md#term-cumulative-scan)
 
+> **Editorial reading context — not a status update.** “Scan” here means pairwise memory
+> overlap checking, not a recurrent Tensor operation. Parameters and their storage identities
+> are fixed for the session, so their mutual overlap is established at open; liveness and
+> unchanged-binding checks still run later. External batch storage can change each run and
+> still needs overlap validation. The application must exclude conflicting mutation; removing
+> one repeated check does not transfer that duty to Training.
+> Today's [live parameter admission](../../../../reference/training/parameters.md#generic-live-parameter-admission)
+> and [input mapping/overlap rules](../../../../reference/training/sessions.md#session-construction-and-input-mapping)
+> distinguish the fixed set from the fresh borrowed inputs.
+
 ## Status
 
 Complete

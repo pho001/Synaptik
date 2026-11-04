@@ -1,5 +1,22 @@
 # Task 0001: Advanced Composition and Representation-Level [Lifecycle](../../../../glossary.md#lifecycle) Foundation
 
+> **Editorial historical reading key.**
+>
+> This task records the first advanced CPU-only integration boundary. The caller transfers one opened
+> CPU integration to AdvancedEngine; Engine passes Tensor expressions and explicit compile settings to
+> Compiler, obtains CPU preparation collaborations for shared Prepare, and supplies ordered
+> BufferRepresentation inputs to Runtime’s runner. Compiler owns graph and derivative semantics; CPU
+> owns lowering and physical compatibility; Engine coordinates admission and outward ownership rather
+> than implementing either.
+>
+> Borrowed wrappers and their backing storage remain caller responsibilities through result closure.
+> The result owns completed run state, not detached host values. The original methodless prepared
+> handle, HostTensorStorage borrow signature, and results-before-adapter shutdown describe this
+> historical stage. See the [current advanced
+> lifecycle](../../../../reference/engine/advanced.md#advanced-engine-lifecycle) and [current Runtime
+> prepared owner](../../../../reference/runtime/prepared-execution.md#current-prepared-execution) for
+> explicit prepared closure and Runtime’s unique lease authority.
+
 ## Status
 
 Complete

@@ -1,5 +1,21 @@
 # Task 0010: Prepared-Handle [Ownership](../../../../glossary.md#term-ownership-meanings) and Closure
 
+> **Editorial historical reading key.**
+>
+> The opening audit describes historical leaks and missing outward close operations; the completed
+> task establishes their ownership repair. Prepare transfers one validated Runtime preparation,
+> Runtime uniquely owns its persistent resources and arbitrates run leases, and each Engine wrapper
+> owns that inward preparation without inspecting its resource aggregate. Application close or Engine
+> shutdown claims wrapper cleanup once. Temporary one-shot and representative actions close their
+> result before their preparation; tuning metadata adds no second owner. Wrapper close callers may
+> wait for coordinated cleanup and replay an immediate failure, whereas Runtime close does not wait
+> for an admitted run and deferred failures belong to lease release. See the [current Runtime owner
+> contract](../../../../reference/runtime/prepared-execution.md#current-prepared-execution) and
+> [ordinary Engine
+> lifecycle](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle).
+> Open results remain independent of prepared-handle closure; caller storage remains borrowed, not
+> transferred.
+
 ## Status
 
 Complete

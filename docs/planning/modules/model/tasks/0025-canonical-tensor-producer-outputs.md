@@ -1,5 +1,26 @@
 # Task 0025: [Canonical](../../../../glossary.md#term-canonical-form) [TensorProducer](../../../../glossary.md#producer--tensorproducer) outputs
 
+**Editorial reading key (current context, not a status update).**
+
+This completed historical task concerns canonical expression identity, not execution or gradients. A
+producer is one operation occurrence; provenance identifies its zero-based output slot; a canonical
+wrapper is that slot’s exact Tensor object, not an equivalent reconstruction. TensorFactory calls
+package-private producer construction with input references and output descriptions, then returns
+retained wrappers only after the occurrence is complete. Descriptors describe results; no computed
+values cross this construction boundary. For example, dropout slot one retrieves the original hidden
+BOOL mask wrapper, not sampled mask values. Follow [indexed
+provenance](../../../../reference/tensor/identity.md#expression-producers-and-indexed-provenance)
+for the current identity contract.
+
+The historical four-field producer scope does not describe every current attachment: the current
+reference also documents optional general-scan body containment. Model semantics defines operation
+meaning; execution providers realize supported routes rather than redefine it. Semantic
+responsibility is not storage ownership: these storage-free expressions neither execute nor own
+result buffers. Retaining one wrapper can retain siblings without implying shared physical storage.
+Follow [hidden-output
+identity](../../../../reference/tensor/identity.md#multi-output-and-hidden-output-identity) for
+dropout and batch-normalization examples without expanded public carriers.
+
 ## Status
 
 Complete

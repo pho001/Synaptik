@@ -4,6 +4,21 @@ This is an archived, composite [qualification](../../../glossary.md#term-qualifi
 
 **Known supersessions:** [CPU](../../../glossary.md#term-cpu) low-[precision](../../../glossary.md#term-precision) parity, fixed-cell first-order [BPTT](../../../glossary.md#term-backpropagation-through-time-bptt), bounded static length-aware cold/[owned Model](../../../glossary.md#model-module-buffer-and-scan-distinctions) workflows and wire versions through v7, shared [normalization](../../../glossary.md#term-normalization) [derivatives](../../../glossary.md#term-derivative), and ordinary [backend](../../../glossary.md#backend) preparation/execution are implemented. The archive does not retract or widen any current qualification. Use [current reference goals](../../../reference/index.md), [Compiler AD](../../../reference/compiler/autograd.md)<span data-glossary-navigation="true"> ([Compiler glossary](../../../glossary.md#term-compiler); [AD glossary](../../../glossary.md#autograd))</span>, [owned Model execution](../../../reference/nn/owned-model.md), and [current backend qualification](../../../backend-guide/production-support.md) instead of the inventories below. Symbolic cold/wire, arbitrary [PURE](../../../glossary.md#term-pure)-body copying, higher-order recurrence and unqualified backend routes are not granted by these supersessions.
 
+## Editorial reading key: two meanings of Model and ownership
+
+The **Model module** discussed here defines Tensor descriptions and operation meanings. It is
+not the NN extension's owned `Model`, which manages a network's private state. The application
+calls `TensorFactory` to create a leaf (a Tensor without a producing expression), then calls Tensor
+methods to describe derived results. A descriptor says what a value looks like; it is not the value's
+bytes. A graph value adds graph-local identity, not physical storage.
+
+The overview's flat-array import copies the application's array; its borrowed storage wrapper
+instead retains a memory reference without taking responsibility for closing the memory scope.
+These are different boundaries, not a rule that every call copies or every Tensor is closeable.
+Read [storage association and lifetime](../../../reference/tensor/storage-association.md) for that
+distinction and [Compiler capture](../../../reference/compiler/capture.md) for the conversion
+from public expressions to graph records. The preserved construction table remains historical.
+
 <a id="model-construction-and-semantic-boundaries"></a>
 
 ## Preserved historical text

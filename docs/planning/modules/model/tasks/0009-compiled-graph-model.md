@@ -1,5 +1,12 @@
 # Task 0009: [Compiled Graph](../../../../glossary.md#compiled-graph--compiledgraphmodel) [Model](../../../../glossary.md#term-model)
 
+**Editorial reading key (later context, not a status update).**
+
+Compiler constructs this container from ordered value/node descriptions; its constructor checks structural closure and producer-before-consumer order rather than compiling or executing anything. PublicationBinding describes a public-Tensor-to-graph-value association; it is not a copy into that Tensor's storage. Graph-local values can be inputs without a producer and still acquire values from a later invocation. Model defines the record contracts; Compiler owns capture and publication planning, while invocation buffers and cleanup remain downstream resource concerns.
+
+Focused current reading: [Current graph and publication records](../../../../reference/tensor/compiled-graph.md#graph-values-and-compiled-nodes). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

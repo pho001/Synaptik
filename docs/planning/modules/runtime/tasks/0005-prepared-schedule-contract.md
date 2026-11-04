@@ -1,5 +1,20 @@
 # Task 0005: [Prepared Schedule](../../../../glossary.md#prepared-schedule--preparedschedule) Contract
 
+> **Editorial historical reading key.**
+>
+> At this milestone, Prepare’s finalized partition associations supply exact Runtime executable
+> references; the schedule constructor accepts only their ordered `ExecutionStep` occurrences and one
+> shared memory plan. Runtime validates exact plan identity and snapshots membership without binding,
+> executing or acquiring resources. List position carries orchestration order: retaining one
+> executable twice requests two occurrences, not two cleanup owners or two numerical implementations.
+> Backend executables remain responsible for region work; a later runner was to bind them to per-run
+> resources. The [current schedule
+> contract](../../../../reference/runtime/schedules.md#current-prepared-schedule) extends this
+> historical execution-only sealed family with creation, transfer and publication occurrences. The
+> [current runner](../../../../reference/runtime/orchestration.md#current-prepared-runner) now
+> cold-binds work before traversal and manages isolated state and failure cleanup. Neither development
+> changes the archival constructor’s no-action meaning.
+
 ## Status
 
 Complete

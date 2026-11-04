@@ -1,5 +1,15 @@
 # Task 0008: Generic [graph](../../../../glossary.md#graph)/value [persistence](../../../../glossary.md#term-persistence) and [NN](../../../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) glue cutover
 
+> **Editorial reading context — not a status update.** Generic Checkpoint handles ordinary
+> Tensor source descriptions and named host values; NN's relocated glue handles module-specific
+> definitions and state paths. Compiler supplies bounded semantic capture/reconstruction;
+> Checkpoint integrates it with encoding, limits and publication rather than interpreting or
+> executing operations itself. A Source borrows Tensor references; copy acquires private named
+> values, rebind substitutes inputs without reading their storage, and load reconstructs cold
+> expressions. See today's [copy/rebind boundary](../../../../reference/checkpoint/graph.md#inputs-outputs-and-identity)
+> and [NN consumer](../../../../reference/checkpoint/graph.md#owned-nn-model-consumer)
+> for the split between semantic authority and integration responsibility.
+
 ## Status and change class
 
 Complete — coordinator accepted 2026-10-17 after Halley's final APPROVE and root gate. Class C: [persistence](../../../../glossary.md#term-persistence)/[ownership](../../../../glossary.md#term-ownership-meanings)/public-edge cutover; clean execution and independent review. Authorized [Checkpoint](../../../../glossary.md#term-checkpoint) frontier: None.

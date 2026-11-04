@@ -1,5 +1,35 @@
 # Task 0002: Bounded Complete-Plan Tuning and [Model](../../../../glossary.md#term-model)-Plan [Cache](../../../../glossary.md#term-cache)
 
+## Editorial reading key: who executes the candidate?
+
+Composition code calls the generic complete-plan tool with a backend collaborator, correctness
+actions and a measurement action. The tool controls ordering and trial counts. The collaborator
+defines candidate meaning and compatibility; the execution actions handle representative input
+values, fresh preparation, result copying and cleanup. The tool's opaque correctness reference is
+temporary bookkeeping, not a transfer of live execution resources into a cache.
+
+### Reading the trial-count arithmetic
+
+For a measured cache miss, let $N\geq1$ be the integer number of complete candidates,
+$W\geq0$ the integer warmups per candidate and $S\geq1$ an odd integer number of timed samples
+per candidate. The execution count $E$, in complete candidate executions, is
+
+$$
+E=N(1+W+S).
+$$
+
+The one accounts for each candidate's correctness action. For example, $N=2$, $W=1$ and $S=5$
+require $E=2(1+1+5)=14$ complete actions: two correctness, two warmup and ten timed actions.
+This is integer counting, not floating-point evaluation or a duration estimate. Checked
+implementation arithmetic and request ceilings can reject it before any action; a compatible
+persistent cache hit performs none of these trials.
+
+Read [the complete-plan transaction](../../../../developer-guide/benchmarking.md#phase-2-complete-plan-transaction)
+and [candidate responsibility](../../../../architecture/performance-evidence-and-tuning.md#candidate-ownership-and-opaque-orchestration)
+for those boundaries. The original formulas, later-Engine claims and execution receipts below
+remain historical text.
+
+
 ## Status
 
 Complete

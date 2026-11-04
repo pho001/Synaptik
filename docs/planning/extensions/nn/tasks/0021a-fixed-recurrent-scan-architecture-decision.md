@@ -1,5 +1,15 @@
 # Task 0021A: Fixed Recurrent-[Scan](../../../../glossary.md#term-cumulative-scan) Architecture Decision
 
+> **Editorial reading context — architecture decision, not execution evidence.** Fixed scan
+> puts a predefined recurrent transition behind one multi-output operation. Model owns its
+> meaning and descriptors; Compiler captures/validates that occurrence; backend preparation
+> creates a reusable implementation; Runtime invokes the prepared action rather than
+> interpreting recurrence. The application supplies actual input, lengths and initial states.
+> Runtime-varying lengths do not imply variable Shapes or a hidden stateful session.
+> Today's [runtime-length NN contract](../../../../reference/nn/recurrent.md#nn-runtime-length-recurrent-composition)
+> and [selected scan persistence](../../../../reference/checkpoint/graph-formats.md#selected-cnn-and-recurrent-persistence)
+> explain later construction/transport separately from this decision's original authorization.
+
 ## Status
 
 Complete

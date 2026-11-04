@@ -1,5 +1,23 @@
 # Task 0003: Typed Logical Input [Binding](../../../../glossary.md#term-binding) and Published-Result Access
 
+> **Editorial historical reading key.**
+>
+> Here ordinary callers submit output expressions, explicit cotangent seeds and targets to Engine;
+> Compiler determines graph semantics, final bindable TensorIds/descriptors, and publication roles. At
+> run time Engine matches supplied IDs in arbitrary order, snapshots each selected storage association
+> once, validates all inputs, and borrows fresh wrappers in Compiler order. A leaf has no producing
+> expression; that does not itself establish stored bytes. Snapshots neither copy nor pin payloads,
+> and callers keep storage usable through result closure.
+>
+> Publication objects identify ordered forward/gradient occurrences, including aliases, but this task
+> supplies metadata rather than host values. Engine cleans its wrappers; Runtime owns run state. The
+> noncloseable prepared handle and older validation precedence are historical. See [current binding
+> and results](../../../../reference/runtime/engine-boundary.md#current-ordinary-engine-boundary) and
+> [Compiler artifact
+> authority](../../../../reference/compiler/artifacts.md#current-complete-artifact-compilation-and-integration-port)
+> for their present boundaries. Tensor itself is not a universal closeable owner: any supplied arena
+> remains the responsibility of the component that owns it.
+
 ## Status
 
 Complete

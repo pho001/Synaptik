@@ -1,5 +1,31 @@
 # Task 0021C: [Batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters)-[Normalization](../../../../glossary.md#term-normalization) Training and [Statistic](../../../../glossary.md#term-statistic) Transition
 
+**Editorial reading key (current context, not a status update).**
+
+This completed task records its historical Model-only scope, not current downstream availability.
+The caller supplies receiver data, scale, bias and old running statistics; `batchNormTraining`
+constructs descriptions, not computed values. One producer describes five outputs: three
+caller-visible results and two saved statistics for compiler autograd. Storage-free expressions
+neither execute nor own result buffers; semantic responsibility is not storage ownership. For
+example, returning a next running mean does not assign it for the next call.
+
+For current contracts, follow [training
+statistics](../../../../reference/tensor/statistics-losses.md#batch-normalization-training-and-statistic-transition-expressions):
+it distinguishes biased forward variance from correction-one running variance, defines momentum as
+new-batch weight, and describes retained saved-output wrappers, unlike this record’s discarded
+wrappers. Follow [numerical and lifecycle
+boundaries](../../../../reference/tensor/statistics-losses.md#special-values-identity-effects-and-lifecycle-boundary)
+for special values and downstream responsibilities. Model defines meaning; compiler handles capture
+and differentiation, while execution providers realize supported routes without redefining
+semantics. Current type coverage is broader than this task’s scope; neither description implies
+automatic cross-call statistic updates. Zero momentum does not suppress NaN or infinity.
+
+**Mathematical reading illustration.** Let $r$ be one old finite real running mean, $b$ the finite
+batch mean and $\alpha\in[0,1]$ the new-batch weight. The next mean is $r'=(1-\alpha)r+\alpha b$. At
+$r=10$, $b=2$ and $\alpha=1/4$, $r'=8$. Returning $r'$ describes a transition; the caller must
+supply it to the next invocation to advance state. This finite real example grants no
+zero-coefficient suppression of NaN/infinity or floating reassociation.
+
 ## Status
 
 Complete

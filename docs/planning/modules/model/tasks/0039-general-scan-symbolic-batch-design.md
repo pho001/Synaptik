@@ -1,5 +1,30 @@
 # Task Model0039: [General Scan](../../../../glossary.md#general-differentiable-scan) symbolic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) design
 
+**Editorial reading key (current context, not a status update).**
+
+This record completes a design delivery, not semantic authority or implementation authorization; its
+proposed 64→40→1→64 batch sequence holds time, feature and state extents fixed. Current references
+describe later capabilities, not changes enacted here. In [Scan
+construction](../../../../reference/tensor/general-scan.md#formals-actual-positions-and-source-closure),
+follow the caller’s positional binding of actual Tensors to body formals: carry passes state,
+sequences supply time slices, invariants stay unchanged, and emissions stack per-step outputs rather
+than denote final carry. A leaf has no producing expression, not necessarily stored values.
+
+Model semantics defines meaning; Compiler captures scoped bodies, differentiates and emits demand;
+Prepare validates bindings/resources; qualified execution providers realize supported routes without
+redefining semantics. These responsibilities do not imply storage ownership: storage-free
+expressions and result ports neither execute nor own result buffers, and residual demand identifies
+needed histories rather than allocating them. Follow [shape
+broadcasting](../../../../reference/tensor/shapes.md#broadcasting) to distinguish a named batch
+extent from concrete binding: matching names or singleton expansion does not prove an independent
+ROW coordinate; SHARED means no such coordinate, not scalar shape.
+
+**Shape reading illustration.** Let $T=10$ be fixed time steps, $F=16$ fixed features and $B\ge0$ a
+named integer batch extent. A sequence description has Shape $[T,B,F]$ and each step slice $[B,F]$.
+Binding $B=40$ yields numeric sizes $[10,40,16]$ without changing $T$ or $F$. This substitution
+describes geometry only, not reuse of values, prepared resources, or proof that a coordinate is
+independently ROW.
+
 ## Status
 
 Complete — DESIGN DELIVERY ONLY; MAIN accepted 2026-10-24 after independent frozen review

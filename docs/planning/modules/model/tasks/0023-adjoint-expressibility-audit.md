@@ -1,5 +1,33 @@
 # Task 0023: [Adjoint](../../../../glossary.md#term-adjoint) Expressibility Audit
 
+**Editorial reading key (current context, not a status update).**
+
+This completed record is a planning audit, not a gradient implementation; its six Draft follow-ups
+describe the historical frontier, not present API absence. An adjoint maps an incoming output
+cotangent (sensitivity) to an input sensitivity; `requiresGrad` marks eligibility, not a derivative
+policy. Model defines meanings; compiler owns differentiation and saved-value capture; execution
+providers realize supported routes without redefining semantics. These responsibilities do not
+assign buffer ownership. Caller Tensor references, Shapes and attributes describe expressions;
+construction neither reads values nor executes or owns result buffers.
+
+For today's broadcast-reversal contract, follow [binding-aware
+sum-to-Shape](../../../../reference/tensor/reductions.md#binding-aware-sum-to-shape-expressions):
+reducing shape `[8, 4]` to `[1, 4]` combines rows, while `[8, 4]` preserves positions. Follow
+[Gather-compatible Scatter
+Add](../../../../reference/tensor/scatter.md#gather-compatible-scatter-add-expressions) to
+distinguish its rank-changing updates from Scatter Elements: the receiver supplies the base, indices
+select destinations, and updates contribute values only during execution. Duplicate destinations
+accumulate; scatter describes a new result, not base mutation. These current descriptions do not
+settle the audit's deferred derivative policies or erase NaN, infinity, empty-domain and signed-zero
+obligations.
+
+**Mathematical reading illustration.** For a differentiable real function $y=f(x)$ with
+$x\in\mathbb{R}^{n}$ and $y\in\mathbb{R}^{m}$, the adjoint maps an output sensitivity
+$u\in\mathbb{R}^{m}$ to input sensitivity $J_f(x)^\mathsf{T}u$, where $J_f(x)$ is the $m$-by-$n$
+Jacobian. For scalar $f(x)=x^2$, $x=3$, and $u=1$, the input sensitivity is six. This explains the
+audit's representational question; it does not choose derivatives at nonsmooth or exceptional
+values.
+
 ## Status
 
 Complete

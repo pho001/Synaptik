@@ -1,5 +1,16 @@
 # Task 0006B2: [Pool3d](../../../../glossary.md#pool3d--ncdhw-pooling) and 3D-Window [Gradient](../../../../glossary.md#term-gradient) Closure
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Compiler builds these adjoints from public unfold/fold and ordinary Tensor algebra before
+> capture. Typed window padding is configuration, not a differentiable input; maximum-pool routing
+> depends on the selected same-occurrence result and its first-winner convention. Constructed
+> formulas and transitive differentiation closure are semantic claims, not physical window
+> materialization or CPU execution. The shrinking deferred inventory below is a historical
+> checkpoint, not a current global exclusion list.
+>
+> Current reading: [pre-capture differentiation and functional requests](../../../../reference/compiler/autograd.md#current-package-private-pre-capture-autograd).
+
 ## Status
 
 Complete

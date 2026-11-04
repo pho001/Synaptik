@@ -1,5 +1,21 @@
 # Task 0003: Read-Only [Cache](../../../../glossary.md#term-cache), Plan, and Evidence Inspection
 
+## Editorial reading key: matching bytes is not permission to execute
+
+The application calls `TuningInspection` with a known file path or byte array. Inspection reads a
+bounded snapshot and returns structural facts and redacted summaries; it does not invoke a
+backend decoder or prepare a candidate. For an array, snapshotting copies the bytes so later
+application mutation cannot change the inspected input. The report retains neither the supplied
+array nor a live executable.
+
+A key match says the stored identifying fields agree. Only the backend-aware decoder can judge
+the encoded decision's compatibility; a digest is a content fingerprint, not authentication of
+the writer. Rich evidence is a separate in-memory input and cannot be recovered from a compact
+cache that never stored it. Read [inspection and its limits](../../../../developer-guide/benchmarking.md#inspecting-current-tuning-artifacts-and-evidence)
+for that distinction. The original task's lack-of-CLI and integration statements remain
+checkpoint-specific claims, not new product assertions.
+
+
 ## Status
 
 Complete

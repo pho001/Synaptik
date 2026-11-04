@@ -1,5 +1,16 @@
 # Task 0006: Explicit [Graph](../../../../glossary.md#graph) Numerical-Profile [Identity](../../../../glossary.md#term-identity-meanings)
 
+> **Editorial reading key — not part of the historical record.**
+>
+> This task records the introduction of a numerical-profile identity, not a currently available
+> policy switch. The Config master plan records its later removal by Model0032. Even in the
+> historical design, Config carried a name while Model authority defined numerical meaning;
+> environment, backend speed and tuning evidence did not supply semantics. Representative
+> tuning-profile identity is a separate evidence identifier, not a way to revive the retired
+> numerical permission.
+>
+> Current reading: [hard intent, compile scope and optional optimization](../../../../reference/compiler/configuration.md#current-compile-configuration-inputs); [declarative tuning budgets and their lifecycle consumers](../../../../reference/compiler/configuration-values.md).
+
 ## Status
 
 Complete

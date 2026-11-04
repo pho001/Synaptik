@@ -1,5 +1,12 @@
 # Task 0011: Public [Tensor](../../../../glossary.md#tensor) Skeleton
 
+**Editorial reading key (later context, not a status update).**
+
+This skeleton gives the application a public Tensor object with stable metadata and one replaceable borrowed-storage reference; the public construction path is still deferred at this checkpoint. Tensor is not a graph node, and its descriptor is not the actual data. Replacing or clearing the association changes a reference rather than copying or freeing values. A caller that supplied arena-backed storage retains scope cleanup responsibility; Tensor itself has no general close operation. Synchronizing that reference does not synchronize reads and writes to the underlying memory.
+
+Focused current reading: [Current public Tensor components](../../../../reference/tensor/identity.md#public-tensor-state); [Current replacement and clearing contract](../../../../reference/tensor/storage-association.md). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

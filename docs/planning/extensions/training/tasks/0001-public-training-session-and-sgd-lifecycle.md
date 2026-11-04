@@ -1,5 +1,15 @@
 # Task 0001: Public [Training Session](../../../../glossary.md#training-session--trainingsession) and [SGD](../../../../glossary.md#term-stochastic-gradient-descent-sgd) [Lifecycle](../../../../glossary.md#lifecycle)
 
+> **Editorial reading context — not a status update.** The application constructs an
+> objective expression and supplies parameters, optimizer choices and a borrowed Engine.
+> The session prepares reusable forward/backward work, maps gradient outputs to parameters,
+> validates all update candidates and only then changes parameter bytes and counters.
+> Model train/eval mode selects forward behavior; it does not open a session or perform SGD.
+> The session closes owned execution resources, not the application's Engine or parameter Arena.
+> Today's [session construction](../../../../reference/training/sessions.md#session-construction-and-input-mapping)
+> and [transaction/lifecycle explanation](../../../../reference/training/optimizers.md#atomicity-state-concurrency-and-close)
+> provide current vocabulary while preserving the historical inference-session implementation terms below.
+
 ## Status
 
 Complete

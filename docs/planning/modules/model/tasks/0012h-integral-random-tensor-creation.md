@@ -1,5 +1,12 @@
 # Task 0012H: Integral Random [Tensor](../../../../glossary.md#tensor) Creation
 
+**Editorial reading key (later context, not a status update).**
+
+The application supplies integer bounds and its mutable RandomGenerator. The factory invokes the corresponding bounded integer method for each element, then imports independent leaf storage; it does not convert floating samples or retain the generator. Exclusive upper bounds explain why the full signed carrier domain cannot be requested with a same-width bound one above its maximum. One method call per element is not a promise about how many random bits the JDK consumes internally.
+
+Focused current reading: [Current bounded-integer example](../../../../reference/tensor/random-initialization.md#complete-bounded-integral-example). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

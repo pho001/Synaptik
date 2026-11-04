@@ -1,5 +1,25 @@
 # Task 0025D: Dynamic-[Extent](../../../../glossary.md#term-extent) [Slice](../../../../glossary.md#slice) Extraction and Symbolic Slice Placement
 
+**Editorial reading key (current context, not a status update).**
+
+This record covers Model expression construction, not execution; its Compiler deferrals describe
+historical scope. The current [length-defined extraction
+reference](../../../../reference/tensor/slicing.md#length-defined-extraction) explains normalized
+coordinate counts versus raw half-open bounds. Callers pass arrays to `Tensor.sliceByLength`; Model
+helpers clone them before inspecting entries and produce descriptions, without reading tensor
+values. Start four, length three, step minus two selects coordinates four, two, zero: lower bounds
+are provable, but an unresolved input extent defers the upper bound. Zero length selects nothing and
+canonicalizes the stored start to zero.
+
+For [placement and crop
+distinctions](../../../../reference/tensor/slicing.md#slice-update-and-target-relative-crop-expressions),
+`base.sliceUpdate(update, prefixShape)` retains exact update/prefix Shapes; its target describes the
+update region, while its result keeps the base Shape. Functional replacement does not mutate either
+input. Model defines meaning; execution providers realize supported routes, not redefine semantics.
+Semantic responsibility is not buffer ownership: these storage-free expressions neither execute nor
+own result buffers. The current reference describes compiler adoption beyond this record, without
+promising backend execution.
+
 ## Status
 
 Complete

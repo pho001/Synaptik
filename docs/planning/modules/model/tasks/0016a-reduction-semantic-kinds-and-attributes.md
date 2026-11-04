@@ -1,5 +1,12 @@
 # Task 0016A: Reduction Semantic Kinds and Attributes
 
+**Editorial reading key (later context, not a status update).**
+
+A reduction combines positions along a selected domain. Axis attributes name an input coordinate direction; keepDimensions retains that direction with extent one, rather than retaining its original values. A full reduction yields a scalar, whereas arg-max returns a winning coordinate rather than the maximum value. Expression helpers later supply operands and infer descriptors; these kind/attribute values only describe meaning. The original one-axis forms and names are historical, so the linked current multi-axis and arg-extrema forms are navigation rather than retroactive additions.
+
+Focused current reading: [Current numeric-reduction reference](../../../../reference/tensor/reductions.md#numeric-aggregate-expressions); [Current arg-extrema reference](../../../../reference/tensor/masked-index-reductions.md#arg-extrema-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

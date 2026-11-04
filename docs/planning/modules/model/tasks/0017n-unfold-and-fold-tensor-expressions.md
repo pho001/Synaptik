@@ -1,5 +1,14 @@
 # Task 0017N: [Unfold and Fold](../../../../glossary.md#window-transform) [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (later context, not a status update).**
+
+Unfold exposes sliding windows; fold adds window contributions into target coordinates, so overlapping windows make fold more than an inverse reshape. The application supplies axis/window/target parameters, and the helper derives result descriptions without sampling padding or adding overlaps. The same forward semantic primitive can later be used by Compiler in a derivative, but this task installs no derivative rule or saved-value lifecycle. The application calls the public Tensor method; its model helper validates available descriptions and returns a fresh storage-free expression with exact input references. It neither copies input values nor calculates the result. Compiler consumes this provenance later; actual storage and execution are separate downstream concerns.
+
+**Window reading example.** Let an exact real sequence have integer length $D=5$, window width $w=3$, and step $s=1$. The number of fitting windows is $m=\lfloor(D-w)/s\rfloor+1=3$. Unfold exposes $(a,b,c)$, $(b,c,d)$ and $(c,d,e)$; folding those unchanged windows by addition gives $(a,2b,3c,2d,e)$. Each coefficient counts appearances, so fold is not generally an identity. This conceptual example is not execution evidence.
+
+Focused current reading: [Current window-transform explanation](../../../../reference/tensor/windows.md#window-transform-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

@@ -1,5 +1,15 @@
 # Task 0001: [Backend Intent](../../../../glossary.md#backend-intent--backendintent) Foundation
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Application or composition code constructs BackendIntent and passes it toward Compiler/Planning.
+> The optional requirement records a hard eligibility target, not a preference or a live backend.
+> Absence means no hard restriction, not successful automatic selection or promised fallback. The
+> record retains immutable references rather than copying numerical inputs. Planning, not Config,
+> combines intent with supplied availability and capability and owns a no-match decision.
+>
+> Current reading: [hard intent, compile scope and optional optimization](../../../../reference/compiler/configuration.md#current-compile-configuration-inputs); [capability queries and hard-eligible owner selection](../../../../reference/compiler/planning.md#current-operation-capability-contracts).
+
 ## Status
 
 Complete

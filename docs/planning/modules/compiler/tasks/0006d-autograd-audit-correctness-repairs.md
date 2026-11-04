@@ -1,5 +1,16 @@
 # [Compiler](../../../../glossary.md#term-compiler) 0006D — Repair batched [MATMUL](../../../../glossary.md#matrix-multiplication--matmul) [gradients](../../../../glossary.md#term-gradient) and [fail-closed](../../../../glossary.md#term-fail-closed) sibling paths
 
+> **Editorial reading key — not part of the historical record.**
+>
+> A derivative route is positional as well as identity-based: batched matrix/vector gradients need
+> the correct inserted/squeezed axes before genuine batch reduction. Separately, an unsupported
+> required sibling route cannot be discarded merely because another route reaches the same target.
+> That is different from intentionally non-differentiable masks or indices. Compiler repairs
+> formulas and preflight; the numerical CPU regression is downstream evidence, not a new
+> backend-owned differentiation rule.
+>
+> Current reading: [pre-capture differentiation and functional requests](../../../../reference/compiler/autograd.md#current-package-private-pre-capture-autograd).
+
 ## Status
 
 Complete

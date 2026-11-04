@@ -1,5 +1,14 @@
 # Task 0029 [Fluent Model builder](../../../../glossary.md#fluent-model-builder) and [checkpoint](../../../../glossary.md#term-checkpoint) independent execution
 
+> **Editorial reading context — not a status update.** The application collects builder
+> recipes; build creates fresh private Model state and expressions once. Supplied parameter
+> leaves are copied into that private state, unlike ordinary layer constructors that retain
+> references. Compute later binds batches to cached execution, not to replayed recipes.
+> Separating construction/execution from save admission means an unsupported file encoding
+> need not disable a numerically supported Model. Today's [fluent builder](../../../../reference/nn/model-builder.md#fluent-model-builder)
+> explains seed/Shape and copy rules, and [owned execution](../../../../reference/nn/owned-model.md#owned-tensor-model-capability)
+> explains the resource lifetime behind compute, configured training and close.
+
 ## Status
 
 Complete — Planck final APPROVE, zero findings; main accepted after the shared root gate (2026-10-19).

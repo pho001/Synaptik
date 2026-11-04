@@ -1,5 +1,23 @@
 # Task 0022: Result-[publication](../../../../glossary.md#term-publication) [rollback](../../../../glossary.md#term-rollback) and closed-[payload](../../../../glossary.md#artifact-envelope-and-atomic-publication) cleanup
 
+> **Editorial historical reading key.**
+>
+> Read this as a historical repair of two distinct boundaries: AdvancedEngine publishing a completed
+> inward Runtime result as an outward wrapper, and closed result/state owners releasing fresh
+> invocation references while preserving metadata. Engine admission must be released even when
+> publication rollback fails; cleanup closes the wrapper or inward result, not both. Runtime remains
+> the lease authority, while outward Engine wrappers retain their documented synchronization and
+> failure-replay behavior.
+>
+> The [current Engine
+> boundary](../../../../reference/runtime/engine-boundary.md#current-ordinary-engine-boundary)
+> describes publication rollback and closed-payload release. The [Runtime cleanup
+> contract](../../../../reference/runtime/creation.md#run-state-lifecycle-and-failures) distinguishes
+> run-owned cleanup from borrowed inputs: releasing references does not close caller storage. The
+> recorded bounded-heap comparisons concern retained fresh payloads, not demonstrated native-arena
+> leakage or a native-memory plateau; the archived measurements and their limits remain historical
+> evidence.
+
 ## Status
 
 Complete — independent design and final source/[Javadoc](../../../../glossary.md#term-javadoc)/test review APPROVE, zero P1/P2.

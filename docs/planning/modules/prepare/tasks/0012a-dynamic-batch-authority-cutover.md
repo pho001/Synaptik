@@ -1,5 +1,23 @@
 # Task Prepare0012A: Dynamic [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) authority cutover
 
+> **Editorial historical reading key.**
+>
+> This document records authority enactment between design acceptance and Java implementation. Its
+> nine-type/signature map and ADR packet changed normative documentation, not executable APIs. The
+> ownership chain remains explicit: Compiler binds semantic metadata, Prepare preserves declarations,
+> CPU supplies numeric recipes, Runtime owns invocation geometry/resources, and Engine publishes
+> actual descriptors. Batch-required mode remains meaningful even when payload bytes are constant.
+>
+> The [current metadata
+> reference](../../../../reference/compiler/batch-binding.md#ordinary-named-batch-metadata-binding)
+> describes storage-free binding; the [current Engine
+> lifecycle](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+> describes subsequently qualified execution. Caller storage is borrowed until result closure; closing
+> preparation stops admissions without revoking returned results, and detached copies have independent
+> lifetimes. The historical unsupported-Java statement and proposed ordinary witness must remain dated
+> to this cutover. Documentation approval was not numerical, concurrency or timing evidence, nor a
+> broader workflow grant.
+
 ## Status
 
 Complete — authority enacted and MAIN-accepted 2026-10-24; Pasteur definitive APPROVE, zero open P1/P2.

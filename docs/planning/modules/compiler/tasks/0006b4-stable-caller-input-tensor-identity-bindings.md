@@ -1,5 +1,16 @@
 # Task 0006B4: Stable Caller-Input [Tensor](../../../../glossary.md#tensor) [Identity](../../../../glossary.md#term-identity-meanings) [Bindings](../../../../glossary.md#term-binding)
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Engine needs to associate application-supplied runtime inputs with the final graph after
+> rewriting. Compiler therefore records immutable TensorId-to-ValueId bindings, not live Tensor
+> objects or storage pointers. Repeated use of one leaf preserves one logical input; equal
+> descriptors cannot identify distinct inputs. A leaf denotes no producing expression and may have
+> no stored payload yet. These bindings establish logical membership/order, while Engine and later
+> preparation retain their separate binding and resource responsibilities.
+>
+> Current reading: [structural capture and exact leaf identities](../../../../reference/compiler/capture.md#current-package-private-structural-capture); [ordinary and advanced Engine compile boundaries](../../../../reference/compiler/entry-points.md#current-ordinary-and-advanced-engine-compile-boundaries).
+
 ## Status
 
 Complete

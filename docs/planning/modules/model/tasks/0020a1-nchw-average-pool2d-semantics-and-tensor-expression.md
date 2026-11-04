@@ -1,5 +1,31 @@
 # Task 0020A1: [NCHW](../../../../glossary.md#term-nchw) Average Pool2d Semantics and [Tensor](../../../../glossary.md#tensor) Expression
 
+**Editorial reading key (current context, not a status update).**
+
+This record concerns the original rank-four NCHW average-pooling Model expression, not the broader
+current pooling surface. NCHW means batch, channel, height, width. The caller supplies a Tensor
+receiver and immutable geometry to `averagePool2d`; the helper validates descriptions and delegates
+result construction to `TensorFactory.createDerived`. Provenance records the input and producing
+operation, not computed samples. The fresh storage-free result describes an average without
+executing it or owning a result buffer; semantic responsibility is not storage ownership.
+
+Count-padding means every logical kernel position enters the fixed divisor: one value of one and
+three padding positions give a quarter, not one. Dilation spaces samples without changing their
+count; literal ceil mode retains terminal all-padding windows, whose mean is positive zero. Follow
+[current average-pooling
+semantics](../../../../reference/tensor/pooling.md#nchw-average-pooling-expressions) for the
+expanded floating-type scope, and [numerical and metadata
+policy](../../../../reference/tensor/pooling.md#numerical-empty-and-metadata-policy) for special
+values and qualified compiler/execution boundaries. Model defines meaning; execution providers
+realize supported routes rather than redefine it. Historical deferrals and evidence remain
+historical.
+
+**Mathematical reading illustration.** In a finite real window of $K>0$ logical kernel positions,
+including conceptual zero padding, define $a=\frac1K\sum_{j=1}^{K}z_j$, where $z_j$ is the input
+sample or padding zero. With $K=4$ and $z=(1,0,0,0)$, $a=1/4$. Dividing by the single in-bounds
+sample instead would describe a different operation. The illustration does not override floating
+rounding or special-value rules.
+
 ## Status
 
 Complete

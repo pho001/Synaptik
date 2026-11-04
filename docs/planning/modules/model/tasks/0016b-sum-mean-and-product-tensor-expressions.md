@@ -1,5 +1,14 @@
 # Task 0016B: Sum, [Mean](../../../../glossary.md#term-mean), and Product [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (later context, not a status update).**
+
+The application calls sum, mean or prod on a Tensor. For input shape [2, 3], reducing axis one removes it to produce [2], or retains extent one to produce [2, 1]; neither form constructs stored totals now. Full reduction instead describes a rank-zero scalar. The model helper normalizes the axis and records one input plus reduction attributes, without reading values or copying them. Model's descriptor work is distinct from Compiler derivative rules and backend accumulation; zero/dynamic metadata acceptance here does not settle empty-domain numerical policy.
+
+**Reduction reading example.** In exact real arithmetic, let $x\in\mathbb{R}^{2\times3}$ and $s_i=\sum_{j=0}^{2}x_{i,j}$ for row index $i\in\{0,1\}$. For rows $(1,2,3)$ and $(4,5,6)$, $s=(6,15)$. Keeping the reduced axis represents these same totals with shape $[2,1]$ rather than $[2]$. This interprets the operation, not a recorded execution or a permission to reorder rounded sums.
+
+Focused current reading: [Current numeric aggregate reference](../../../../reference/tensor/reductions.md#numeric-aggregate-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

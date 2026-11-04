@@ -1,5 +1,23 @@
 # Task 0010: Prepared Runner and Dynamic Execution
 
+> **Editorial historical reading key.**
+>
+> “Dynamic execution” here means consuming prepared occurrences for one invocation, not a promise of
+> symbolic shapes or runtime backend selection. `PreparedExecutionRunner.run` accepts a prepared
+> recipe and dense borrowed representations, creates one isolated state, and binds every action before
+> traversal. Backend executable declarations provide read/write authority; Runtime checks reads before
+> invalidating every copy of each output buffer, then validates only declared writes after success.
+> Backend actions own physical computation, not Runtime validity or resource cleanup. A post-creation
+> failure leaves cleanup with the runner; successful result construction transfers the whole-state
+> lease.
+>
+> See the [current runner
+> contract](../../../../reference/runtime/orchestration.md#current-prepared-runner) for present
+> orchestration. The task's unchanged, close-free aggregate is historical: the [current prepared
+> owner](../../../../reference/runtime/prepared-execution.md#current-prepared-execution) adds
+> persistent resources and lease-controlled closure. No physical rollback follows from logical
+> invalidation.
+
 ## Status
 
 Complete

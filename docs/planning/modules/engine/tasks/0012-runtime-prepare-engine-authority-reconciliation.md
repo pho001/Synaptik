@@ -1,5 +1,21 @@
 # Task 0012: [Runtime](../../../../glossary.md#term-runtime), [Prepare](../../../../glossary.md#prepare), and [Engine](../../../../glossary.md#term-engine) Authority Reconciliation
 
+> **Editorial historical reading key.**
+>
+> Read this as a completed documentation-authority repair, not a specification of today's entire
+> Engine surface. Its CPU-only composition and planned-registration wording records the reconciliation
+> boundary then; explicit CPU/Metal construction is now documented in the [current composition
+> contract](../../../../reference/engine/composition.md#current-explicit-cpu-and-metal-composition).
+>
+> Engine is the caller-facing orchestrator of compilation, preparation, and execution; it does not
+> replace Compiler's logical semantics or backend implementation responsibility. Shared Prepare hands
+> validated recipes and acquired persistent resources to Runtime. Runtime's prepared owner retains the
+> exact plan and schedule, while its runner binds direct actions to one isolated run state. Repeated
+> schedule occurrences are not additional resource owners. The [current aggregate and run
+> orchestration](../../../../reference/runtime/orchestration.md#current-aggregate-and-run-orchestration)
+> distinguishes persistent preparation ownership from result-owned completed state. The task's tests
+> and review outcomes remain historical evidence.
+
 ## Status
 
 Complete

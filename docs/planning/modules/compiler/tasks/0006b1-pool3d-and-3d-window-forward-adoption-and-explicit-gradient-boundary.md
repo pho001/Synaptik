@@ -1,5 +1,16 @@
 # Task 0006B1: [Pool3d](../../../../glossary.md#pool3d--ncdhw-pooling) and 3D-Window Forward Adoption and Explicit [Gradient](../../../../glossary.md#term-gradient) Boundary
 
+> **Editorial reading key — not part of the historical record.**
+>
+> The five signatures form a forward-description closure: pooling uses the same three-dimensional
+> window vocabulary needed by later formulas, but admitting forward metadata does not admit
+> derivatives. Compiler owns descriptor checks and carries deferred spatial obligations; Planning
+> asks whether a real provider supports each described occurrence. Original inventory totals and
+> allocation-free rejection evidence remain specific to this milestone, even where current
+> derivative support has advanced.
+>
+> Current reading: [descriptor verification and deferred constraints](../../../../reference/compiler/verification-scan.md#current-package-private-verification-inference); [pre-capture differentiation and functional requests](../../../../reference/compiler/autograd.md#current-package-private-pre-capture-autograd).
+
 ## Status
 
 Complete

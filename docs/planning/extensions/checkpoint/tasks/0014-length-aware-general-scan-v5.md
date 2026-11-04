@@ -1,5 +1,14 @@
 # Task 0014: Length-aware [general Scan](../../../../glossary.md#general-differentiable-scan) [graph](../../../../glossary.md#graph)-[model](../../../../glossary.md#term-model) v5
 
+> **Editorial reading context — not a status update.** Length-aware source describes which
+> carried values and sequence axes belong to each batch row. The lengths Tensor is a separate
+> outer control input, not a step-body formal. With external lengths, the file preserves that
+> role and descriptor, not the particular counts from a batch; the application supplies fresh
+> compatible counts after load. Named length state would instead follow named-value rules.
+> See today's [version-five role and persistence explanation](../../../../reference/checkpoint/graph-formats.md#length-aware-general-scan-persistence)
+> and [runtime-length NN construction](../../../../reference/nn/recurrent.md#nn-runtime-length-recurrent-composition).
+> Stored source/current weights still omit optimizer continuation and prepared execution.
+
 ## Status
 
 Complete — MAIN accepted 2026-11-01 after independent final code review (APPROVE, zero P1/P2),

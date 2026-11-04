@@ -1,5 +1,22 @@
 # [Engine](../../../glossary.md#term-engine) Master Plan
 
+> **Editorial historical reading key.**
+>
+> Read this as a historical implementation map, not an independent API authority. Engine coordinates
+> Compiler artifacts, shared Prepare, backend integrations, and outward handles; Model owns numerical
+> semantics, backends own lowering and physical access, and Runtime owns the inward preparation and
+> unique run-lease protocol. Caller input storage remains borrowed; publication metadata is not a
+> detached value. Explicit materialization produces the independent host copy.
+>
+> The task rows preserve successive contracts: the inference session was introduced and later removed,
+> numerical-profile propagation was later removed, and the original mixed-transfer domain was bounded.
+> Consult the [current
+> lifecycle](../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+> and [explicit composition
+> contract](../../../reference/engine/composition.md#current-explicit-cpu-and-metal-composition)
+> separately. Engine closes results, then preparations, then integrations; recorded acceptance
+> evidence and conflicting frontier snapshots remain historical assertions, not new verification.
+
 ## Goal and authority
 
 [Engine](../../../glossary.md#term-engine) is the public [lifecycle](../../../glossary.md#lifecycle) [facade](../../../glossary.md#term-facade) and explicit [composition root](../../../glossary.md#term-composition-root) for [compiler](../../../glossary.md#term-compiler), [Prepare](../../../glossary.md#prepare),

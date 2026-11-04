@@ -1,5 +1,15 @@
 # Task 0004: Declarative [Backend](../../../../glossary.md#backend) Requirements
 
+> **Editorial reading key — not part of the historical record.**
+>
+> A requirement describes what a later ownership choice must satisfy. Config supplies its optional
+> placement; Planning combines it with reported availability and exact-operation capability
+> answers. An exact-device target narrows eligibility but does not open that device or turn a
+> backend-level capability answer into device-specific execution proof. These records carry
+> immutable target references, not provider callbacks, resources or a fallback policy.
+>
+> Current reading: [backend identities, supplied availability and requirements](../../../../reference/backend-identities.md); [capability queries and hard-eligible owner selection](../../../../reference/compiler/planning.md#current-operation-capability-contracts).
+
 ## Status
 
 Complete

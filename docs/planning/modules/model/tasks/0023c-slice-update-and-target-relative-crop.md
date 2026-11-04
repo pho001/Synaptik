@@ -1,5 +1,24 @@
 # Task 0023C: [Slice Update](../../../../glossary.md#slice-update) and [Target-Relative Crop](../../../../glossary.md#target-relative-crop)
 
+**Editorial reading key (current context, not a status update).**
+
+This record concerns the original array-based `sliceUpdate` and `cropToShape`, not the broader
+current API or later compiler adoption described in the [current placement
+reference](../../../../reference/tensor/slicing.md#slice-update-and-target-relative-crop-expressions);
+follow it to distinguish the later prefix-Shape update overload. The caller supplies base/update
+Tensors and coordinate descriptions to the Tensor facade, which delegates normalization and
+expression construction to the placement helper. `SliceAttrs` describes signed coordinate sequences;
+a step is logical spacing, not storage stride. For a five-position base, start four, length three,
+and step negative two place update values at positions four, two, and zero, retaining base values
+elsewhere.
+
+A crop prefix describes non-negative extents preceding extraction, not index Tensor values or
+storage offsets. Static fits are checked locally; unresolved fits remain later binding/execution
+obligations, not solved Shape constraints. Model semantics defines replacement and extraction;
+execution providers realize supported routes without redefining them. This semantic responsibility
+does not confer storage ownership: these storage-free expressions neither execute nor own result
+buffers, and promise neither copying nor aliasing.
+
 ## Status
 
 Complete

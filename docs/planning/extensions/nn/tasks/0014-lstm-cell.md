@@ -1,5 +1,14 @@
 # Task 0014: [LSTM](../../../../glossary.md#term-long-short-term-memory-lstm) Cell
 
+> **Editorial reading context — not a status update.** Long short-term memory threads two
+> different values: hidden output and cell memory. The application passes both previous states
+> and must preserve both returned expressions when continuing recurrence. The NN result carrier
+> names those references; owning that carrier does not make the cell state a persistent Buffer
+> or allocate runtime history. Packed input/forget/candidate/output weights remain cell-owned
+> parameters. Today's [recurrent state signatures](../../../../reference/nn/recurrent-layers.md#current-nn-recurrent-composition-contract)
+> explain why LSTM cannot be reduced to a unary Tensor chain, and [state export](../../../../reference/nn/state.md#current-nn-state-dictionary-contract)
+> distinguishes learned model state from caller-threaded recurrent state.
+
 ## Status
 
 Complete

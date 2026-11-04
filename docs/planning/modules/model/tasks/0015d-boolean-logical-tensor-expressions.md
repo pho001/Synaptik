@@ -1,5 +1,12 @@
 # Task 0015D: [Boolean](../../../../glossary.md#data-type--datatype) Logical [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (later context, not a status update).**
+
+Boolean conjunction, disjunction and negation act on true/false positions; they are not bitwise integer operations or whole-axis all/any reductions. AND/OR receive ordered receiver/argument BOOL tensors and derive a broadcast shape. NOT has only the receiver and preserves shape. Numeric truthiness and host-language short-circuit evaluation are not supplied by this construction boundary. The application calls the public Tensor method; its model helper validates available descriptions and returns a fresh storage-free expression with exact input references. It neither copies input values nor calculates the result. Compiler consumes this provenance later; actual storage and execution are separate downstream concerns.
+
+Focused current reading: [Current Boolean-logic reference](../../../../reference/tensor/arithmetic.md#boolean-logical-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

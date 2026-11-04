@@ -1,5 +1,26 @@
 # Task 0044: Static and symbolic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) length [Scan](../../../../glossary.md#term-cumulative-scan) source foundation
 
+**Editorial reading key (current context, not a status update).**
+
+This record closes a source-only admission, not symbolic-length execution: its Compiler and Prepare
+rejections remain historical boundaries. The current [length-aware
+reference](../../../../reference/tensor/general-scan.md#length-aware-source-construction-and-qualified-execution)
+distinguishes later, independently scoped consumer support. Model semantics defines the recurrence;
+providers realize qualified routes, not redefine it. Semantic responsibility is not buffer
+ownership.
+
+The caller supplies `Scan.apply` with actual Tensors matched positionally to `ScanBody` formals:
+carry passes between steps, sequences supply slices, and invariants stay unchanged. A formal is a
+placeholder leaf—no producing expression, not necessarily stored values. Here, descriptors cross the
+construction boundary, not length values: separate non-gradient INT64 lengths have no body formal.
+ROW identifies a proved batch coordinate; SHARED lacks one, regardless of equal sizes. For zero
+steps and batch named `Rows`, row state `[Rows,2]` yields history `[0,Rows,2]`, while shared bias
+`[2]` yields `[0,2]`. These storage-free expressions neither execute nor own result buffers. Follow
+[canonical
+results](../../../../reference/tensor/general-scan.md#canonical-results-residual-metadata-and-eligibility)
+to distinguish port identity, residual metadata and gradient flags from allocated histories or
+available derivatives.
+
 ## Status
 
 Complete — MAIN accepted the exact source-only [scope](../../../../glossary.md#term-scope) on 2026-10-26 after independent source/docs

@@ -1,5 +1,15 @@
 # [Checkpoint](../../../glossary.md#term-checkpoint) Extension Master Plan
 
+> **Editorial reading context — not a status update.** Read the stages separately:
+> an application asks Checkpoint to store bytes; a schema gives those bytes model meaning;
+> NN owns named parameters, buffers and model reconstruction; Engine evaluates expressions
+> when capture needs values. Generic graph persistence instead reconstructs source without
+> execution. None of these roles automatically restores optimizer history or the application's
+> next input. The changing package/dependency descriptions below belong to their recorded stages.
+> Compare today's [opaque file boundary](../../../reference/checkpoint/artifacts.md#purpose-and-mental-model),
+> [values-only recovery](../../../reference/checkpoint/values.md#values-only-recovery) and
+> [cold graph boundary](../../../reference/checkpoint/graph.md#purpose-and-mental-model).
+
 ## Goal and authority
 
 Accepted whole-[model](../../../glossary.md#term-model) product: store a supported declarative model and load it automatically for

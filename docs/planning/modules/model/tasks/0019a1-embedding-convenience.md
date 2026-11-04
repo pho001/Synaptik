@@ -1,5 +1,24 @@
 # Task 0019A1: [Embedding](../../../../glossary.md#embedding) Convenience
 
+**Editorial reading key (current context, not a status update).**
+
+This record concerns the historical addition of a convenience, not a new embedding operation or
+evidence of execution support. In the current [Embedding
+convenience](../../../../reference/tensor/gather.md#embedding-convenience) description, follow the
+receiver and result contract: the caller supplies rank-two floating `weights` and integer `indices`;
+`Tensor.embedding` delegates through its validation helper to axis-zero Gather. Ordered provenance
+`[weights, indices]` records the exact input references, not copied row values. A producer records
+the expression that yields a result. Weights shaped `[10, 4]` and indices shaped `[2, 3]` describe
+result Shape `[2, 3, 4]` without reading six indices or selecting rows.
+
+Model semantics fixes the lookup meaning; execution providers realize supported routes rather than
+redefine it. This storage-free expression neither executes nor owns a result buffer. Semantic
+responsibility is distinct from storage ownership: compiler analysis may reject provably invalid
+indices, while preparation or prepared execution must enforce bounds safely. Negative indices do not
+wrap. Weight-derived `requiresGrad` denotes eligibility, not a constructed gradient. Historical
+counts, scope exclusions, and recorded validation remain historical evidence, not current capability
+inventories.
+
 ## Status
 
 Complete

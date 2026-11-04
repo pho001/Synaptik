@@ -1,5 +1,23 @@
 # Task 0016: [CPU](../../../../glossary.md#term-cpu)/[Metal](../../../../glossary.md#term-metal) Mixed-[Owner](../../../../glossary.md#term-owner) Schedule and Transfer
 
+> **Editorial historical reading key.**
+>
+> This task introduces mixed-owner execution, with a deliberately narrow completion-time transfer
+> domain: positive rank-1..16 canonical contiguous FLOAT32 intermediates. The [current composition
+> reference](../../../../reference/engine/composition.md#current-explicit-cpu-and-metal-composition)
+> documents later expansion to seven carriers and broader checked layouts. Compiler's selected owner
+> identities remain the logical recipe; Engine resolves every owner and transfer direction before
+> backend analysis, then assembles direct per-occurrence adapters and transfer recipes.
+>
+> Shared Prepare coordinates backend declarations, owner representation positions, finalization, and
+> transactional handoff of persistent resources. CPU/Metal implementations perform the physical
+> host-staged copies; Runtime binds prepared actions and records destination validity only after
+> transfer success. The [current runner
+> contract](../../../../reference/runtime/orchestration.md#current-prepared-runner) separates
+> synchronous execution from the returned result's ownership of completed state. Borrowed caller
+> storage is not staging ownership, and publication is not host copying. Historical CPU-only tuning
+> limits and review outcomes remain unchanged.
+
 ## Status
 
 Complete

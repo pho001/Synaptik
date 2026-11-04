@@ -1,5 +1,12 @@
 # Task 0012C: Nested Typed [Tensor](../../../../glossary.md#tensor) Import
 
+**Editorial reading key (later context, not a status update).**
+
+The application supplies a rectangular nested primitive-array structure. The nested importer infers shape from reachable array lengths, flattens in last-axis-fastest order, then delegates to flat import for an independent destination copy. It does not retain the caller's nested array graph or turn it into expression provenance. An empty outer axis cannot reveal missing trailing extents in Java objects, which explains the restriction recorded here. Both the intermediate carrier and destination are heap data, not closeable Tensor-owned arenas.
+
+Focused current reading: [Current nested-import example](../../../../reference/tensor/import.md#complete-nested-import-example). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

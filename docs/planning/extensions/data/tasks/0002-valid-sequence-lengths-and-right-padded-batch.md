@@ -1,5 +1,14 @@
 # Task Data0002: Valid sequence lengths and right padded [batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) [metadata](../../../../glossary.md#term-metadata)
 
+> **Editorial reading context — not a status update.** The application supplies a Tensor
+> plus one host count per batch row. The historical wrapper retains that exact Tensor and
+> independently owns copied counts; it checks descriptor geometry, not stored padding values
+> or storage liveness. For time extent four, count two declares the first two positions valid
+> even when either contains zero. Choosing time-major metadata does not transpose data.
+> Today's [axis geometry](../../../../reference/data/sequences.md#axis-order-and-geometry) and
+> [borrowing contract](../../../../reference/data/sequences.md#validation-failures-and-borrowing)
+> explain the same distinctions; its later replacement type does not rename the historical API below.
+
 ## Status
 
 Complete — accepted 2026-10-20 after independent approval and coordinator [checkpoint](../../../../glossary.md#term-checkpoint).

@@ -1,5 +1,16 @@
 # Task 0006: Explicit Functional [Gradient](../../../../glossary.md#term-gradient) Requests and Higher-Order Differentiation
 
+> **Editorial reading key — not part of the historical record.**
+>
+> The caller supplies explicit forward identities, target identities and output sensitivities
+> through FunctionalGradientRequest; Compiler constructs one or two bounded reverse stages before
+> one combined capture. Stage-two references select first-stage result roles, not arbitrary stored
+> gradients. TensorId identifies the original logical target, while ValueId identifies a value
+> only inside the captured graph. No Tensor is mutated and no parameters are updated; Engine
+> integration and backend execution remain separate boundaries from request meaning.
+>
+> Current reading: [pre-capture differentiation and functional requests](../../../../reference/compiler/autograd.md#current-package-private-pre-capture-autograd); [ordinary and advanced Engine compile boundaries](../../../../reference/compiler/entry-points.md#current-ordinary-and-advanced-engine-compile-boundaries).
+
 ## Status
 
 Complete

@@ -1,5 +1,12 @@
 # Task 0005: [Operation](../../../../glossary.md#operation) Semantic Foundation
 
+**Editorial reading key (later context, not a status update).**
+
+An operation kind answers what calculation is requested; attributes carry its fixed semantic parameters. The caller of these contracts is later expression/graph construction code, not a numeric kernel. For example, an axis parameter describes which coordinate direction an operation uses; it is not a Tensor containing an index value. Model defines these meanings, while Compiler and Prepare use them in their own integration stages. This initial foundation intentionally precedes the later signature validation described in the current reference.
+
+Focused current reading: [Current operation and signature explanation](../../../../reference/tensor/operation-foundation.md#operation-semantic-foundation). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

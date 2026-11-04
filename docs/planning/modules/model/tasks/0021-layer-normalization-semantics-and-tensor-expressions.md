@@ -1,5 +1,30 @@
 # Task 0021: [Layer Normalization](../../../../glossary.md#layer-normalization) Semantics and [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (current context, not a status update).**
+
+This record concerns the original model-only layer-normalization scope; its completion and evidence
+do not describe today's execution coverage. The caller invokes `layerNorm` on the input Tensor,
+supplying a trailing normalized Shape, typed positive epsilon, and optionally both scale and bias.
+The helper validates descriptions and records ordered operand references, not computed values.
+“Affine” means scale then bias; both operand Shapes must exactly equal the normalized Shape. For
+input Shape `[2, 3]` and normalized Shape `[3]`, each row is standardized independently using
+population variance, with epsilon inside the square root.
+
+The [current layer-normalization
+contract](../../../../reference/tensor/normalization.md#layer-normalization-expressions) explains
+expanded floating-type and epsilon rules beyond this record. The [lifecycle
+boundary](../../../../reference/tensor/normalization.md#result-identity-and-lifecycle-boundary)
+separates expression construction from compiler and execution-provider responsibilities. Model
+semantics defines meaning; providers realize supported routes without redefining it. The
+storage-free result neither executes nor owns a result buffer. Semantic responsibility is not
+storage ownership, and the single-output producer exposes no saved statistics.
+
+**Mathematical reading illustration.** For finite real row entries $x_1,x_2$, let $\mu=(x_1+x_2)/2$,
+population variance $v=((x_1-\mu)^2+(x_2-\mu)^2)/2$, and positive epsilon $\varepsilon$. Without
+affine operands, $y_i=(x_i-\mu)/\sqrt{v+\varepsilon}$ for $i\in\{1,2\}$. At $x=(1,3)$ and
+$\varepsilon=3$, $\mu=2$, $v=1$, and $y=(-1/2,1/2)$. This illustrates centering and epsilon
+placement over real numbers, not actual floating evaluation.
+
 ## Status
 
 Complete

@@ -1,5 +1,12 @@
 # Task 0018F: [Gather-ND](../../../../glossary.md#gather-nd) [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (later context, not a status update).**
+
+Gather-ND uses coordinate tuples: the final indices extent is the tuple depth, and each tuple selects several data axes after a shared batch prefix. The application supplies data as receiver, integer indices, and optional batch count. The helper validates shared-prefix descriptions, removes the tuple axis from the indices shape, and appends the untouched data suffix. It does not interpret coordinates or prove index-value bounds. The application calls the public Tensor method; its model helper validates available descriptions and returns a fresh storage-free expression with exact input references. It neither copies input values nor calculates the result. Compiler consumes this provenance later; actual storage and execution are separate downstream concerns.
+
+Focused current reading: [Current Gather-ND shape and tuple explanation](../../../../reference/tensor/scatter.md#gather-nd-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

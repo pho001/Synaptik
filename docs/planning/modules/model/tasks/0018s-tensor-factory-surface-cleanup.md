@@ -1,5 +1,25 @@
 # Task 0018S: [Tensor Factory](../../../../glossary.md#tensor-factory) Surface Cleanup
 
+**Editorial reading key (current context, not a status update).**
+
+This record captures the historical narrowing of `TensorFactory`, promotion of `TensorRandoms`, and
+removal of production prefix helpers; its method counts and completion evidence are historical, not
+current inventories. Here “owner” means API responsibility, not storage ownership. The caller
+supplies a `RandomGenerator`; stateless `TensorRandoms` samples values and delegates to
+`TensorFactory.fromFlatArray`, which copies the carrier into independent storage and allocates
+identity. Test-only `TensorTestData` prepares prefixes; `TensorRanges` supplies private
+integer-range mechanics. A leaf has no producing expression, not necessarily stored values; eager
+random leaves do not represent graph RNG state.
+
+For current distinctions, follow [allocation, import and constant
+contracts](../../../../reference/tensor/creation.md#allocation-import-and-constant-contracts):
+`create` retains a descriptor and optional borrowed storage, `allocate` reserves storage, and import
+copies values. For example, importing BOOL bytes zero and seven stores zero and one without
+retaining the source array. Primitive scalar/full inputs supply eager values; `ScalarValue`
+describes semantic operation state. Model semantics defines meaning; execution providers realize
+supported routes rather than redefine it. Storage-free expressions neither execute nor own result
+buffers.
+
 ## Status
 
 Complete

@@ -1,5 +1,15 @@
 # Task 0004: Joint restore on an unpublished candidate
 
+> **Editorial reading context — not a status update.** The integration fixture acts as
+> the application coordinator. It restores a distinct unpublished NN tree, copies final
+> parameter values into its own native Arena, constructs an objective from those final Tensor
+> identities, opens/restores a private session and validates external progress before publishing
+> one replacement holder. NN and Training each validate their own state; the caller provides
+> exclusion and publication. Discarding a failed private candidate is not rollback of an
+> already retired old session. Today's [recovery protocol](../../../../reference/training/recovery.md#caller-coordinated-in-memory-recovery)
+> and [native-copy lifetime](../../../../reference/training/parameters.md#explicit-native-parameter-copy)
+> explain both the integration proof and its bounded resource/atomicity claim.
+
 ## Status
 
 Complete — the bounded caller-coordinated, unpublished-candidate protocol in

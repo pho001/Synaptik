@@ -1,5 +1,16 @@
 # Task 0006A: [Model-Autotuning Request](../../../../glossary.md#model-autotuning-request--preparation-result) Configuration
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Application policy crosses into ModelAutotuningConfig as budgets, an evidence-profile identity,
+> fallback intent and an explicit path. Profile identity bytes are snapshotted; a Path is retained
+> as a location request, not opened by Config. Engine composition translates Config-owned values
+> to the tuning tool, which owns measurement and selection; actual representative inputs and
+> prepared resources have separate lifecycle owners. Safe fallback cannot legalize an ineligible
+> candidate or relax Model semantics.
+>
+> Current reading: [declarative tuning budgets and their lifecycle consumers](../../../../reference/compiler/configuration-values.md).
+
 ## Status
 
 Complete

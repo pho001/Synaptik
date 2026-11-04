@@ -1,5 +1,32 @@
 # Task 0043: Symbolic-[batch](../../../../glossary.md#term-batch-machine-learning-and-hyperparameters) and [runtime](../../../../glossary.md#term-runtime)-length [Scan](../../../../glossary.md#term-cumulative-scan) integration design
 
+**Editorial reading key (current context, not a status update).**
+
+This record closes a design-only proposal, not implementation authority; later capabilities
+described in the current reference do not change that historical scope. The caller supplies
+`ScanBody` formals (declared input placeholders) and positional actual Tensors to `Scan.apply`,
+which describes a recurrence without executing it or owning result buffers. A leaf has no producing
+expression, not necessarily stored values. Model semantics defines meaning; Compiler captures and
+differentiates, Prepare handles bindings/resources, and execution providers realize independently
+supported routes rather than redefine semantics. Semantic responsibility is not storage ownership.
+Follow [source
+construction](../../../../reference/tensor/general-scan.md#general-scan-source-construction) for
+these boundaries.
+
+Here `B` names batch size, `T` fixes time, and INT64 `[B]` lengths supply per-row active counts.
+ROW(axis) requires coordinate provenance; SHARED means no row coordinate, not equal-sized storage.
+Descriptor binding reads no lengths; execution checks all produced lengths before any Scan-local
+write. For `T=0`, every length must be zero; carry preserves raw bits, while inactive emissions use
+positive zero. Follow [length-aware construction and
+execution](../../../../reference/tensor/general-scan.md#length-aware-source-construction-and-qualified-execution)
+to distinguish metadata, AD and runtime qualification.
+
+**Length-domain reading illustration.** For integer batch extent $B\ge0$ and fixed integer time
+extent $T\ge0$, each runtime length $\ell_b$ must satisfy $0\le\ell_b\le T$ for row
+$b\in\{0,\ldots,B-1\}$. At $B=2$, $T=3$, lengths $(0,2)$ mean the first row runs no steps and the
+second runs positions zero and one. These are value obligations; an INT64 `[B]` descriptor alone
+cannot prove them. No row checks exist when $B=0$, but other shared obligations remain.
+
 ## Status
 
 Complete — DESIGN DELIVERY ONLY; independent APPROVE and MAIN acceptance, 2026-10-26.

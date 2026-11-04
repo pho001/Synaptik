@@ -1,5 +1,15 @@
 # Vision Extension Master Plan
 
+> **Editorial reading context — future boundary, not image-decoder support.** A proposed
+> decoder would turn bounded encoded image bytes into explicitly described pixels; transforms
+> would separately decide orientation, color/alpha meaning, sample scaling and channel order.
+> Only then could numeric batching/Tensor construction make a model input. Choosing NCHW
+> describes axes, not a color conversion or an NN execution request. Caller streams and
+> decoder-opened channels would have different cleanup owners under the proposed contract.
+> Today's [Data preparation boundary](../../../reference/data/sequences.md#purpose-and-mental-model)
+> and [flat Tensor import example](../../../reference/tensor/import.md#complete-flat-import-example)
+> explain adjacent numeric/copy concepts, not an existing Vision decoder or approval of this Draft.
+
 ## Goal
 
 Plan explicit, resource-bounded image loading and preprocessing without importing [codec](../../../glossary.md#term-codec), desktop,

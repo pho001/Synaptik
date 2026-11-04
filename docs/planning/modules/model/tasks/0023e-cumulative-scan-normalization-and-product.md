@@ -1,5 +1,30 @@
 # Task 0023E: [Cumulative Scan](../../../../glossary.md#cumulative-scan) [Normalization](../../../../glossary.md#term-normalization) and Product
 
+**Editorial reading key (current context, not a status update).**
+
+This historical task records the sum-to-scan vocabulary normalization and product-expression
+boundary, not today’s full scan capabilities. A caller invokes `Tensor.cumProd`; the shared
+construction helper receives the input Tensor and mode descriptions, normalizes the axis, and
+records one producer occurrence. No element values cross that construction boundary: the fresh
+result describes a request, executes nothing, and owns no result buffer. Model defines the meaning;
+execution providers realize supported routes rather than redefine it. Semantic responsibility is not
+storage ownership.
+
+A scan retains every axis position; inclusive includes the current element, exclusive omits it, and
+reverse changes traversal without reversing output positions. For input `[2, 3, 4]`,
+reverse-exclusive product means `[12, 4, 1]`; an empty axis has no identity-output position.
+Integral products remain fixed-width modular products; floating NaN, zero-times-infinity, and sign
+rules remain significant. Follow the [current cumulative-scan
+contract](../../../../reference/tensor/fixed-scans.md#cumulative-scan-expressions) for these modes
+and later context: FP8 acceptance, declared arithmetic floors, and compiler differentiation are
+current descriptions, not additions to this task’s historical five-type, no-gradient scope.
+
+**Mathematical reading illustration.** For a finite real vector $x=(x_1,x_2,x_3)$, reverse-exclusive
+product is $y_i=\prod_{j=i+1}^{3}x_j$ for $i\in\{1,2,3\}$; the empty product is one. With
+$x=(2,3,4)$, $y=(12,4,1)$. Traversal runs backward, but each result stays at its original
+coordinate. The formula illustrates contributor membership, not floating regrouping, integral
+overflow behavior or special-value handling.
+
 ## Status
 
 Complete

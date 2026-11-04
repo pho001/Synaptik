@@ -1,5 +1,14 @@
 # Task 0008: [Batch Normalization](../../../../glossary.md#batch-normalization--batch-normalization-inference-and-training) Layer
 
+> **Editorial reading context — not a status update.** The application passes both input and
+> a ForwardContext to BatchNorm; that context, not an implicit training-session flag, selects the
+> branch. Training forward replaces running-statistic bindings with next-statistic expressions,
+> not evaluated host numbers. Buffers remain outside optimizer discovery even if those
+> expressions depend on gradient-eligible inputs. Evaluation uses supplied running statistics
+> without updating them. Today's [inference normalization semantics](../../../../reference/tensor/normalization.md#batch-normalization-inference-expressions)
+> explain the Model operation, while [recovery participant requirements](../../../../reference/training/recovery.md#caller-coordinated-in-memory-recovery)
+> explain why symbolic running-buffer transitions are not proof of step-aligned exact continuation.
+
 ## Status
 
 Complete

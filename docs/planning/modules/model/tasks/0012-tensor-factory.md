@@ -1,5 +1,12 @@
 # Task 0012: [Tensor Factory](../../../../glossary.md#tensor-factory) Foundation
 
+**Editorial reading key (later context, not a status update).**
+
+The application calls TensorFactory with a completed descriptor and, optionally, an existing storage wrapper. The factory assigns public identity and retains the compatible wrapper rather than copying its bytes; it does not allocate data in this task. These results are leaves because they have no producing expression, whether they are storage-free placeholders or already backed by caller values. Arena ownership stays with the caller, and heap reachability is a different lifetime mechanism. Model defines construction semantics; neither a TensorId nor a descriptor grants graph membership or executable support.
+
+Focused current reading: [Current create/allocate/import distinction](../../../../reference/tensor/creation.md); [Borrowed-storage lifetime reference](../../../../reference/tensor/host-storage.md#host-visible-storage). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

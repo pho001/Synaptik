@@ -1,5 +1,16 @@
 # Task 0006B: Complete-Plan [Autotuning](../../../../glossary.md#autotuning--model-autotuning) Request Configuration
 
+> **Editorial reading key — not part of the historical record.**
+>
+> The complete-plan budget describes a second transaction, not a reinterpretation of Phase-1
+> counts. Config receives explicit limits and cache paths; later Engine composition translates
+> them, while tuning owns correctness comparison, timing and selected-plan evidence. A declared
+> path creates no file and grants no persistence compatibility. Candidate producers and
+> preparation retain executable/resource responsibilities, and safe heuristic fallback still
+> cannot weaken operation semantics or substitute another owner.
+>
+> Current reading: [declarative tuning budgets and their lifecycle consumers](../../../../reference/compiler/configuration-values.md).
+
 ## Status
 
 Complete

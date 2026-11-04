@@ -1,5 +1,14 @@
 # Training 0002C — Preserve documented [Adam](../../../../glossary.md#adaptive-optimizer--adam-adamw) update [operation](../../../../glossary.md#operation) order
 
+> **Editorial reading context — not a status update.** Algebraically equal real expressions
+> need not have the same finite-precision intermediates. Here the repair concerns whether
+> learning-rate scaling happens before division, so candidate finiteness checks observe the
+> documented operation order. It changes neither the optimizer's owning session nor its
+> rollback/state format. The independent oracle is comparison evidence, not a second
+> production authority. Today's [optimizer arithmetic description](../../../../reference/training/optimizers.md#optimizers-and-gradient-modes)
+> and [candidate transaction](../../../../reference/training/optimizers.md#atomicity-state-concurrency-and-close)
+> explain why rejecting a non-finite intermediate can distinguish two apparently equivalent update spellings.
+
 ## Status
 
 Complete

@@ -1,5 +1,14 @@
 # Task 0013: [GRU](../../../../glossary.md#term-gated-recurrent-unit-gru) Cell
 
+> **Editorial reading context — not a status update.** The gated recurrent unit's reset,
+> update and candidate slices are parts of packed projection parameters, not separately owned
+> modules. The application supplies previous hidden state and receives one next-hidden
+> expression; the cell retains only parameter bindings. Reset-after names where the reset
+> control is applied relative to the hidden projection, so a similarly named GRU elsewhere
+> need not have interchangeable parameters. Today's [cell/sequence contract](../../../../reference/nn/recurrent-layers.md#current-nn-recurrent-composition-contract)
+> explains state threading, and [runtime-length composition](../../../../reference/nn/recurrent.md#nn-runtime-length-recurrent-composition)
+> contrasts later scan construction without rewriting this single-cell history.
+
 ## Status
 
 Complete

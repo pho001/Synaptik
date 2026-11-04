@@ -1,5 +1,14 @@
 # [General Scan](../../../glossary.md#general-differentiable-scan) with one symbolic per-[run](../../../glossary.md#term-run) [batch](../../../glossary.md#term-batch-machine-learning-and-hyperparameters)
 
+**Editorial reading key (later context, not a status update).**
+
+The application supplies actual input Tensors to Scan construction; its body formals are producerless placeholders describing one step, not stored example rows or executable callbacks. Model records that relationship, Compiler captures and differentiates it, and Prepare/backend/Runtime handle admitted execution. In this record, the named batch dimension is a coordinate identity, not merely an integer equal to another extent. Sharing immutable prepared geometry is different from sharing writable invocation arrays: a memoized description does not own each run's values. The status and authorization sentences below are retained as recorded, including their distinct source, authority and downstream execution claims.
+
+**Geometry reading example (not new qualification evidence).** Let $b\in\mathbb{Z}_{\ge 0}$ be the resolved batch size. With the recorded fixed time/feature extents, $X$ has $3\cdot b\cdot4=12b$ elements. A FLOAT32 payload uses four bytes per element, so it requires $48b$ payload bytes: at $b=40$, that is $1{,}920$ bytes. This is payload geometry, not a measurement of total allocation or proof that an execution route is admitted.
+
+Focused current reading: [Current formal/actual Scan boundary](../../../reference/tensor/general-scan.md#formals-actual-positions-and-source-closure); [Current static/symbolic source example](../../../reference/tensor/general-scan.md#static-and-symbolic-construction-through-the-same-api). The original record below retains its own scope, decisions and evidence.
+
+
 ## Purpose and authority
 
 Record the selected extension from static [general Scan](../../../glossary.md#general-differentiable-scan) to one named per-[run](../../../glossary.md#term-run) [batch](../../../glossary.md#term-batch-machine-learning-and-hyperparameters) B, with fixed

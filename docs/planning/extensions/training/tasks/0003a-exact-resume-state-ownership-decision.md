@@ -1,5 +1,14 @@
 # Training 0003A — Decide exact-[resume](../../../../glossary.md#schema-serialization-and-checkpoint) state [ownership](../../../../glossary.md#term-ownership-meanings)
 
+> **Editorial reading context — ownership decision, not a durable codec.** Exact next-step
+> continuation requires agreement across model parameters/buffers, Training's optimizer and
+> accumulation state, effective forward contexts, and the application's next-input cursor and
+> affecting external state. A session run counter cannot reconstruct which dataset item comes
+> next. An NN local mode also does not prove which explicit context built an objective.
+> Today's [caller-coordinated recovery](../../../../reference/training/recovery.md#caller-coordinated-in-memory-recovery)
+> names those participants, and [Training state limits](../../../../reference/training/optimizers.md#atomicity-state-concurrency-and-close)
+> explain per-owner restore. Their integration responsibilities do not create a transaction across owners or cross-device replay guarantees.
+
 ## Status
 
 Complete

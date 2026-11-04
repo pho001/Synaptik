@@ -1,5 +1,22 @@
 # Task 0011: [Compile](../../../../glossary.md#compile)-[Artifact](../../../../glossary.md#term-artifact) Projection Boundary Reconciliation
 
+> **Editorial historical reading key.**
+>
+> This is a historical boundary cutover, not a new computation capability. Engine passes Compiler's
+> complete artifacts into shared GraphPreparation; Prepare alone projects partition-local facts and
+> validates complete orchestration. CPU receives PrepareContext plus CPU configuration, returns
+> backend preparation contributions, and owns concrete lowering, OpenBLAS eligibility, geometry, and
+> tuning alternatives—not Compiler orchestration. CPU and Metal schedule assemblers receive stable
+> validated schedule facts rather than the Compiler aggregate. Producerless constants cross as logical
+> value, requirement, and scalar facts; CPU contributes physical geometry and initialization recipes,
+> while Prepare assigns slots and coordinates rollback before transferring resources to Runtime. See
+> [current Prepare
+> orchestration](../../../../reference/runtime/orchestration.md#current-prepare-orchestration-assignment-and-backend-finalization)
+> and [compile
+> artifacts](../../../../reference/compiler/artifacts.md#current-complete-artifact-compilation-and-integration-port).
+> Preserve the intentional CPU SPI/record incompatibilities: ordinary Engine APIs stayed compatible,
+> and test-only Compiler dependencies do not authorize production coupling.
+
 ## Status
 
 Complete

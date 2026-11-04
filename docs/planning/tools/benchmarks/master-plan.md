@@ -1,5 +1,20 @@
 # Benchmarks Master Plan
 
+## Editorial reading key: measuring is different from selecting
+
+The benchmark harness is the program that calls Engine to compile descriptions, prepare resources
+and run fixed input values. It reports elapsed times and observed results. A tuning workflow
+instead compares allowed candidates and returns a selected decision; a benchmark report does
+not authorize that decision or install a new default.
+
+Engine and its prepared/run owners retain their normal cleanup responsibilities; the benchmark
+tool's responsibility is reproducible setup, measurement and reporting. Read
+[measurement terms and boundaries](../../../developer-guide/benchmarking.md#prerequisites-and-terms)
+before comparing samples and [the Engine lifecycle](../../../reference/engine/lifecycle.md)
+to distinguish compile, prepare, run and host-copy costs. The receipts and defaults recorded below
+remain historical observations rather than new measurements.
+
+
 ## Goal
 
 Provide fixed reproducible workloads and observational performance reports for comparisons among

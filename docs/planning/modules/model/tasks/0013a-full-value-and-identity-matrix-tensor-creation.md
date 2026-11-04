@@ -1,5 +1,12 @@
 # Task 0013A: Full-Value and [Identity](../../../../glossary.md#term-identity-meanings)-[Matrix](../../../../glossary.md#term-matrix-meanings) [Tensor](../../../../glossary.md#tensor) Creation
 
+**Editorial reading key (later context, not a status update).**
+
+The application asks TensorFactory to store a full-value pattern or a rectangular identity matrix immediately. Identity here means typed ones on equal row/column coordinates and zeros elsewhere, not object identity and not an expression that returns its input. The result is an independent populated leaf: no producing expression is attached, and no template storage is borrowed. The source-carrier/destination copies recorded below are specific factory behavior, not a universal rule for all Tensor APIs.
+
+Focused current reading: [Current full/identity example](../../../../reference/tensor/constants.md#complete-full-value-and-rectangular-identity-example). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

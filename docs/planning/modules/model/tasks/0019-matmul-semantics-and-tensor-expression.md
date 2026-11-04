@@ -1,5 +1,31 @@
 # Task 0019: Matmul Semantics and [Tensor](../../../../glossary.md#tensor) Expression
 
+**Editorial reading key (current context, not a status update).**
+
+This completed record concerns MATMUL metadata, not execution; its follow-up statuses and
+numerical/type scope are historical. The caller invokes `left.matmul(right)`;
+`TensorMatmulExpressions` derives the descriptor and delegates result construction to
+`TensorFactory`. Ordered operand references and descriptions—type, Shape, and provenance—cross this
+boundary, not copied or computed values. The fresh storage-free result owns no result buffer. Model
+semantics defines meaning; execution providers realize supported routes rather than redefine it.
+Semantic responsibility is not storage ownership.
+
+A contraction sums corresponding components: the example’s first row and first column yield 22
+mathematically, not during construction. Batch axes repeat matrix calculations with right-aligned
+broadcasting; unresolved extents can leave proof obligations. Follow [matrix-multiplication
+expressions](../../../../reference/tensor/matmul-linear.md#matrix-multiplication-expressions) for
+rank rules and [current numerical
+meaning](../../../../reference/tensor/matmul-linear.md#data-type-numerical-meaning-and-result-metadata)
+for expanded low-type coverage and FLOAT32 rounding, fusion, and zero-publication boundaries; these
+do not retroactively rewrite this task. Current `Tensor.linear` composes primitives without owning
+parameters; the NN `Linear` module separately owns weight and optional bias.
+
+**Mathematical reading illustration.** For real matrices $A\in\mathbb{R}^{m\times k}$ and
+$B\in\mathbb{R}^{k\times n}$, with positive integer dimensions $m,k,n$, cell
+$C_{ij}=\sum_{r=1}^{k}A_{ir}B_{rj}$ contracts the shared $k$ axis; $1\le i\le m$, $1\le j\le n$.
+With $m=n=1$, $k=2$, row $A=[2,3]$ and column $B=[4,5]^\mathsf{T}$, $C_{11}=23$. This explains which
+products contribute, not a floating-point reduction order or an execution performed by construction.
+
 ## Status
 
 Complete

@@ -1,5 +1,34 @@
 # Task 0018V: Multi-[axis](../../../../glossary.md#term-axis) and Statistical Reductions
 
+**Editorial reading key (current context, not a status update).**
+
+This completed task records model-expression construction, not execution support. The caller
+supplies a receiver Tensor and axes to public reduction methods; the package-private helper
+validates them and delegates result/provenance construction to TensorFactory. Axes are copied
+descriptions, not element values: normalized order identifies attributes, while membership
+determines Shape. For input `[2, 3, 4]`, axes `[2, 0]` leave `[3]`, or `[1, 3, 1]` when retained.
+Empty axes mean one-value domains, not full reduction. Correction subtracts a count from the
+statistical denominator; point-domain correction one is invalid. Fresh storage-free expressions
+record their producing operation and input reference; they neither execute nor own result buffers.
+Model semantic responsibility is not storage ownership.
+
+Read the historical exact-real, once-rounded numerical target in its historical scope. The [current
+reduction
+contract](../../../../reference/tensor/reductions.md#multi-axis-and-statistical-reduction-expressions)
+explains today's rounded contributor trees, named-site subnormal permissions, and statistical
+validation; its [numeric aggregate
+section](../../../../reference/tensor/reductions.md#numeric-aggregate-expressions) details the
+limited FLOAT32 final exact-zero sign freedom. These are not blanket reordering or equivalence
+licenses: contributor membership, counts, correction, empty-domain identities, and special-value
+boundaries remain mandatory. Model semantics defines meaning; execution providers realize supported
+routes rather than redefine it.
+
+**Mathematical reading illustration.** For a finite real slice $x_1,\ldots,x_n\in\mathbb{R}$ with
+integer count $n>0$, mean $\mu=\frac1n\sum_{i=1}^{n}x_i$ and corrected variance
+$v=\frac{\sum_{i=1}^{n}(x_i-\mu)^2}{n-c}$ require correction $c\ge0$ and $n>c$. For $n=2$, $x=(1,3)$
+and $c=0$, $\mu=2$ and $v=1$; correction one instead gives two. These are real-number
+interpretations, not permissions to replace the recorded or current rounded arithmetic.
+
 ## Status
 
 Complete

@@ -1,5 +1,15 @@
 # Task Text0001: Whitespace [tokenizer](../../../../glossary.md#frozen-whitespace-tokenizer) and Data batching
 
+> **Editorial reading context — not a status update.** Text copies the application's ordered
+> vocabulary and encodes whitespace-separated runs into fresh integer arrays. TextSequenceBatcher
+> delegates numeric allocation/padding to Data; returned counts are host metadata, not graph
+> bindings. NN Embedding separately turns IDs into floating features, and Engine separately
+> evaluates the expression. Unknown and padding IDs are vocabulary conventions, not special
+> optimizer behavior or a global sequence mask. Read today's [frozen tokenization](../../../../reference/text/tokenization.md#frozen-token-ids),
+> [batch delegation](../../../../reference/text/tokenization.md#explicit-batch-configuration) and
+> [integration limits](../../../../reference/text/tokenization.md#boundaries-and-related-contracts)
+> for the actual application-owned connections and missing fluent integer-input transition.
+
 ## Status
 
 Complete — independently approved and accepted by main on 2026-10-21.

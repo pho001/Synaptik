@@ -1,5 +1,24 @@
 # Task 0018M: Symbolic [Extent](../../../../glossary.md#term-extent) Expressions
 
+**Editorial reading key (current context, not a status update).**
+
+This record concerns model-owned shape descriptions, not runtime tensor values. A caller supplies
+immutable dimensions to `DimensionExpressions`; the factory returns a canonical extent description
+for a `Shape`, without binding input sizes or allocating tensor storage. “Dynamic” includes named
+sizes, exact formulas and constrained unknowns; an unknown has identity, so two calls with identical
+bounds remain distinct. For example, adding two to a named batch extent records a formula, not a
+measured batch size. Model semantics defines its meaning; execution providers realize supported
+routes, not redefine extents. Semantic responsibility does not imply storage ownership.
+
+The historical six-method, four-form scope excludes symbolic products and Tensor-operation adoption.
+The current [symbolic-extent
+reference](../../../../reference/tensor/shapes.md#symbolic-extent-expressions) explains the later
+seven-method, five-form contract, including products; it does not revise this task’s scope. Follow
+[broadcasting](../../../../reference/tensor/shapes.md#broadcasting) for the conservative
+equality/singleton boundary: matching formulas can align, but unrelated unknowns cannot. Checked
+integer arithmetic, non-negative eventual extents and unreassociated division remain important;
+these descriptions neither evaluate runtime sizes nor establish graph-wide equality.
+
 ## Status
 
 Complete

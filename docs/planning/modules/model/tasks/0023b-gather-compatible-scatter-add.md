@@ -1,5 +1,24 @@
 # Task 0023B: [Gather](../../../../glossary.md#gather)-Compatible Scatter-Add
 
+**Editorial reading key (current context, not a status update).**
+
+This completed task records the introduction of Gather-compatible `SCATTER_ADD`, not restoration of
+the removed reduced-rank meaning or historical `SCATTER_AXIS_ADD`. For current Shape and coordinate
+rules, follow [Gather-compatible Scatter Add
+expressions](../../../../reference/tensor/scatter.md#gather-compatible-scatter-add-expressions).
+“Gather-compatible” means updates replace the selected data axis with the complete indices Shape:
+data `[2, 3, 4]`, axis `1`, and indices `[5, 6]` require updates `[2, 5, 6, 4]`, while the result
+remains `[2, 3, 4]`. Duplicate targets receive the base plus every addressed update.
+
+The caller supplies Tensor operands to `data.scatterAdd`; the facade delegates to the axis-scatter
+helper, which validates descriptors and records ordered operand references and normalized-axis
+attributes—not copied values or executed additions. The storage-free result owns no result buffer.
+Model semantics defines meaning; later value-aware stages handle bounds, and execution providers
+realize supported routes rather than redefine them. Semantic responsibility is not storage
+ownership. Integral addition is fixed-width modular; floating duplicate accumulation has no
+prescribed bitwise order. Historical metadata evidence establishes neither gradient construction nor
+execution support.
+
 ## Status
 
 Complete

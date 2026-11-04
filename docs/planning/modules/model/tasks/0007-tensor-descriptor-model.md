@@ -1,5 +1,12 @@
 # Task 0007: [Tensor Descriptor](../../../../glossary.md#tensor-descriptor) [Model](../../../../glossary.md#term-model)
 
+**Editorial reading key (later context, not a status update).**
+
+Application and internal construction code pass a data type, Shape, optional layout and gradient-eligibility flag into TensorDescriptor. These are facts about a value, not its stored numbers. Unknown layout means numeric strides/offset are unresolved, not that data is contiguous or that storage is absent; a known shape can still have unknown layout. The descriptor checks relationships it can prove, whereas Tensor later checks an attached storage wrapper's compatibility. The flag requests eligibility and does not contain a derivative or allocate gradient storage.
+
+Focused current reading: [Current descriptor components](../../../../reference/tensor/descriptors.md#tensor-descriptors); [Current borrowed-storage association](../../../../reference/tensor/storage-association.md). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

@@ -1,5 +1,12 @@
 # Task 0014E: [Scalar](../../../../glossary.md#term-scalar) Arithmetic and Clamp Semantics
 
+**Editorial reading key (later context, not a status update).**
+
+A scalar attribute is one fixed parameter applied across positions, not an additional Tensor input; clamp constrains values to an inclusive range. The original attributes retain binary64 literals. Their ability to represent NaN or infinity does not itself specify execution at those values. Here Model defines a typed meaning for later construction code; this semantic-family task neither receives stored operands nor evaluates them. Its completion is not evidence of Compiler capture, derivatives or backend execution.
+
+Focused current reading: [Current scalar/clamp reference](../../../../reference/tensor/elementwise.md#scalar-arithmetic-and-clamp-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

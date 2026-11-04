@@ -1,5 +1,14 @@
 # Task CP0013: Bounded general-[scan](../../../../glossary.md#term-cumulative-scan) [graph](../../../../glossary.md#graph) [persistence](../../../../glossary.md#term-persistence)
 
+> **Editorial reading context — not a status update.** Version four adds bytes describing a
+> bounded general-scan body, not an executable loop or stored training tape. Checkpoint sizes
+> and validates the encoded description and named payloads; Compiler validates/reconstructs the
+> operation structure. Body-local IDs remain independent of outer IDs even when their numbers
+> coincide. Loading returns ordinary source with private values, after which an application
+> may separately request supported computation or fresh training. The current
+> [bounded general-scan format explanation](../../../../reference/checkpoint/graph-formats.md#bounded-general-scan-persistence)
+> distinguishes that wire boundary from [owned execution](../../../../reference/nn/owned-model.md#owned-tensor-model-capability).
+
 ## Status
 
 Complete — main accepted final independent review and all recorded gates on 2026-10-23.

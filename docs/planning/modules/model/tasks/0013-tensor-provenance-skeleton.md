@@ -1,5 +1,12 @@
 # Task 0013: [Tensor](../../../../glossary.md#tensor) [Provenance](../../../../glossary.md#provenance) Skeleton
 
+**Editorial reading key (later context, not a status update).**
+
+Expression helpers, rather than the application through a public provenance setter, attach an Operation and ordered exact input Tensor references here. Those references describe how to produce a result later; they do not copy input values or attach result storage. A factory leaf has no producing expression, including when it is a storage-free input placeholder. This record precedes shared TensorProducer/output-slot identity; the linked current explanation is intentionally a contrast with the original single-result representation, not a rewrite of its deferred multi-output decision. Compiler remains responsible for capturing the expression into graph-local records.
+
+Focused current reading: [Current producer-based provenance](../../../../reference/tensor/identity.md#expression-producers-and-indexed-provenance). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

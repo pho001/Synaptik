@@ -1,5 +1,14 @@
 # Task 0005: Training-owned [detached](../../../../glossary.md#detached-model-results) state reconstruction
 
+> **Editorial reading context — not a status update.** An external Java caller reconstructs
+> a detached TrainingState from configurations, schemas, counters and canonical payload bytes.
+> Its public constructors copy supplied arrays and check structure; the live TrainingSession's
+> restore operation additionally checks compatibility and optimizer-specific validity.
+> Neither successful construction nor matching byte lengths proves that a particular session
+> can restore it. NN buffers and the application's cursor or random state are separate
+> participants. The current [reconstruction example](../../../../reference/training/optimizers.md#example-reconstruct-a-detached-training-value)
+> demonstrates that constructor/restore distinction without implying a durable training codec.
+
 ## Status
 
 Complete

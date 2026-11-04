@@ -1,5 +1,22 @@
 # Task 0007: Representation Creation and [Residency](../../../../glossary.md#residency) Foundation
 
+> **Editorial historical reading key.**
+>
+> Read this completed task as the historical creation/residency layer, not today's full execution
+> contract. Package-private `RunStateCreation` receives dense caller representations and invokes
+> backend-supplied creators; Runtime controls ordering, identity checks, validity bookkeeping and
+> cleanup transfer, while concrete backends implement allocation and physical release. Borrowed inputs
+> remain caller-owned; successfully created resources pass to the complete `RunState` only after
+> construction succeeds. Residency means a representation is bound, whereas validity records whether
+> that copy contains the logical value; setting a bit performs no physical work.
+>
+> The [current creation
+> contract](../../../../reference/runtime/creation.md#current-prepared-representation-creation) also
+> includes initialized buffers. The preserved two-component record requirement is historical: today's
+> [prepared owner](../../../../reference/runtime/prepared-execution.md#current-prepared-execution) has
+> explicit persistent-resource ownership, closure and run leases. Recorded test evidence remains
+> evidence of this task's original scope.
+
 ## Status
 
 Complete

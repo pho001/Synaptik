@@ -1,5 +1,14 @@
 # Task 0016J: [Softmax](../../../../glossary.md#softmax--log-softmax) [Tensor](../../../../glossary.md#tensor) Expressions
 
+**Editorial reading key (later context, not a status update).**
+
+Softmax normalizes related scores along an axis; log-softmax describes the corresponding log-probability meaning, not a whole-tensor scalar reduction. The application selects an axis, and the helper describes a same-shape floating result. It records the requested kind without evaluating exponentials or probabilities. Current stable numerical rules are linked for present use but are not retroactive precision/edge policies for this record. The application calls the public Tensor method; its model helper validates available descriptions and returns a fresh storage-free expression with exact input references. It neither copies input values nor calculates the result. Compiler consumes this provenance later; actual storage and execution are separate downstream concerns.
+
+**Normalization reading example.** For one nonempty slice of $n\ge1$ finite real scores $x_1,\ldots,x_n$, ideal probabilities are $p_i=\exp(x_i)/\sum_{j=1}^{n}\exp(x_j)$ for $1\le i\le n$. If $n=2$ and both scores are zero, each probability is $1/2$ and each ideal log-probability is $-\log 2$. This finite-real interpretation does not select a machine algorithm, rounded result or exceptional-value policy for the historical task.
+
+Focused current reading: [Current softmax/log-softmax explanation](../../../../reference/tensor/normalization.md#softmax-expressions). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

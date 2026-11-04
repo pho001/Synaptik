@@ -1,5 +1,25 @@
 # Task Model0038: Length-aware [Scan](../../../../glossary.md#term-cumulative-scan) source/[IR](../../../../glossary.md#term-intermediate-representation-ir) foundation
 
+**Editorial reading key (current context, not a status update).**
+
+This record covers Model0038’s source/IR foundation and rejection seams, not today’s downstream
+scope. The caller supplies actual Tensors to `Scan.apply`; `ScanBody` supplies positional formals
+and expression roots. A formal is a storage-free leaf placeholder: “leaf” means no producing
+expression, not stored data. Carry passes state between steps; sequences supply slices; invariants
+stay unchanged. Lengths is an extra actual with no body formal or gradient contribution. Binding
+checks descriptions without reading length values; storage-free expressions neither execute nor own
+result buffers.
+
+ROW identifies a proved independent batch coordinate; SHARED lacks that coordinate, rather than
+meaning scalar. For example, a singleton shared bias can broadcast into a row value, but reducing
+its row axis cannot feed row feedback even when shape stays unchanged. Follow [current length-aware
+construction](../../../../reference/tensor/general-scan.md#length-aware-source-construction-and-qualified-execution)
+for today’s role and qualification boundaries. Model semantics defines meaning; providers realize
+supported routes, not redefine it. Canonical port ownership concerns wrapper identity, not storage
+ownership; [residual
+metadata](../../../../reference/tensor/general-scan.md#canonical-results-residual-metadata-and-eligibility)
+explains why declaring histories allocates no buffers.
+
 ## Status
 
 Complete — MAIN accepted 2026-10-24 after independent Class C/[API](../../../../glossary.md#term-application-programming-interface-api)/[Javadoc](../../../../glossary.md#term-javadoc)/docs APPROVE,

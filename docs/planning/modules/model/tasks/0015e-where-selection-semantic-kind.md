@@ -1,5 +1,12 @@
 # Task 0015E: Where Selection Semantic Kind
 
+**Editorial reading key (later context, not a status update).**
+
+WHERE makes a per-position true/false choice, unlike scalar-index select, which fixes a coordinate. Condition and the two branch roles are part of the meaning; there is no axis attribute and no promise of eager or lazy branch execution. Here Model defines a typed meaning for later construction code; this semantic-family task neither receives stored operands nor evaluates them. Its completion is not evidence of Compiler capture, derivatives or backend execution.
+
+Focused current reading: [Current conditional-selection reference](../../../../reference/tensor/selection-casts.md#conditional-selection-expression). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

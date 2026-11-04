@@ -1,5 +1,25 @@
 # Task 0019B1: Explicit [Graph](../../../../glossary.md#graph) [Dropout](../../../../glossary.md#dropout--inverted-dropout) Construction
 
+**Editorial reading key (current context, not a status update).**
+
+This record’s completion concerns model construction, not execution or gradients; its deferred-layer
+statements describe that historical scope. The caller passes a floating Tensor and opaque
+`GraphRngState` to `Tensor.dropout`; the model records input occurrences and output descriptors, not
+sampled values. A descriptor specifies an output’s type and shape. One producer describes dropped
+output, auxiliary keep mask, and next state, but the public result returns only output and state.
+Three wrappers/IDs do not mean three allocated buffers: these storage-free expressions neither
+execute nor own result buffers.
+
+For today’s boundary, follow [dropout
+construction](../../../../reference/tensor/graph-randomness.md#explicit-state-dropout-construction),
+which distinguishes model meaning from the described Metal execution and compiler-saved mask. Model
+semantics defines dropout; providers realize supported routes without redefining it, and semantic
+responsibility is not storage ownership. Follow [state
+advancement](../../../../reference/tensor/graph-randomness.md#state-advancement-branching-and-edge-cases)
+for replay limits: a two-by-three input requests six draws even at zero probability. Threading
+`nextState` requests the following interval; reusing the original state requests the same interval,
+not cross-provider sample identity.
+
 ## Status
 
 Complete

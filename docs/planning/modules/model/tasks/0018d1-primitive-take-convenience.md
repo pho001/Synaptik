@@ -1,5 +1,12 @@
 # Task 0018D1: Primitive Take Convenience
 
+**Editorial reading key (later context, not a status update).**
+
+The application passes actual int-array values to this convenience. The helper first snapshots that array, then flat import copies it into an independent rank-one INT32 leaf. It delegates the generated index Tensor to the existing take expression path, so only index construction is eager; the data gather is still a storage-free description. The leaf has no producing expression even though it contains stored values. These copies and pre-axis-failure side effects are specific to this overload, not a rule that all Tensor arguments are copied. Current gather names have since been normalized.
+
+Focused current reading: [Current axis-gather taxonomy](../../../../reference/tensor/gather.md#axis-gather-expressions); [Current flat-import boundary](../../../../reference/tensor/creation.md). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

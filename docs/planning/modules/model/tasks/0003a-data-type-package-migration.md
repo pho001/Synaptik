@@ -1,5 +1,12 @@
 # Task 0003A: [Data Type](../../../../glossary.md#data-type--datatype) Package Migration
 
+**Editorial reading key (later context, not a status update).**
+
+This is a package-location cutover, not a new numeric capability: callers change imports while retaining the already selected type metadata, floating promotion and BFLOAT16 scalar conversion. Model's authority over those meanings is unchanged; moving a Java type does not allocate data or grant backend support. Read the old and new qualified names as historical migration endpoints rather than two maintained public entry paths.
+
+Focused current reading: [Current public data-type package](../../../../reference/tensor/data-types.md#data-types); [Current promotion explanation](../../../../reference/tensor/data-types.md#numeric-promotion). The original record below retains its own scope, decisions and evidence.
+
+
 ## Status
 
 Complete

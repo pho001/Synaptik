@@ -1,5 +1,14 @@
 # Task 0020C: Type-Safe Bidirectional Static Recurrent Composition
 
+> **Editorial reading context — not a status update.** The container owns two independent
+> parameter trees, one for each direction. Reverse traversal starts at each row's last valid
+> position, not at the end of its padded rectangle. Outputs are realigned to original time
+> before concatenating hidden features; directional final states remain distinct, including
+> both LSTM cell states. Copied Java lengths determine this construction, not a reusable
+> runtime count input. Today's [recurrent composition contract](../../../../reference/nn/recurrent-layers.md#current-nn-recurrent-composition-contract)
+> explains directional state, while [runtime-length composition](../../../../reference/nn/recurrent.md#nn-runtime-length-recurrent-composition)
+> provides the contrast without promising migration or backend work-skipping for this static record.
+
 ## Status
 
 Complete

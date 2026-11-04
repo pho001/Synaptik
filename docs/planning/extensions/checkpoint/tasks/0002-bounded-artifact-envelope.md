@@ -1,5 +1,15 @@
 # Task 0002: Bounded [artifact envelope and atomic publication](../../../../glossary.md#artifact-envelope-and-atomic-publication)
 
+> **Editorial reading context — not a status update.** The application supplies named byte
+> arrays to an envelope; the envelope copies those arrays, but does not know whether they
+> encode weights, text or anything else. A manifest inventories payloads and their integrity
+> digests; a model schema is a different layer that explains their meaning. File publication
+> makes a complete file visible at one move, not necessarily durable through power loss.
+> The application still controls the target directory and concurrent access. Read the current
+> [byte ownership](../../../../reference/checkpoint/artifacts.md#inputs-outputs-and-ownership) and
+> [publication lifecycle](../../../../reference/checkpoint/artifacts.md#lifecycle-and-invariants)
+> for those two independent boundaries.
+
 ## Status
 
 Complete. Implemented from corrected policy base `7261d11d`, after the [Ready](../../../../glossary.md#term-ready) frontier

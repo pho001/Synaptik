@@ -1,5 +1,16 @@
 # Task 0018: Static length-aware [Scan](../../../../glossary.md#term-cumulative-scan) [cold reconstruction](../../../../glossary.md#term-cold-reconstruction)
 
+> **Editorial reading key — not part of the historical record.**
+>
+> The cold caller supplies a raw graph and descriptor-compatible positional substitutions.
+> Compiler validates every declaration and role before rebuilding each selected length-aware Scan
+> with fresh local formals, retaining its lengths actual without reading lengths values. A leaf
+> means no producing expression, not available storage; the borrowed sidecar owns no payload. The
+> homogeneous static intersection below is historical admission, separate from broader source
+> typing, later wire versions and numerical train/save/load acceptance.
+>
+> Current reading: [raw source capture and positional reconstruction](../../../../reference/compiler/cold-source.md#current-cold-source-capture-and-reconstruction); [scoped Scan capture, roles and first-order differentiation](../../../../reference/compiler/verification-scan.md#current-scoped-scan-capture-and-first-order-ad).
+
 ## Status
 
 Complete — MAIN accepted implementation, independent code/docs APPROVE (0 P1/P2), public [smoke](../../../../glossary.md#term-smoke-test)

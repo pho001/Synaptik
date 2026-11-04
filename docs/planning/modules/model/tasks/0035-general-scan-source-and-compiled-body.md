@@ -1,5 +1,25 @@
 # Task Model0035: [General scan](../../../../glossary.md#general-differentiable-scan) source and compiled body
 
+**Editorial reading key (current context, not a status update).**
+
+This record closes only Model0035’s source/IR foundation; current references describe later layers,
+not additions to its historical acceptance. The caller supplies `ScanBody` formals (placeholders)
+and positional actual Tensors to `Scan.apply`: carry passes state, sequences supply time slices, and
+invariants stay unchanged. A leaf has no producing expression, not necessarily stored values;
+declared formals here are storage-free. Descriptions cross this construction boundary, not evaluated
+values; storage-free expressions neither execute nor own result buffers. Model semantics defines
+meaning; providers realize supported routes. Follow [canonical results and
+eligibility](../../../../reference/tensor/general-scan.md#canonical-results-residual-metadata-and-eligibility)
+for these distinctions: emitting previous carry can receive true outer gradient eligibility from a
+gradient-enabled sequence, without promising nonzero derivatives.
+
+Canonical ownership identifies result wrappers, not storage ownership. Residuals name retainable
+internal values; demand selects needed histories without allocating them. Follow [compiled graph
+boundaries](../../../../reference/tensor/compiled-graph.md#graph-values-and-compiled-nodes) for the
+separate callee contract: `CompiledScanBody` accepts a supplied graph and ordered role/demand
+bindings, not source capture. Body IDs are graph-local; repeated role bindings do not merge outer
+ports. Structural validity grants neither descriptor inference nor backend execution.
+
 ## Status
 
 Complete — bounded [Model](../../../../glossary.md#term-model) source/intermediate-representation ([IR](../../../../glossary.md#term-intermediate-representation-ir)) foundation accepted by main on

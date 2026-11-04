@@ -1,5 +1,23 @@
 # Task 0013: [Prepared Execution](../../../../glossary.md#prepared-execution--preparedexecution) Guide Status Reconciliation
 
+> **Editorial historical reading key.**
+>
+> This task records a bounded explanatory repair: CPU complete-plan tuning, explicit prepared-handle
+> closure, and detached output access were already implemented at its completion. Its CPU-only tuning
+> statement is historical; the [current lifecycle
+> reference](../../../../reference/engine/lifecycle.md#current-ordinary-explicit-composition-and-advanced-lifecycle)
+> also describes eligible singleton-NEG Metal tuning. Engine arranges representative trials and
+> production preparation through backend-owned tuning collaborations; a tuning metadata carrier is not
+> another preparation owner.
+>
+> The application closes its prepared handle and each returned result separately. Closing preparation
+> rejects new runs without closing an existing result. Publication exposes an ordered occurrence, not
+> detached bytes: Engine authenticates the selected occurrence and invokes its captured backend
+> materialization adapter. The [current publication
+> boundary](../../../../reference/runtime/publication.md#current-prepared-publication-and-result-lease)
+> separates Runtime's borrowed representation access from explicit host copying. Caller input storage
+> remains caller-owned throughout the result lease.
+
 ## Status
 
 Complete

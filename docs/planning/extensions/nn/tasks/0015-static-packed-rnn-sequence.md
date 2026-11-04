@@ -1,5 +1,13 @@
 # Task 0015: Static Packed [RNN](../../../../glossary.md#term-recurrent-neural-network-rnn) Sequence
 
+> **Editorial reading context — not a status update.** Java lengths are read during
+> expression construction, so they determine which original rows appear in each compact step
+> batch. The sequence container calls its owned cell once per represented step and assembles
+> final hidden rows in original order. A list of compact step outputs is not a dense padded
+> Tensor. Numeric zeros never decide activity. Today's [static recurrent contract](../../../../reference/nn/recurrent-layers.md#current-nn-recurrent-composition-contract)
+> explains packing, while [runtime-length composition](../../../../reference/nn/recurrent.md#nn-runtime-length-recurrent-composition)
+> explains the separate case in which new count values reuse one source instead of specializing a new unroll.
+
 ## Status
 
 Complete

@@ -1,5 +1,14 @@
 # Task CP0011 Flat recurrent [scan](../../../../glossary.md#term-cumulative-scan) [persistence](../../../../glossary.md#term-persistence)
 
+> **Editorial reading context — not a status update.** A flat fixed scan describes one
+> recurrent producer with dense sequence and final-state output positions. Saving one selected
+> position must not turn the sibling positions into different producers during load or rebind.
+> Declared sequence, lengths and initial-state inputs are prototypes: their descriptors cross
+> the cold boundary, not a saved runtime batch. Only registered named state contributes value
+> payloads. Read today's [fixed-scan persistence example and restrictions](../../../../reference/checkpoint/graph-formats.md#selected-cnn-and-recurrent-persistence)
+> alongside [NN runtime-length construction](../../../../reference/nn/recurrent.md#nn-runtime-length-recurrent-composition).
+> Neither link converts this joint persistence supplement into historical execution or training evidence.
+
 ## Status
 
 Complete jointly with CP0010 on 2026-10-20 after independent final APPROVE and main's focused

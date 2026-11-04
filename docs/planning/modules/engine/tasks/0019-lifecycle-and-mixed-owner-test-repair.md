@@ -1,5 +1,20 @@
 # [Engine](../../../../glossary.md#term-engine) 0019 — Restore [lifecycle](../../../../glossary.md#lifecycle) and mixed-[owner](../../../../glossary.md#term-owner) [regression](../../../../glossary.md#term-regression) coverage
 
+> **Editorial historical reading key.**
+>
+> This is a historical regression-test and documentation repair, explicitly not a production lifecycle
+> change. One boundary concerns callers racing materialization with result or Engine closure:
+> submitting a second copy did not establish that Engine had admitted it. The other concerns
+> Compiler-selected CPU/Metal owners: expanded Metal support made formerly heterogeneous fixtures
+> single-owner, so tests needed genuine owner sequences and prepared transfer facts. Engine
+> orchestrates captured adapters and planned transfers; backends perform physical work, while Runtime
+> owns run-state validity and leases. Neither test submission nor operation names alone establish
+> those boundaries. Read the recorded device results as dated evidence, not a renewed run. [Current
+> composition](../../../../reference/engine/composition.md#current-explicit-cpu-and-metal-composition)
+> explains owner/transfer routing; the [current Engine
+> boundary](../../../../reference/runtime/engine-boundary.md#current-ordinary-engine-boundary)
+> explains result materialization and cleanup ownership.
+
 ## Status
 
 Complete

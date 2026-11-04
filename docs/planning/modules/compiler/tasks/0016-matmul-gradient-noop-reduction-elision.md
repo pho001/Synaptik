@@ -1,5 +1,16 @@
 # Task Compiler0016: Omit redundant [MATMUL](../../../../glossary.md#matrix-multiplication--matmul)-[gradient](../../../../glossary.md#term-gradient) [shape](../../../../glossary.md#shape) reductions
 
+> **Editorial reading key — not part of the historical record.**
+>
+> This change prevents Compiler from constructing a redundant shape-reduction expression when a
+> MATMUL contribution already has the target's exact shape. It does not authorize removing genuine
+> broadcast reductions or changing public sumToShape meaning. Dtype normalization still follows
+> required reduction. Changed source topology can change compatibility identities even when
+> generated instructions remain equal; the recorded identity repair is not additional numerical or
+> performance evidence.
+>
+> Current reading: [pre-capture differentiation and functional requests](../../../../reference/compiler/autograd.md#current-package-private-pre-capture-autograd); [exact graph transformations and final logical layouts](../../../../reference/compiler/optimization.md#current-package-private-canonicalization-and-whole-graph-optimization).
+
 ## Status
 
 Complete — MAIN accepted source, [validation](../../../../glossary.md#term-validation) and targeted documentation review on 2026-10-28.

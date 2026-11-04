@@ -1,5 +1,25 @@
 # Task 0023F: [Scaled Dot-Product Attention](../../../../glossary.md#scaled-dot-product-attention) [Weights](../../../../glossary.md#term-weight) Output
 
+**Editorial reading key (current context, not a status update).**
+
+This record concerns expression construction, not attention execution; its completion evidence and
+compiler exclusions describe the historical task, not present capability. The caller invokes
+`WithWeights` on the query Tensor, supplying keys, values, and optional mask/attributes to the model
+helper. Descriptors and input references cross this API boundary, not computed attention values. A
+producer identifies one operation occurrence; slots zero and one identify its output and normalized
+weights. The shallow record retains exact Tensor references; these storage-free expressions neither
+execute nor own result buffers. See [output slots and shared
+occurrence](../../../../reference/tensor/attention.md#output-slots-and-shared-occurrence) for
+provenance and eligibility distinctions.
+
+Weights express relative contributions of eligible keys, not raw scores: an all-masked row has
+positive-zero weights, not a uniform distribution. Model semantics fixes this meaning; execution
+providers realize supported routes without redefining it. Semantic responsibility is not storage
+ownership. The [current metadata
+example](../../../../reference/tensor/attention.md#runnable-output-and-weights-metadata-example)
+distinguishes descriptor inspection from execution and describes compiler differentiation beyond
+this task’s historical scope.
+
 ## Status
 
 Complete

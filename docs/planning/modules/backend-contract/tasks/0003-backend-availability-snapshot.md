@@ -1,5 +1,15 @@
 # Task 0003: [Backend Availability Snapshot](../../../../glossary.md#backend-availability-snapshot--backendavailabilitysnapshot)
 
+> **Editorial reading key — not part of the historical record.**
+>
+> Here the supplying context passes a device-to-class map to BackendAvailabilitySnapshot. The
+> constructor takes an immutable structural snapshot of that map while retaining its identity and
+> class elements; it does not copy device memory. Planning consumes the report as supplied
+> availability, not as discovery or a continuing liveness guarantee. The context and backend
+> retain responsibility for any actual devices or services outside this data value.
+>
+> Current reading: [backend identities, supplied availability and requirements](../../../../reference/backend-identities.md); [capability queries and hard-eligible owner selection](../../../../reference/compiler/planning.md#current-operation-capability-contracts).
+
 ## Status
 
 Complete

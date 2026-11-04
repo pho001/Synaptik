@@ -1,5 +1,25 @@
 # Task Model0040: Same-geometry reuse design amendment
 
+**Editorial reading key (current context, not a status update).**
+
+This record approves a design amendment, not memoization implementation or broader symbolic-Scan
+authority. Here, geometry means checked sizes, offsets and publication metadata; a memo is proposed
+reuse within one exact preparation, keyed by numeric batch extent and mode. Consecutive calls with
+batch extent three could reuse immutable facts, but not input identities, storage or results;
+changing that extent requires a miss. Engine still calls Compiler binding for every invocation and
+admits current storage; Runtime receives numeric geometry with fresh physical resources and isolated
+mutable arrays.
+
+For current context, [source
+construction](../../../../reference/tensor/general-scan.md#general-scan-source-construction)
+distinguishes Model-defined recurrence meaning from provider-supported execution. Formals describe
+positions; actual Tensors fill them. Storage-free expressions neither execute nor own result
+buffers; semantic responsibility is not storage ownership. The [length-aware
+boundary](../../../../reference/tensor/general-scan.md#length-aware-source-construction-and-qualified-execution)
+explains why descriptor binding does not read length values: execution separately validates them. A
+zero feature extent does not erase the batch extent or its checks. These current descriptions do not
+enlarge this historical approval.
+
 ## Status
 
 Complete — DESIGN DELIVERY ONLY; MAIN accepted 2026-10-25 after independent frozen review

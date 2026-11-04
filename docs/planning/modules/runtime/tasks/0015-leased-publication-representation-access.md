@@ -1,5 +1,22 @@
 # Task 0015: Leased [Publication](../../../../glossary.md#term-publication) Representation Access
 
+> **Editorial historical reading key.**
+>
+> This task opens one inward SPI boundary: a lifecycle consumer calls Runtime
+> `RunResult.publicationRepresentation(resultIndex)` and receives the exact representation already
+> selected for that publication occurrence. An index is not a Tensor identity or buffer coordinate.
+> Aliased occurrences retain separate positions even when their references match. Runtime authorizes
+> access through the open whole-state result lease; it neither interprets physical storage nor copies
+> a value. The consumer must not close the returned representation or use it beyond that lease.
+>
+> The current [publication
+> contract](../../../../reference/runtime/publication.md#current-prepared-publication-and-result-lease)
+> retains this distinction. The current [ordinary Engine
+> boundary](../../../../reference/runtime/engine-boundary.md#current-ordinary-engine-boundary)
+> separately authenticates outward publication occurrences and orchestrates explicit backend
+> materialization into detached host values. Thus the task's metadata-only Engine limitation and
+> blocked CPU/Engine follow-ups describe its historical frontier, not today's ordinary API.
+
 ## Status
 
 Complete

@@ -1,5 +1,15 @@
 # Task NN0022A Padded numeric sequence [inference](../../../../glossary.md#term-inference)
 
+> **Editorial reading context — not a status update.** The application wraps existing
+> floating features with Data metadata, explicitly exports counts as a fresh INT64 Tensor,
+> then calls Model.compute with values and lengths. Data copies only counts at export: it
+> neither copies sequence contents nor checks that their storage is usable for execution.
+> A successful metadata/export call therefore does not imply a successful numerical run.
+> The heap length Tensor introduces no close protocol; Model/Engine retain their resource
+> duties. Today's [count export](../../../../reference/data/sequences.md#explicit-runtime-scan-lengths)
+> and [numeric example](../../../../reference/data/sequences.md#complete-numeric-inference-example)
+> explain the exact application/Data/NN boundary, not an integer-token Embedding pipeline.
+
 ## Status
 
 Complete. Main accepted on 2026-10-21 after independent APPROVE and the source-matched
