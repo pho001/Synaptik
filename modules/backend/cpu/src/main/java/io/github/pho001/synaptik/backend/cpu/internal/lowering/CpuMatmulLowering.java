@@ -287,7 +287,6 @@ public final class CpuMatmulLowering {
             PrepareContext<? extends BackendAnalysisInputs> context, CpuMatmulIr.Epilogue epilogue,
             boolean controlled, List<ValueId> effectiveBoundaryValues) {
         Objects.requireNonNull(context, "context");
-        CpuPartitionLowering.requirePermittedSource(context);
         if (!(context.backendInputs() instanceof CpuPartitionAnalysisInputs cpuInputs)) {
             throw new IllegalArgumentException("MATMUL requires CPU preparation inputs");
         }

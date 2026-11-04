@@ -213,7 +213,8 @@ final class EngineProducerlessMetalIntegrationTest {
                 new View(Shape.of(0, 3), new long[] {Long.MAX_VALUE, 1}, Long.MAX_VALUE, new int[0]),
                 new View(Shape.of(2, 0, 3), new long[] {3, 3, 1}, 0, new int[0]));
         try (Engine engine = metalOnly()) {
-            for (DataType type : DataType.values()) for (View view : views) {
+            for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                    DataType.FLOAT16, DataType.INT32, DataType.INT64, DataType.BOOL)) for (View view : views) {
                 LayoutDescriptor layout = LayoutDescriptor.of(view.shape(), view.strides(), view.offset(), true);
                 TensorDescriptor descriptor = new TensorDescriptor(type, view.shape(), Optional.of(layout), false);
                 Tensor source = TensorFactory.create(descriptor);

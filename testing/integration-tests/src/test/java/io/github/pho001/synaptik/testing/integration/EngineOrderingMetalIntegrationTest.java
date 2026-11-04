@@ -40,7 +40,8 @@ final class EngineOrderingMetalIntegrationTest {
                 builder.takeOwnership(MetalBackendIntegration.open(
                         new MetalBackendConfiguration(library)));
                 try (Engine engine = builder.build()) {
-                    for (DataType type : DataType.values()) {
+                    for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
+                            DataType.FLOAT16, DataType.INT32, DataType.INT64, DataType.BOOL)) {
                         long[] raw = corpus(type);
                         Tensor input = nativeTensor(type, Shape.of(2, 4), raw, arena);
                         Tensor sorted = input.sort(1, true);

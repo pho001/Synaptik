@@ -644,7 +644,7 @@ leak into flat outer admission. Unsupported PURE operations remain Model-valid b
 
 Length-mode cold admission intersects that same constructor inventory with the existing
 ROW(0), rank-two ROW(1), SHARED and terminal-SHARED length rules. Every carry/sequence/invariant
-actual, formal and body value must be floating (FLOAT32, FLOAT64, BFLOAT16 or FLOAT16), including
+actual, formal and body value must be floating (FLOAT32, FLOAT64, BFLOAT16, FLOAT16, FLOAT8_E4M3 or FLOAT8_E5M2), including
 unused declarations, dead interiors and intermediates hidden by casts. Each positional actual
 matches its own formal, and each next carry matches its own initial carry dtype/shape; roles need
 not share one dtype. Ordinary family inference owns promotion and exact result descriptors.
@@ -658,11 +658,12 @@ their exact typed attributes. This does not relax static geometry, ROW/SHARED, t
 role/axis or no-deferred-obligation restrictions, nor admit other CNN constructors.
 
 Existing graph-model V4/V5/V6 descriptor/scalar dtype words and body CAST opcode 32 already
-represent these original floating types and explicit targets; length opcode 33 retains its role
-fields. This cutover requires no schema bump. Checkpoint copy/rebind/save/load must preserve raw
-low named-state bytes, aliases and canonical ports, and validate complete source metadata before
-candidate identities or state import. Cold support does not authorize CPU low arithmetic; the CPU
-BF16/F16 lock remains. Training objectives remain scalar gradient-eligible F32/F64, so low outputs
+represent the original four floating types and explicit targets; length opcode 33 retains its
+role fields. FP8 uses the append-only graph-model v7 dtype namespace; old-only sources retain
+their smallest sufficient old version and bytes. Copy/rebind/save/load preserve raw low named-state
+bytes, aliases and canonical ports, and validate complete source metadata before
+candidate identities or state import. Cold support alone does not authorize numerical execution;
+CPU admission follows its low-precision parity cutover. Training objectives remain scalar gradient-eligible F32/F64, so low outputs
 require an explicit ordinary cast when used as an objective.
 
 Before any formal or producer allocation, validate positional substitutions against each

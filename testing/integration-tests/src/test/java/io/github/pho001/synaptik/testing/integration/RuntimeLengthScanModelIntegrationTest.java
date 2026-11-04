@@ -148,8 +148,7 @@ final class RuntimeLengthScanModelIntegrationTest {
     void cpuOwnedFixedScansUpdateAgainstIndependentFiniteDifferenceAndTrainAfterLoad(String family) throws Exception {
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16, DataType.FLOAT16)) {
             try (Engine engine = Engine.builder().takeOwnership(CpuBackendIntegration.open()).build()) {
-                if (type == DataType.FLOAT32 || type == DataType.FLOAT64) fixedTraining(engine, family, type, true);
-                else assertBackendTrainingRejected(engine, family, type);
+                fixedTraining(engine, family, type, type == DataType.FLOAT32 || type == DataType.FLOAT64);
             }
         }
     }

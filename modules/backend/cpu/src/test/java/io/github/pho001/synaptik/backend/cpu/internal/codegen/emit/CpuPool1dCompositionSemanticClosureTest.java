@@ -57,7 +57,6 @@ class CpuPool1dCompositionSemanticClosureTest {
     private static void execute(Candidate candidate) throws Throwable {
         var context = CpuOneDimensionalCompositionGeneratedMatrixTest.semanticConfigure(
                 CpuOneDimensionalCompositionGeneratedMatrixTest.semanticPoolContext(candidate.geometry, candidate.type), candidate.request);
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         assertEquals(1, plan.units().size(), candidate.owner);
         assertTrue(plan.materializations().isEmpty(), candidate.owner + " materialization stays unselected");

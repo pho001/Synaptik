@@ -101,8 +101,8 @@ records focused evidence and main's accepted final gates separately.
 
 Implemented cold-source reconstruction supports only the
 [constructor-backed Compiler inventory](contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction),
-not every Model-valid PURE body. For example, a valid low TANH body may be cold-copied
-while Java BFLOAT16/FLOAT16 computation stays locked. Separate call-local tables and fresh formals preserve lexical
+not every Model-valid PURE body. Cold admission is independent of CPU execution qualification,
+including for low floating bodies. Separate call-local tables and fresh formals preserve lexical
 scopes; this is not a new graph or execution owner. Checkpoint's implemented in-memory copy/rebind
 preserves immutable body attachments while normalizing outer IDs, then delegates fresh reconstruction
 to Compiler. Its v1/v2/v3 save/load stays body-free. Owned NN graph/definition acquisition now
@@ -110,13 +110,15 @@ uses this same bounded cold inventory, without a CPU dtype, operation or layout 
 [extension owner](contracts/extensions-training.md#generic-graph-source-and-values) defines these
 separate admissions. The implemented all-valid graph/defineTensor → compute/configureTraining/train
 workflow uses one private working state and cached public Engine/TrainingSession owners; it does
-not reconstruct bodies per batch. Its execution qualification is static canonical homogeneous
-FLOAT32/FLOAT64, not arbitrary cold-source support. All-valid means every static time step
-participates; padding remains excluded. Bounded body persistence is implemented under
-[graph-model v4](contracts/extensions-training.md#canonical-graph-model-version-4), independently
-of backend qualification. The
+not reconstruct bodies per batch. Execution follows the independently qualified CPU forward
+and actual first-order reverse closure, including BFLOAT16, FLOAT16 and both FP8 formats;
+low-output training objectives explicitly cast to FLOAT32 or FLOAT64. All-valid means every
+static time step participates; padding remains excluded. Bounded body persistence is implemented
+under [graph-model v4](contracts/extensions-training.md#canonical-graph-model-version-4) for its
+original domain; FP8 sources require v7, independently of backend qualification. The
 [owned workflow example](../user-guide/running-models.md#train-an-all-valid-general-scan) shows the
-public calls and observable values. Fixed RNN/GRU/LSTM Models remain inference-only.
+public calls and observable values. Fixed RNN/GRU/LSTM Models may train when their actual
+Compiler-AD/backend closure qualifies, retaining their fixed-cell rounding semantics.
 
 <a id="approved-cold-persistence-implementation-pending"></a>
 

@@ -2439,11 +2439,11 @@ The portable random family accepts exactly one fully static, resolved-layout occ
 `INITIAL_STATE` occurrence has no input and one writable INT64 `Shape[2]` output. It writes the
 exact raw key word to logical lane zero and counter word to lane one; it does not hash either
 word, draw randomness, or advance the counter. A `DROPOUT` occurrence has ordered boundaries
-`[value, state, output, keepMask, nextState]`. Value and output must be FLOAT64, FLOAT32, or FLOAT16
-with the same Shape, the mask is canonical BOOL with that Shape, and both state values are INT64
-`Shape[2]`. Every writable layout and the state input must be injective. BFLOAT16 dropout fails
-closed: its raw `short` carrier does not establish the direct, correctly rounded scaling and
-conversion rule required for numerical execution.
+`[value, state, output, keepMask, nextState]`. Value and output must have the same floating
+dtype and Shape, including both 16-bit and both OFP8 formats. The mask is canonical BOOL
+with that Shape, and both state values are INT64 `Shape[2]`. Every writable layout and the
+state input must be injective. Numerical admission retains the declared working-site and
+final-narrowing rules below, independently of the raw storage carrier.
 
 CPU realizes those Model semantics with the non-cryptographic, CPU-private configuration
 `SYNAPTIK_CPU_SPLITMIX64_COUNTER_V1`. All additions and multiplications below are modulo `2^64`;

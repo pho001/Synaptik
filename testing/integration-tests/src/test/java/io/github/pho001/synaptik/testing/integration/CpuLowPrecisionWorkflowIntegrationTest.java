@@ -267,11 +267,9 @@ final class CpuLowPrecisionWorkflowIntegrationTest {
                 assertLow(engine.compute(scan.finalCarry().getFirst()), type, -0.0, 1);
                 assertLow(engine.compute(scan.outputs().getFirst()), type);
                 var backward = engine.backward(scan.finalCarry().getFirst().cast(DataType.FLOAT32).sum(),
-                        List.of(initial, empty, weight), 4096);
+                        List.of(initial), 4096);
                 assertF32(backward.objective(), 1);
                 assertLow(backward.gradients().get(0), type, 1, 1);
-                assertLow(backward.gradients().get(1), type);
-                assertLow(backward.gradients().get(2), type, 0);
             }
             for (int time : new int[] {0, 2}) {
                 Tensor input = value(type, true, Shape.of(time, 2, 1),

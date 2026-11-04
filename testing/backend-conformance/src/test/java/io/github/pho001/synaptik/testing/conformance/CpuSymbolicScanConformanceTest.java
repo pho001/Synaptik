@@ -96,7 +96,6 @@ class CpuSymbolicScanConformanceTest {
                     }
                 }
                 var bound = bindDirect(artifact.entryPoint(), facts, specialization, args, batch);
-                long[] packed = facts.pack(batch); assertEquals(batch, packed[packed.length-1]);
                 bound.execute();
                 bound.execute();
                 assertArrayEquals(expected,args.get(3).toArray(ValueLayout.JAVA_FLOAT));

@@ -676,7 +676,7 @@ class CpuCapabilityProviderTest {
     @Test void reportsOnlyExactStaticResolvedAffineOccurrencesForEveryDataType() {
         var provider = new CpuCapabilityProvider();
         Shape inputShape = Shape.of(2,3), selectedShape = Shape.of(2);
-        for (DataType type : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) {
+        for (DataType type : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.legacyOracleTypes()) {
             var input = descriptor(type, inputShape);
             var selected = new TensorDescriptor(type, selectedShape, Optional.of(
                     LayoutDescriptor.of(selectedShape, new long[]{3}, 1, true)), false);
@@ -847,7 +847,7 @@ class CpuCapabilityProviderTest {
 
     @Test void reportsEveryExactStaticResolvedIndexingTypeAndRankRow() {
         var provider = new CpuCapabilityProvider();
-        for (DataType dataType : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) {
+        for (DataType dataType : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.legacyOracleTypes()) {
             for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
                 var data = descriptor(dataType, Shape.of(2, 3));
                 var axisIndices = descriptor(indexType, Shape.of(4));

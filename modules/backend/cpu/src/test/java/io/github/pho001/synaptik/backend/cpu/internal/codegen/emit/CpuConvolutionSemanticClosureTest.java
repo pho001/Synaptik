@@ -77,7 +77,6 @@ class CpuConvolutionSemanticClosureTest {
     }
 
     private static void execute2d(Fixture f, PrepareContext<CpuPartitionAnalysisInputs> context) throws Throwable {
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var unit = new CpuPartitionPreparer().analyze(context).plan().units().getFirst();
         var route = unit.portablePlan(); var g = unit.conv2dGeometry().orElseThrow();
         byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(route.specialization(), route.kernelIr());
@@ -93,7 +92,6 @@ class CpuConvolutionSemanticClosureTest {
     }
 
     private static void execute3d(Fixture f, PrepareContext<CpuPartitionAnalysisInputs> context) throws Throwable {
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var unit = new CpuPartitionPreparer().analyze(context).plan().units().getFirst();
         var route = unit.portablePlan(); var g = unit.conv3dGeometry().orElseThrow();
         var generator = new CpuClassFileKernelGenerator(); byte[] bytes = generator.generateClassBytes(route.specialization(), route.kernelIr());

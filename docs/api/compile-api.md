@@ -497,7 +497,8 @@ and SHARED roles, without limiting SHARED tensor rank. Original length-AD carrie
 and emissions stay ROW(0); intermediate ROW axes follow the proved coordinate.
 Row-mixing requires materialized support with the same lengths, not Tensor identity.
 Forward and selected generated reverse bodies qualify independently.
-Java BFLOAT16/FLOAT16 computation remains locked; raw storage/casts/exact paths are separate.
+CPU BFLOAT16, FLOAT16 and both FP8 formats use the qualified low-precision forward/AD closure;
+storage, casts and exact paths retain their own semantics.
 This widens neither cold/wire inventories nor NN workflow admission and grants no Metal Scan.
 Checkpoint v5 is implemented separately; NN0033 retains its own consumer acceptance. See the
 [scan explanation](../architecture/general-differentiable-scan.md) for a joint-seed walkthrough.
@@ -1570,11 +1571,11 @@ negative-infinity candidates, a separate direct-positive-zero in-bounds mask, an
 same-occurrence output. Its equality preserves dominant NaN, signed-zero ordering, real negative
 infinity, first-winner, and all-padding behavior before one-hot routing and `fold3d` accumulation.
 The maximum selector is a fixed non-differentiable mask for a later derivative stage, while the
-incoming branch remains differentiable. CPU raw forward schema-71 execution retains the fully
-static resolved-layout BFLOAT16/FLOAT16/FLOAT32/FLOAT64 domain, scalar compute, optional
-caller-owned complete output-cell ranges and zero workspace/materialization. Qualified matching
-FLOAT32/FLOAT64 gradient metadata and lowering now reuse ordinary pooling rules and
-UNFOLD3D/FOLD3D; CPU BFLOAT16/FLOAT16 arithmetic remains locked.
+incoming branch remains differentiable. CPU raw forward execution retains the fully static
+resolved-layout domain for all six floating types, scalar compute, optional caller-owned complete
+output-cell ranges and zero workspace/materialization. Qualified matching floating gradient
+metadata and lowering reuse ordinary pooling rules and UNFOLD3D/FOLD3D. Low arithmetic uses
+FLOAT32 working values and narrows at the declared operation-result boundaries.
 Metal retains its qualified raw forward carrier domains and now executes qualified FLOAT32
 maximum and average Pool3d gradients, including overlap. Explicit gradient-formula materialization
 produces canonical columns/results; FLOAT64/low folds retain non-overlap restrictions and
@@ -2164,12 +2165,12 @@ preserves input data type and gradient eligibility, leaves layout unresolved, an
 one-input provenance. Package-private structural capture can preserve these occurrences. Current
 compiler inference retains unresolved two-dimensional height/width domain constraints, and
 current floating autograd uses each exact public inverse or overlap-add transformation. The
-current fail-closed CPU path advertises, lowers, prepares, and executes only fully static,
-resolved-layout one-node UNFOLD_AXIS occurrences over all seven represented types and
-UNFOLD2D/UNFOLD3D over BFLOAT16/FLOAT16/FLOAT32/FLOAT64; FOLD_AXIS over
-FLOAT64/FLOAT32/INT32/INT64 and FOLD2D/FOLD3D over FLOAT32/FLOAT64, with exact
-window, direct-zero or typed-padding, overlap-add, Shape and distinct injective-output
-relationships. CPU low arithmetic remains locked.
+current fail-closed CPU path advertises, lowers, prepares, and executes fully static,
+resolved-layout UNFOLD_AXIS occurrences over all nine represented types and
+UNFOLD2D/UNFOLD3D over all six floating types; FOLD_AXIS over floating and integral types,
+and FOLD2D/FOLD3D over floating types, with exact window, direct-zero or typed-padding,
+overlap-add, Shape and distinct injective-output relationships. Low folds accumulate in FLOAT32
+and narrow once at each final output; raw unfold preserves represented bits.
 Metal independently admits canonical all-carrier UNFOLD_AXIS within its bounded rank/window
 domain and static canonical four-floating-type UNFOLD2D/UNFOLD3D raw movement.
 FOLD_AXIS and FLOAT64/BFLOAT16/FLOAT16 image folds require non-overlap; FLOAT32

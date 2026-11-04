@@ -70,45 +70,6 @@ final class CpuGeneratedCoverageEvidenceRegistry {
     record PreparerRejectedFixture(String id, String operationForm,
             PrepareContext<CpuPartitionAnalysisInputs> context, String reason) { }
 
-    /**
-     * Retains a numerical low fixture as an actual provider/preparer rejection in the same
-     * owner domain, rather than claiming generated coverage or filtering the row away.
-     * @param occurrenceId stable existing inventory owner
-     * @param context exact source fixture
-     * @return whether the fixture was explicitly witnessed and recorded as unsupported
-     */
-    static boolean lowUnsupported(String occurrenceId, PrepareContext<CpuPartitionAnalysisInputs> context) {
-        return lowUnsupported(occurrenceId, context, (String) null);
-    }
-
-    /** Retains the pointwise fixture owner's canonical opcode, including GELU_EXACT. */
-    static boolean lowUnsupported(String occurrenceId, PrepareContext<CpuPartitionAnalysisInputs> context,
-            io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPointwiseOpcode opcode) {
-        return lowUnsupported(occurrenceId, context, java.util.Objects.requireNonNull(opcode).name());
-    }
-
-    /** Preserves the semantic form declared by the same fixture that owns generated evidence. */
-    static boolean lowUnsupported(String occurrenceId, PrepareContext<CpuPartitionAnalysisInputs> context,
-            String canonicalForm) {
-        if (!io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context))
-            return false;
-        for (var node : context.nodes()) {
-            var inputs = descriptors(context, node.inputs());
-            var outputs = descriptors(context, node.outputs());
-            var query = new OperationCapabilityQuery(node.operation(), inputs, outputs, node.scanBody(),
-                    java.util.Optional.ofNullable(context.scanActivityPlans().get(node.id())));
-            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.lockedLowComputation(query)) {
-                String form = canonicalForm == null ? node.operation().kind().name() : canonicalForm;
-                if (canonicalForm == null && node.operation().kind() instanceof io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind scalar
-                        && scalar != io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind.CLAMP)
-                    form = "SCALAR_" + form;
-                rejectedByProvider(occurrenceId, form, node.operation(),
-                        inputs, outputs, "CPU_LOW_ARITHMETIC_LOCK");
-                return true;
-            }
-        }
-        throw new AssertionError("locked source row has no numerical occurrence");
-    }
 
     static synchronized Record generated(String occurrenceId,
             PrepareContext<CpuPartitionAnalysisInputs> context, CpuPartitionPreparationPlan plan) {

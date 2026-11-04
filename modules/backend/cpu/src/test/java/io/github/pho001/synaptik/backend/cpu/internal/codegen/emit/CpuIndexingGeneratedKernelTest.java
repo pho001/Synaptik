@@ -114,7 +114,7 @@ class CpuIndexingGeneratedKernelTest {
 
     @Test void gatherCopiesEveryRepresentedTypeWithBothIndexWidthsAndScalarIndices()
             throws Throwable {
-        for (DataType type : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) {
+        for (DataType type : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.legacyOracleTypes()) {
             for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
                 Object source = values(type, 10, 21, 31);
                 Object indices = indexType == DataType.INT32 ? new int[]{2, 0}

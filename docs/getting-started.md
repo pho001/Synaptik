@@ -30,9 +30,11 @@ The owner selected **private/internal distribution** for the first production ta
 project licence or redistribution grant is selected; do not publish these artifacts to public
 registries. Current archives remain qualification candidates until the final all-PURE/source-matched
 technical gate passes. No official signing or bundled third-party native implementation is implied.
-Java CPU BF16/FP16 numerical arithmetic remains locked; raw storage, casts and the documented
-exact/discrete domain remain separate. Metal requires the explicitly configured Apple-silicon
-package and its documented supported operation/type occurrences.
+Java CPU BF16, FP16 and both FP8 formats execute through the existing CPU owners with FLOAT32
+working values and declared low-result narrowing. Native oneDNN acceleration is independently
+qualified per occurrence and target; unavailable native FP8 remains on the ordinary CPU path,
+without a converted FLOAT32 tensor. Metal requires the explicitly configured Apple-silicon
+package and its documented supported operation/type occurrences; it does not support FP8.
 
 ### Produce and verify the archives
 

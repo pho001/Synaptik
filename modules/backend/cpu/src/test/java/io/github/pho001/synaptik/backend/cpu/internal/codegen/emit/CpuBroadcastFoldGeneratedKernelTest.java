@@ -120,29 +120,6 @@ public class CpuBroadcastFoldGeneratedKernelTest {
         }
     }
 
-    @Test void originalLowBroadcastFoldsRejectBeforeOrdinaryOrCompactRealization() {
-        var control = context(DataType.FLOAT32, Shape.of(2,3,5,7),
-                new Window2dAttrs(2,3,1,1,0,1,1,1,false), 0, false);
-        var loweredControl = new CpuFoldLowering().lower(new CpuPartitionDagDecomposer()
-                .unitContext(control, List.of(control.nodes().getLast()), CpuPartitionAnalysisInputs.DEFAULT));
-        var ir = (CpuFoldIr) loweredControl.portableKernelIr();
-        var g = loweredControl.foldGeometry().orElseThrow();
-        for(var type:List.of(DataType.BFLOAT16,DataType.FLOAT16)) {
-            var c=context(type,Shape.of(2,3,5,7),new Window2dAttrs(2,3,1,1,0,1,1,1,false),0,false);
-            assertTrue(new CpuFoldLowering().kernelBroadcast(c).isEmpty());
-            assertTrue(io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
-                    .assertLowUnsupported(c));
-            var ordinary = new CpuPartitionDagDecomposer().unitContext(c,
-                    List.of(c.nodes().getLast()), CpuPartitionAnalysisInputs.DEFAULT);
-            assertThrows(IllegalArgumentException.class, () -> new CpuFoldLowering().lower(ordinary));
-            // These constructor-only facts retain the original invalid compact-mode witnesses;
-            // the independent F32 geometry supplies no low lowering or generated realization.
-            assertThrows(IllegalArgumentException.class, () -> new CpuFoldIr(ir.family(), type,
-                    ir.inputAccess(), ir.outputAccess(), ir.additionPolicy(), true));
-            assertThrows(IllegalArgumentException.class, () -> new CpuFoldLowering.Geometry(
-                    g.family(), type, g.input(), g.output(), g.mapping(), true));
-        }
-    }
 
     @Test void interleavedUnrelatedConsumerPreservesCompactSourceBoundaryAndExactMembers() {
         var c=context(DataType.FLOAT32,Shape.of(2,3,5,7),new Window2dAttrs(2,3,1,1,0,1,1,1,false),0,false);
@@ -324,7 +301,6 @@ public class CpuBroadcastFoldGeneratedKernelTest {
         for (var node:context.nodes()) io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(new io.github.pho001.synaptik.backend.cpu.CpuCapabilityProvider(), new io.github.pho001.synaptik.planning.capability.OperationCapabilityQuery(node.operation(),
             node.inputs().stream().map(id->context.values().get((int)id.value()).descriptor()).toList(),
             node.outputs().stream().map(id->context.values().get((int)id.value()).descriptor()).toList()), node+" values="+context.values());
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
         var lowered=new CpuPartitionLowering().lower(context);
         assertTrue(((CpuFoldIr)lowered.portableKernelIr()).kernelBroadcastInput());
         assertEquals(5,lowered.virtualValues().size());

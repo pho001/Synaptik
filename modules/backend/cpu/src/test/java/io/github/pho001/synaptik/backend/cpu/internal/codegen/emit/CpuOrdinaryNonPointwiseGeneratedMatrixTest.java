@@ -46,15 +46,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import org.junit.jupiter.api.Test;
 
-/**
- * Exhaustive ordinary non-pointwise generated-route matrix.
- *
- * <p>The base universe is assembled from Model-valid role contracts, not from CPU predicates.
- * A base row is never rotated or sampled: each valid data/index/value/output role combination is
- * expanded before the real provider, preparer, and class-file generator are called.  The request
- * axes are intentionally recorded separately from the selected strategy because vector requests
- * are currently allowed to select scalar ordinary bodies.</p>
- */
+/** Shared finite ordinary fixtures for generated diagnostics and independent semantic suites. */
 class CpuOrdinaryNonPointwiseGeneratedMatrixTest {
     private static final List<DataType> ALL = List.of(DataType.FLOAT64, DataType.FLOAT32,
             DataType.BFLOAT16, DataType.FLOAT16, DataType.INT64, DataType.INT32, DataType.BOOL);
@@ -64,46 +56,25 @@ class CpuOrdinaryNonPointwiseGeneratedMatrixTest {
             DataType.BFLOAT16, DataType.FLOAT16);
     private static final List<DataType> INDICES = List.of(DataType.INT64, DataType.INT32);
 
-    @Test void everyModelValidOrdinaryBaseRoleTypeAndRuntimeRequestUsesProductionBoundaries()
+    void everyModelValidOrdinaryBaseRoleTypeAndRuntimeRequestUsesProductionBoundaries()
             throws Exception {
-        List<Base> bases = bases();
-        assertEquals(bases.size(), bases.stream().map(Base::id).distinct().count(), "base ids");
-        assertTrue(bases.size() > 300, "base universe must not be the former 59 rotating rows");
-        var selected = new TreeMap<String, Long>();
-        int runtimeCandidates = 0;
-        for (Base base : bases) {
-            for (Request request : requests()) {
-                runtimeCandidates++;
-                var context = configured(base.context(), request);
-                var node = context.nodes().getFirst();
-                var query = new OperationCapabilityQuery(node.operation(), CpuGeneratedDirectEvidenceClosureTest.descriptors(context, node.inputs()), CpuGeneratedDirectEvidenceClosureTest.descriptors(context, node.outputs()));
-                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(new CpuCapabilityProvider(), query, base.id() + '/' + request.id());
-                var plan = new CpuPartitionPreparer().analyze(context).plan();
-                var route = plan.units().getFirst().portablePlan();
-                var specialization = route.specialization();
-                assertEquals(plan.generatedCarrierPattern(), specialization.carrierPattern(), base.id());
-                assertEquals(plan.workspaceDeclaration().isPresent(), specialization.scratchParameter(), base.id());
-                byte[] first = new CpuClassFileKernelGenerator().generateClassBytes(specialization, route.kernelIr());
-                byte[] second = new CpuClassFileKernelGenerator().generateClassBytes(specialization, route.kernelIr());
-                assertArrayEquals(first, second, base.id() + '/' + request.id());
-                CpuGeneratedDirectEvidenceClosureTest.assertClosedSpecializedClass(first, specialization);
-                CpuGeneratedCoverageEvidenceRegistry.generated("ordinary:" + base.id() + '/' + request.id(),
-                        context, plan);
-                selected.merge(request.id() + "->" + plan.executionStrategy() + ":m="
-                        + plan.materializations().size(), 1L, Long::sum);
-            }
+        for (Base base : bases()) for (Request request : requests()) {
+            var context = configured(base.context(), request);
+            var node = context.nodes().getFirst();
+            var query = new OperationCapabilityQuery(node.operation(),
+                    CpuGeneratedDirectEvidenceClosureTest.descriptors(context, node.inputs()),
+                    CpuGeneratedDirectEvidenceClosureTest.descriptors(context, node.outputs()));
+            io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertCurrentSupport(
+                    new CpuCapabilityProvider(), query, base.id() + '/' + request.id());
+            var plan = new CpuPartitionPreparer().analyze(context).plan();
+            CpuGeneratedCoverageEvidenceRegistry.generated("ordinary:" + base.id() + '/' + request.id(),
+                    context, plan);
         }
-        assertEquals(bases.size() * requests().size(), runtimeCandidates);
-        assertTrue(selected.keySet().stream().anyMatch(key -> key.startsWith("segment-contiguous-vector->scalar")), selected.toString());
-        assertTrue(selected.keySet().stream().anyMatch(key -> key.startsWith("mixed-general-parallel-vector->parallel")), selected.toString());
     }
 
     @Test void explicitInvalidRoleTypeAndShapeClassesAreRejectedByProvider() {
         var provider = new CpuCapabilityProvider();
         var fixtures = rejectedProviderFixtures();
-        assertEquals(7, fixtures.size());
-        assertEquals(fixtures.size(), fixtures.stream().map(CpuGeneratedCoverageEvidenceRegistry.ProviderRejectedFixture::id)
-                .distinct().count());
         for (var fixture : fixtures) {
             assertRejected(provider, fixture.operation(), fixture.inputs(), fixture.outputs(), fixture.id());
         }

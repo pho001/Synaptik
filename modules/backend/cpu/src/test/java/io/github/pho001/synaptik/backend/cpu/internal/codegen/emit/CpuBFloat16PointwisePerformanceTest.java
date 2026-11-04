@@ -56,16 +56,8 @@ class CpuBFloat16PointwisePerformanceTest {
         runParent(Path.of(requireRoot()));
     }
 
-    @Test void inventoryRetainsEveryRowWithCurrentExplicitAdmission() {
-        for (Row row : Row.values()) {
-            if (unsupported(row)) continue;
-            assertDoesNotThrow(() -> prepare(row));
-        }
-    }
-
     @Test void directOraclesMatchGeneratedRawResults() {
         for (Row row : Row.values()) {
-            if (unsupported(row)) continue;
             verifyEquivalent(row, prepare(row));
         }
     }
@@ -77,10 +69,6 @@ class CpuBFloat16PointwisePerformanceTest {
         Files.createDirectories(directory);
         var generator = new CpuClassFileKernelGenerator();
         for (Row row : Row.values()) {
-            if (unsupported(row)) {
-                Files.writeString(directory.resolve(row + ".unsupported"), "CPU_LOW_ARITHMETIC_LOCK\n");
-                continue;
-            }
             CpuKernelIr kernelIr = ir(row);
             Files.write(directory.resolve(classFileName(row)), generator.generateClassBytes(
                     specialization(row, kernelIr), kernelIr));
@@ -121,10 +109,6 @@ class CpuBFloat16PointwisePerformanceTest {
         }
         StringBuilder report = new StringBuilder("row,fork0,fork1,fork2,fork3,fork4,median,accepted\n");
         for (Row row : Row.values()) {
-            if (unsupported(row)) {
-                report.append(row).append(",,,,,,,UNSUPPORTED\n");
-                continue;
-            }
             double[] ratios = new double[FORKS];
             for (int fork = 0; fork < FORKS; fork++) ratios[fork] = ratio(root.resolve(
                     "bfloat16-raw-fork-" + fork + ".csv"), row);
@@ -141,10 +125,6 @@ class CpuBFloat16PointwisePerformanceTest {
         Random random = new Random(0x8_0000_0000L + fork);
         StringBuilder csv = new StringBuilder("row,iterations,statistic,ratio,checksum\n");
         for (Row row : Row.values()) {
-            if (unsupported(row)) {
-                csv.append(row).append(",,UNSUPPORTED,,\n");
-                continue;
-            }
             Prepared prepared = prepare(row);
             verifyEquivalent(row, prepared);
             int iterations = calibrate(row, prepared);
@@ -540,24 +520,10 @@ class CpuBFloat16PointwisePerformanceTest {
     private static double ratio(Path file,Row wanted)throws Exception{try(BufferedReader r=Files.newBufferedReader(file)){r.readLine();for(String line;(line=r.readLine())!=null;){String[] p=line.split(",");if(p[0].equals(wanted.name()))return Double.parseDouble(p[3]);}}throw new IllegalStateException(wanted.name());}
     private static void validate(Path file) throws Exception {
         for (Row row : Row.values()) {
-            if (unsupported(row)) {
-                assertTrue(Files.readString(file).lines()
-                        .anyMatch(line -> line.equals(row + ",,UNSUPPORTED,,")));
-            } else {
-                assertTrue(ratio(file, row) <= LIMIT, row.name());
-            }
+            assertTrue(ratio(file, row) <= LIMIT, row.name());
         }
     }
 
-    /** Numerical rows remain visible but never acquire a fabricated timing ratio. */
-    private static boolean unsupported(Row row) {
-        boolean unavailable = switch (row) {
-            case GELU_ARRAY, POW_SEGMENT, FUSED_WHERE -> true;
-            case CLAMP_MIXED_GENERAL, COMPARISON_BROADCAST -> false;
-        };
-        if (unavailable) assertThrows(IllegalArgumentException.class, () -> prepare(row));
-        return unavailable;
-    }
     private static void verifyEquivalent(Row row, Prepared prepared) {
         Arrays.fill(prepared.output, (short) 0x5a5a);
         Arrays.fill(prepared.boolOutput, (byte) 0x5a);

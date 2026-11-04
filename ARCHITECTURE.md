@@ -470,8 +470,8 @@ The following invariants must remain true:
   complete-plan bytes additionally bind the selected route and phase-one decision. A new context
   has a new nonce, and tools never persist session-scoped decisions.
 - Engine, Config, Planning queries, Compiler artifacts, Prepare contexts, Trace, and backend/native
-  identities carry no numerical-profile selector. CPU routes obey the temporary CPU-only
-  low-arithmetic lock above. Metal's
+  identities carry no numerical-profile selector. CPU routes obey the
+  [low-precision parity cutover](docs/architecture/contracts/backend-execution.md#cpu-low-precision-parity-cutover). Metal's
   currently supported domain includes exact unary, affine,
   canonicalization, indexing, BOOL-domain, movement, replacement/fold/aggregate,
   ordering/top-K/arg-extrema, comparison, and maximum-pooling occurrences. It also

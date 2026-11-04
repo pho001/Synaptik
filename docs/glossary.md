@@ -764,8 +764,8 @@ homogeneous FLOAT64 across the complete bounded declared algebra and actual firs
 closure under those same checks. These task inventories are historical layers, not today's
 finite whitelist: general Scan composes every ordinary CPU-supported PURE unit under the same
 ordinary dtype/layout/attribute guards, with independently qualified forward and selected
-ordinary-VJP reverse bodies. Java BFLOAT16/FLOAT16 computation remains locked. No Metal Scan,
-cold/wire or NN workflow admission follows from this composition.
+ordinary-VJP reverse bodies. CPU low precision follows its independently qualified parity
+cutover. No Metal Scan, cold/wire or NN workflow admission follows from composition alone.
 
 The provider is an explicitly supplied compile-time collaboration, not a registry, discovery
 mechanism, `ServiceLoader` lookup, service locator, availability source, requirement evaluator,
@@ -2606,14 +2606,21 @@ qualified; source construction alone does not grant a backend or persistence dom
 
 The logical kind of scalar stored in each element of a tensor, such as `FLOAT32`, `INT64`, or `BOOL`. `DataType` records model-level facts including category and width, which lets model and compiler code interpret values consistently. It does not claim that every backend supports the type, prescribe a physical allocation alignment, or select a conversion route. See [Data types](api/tensor-api.md#data-types).
 
+The OFP8 formats `FLOAT8_E4M3` and `FLOAT8_E5M2` store one raw byte per element. E4M3 has
+finite magnitude at most 448 and no infinity; non-saturating overflow narrows to NaN.
+E5M2 retains signed infinities. Arithmetic uses FLOAT32 working values and one final
+round-to-nearest, ties-to-even conversion; storage, selection and same-type casts retain
+raw NaN and signed-zero bits. There is no implicit quantization scale. See
+[OFP8 boundaries](architecture/contracts/foundational-modules.md#ofp8-representation-and-operation-boundaries).
+
 ### Numeric promotion
 
 The implemented backend-independent rule that selects a common operation data type for two
-operands from the same numeric category. Floating pairs use
-`BFLOAT16 < FLOAT32 < FLOAT64`; signed-integral pairs use `INT32 < INT64`. When an integral pair
-promotes to INT64, the INT32 operand participates by conceptual sign extension. Same-width pairs
-retain their type. BOOL and mixed floating/integral pairs are rejected, so a caller records an
-explicit [`cast`](#cast-expression) when cross-category conversion is intended.
+operands from the same numeric category. Equal floating types retain their type; unlike low
+types (`BFLOAT16`, `FLOAT16`, `FLOAT8_E4M3`, `FLOAT8_E5M2`) promote to `FLOAT32`. `FLOAT32`
+dominates any low operand, and `FLOAT64` dominates every floating operand. Signed-integral
+pairs use `INT32 < INT64`, with conceptual sign extension. BOOL and mixed floating/integral
+pairs reject, requiring an explicit [`cast`](#cast-expression).
 
 Promotion selects expression metadata only. It does not insert a cast producer, convert or read
 values, capture a graph, choose a backend, or execute. See
@@ -2626,7 +2633,7 @@ values, capture a graph, choose a backend, or execute. See
 Model owns one numerical meaning per operation family and dtype, with no graph-wide selector.
 Exact stored comparison and extrema, structure, casts, raw movement and selection, indices,
 masks, state, guards, and publication are distinct from floating arithmetic. Denormals-are-zero
-(DAZ) may read a subnormal as same-signed zero at a named FLOAT32, BFLOAT16, or FLOAT16 arithmetic
+(DAZ) may read a subnormal as same-signed zero at a named FLOAT32 or low-floating arithmetic
 primitive input; flush-to-zero (FTZ) may zero a finite subnormal named primitive result subject
 to the family's zero-sign rule. Both are forbidden for FLOAT64 and for stored/exact sites.
 Homogeneous low arithmetic uses FLOAT32 working values and accumulators, then one final ties-to-even
@@ -3575,7 +3582,7 @@ intermediate ROW axes follow the proved coordinate. Row-mixing requires material
 support, not Tensor identity.
 Selected derivatives preserve ordinary ND cuts and exact finite-path guards. Structural absence
 is distinct from present all-zero seeds; activity plans retain carry/contribution presence, with
-explicit materialization across Scan boundaries. Java BFLOAT16/FLOAT16 computation remains locked.
+explicit materialization across Scan boundaries. Low CPU arithmetic follows its parity cutover.
 This is not fixed RNN/GRU/LSTM BPTT, arbitrary control flow, broader NN/cold persistence or Metal Scan. The
 [scan semantic owner](architecture/contracts/recurrent-scan.md#general-differentiable-scan)
 defines its complete bounded protocol; the [conceptual example](architecture/general-differentiable-scan.md#conceptual-forward-and-reverse-example)
@@ -6994,8 +7001,8 @@ prepares once. `run` binds exact external identities in arbitrary order through 
 excluding captured parameters and the private seed. Both reuse that preparation and one optimizer
 transaction, authenticate target-indexed gradients, stage all
 assigned optimizer/accumulation work, and commit only after complete precommit validation. Its update
-domain is non-empty, finite `FLOAT64`, `FLOAT32`, `BFLOAT16`, or `FLOAT16` parameters with fully
-static dense offset-zero non-view layouts and exact-capacity writable, shareable native host
+domain is non-empty, finite `FLOAT64`, `FLOAT32`, `BFLOAT16`, `FLOAT16`, `FLOAT8_E4M3`, or
+`FLOAT8_E5M2` parameters with fully static dense offset-zero non-view layouts and exact-capacity writable, shareable native host
 storage. Each parameter's snapshot payload at its declared (logical) width and each optimizer
 payload at FLOAT32 width (or FLOAT64 width for FLOAT64 parameters) must independently fit in a
 Java byte array (at most `Integer.MAX_VALUE` bytes). An oversized payload is rejected during
@@ -7212,10 +7219,10 @@ uses its fixed logical kernel divisor and overlap fold. Maximum Pool3d reconstru
 eligible first winner from the same-occurrence output, preserving padding exclusion, NaN,
 signed-zero, real-negative-infinity, and all-padding distinctions; that selector is fixed for a
 later derivative stage. CPU raw forward execution retains fully static resolved non-negative
-layouts and schema-71 generated scalar bodies for BFLOAT16/FLOAT16/FLOAT32/FLOAT64. Qualified
-matching CPU FLOAT32/FLOAT64 gradient metadata and lowering now reuse ordinary pooling rules and
-UNFOLD3D/FOLD3D; CPU low arithmetic remains locked. Qualified Metal FLOAT32 Pool2d/Pool3d
-training permits overlap, while FLOAT64/low non-overlap and original-carrier checks remain.
+layouts and independently versioned generated bodies for all six floating storage types. Qualified
+matching CPU floating gradient metadata and lowering reuse ordinary pooling rules and
+UNFOLD3D/FOLD3D with F32 working arithmetic for low types. Qualified Metal FLOAT32/BFLOAT16/FLOAT16
+Pool2d/Pool3d training permits overlap; other Metal types retain their independent restrictions.
 Coordinated Metal route/workload/policy/codec identity is40; schema20/ABI7 remain unchanged.
 These grants do not imply dynamic/named-B pooling, Metal Scan, pooling fusion or cross-backend
 performance. Fluent maximum/average Pool3d steps use kernel stride, zero padding, unit dilation

@@ -289,6 +289,7 @@ class MetalOrderingComparatorProofTest {
             case BFLOAT16 -> (word & 0x7f80L) == 0x7f80L && (word & 0x007fL) != 0;
             case FLOAT16 -> (word & 0x7c00L) == 0x7c00L && (word & 0x03ffL) != 0;
             case INT32, INT64, BOOL -> false;
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> throw new IllegalArgumentException("Metal does not support FP8 carriers");
         };
     }
 

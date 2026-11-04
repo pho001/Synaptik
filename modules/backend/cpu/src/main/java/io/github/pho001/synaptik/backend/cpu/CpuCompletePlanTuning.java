@@ -422,6 +422,8 @@ public final class CpuCompletePlanTuning {
                     case FLOAT32 -> sink.integer(Float.floatToRawIntBits(scalar.float32Value()));
                     case BFLOAT16 -> sink.integer(Short.toUnsignedInt(scalar.bfloat16Bits()));
                     case FLOAT16 -> sink.integer(Short.toUnsignedInt(scalar.float16Bits()));
+                    case FLOAT8_E4M3 -> sink.integer(Byte.toUnsignedInt(scalar.float8E4m3Bits()));
+                    case FLOAT8_E5M2 -> sink.integer(Byte.toUnsignedInt(scalar.float8E5m2Bits()));
                     case INT64 -> sink.longValue(scalar.int64Value());
                     case INT32 -> sink.integer(scalar.int32Value());
                     case BOOL -> sink.bool(scalar.booleanValue());

@@ -265,7 +265,7 @@ class CpuReferenceDifferentialTest {
     }
 
     @Test void gatherReferenceMatchesRepresentedBitsForEveryDataAndIndexType() {
-        for (DataType dataType : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.currentExecutable()) {
+        for (DataType dataType : io.github.pho001.synaptik.backend.cpu.internal.CpuTestDtypes.legacyOracleTypes()) {
             for (DataType indexType : List.of(DataType.INT32, DataType.INT64)) {
                 var lowered = new io.github.pho001.synaptik.backend.cpu.internal.lowering
                         .CpuPartitionLowering().lower(CpuIndexingLoweringTest.context(

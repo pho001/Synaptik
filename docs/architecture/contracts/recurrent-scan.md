@@ -1452,6 +1452,6 @@ are owned by the [CPU realization boundary](backend-execution.md#general-scan-or
 Absent activity introduces no empty identity fields; unchanged frozen recipes retain bytes/keys.
 New compact controlled graphs have selective identity and are not mislabeled old recipes.
 The independently old cold/source/v1-v5 constructor/type/header/role intersection stays closed;
-compiled activity is never serialized. CPU low numerical arithmetic remains locked and Metal's
-separate first-production support remains mandatory.
+compiled activity is never serialized. CPU low numerical arithmetic follows the independently
+qualified parity cutover; Metal's separate first-production support remains mandatory.
 

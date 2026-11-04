@@ -4,6 +4,17 @@
 
 ### Added
 
+- CPU BFLOAT16/FLOAT16 numerical execution and OFP8 `FLOAT8_E4M3`/`FLOAT8_E5M2` support through
+  the existing operation, shared Compiler AD, Scan/recurrent, symbolic-batch and Training owners.
+  Low arithmetic uses FLOAT32 work with one final narrowing; FP8 storage, selection and host
+  publication preserve raw byte bits. Explicit conversions round directly to the target.
+  Training retains FLOAT32 masters and rejects nonfinite logical candidates transactionally.
+  Conditional graph v7 and NN model/definition/whole-model v2 add FP8 without changing old
+  non-FP8 bytes or promising optimizer continuation.
+- Typed oneDNN low-input MATMUL with strict FLOAT32 output staging and generated logical narrowing,
+  independently qualified per API/implementation/target. Arm FP8 stays on the ordinary CPU path;
+  no widened FLOAT32 input is advertised as native FP8. F64 oneDNN expansion remains excluded.
+
 - Explicit oneDNN 3.14.0 LP64 sequential CPU composition with `openOneDnn(Path)` and immutable
   `AUTO`/`PRIMITIVES`/`GRAPH` API preferences inside the existing CPU owner. Required explicit
   load failures throw; default CPU/OpenBLAS discovery is unchanged and no binary is bundled.

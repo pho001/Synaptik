@@ -254,6 +254,8 @@ class EngineProducerlessPublicationTest {
                 case BOOL -> (i + shift) & 1;
                 case FLOAT16 -> variant == 0 ? 0x8000 : variant == 1 ? 0x7e15 : 0x3555;
                 case BFLOAT16 -> variant == 0 ? 0x8000 : variant == 1 ? 0x7fc1 : 0x3f80;
+                case FLOAT8_E4M3 -> variant == 0 ? 0x80 : variant == 1 ? 0xff : 0x38;
+                case FLOAT8_E5M2 -> variant == 0 ? 0x80 : variant == 1 ? 0x7d : 0x3c;
                 case FLOAT32, INT32 -> variant == 0 ? 0x80000000L : variant == 1 ? 0x7fc12345L : 0x3f400000L;
                 case FLOAT64, INT64 -> variant == 0 ? Long.MIN_VALUE : variant == 1 ? 0x7ff8123456789abcL : 0x3fe8000000000000L;
             };

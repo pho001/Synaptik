@@ -231,8 +231,8 @@ qualification. All current static saved Models/readers and fixed/general-scan po
 All-valid [general-scan](recurrent-scan.md#general-differentiable-scan) owned Models use existing
 `Model.graph`/`defineTensor`, `compute` and `configureTraining`/`train`, one private state set and
 existing Engine/TrainingSession owners. The implemented compute/first-order training workflow
-qualifies canonical static homogeneous FLOAT32/FLOAT64 occurrences; source validity and bounded
-cold reconstruction preserve applicable Model dtypes independently of CPU capability. All-valid
+qualifies independently admitted static floating occurrences, including the CPU low-precision
+cutover; source validity and bounded cold reconstruction remain independent of backend capability. All-valid
 means every static time step participates, not support for arbitrary PURE bodies. No public API,
 type, dependency or execution/AD layer is added. Graph and definition acquisition delegate the
 exact cold body inventory to Checkpoint and Compiler, not CPU dtype, operation or layout predicates.
@@ -320,16 +320,16 @@ The production program authorizes this additive `RnnSequence` composition:
 public RecurrentScanResult forwardGeneralScan(
         Tensor input, Tensor validLengths, Tensor initialHidden, RecurrentDirection direction);
 ```
-It accepts configured homogeneous FLOAT32/FLOAT64/BFLOAT16/FLOAT16, static input [T,B,F], initial hidden [B,H],
+It accepts any configured homogeneous floating dtype, including both OFP8 formats, static input [T,B,F], initial hidden [B,H],
 non-gradient INT64[B] lengths, T/B >= 0, F/H > 0, bias on/off and both directions. Unsupported
 dtype/geometry rejects before initialization or body construction. Reuse the existing descriptor-only
 atomic cell initialization and the same cell equation as ordinary forward, preserving its
 prevalidation and bias/ADD order. Read no actual storage/length values and retain no runtime state.
-BFLOAT16/FLOAT16 retain ordinary cell operation-result rounding (including both projections and
-the ordered bias/ADD/TANH sites), not fixed recurrent FLOAT32 working-site semantics. Low graph
-acquisition/rebind and existing v5 storage preserve the original carriers; numerical execution
-still requires complete backend forward/actual-adjoint qualification. CPU low arithmetic stays
-locked. An owned low-output training objective must explicitly cast to FLOAT32/FLOAT64.
+Low-floating types retain ordinary cell operation-result rounding (including both projections
+and the ordered bias/ADD/TANH sites), not fixed recurrent FLOAT32 working-site semantics.
+Graph acquisition/rebind preserve original carriers; FP8 persistence requires v7, while old-only
+sources retain their smallest sufficient old format. Numerical execution requires complete
+backend forward/actual-adjoint qualification. Low-output training objectives explicitly cast to FLOAT32/FLOAT64.
 Snapshot current weights once; bind them as ordered outer invariants to canonical storage-free
 carry, step and parameter formals. One ordinary next state is both next carry and emission;
 Scan.apply uses rowCarryCount=1 and sequenceRowAxes=[ROW(0)] with the selected traversal.
@@ -402,8 +402,8 @@ or saved; copy/load recreate storage-free prototypes and cold forward accepts fr
 descriptors. Explicit scan recipes and graph/load scan sources may compute through existing cached
 public Engine execution; static recipes and sequence containers are not redirected. Fixed sources
 may use configured first-order training when their actual backend/AD closure qualifies. Raw
-persistence supports seven dtypes independently of execution. Old model.v1/whole-model.v1 readers
-and flexible forward remain separate.
+persistence supports all nine dtypes independently of execution, with FP8 selecting graph v7.
+The NN-owned model/whole-model codecs retain their separate conditional v1/v2 domains and flexible forward.
 
 `HostTensorValue Model.compute(Tensor firstInput, Tensor secondInput)` is a generic convenience for
 any owned Model with exactly two declared inputs and one output, including graph/loaded sources,
@@ -560,6 +560,11 @@ The nine old model persistence classes now live in `nn.checkpoint`, without comp
 forwarders. The three public types remain ModelCheckpoint, ModelCheckpointInspection and
 InputArtifactFingerprint. The following old-v1 rules belong to NN; they do not restrict the new
 generic graph format or transfer NN semantics into Checkpoint.
+
+FP8 values append `model.v2` with magic `SYNMOD02` and version 2, preserving the existing record
+layout and adding dtype IDs 8=FLOAT8_E4M3 and 9=FLOAT8_E5M2. Whole-model FP8 definitions use
+`SYNDEF02` and the corresponding `whole-model.v2` kind. Non-FP8 sources retain byte-identical v1
+encoding. Old v1 readers reject the new tuples; no optimizer, history or prepared state is added.
 
 Its model package owns a separate version-one metadata codec, a detached candidate, and a public
 `ModelCheckpoint` file and model-envelope facade; it is not a state installer. For the existing
@@ -978,7 +983,7 @@ file-local IDs and retain unused signature slots; no second graph representation
 reconstruction table belongs here. Compiler retains source admission and call-local reconstruction
 ownership under the exact [closed source slice](compiler-autograd.md#compile-lifecycle), without
 optimization or layout closure. Preserve full descriptors, occurrences, sharing
-and ordered roots; all seven dtypes where Model permits (no integral/BOOL NEG). Zero-node data
+and ordered roots; all nine dtypes where Model permits (no integral/BOOL NEG). Zero-node data
 is not new Engine capability. Rebind checks metadata then replacement count/full descriptors,
 retains named state and permits produced/repeated substitutions with opaque upstream provenance;
 its immutable ordinary outputs may repeat, which ordinary compilation still rejects.
@@ -1311,11 +1316,11 @@ Model-owned, checked through exact Compiler inference; this is not a default-geo
 
 These two opcodes are legal in the outer graph and otherwise-qualified all-valid or length-aware
 inline bodies. Length bodies add only these two constructors to their whitelist and retain static
-homogeneous FLOAT32/FLOAT64, ROW/SHARED, terminal-SHARED and all existing role/axis restrictions.
-No nested Scan, other CNN constructor expansion, dtype expansion or Metal Scan grant follows.
-Version selection examines outer and contained occurrences: either Pool3d opcode selects v6 even
-when it occurs only inside a body. Unchanged sources retain the byte-identical smallest sufficient
-v1–v5 format; old exact tuples, opcodes and Scan records are unchanged. Old readers reject v6.
+geometry, ROW/SHARED, terminal-SHARED and all existing role/axis restrictions. The low-precision
+cutover extends Model-legal floating roles separately; no nested Scan, other CNN constructor or Metal Scan grant follows.
+Version selection examines outer and contained occurrences: either Pool3d opcode requires at least
+v6 even when it occurs only inside a body; FP8 requires v7. Other sources retain their byte-identical
+smallest sufficient old format; old exact tuples, opcodes and Scan records remain unchanged.
 
 Retain section order, independent body scopes, canonical ports/roles, positional aliases, raw named
 state bytes, checked dry sizing and all ArtifactLimits/import/publication ordering. Complete decoded
@@ -1323,6 +1328,26 @@ metadata passes `GraphCompilationPort.validateSource` before any candidate Tenso
 all versions. Reconstruct through the existing Compiler owner, then require normalized recapture
 equality. Save no optimizer, executable, Engine/session state or training history; loaded Models
 use fresh caller-configured training.
+
+### Canonical graph-model version 7
+
+FP8 persistence appends ArtifactFile v1 kind `graph-model.v7`, eight ASCII magic bytes
+`SYNGRF07` and i32 version 7. It appends only dtype IDs 8=FLOAT8_E4M3 and 9=FLOAT8_E5M2;
+IDs 1–7, operation records, scalar representation and all old version tuples remain unchanged.
+Each FP8 state element or scalar occupies one raw byte without BOOL normalization or conversion.
+Version selection examines every descriptor, scalar and CAST target in the outer and contained
+scopes, including otherwise-unpublished body intermediates. Any FP8 occurrence selects v7;
+sources using only old dtypes retain their byte-identical smallest sufficient v1–v6 domain.
+Old-domain readers reject the new dtype IDs; a v7 source containing only old types re-saves
+through its smallest sufficient old domain.
+
+The existing closed source constructors, static geometry, row roles, aliases, canonical ports,
+limits, complete metadata preflight and atomic publication ordering remain mandatory. All-valid
+and length-mode cold bodies accept Model-legal floating roles and intermediates, including
+explicit casts; length-mode operation/rank/ROW/SHARED restrictions are not removed. This extends
+the dtype namespace, not the opcode inventory, native execution or arbitrary PURE persistence.
+Compiler reconstructs the source; Checkpoint neither owns a graph executor nor serializes
+compiled activity, optimizer slots, histories, prepared state or code.
 
 ## `extensions/onnx`
 
@@ -1510,13 +1535,13 @@ Rules:
   momentum step stores `adjusted` without dampening. Later steps store
   `momentum * previous + (1 - dampening) * adjusted`. Ordinary momentum selects that new slot;
   Nesterov selects `adjusted + momentum * updatedMomentum`. The parameter candidate is
-  `parameter - learningRate * selectedGradient`. FLOAT32, BFLOAT16, and FLOAT16 parameter sessions
+  `parameter - learningRate * selectedGradient`. FLOAT32 and all low-floating parameter sessions
   validate the same invariants after coefficient narrowing, including rejecting positive
   Nesterov momentum that narrows to zero, and use FLOAT32 master, momentum, accumulation, and
   candidate arithmetic. A successful low update narrows the validated master candidate once to
   the declared logical type. FLOAT64 uses the configured binary64 values.
 - `Adam` and `AdamW` require finite positive learning rate and epsilon, finite beta1 and beta2
-  in `[0, 1)`, and finite non-negative weight decay. FLOAT32, BFLOAT16, and FLOAT16 assignments
+  in `[0, 1)`, and finite non-negative weight decay. FLOAT32 and all low-floating assignments
   narrow coefficients once to binary32 at open and reject a rate or epsilon that becomes zero,
   a beta that becomes one, or any out-of-range or non-finite coefficient. Both have zero-initialized
   first and second moments in session state. At one-based global step `t`, they calculate
