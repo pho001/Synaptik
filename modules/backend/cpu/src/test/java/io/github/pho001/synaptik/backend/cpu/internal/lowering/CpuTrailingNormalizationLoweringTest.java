@@ -65,7 +65,7 @@ public class CpuTrailingNormalizationLoweringTest {
 
     private static ScalarValue epsilon(DataType type) {
         return type == DataType.FLOAT64 ? ScalarValue.float64(1e-5)
-                : type == DataType.FLOAT32 ? ScalarValue.float32(1e-5f)
-                : ScalarValue.bfloat16Bits((short) 0x3728);
+                : type == DataType.BFLOAT16 ? ScalarValue.bfloat16Bits((short) 0x3728)
+                : ScalarValue.float32(1e-5f);
     }
 }
