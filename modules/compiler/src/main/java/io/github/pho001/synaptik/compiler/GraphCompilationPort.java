@@ -80,7 +80,7 @@ public final class GraphCompilationPort {
      * independently of CPU qualification (including low TANH and FLOAT32 RELU). No other PURE
      * family is implicitly admitted. Constants are explicit outer bindings to invariant formals
      * or scalar attributes. All-valid bodies retain every applicable Model dtype. Length bodies
-     * require floating FLOAT32/FLOAT64/BFLOAT16/FLOAT16 declarations, actuals and interiors, with
+     * require floating declarations, actuals and interiors (including both OFP8 types), with
      * each carry matching its own dtype and explicit CAST preserving mixed working boundaries.
      * Nonfloating length-body values remain unsupported. Separate non-gradient INT64[B] lengths
      * and the existing ROW(0), rank-two ROW(1), SHARED and terminal-SHARED rules are retained.

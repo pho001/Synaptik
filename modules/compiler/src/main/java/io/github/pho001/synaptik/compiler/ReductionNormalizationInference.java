@@ -203,7 +203,8 @@ final class ReductionNormalizationInference {
     private static void requireScalarType(DataType scalar, DataType result, String role) {
         // Match the input-aware Model normalization owners, not scalar arithmetic promotion.
         if (scalar != result
-                && (result != DataType.FLOAT16 || scalar != DataType.FLOAT32)) {
+                && ((result != DataType.FLOAT16 && result != DataType.FLOAT8_E4M3
+                        && result != DataType.FLOAT8_E5M2) || scalar != DataType.FLOAT32)) {
             throw new IllegalArgumentException(role + " data type must match result");
         }
     }

@@ -51,34 +51,36 @@ final class OrderingStochasticGradientRulesTest {
     }
 
     @Test
-    void dropoutReusesCanonicalMaskAndDirectlyCastsFloat16Complement() {
-        Tensor input = tensor(DataType.FLOAT16);
-        double keepProbability = 0x1.0020000002000p-1;
-        // Direct FLOAT64-to-FLOAT16 rounding yields 0x3801; routing through FLOAT32 yields 0x3800.
-        DropoutResult dropout =
-                input.dropout(1.0d - keepProbability, GraphRngState.initial(7L, 11L));
-        Tensor gradient = gradient(dropout.output().sum(), input);
-        assertEquals(DataType.FLOAT16, gradient.descriptor().dataType());
-        assertEquals(WhereSelectionKind.WHERE,
-                gradient.provenance().orElseThrow().operation().kind());
-        Tensor canonicalMask =
-                dropout.output().provenance().orElseThrow().producer().output(1);
-        assertSame(canonicalMask,
-                gradient.provenance().orElseThrow().inputs().getFirst());
-        assertEquals(
-                io.github.pho001.synaptik.model.operation.elementwise.scalar
-                        .ScalarElementwiseKind.DIV,
-                gradient.provenance().orElseThrow().inputs().get(1)
-                        .provenance().orElseThrow().operation().kind());
-        assertEquals(
-                (short) 0x3801,
-                ((ScalarValueAttrs) gradient.provenance().orElseThrow().inputs().get(1)
-                        .provenance().orElseThrow().operation().attrs())
-                        .value().float16Bits());
-        assertEquals(
-                DropoutKind.DROPOUT,
-                dropout.output().provenance().orElseThrow().operation().kind());
-        assertCompiles(dropout.output().sum(), input);
+    void dropoutKeepsTheFloatWorkingComplementAndCanonicalMaskForEveryLowType() {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            Tensor input = tensor(type);
+            double keepProbability = 0x1.0020000002000p-1;
+            DropoutResult dropout =
+                    input.dropout(1.0d - keepProbability, GraphRngState.initial(7L, 11L));
+            Tensor gradient = gradient(dropout.output().sum(), input);
+            assertEquals(type, gradient.descriptor().dataType());
+            assertEquals(WhereSelectionKind.WHERE,
+                    gradient.provenance().orElseThrow().operation().kind());
+            Tensor canonicalMask =
+                    dropout.output().provenance().orElseThrow().producer().output(1);
+            assertSame(canonicalMask,
+                    gradient.provenance().orElseThrow().inputs().getFirst());
+            Tensor narrowed = gradient.provenance().orElseThrow().inputs().get(1);
+            assertEquals(type, narrowed.descriptor().dataType());
+            Tensor scaled = narrowed.provenance().orElseThrow().inputs().getFirst();
+            assertEquals(DataType.FLOAT32, scaled.descriptor().dataType());
+            assertEquals(
+                    io.github.pho001.synaptik.model.operation.elementwise.scalar
+                            .ScalarElementwiseKind.DIV,
+                    scaled.provenance().orElseThrow().operation().kind());
+            assertEquals((float) keepProbability,
+                    ((ScalarValueAttrs) scaled.provenance().orElseThrow().operation().attrs())
+                            .value().float32Value());
+            assertEquals(DropoutKind.DROPOUT,
+                    dropout.output().provenance().orElseThrow().operation().kind());
+            assertCompiles(dropout.output().sum(), input);
+        }
     }
 
     private static Tensor gradient(Tensor objective, Tensor target) {

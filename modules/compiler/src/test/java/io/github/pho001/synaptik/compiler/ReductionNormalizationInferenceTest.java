@@ -36,15 +36,16 @@ final class ReductionNormalizationInferenceTest {
     @Test
     void normalizationInferencePreservesModelMetadataForEveryFloatingFamily() {
         for (DataType type : List.of(
-                DataType.FLOAT16, DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
+                DataType.FLOAT16, DataType.BFLOAT16, DataType.FLOAT8_E4M3,
+                DataType.FLOAT8_E5M2, DataType.FLOAT32, DataType.FLOAT64)) {
             ScalarValue epsilon = switch (type) {
-                case FLOAT16, FLOAT32 -> ScalarValue.float32(1e-5f);
+                case FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, FLOAT32 -> ScalarValue.float32(1e-5f);
                 case BFLOAT16 -> ScalarValue.bfloat16(1e-5f);
                 case FLOAT64 -> ScalarValue.float64(1e-5d);
                 default -> throw new AssertionError(type);
             };
             ScalarValue momentum = switch (type) {
-                case FLOAT16, FLOAT32 -> ScalarValue.float32(.1f);
+                case FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, FLOAT32 -> ScalarValue.float32(.1f);
                 case BFLOAT16 -> ScalarValue.bfloat16(.1f);
                 case FLOAT64 -> ScalarValue.float64(.1d);
                 default -> throw new AssertionError(type);
@@ -80,7 +81,8 @@ final class ReductionNormalizationInferenceTest {
 
     @Test
     void normalizationMetadataExceptionDoesNotRelaxOtherScalarTypes() {
-        for (DataType type : List.of(DataType.FLOAT16, DataType.BFLOAT16, DataType.FLOAT32)) {
+        for (DataType type : List.of(DataType.FLOAT16, DataType.BFLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2, DataType.FLOAT32)) {
             TensorDescriptor input = descriptor(type, Shape.of(2, 3), true);
             TensorDescriptor vector = descriptor(type, Shape.of(3), true);
             ScalarValue legal = type == DataType.BFLOAT16

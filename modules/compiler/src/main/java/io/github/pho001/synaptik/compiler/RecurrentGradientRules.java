@@ -19,8 +19,8 @@ final class RecurrentGradientRules {
      * Builds one closed transition recipe, then differentiates it jointly for the actual seeds.
      * No time unrolling or independent cell derivative exists. Positional identity views keep tied
      * actual roles separate until the enclosing contribution owner performs its ordered merge.
-     * Low storage has F32 projections/gates, explicit state narrowing, and a narrowed LSTM cell
-     * read before hidden publication, exactly as the fixed forward semantic working sites.
+     * BFLOAT16, FLOAT16 and OFP8 storage have F32 projections/gates, explicit state narrowing,
+     * and a narrowed LSTM cell read before hidden publication, exactly as the fixed forward sites.
      */
     static Tensor[] apply(TensorProducer producer, List<Tensor> seeds, boolean[] selected,
             FirstOrderAutograd.DerivativeConstants constants) {

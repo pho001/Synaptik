@@ -365,7 +365,8 @@ final class ForwardConstantFoldingTest {
             case INT64 -> new Operation(
                     ScalarElementwiseKind.ADD,
                     new ScalarValueAttrs(ScalarValue.int64(0)));
-            case FLOAT64, FLOAT32, BFLOAT16, FLOAT16 -> operation(UnaryElementwiseKind.NEG);
+            case FLOAT64, FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 ->
+                    operation(UnaryElementwiseKind.NEG);
         };
     }
 

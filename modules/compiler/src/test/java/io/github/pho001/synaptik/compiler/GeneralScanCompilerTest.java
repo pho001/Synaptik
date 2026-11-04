@@ -32,7 +32,8 @@ final class GeneralScanCompilerTest {
             public BackendId backendId() { return backend; }
             public boolean supports(OperationCapabilityQuery query) { return true; }
         };
-        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16,
+                DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2))
             for (boolean reverse : List.of(false, true)) for (boolean withCarry : List.of(false, true)) {
                 var descriptor = new TensorDescriptor(type, stepShape, Optional.empty(), true);
                 Tensor step = TensorFactory.create(descriptor);
@@ -93,7 +94,8 @@ final class GeneralScanCompilerTest {
     }
 
     @Test void symbolicLengthsAdmitPublicForwardAndActualAdWithoutOpeningColdBoundaries() throws Exception {
-        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64))
+        for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64, DataType.BFLOAT16,
+                DataType.FLOAT16, DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2))
             for (long time : new long[] {0, 3}) for (boolean reverse : List.of(false, true)) {
                 var source = symbolicLengthSource(type, time, reverse);
                 var p = source.finalCarry().getFirst().provenance().orElseThrow().producer();
@@ -121,13 +123,13 @@ final class GeneralScanCompilerTest {
 
     /**
      * Builds a storage-free symbolic-length source used to separate compile and cold admission.
-     * @param type homogeneous FLOAT32 or FLOAT64 body type
+     * @param type homogeneous floating body type, including either OFP8 type
      * @param time non-negative fixed time count
      * @param reverse whether traversal decreases original time
      * @return non-null source occurrence with one named batch and a separate discrete lengths input;
      *     all Tensors remain storage-free and no Compiler admission is attempted
      * @throws NullPointerException if type is null
-     * @throws IllegalArgumentException if type is outside FLOAT32/FLOAT64 or time is negative
+     * @throws IllegalArgumentException if type is nonfloating or time is negative
      * @throws IllegalStateException if Tensor identities are exhausted while constructing the fixture
      */
     private static ScanResult symbolicLengthSource(DataType type, long time, boolean reverse) {

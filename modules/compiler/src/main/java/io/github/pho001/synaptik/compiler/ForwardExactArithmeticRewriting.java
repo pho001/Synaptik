@@ -29,8 +29,8 @@ import java.util.Set;
  * whole-graph topological scan.
  *
  * <p>The rules are duplicate-input binary {@code MIN} and {@code MAX}; scalar {@code MUL} by exact
- * typed positive one for BFLOAT16, FLOAT16, FLOAT32, FLOAT64, INT32, and INT64; scalar {@code DIV}
- * and {@code POW} by exact typed positive one for the four floating types; and scalar {@code ADD}
+ * typed positive one for every floating type, INT32, and INT64; scalar {@code DIV}
+ * and {@code POW} by exact typed positive one for floating types; and scalar {@code ADD}
  * and {@code SUB} by exact typed zero for INT32 and INT64. Scalar values come only from immutable
  * {@code ScalarValueAttrs} operation metadata. They are not Tensor constants, host storage, or
  * evaluated values.</p>
@@ -218,6 +218,8 @@ final class ForwardExactArithmeticRewriting {
             case FLOAT32 -> value.float32Value() == 1.0f;
             case BFLOAT16 -> value.bfloat16Bits() == (short) 0x3F80;
             case FLOAT16 -> value.float16Bits() == (short) 0x3C00;
+            case FLOAT8_E4M3 -> value.float8E4m3Bits() == (byte) 0x38;
+            case FLOAT8_E5M2 -> value.float8E5m2Bits() == (byte) 0x3C;
             case INT32 -> value.int32Value() == 1;
             case INT64 -> value.int64Value() == 1L;
             case BOOL -> false;
@@ -228,7 +230,7 @@ final class ForwardExactArithmeticRewriting {
         return switch (value.dataType()) {
             case INT32 -> value.int32Value() == 0;
             case INT64 -> value.int64Value() == 0L;
-            case FLOAT64, FLOAT32, BFLOAT16, FLOAT16, BOOL -> false;
+            case FLOAT64, FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, BOOL -> false;
         };
     }
 

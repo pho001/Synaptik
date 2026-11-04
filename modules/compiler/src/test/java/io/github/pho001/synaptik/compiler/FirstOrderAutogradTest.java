@@ -104,7 +104,8 @@ final class FirstOrderAutogradTest {
     @Test
     void createsExactStorageFreeScalarZeroAndOneLeavesForEveryFloatingType() {
         for (DataType dataType : List.of(
-                DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
+                DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT8_E4M3,
+                DataType.FLOAT8_E5M2, DataType.FLOAT32, DataType.FLOAT64)) {
             var constants = new FirstOrderAutograd.DerivativeConstants();
             Tensor zero = constants.zeroBase(dataType);
             Tensor one = constants.oneBase(dataType);

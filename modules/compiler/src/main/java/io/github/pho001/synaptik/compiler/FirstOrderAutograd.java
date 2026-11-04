@@ -28,7 +28,7 @@ import java.util.function.BiFunction;
  * This keeps existing one-output order stable while allowing several selected public outputs of
  * one batch-normalization occurrence to contribute to the same input. Each selected output uses
  * its validated explicit cotangent seed or an implicit exact typed positive one for an eligible
- * scalar output. Request-local BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 scalar leaves are cached by
+ * scalar output. Request-local floating scalar leaves, including both OFP8 types, are cached by
  * exact {@link ScalarValue} type and represented bits, remain storage-free, and are registered
  * explicitly as logical splats in deterministic first-use order. Shape-specific values are
  * ordinary public {@code expand} expressions.</p>
@@ -817,7 +817,7 @@ final class FirstOrderAutograd {
         /**
          * Returns the request-local scalar positive-zero leaf for one floating data type.
          *
-         * @param dataType non-null BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 type
+         * @param dataType non-null floating type, including either OFP8 storage type
          * @return the exact cached leaf, created and bound on first request
          * @throws IllegalArgumentException if {@code dataType} is not floating
          */
@@ -828,7 +828,7 @@ final class FirstOrderAutograd {
         /**
          * Returns the request-local scalar positive-one leaf for one floating data type.
          *
-         * @param dataType non-null BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 type
+         * @param dataType non-null floating type, including either OFP8 storage type
          * @return the exact cached leaf, created and bound on first request
          * @throws IllegalArgumentException if {@code dataType} is not floating
          */
@@ -839,12 +839,14 @@ final class FirstOrderAutograd {
         /**
          * Returns the exact fixed typed scalar-operation value {@code 2}.
          *
-         * @param dataType non-null BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 type
+         * @param dataType non-null floating type, including either OFP8 storage type
          * @return the exact represented coefficient selected by Compiler 0005A
          * @throws IllegalArgumentException if {@code dataType} is not floating
          */
         static ScalarValue two(DataType dataType) {
             return switch (dataType) {
+                case FLOAT8_E4M3 -> ScalarValue.float8E4m3Bits((byte) 0x40);
+                case FLOAT8_E5M2 -> ScalarValue.float8E5m2Bits((byte) 0x40);
                 case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0x4000);
                 case FLOAT16 -> ScalarValue.float16Bits((short) 0x4000);
                 case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(0x40000000));
@@ -858,12 +860,14 @@ final class FirstOrderAutograd {
         /**
          * Returns the exact fixed typed scalar-operation value {@code -2}.
          *
-         * @param dataType non-null BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 type
+         * @param dataType non-null floating type, including either OFP8 storage type
          * @return the exact represented negative coefficient selected for loss formulas
          * @throws IllegalArgumentException if {@code dataType} is not floating
          */
         static ScalarValue negativeTwo(DataType dataType) {
             return switch (dataType) {
+                case FLOAT8_E4M3 -> ScalarValue.float8E4m3Bits((byte) 0xC0);
+                case FLOAT8_E5M2 -> ScalarValue.float8E5m2Bits((byte) 0xC0);
                 case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0xC000);
                 case FLOAT16 -> ScalarValue.float16Bits((short) 0xC000);
                 case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(0xC0000000));
@@ -877,12 +881,14 @@ final class FirstOrderAutograd {
         /**
          * Returns the exact fixed typed scalar-operation value {@code -0.5}.
          *
-         * @param dataType non-null BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 type
+         * @param dataType non-null floating type, including either OFP8 storage type
          * @return the exact represented coefficient selected by Compiler 0005A
          * @throws IllegalArgumentException if {@code dataType} is not floating
          */
         static ScalarValue negativeHalf(DataType dataType) {
             return switch (dataType) {
+                case FLOAT8_E4M3 -> ScalarValue.float8E4m3Bits((byte) 0xB0);
+                case FLOAT8_E5M2 -> ScalarValue.float8E5m2Bits((byte) 0xB8);
                 case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0xBF00);
                 case FLOAT16 -> ScalarValue.float16Bits((short) 0xB800);
                 case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(0xBF000000));
@@ -896,7 +902,7 @@ final class FirstOrderAutograd {
         /**
          * Returns the request-local scalar leaf for one exact floating typed value.
          *
-         * @param value non-null exact BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 scalar
+         * @param value non-null exact floating scalar, including either OFP8 storage type
          * @return the exact cached leaf, created and explicitly bound on first request
          * @throws IllegalArgumentException if {@code value} is not floating
          */
@@ -963,6 +969,10 @@ final class FirstOrderAutograd {
          */
         static ScalarValue scalar(DataType dataType, boolean one) {
             return switch (dataType) {
+                case FLOAT8_E4M3 ->
+                        ScalarValue.float8E4m3Bits((byte) (one ? 0x38 : 0x00));
+                case FLOAT8_E5M2 ->
+                        ScalarValue.float8E5m2Bits((byte) (one ? 0x3C : 0x00));
                 case BFLOAT16 ->
                         ScalarValue.bfloat16Bits((short) (one ? 0x3F80 : 0x0000));
                 case FLOAT16 ->

@@ -22,6 +22,44 @@ final class RecurrentGradientRulesTest {
         }
     }
 
+    @Test void lowPrecisionFixedRecipesCompileEverySelectedOutputAndFloatingRole() {
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2))
+            for (RecurrentScanKind kind : RecurrentScanKind.values())
+                for (RecurrentDirection direction : RecurrentDirection.values()) {
+                    int gates = kind == RecurrentScanKind.RNN_TANH ? 1
+                            : kind == RecurrentScanKind.GRU_RESET_AFTER ? 3 : 4;
+                    Tensor x = tensor(type, true, 3, 2, 1);
+                    Tensor lengths = tensor(DataType.INT64, false, 2);
+                    Tensor h = tensor(type, true, 2, 1), c = tensor(type, true, 2, 1);
+                    Tensor w = tensor(type, true, gates, 1), u = tensor(type, true, gates, 1);
+                    Tensor bias = tensor(type, true, gates);
+                    List<Tensor> outputs;
+                    if (kind == RecurrentScanKind.LSTM) {
+                        var result = RecurrentScan.lstm(x, lengths, h, c, w, u, bias, direction);
+                        outputs = List.of(result.outputs(), result.finalHidden(), result.finalCell());
+                    } else {
+                        var result = kind == RecurrentScanKind.RNN_TANH
+                                ? RecurrentScan.rnn(x, lengths, h, w, u, bias, direction)
+                                : RecurrentScan.gru(x, lengths, h, w, u, bias, direction);
+                        outputs = List.of(result.outputs(), result.finalHidden());
+                    }
+                    var targets = new ArrayList<>(List.of(x, h));
+                    if (kind == RecurrentScanKind.LSTM) targets.add(c);
+                    targets.addAll(List.of(w, u, bias));
+                    var seeds = outputs.stream().map(output -> TensorFactory.create(
+                            new TensorDescriptor(type, output.descriptor().shape(),
+                                    output.descriptor().layout(), false))).toList();
+                    var compilation = GraphCompiler.compile(CompileMode.FORWARD_AND_BACKWARD,
+                            outputs, java.util.Optional.of(ScanGradientRulesTest.request(
+                                    outputs, seeds, targets)), CompileTimeConstantGraph.Ingress.empty(),
+                            io.github.pho001.synaptik.config.compile.GraphOptimizationConfig.disabled());
+                    assertEquals(targets.size(), compilation.gradientResults().size());
+                    for (int i = 0; i < targets.size(); i++)
+                        assertEquals(targets.get(i).id(), compilation.gradientResults().get(i).target());
+                }
+    }
+
     private static void check(DataType type, RecurrentScanKind kind, RecurrentDirection direction) {
         int gates = kind == RecurrentScanKind.RNN_TANH ? 1 : kind == RecurrentScanKind.GRU_RESET_AFTER ? 3 : 4;
         Tensor x = tensor(type, true, 3, 3, 1), lengths = tensor(DataType.INT64, false, 3);

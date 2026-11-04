@@ -128,7 +128,7 @@ final class PoolingGradientRules<V> {
         Dimension positions =
                 DimensionExpressions.multiply(outputShape.dimension(2), outputShape.dimension(3));
         long kernelElements = Math.multiplyExact(attrs.kernelHeight(), attrs.kernelWidth());
-        V candidates = ops.permute(ops.reshape(ops.unfold2d(primal.apply(input), window, negativeInfinity(ops.descriptor(input).dataType())), Shape.ofDimensions(
+        V candidates = ops.permute(ops.reshape(ops.unfold2d(primal.apply(input), window, maximumPadding(ops.descriptor(input).dataType())), Shape.ofDimensions(
                         batch,
                         channels,
                         new StaticDimension(kernelElements),
@@ -143,7 +143,7 @@ final class PoolingGradientRules<V> {
         V bothNaN = ops.logicalAnd(ops.isNaN(candidates), ops.isNaN(alignedOutput));
         V numericallyEqual = ops.equalTo(candidates, alignedOutput);
         V bothZero = ops.logicalAnd(ops.equalTo(candidates, ops.zeroLike(candidates)), ops.equalTo(alignedOutput, ops.zeroLike(alignedOutput)));
-        V reciprocalSignsEqual = ops.equalTo(ops.div(ops.oneLike(candidates), candidates), ops.div(ops.oneLike(alignedOutput), alignedOutput));
+        V reciprocalSignsEqual = reciprocalSignsEqual(candidates, alignedOutput);
         V signedEqual = ops.logicalAnd(numericallyEqual, ops.logicalOr(ops.logicalNot(bothZero), reciprocalSignsEqual));
         V eligible = ops.logicalAnd(inBounds, ops.logicalOr(bothNaN, signedEqual));
 
@@ -221,7 +221,7 @@ final class PoolingGradientRules<V> {
                 attrs.kernelDepth(), attrs.kernelHeight(), attrs.kernelWidth());
         Shape candidatesShape = Shape.ofDimensions(
                 batch, channels, new StaticDimension(kernelElements), positions);
-        V candidates = ops.permute(ops.reshape(ops.unfold3d(primal.apply(input), window, negativeInfinity(ops.descriptor(input).dataType())), candidatesShape), 0, 1, 3, 2);
+        V candidates = ops.permute(ops.reshape(ops.unfold3d(primal.apply(input), window, maximumPadding(ops.descriptor(input).dataType())), candidatesShape), 0, 1, 3, 2);
         V inBounds = ops.notEqualTo(ops.permute(ops.reshape(ops.unfold3d(ops.oneLike(input), window), candidatesShape), 0, 1, 3, 2),
                 ops.zeroLike(candidates));
         V alignedOutput = ops.expandDims(ops.reshape(primal.apply(output), Shape.ofDimensions(batch, channels, positions)), 3);
@@ -229,7 +229,7 @@ final class PoolingGradientRules<V> {
         V bothNaN = ops.logicalAnd(ops.isNaN(candidates), ops.isNaN(alignedOutput));
         V numericallyEqual = ops.equalTo(candidates, alignedOutput);
         V bothZero = ops.logicalAnd(ops.equalTo(candidates, ops.zeroLike(candidates)), ops.equalTo(alignedOutput, ops.zeroLike(alignedOutput)));
-        V reciprocalSignsEqual = ops.equalTo(ops.div(ops.oneLike(candidates), candidates), ops.div(ops.oneLike(alignedOutput), alignedOutput));
+        V reciprocalSignsEqual = reciprocalSignsEqual(candidates, alignedOutput);
         V signedEqual = ops.logicalAnd(numericallyEqual, ops.logicalOr(ops.logicalNot(bothZero), reciprocalSignsEqual));
         V eligible = ops.logicalAnd(inBounds, ops.logicalOr(bothNaN, signedEqual));
 
@@ -319,14 +319,33 @@ final class PoolingGradientRules<V> {
     }
 
     /**
+     * Distinguishes represented zero signs without narrowing E4M3's reciprocal infinities to NaN.
+     * Other formats retain their existing ordinary reciprocal sites.
+     * @param candidates exact unfolded input values
+     * @param output aligned exact saved maximum values
+     * @return exact Boolean equality of reciprocal signs at zero positions
+     */
+    private V reciprocalSignsEqual(V candidates, V output) {
+        if (ops.descriptor(candidates).dataType() == DataType.FLOAT8_E4M3) {
+            candidates = ops.cast(candidates, DataType.FLOAT32);
+            output = ops.cast(output, DataType.FLOAT32);
+        }
+        return ops.equalTo(
+                ops.div(ops.oneLike(candidates), candidates),
+                ops.div(ops.oneLike(output), output));
+    }
+
+    /**
      * Returns exact typed positive-zero scalar metadata for padding in the in-bounds probe.
      *
-     * @param dataType non-null BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 type
+     * @param dataType non-null floating type, including either OFP8 type
      * @return exact positive-zero scalar metadata of the requested floating type
      * @throws IllegalArgumentException if {@code dataType} is not floating
      */
     private static ScalarValue positiveZero(DataType dataType) {
         return switch (dataType) {
+            case FLOAT8_E4M3 -> ScalarValue.float8E4m3Bits((byte) 0);
+            case FLOAT8_E5M2 -> ScalarValue.float8E5m2Bits((byte) 0);
             case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0x0000);
             case FLOAT16 -> ScalarValue.float16Bits((short) 0x0000);
             case FLOAT32 -> ScalarValue.float32(0.0f);
@@ -337,14 +356,18 @@ final class PoolingGradientRules<V> {
     }
 
     /**
-     * Returns exact typed negative-infinity scalar metadata for maximum-pool padding.
+     * Returns padding for the masked maximum-pool candidate probe. E4M3 uses its most negative
+     * finite value because infinity is not representable; the separate exact in-bounds mask
+     * excludes every padding position, including ties with that finite value.
      *
-     * @param dataType non-null BFLOAT16, FLOAT16, FLOAT32, or FLOAT64 type
-     * @return exact negative-infinity scalar metadata of the requested floating type
+     * @param dataType non-null floating type, including either OFP8 type
+     * @return exact negative infinity, or E4M3's most negative finite value
      * @throws IllegalArgumentException if {@code dataType} is not floating
      */
-    private static ScalarValue negativeInfinity(DataType dataType) {
+    private static ScalarValue maximumPadding(DataType dataType) {
         return switch (dataType) {
+            case FLOAT8_E4M3 -> ScalarValue.float8E4m3Bits((byte) 0xFE);
+            case FLOAT8_E5M2 -> ScalarValue.float8E5m2Bits((byte) 0xFC);
             case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0xFF80);
             case FLOAT16 -> ScalarValue.float16Bits((short) 0xFC00);
             case FLOAT32 -> ScalarValue.float32(Float.NEGATIVE_INFINITY);

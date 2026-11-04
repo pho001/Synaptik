@@ -103,7 +103,8 @@ final class AttentionGradientRulesTest {
 
     @Test
     void originalLowScaleMetadataSupportsJointOutputCotangents() {
-        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16)) {
+        for (DataType type : List.of(DataType.FLOAT32, DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
             for (boolean masked : List.of(false, true)) {
                 Tensor query = tensor(type, Shape.of(2, 2), true);
                 Tensor key = tensor(type, Shape.of(3, 2), true);
@@ -120,7 +121,8 @@ final class AttentionGradientRulesTest {
                     Tensor actual = gradient(objective, target);
                     assertEquals(target.descriptor().shape(), actual.descriptor().shape());
                     assertEquals(type, actual.descriptor().dataType());
-                    if (type == DataType.FLOAT16 && target != value) {
+                    if ((type == DataType.FLOAT16 || type == DataType.FLOAT8_E4M3
+                            || type == DataType.FLOAT8_E5M2) && target != value) {
                         assertTrue(hasExactWorkingScale(actual, scale));
                     }
                     assertCompiles(objective, target);

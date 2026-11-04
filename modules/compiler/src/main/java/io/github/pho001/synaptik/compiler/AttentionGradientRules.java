@@ -167,15 +167,19 @@ final class AttentionGradientRules<V> {
             // Low attention may carry an F32 metadata scale. Keep that scalar exact at
             // its working site and leave narrowing to the declared input publication.
             V working = scale.dataType() == DataType.FLOAT32
-                            && (valueType == DataType.FLOAT16 || valueType == DataType.BFLOAT16)
+                            && (valueType == DataType.FLOAT16 || valueType == DataType.BFLOAT16
+                                    || valueType == DataType.FLOAT8_E4M3
+                                    || valueType == DataType.FLOAT8_E5M2)
                     ? cast(value, DataType.FLOAT32)
                     : value;
             return ops.mul(working, scale);
         }
         Dimension embedding =
                 ops.descriptor(query).shape().dimension(ops.descriptor(query).shape().rank() - 1);
-        V scale = ops.rsqrt(ops.sum(ops.expand(ops.oneBase(ops.descriptor(query).dataType()), Shape.ofDimensions(embedding))));
-        return ops.mul(value, scale);
+        DataType type = ops.descriptor(query).dataType();
+        DataType scaleType = type == DataType.FLOAT64 ? DataType.FLOAT64 : DataType.FLOAT32;
+        V scale = ops.rsqrt(ops.sum(ops.expand(ops.oneBase(scaleType), Shape.ofDimensions(embedding))));
+        return ops.mul(cast(value, scaleType), scale);
     }
 
     /**

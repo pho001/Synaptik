@@ -39,7 +39,7 @@ import java.util.Set;
  * Outer wrappers and their caller/publication identities are never replaced.</p>
  * <p>Length-mode attrs preserve ordered row roles and the extra lengths actual without a local
  * formal. Ordinary structural capture is broader than cold admission: {@code captureSource}
- * independently checks the static homogeneous FLOAT32/FLOAT64 length intersection, including
+ * independently checks the static floating length intersection, including OFP8,
  * all declarations and interiors, without reading lengths or granting codec/backend support.</p>
  *
  * <p>The outer structural traversal performs no outer semantic inference,

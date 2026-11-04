@@ -60,6 +60,30 @@ final class ElementwiseInferenceTest {
     }
 
     @Test
+    void fp8InferenceRetainsHomogeneousBoundariesAndPromotesUnlikeLowOperands() {
+        for (DataType type : List.of(DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2)) {
+            Tensor input = tensor(type);
+            Tensor homogeneous = input.add(input).exp()
+                    .mul(FirstOrderAutograd.DerivativeConstants.scalar(type, true));
+            assertEquals(type, homogeneous.descriptor().dataType());
+            for (DataType other : List.of(DataType.BFLOAT16, DataType.FLOAT16,
+                    DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2, DataType.FLOAT64)) {
+                Tensor operand = tensor(other);
+                DataType promoted = other == type ? type
+                        : other == DataType.FLOAT64 ? DataType.FLOAT64 : DataType.FLOAT32;
+                Tensor added = input.add(operand);
+                Tensor selected = Tensor.where(tensor(DataType.BOOL), input, operand);
+                Tensor cast = input.cast(other);
+                assertEquals(promoted, added.descriptor().dataType());
+                assertEquals(promoted, selected.descriptor().dataType());
+                assertEquals(other, cast.descriptor().dataType());
+                CapturedGraphInference.inferAndValidate(
+                        GraphCapture.capture(List.of(homogeneous, added, selected, cast)));
+            }
+        }
+    }
+
+    @Test
     void coversEveryKindAndAttributesVariant() {
         TensorDescriptor floating = descriptor(DataType.FLOAT32);
         TensorDescriptor bool = descriptor(DataType.BOOL);

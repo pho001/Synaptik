@@ -20,7 +20,7 @@ import java.util.function.Function;
  * Builds first-order Layer, RMS, and batch-normalization formulas selected by preflight.
  *
  * <p>Mixed-floating occurrences compute in the selected forward-output type, except FLOAT16
- * normalization uses FLOAT32 working expressions with its exact FLOAT32 metadata. Completed
+ * and OFP8 normalization use FLOAT32 working expressions with exact FLOAT32 metadata. Completed
  * Shape-correct contributions are cast back to their selected input types. Affine and statistic
  * vectors are aligned through visible reshape and expand expressions. Batch-training formulas
  * consume the exact canonical saved mean and inverse-standard-deviation wrappers from output
@@ -374,7 +374,9 @@ final class NormalizationGradientRules<V> {
 
     private DataType workingType(V output) {
         DataType type = ops.descriptor(output).dataType();
-        return type == DataType.FLOAT16 ? DataType.FLOAT32 : type;
+        return type == DataType.FLOAT16
+                        || type == DataType.FLOAT8_E4M3 || type == DataType.FLOAT8_E5M2
+                ? DataType.FLOAT32 : type;
     }
 
     private V cast(V tensor, DataType dataType) {

@@ -49,7 +49,8 @@ final class GradientRulesTest {
     @Test
     void erfUsesTheFixedCorrectlyRoundedCoefficientForEveryFloatingType() {
         for (DataType dataType : List.of(
-                DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
+                DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT8_E4M3,
+                DataType.FLOAT8_E5M2, DataType.FLOAT32, DataType.FLOAT64)) {
             Tensor target = tensor(dataType, Shape.of(3));
             Tensor objective = target.erf().sum();
 
@@ -60,6 +61,8 @@ final class GradientRulesTest {
                     .value();
 
             switch (dataType) {
+                case FLOAT8_E4M3 -> assertEquals((byte) 0x39, coefficient.float8E4m3Bits());
+                case FLOAT8_E5M2 -> assertEquals((byte) 0x3D, coefficient.float8E5m2Bits());
                 case BFLOAT16 -> assertEquals((short) 0x3F90, coefficient.bfloat16Bits());
                 case FLOAT16 -> assertEquals((short) 0x3C83, coefficient.float16Bits());
                 case FLOAT32 -> assertEquals(
@@ -152,6 +155,8 @@ final class GradientRulesTest {
         assertTrue(containsExactTensor(rightGradient, output));
 
         for (ScalarValue exponent : List.of(
+                ScalarValue.float8E4m3Bits((byte) 0x40),
+                ScalarValue.float8E5m2Bits((byte) 0x40),
                 ScalarValue.bfloat16Bits((short) 0x4000),
                 ScalarValue.float16Bits((short) 0x4000),
                 ScalarValue.float32(2.0f),
@@ -159,6 +164,8 @@ final class GradientRulesTest {
             Tensor input = tensor(exponent.dataType(), Shape.of(2));
             Tensor scalarGradient = gradient(input.pow(exponent).sum(), input);
             ScalarValue expected = switch (exponent.dataType()) {
+                case FLOAT8_E4M3 -> ScalarValue.float8E4m3Bits((byte) 0x38);
+                case FLOAT8_E5M2 -> ScalarValue.float8E5m2Bits((byte) 0x3C);
                 case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0x3F80);
                 case FLOAT16 -> ScalarValue.float16Bits((short) 0x3C00);
                 case FLOAT32 -> ScalarValue.float32(1.0f);
@@ -1084,6 +1091,8 @@ final class GradientRulesTest {
 
     private static ScalarValue one(DataType dataType) {
         return switch (dataType) {
+            case FLOAT8_E4M3 -> ScalarValue.float8E4m3Bits((byte) 0x38);
+            case FLOAT8_E5M2 -> ScalarValue.float8E5m2Bits((byte) 0x3C);
             case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0x3F80);
             case FLOAT16 -> ScalarValue.float16Bits((short) 0x3C00);
             case FLOAT32 -> ScalarValue.float32(1.0f);
@@ -1094,6 +1103,8 @@ final class GradientRulesTest {
 
     private static ScalarValue zero(DataType dataType) {
         return switch (dataType) {
+            case FLOAT8_E4M3 -> ScalarValue.float8E4m3Bits((byte) 0);
+            case FLOAT8_E5M2 -> ScalarValue.float8E5m2Bits((byte) 0);
             case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0x0000);
             case FLOAT16 -> ScalarValue.float16Bits((short) 0x0000);
             case FLOAT32 -> ScalarValue.float32(0.0f);
@@ -1180,6 +1191,9 @@ final class GradientRulesTest {
 
     private static ScalarValue scalarFromBits(DataType dataType, long[] bits) {
         return switch (dataType) {
+            case FLOAT8_E4M3, FLOAT8_E5M2 ->
+                    io.github.pho001.synaptik.model.operation.elementwise.cast.CastValueConversions
+                            .convert(ScalarValue.float64(Double.longBitsToDouble(bits[3])), dataType);
             case BFLOAT16 -> ScalarValue.bfloat16Bits((short) bits[0]);
             case FLOAT16 -> ScalarValue.float16Bits((short) bits[1]);
             case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat((int) bits[2]));

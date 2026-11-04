@@ -3,6 +3,8 @@ package io.github.pho001.synaptik.compiler;
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.Float16Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E4M3Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E5M2Bits;
 import io.github.pho001.synaptik.model.datatype.ScalarValue;
 import io.github.pho001.synaptik.model.operation.elementwise.binary.BinaryArithmeticKind;
 import io.github.pho001.synaptik.model.operation.elementwise.cast.CastValueConversions;
@@ -43,12 +45,12 @@ import io.github.pho001.synaptik.model.operation.elementwise.unary.UnaryElementw
  *
  * <p>For input {@code x} and output cotangent {@code g}, ERF constructs
  * {@code g * exp(-(x * x)) * C}, where {@code C} is the exact typed representation of
- * {@code 2 / sqrt(pi)}: BFLOAT16 bits {@code 0x3F90}, FLOAT16 bits {@code 0x3C83},
- * FLOAT32 bits {@code 0x3F906EBB}, or FLOAT64 bits {@code 0x3FF20DD750429B6D}. The coefficient is
- * scalar operation metadata, not a Tensor leaf or logical-splat binding, and is never computed
- * with a host transcendental function. Other coefficients use fixed BFLOAT16, FLOAT16, FLOAT32,
- * and FLOAT64 bit patterns for {@code 0.5}, {@code -0.5}, {@code 2}, inverse square roots, and the
- * two tanh-approximation constants. Scalar {@code POW} derives exponent-minus-one with exactly
+ * {@code 2 / sqrt(pi)}: E4M3 bits {@code 0x39}, E5M2 bits {@code 0x3D}, BFLOAT16 bits
+ * {@code 0x3F90}, FLOAT16 bits {@code 0x3C83}, FLOAT32 bits {@code 0x3F906EBB}, or FLOAT64 bits
+ * {@code 0x3FF20DD750429B6D}. The coefficient is scalar operation metadata, not a Tensor leaf or
+ * logical-splat binding, and is never computed with a host transcendental function. Other
+ * coefficients use fixed floating bit patterns for {@code 0.5}, {@code -0.5}, {@code 2},
+ * inverse square roots and the two tanh-approximation constants. Scalar {@code POW} derives exponent-minus-one with exactly
  * one subtraction in the represented type. Coefficients remain operation metadata; only values
  * needed as Tensor comparison operands use request-local logical splats. Every formula is
  * expressed only through public Tensor operations. Preflight owns descriptor, attributes, role,
@@ -300,6 +302,10 @@ final class ElementwiseGradientRules<V> {
 
     private static ScalarValue exponentMinusOne(ScalarValue exponent) {
         return switch (exponent.dataType()) {
+            case FLOAT8_E4M3 -> ScalarValue.float8E4m3(
+                    Float8E4M3Bits.toFloat(exponent.float8E4m3Bits()) - 1.0f);
+            case FLOAT8_E5M2 -> ScalarValue.float8E5m2(
+                    Float8E5M2Bits.toFloat(exponent.float8E5m2Bits()) - 1.0f);
             case BFLOAT16 -> ScalarValue.bfloat16Bits(BFloat16Bits.fromFloat(
                     BFloat16Bits.toFloat(exponent.bfloat16Bits()) - 1.0f));
             case FLOAT16 -> CastValueConversions.convert(
@@ -349,6 +355,8 @@ final class ElementwiseGradientRules<V> {
 
     private static ScalarValue coefficient(DataType dataType, Coefficient coefficient) {
         return switch (dataType) {
+            case FLOAT8_E4M3 -> ScalarValue.float8E4m3Bits(coefficient.float8E4m3Bits);
+            case FLOAT8_E5M2 -> ScalarValue.float8E5m2Bits(coefficient.float8E5m2Bits);
             case BFLOAT16 -> ScalarValue.bfloat16Bits(coefficient.bfloat16Bits);
             case FLOAT16 -> ScalarValue.float16Bits(coefficient.float16Bits);
             case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(coefficient.float32Bits));
@@ -360,22 +368,27 @@ final class ElementwiseGradientRules<V> {
     }
 
     private enum Coefficient {
-        HALF(0x3F00, 0x3800, 0x3F000000, 0x3FE0000000000000L),
-        NEGATIVE_HALF(0xBF00, 0xB800, 0xBF000000, 0xBFE0000000000000L),
-        TWO(0x4000, 0x4000, 0x40000000, 0x4000000000000000L),
-        INV_SQRT_2(0x3F35, 0x39A8, 0x3F3504F3, 0x3FE6A09E667F3BCDL),
-        INV_SQRT_2_PI(0x3ECC, 0x3662, 0x3ECC422A, 0x3FD9884533D43651L),
-        SQRT_2_OVER_PI(0x3F4C, 0x3A62, 0x3F4C422A, 0x3FE9884533D43651L),
-        GELU_CUBIC(0x3D37, 0x29B9, 0x3D372713, 0x3FA6E4E26D4801F7L),
-        GELU_CUBIC_DERIVATIVE(0x3E09, 0x304B, 0x3E095D4F, 0x3FC12BA9D1F60179L);
+        HALF(0x30, 0x38, 0x3F00, 0x3800, 0x3F000000, 0x3FE0000000000000L),
+        NEGATIVE_HALF(0xB0, 0xB8, 0xBF00, 0xB800, 0xBF000000, 0xBFE0000000000000L),
+        TWO(0x40, 0x40, 0x4000, 0x4000, 0x40000000, 0x4000000000000000L),
+        INV_SQRT_2(0x33, 0x3A, 0x3F35, 0x39A8, 0x3F3504F3, 0x3FE6A09E667F3BCDL),
+        INV_SQRT_2_PI(0x2D, 0x36, 0x3ECC, 0x3662, 0x3ECC422A, 0x3FD9884533D43651L),
+        SQRT_2_OVER_PI(0x35, 0x3A, 0x3F4C, 0x3A62, 0x3F4C422A, 0x3FE9884533D43651L),
+        GELU_CUBIC(0x13, 0x2A, 0x3D37, 0x29B9, 0x3D372713, 0x3FA6E4E26D4801F7L),
+        GELU_CUBIC_DERIVATIVE(0x21, 0x30, 0x3E09, 0x304B, 0x3E095D4F, 0x3FC12BA9D1F60179L);
 
+        private final byte float8E4m3Bits;
+        private final byte float8E5m2Bits;
         private final short bfloat16Bits;
         private final short float16Bits;
         private final int float32Bits;
         private final long float64Bits;
 
         Coefficient(
+                int float8E4m3Bits, int float8E5m2Bits,
                 int bfloat16Bits, int float16Bits, int float32Bits, long float64Bits) {
+            this.float8E4m3Bits = (byte) float8E4m3Bits;
+            this.float8E5m2Bits = (byte) float8E5m2Bits;
             this.bfloat16Bits = (short) bfloat16Bits;
             this.float16Bits = (short) float16Bits;
             this.float32Bits = float32Bits;
@@ -392,6 +405,8 @@ final class ElementwiseGradientRules<V> {
      */
     private static ScalarValue erfCoefficient(DataType dataType) {
         return switch (dataType) {
+            case FLOAT8_E4M3 -> ScalarValue.float8E4m3Bits((byte) 0x39);
+            case FLOAT8_E5M2 -> ScalarValue.float8E5m2Bits((byte) 0x3D);
             case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0x3F90);
             case FLOAT16 -> ScalarValue.float16Bits((short) 0x3C83);
             case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(0x3F906EBB));

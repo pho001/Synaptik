@@ -367,6 +367,8 @@ final class SourceGraphReconstructionTest {
             case FLOAT32 -> ScalarValue.float32(Float.intBitsToFloat(0xffc00123));
             case FLOAT16 -> ScalarValue.float16Bits((short) 0xfe23);
             case BFLOAT16 -> ScalarValue.bfloat16Bits((short) 0xffc3);
+            case FLOAT8_E4M3 -> ScalarValue.float8E4m3Bits((byte) 0xFF);
+            case FLOAT8_E5M2 -> ScalarValue.float8E5m2Bits((byte) 0xFD);
             case INT64 -> ScalarValue.int64(9_007_199_254_740_993L);
             case INT32 -> ScalarValue.int32(Integer.MIN_VALUE);
             default -> throw new AssertionError(type);
@@ -624,7 +626,8 @@ final class SourceGraphReconstructionTest {
 
     @Test
     void lowStorageAndFloatWorkingBodiesPreservePerRoleTypesAndRejectForgedInteriorsBeforeIds() {
-        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16))
+        for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2))
             for (boolean gradient : List.of(false, true)) for (boolean lengthAware : List.of(false, true))
                 for (long batch : List.of(0L, 2L)) for (long time : List.of(0L, 3L))
                     for (boolean reverse : List.of(false, true)) {

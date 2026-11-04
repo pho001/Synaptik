@@ -48,7 +48,7 @@ import java.util.OptionalInt;
  * <p>The closed slice includes the narrow default CNN/static recurrent compositions, exact typed
  * maximum/average Pool3d geometry and fixed flat scans, plus general scans with a bounded body-only
  * constructor closure. All-valid bodies retain applicable Model dtypes; length bodies require
- * static homogeneous FLOAT32/FLOAT64 and the retained rank/role/attribute intersection.
+ * static per-value floating types, including OFP8, and the retained rank/role/attribute intersection.
  * Reconstruction creates fresh canonical formals for every declaration, invokes each public
  * family constructor once per occurrence and retains all canonical
  * ports, without time unrolling. New substitution ties are checked per occurrence before IDs.
