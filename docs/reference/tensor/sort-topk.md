@@ -124,7 +124,7 @@ entries of that complete largest or smallest order. `sorted == true` retains sel
 `sorted == false` reorders the selected pairs by increasing original logical-axis index without
 changing membership or breaking value/index pairing.
 
-For conceptual input `[3.0, NaN, -0.0, +0.0, 3.0]`, the four requests [mean](../../glossary.md#term-mean):
+For conceptual input `[3.0, NaN, -0.0, +0.0, 3.0]`, the four requests mean:
 
 | Request | Selected values | Selected logical indices |
 |---|---|---|

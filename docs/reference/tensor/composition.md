@@ -55,7 +55,7 @@ must contain exactly one strictly positive repeat count per input axis, is clone
 inspection, and is neither retained nor mutated. At axis `i`, a static input extent produces the
 checked product `inputExtent * repeats[i]`. Shape `[2, 3]` with repeats `[2, 4]` therefore produces
 Shape `[4, 12]`. Tiling repeats the complete logical pattern, not each scalar into one consecutive
-[run](../../glossary.md#term-run). A static zero extent and an empty scalar request are valid. A dynamic dimension is retained
+run. A static zero extent and an empty scalar request are valid. A dynamic dimension is retained
 by exact reference when its repeat is one; any other positive repeat is retained as an exact
 canonical symbolic product.
 

@@ -86,7 +86,7 @@ mask
 ```
 
 The result proves [BOOL](../../glossary.md#data-type--datatype) [normalization](../../glossary.md#term-normalization), copied [ownership](../../glossary.md#term-ownership-meanings), label retention, and [row-major](../../glossary.md#term-row-major) order for a
-dense flat import. It does not demonstrate nested [shape](../../glossary.md#shape) [inference](../../glossary.md#term-inference) or provide public typed access
+dense flat import. It does not demonstrate nested [shape](../../glossary.md#shape) [inference](../../glossary.md#term-inference-meanings) or provide public typed access
 or export, numeric conversion, [view](../../glossary.md#term-view-meanings) scattering, native allocation, [runtime](../../glossary.md#term-runtime) [residency](../../glossary.md#residency), or [backend](../../glossary.md#backend)
 execution.
 
@@ -143,7 +143,7 @@ public final class NestedImportExample {
 #### Meaningful lines
 
 - Passing the nested primitive array as `Object` does not erase its runtime metadata: the factory
-  reads declared rank two and ultimate carrier <span data-glossary-navigation="true"> ([runtime glossary](../../glossary.md#term-runtime); [metadata glossary](../../glossary.md#term-metadata); [rank glossary](../../glossary.md#term-rank); [carrier glossary](../../glossary.md#term-storage-carrier))</span>`float`, which infer [`FLOAT32`](../../glossary.md#term-float32) and [shape](../../glossary.md#shape) `[2, 2]`.
+  reads declared rank two and ultimate carrier <span data-glossary-navigation="true"> ([metadata glossary](../../glossary.md#term-metadata); [rank glossary](../../glossary.md#term-rank); [carrier glossary](../../glossary.md#term-storage-carrier))</span>`float`, which infer [`FLOAT32`](../../glossary.md#term-float32) and [shape](../../glossary.md#shape) `[2, 2]`.
 - `true` requests [gradient](../../glossary.md#term-gradient) eligibility on the inferred [descriptor](../../glossary.md#term-descriptor). `FLOAT32` permits that request;
   an integral or BOOL carrier would reject it before destination or ID allocation.<span data-glossary-navigation="true"> ([BOOL glossary](../../glossary.md#data-type--datatype))</span>
 - The factory flattens the two rows in encounter order and delegates the resulting `float[]` to
@@ -165,7 +165,7 @@ weights
 [1.0, 2.0, 3.0, 4.0]
 ```
 
-The result proves exact [carrier](../../glossary.md#term-storage-carrier) [inference](../../glossary.md#term-inference), fully static dense [shape](../../glossary.md#shape) and [layout](../../glossary.md#layout) inference,
+The result proves exact [carrier](../../glossary.md#term-storage-carrier) [inference](../../glossary.md#term-inference-meanings), fully static dense [shape](../../glossary.md#shape) and [layout](../../glossary.md#layout) inference,
 [row-major](../../glossary.md#term-row-major) copying, label retention, [gradient](../../glossary.md#term-gradient) eligibility, and source independence. It does not
 promise a [snapshot](../../glossary.md#term-snapshot) under concurrent source mutation, numeric conversion, dynamic-shape inference,
 [view](../../glossary.md#term-view-meanings) population, typed export, native allocation, or execution.

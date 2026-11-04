@@ -164,7 +164,7 @@ numerical [graph](../glossary.md#graph) operations, for example `weight.cast(Dat
 optimizer master preserves update [precision](../glossary.md#term-precision); it does not silently convert a low graph or
 bypass the [temporary numerical lock](../backend-guide/production-support.md#temporary-java-low-computation-lock).
 
-Each parameter must also fit the in-memory state format: its logical [payload](../glossary.md#artifact-envelope-and-atomic-publication) and its
+Each parameter must also fit the in-memory state format: its logical payload and its
 optimizer-width payload must each be no larger than `Integer.MAX_VALUE` bytes. The optimizer
 width is eight bytes per FLOAT64 [element](../glossary.md#term-element) and four bytes per FLOAT32, BFLOAT16, or FLOAT16 element.
 An oversized parameter is rejected when the session opens, before its own update [buffers](../glossary.md#term-buffer), the
@@ -471,7 +471,7 @@ use the declared parameter width: two bytes per [BFLOAT16](../glossary.md#term-b
 eight for [FLOAT64](../glossary.md#term-float64). Master, [optimizer](../glossary.md#term-optimizer)-slot, and accumulation payloads use four bytes per element for
 BFLOAT16, FLOAT16, and FLOAT32 parameters and eight for FLOAT64. `training.restore(snapshot)`
 validates the complete optimizer configuration, including [dampening](../glossary.md#term-dampening), counters, paths, data types,
-[Shapes](../glossary.md#shape), [finite](../glossary.md#term-finite) [payload](../glossary.md#artifact-envelope-and-atomic-publication) values, and exact payload lengths before installing any state. For grouped
+[Shapes](../glossary.md#shape), [finite](../glossary.md#term-finite) payload values, and exact payload lengths before installing any state. For grouped
 sessions it also checks the exact default optimizer and ordered groups, including each path and
 algorithm configuration. `momentumBytes()` remains the first-slot accessor: [SGD](../glossary.md#term-stochastic-gradient-descent-sgd) [momentum](../glossary.md#term-momentum) or
 [Adam](../glossary.md#adaptive-optimizer--adam-adamw)/[AdamW](../glossary.md#adaptive-optimizer--adam-adamw) first moment. [`firstMomentBytes()`](../glossary.md#first-optimizer-slot--firstmomentbytes) [aliases](../glossary.md#aliasing-and-arena) it; `secondMomentBytes()` is present only
@@ -526,7 +526,7 @@ to the logical storage type. These checks concern numerical validity, not whethe
 |---|---|---|
 | Open rejects [parameter](../glossary.md#term-parameter) storage | It is [heap](../glossary.md#term-heap), read-only, thread-confined, wrong-sized, a [view](../glossary.md#term-view-meanings), or not native/aligned. | Use exact-capacity writable shareable native [`FLOAT64`](../glossary.md#term-float64), [`FLOAT32`](../glossary.md#term-float32), [`BFLOAT16`](../glossary.md#term-bfloat16), or [`FLOAT16`](../glossary.md#term-float16) storage with a dense offset-zero non-view [layout](../glossary.md#layout). |
 | Open rejects an empty/non-[finite](../glossary.md#term-finite) parameter | Its [element](../glossary.md#term-element) count is zero or an initial value is [NaN](../glossary.md#term-nan)/infinite. | Supply a non-empty parameter with finite values before opening; rejection precedes [compile](../glossary.md#compile). |
-| Open rejects a [snapshot](../glossary.md#term-snapshot) byte size | The logical or [optimizer](../glossary.md#term-optimizer)-width [payload](../glossary.md#artifact-envelope-and-atomic-publication) exceeds `Integer.MAX_VALUE` bytes for one parameter. | Use a smaller parameter; this in-memory session cannot snapshot a larger payload. |
+| Open rejects a [snapshot](../glossary.md#term-snapshot) byte size | The logical or [optimizer](../glossary.md#term-optimizer)-width payload exceeds `Integer.MAX_VALUE` bytes for one parameter. | Use a smaller parameter; this in-memory session cannot snapshot a larger payload. |
 | Open rejects a [parameter group](../glossary.md#parameter-group--parametergroup) | A path is blank, unknown, or repeated, or assigned optimizer coefficients cannot narrow for that parameter type. | Use the exact keys from `module.parametersRecursively()`, keep memberships disjoint, and choose [dtype](../glossary.md#data-type--datatype)-compatible values. |
 | [Run](../glossary.md#term-run) rejects non-finite optimizer arithmetic | A [gradient](../glossary.md#term-gradient), accumulation, [momentum](../glossary.md#term-momentum) term, or candidate is NaN/infinite or overflowed. | Correct the [objective](../glossary.md#term-objective)/input scale; the failed run committed no parameter, [optimizer state](../glossary.md#term-optimizer-state), or counter. |
 | Open rejects a [target](../glossary.md#term-target) as disconnected | A discovered [Module](../glossary.md#term-module) parameter does not contribute to the [scalar objective](../glossary.md#loss). | Build the objective from the Module's complete intended [trainable parameter](../glossary.md#trainable-parameter) set or use a Module containing only this session's parameters. |

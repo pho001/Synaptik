@@ -107,7 +107,7 @@ Inspection of borrowed state sees the working parameter, not a frozen copy of it
 Use the [existing ownership visual](../explanation/ownership.md#a-result-is-not-always-an-independent-value)<span data-glossary-navigation="true"> ([ownership glossary](../glossary.md#term-ownership-meanings))</span>
 to distinguish that borrowed state from detached training and compute results.
 
-## [Run](../glossary.md#term-run) and interpret
+## Run and interpret
 
 ```bash
 # The reported TrainingStep loss precedes the update; the later compute uses the new weight.

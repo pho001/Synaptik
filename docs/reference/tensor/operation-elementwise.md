@@ -1,4 +1,4 @@
-# [Unary](../../glossary.md#term-unary), classification and [scalar](../../glossary.md#term-scalar) semantic kinds
+# [Unary](../../glossary.md#term-unary), classification and [scalar](../../glossary.md#term-scalar-immediate) semantic kinds
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
@@ -69,7 +69,7 @@ Java elementary, or fixed-formula realization, together with exact domain, speci
 [signed-zero](../../glossary.md#nan-infinity-and-signed-zero) requirements. The kind itself still selects no [gradient](../../glossary.md#term-gradient) rule or [backend route](../../glossary.md#backend-route).
 Selected formulas and special-value semantics are documented in [Unary numeric transforms and
 floating classifications](elementwise.md#unary-numeric-transforms-and-floating-classifications).
-Inherited enum names are diagnostic text, not [serialization](../../glossary.md#term-serialization) or [dispatch](../../glossary.md#term-dispatch) keys, and equally named
+Inherited enum names are diagnostic text, not [serialization](../../glossary.md#term-serialization) or dispatch keys, and equally named
 kinds from another family remain different typed values.
 
 <a id="floating-classification-semantic-kinds"></a>
@@ -90,7 +90,7 @@ eligibility, and one-input provenance. “Classification” here is [graph](../.
 it is unrelated to tracing diagnostics.
 
 <a id="scalar-arithmetic-and-clamp-semantic-kinds"></a>
-### [Scalar](../../glossary.md#term-scalar) arithmetic and clamp semantic kinds
+### [Scalar](../../glossary.md#term-scalar-immediate) arithmetic and clamp semantic kinds
 
 The public enum
 `io.github.pho001.synaptik.model.operation.elementwise.scalar.ScalarElementwiseKind` implements
@@ -104,7 +104,7 @@ The public enum
 | `DIV` | Input value divided by a scalar denominator. | `ScalarValueAttrs` |
 | `MIN` | Pairwise minimum of the input and scalar candidate. | `ScalarValueAttrs` |
 | `MAX` | Pairwise maximum of the input and scalar candidate. | `ScalarValueAttrs` |
-| `POW` | Input value as the base raised to a scalar [exponent](../../glossary.md#term-exponent). | `ScalarValueAttrs` |
+| `POW` | Input value as the base raised to a scalar exponent. | `ScalarValueAttrs` |
 | `CLAMP` | Input value constrained to inclusive lower and upper scalar bounds. | `ClampRangeAttrs` |
 
 The scalar [parameter](../../glossary.md#term-parameter) or bounds are [operation](../../glossary.md#operation) attributes, not additional [Tensor](../../glossary.md#tensor) inputs. The family
@@ -161,7 +161,7 @@ MAX and MIN rather than separate kinds.
 The kinds and attributes alone do not infer result descriptors, define scalar conversion, evaluate
 the fixed numerical meaning, create [provenance](../../glossary.md#provenance), define [gradients](../../glossary.md#term-gradient), report [backend](../../glossary.md#backend) support, select
 [kernels](../../glossary.md#kernel), or execute computation. Their enum names and generated record text are diagnostics, not
-[serialization](../../glossary.md#term-serialization) or [dispatch](../../glossary.md#term-dispatch) contracts. The current public scalar Tensor methods separately own
+[serialization](../../glossary.md#term-serialization) or dispatch contracts. The current public scalar Tensor methods separately own
 floating-input validation, descriptor derivation, exact attribute composition, and one-input
 provenance.
 
@@ -202,7 +202,7 @@ and `keepDimensions` values compare equal. `NoOperationAttrs.INSTANCE` remains t
 for a kind whose signature explicitly accepts no [parameters](../../glossary.md#term-parameter); it is not accepted by this [sample](../../glossary.md#term-sample-machine-learning-and-hyperparameters)
 kind.
 
-`new Operation(kind, attrs)` stores those exact non-null objects without copying or [normalization](../../glossary.md#term-normalization). The second construction uses equal component values, so `operation.equals(equalOperation)` is `true` and their [hash codes](../../glossary.md#hash-codes-and-content-digests) are equal. The accessors return the original objects: `operation.kind() == kind` and `operation.attrs() == attrs` are both `true`. At the end of the example, `kind.name()` is `"SAMPLE"`, `attrs` contains `axis = 2` and `keepDimensions = true`, and `emptyAttrs` is the [singleton](../../glossary.md#term-singleton) `NoOperationAttrs.INSTANCE` available for a parameterless sample kind.
+`new Operation(kind, attrs)` stores those exact non-null objects without copying or [normalization](../../glossary.md#term-normalization). The second construction uses equal component values, so `operation.equals(equalOperation)` is `true` and their [hash codes](../../glossary.md#hash-codes-and-content-digests) are equal. The accessors return the original objects: `operation.kind() == kind` and `operation.attrs() == attrs` are both `true`. At the end of the example, `kind.name()` is `"SAMPLE"`, `attrs` contains `axis = 2` and `keepDimensions = true`, and `emptyAttrs` is the singleton `NoOperationAttrs.INSTANCE` available for a parameterless sample kind.
 
 The example demonstrates the implemented [descriptor](../../glossary.md#term-descriptor)'s construction, [ownership](../../glossary.md#term-ownership-meanings), exact attributes
 compatibility, and record value semantics for an attributes-bearing test value. It does not create
@@ -215,7 +215,7 @@ select a [kernel](../../glossary.md#kernel), or execute computation. Production 
 kind families are not implied by this example. [Compiler](../../glossary.md#term-compiler) behavior and executable support for
 existing kinds are implemented in their [owners](../../glossary.md#term-owner) under the closed [admission](../../glossary.md#term-admission) rules; neither is
 provided by constructing an operation-kind or attributes value.
-[Binary](../../glossary.md#term-binary-descriptor-and-metadata) arithmetic, binary comparison, [unary](../../glossary.md#term-unary) [elementwise](../../glossary.md#term-elementwise), floating-classification, and [scalar](../../glossary.md#term-scalar)
+[Binary](../../glossary.md#term-binary-descriptor-and-metadata) arithmetic, binary comparison, [unary](../../glossary.md#term-unary) [elementwise](../../glossary.md#term-elementwise), floating-classification, and [scalar](../../glossary.md#term-scalar-immediate)
 elementwise semantics have current public [Tensor](../../glossary.md#tensor) expression methods, as do [boolean](../../glossary.md#data-type--datatype) logical and
 conditional-selection semantics. Cast semantics also have current public Tensor expression
 construction.

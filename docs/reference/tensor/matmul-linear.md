@@ -158,7 +158,7 @@ input.linear(weight, bias) = input.matmul(weight.transpose()).add(bias)
 These receiver conveniences remain on [`Tensor`](../../glossary.md#tensor) because the input naturally owns a single-output
 last-[axis](../../glossary.md#term-axis) [contraction](../../glossary.md#contraction-dimension). They own no parameters: the [NN](../../glossary.md#neural-network-module-parameter-buffer-and-forward-context) `Linear` [module](../../glossary.md#term-module) is the separate stateful
 [owner](../../glossary.md#term-owner) of weight and optional [bias](../../glossary.md#term-bias), while `Tensor.linear` is its stateless [Model](../../glossary.md#term-model) operation
-composition. This differs from recurrent [scan](../../glossary.md#term-cumulative-scan)'s multi-input, multi-output domain protocol, which
+composition. This differs from recurrent [scan](../../glossary.md#term-fixed-recurrent-scan)'s multi-input, multi-output domain protocol, which
 uses the focused static `RecurrentScan` namespace.
 
 Input [rank](../../glossary.md#term-rank) must be at least one. Its final [Dimension](../../glossary.md#dimension) is `inFeatures`; every preceding input

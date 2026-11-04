@@ -53,12 +53,12 @@ rely on their contents and order, not container identity.
 
 The records use generated [structural equality](../../glossary.md#term-structural-equality) and hashing. For `CompiledNode`, list order and
 repeated input positions are part of equality. Generated text is useful for diagnostics but is not
-a [serialization](../../glossary.md#term-serialization) format, graph-[validation](../../glossary.md#term-validation) result, or execution-[dispatch](../../glossary.md#term-dispatch) key.
+a [serialization](../../glossary.md#term-serialization) format, graph-[validation](../../glossary.md#term-validation) result, or execution-dispatch key.
 
 The old four-[argument](../../glossary.md#term-argument) `CompiledNode` constructor remains available and supplies an empty
 attachment for ordinary/fixed operations. The five-argument form takes a non-null
 `Optional<CompiledScanBody>`, present exactly for `ScanKind.SCAN`. Attachment contents participate
-in record equality, hashing and diagnostic text. A [scan](../../glossary.md#term-cumulative-scan) node checks outer input/output counts,
+in record equality, hashing and diagnostic text. A [scan](../../glossary.md#general-differentiable-scan) node checks outer input/output counts,
 body graph input count and result-group sizes against `ScanAttrs`; missing/wrong-kind or
 incompatible attachments reject. `ScanAttrs` contains `timeCount`, [carry](../../glossary.md#term-carry)/sequence/[invariant](../../glossary.md#term-invariant)/
 emission/[residual](../../glossary.md#scan-residual-port-and-history-demand) counts, `reverse`, explicit `lengthAware`, `rowCarryCount` and immutable ordered
@@ -84,7 +84,7 @@ not compute [liveness](../../glossary.md#term-liveness) or allocate histories.
 
 Nested general scans reject. Body IDs are interpreted only within the contained graph, so
 numeric coincidence with an outer ID neither [aliases](../../glossary.md#aliasing-and-arena) values nor causes rejection. These checks
-establish local structure/[cardinality](../../glossary.md#term-cardinality), not source-to-[IR](../../glossary.md#term-intermediate-representation-ir) capture correctness, [descriptor](../../glossary.md#term-descriptor) [inference](../../glossary.md#term-inference),
+establish local structure/[cardinality](../../glossary.md#term-cardinality), not source-to-[IR](../../glossary.md#term-intermediate-representation-ir) capture correctness, [descriptor](../../glossary.md#term-descriptor) [inference](../../glossary.md#term-inference-meanings),
 [derivative](../../glossary.md#term-derivative) support or [backend](../../glossary.md#backend) [admission](../../glossary.md#term-admission).
 
 `CompiledGraphModel` snapshots all four lists with `List.copyOf`; list order is part of the record

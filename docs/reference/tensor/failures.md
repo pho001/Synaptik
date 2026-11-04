@@ -155,7 +155,7 @@ failure inventory, use [shapes](shapes.md)<span data-glossary-navigation="true">
 - Current value objects are [immutable](../../glossary.md#term-immutable) and defensively copy caller-owned arrays where applicable.
 - Operation-kind implementations must return a non-null, non-blank name and a stable immutable
   non-empty signature list. Operation-attribute implementations must preserve immutable value
-  semantics; the marker interface cannot enforce immutability at runtime.<span data-glossary-navigation="true"> ([signature glossary](../../glossary.md#term-signature); [marker interface glossary](../../glossary.md#term-marker-interface); [runtime glossary](../../glossary.md#term-runtime))</span>
+  semantics; the marker interface cannot enforce immutability at runtime.<span data-glossary-navigation="true"> ([signature glossary](../../glossary.md#term-signature); [marker interface glossary](../../glossary.md#term-marker-interface))</span>
 - [`Operation`](../../glossary.md#operation) rejects a null kind or attributes value and any incompatible exact attributes class,
   retains valid references unchanged, and exposes the selected family-owned signature without
   storing it as another record component.

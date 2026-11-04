@@ -71,7 +71,7 @@ indexed output accessor.
 A [general scan](../../glossary.md#general-differentiable-scan) additionally retains `Optional<ScanBody>` through `producer.scanBody()`.
 This is reusable source-expression containment, not a captured graph or executable [callback](../../glossary.md#term-callback).
 Ordinary expressions and fixed recurrent scans have empty attachments. The
-[general-scan construction API](general-scan.md#general-scan-source-construction)<span data-glossary-navigation="true"> ([scan glossary](../../glossary.md#term-cumulative-scan))</span> describes its positional
+[general-scan construction API](general-scan.md#general-scan-source-construction)<span data-glossary-navigation="true"> ([scan glossary](../../glossary.md#general-differentiable-scan))</span> describes its positional
 [bindings](../../glossary.md#term-binding), canonical result groups and preallocation checks.
 
 <a id="single-output-example"></a>
@@ -155,7 +155,7 @@ P.output(1)                = auxiliaryResult // exact object identity
 
 Both results share the exact [producer](../../glossary.md#term-producer) reference, while each retains the exact [descriptor](../../glossary.md#term-descriptor) from its
 own ordered position. The producer retains both [canonical](../../glossary.md#term-canonical-form) wrappers, including output positions
-omitted from an ergonomic result [carrier](../../glossary.md#term-storage-carrier).
+omitted from an ergonomic result wrapper.
 
 For [dropout](../../glossary.md#dropout--inverted-dropout), `result.output().provenance().orElseThrow().producer().output(1)` returns the hidden
 same-[occurrence](../../glossary.md#term-occurrence) [`BOOL`](../../glossary.md#data-type--datatype) keep-[mask](../../glossary.md#term-boolean-mask) wrapper. `DropoutResult` remains the two-component public carrier

@@ -4,7 +4,7 @@
 
 Obtain the [scalar objective](../glossary.md#loss) `40` and actual [weight](../glossary.md#term-weight) [derivative](../glossary.md#term-derivative) `-40` without updating the weight.
 Complete [setup](../examples/README.md#build-the-complete-project) and
-[tensors and composition](tensors-and-composition.md)<span data-glossary-navigation="true"> ([tensors glossary](../glossary.md#tensor))</span>. Commands [run](../glossary.md#term-run) in the example project
+[tensors and composition](tensors-and-composition.md)<span data-glossary-navigation="true"> ([tensors glossary](../glossary.md#tensor))</span>. Commands run in the example project
 with [JDK](../glossary.md#term-java-development-kit-jdk) 26 and `LEARNING_CP` set. The [`gradients`](../glossary.md#term-gradient) mode is independent of previous processes.
 
 ## Why one [scalar objective](../glossary.md#loss)?
@@ -87,7 +87,7 @@ requested,” here `w`. In the [loss](../glossary.md#loss) builder, **[training 
 memory needed to execute intermediate work; the output-copy ceiling limits returned bytes,
 not that temporary memory.
 
-## [Run](../glossary.md#term-run) and interpret
+## Run and interpret
 
 ```bash
 # backward computes derivatives but does not perform an optimizer update.

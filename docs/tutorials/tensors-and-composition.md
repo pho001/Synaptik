@@ -5,7 +5,7 @@
 Import two Java floats as a [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters), distinguish stored data from an unevaluated expression,
 compose a [Model](../glossary.md#term-model)'s cold forward output, and reject a [shape](../glossary.md#shape) that has the right number of values
 but the wrong [axes](../glossary.md#term-axis). Complete [setup](../examples/README.md#build-the-complete-project) and the
-[first-model chapter](first-model.md); commands [run](../glossary.md#term-run) from the example project with [JDK](../glossary.md#term-java-development-kit-jdk) 26 and
+[first-model chapter](first-model.md); commands run from the example project with [JDK](../glossary.md#term-java-development-kit-jdk) 26 and
 `LEARNING_CP` configured. Each mode still starts independently.
 
 ## Data is more than an array
@@ -79,7 +79,7 @@ stored x [2,1] + stored w [1,1]
 Use `Model.compute` for the [owned model](../glossary.md#model-module-buffer-and-scan-distinctions)'s cached execution; use cold `forward` to describe
 further computation. Calling `forward` on every [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) is not how to reuse an executable.
 
-## [Run](../glossary.md#term-run) the data/composition experiment
+## Run the data/composition experiment
 
 ```bash
 # Run construction and execution side by side: only the explicit compute produces values.
@@ -101,7 +101,7 @@ tensors.forward-composition-has-storage=false
 The two `false` values distinguish constructed expressions from evaluated data. They do not
 mean the operations failed or that result values are known without execution.
 
-## [Run](../glossary.md#term-run) the actual error path
+## Run the actual error path
 
 ```bash
 # A matching value count cannot compensate for swapped sample and feature axes.

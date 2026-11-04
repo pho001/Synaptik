@@ -108,7 +108,7 @@ with its [Maven POM](../examples/learning-journey/pom.xml)<span data-glossary-na
 instead of repeating partial Java snippets. Mathematical derivations explain the numerical
 meaning; they are not extra API calls.
 
-## [Run](../glossary.md#term-run) the entire journey
+## Run the entire journey
 
 After setup:
 

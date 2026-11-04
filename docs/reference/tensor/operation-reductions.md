@@ -88,7 +88,7 @@ Operation argMax = new Operation(
 
 `ArgExtremaAttrs` rejects a negative axis before checking the tie policy and rejects a null policy
 with `NullPointerException("tiePolicy")`. Both attribute records use generated record value
-semantics, while their text remains diagnostic rather than [serialization](../../glossary.md#term-serialization) or [dispatch](../../glossary.md#term-dispatch) syntax.
+semantics, while their text remains diagnostic rather than [serialization](../../glossary.md#term-serialization) or dispatch syntax.
 Family-owned [signatures](../../glossary.md#term-signature) enforce these exact attribute variants. Ordinary and target-Shape forms
 declare one input; masked SUM and MEAN declare the ordered two-input [occurrence](../../glossary.md#term-occurrence) `[input, mask]`;
 every variant has one output.

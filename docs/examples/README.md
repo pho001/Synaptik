@@ -31,7 +31,7 @@ for the actual boundaries rather than treating every Tensor as a resource owner.
 ## Prerequisites and [artifact](../glossary.md#term-artifact) boundary
 
 - [JDK](../glossary.md#term-java-development-kit-jdk) **26** selected by both `java` and [Maven](../glossary.md#term-maven), and Maven 3.9 or newer.
-- Access to the caller-supplied **file Maven repository** containing the [sealed](../glossary.md#term-sealed) private
+- Access to the caller-supplied **file Maven repository** containing the sealed private
   `0.1.0-public-audit.20261104` candidate and its transitive artifacts. Obtain its absolute `file:`
   URL from the person who supplied those artifacts. This project neither publishes artifacts nor
   assumes that candidate is on Maven Central. It grants no licensing or redistribution permission.
@@ -48,7 +48,7 @@ permission, not [backend](../glossary.md#backend) selection.
 An **artifact** is a built package, here a Maven [JAR](../glossary.md#term-jar) and its accompanying [metadata](../glossary.md#term-metadata). **Transitive**
 artifacts are dependencies required by that direct `nn` [dependency](../glossary.md#term-dependency). A [file repository](../glossary.md#term-file-repository) is a local
 directory arranged for Maven [lookup](../glossary.md#term-lookup), not an instruction to download a different [release](../glossary.md#term-release).
-**Native** libraries [run](../glossary.md#term-run) [machine code](../glossary.md#term-machine-code) outside Java; the [Foreign Function and Memory](../glossary.md#application-binary-interface-and-native-bridge) ([FFM](../glossary.md#term-ffm)) [API](../glossary.md#term-application-programming-interface-api)
+**Native** libraries run [machine code](../glossary.md#term-machine-code) outside Java; the [Foreign Function and Memory](../glossary.md#application-binary-interface-and-native-bridge) ([FFM](../glossary.md#term-ffm)) [API](../glossary.md#term-application-programming-interface-api)
 lets Java call that code and access non-[heap](../glossary.md#term-heap) memory. [CPU](../glossary.md#term-cpu) means central processor, GPU means
 graphics processor, and BLAS expands to [Basic Linear Algebra Subprograms](../glossary.md#mps-mpsgraph-and-openblas), a numerical-library
 interface. These explanations do not add any installation requirement to this example.
@@ -121,7 +121,7 @@ The [shape](../glossary.md#shape) mode catches a real public compute rejection a
 
 ## Useful variation and failures
 
-[Run](../glossary.md#term-run) just one mode by replacing `all` with [`gradients`](../glossary.md#term-gradient), or save to another existing directory by
+Run just one mode by replacing `all` with [`gradients`](../glossary.md#term-gradient), or save to another existing directory by
 changing the second [argument](../glossary.md#term-argument). To change numerical inputs, edit the [canonical](../glossary.md#term-canonical-form) source and rebuild;
 chapter variations explain which expected values/checks must change together.
 

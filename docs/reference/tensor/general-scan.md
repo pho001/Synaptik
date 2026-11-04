@@ -41,10 +41,10 @@ flowchart LR
 ```
 
 <a id="general-scan-source-construction"></a>
-### General-[scan](../../glossary.md#term-cumulative-scan) source construction
+### General-[scan](../../glossary.md#general-differentiable-scan) source construction
 
 `ScanBody`, `Scan` and `ScanResult` in `model.tensor` describe a fixed-count recurrence over
-ordinary [Tensor](../../glossary.md#tensor) expressions. `ScanKind.SCAN` and [scalar](../../glossary.md#term-scalar)-only `ScanAttrs` in `model.operation.scan`
+ordinary [Tensor](../../glossary.md#tensor) expressions. `ScanKind.SCAN` and header-only `ScanAttrs` in `model.operation.scan`
 describe its meaning; `CompiledScanBody` in `model.graph` is the separately scoped compiled
 attachment. These [Model](../../glossary.md#term-model) types provide source/intermediate-representation ([IR](../../glossary.md#term-intermediate-representation-ir)) contracts only;
 they do not perform [capture](../../glossary.md#term-capture-meanings), [automatic differentiation](../../glossary.md#autograd) ([AD](../../glossary.md#autograd)), demand analysis or execution.
@@ -91,7 +91,7 @@ root. Unused declarations are allowed. Next-carry roots match carry [arity](../.
 Emissions may repeat any valid body value, including a next carry.
 
 The all-valid `Scan.apply(initialCarry, sequences, invariants, body, reverse)` binds each role by position.
-Actual inputs have the exact static or named-[symbol](../../glossary.md#term-symbol) shape of their formals and are disjoint from the declared formal identities. Actual identities
+Actual inputs have the exact static or named-[symbol](../../glossary.md#dimension) shape of their formals and are disjoint from the declared formal identities. Actual identities
 may repeat within or across roles: input order is all carries, then sequences, then invariants,
 without deduplication. Carry/[invariant](../../glossary.md#term-invariant) shape, dtype and `requiresGrad` match their formals.
 Each sequence has [rank](../../glossary.md#term-rank) at least one and the same static [axis](../../glossary.md#term-axis)-zero [extent](../../glossary.md#term-extent) `T >= 0`; removing that
@@ -119,9 +119,9 @@ without creating a Tensor, [producer](../../glossary.md#term-producer), storage 
 and noncanonical operations reject before any Tensor [identity](../../glossary.md#term-identity-meanings) allocation.
 
 The scoped overload `ScanBody.describeOrdinary(operation, inputs, outputCount, batch)` additionally
-accepts `Optional<DynamicDimension>` naming the exact sole declared batch [symbol](../../glossary.md#term-symbol), or empty for a
+accepts `Optional<DynamicDimension>` naming the exact sole declared batch [symbol](../../glossary.md#dimension), or empty for a
 static template. It reuses the same ordinary family guards and factored source/deferred symbolic
-proof; the three-[argument](../../glossary.md#term-argument) ordinary [API](../../glossary.md#term-application-programming-interface-api) retains its deferred-[inference](../../glossary.md#term-inference) semantics. The scoped
+proof; the three-[argument](../../glossary.md#term-argument) ordinary [API](../../glossary.md#term-application-programming-interface-api) retains its deferred-[inference](../../glossary.md#term-inference-meanings) semantics. The scoped
 check validates every operand, canonical output and shape-bearing attribute against that
 declared vocabulary, including unused siblings and zero-count shapes. It cannot authorize a
 symbol merely because the local output mentions it.
@@ -150,11 +150,11 @@ made [contiguous](../../glossary.md#term-contiguous).
 `ScanBody.hasCanonicalContiguousResults(operation)` exposes the separate geometry-independent
 generic materialization fact used by flat [Compiler](../../glossary.md#term-compiler) closure and [symbolic batch binding](../../glossary.md#symbolic-batch-binding). Its
 existing generic family set is unchanged; specialized static [convolution](../../glossary.md#term-channels-first-convolution-layers) completion does not
-widen that classifier or symbolic eligibility. A positive fact does not establish [PURE](../../glossary.md#term-pure) [Scan](../../glossary.md#term-cumulative-scan)
+widen that classifier or symbolic eligibility. A positive fact does not establish [PURE](../../glossary.md#term-pure) [Scan](../../glossary.md#general-differentiable-scan)
 membership, valid descriptors, [backend](../../glossary.md#backend) support or execution.
 
-These are shared cold [metadata](../../glossary.md#term-metadata) operations, not another constructor, type/Shape [inference](../../glossary.md#term-inference)
-[engine](../../glossary.md#term-engine) or allocator. Ordinary [Tensor](../../glossary.md#tensor) construction and both `describeOrdinary` forms retain
+These are shared cold [metadata](../../glossary.md#term-metadata) operations, not another constructor, type/Shape [inference](../../glossary.md#term-inference-meanings)
+component or allocator. Ordinary [Tensor](../../glossary.md#tensor) construction and both `describeOrdinary` forms retain
 their existing behavior. [CPU](../../glossary.md#term-cpu) Scan preparation overlays only computed projection descriptors
 and matching memory requirements, leaving actual/formal guards and the captured body/activity
 [graph](../../glossary.md#graph) associations unchanged.
@@ -189,7 +189,7 @@ unrepresentable retained histories before derivative [identities](../../glossary
 
 Model0042 adds construction-only symbolic source, independently reviewed and MAIN accepted 2026-10-25.
 The named [dimension](../../glossary.md#dimension) is compared by [canonical](../../glossary.md#term-canonical-form) name, not object [identity](../../glossary.md#term-reference-identity) or a hard-coded `B` spelling.
-All declarations, including unused ones, determine that one [symbol](../../glossary.md#term-symbol). Independent symbols,
+All declarations, including unused ones, determine that one [symbol](../../glossary.md#dimension). Independent symbols,
 anonymous/derived dimensions, multiple [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters) [axes](../../glossary.md#term-axis) in one value and output-only symbols reject.
 Reshape must preserve the fixed [coordinate](../../glossary.md#axis-rank-scalar-vector-and-matrix) products on each side of the named axis; for example,
 `[B,6] → [B,2,3]` is proved, but `[B,6] → [B,3]` and `[B,6] → [6,B]` reject.
@@ -253,7 +253,7 @@ while the shared weight history stays `[10,16,64]` with a canonical static [layo
 batch is bound, and neither form is silently converted into the other. Replacing the symbolic
 actual carry with `[32,64]` fails exact source matching rather than [binding](../../glossary.md#term-binding) `Rows=32`.
 
-This example constructs source only. [Compiler](../../glossary.md#term-compiler) separately implements symbolic [inference](../../glossary.md#term-inference),
+This example constructs source only. [Compiler](../../glossary.md#term-compiler) separately implements symbolic [inference](../../glossary.md#term-inference-meanings),
 FLOAT32/[FLOAT64](../../glossary.md#term-float64) first-order [AD](../../glossary.md#autograd) and fresh all-port metadata binding. [Prepare](../../glossary.md#prepare)/[CPU](../../glossary.md#term-cpu)/Engine implement
 the independently qualified ordinary CPU [PURE](../../glossary.md#term-pure) composition and selected ordinary-[VJP](../../glossary.md#term-vector-jacobian-product-vjp) reverse closure,
 with fixed time/[features](../../glossary.md#term-feature) and the same ordinary dtype/layout guards; see the
@@ -274,7 +274,7 @@ One [occurrence](../../glossary.md#term-occurrence) owns every distinct canonica
 `residuals()`. Repeated body-role [bindings](../../glossary.md#term-binding) do not merge outer wrappers. Final-[carry](../../glossary.md#term-carry) [shapes](../../glossary.md#shape) match
 their carry roles; each emission/residual prepends `T` to the body value's shape. Outer [layouts](../../glossary.md#layout)
 are canonical for static shapes and absent for symbolic shapes; wrappers are unlabeled and storage-free. Standalone `new ScanResult(...)` only
-snapshots non-null groups/[elements](../../glossary.md#term-element): it permits empty groups and repeated references and does not
+snapshots non-null groups/entries: it permits empty groups and repeated references and does not
 prove common [provenance](../../glossary.md#provenance). Record equality includes ordered group contents.
 
 `body.retainedValues()` is the deterministic [identity](../../glossary.md#term-identity-meanings)-unique residual inventory: visit next-carry
@@ -317,7 +317,7 @@ ScanResult Scan.apply(List<Tensor> initialCarry, List<Tensor> sequences,
 ```
 
 The overload constructs source [metadata](../../glossary.md#term-metadata) only. Compiler0013 separately implements independent
-[inference](../../glossary.md#term-inference), bounded first-order reverse construction and complete role/demand query emission.
+[inference](../../glossary.md#term-inference-meanings), bounded first-order reverse construction and complete role/demand query emission.
 Original-source [automatic differentiation](../../glossary.md#autograd) ([AD](../../glossary.md#autograd)) requires all carries and **every original sequence**
 to be ROW(0), even unused/non-[gradient](../../glossary.md#term-gradient) positions. Generated reverse histories/[seeds](../../glossary.md#commit-release-distribution-log-and-seed-meanings) may instead
 mix ROW(0), [rank-two](../../glossary.md#axis-rank-scalar-vector-and-matrix) ROW(1) and SHARED roles derived from checked [bindings](../../glossary.md#term-binding)/[dataflow](../../glossary.md#term-dataflow).
@@ -325,7 +325,7 @@ Prepare0011 separately projects these static bindings, explicit roles and comple
 through the existing resource [handoff](../../glossary.md#term-handoff), without reading lengths or re-proving body algebra.
 CPU0042 separately qualifies fixed T/B/[features](../../glossary.md#term-feature) [FLOAT32](../../glossary.md#term-float32)/[FLOAT64](../../glossary.md#term-float64) forward and actual first-order
 reverse through the existing [Engine](../../glossary.md#term-engine)/[Prepare](../../glossary.md#prepare)/generated [CPU](../../glossary.md#term-cpu) path. It validates every produced
-length in `[0,T]` before any [scan](../../glossary.md#term-cumulative-scan)-local write, then skips inactive loads and arithmetic. See the
+length in `[0,T]` before any [scan](../../glossary.md#general-differentiable-scan)-local write, then skips inactive loads and arithmetic. See the
 [CPU execution scope and example](../../backend-guide/cpu-backend.md#length-aware-fixed-batch-execution).
 Static floating length mode has bounded [cold reconstruction](../../glossary.md#term-cold-reconstruction), including per-role floating
 intermediates and explicit casts, and selective graph [persistence](../../glossary.md#term-persistence) ([FP8](../../glossary.md#term-fp8) v7, otherwise v5/v6 as
@@ -341,7 +341,7 @@ independent source/docs review and MAIN's root test/[Javadoc](../../glossary.md#
 Compiler0015 implements independent symbolic-length FLOAT32/FLOAT64 inference, actual first-order
 sibling AD and complete fresh scoped all-port binding; the [Compiler](../../glossary.md#term-compiler)-only task is Complete.
 [Compile](../../glossary.md#compile)/bind reads [descriptors](../../glossary.md#term-descriptor) only, never input or length values. Prepare0015 separately implements
-static-or-one-B projection and [homogeneous](../../glossary.md#term-homogeneous) FLOAT32/FLOAT64 generated [scalar](../../glossary.md#term-scalar), single-range forward
+static-or-one-B projection and [homogeneous](../../glossary.md#term-homogeneous) FLOAT32/FLOAT64 generated [scalar](../../glossary.md#cpu-portable-execution-strategy), single-range forward
 and actual Compiler reverse through the ordinary Engine [lifecycle](../../glossary.md#lifecycle). Its necessary typed outer/control/
 ROW(1) closure uses explicit [occurrence](../../glossary.md#term-occurrence) predicates, not an AD-origin tag. Owning [validation](../../glossary.md#term-validation) and
 independent code/structural review passed; root validation and the sole bounded probe completed;
@@ -356,7 +356,7 @@ For example, h/step `[Rows,2]`, sequence `[0,Rows,2]`, fixed [bias](../../glossa
 describe final `[Rows,2]` and row-history `[0,Rows,2]` ports with unresolved layouts. A retained
 shared value such as `bias.neg()` instead has a static canonical history `[0,2]`; the [invariant](../../glossary.md#term-invariant)
 bias [leaf](../../glossary.md#term-leaf) itself gains no [residual port](../../glossary.md#scan-residual-port-and-history-demand). These source descriptors allocate no histories or execute
-a body; downstream [qualification](../../glossary.md#term-qualification) is separate. A bias containing `Rows` or a different lengths [symbol](../../glossary.md#term-symbol) rejects.
+a body; downstream [qualification](../../glossary.md#term-qualification) is separate. A bias containing `Rows` or a different lengths [symbol](../../glossary.md#dimension) rejects.
 
 At execution, bind fully static actual inputs/seeds in compiled order and preserve all fixed extents,
 types and gradient flags. Direct non-gradient INT64 `[B]` lengths need no [producer](../../glossary.md#term-producer); the bounded
@@ -516,7 +516,7 @@ positions; `next` is one ordinary ADD expression. [Binding](../../glossary.md#te
 The retained inventory is `[h, next]`, so the [occurrence](../../glossary.md#term-occurrence) owns four ports: final carry, emission
 and two residuals. Although the source emission `h` has a false flag, its outer stacked port gets
 true from `G`: later emissions may depend on earlier steps. The final [identity](../../glossary.md#term-identity-meanings) check proves
-[canonical](../../glossary.md#term-canonical-form) ownership, not computation. These metadata outcomes match the focused [scan](../../glossary.md#term-cumulative-scan) tests;
+[canonical](../../glossary.md#term-canonical-form) ownership, not computation. These metadata outcomes match the focused [scan](../../glossary.md#general-differentiable-scan) tests;
 this example needs no [backend](../../glossary.md#backend). Replacing the sequence with shape `[0]` keeps the flags and gives
 empty stacked [descriptors](../../glossary.md#term-descriptor); binding `h` itself as the actual initial carry instead rejects because
 actuals must be disjoint from formals.

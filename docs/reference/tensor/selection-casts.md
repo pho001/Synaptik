@@ -119,7 +119,7 @@ public final class WhereExpressionExample {
 - [Broadcasting](../../glossary.md#broadcasting) the branch [shapes](../../glossary.md#shape) `[1, 3]` and `[2, 1]` first produces `[2, 3]`. Broadcasting the
   condition shape `[2, 1]` with that branch shape then retains `[2, 3]`.
 - `Tensor.where` records exact ordered condition, true-branch, and false-branch references. The
-  operation kind is <span data-glossary-navigation="true"> ([operation glossary](../../glossary.md#operation))</span>`WHERE`, and the attributes are the [canonical](../../glossary.md#term-canonical-form) parameterless [singleton](../../glossary.md#term-singleton).
+  operation kind is <span data-glossary-navigation="true"> ([operation glossary](../../glossary.md#operation))</span>`WHERE`, and the attributes are the [canonical](../../glossary.md#term-canonical-form) parameterless singleton.
 - Only the true branch requests gradients, so the result's eligibility flag is true. This is
   descriptor metadata, not a generated backward computation or routing rule.<span data-glossary-navigation="true"> ([gradients glossary](../../glossary.md#term-gradient); [descriptor glossary](../../glossary.md#term-descriptor); [metadata glossary](../../glossary.md#term-metadata))</span>
 
@@ -200,7 +200,7 @@ is an exception to the usual signed-infinity target behavior, not [saturation](.
 
 Same-type conversion preserves every raw bit, including floating sign, [subnormal](../../glossary.md#term-subnormal) representation,
 and every NaN sign, quiet/signaling bit, and [NaN payload](../../glossary.md#term-nan-payload). `CastValueConversions.convert` returns the
-exact source [`ScalarValue`](../../glossary.md#typed-scalar-value--scalarvalue) reference for this [scalar](../../glossary.md#term-scalar) case. `Tensor.cast`, however, always creates a
+exact source [`ScalarValue`](../../glossary.md#typed-scalar-value--scalarvalue) reference for this [scalar](../../glossary.md#typed-scalar-value--scalarvalue) case. `Tensor.cast`, however, always creates a
 fresh expression [occurrence](../../glossary.md#term-occurrence); [Tensor](../../glossary.md#tensor) construction does not call the scalar [oracle](../../glossary.md#term-test-oracle) or evaluate
 storage.
 

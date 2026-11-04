@@ -76,7 +76,7 @@ objective builder and `Sgd(0.05)` again. The fresh session's first committed [op
 loaded weight already fits the original `[1,3] -> [2,6]` batch, and the weight remains `2`.
 No mode toggle is needed or valid for this captured owned source.
 
-## [Run](../glossary.md#term-run) and interpret
+## Run and interpret
 
 ```bash
 # This replaces the graph file and loads a new owner; it does not resume optimizer history.

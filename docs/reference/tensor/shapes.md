@@ -68,8 +68,8 @@ equality. Thus `N + N` equals `2 * N`, and independently constructed `N + M` and
 equal. Dimension-to-Dimension multiplication folds static factors, applies the zero and one
 [identities](../../glossary.md#term-identity-meanings), flattens nested products, and combines repeated structurally equal factors as positive
 exponents. Product factor order is not semantic. Multiplication does not distribute over linear
-sums. Floor and ceiling division remain explicit structural [nodes](../../glossary.md#node) and are not reassociated with
-addition or multiplication. All coefficient, [exponent](../../glossary.md#term-exponent), and static arithmetic is checked.
+sums. Floor and ceiling division remain explicit structural nodes and are not reassociated with
+addition or multiplication. All coefficient, exponent, and static arithmetic is checked.
 
 An `ExpressionDimension` exposes its read-only `DimensionExpression`. The five public forms are:
 
@@ -84,7 +84,7 @@ An `ExpressionDimension` exposes its read-only `DimensionExpression`. The five p
 Exact formula forms use [structural equality](../../glossary.md#term-structural-equality). `Unknown` deliberately uses object [identity](../../glossary.md#term-reference-identity), so two
 separate calls with equal bounds remain different extents; reusing the same returned dimension
 preserves that unknown's identity. The optional maximum retains the exact supplied dimension
-reference. None of these values binds a [symbol](../../glossary.md#term-symbol), evaluates a concrete size, solves [graph](../../glossary.md#graph)-wide
+reference. None of these values binds a [symbol](../../glossary.md#dimension), evaluates a concrete size, solves [graph](../../glossary.md#graph)-wide
 equalities, or carries [compiler](../../glossary.md#term-compiler), [layout](../../glossary.md#layout), storage, [runtime](../../glossary.md#term-runtime), or [backend](../../glossary.md#backend) state.
 
 <a id="complete-symbolic-extent-example"></a>

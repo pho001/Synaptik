@@ -7,7 +7,7 @@ closes. You will also see executable checks that the Model copies supplied [para
 instead of retaining its caller's [lifetime](../glossary.md#term-lifetime).
 
 Complete the [project setup](../examples/README.md#build-the-complete-project) with [JDK](../glossary.md#term-java-development-kit-jdk) 26, [Maven](../glossary.md#term-maven)
-and the supplied candidate [file repository](../glossary.md#term-file-repository). [Run](../glossary.md#term-run) the commands below from the example project
+and the supplied candidate [file repository](../glossary.md#term-file-repository). Run the commands below from the example project
 with `LEARNING_CP` exported. No previous mode needs to have run.
 
 ## Inputs and mechanism
@@ -81,7 +81,7 @@ the Arena determines when this caller-supplied [native memory](../glossary.md#al
 The explicit `99` mutation is a copy-isolation experiment, not a recommended application pattern.
 Keep supplied storage live and exclude concurrent mutation during build.
 
-## [Run](../glossary.md#term-run) and interpret
+## Run and interpret
 
 ```bash
 # This process checks both parameter-copy isolation and output survival after Model close.

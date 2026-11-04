@@ -46,7 +46,7 @@ The seven current expression methods build [model](../../glossary.md#term-model)
 | `div` | left divided by the right denominator |
 | `minimum` | pairwise minimum of the left and right operands |
 | `maximum` | pairwise maximum of the left and right operands |
-| `pow` | left base raised to the right [exponent](../../glossary.md#term-exponent) |
+| `pow` | left base raised to the right exponent |
 
 The receiver is always the ordered left input and the [argument](../../glossary.md#term-argument) is always the ordered right input.
 This order remains in [provenance](../../glossary.md#provenance) even for operations whose mathematical result is commonly
@@ -287,7 +287,7 @@ public final class ComparisonExpressionExample {
 - Pairing axes from the right compares `1` with `3` and `2` with `1`; singleton expansion
   produces shape `[2, 3]`. This is a coordinate pairing, not a byte-address requirement.
 - `left.lessOrEqual(right)` preserves the ordered relation: `left` is compared to `right`, the
-  operation kind is <span data-glossary-navigation="true"> ([operation glossary](../../glossary.md#operation))</span>`LESS_OR_EQUAL`, and the attributes are the [canonical](../../glossary.md#term-canonical-form) parameterless [singleton](../../glossary.md#term-singleton).
+  operation kind is <span data-glossary-navigation="true"> ([operation glossary](../../glossary.md#operation))</span>`LESS_OR_EQUAL`, and the attributes are the [canonical](../../glossary.md#term-canonical-form) parameterless singleton.
 - The true input gradient request does not propagate. A comparison result has false gradient
   eligibility and this construction adds no gradient rule.<span data-glossary-navigation="true"> ([gradient glossary](../../glossary.md#term-gradient))</span>
 
@@ -363,7 +363,7 @@ negation, reorder commutative inputs, propagate gradient eligibility, create a g
 - A non-[BOOL](../../glossary.md#data-type--datatype) receiver or argument fails with `IllegalArgumentException`; binary checks the left
   input before the right input, and unary reports the receiver as <span data-glossary-navigation="true"> ([binary glossary](../../glossary.md#term-binary-descriptor-and-metadata); [unary glossary](../../glossary.md#term-unary))</span>`input`.
 - Incompatible static shapes and locally unprovable symbolic pairs fail through local
-  broadcasting. Equal symbols and singleton-to-symbol expansion are valid.<span data-glossary-navigation="true"> ([shapes glossary](../../glossary.md#shape); [broadcasting glossary](../../glossary.md#broadcasting); [singleton glossary](../../glossary.md#term-singleton); [symbol glossary](../../glossary.md#term-symbol))</span>
+  broadcasting. Equal symbols and singleton-to-symbol expansion are valid.<span data-glossary-navigation="true"> ([shapes glossary](../../glossary.md#shape); [broadcasting glossary](../../glossary.md#broadcasting); [singleton glossary](../../glossary.md#term-singleton); [symbol glossary](../../glossary.md#dimension))</span>
 - Comparison results already have `BOOL` descriptors and can feed all three logical methods
   directly. This chaining constructs metadata only and does not calculate either comparison or
   logical truth values.<span data-glossary-navigation="true"> ([descriptors glossary](../../glossary.md#term-descriptor); [metadata glossary](../../glossary.md#term-metadata))</span>

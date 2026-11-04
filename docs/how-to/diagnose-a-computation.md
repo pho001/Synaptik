@@ -56,11 +56,11 @@ low-level result still borrows its inputs.
 
 Use [diagnostic observers](../developer-guide/debugging-trace.md) when the exception alone cannot
 answer a concrete question. [CPU](../glossary.md#term-cpu) emits cold selection/finalization facts; [Engine](../glossary.md#term-engine) reports configured
-tuning fallback/rejection; [Metal](../glossary.md#term-metal) can report the first failing [Scan](../glossary.md#term-cumulative-scan) [coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix) and native cause.
+tuning fallback/rejection; [Metal](../glossary.md#term-metal) can report the first failing [Scan](../glossary.md#general-differentiable-scan) [coordinate](../glossary.md#axis-rank-scalar-vector-and-matrix) and native cause.
 The default no-[observer](../glossary.md#term-observer) path does not create these diagnostic events or clocks.
 
 Correlation comes from typed IDs, not adjacent list positions during concurrent preparation.
-Bounded lists have [truncation](../glossary.md#term-truncation-toward-zero) flags. An absent event is not proof that nothing happened; a failure
+Bounded lists have omitted-entry flags. An absent event is not proof that nothing happened; a failure
 can precede the observation boundary. A diagnostic [callback](../glossary.md#term-callback) is not a place to recursively close
 the active Engine or mutate live [model](../glossary.md#term-model) state.
 

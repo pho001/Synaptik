@@ -65,7 +65,7 @@ input Shape reference, [data type](../../glossary.md#data-type--datatype), and `
 the input layout is resolved. [Provenance](../../glossary.md#provenance) records the exact requested kind, one
 `SoftmaxAttrs(normalizedAxis)`, and exact ordered inputs `[input]`. Construction does not inspect
 input values or storage, calculate exponentials, logarithms, sums, or probabilities, select a
-[finite](../../glossary.md#term-finite)-[precision](../../glossary.md#term-precision) algorithm, define a [gradient](../../glossary.md#term-gradient) rule, [capture](../../glossary.md#term-capture-meanings) a [graph](../../glossary.md#graph), decompose the operation, or
+finite-[precision](../../glossary.md#term-precision) algorithm, define a [gradient](../../glossary.md#term-gradient) rule, [capture](../../glossary.md#term-capture-meanings) a [graph](../../glossary.md#graph), decompose the operation, or
 execute [backend](../../glossary.md#backend) work.
 
 For one ideal slice `[1, 2, 3]`, the requested mathematical values are:
@@ -244,7 +244,7 @@ layerNorm normalized dimension mismatch at normalized axis 0: input=StaticDimens
 ```
 
 Structurally equal symbolic [dimensions](../../glossary.md#dimension) pass immediately. If a trailing input dimension is `N`
-and its normalized dimension is a different unresolved [symbol](../../glossary.md#term-symbol) `M`, construction also succeeds
+and its normalized dimension is a different unresolved [symbol](../../glossary.md#dimension) `M`, construction also succeeds
 because the exact result Shape is still the input Shape. [Compiler](../../glossary.md#term-compiler) verification or concrete
 [binding](../../glossary.md#term-binding) must prove `N == M`; [model](../../glossary.md#term-model) construction does not invent a replacement extent. Scale and
 [bias](../../glossary.md#term-bias) are stricter: each complete Shape must structurally equal the normalized Shape, so ordinary
@@ -414,7 +414,7 @@ The exceptional-radicand rules below apply outside this real finite domain.
 
 Epsilon is inside the [square root](../../glossary.md#norms-elementary-functions-and-probability-distributions). The running variance is used directly as the estimated
 variance supplied by the caller; inference applies no [sample](../../glossary.md#term-sample-machine-learning-and-hyperparameters)/population correction conversion,
-recomputation, clamp, [momentum](../../glossary.md#term-momentum), or mutation. All four low types and FLOAT32 results perform formula
+recomputation, clamp, [momentum](../../glossary.md#batch-normalization--batch-normalization-inference-and-training), or mutation. All four low types and FLOAT32 results perform formula
 arithmetic in FLOAT32 and round the final low value once to the result format. [FLOAT64](../../glossary.md#term-float64) results use
 FLOAT64. There is no reduction [accumulator](../../glossary.md#accumulator-type) or configurable computation format.
 
@@ -486,7 +486,7 @@ zero. Repeated equal requests remain distinct. No input, [statistic](../../gloss
 storage, or provenance is mutated.
 
 These facts describe the [inference](../../glossary.md#term-inference) constructor: it has no training/[evaluation](../../glossary.md#term-evaluation) flag, current-[batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters)
-statistic calculation, running-statistic transition, [momentum](../../glossary.md#term-momentum), [saved statistic](../../glossary.md#saved-statistic), auxiliary output,
+statistic calculation, running-statistic transition, [momentum](../../glossary.md#batch-normalization--batch-normalization-inference-and-training), [saved statistic](../../glossary.md#saved-statistic), auxiliary output,
 or hidden state. [Compiler](../../glossary.md#term-compiler) [capture](../../glossary.md#term-capture-meanings), operand revalidation and deferred-constraint proof are
 implemented. Its [normalization](../../glossary.md#term-normalization) [derivative](../../glossary.md#term-derivative) [owner](../../glossary.md#term-owner) can select contributions for all five floating
 inputs and casts completed Shape-correct contributions back to the selected input types.

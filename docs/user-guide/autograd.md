@@ -114,7 +114,7 @@ Maximum and average Pool3d use ordinary [Compiler](../glossary.md#term-compiler)
 [owners](../glossary.md#term-owner). Qualified static [CPU](../glossary.md#term-cpu) floating types and [Metal](../glossary.md#term-metal) [FLOAT32](../glossary.md#term-float32) execute forward and explicitly
 seeded input gradients, including overlapping windows. [Conv3d](../glossary.md#conv3d--ncdhw) → [pooling](../glossary.md#term-pooling) → flatten → [Linear](../glossary.md#term-linear-meanings)
 training uses the same owners for [parameter](../glossary.md#term-parameter) gradients; there is no separate [NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [derivative](../glossary.md#term-derivative) path.
-Low CPU arithmetic uses FLOAT32 working values and final low-result [narrowing](../glossary.md#term-narrowing). Metal [FLOAT64](../glossary.md#term-float64)/low overlap, Metal [Scan](../glossary.md#term-cumulative-scan) and
+Low CPU arithmetic uses FLOAT32 working values and final low-result [narrowing](../glossary.md#term-narrowing). Metal [FLOAT64](../glossary.md#term-float64)/low overlap, Metal Scan and
 ordinary public CPU named-B [convolution](../glossary.md#term-channels-first-convolution-layers)/pooling expansion are not granted by this capability.
 
 Cold source copying and save/load preserve exact Pool3d geometry but are separate from execution

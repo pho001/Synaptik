@@ -104,7 +104,7 @@ output index zero. Identity, repeated, and nested requests remain explicit and c
 `Tensor.sliceAxis(int, long, long, long)` uses one entry with the caller's signed step.
 `Tensor.flip(int... axes)` clones explicit axes in caller order and creates one SLICE producer with
 start `D - 1`, length `D`, and step `-1` per non-empty selected extent. A selected zero extent uses
-start and length zero. Duplicate normalized axes fail; empty axes [mean](../../glossary.md#term-mean) identity rather than all
+start and length zero. Duplicate normalized axes fail; empty axes mean identity rather than all
 axes and remain valid even for a scalar or unselected dynamic dimensions. There is no `FLIP` kind
 or per-axis [operation](../../glossary.md#operation) chain.
 
@@ -130,7 +130,7 @@ Entry $i$ selects an axis, $b_i$ is its supplied start, $t_i$ its non-zero signe
 $\ell_i\geq0$ its length, and integer $k$ the output coordinate on that axis.
 For start $4$, length $3$ and step $-2$, the source coordinates are $4,2,0$.
 
-Starts are already normalized non-negative logical [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix), lengths are [finite](../../glossary.md#term-finite) non-negative
+Starts are already normalized non-negative logical [coordinates](../../glossary.md#axis-rank-scalar-vector-and-matrix), lengths are finite non-negative
 coordinate counts, [axes](../../glossary.md#term-axis) may use caller-facing positive or negative syntax, and steps are signed
 and non-zero. No start, length, or bound is clamped, shifted, wrapped, truncated, or inferred.
 After null and matching-length checks, all four arrays are cloned in [parameter](../../glossary.md#term-parameter) order and never
@@ -299,7 +299,7 @@ $4,2,0$. No addition or in-place mutation is implied.
 one static base [extent](../../glossary.md#term-extent) once. For a static base axis, the first and final mapped coordinates must
 both be in bounds. An unresolved base axis accepts a non-negative start and defers only the upper-
 bound proof. A selected zero update extent uses [canonical](../../glossary.md#term-canonical-form) start zero and maps no coordinates.
-Three empty arrays [mean](../../glossary.md#term-mean) explicit full-Shape replacement and still create a fresh [occurrence](../../glossary.md#term-occurrence).
+Three empty arrays mean explicit full-Shape replacement and still create a fresh [occurrence](../../glossary.md#term-occurrence).
 
 `Tensor.sliceUpdate(Tensor update, Shape prefixShape)` instead places the complete update region
 after an exact per-axis prefix. Base, update, and prefix ranks must match, and base/update data
@@ -337,7 +337,7 @@ The operations occupy different parts of the indexing and [layout](../../glossar
 | [Operation](../../glossary.md#operation) | Current purpose | Coordinates or Shape source |
 |---|---|---|
 | [`slice`](../../glossary.md#slice) / `sliceAxis` / `flip` | Extract a raw-bound or reversal region | Caller bounds normalized against selected static input extents |
-| `sliceByLength` | Extract a [finite](../../glossary.md#term-finite) normalized sequence, including across an unresolved selected extent | Caller starts/lengths/axes/steps |
+| `sliceByLength` | Extract a finite normalized sequence, including across an unresolved selected extent | Caller starts/lengths/axes/steps |
 | `sliceUpdate(update, starts, axes, steps)` | Functionally replace a signed multi-axis region | Caller starts/axes/steps plus selected static update extents |
 | `sliceUpdate(update, prefixShape)` | Functionally replace a complete target-relative update region | Exact update and prefix Shapes, including symbolic Dimensions |
 | `cropToShape` | Extract an exact target after a prefix | Exact target and prefix Shapes, including symbolic Dimensions |
@@ -353,7 +353,7 @@ unresolved, preserves input type/eligibility, and records `SliceKind.SLICE`, exa
 `CropToShapeAttrs`, input `[input]`, and output index zero. All results are fresh, canonical,
 unlabeled, and storage-free. Construction reads no values, mutates no input, and promises neither
 a [view](../../glossary.md#term-view-meanings) nor a copy. Length-defined extraction and target-relative placement are current Model
-expressions, and current [compiler](../../glossary.md#term-compiler) [inference](../../glossary.md#term-inference)/[preflight](../../glossary.md#term-preflight)/[autograd](../../glossary.md#autograd) have adopted their retained
+expressions, and current [compiler](../../glossary.md#term-compiler) [inference](../../glossary.md#term-inference-meanings)/[preflight](../../glossary.md#term-preflight)/[autograd](../../glossary.md#autograd) have adopted their retained
 constraints and floating cotangents. [Materialization](../../glossary.md#materialization), [lowering](../../glossary.md#lowering), [backend](../../glossary.md#backend) support, and execution remain outside
 the current Model contract.
 

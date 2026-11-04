@@ -77,7 +77,7 @@ and each session [run](../glossary.md#term-run) with `engine.run(prepared, input
 ## Optional bounded single-[owner](../glossary.md#term-owner) [autotuning](../glossary.md#autotuning--model-autotuning)
 
 `engine.prepareTuned(graph, request)` is a separate bounded two-phase path for one eligible [CPU](../glossary.md#term-cpu)
-[partition](../glossary.md#partition) or an eligible [singleton](../glossary.md#term-singleton) [FLOAT32](../glossary.md#term-float32) [Metal](../glossary.md#term-metal) NEG partition. Metal requires both custom-[kernel](../glossary.md#kernel)
+[partition](../glossary.md#partition) or an eligible one-operation [FLOAT32](../glossary.md#term-float32) [Metal](../glossary.md#term-metal) NEG partition. Metal requires both custom-[kernel](../glossary.md#kernel)
 and [MPSGraph](../glossary.md#term-mpsgraph) candidates; an MPSGraph-only plan is not tunable. Phase 1 reuses a compatible [cache](../glossary.md#term-cache)
 entry where the [producer](../glossary.md#term-producer) permits [persistence](../glossary.md#term-persistence), or measures the single representative workload.
 Metal decisions are session-only and use neither persistent cache. Phase 2 holds the authenticated decision fixed, checks a bounded set of

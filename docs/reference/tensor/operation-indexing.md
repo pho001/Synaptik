@@ -121,7 +121,7 @@ with `NullPointerException("repeats[i]")`; a zero or negative entry fails with
 its single immutable snapshot. Result-Shape multiplication and [overflow](../../glossary.md#term-overflow) checks are deferred.
 
 Family [signatures](../../glossary.md#term-signature) enforce [`PAD`](../../glossary.md#padding) with `PadAttrs` and `TILE` with `TileAttrs`, each with one input
-and one output. Neither family defines public [Tensor](../../glossary.md#tensor) request syntax, result [inference](../../glossary.md#term-inference), [layout](../../glossary.md#layout) or
+and one output. Neither family defines public [Tensor](../../glossary.md#tensor) request syntax, result [inference](../../glossary.md#term-inference-meanings), [layout](../../glossary.md#layout) or
 storage behavior, [materialization](../../glossary.md#materialization), [provenance](../../glossary.md#provenance), [gradients](../../glossary.md#term-gradient), [compiler](../../glossary.md#term-compiler) or [planning](../../glossary.md#term-planning) behavior, [backend](../../glossary.md#backend)
 or [ONNX](../../glossary.md#term-onnx) behavior, or execution.
 

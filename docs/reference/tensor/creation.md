@@ -71,9 +71,9 @@ Unexpected copy failures occur after identifier allocation and are not rolled ba
 strided, broadcast, and unresolved descriptors remain unsupported because importing independent
 row-major values into those geometries requires a separate scatter or [view](../../glossary.md#term-view-meanings) policy.
 
-Nested typed import is the descriptor-[inference](../../glossary.md#term-inference) boundary. The single
+Nested typed import is the descriptor-[inference](../../glossary.md#term-inference-meanings) boundary. The single
 `fromNestedArray(source, label, requiresGrad)` method accepts `Object` because Java gives each
-primitive-array rank a distinct [runtime](../../glossary.md#term-runtime) class and no [finite](../../glossary.md#term-finite) overload family can express arbitrary
+primitive-array rank a distinct runtime class and no finite overload family can express arbitrary
 rank. The runtime class must prove rank two or greater and an ultimate carrier of `double`,
 `float`, `short`, `int`, `long`, or `byte`; those carriers infer `FLOAT64`, `FLOAT32`, `BFLOAT16`,
 `INT32`, `INT64`, and `BOOL`, respectively. Boxed arrays, generic object arrays, [rank-one](../../glossary.md#axis-rank-scalar-vector-and-matrix) arrays,
@@ -85,7 +85,7 @@ have the same length, and every required subarray must be non-null. Paths in dia
 zero-based bracket notation: `[]` names the root and `[1][2]` names its second child's third child.
 An empty final primitive axis is observable and valid, so `new int[2][0]` infers [shape](../../glossary.md#shape) `[2, 0]`.
 An empty earlier axis is rejected because the remaining extents cannot be recovered from the
-runtime object [graph](../../glossary.md#graph).
+nested-array structure.
 
 After validation, nested import allocates a fresh matching primitive array and copies leaf arrays
 into it in logical row-major order. Numeric values and raw BFLOAT16 shorts are unchanged. BOOL

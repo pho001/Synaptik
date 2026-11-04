@@ -5,13 +5,13 @@
 Finish with a reproducible correctness baseline and choose the next focused guide without
 confusing a new [backend](../glossary.md#backend) with a new mathematical [model](../glossary.md#term-model). Complete
 [setup](../examples/README.md#build-the-complete-project) and
-[reusable execution](reusable-execution.md). Commands [run](../glossary.md#term-run) in the example project with [JDK](../glossary.md#term-java-development-kit-jdk) 26
+[reusable execution](reusable-execution.md). Commands run in the example project with [JDK](../glossary.md#term-java-development-kit-jdk) 26
 and `LEARNING_CP`; no native [accelerator](../glossary.md#term-accelerator) is needed for this chapter's baseline.
 
 ## Keep meaning separate from the route
 
 A **[backend](../glossary.md#backend)** provides execution for supported [operation](../glossary.md#operation) occurrences. A **route** is a concrete
-implementation choice within one backend. [CPU](../glossary.md#term-cpu) [scalar](../glossary.md#term-scalar)/generated [JVM](../glossary.md#term-java-virtual-machine-jvm)/[Vector API](../glossary.md#term-vector-api)/[native library](../glossary.md#term-native-library)
+implementation choice within one backend. [CPU](../glossary.md#term-cpu) [scalar](../glossary.md#cpu-portable-execution-strategy)/generated [JVM](../glossary.md#term-java-virtual-machine-jvm)/[Vector API](../glossary.md#term-vector-api)/[native library](../glossary.md#term-native-library)
 choices are not separate mathematical models. The [Model](../glossary.md#term-model) operation families define the meaning;
 [backend capability](../glossary.md#backend-capability) still depends on actual [dtype](../glossary.md#data-type--datatype), [shape](../glossary.md#shape), [layout](../glossary.md#layout) and requested [derivatives](../glossary.md#term-derivative).
 A [graph](../glossary.md#graph) that can be described or saved is not thereby executable on every backend.
@@ -36,7 +36,7 @@ $w_{\mathrm{new}}=0-0.05(-40)=2$ refer to the
 Nothing here changes the candidate, adds a dependency, changes numerical semantics or enables
 a global backend switch.
 
-## [Run](../glossary.md#term-run) the baseline, not a timing claim
+## Run the baseline, not a timing claim
 
 ```bash
 # Keep correctness and lifetime checks before attempting any timing experiment.
@@ -85,7 +85,7 @@ program are explained in the atlas; absence from this journey is not evidence of
 
 ## Useful variation and relevant error
 
-[Run](../glossary.md#term-run) the [gradient](../glossary.md#term-gradient) boundary independently before evaluating another supported configuration:
+Run the [gradient](../glossary.md#term-gradient) boundary independently before evaluating another supported configuration:
 
 ```bash
 # Forward support alone does not establish support for the selected derivative.

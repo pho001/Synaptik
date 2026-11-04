@@ -39,7 +39,7 @@ Operation contiguous = new Operation(
         NoOperationAttrs.INSTANCE);
 ```
 
-The resulting [`Operation`](../../glossary.md#operation) retains the exact kind and canonical no-attributes [singleton](../../glossary.md#term-singleton). Its
+The resulting [`Operation`](../../glossary.md#operation) retains the exact kind and canonical no-attributes singleton. Its
 [signature](../../glossary.md#term-signature) enforces that pairing and declares one input and one output.
 
 `ContiguousKind.CONTIGUOUS` is a computation request.
@@ -52,7 +52,7 @@ fully static results receive new canonical geometry, while dynamic results remai
 [Compiler](../../glossary.md#term-compiler) [canonicalization](../../glossary.md#occurrence-identity-and-canonical-form), materialization policy, [planning](../../glossary.md#term-planning), [prepare](../../glossary.md#prepare), [backend](../../glossary.md#backend), [runtime](../../glossary.md#term-runtime), training,
 and execution behavior remain with their owning later contracts.
 
-Inherited enum names are diagnostic typed vocabulary, not [serialization](../../glossary.md#term-serialization), [registry](../../glossary.md#term-registry), [dispatch](../../glossary.md#term-dispatch),
+Inherited enum names are diagnostic typed vocabulary, not [serialization](../../glossary.md#term-serialization), [registry](../../glossary.md#term-registry), dispatch,
 [kernel](../../glossary.md#kernel), or reflection identifiers. An equally named constant from another kind family remains a
 different typed value.
 
@@ -85,7 +85,7 @@ non-null [immutable](../../glossary.md#term-immutable) `Shape` reference unchang
 mixed static/dynamic, and fully dynamic Shapes without inspecting an input.
 
 The stored `Shape` is normalized semantic state. Its static dimensions are non-negative and its
-dynamic dimensions are explicit symbols, so a raw numeric `-1` reshape-[inference](../../glossary.md#term-inference) sentinel cannot
+dynamic dimensions are explicit symbols, so a raw numeric `-1` reshape-[inference](../../glossary.md#term-inference-meanings) sentinel cannot
 occur in the attributes. The current raw public reshape boundary normalizes that caller-facing
 syntax before constructing this value.
 
@@ -279,7 +279,7 @@ new SliceAttrs(
 
 The explicit-step single-axis method stores its signed step, and `flip` stores one negative-step
 entry per requested axis in the same `SliceAttrs`. `sliceByLength` supplies already normalized
-starts and [finite](../../glossary.md#term-finite) lengths through that same semantic value. Neither is a second kind such as
+starts and finite lengths through that same semantic value. Neither is a second kind such as
 `SLICE_AXIS` or `FLIP`. Public `sliceUpdate` and `cropToShape` supply their distinct input-aware
 validation and [metadata](../../glossary.md#term-metadata) construction described under [Slice update and target-relative crop
 expressions](slicing.md#slice-update-and-target-relative-crop-expressions)<span data-glossary-navigation="true"> ([Slice update glossary](../../glossary.md#slice-update); [target-relative crop glossary](../../glossary.md#target-relative-crop))</span>. These semantic values define no

@@ -174,7 +174,7 @@ public final class NumericAggregateExpressionExample {
 ##### Meaningful lines and intermediate results
 
 - `input.sum()` selects every axis. Its complete parameter value is the canonical no-attributes
-  singleton, and its result shape is the canonical scalar.<span data-glossary-navigation="true"> ([parameter glossary](../../glossary.md#term-parameter); [canonical glossary](../../glossary.md#term-canonical-form); [singleton glossary](../../glossary.md#term-singleton); [shape glossary](../../glossary.md#shape); [scalar glossary](../../glossary.md#term-scalar))</span>
+  singleton, and its result shape is the canonical scalar.<span data-glossary-navigation="true"> ([parameter glossary](../../glossary.md#term-parameter); [canonical glossary](../../glossary.md#term-canonical-form); [shape glossary](../../glossary.md#shape); [scalar glossary](../../glossary.md#term-scalar))</span>
 - `input.mean(-1)` normalizes `-1` to [axis](../../glossary.md#term-axis) `2` and removes the final [extent](../../glossary.md#term-extent) `4`, producing
   `[batch, 3]` with `AxisReductionAttrs[axis=2, keepDimensions=false]`.
 - `input.prod(1, true)` retains [normalized axis](../../glossary.md#normalized-axis) `1` with extent one, producing
@@ -232,7 +232,7 @@ Every unmatched leading input axis is reduced and removed. For each aligned conc
 equal target [extent](../../glossary.md#term-extent) preserves the axis, while target extent one reduces the input axis and retains
 one position. Any other concrete pair is invalid. Target [rank](../../glossary.md#term-rank) may not exceed input rank.
 
-For example, input `[2, 3, 4]` and target `[3, 1]` [mean](../../glossary.md#term-mean):
+For example, input `[2, 3, 4]` and target `[3, 1]` mean:
 
 ```text
 input axis 0: leading 2  -> reduce and remove

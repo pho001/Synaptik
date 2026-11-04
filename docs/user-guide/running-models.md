@@ -46,7 +46,7 @@ inputs and expected outputs; they are reference workflows, not replacements for 
 
 ## [JVM](../glossary.md#term-java-virtual-machine-jvm) prerequisites
 
-Use [JDK](../glossary.md#term-java-development-kit-jdk) 26 and the [runtime](../glossary.md#term-runtime) dependencies of the selected [API](../glossary.md#term-application-programming-interface-api). The default [scalar](../glossary.md#term-scalar) [CPU](../glossary.md#term-cpu) route does
+Use [JDK](../glossary.md#term-java-development-kit-jdk) 26 and the runtime dependencies of the selected [API](../glossary.md#term-application-programming-interface-api). The default [scalar](../glossary.md#cpu-portable-execution-strategy) [CPU](../glossary.md#term-cpu) route does
 not require `jdk.incubator.vector`. Explicit [Vector API](../glossary.md#term-vector-api) CPU computation requires
 `--add-modules jdk.incubator.vector`.
 
@@ -61,7 +61,7 @@ access; it does not choose a [backend](../glossary.md#backend), require an insta
 Use `Model.builder()` when fixed-[shape](../glossary.md#shape) inputs should flow through dense, convolutional or
 recurrent layers without a definition [callback](../glossary.md#term-callback). Static `rnn/gru/lstm` and explicit [runtime](../glossary.md#term-runtime)-length
 `rnnScan/gruScan/lstmScan` are separate recipes. A build creates a private [evaluation](../glossary.md#term-evaluation)-mode Model
-with one working [weight](../glossary.md#term-weight) set for compute and supported saves. Ordinary, fixed-[scan](../glossary.md#term-cumulative-scan) and general-scan
+with one working [weight](../glossary.md#term-weight) set for compute and supported saves. Ordinary, fixed-[scan](../glossary.md#term-fixed-recurrent-scan) and general-scan
 sources may configure first-order training when their actual source, [derivatives](../glossary.md#term-derivative) and [backend](../glossary.md#backend) qualify.
 It creates no [Engine](../glossary.md#term-engine). Use Java 26 and `:extensions:nn`. Close the Model when finished; compute
 results are [detached](../glossary.md#detached-model-results) values.
@@ -152,7 +152,7 @@ public final class FluentModelExample {
 }
 ```
 
-[Run](../glossary.md#term-run) with the [NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context) [runtime](../glossary.md#term-runtime) [classpath](../glossary.md#term-classpath) and the [JVM](../glossary.md#term-java-virtual-machine-jvm) prerequisites above. The destination's parent
+Run with the [NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context) runtime [classpath](../glossary.md#term-classpath) and the [JVM](../glossary.md#term-java-virtual-machine-jvm) prerequisites above. The destination's parent
 must exist. Output is `6.0`, `25.0`, `-2.0`. For dimensionless input $x=3$, desired answer
 $t=1$ and weight $w=2$, prediction is $p=wx=6$, objective is
 $L(w)=(wx-t)^2=25$, and weight derivative is $dL/dw=2(wx-t)x=30$.
@@ -197,8 +197,8 @@ try (var recurrent = Model.builder().input(DataType.FLOAT32, 20, 32, 8).seed(42)
 Static `rnn/gru/lstm` steps use [TBF](../glossary.md#term-tbf) (time/batch/features), positive fixed time, and all-valid rows.
 They return **every hidden step**, including [LSTM](../glossary.md#term-long-short-term-memory-lstm); there is no implicit final-step selection.
 Each composition starts with zero hidden state (and zero cell state for LSTM). Cached compute/train
-reuse fixed zero [constants](../glossary.md#term-constant), never [carry](../glossary.md#term-carry) state across batches, and do not rebuild the [graph](../glossary.md#graph) per call.
-Static [unrolling](../glossary.md#term-unrolling) uses existing constituent-[operation](../glossary.md#operation) adjoints; it is not [scan](../glossary.md#term-cumulative-scan) [backpropagation through
+reuse fixed zero [constants](../glossary.md#term-constant), never retain state across batches, and do not rebuild the [graph](../glossary.md#graph) per call.
+Static [unrolling](../glossary.md#term-unrolling) uses existing constituent-[operation](../glossary.md#operation) adjoints; it is not [scan](../glossary.md#term-fixed-recurrent-scan) [backpropagation through
 time](../glossary.md#term-backpropagation-through-time-bptt) ([BPTT](../glossary.md#backpropagation-through-time-and-recurrent-state)), streaming state, or [runtime](../glossary.md#term-runtime)-length support. Conv3d uses shared grouped convolution
 adjoints in the [qualified static CPU F32/F64 and Metal F32 domains](../backend-guide/production-support.md#conv3d-training-and-independent-pool3d-boundary)<span data-glossary-navigation="true"> ([CPU glossary](../glossary.md#term-cpu); [F32 glossary](../glossary.md#floating-point-precision-and-rounding); [F64 glossary](../glossary.md#floating-point-precision-and-rounding); [Metal glossary](../glossary.md#term-metal))</span>.
 
@@ -230,14 +230,14 @@ Sources containing only ADD/MUL/NEG/[MATMUL](../glossary.md#matrix-multiplicatio
 RELU/TANH/SIGMOID retain byte-identical v1/v2 saves. Construction, cold forward and execution
 remain independent of [serialization](../glossary.md#term-serialization) [admission](../glossary.md#term-admission). Other source variants still reject: convolution
 without bias or with nondefault geometry, unsupported indexing axes and arbitrary recurrent bodies
-are outside the selected [slice](../glossary.md#slice). Source
+are outside the selected subset. Source
 rejection occurs before file work, leaving absent [targets](../glossary.md#term-target) absent and existing targets unchanged.
 A failed unsupported save does not freeze [Engine](../glossary.md#term-engine) selection, invalidate the Model, or disable
 compute/training. [Persistence](../glossary.md#term-persistence) does not make
 every builder [occurrence](../glossary.md#term-occurrence) executable: the selected Engine's [dtype](../glossary.md#data-type--datatype)/[layout](../glossary.md#layout)/[gradient](../glossary.md#term-gradient) capabilities apply.
 See [builder API and lifecycle](../reference/nn/model-builder.md#fluent-model-builder)<span data-glossary-navigation="true"> ([API glossary](../glossary.md#term-application-programming-interface-api))</span>.
 
-### [Run](../glossary.md#term-run) a [runtime](../glossary.md#term-runtime)-length [scan](../glossary.md#term-cumulative-scan) [Model](../glossary.md#term-model)
+### [Run](../glossary.md#term-run) a [runtime](../glossary.md#term-runtime)-length scan [Model](../glossary.md#term-model)
 
 Use `buildWithLengths()` to build a Model with two ordered inputs: values and valid lengths.
 [F32](../glossary.md#floating-point-precision-and-rounding)/[F64](../glossary.md#floating-point-precision-and-rounding) `rnnScan` and qualified fixed recipes support first-order configured training.
@@ -442,7 +442,7 @@ Fixed scans remain separate from static sequences. For advanced cold [persistenc
 existing list `Model.graph`/`Model.loadGraph` boundary with [INT64](../glossary.md#data-type--datatype) [runtime](../glossary.md#term-runtime) lengths
 as an input, alongside sequence and any external initial states. The cold roundtrip
 recreates storage-free [prototypes](../glossary.md#term-prototype) and rebinds fresh exact-[descriptor](../glossary.md#term-descriptor) inputs without reading length
-values. It retains all [canonical](../glossary.md#term-canonical-form) ports of one [scan](../glossary.md#term-cumulative-scan) even when only finalCell is returned.
+values. It retains all [canonical](../glossary.md#term-canonical-form) ports of one [scan](../glossary.md#term-fixed-recurrent-scan) even when only finalCell is returned.
 The three one-directional [NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context) Sequences also offer additive `forwardScan` methods using the same
 owned cell [parameters](../glossary.md#term-parameter). For example, this complete composition fragment creates a reverse [LSTM](../glossary.md#term-long-short-term-memory-lstm)
 scan with explicit lengths and states (imports shown); it does not execute values:
@@ -589,17 +589,17 @@ still materialize after prepared close while Engine remains open.
 A wrong fixed feature count, gradient flag, missing/noncanonical/offset dynamic input [layout](../glossary.md#layout),
 inconsistent B, [overflow](../glossary.md#term-overflow) or unusable storage rejects before [borrowing](../glossary.md#term-borrowing). Dynamic inputs require
 present canonical zero-offset layouts; dense read [views](../glossary.md#term-view-meanings) qualify. Static slots still require exact
-descriptors. For qualified [Scan](../glossary.md#term-cumulative-scan) execution, use the example below. Neither example enables
+descriptors. For qualified [Scan](../glossary.md#general-differentiable-scan) execution, use the example below. Neither example enables
 [NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context)/Training reuse, symbolic cold/wire loading, native/mixed-[owner](../glossary.md#term-owner)/[vector](../glossary.md#term-vector)/parallel execution or
-tuning. See the [CPU slice](../backend-guide/cpu-backend.md#ordinary-named-batch-cpu-execution)<span data-glossary-navigation="true"> ([slice glossary](../glossary.md#slice))</span>.
+tuning. See the [CPU slice](../backend-guide/cpu-backend.md#ordinary-named-batch-cpu-execution).
 
 ## [Symbolic Scan](../glossary.md#symbolic-scan) with changing [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) size
 
-Use the same public [Engine](../glossary.md#term-engine) [lifecycle](../glossary.md#lifecycle) for an all-valid [Scan](../glossary.md#term-cumulative-scan): every time step participates, time
+Use the same public [Engine](../glossary.md#term-engine) [lifecycle](../glossary.md#lifecycle) for an all-valid [Scan](../glossary.md#general-differentiable-scan): every time step participates, time
 and [feature](../glossary.md#term-feature) widths stay fixed, and one named batch B changes between calls. [JDK](../glossary.md#term-java-development-kit-jdk) 26 and Engine/[CPU](../glossary.md#term-cpu)
 [modules](../glossary.md#term-module) are prerequisites. Current ordinary CPU [general Scan](../glossary.md#general-differentiable-scan) qualifies [FLOAT32](../glossary.md#term-float32)/[FLOAT64](../glossary.md#term-float64) forward
 and actual selected VJPs under these ordinary single-B, fixed-T/features guards. The FLOAT32
-example below retains the historical generated [scalar](../glossary.md#term-scalar), single-range Prepare0014 layer; its
+example below retains the historical generated [scalar](../glossary.md#cpu-portable-execution-strategy), single-range Prepare0014 layer; its
 [task](../planning/modules/prepare/tasks/0014-symbolic-scan-cpu-vertical.md) retains that evidence,
 not a global FLOAT32-only restriction or broader ordinary symbolic [F64](../glossary.md#floating-point-precision-and-rounding) [MATMUL](../glossary.md#matrix-multiplication--matmul) [admission](../glossary.md#term-admission).
 
@@ -690,7 +690,7 @@ length-aware rules below. Neither route grants arbitrary symbolic geometry, [NN]
 symbolic cold/copy/wire, native/mixed-[owner](../glossary.md#term-owner) execution or a geometry [memo](../glossary.md#cache-and-memoization). See the
 [qualified CPU domain](../backend-guide/cpu-backend.md#symbolic-scan-cpu-execution).
 
-## Symbolic-length [Scan](../glossary.md#term-cumulative-scan) with changing [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) size
+## Symbolic-length [Scan](../glossary.md#general-differentiable-scan) with changing [batch](../glossary.md#term-batch-machine-learning-and-hyperparameters) size
 
 For variable active prefixes, pass non-[gradient](../glossary.md#term-gradient) [INT64](../glossary.md#data-type--datatype) `[B]` lengths to the existing `Scan.apply`
 overload. Keep time/[features](../glossary.md#term-feature) fixed and use a qualified floating body under its per-role [dtype](../glossary.md#data-type--datatype) guards.
@@ -813,7 +813,7 @@ retains layer composition; the definition/[graph](../glossary.md#graph)/load pat
 Use Java 26 and an explicit `:extensions:nn` [dependency](../glossary.md#term-dependency) with the [JVM](../glossary.md#term-java-virtual-machine-jvm) prerequisites above.
 No caller [Arena](../glossary.md#term-arena) is required for this workflow.
 Definition/graph acquisition uses the bounded
-[cold source slice](../architecture/contracts/compiler-autograd.md#compile-lifecycle)<span data-glossary-navigation="true"> ([slice glossary](../glossary.md#slice))</span>, including its
+[cold source slice](../architecture/contracts/compiler-autograd.md#compile-lifecycle), including its
 general-body exception, not all [NN](../glossary.md#neural-network-module-parameter-buffer-and-forward-context) layers or arbitrary [PURE](../glossary.md#term-pure) bodies. Save/load uses the
 [body-free persistence slice](../reference/checkpoint/graph-formats.md#selected-cnn-and-recurrent-persistence)
 or [bounded v4 body persistence](../reference/checkpoint/graph-formats.md#bounded-general-scan-persistence),
@@ -951,7 +951,7 @@ source acquisition. It requires the exact
 [cold constructor inventory](../architecture/contracts/compiler-autograd.md#bounded-general-scan-cold-reconstruction),
 not merely PURE operations. CPU low execution uses [FLOAT32](../glossary.md#term-float32) working values and final logical
 [narrowing](../glossary.md#term-narrowing), with existing family, geometry and actual derivative guards. It does not widen NN
-recipes or [Metal](../glossary.md#term-metal) [Scan](../glossary.md#term-cumulative-scan) [admission](../glossary.md#term-admission); Metal has no [FP8](../glossary.md#term-fp8) support.
+recipes or [Metal](../glossary.md#term-metal) [Scan](../glossary.md#general-differentiable-scan) [admission](../glossary.md#term-admission); Metal has no [FP8](../glossary.md#term-fp8) support.
 Length-aware body values may be proved ROW([axis](../glossary.md#term-axis)) values or arbitrary-[shape](../glossary.md#shape) SHARED [tensors](../glossary.md#tensor).
 Lengths is a separate final non-[gradient](../glossary.md#term-gradient) [INT64](../glossary.md#data-type--datatype) `[B]` control with no body formal, not a [scalar](../glossary.md#term-scalar)
 alternative. Original AD carries/sequences and emission boundaries remain ROW(0); intermediate
@@ -969,7 +969,7 @@ making invariant bindings explicit prevents that hidden dependency.
 This complete FLOAT32 example acquires [weight](../glossary.md#term-weight) `0.5` privately once. The body computes
 `next = carry * weight + step` and emits the pre-step [carry](../glossary.md#term-carry). Input `[1,2,3]`, initial carry `0`
 and forward traversal produce final carry `4.25` and original-time emissions `[0,1,2.5]`.
-It saves before compute and after training, then closes and reloads the trained source. [Run](../glossary.md#term-run) in a
+It saves before compute and after training, then closes and reloads the trained source. Run in a
 trusted writable working directory: the example atomically replaces `general-scan-before.graph`
 and `general-scan-trained.graph` if they already exist.
 
@@ -1310,7 +1310,7 @@ representation. The byte ceiling limits that copy, not all temporary execution m
 
 **Goal and inputs.** [Prepare](../glossary.md#prepare) negation of a storage-free [FLOAT32](../glossary.md#term-float32) [2] [prototype](../glossary.md#term-prototype) once, then supply
 fresh [batches](../glossary.md#term-batch-machine-learning-and-hyperparameters) [1,-2] and [3,-4]. With Java 26, [Engine](../glossary.md#term-engine) and [Model](../glossary.md#term-model) on the [classpath](../glossary.md#term-classpath), this complete
-block uses their ordinary [scalar](../glossary.md#term-scalar) [CPU](../glossary.md#term-cpu) [heap](../glossary.md#term-heap)-input support:
+block uses their ordinary [scalar](../glossary.md#cpu-portable-execution-strategy) [CPU](../glossary.md#term-cpu) [heap](../glossary.md#term-heap)-input support:
 
 ```java
 var shape = Shape.of(2);

@@ -54,8 +54,8 @@ composition while the table also lists the current production families:
 | `SoftmaxAttrs` | The implemented immutable normalized-axis value shared by [softmax](../../glossary.md#softmax--log-softmax) and [log-softmax](../../glossary.md#softmax--log-softmax). |
 | `BatchNormKind` | The implemented production enum for explicit five-input [batch](../../glossary.md#term-batch-machine-learning-and-hyperparameters)-normalization [inference](../../glossary.md#term-inference) and pure five-output training/[statistic](../../glossary.md#term-statistic)-transition meanings. |
 | `BatchNormInferenceAttrs` | The implemented immutable normalized [channel](../../glossary.md#term-channel)-axis and exact typed [epsilon](../../glossary.md#epsilon) value. |
-| `BatchNormTrainingAttrs` | The implemented immutable normalized channel axis, exact typed new-batch-[weight](../../glossary.md#term-weight) [momentum](../../glossary.md#term-momentum), and exact typed epsilon. |
-| `BatchNormTrainingResult` | The implemented public [carrier](../../glossary.md#term-storage-carrier) for training output, next running mean, and next running variance; saved [producer](../../glossary.md#term-producer) outputs remain intentionally omitted. |
+| `BatchNormTrainingAttrs` | The implemented immutable normalized channel axis, exact typed new-batch-[weight](../../glossary.md#term-weight) [momentum](../../glossary.md#batch-normalization--batch-normalization-inference-and-training), and exact typed epsilon. |
+| `BatchNormTrainingResult` | The implemented public result wrapper for training output, next running mean, and next running variance; saved [producer](../../glossary.md#term-producer) outputs remain intentionally omitted. |
 | `ScaledDotProductAttentionKind` | The implemented production enum whose sole value identifies [scaled dot-product attention](../../glossary.md#scaled-dot-product-attention) with an exact three-to-four-input and one-through-two-output [occurrence](../../glossary.md#term-occurrence) [signature](../../glossary.md#term-signature). |
 | `ScaledDotProductAttentionAttrs` | The implemented immutable optional exact scale and top-left causal-eligibility value. |
 | `ScaledDotProductAttentionResult` | The implemented public carrier for same-occurrence output slot zero and normalized-weights slot one. |
@@ -92,13 +92,13 @@ composition while the table also lists the current production families:
 `OperationKind` declares `name()` and `signatures()`. The name is stable diagnostic text, not a
 [serialization](../../glossary.md#term-serialization) [token](../../glossary.md#term-token) or global [lookup](../../glossary.md#term-lookup) key. Each concrete family owns a stable immutable non-empty
 list of signatures, so adding a family does not require a central [registry](../../glossary.md#term-registry) or a root switch over
-all kinds. `signatureFor(attrs)` matches the exact [runtime](../../glossary.md#term-runtime) attributes class and rejects missing,
+all kinds. `signatureFor(attrs)` matches the exact runtime attributes class and rejects missing,
 duplicate, null, or incompatible declarations. Two values from different kind families remain
 different typed values even if both names contain the same text.
 
 An `OperationSignature` describes one structurally valid occurrence variant. Its inclusive
 minimum and maximum input/output counts describe logical positions, not Tensor rank or element
-count. Equal minimum and maximum values form a **fixed** [cardinality](../../glossary.md#term-cardinality). Different [finite](../../glossary.md#term-finite) bounds form
+count. Equal minimum and maximum values form a **fixed** [cardinality](../../glossary.md#term-cardinality). Different finite bounds form
 a **bounded** cardinality. `Integer.MAX_VALUE` is the inclusive upper bound used for an
 effectively **[variadic](../../glossary.md#term-variadic)** input list. Signatures deliberately do not validate operand data types,
 Shapes, [layouts](../../glossary.md#layout), numerical policy, backend support, or executability.

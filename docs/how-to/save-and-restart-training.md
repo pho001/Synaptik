@@ -77,7 +77,7 @@ progress and the [objective](../glossary.md#term-objective). That is not an impl
 
 | Symptom | Cause to check | Action |
 |---|---|---|
-| Save rejects an otherwise working [model](../glossary.md#term-model) | The source is outside the selected wire [slice](../glossary.md#slice) | Use the [persistence](../glossary.md#term-persistence) inventory; do not assume every [Tensor](../glossary.md#tensor) [operation](../glossary.md#operation) is serializable |
+| Save rejects an otherwise working [model](../glossary.md#term-model) | The source is outside the selected wire subset | Use the [persistence](../glossary.md#term-persistence) inventory; do not assume every [Tensor](../glossary.md#tensor) [operation](../glossary.md#operation) is serializable |
 | Missing-parent or I/O failure | Destination setup/permissions | Create an application-owned parent and retry explicitly |
 | Fresh input rejected after load | Full saved [signature](../glossary.md#term-signature) does not match | Recreate the required [descriptor](../glossary.md#term-descriptor), not just the [element](../glossary.md#term-element) count |
 | `train` rejects after load | No new training configuration | Configure the [objective](../glossary.md#term-objective) and [optimizer](../glossary.md#term-optimizer) on the loaded Model |
@@ -85,4 +85,4 @@ progress and the [objective](../glossary.md#term-objective). That is not an impl
 
 Useful variation: save before the first compute. It should still encode admitted source and
 values; saving is not a request to create an [Engine](../glossary.md#term-engine). The teaching file does not certify arbitrary
-[convolution](../glossary.md#term-channels-first-convolution-layers)/[Scan](../glossary.md#term-cumulative-scan) geometries or optimizer continuation.
+[convolution](../glossary.md#term-channels-first-convolution-layers)/Scan geometries or optimizer continuation.

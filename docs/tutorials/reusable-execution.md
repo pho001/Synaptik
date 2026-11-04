@@ -89,7 +89,7 @@ borrows its [parameter](../glossary.md#term-parameter) [Tensor](../glossary.md#t
 or make a shared [mutable](../glossary.md#term-mutable) Model [thread-safe](../glossary.md#term-thread-safe). Prepared reuse avoids repeated setup, not all
 per-run work, allocation or output copying.
 
-## [Run](../glossary.md#term-run) and interpret
+## Run and interpret
 
 ```bash
 # Reuse setup, not previous answers: both same-descriptor batches execute.

@@ -159,7 +159,7 @@ behavior.
 
 The raw `long...` overload treats its array as caller-owned input: it neither mutates nor retains
 the array. An empty request means the [canonical](../../glossary.md#term-canonical-form) [rank-zero](../../glossary.md#axis-rank-scalar-vector-and-matrix) [scalar](../../glossary.md#term-scalar) Shape. Every ordinary [extent](../../glossary.md#term-extent) must
-be non-negative, so zero extents are valid. At most one exact `-1` may request [inference](../../glossary.md#term-inference); every
+be non-negative, so zero extents are valid. At most one exact `-1` may request [inference](../../glossary.md#term-inference-meanings); every
 value below `-1` is invalid. The sentinel is normalized before `Shape` and `TargetShapeAttrs`
 construction and therefore never appears in stored semantic state.
 
@@ -269,7 +269,7 @@ true
 true
 ```
 
-The result demonstrates raw [inference](../../glossary.md#term-inference), defensive [ownership](../../glossary.md#term-ownership-meanings), exact dynamic-[Shape](../../glossary.md#shape) retention,
+The result demonstrates raw [inference](../../glossary.md#term-inference-meanings), defensive [ownership](../../glossary.md#term-ownership-meanings), exact dynamic-[Shape](../../glossary.md#shape) retention,
 conditional same-offset [view](../../glossary.md#term-view-meanings) geometry, and [provenance](../../glossary.md#provenance). It does not demonstrate value movement,
 storage [aliasing](../../glossary.md#term-aliasing), [compiler](../../glossary.md#term-compiler) constraint solving or [canonicalization](../../glossary.md#occurrence-identity-and-canonical-form), [gradients](../../glossary.md#term-gradient), [materialization](../../glossary.md#materialization),
 [backend](../../glossary.md#backend) [lowering](../../glossary.md#lowering), or execution.
@@ -280,7 +280,7 @@ storage [aliasing](../../glossary.md#term-aliasing), [compiler](../../glossary.m
 - A null raw array or exact [Shape](../../glossary.md#shape) fails with `NullPointerException` naming `requestedShape` or
   `targetShape`, respectively.
 - A raw [extent](../../glossary.md#term-extent) below `-1`, a second `-1`, dynamic-input inference, zero-product inference,
-  non-divisible inference, or unequal known counts fails with <span data-glossary-navigation="true"> ([inference glossary](../../glossary.md#term-inference))</span>`IllegalArgumentException`.
+  non-divisible inference, or unequal known counts fails with <span data-glossary-navigation="true"> ([inference glossary](../../glossary.md#term-inference-meanings))</span>`IllegalArgumentException`.
 - Checked element-count, non-zero requested-product, canonical-stride, and referenced-span
   overflow propagates as <span data-glossary-navigation="true"> ([canonical glossary](../../glossary.md#term-canonical-form); [stride glossary](../../glossary.md#term-stride); [overflow glossary](../../glossary.md#term-overflow))</span>`ArithmeticException` before a [Tensor](../../glossary.md#tensor) [identity](../../glossary.md#term-identity-meanings) is consumed.
 - Exhausted Tensor identifier space fails with `IllegalStateException` only at final derived
@@ -320,7 +320,7 @@ does not create a [deferred graph constraint](../../glossary.md#deferred-graph-c
 
 The raw `long...` overload passes the caller-owned dimensions through `Shape.of(long...)`; the
 array is not retained or mutated. Every value is a literal non-negative extent, including zero,
-and an empty request denotes [scalar](../../glossary.md#term-scalar) Shape. Unlike reshape, numeric `-1` has no [inference](../../glossary.md#term-inference) meaning
+and an empty request denotes [scalar](../../glossary.md#term-scalar) Shape. Unlike reshape, numeric `-1` has no [inference](../../glossary.md#term-inference-meanings) meaning
 and is rejected. The `Shape` overload instead retains the exact [immutable](../../glossary.md#term-immutable) target reference,
 including scalar, zero-extent, mixed dynamic, and fully dynamic Shapes. The exact reference is
 retained even when aligned compatibility depends on later bindings.

@@ -35,7 +35,7 @@ run:      binds caller inputs through captured per-occurrence adapters
 result:   materializes each publication through its captured adapter
 ```
 
-[CPU](../glossary.md#term-cpu) [scalar](../glossary.md#term-scalar), Java [Vector API](../glossary.md#term-vector-api), generated [JVM](../glossary.md#term-java-virtual-machine-jvm) [bytecode](../glossary.md#term-bytecode), and [OpenBLAS](../glossary.md#term-openblas) are CPU-internal routes. They are
+[CPU](../glossary.md#term-cpu) [scalar](../glossary.md#cpu-portable-execution-strategy), Java [Vector API](../glossary.md#term-vector-api), generated [JVM](../glossary.md#term-java-virtual-machine-jvm) [bytecode](../glossary.md#term-bytecode), and [OpenBLAS](../glossary.md#term-openblas) are CPU-internal routes. They are
 not separate [backends](../glossary.md#backend) and are not selected through [Engine](../glossary.md#term-engine) [ownership](../glossary.md#term-ownership-meanings) configuration.
 
 **Ownership transfer** makes Engine responsible for releasing an integration; it is not the
@@ -121,7 +121,7 @@ candidate](../glossary.md#candidate-batch).
 ## Optional single-[owner](../glossary.md#term-owner) tuning is not [backend](../glossary.md#backend) selection
 
 `Engine.prepareTuned(...)` can select a compatible local workload candidate before production
-execution for one eligible [CPU](../glossary.md#term-cpu) [partition](../glossary.md#partition) or a [singleton](../glossary.md#term-singleton) [FLOAT32](../glossary.md#term-float32) [Metal](../glossary.md#term-metal) NEG partition with both
+execution for one eligible [CPU](../glossary.md#term-cpu) [partition](../glossary.md#partition) or a one-operation [FLOAT32](../glossary.md#term-float32) [Metal](../glossary.md#term-metal) NEG partition with both
 custom-[kernel](../glossary.md#kernel) and [MPSGraph](../glossary.md#term-mpsgraph) candidates. The current mapping is one [occurrence](../glossary.md#term-occurrence) at index 0,
 partition 0, and [weight](../glossary.md#term-weight) 1. Metal decisions have session-only reuse and no persistent [cache](../glossary.md#term-cache) access.
 [Heterogeneous](../glossary.md#term-heterogeneous) or multiple-partition plans fail before representative trial work. Cache [lookup](../glossary.md#term-lookup),

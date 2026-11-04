@@ -31,7 +31,7 @@ for the existing coordinate and broadcast visual.
 ## Prerequisites
 
 - [JDK](../glossary.md#term-java-development-kit-jdk) 26.
-- The `modules:model` [artifact](../glossary.md#term-artifact) on the [compile](../glossary.md#compile) and [runtime](../glossary.md#term-runtime) classpaths. Inside this repository, [run](../glossary.md#term-run)
+- The `modules:model` [artifact](../glossary.md#term-artifact) on the compile and runtime classpaths. Inside this repository, run
   `./gradlew :modules:model:classes` before compiling the example directly.
 - In another [Gradle](../glossary.md#term-gradle) [module](../glossary.md#term-module), add `implementation(project(":modules:model"))`. See
   [Getting started](../getting-started.md) for the repository setup.
@@ -210,7 +210,7 @@ Unlike low operands promote to FLOAT32; FLOAT32 dominates low operands and FLOAT
 all other floating types. Exact sign operations, comparisons, selection, [masks](../glossary.md#term-boolean-mask) and indices
 remain exact. An E4M3 infinity-class formula result, [pole](../glossary.md#term-pole) or empty floating [extremum](../glossary.md#term-extremum) narrows to
 NaN; a nonempty extremum still selects an actual represented input winner.
-[CPU](../glossary.md#term-cpu) execution reuses existing families, shared [Compiler](../glossary.md#term-compiler) [AD](../glossary.md#autograd), [Scan](../glossary.md#term-cumulative-scan) and recurrent [owners](../glossary.md#term-owner) under
+[CPU](../glossary.md#term-cpu) execution reuses existing families, shared [Compiler](../glossary.md#term-compiler) [AD](../glossary.md#autograd), Scan and recurrent [owners](../glossary.md#term-owner) under
 their geometry and [derivative](../glossary.md#term-derivative) constraints. Native [oneDNN](../glossary.md#term-onednn) availability is separate; no conversion
 of FP8 inputs to FLOAT32 constitutes native FP8 execution. [Metal](../glossary.md#term-metal) retains its seven-carrier
 [scope](../glossary.md#term-scope) without FP8 and its independently qualified BFLOAT16/FLOAT16 restrictions.

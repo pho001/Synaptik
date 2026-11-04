@@ -1,4 +1,4 @@
-# Data types and exact [scalars](../../glossary.md#term-scalar)
+# Data types and exact [scalars](../../glossary.md#typed-scalar-value--scalarvalue)
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
@@ -12,7 +12,7 @@ records a future conversion of a Tensor's values. These are three different acti
 
 **[Reader model](../../glossary.md#term-reader-model).** An [element](../../glossary.md#term-element)'s numeric format determines which values fit and how they are encoded.
 Signed integer formats store whole numbers; [floating-point](../../glossary.md#term-floating-point) formats store a sign, an [exponent](../../glossary.md#term-exponent)
-(scale), and a [significand](../../glossary.md#term-significand) ([precision](../../glossary.md#term-precision)). Fewer bits generally [mean](../../glossary.md#term-mean) fewer representable values.
+(scale), and a [significand](../../glossary.md#term-significand) ([precision](../../glossary.md#term-precision)). Fewer bits generally mean fewer representable values.
 [FP8](../../glossary.md#term-fp8) means [eight-bit floating point](../../glossary.md#floating-point-precision-and-rounding); [E4M3](../../glossary.md#term-e4m3) and [E5M2](../../glossary.md#term-e5m2) name different allocations of exponent and
 fraction bits, not interchangeable encodings. [BOOL](../../glossary.md#data-type--datatype) represents false or true.
 
@@ -26,8 +26,8 @@ The detailed format and [backend](../../glossary.md#backend) restrictions below 
 
 **Reading numerical edge cases.** Floating [overflow](../../glossary.md#term-overflow) exceeds a format's [finite](../../glossary.md#term-finite) range;
 [underflow](../../glossary.md#term-underflow) reaches its very small-magnitude range, potentially rounding to zero.
-A **[subnormal](../../glossary.md#term-subnormal)** represents values closer to zero than the smallest normal value, with less
-relative precision. [Denormals-are-zero](../../glossary.md#subnormal-daz-ftz-overflow-and-underflow) (**[DAZ](../../glossary.md#term-daz)**) treats such an input as [signed zero](../../glossary.md#term-signed-zero) at a permitted
+A **[subnormal](../../glossary.md#term-subnormal)** is a nonzero representable floating-point value whose magnitude is below the format's
+smallest positive normal magnitude. It has less relative precision. [Denormals-are-zero](../../glossary.md#subnormal-daz-ftz-overflow-and-underflow) (**[DAZ](../../glossary.md#term-daz)**) treats such an input as [signed zero](../../glossary.md#term-signed-zero) at a permitted
 arithmetic site; [flush-to-zero](../../glossary.md#subnormal-daz-ftz-overflow-and-underflow) (**[FTZ](../../glossary.md#term-ftz)**) does so for a permitted result. These are restricted
 permissions below, not universal behavior or permission to change stored comparisons.
 A NaN [payload](../../glossary.md#nan-infinity-and-signed-zero) is extra information in its bit pattern; a **quiet** NaN and a **signaling** NaN
@@ -65,7 +65,7 @@ The public [data type](../../glossary.md#data-type--datatype) contracts live in 
 Exact raw movement, casts, sign operations, stored comparisons, selection, [masks](../../glossary.md#term-boolean-mask), indices and
 state remain exact. An [E4M3](../../glossary.md#term-e4m3) [infinity](../../glossary.md#term-infinity)-class result, including a [pole](../../glossary.md#term-pole) or empty floating [extremum](../../glossary.md#term-extremum),
 narrows to [NaN](../../glossary.md#term-nan); nonempty [extrema](../../glossary.md#saturation-pole-and-extremum) select represented input winners without an infinity sentinel
-poisoning the result. [CPU](../../glossary.md#term-cpu) reuses existing operation/shared [Compiler](../../glossary.md#term-compiler) [AD](../../glossary.md#autograd)/[Scan](../../glossary.md#term-cumulative-scan)/recurrent [owners](../../glossary.md#term-owner)
+poisoning the result. [CPU](../../glossary.md#term-cpu) reuses existing operation/shared [Compiler](../../glossary.md#term-compiler) [AD](../../glossary.md#autograd)/Scan/recurrent [owners](../../glossary.md#term-owner)
 under their family, geometry and actual [derivative](../../glossary.md#term-derivative) guards. Native availability does not define
 CPU support: [oneDNN](../../glossary.md#term-onednn) is an [occurrence](../../glossary.md#term-occurrence)-specific typed-input realization with strict FLOAT32 low
 [working arithmetic](../../glossary.md#accumulator-type), not converted-FLOAT32 input advertised as native [FP8](../../glossary.md#term-fp8). FLOAT64 has no native
@@ -108,7 +108,7 @@ prove evaluated values, [compiler](../../glossary.md#term-compiler) behavior, or
 <a id="sixteen-bit-floating-representations"></a>
 ### Sixteen-bit floating representations
 
-`BFloat16Bits` converts [scalar](../../glossary.md#term-scalar) values between Java `float` and raw [BFLOAT16](../../glossary.md#term-bfloat16) bits held in a `short`;
+`BFloat16Bits` converts scalar values between Java `float` and raw [BFLOAT16](../../glossary.md#term-bfloat16) bits held in a `short`;
 `Float16Bits` does the same for [IEEE](../../glossary.md#term-ieee)-754 [binary16](../../glossary.md#floating-point-precision-and-rounding). Conversion uses [round-to-nearest](../../glossary.md#floating-point-precision-and-rounding) with ties to
 even, preserves [signed zero](../../glossary.md#term-signed-zero) and [infinities](../../glossary.md#nan-infinity-and-signed-zero), and canonicalizes [NaN](../../glossary.md#term-nan) to the [target](../../glossary.md#term-target) format's positive
 quiet pattern. Each utility describes value format only; neither allocates storage, exposes [device](../../glossary.md#term-device)
@@ -125,7 +125,7 @@ accepts all 256 patterns and preserves represented NaN sign/fraction bits. There
 clipping, calibration or automatic [loss](../../glossary.md#loss) scaling.
 
 <a id="exact-typed-scalar-values"></a>
-### Exact typed [scalar](../../glossary.md#term-scalar) values
+### Exact typed [scalar](../../glossary.md#typed-scalar-value--scalarvalue) values
 
 [`ScalarValue`](../../glossary.md#typed-scalar-value--scalarvalue) is an [immutable](../../glossary.md#term-immutable) [operation](../../glossary.md#operation) [parameter](../../glossary.md#term-parameter) consisting of one exact [`DataType`](../../glossary.md#data-type--datatype) and that
 type's primitive bits. It is not a scalar [Tensor](../../glossary.md#tensor): a [rank-zero](../../glossary.md#axis-rank-scalar-vector-and-matrix) Tensor has a [descriptor](../../glossary.md#term-descriptor), [identity](../../glossary.md#term-identity-meanings),

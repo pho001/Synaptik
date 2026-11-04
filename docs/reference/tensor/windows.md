@@ -96,7 +96,7 @@ the [overflow](../../glossary.md#term-overflow)-prone `numerator + stride - 1` [
 `[N, C * kernelHeight * kernelWidth, outputHeight * outputWidth]`; products of unresolved
 Dimensions use the exact canonical symbolic-product form. `fold2d` requires complete [structural
 equality](../../glossary.md#term-structural-equality) with those channel and window-count formulas and retains the exact supplied output Shape.
-An unrelated unresolved [symbol](../../glossary.md#term-symbol) is rejected because [model](../../glossary.md#term-model) construction does not create an unnamed
+An unrelated unresolved [symbol](../../glossary.md#dimension) is rejected because [model](../../glossary.md#term-model) construction does not create an unnamed
 equality constraint.
 
 For dynamic input `[N,C,H,W]`, a 3-by-3 kernel, [stride](../../glossary.md#term-stride) two, [padding](../../glossary.md#padding) one, unit [dilation](../../glossary.md#term-dilation), and floor

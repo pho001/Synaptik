@@ -36,7 +36,7 @@ The public enum
 | `DIV` | Left value divided by right value. |
 | `MIN` | Mathematical minimum of the left and right values. |
 | `MAX` | Mathematical maximum of the left and right values. |
-| `POW` | Left value as the base raised to the right value as the [exponent](../../glossary.md#term-exponent). |
+| `POW` | Left value as the base raised to the right value as the exponent. |
 
 The enum values are semantic [identities](../../glossary.md#term-identity-meanings) only. All seven have no intrinsic [parameters](../../glossary.md#term-parameter) and compose
 explicitly with the existing generic [descriptor](../../glossary.md#term-descriptor):
@@ -49,7 +49,7 @@ Operation addition = new Operation(
 ```
 
 The result is an [immutable](../../glossary.md#term-immutable) [operation](../../glossary.md#operation) description whose kind is exactly
-`BinaryArithmeticKind.ADD` and whose attributes value is exactly the [canonical](../../glossary.md#term-canonical-form) [singleton](../../glossary.md#term-singleton). It is
+`BinaryArithmeticKind.ADD` and whose attributes value is exactly the [canonical](../../glossary.md#term-canonical-form) singleton. It is
 not a [Tensor](../../glossary.md#tensor) result, [provenance](../../glossary.md#provenance) value, [graph](../../glossary.md#graph) [occurrence](../../glossary.md#term-occurrence), executable operation, or [backend](../../glossary.md#backend)-support
 claim. No family factory or implicit attributes assignment is provided.
 
@@ -65,7 +65,7 @@ nonzero candidates produce that numeric value without identifying a selected ope
 promotion. No [NaN payload](../../glossary.md#nan-infinity-and-signed-zero), intermediate [precision](../../glossary.md#term-precision), exact instruction, bitwise result, [gradient](../../glossary.md#term-gradient)
 rule, [compiler](../../glossary.md#term-compiler) [capture](../../glossary.md#term-capture-meanings), execution, or backend availability is promised here. The inherited enum
 names and text are stable diagnostics, not [serialization](../../glossary.md#term-serialization)
-[tokens](../../glossary.md#term-token), [registry](../../glossary.md#term-registry) keys, or string-[dispatch](../../glossary.md#term-dispatch) contracts. Equality remains typed: an `ADD` value
+[tokens](../../glossary.md#term-token), [registry](../../glossary.md#term-registry) keys, or string-dispatch contracts. Equality remains typed: an `ADD` value
 declared by another kind family is not equal to `BinaryArithmeticKind.ADD` even though both
 diagnostics may contain `ADD`.
 
@@ -112,7 +112,7 @@ equality, not bit or [tolerance](../../glossary.md#term-tolerance) equality; NaN
 `NOT_EQUAL` is its exact logical complement. [Finite](../../glossary.md#term-finite) values and [infinities](../../glossary.md#nan-infinity-and-signed-zero) otherwise use ordinary
 numeric order. Integral comparison remains exact signed comparison after promotion. [Gradient](../../glossary.md#term-gradient)
 policy beyond the descriptor flag, [compiler](../../glossary.md#term-compiler) [capture](../../glossary.md#term-capture-meanings), execution, and [backend](../../glossary.md#backend) availability remain
-planned. Inherited enum names and text are diagnostic rather than [serialization](../../glossary.md#term-serialization) or [dispatch](../../glossary.md#term-dispatch) keys.
+planned. Inherited enum names and text are diagnostic rather than [serialization](../../glossary.md#term-serialization) or dispatch keys.
 Typed [identity](../../glossary.md#term-identity-meanings) keeps an equally named kind from another family unequal to
 `BinaryComparisonKind`.
 
@@ -148,7 +148,7 @@ This vocabulary defines conjunction, disjunction, and negation truth meaning onl
 [binary](../../glossary.md#term-binary-descriptor-and-metadata) [broadcasting](../../glossary.md#broadcasting), [unary](../../glossary.md#term-unary) [shape](../../glossary.md#shape) preservation, fixed BOOL result construction, and provenance.
 BOOL storage encoding, numeric truthiness, [gradients](../../glossary.md#term-gradient), [compiler](../../glossary.md#term-compiler) [capture](../../glossary.md#term-capture-meanings), execution, and [backend](../../glossary.md#backend)
 availability remain outside both semantic [identity](../../glossary.md#term-identity-meanings) and current expression construction. Inherited
-enum names and text are diagnostic rather than [serialization](../../glossary.md#term-serialization) or [dispatch](../../glossary.md#term-dispatch) keys, and an equally
+enum names and text are diagnostic rather than [serialization](../../glossary.md#term-serialization) or dispatch keys, and an equally
 named kind from another family remains a different typed value.
 
 <a id="where-selection-semantic-kind"></a>
@@ -182,7 +182,7 @@ result [descriptors](../../glossary.md#term-descriptor), [provenance](../../glos
 execution, or [backend](../../glossary.md#backend) availability. The current static `Tensor.where` expression method separately
 owns local [BOOL](../../glossary.md#data-type--datatype)/floating [validation](../../glossary.md#term-validation), branch promotion, ordered pairwise broadcasting, descriptor
 construction, and exact three-input provenance. Its inherited name and text are diagnostic rather
-than [serialization](../../glossary.md#term-serialization) or [dispatch](../../glossary.md#term-dispatch) keys, and an equally named kind from another family remains a
+than [serialization](../../glossary.md#term-serialization) or dispatch keys, and an equally named kind from another family remains a
 different typed value.
 
 <a id="cast-semantic-kind-and-attributes"></a>
@@ -222,7 +222,7 @@ extension or low-bit integral width conversion, and [canonical](../../glossary.m
 construction records but does not evaluate that meaning. [Compiler](../../glossary.md#term-compiler) owns the existing floating-only
 reverse rule, and [backend](../../glossary.md#backend) availability remains separate; accepting every pair in [Model](../../glossary.md#term-model) is not a
 promise that every backend executes it. Enum and record text remain diagnostic rather than
-[serialization](../../glossary.md#term-serialization) or [dispatch](../../glossary.md#term-dispatch) contracts.
+[serialization](../../glossary.md#term-serialization) or dispatch contracts.
 
 
 ---

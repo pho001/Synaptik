@@ -181,7 +181,7 @@ The methods differ in how they relate the two input Shapes to the result:
 | `embedding(indices)` | `GATHER` at axis zero | Require rank-two floating [weights](../../glossary.md#term-weight) and append their exact axis-one embedding Dimension to the complete indices Shape. |
 | `gatherElements(indices, axis)` | `GATHER_ELEMENTS` | Require equal ranks and equal Dimensions on every non-selected axis, then retain the exact indices Shape as the result. |
 
-[Structural equality](../../glossary.md#term-structural-equality) is conservative for dynamic Dimensions. The same dynamic [symbol](../../glossary.md#term-symbol) passes where
+[Structural equality](../../glossary.md#term-structural-equality) is conservative for dynamic Dimensions. The same dynamic [symbol](../../glossary.md#dimension) passes where
 equality is required; different symbols fail rather than creating a new symbolic constraint.
 `gather` needs no compatibility check between the inserted indices Shape and the omitted data
 Dimension, and [scalar](../../glossary.md#term-scalar) indices remove that axis without inserting another. `gatherElements`

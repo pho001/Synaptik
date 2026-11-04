@@ -40,7 +40,7 @@ logical draw count.
 Each call privately wraps one fresh, unlabeled, storage-free Tensor with exact [descriptor](../../glossary.md#term-descriptor)
 [`INT64`](../../glossary.md#data-type--datatype), `Shape.of(2)`, unresolved [layout](../../glossary.md#layout), and `requiresGrad == false`. Its
 `GraphRngKind.INITIAL_STATE` [producer](../../glossary.md#term-producer) has `GraphRngStateAttrs(key, counter)`, no inputs, one output,
-and [provenance](../../glossary.md#provenance) output index zero. [Lane](../../glossary.md#term-lane) zero conceptually carries the key bits and lane one the
+and [provenance](../../glossary.md#provenance) output index zero. Element zero conceptually carries the key bits and element one the
 counter bits. The wrapper intentionally provides no public Tensor, lane, storage, mutation,
 generator, split, or copy accessor, so those lanes are not an invitation to apply numerical Tensor
 operations to state.

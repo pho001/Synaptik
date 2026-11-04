@@ -16,7 +16,7 @@ statistics are already known, and [reduction domains](reductions.md) to interpre
 the current input; **running statistics** summarize prior inputs and have explicit next values
 here, rather than being silently mutated. Variance averages squared deviations from the mean;
 the biased population form divides by the count, while the correction-one estimate divides by
-one less than that count. **[Momentum](../../glossary.md#term-momentum)** below is the [weight](../../glossary.md#term-weight) of the new batch in that update,
+one less than that count. **[Momentum](../../glossary.md#batch-normalization--batch-normalization-inference-and-training)** below is the [weight](../../glossary.md#term-weight) of the new batch in that update,
 not an [optimizer](../../glossary.md#term-optimizer)'s momentum [parameter](../../glossary.md#term-parameter).
 
 A **loss** measures disagreement with a [target](../../glossary.md#term-target). Mean squared error measures squared numeric
@@ -85,7 +85,7 @@ roles; actual arithmetic retains the written momentum terms even at endpoints an
 rounding boundaries. The zero-channel case below evaluates none of these formulas.
 
 Forward normalization therefore uses biased [population variance](../../glossary.md#population-variance), while the running-variance
-transition uses the corresponding correction-one unbiased estimate. [Momentum](../../glossary.md#term-momentum) is the [weight](../../glossary.md#term-weight) of
+transition uses the corresponding correction-one unbiased estimate. [Momentum](../../glossary.md#batch-normalization--batch-normalization-inference-and-training) is the [weight](../../glossary.md#term-weight) of
 the new batch, not the old statistic. [Epsilon](../../glossary.md#epsilon) is added only inside the forward inverse-standard-
 deviation [square root](../../glossary.md#norms-elementary-functions-and-probability-distributions); it does not alter either variance estimate or the running transition.
 
@@ -109,7 +109,7 @@ not to [Model](../../glossary.md#term-model)-owned [host storage](../../glossary
 <a id="numerical-example"></a>
 #### Numerical example
 
-The goal is to show the biased-forward/unbiased-running distinction and [momentum](../../glossary.md#term-momentum) convention. For
+The goal is to show the biased-forward/unbiased-running distinction and [momentum](../../glossary.md#batch-normalization--batch-normalization-inference-and-training) convention. For
 one [FLOAT64](../../glossary.md#term-float64) [channel](../../glossary.md#term-channel) containing `[1, 2, 3]`, scale `2`, [bias](../../glossary.md#term-bias) `0.5`, old [mean](../../glossary.md#term-mean) `10`, old [variance](../../glossary.md#term-variance) `4`,
 momentum `0.25`, and [epsilon](../../glossary.md#epsilon) `1e-5`:
 
@@ -146,8 +146,8 @@ evaluated. [Overflow](../../glossary.md#term-overflow) of a non-zero checked pro
 attributes.
 
 All five [Tensor](../../glossary.md#tensor) inputs must be floating, including [FP8](../../glossary.md#term-fp8). Floating promotion follows
-input order. [Momentum](../../glossary.md#term-momentum) and [epsilon](../../glossary.md#epsilon) have the exact promoted result type except that [FLOAT16](../../glossary.md#term-float16)/FP8
-results use exact [FLOAT32](../../glossary.md#term-float32) [scalar](../../glossary.md#term-scalar) [metadata](../../glossary.md#term-metadata). All four low types and FLOAT32 results use FLOAT32 for
+input order. [Momentum](../../glossary.md#batch-normalization--batch-normalization-inference-and-training) and [epsilon](../../glossary.md#epsilon) have the exact promoted result type except that [FLOAT16](../../glossary.md#term-float16)/FP8
+results use exact [FLOAT32](../../glossary.md#term-float32) [scalar](../../glossary.md#typed-scalar-value--scalarvalue) [metadata](../../glossary.md#term-metadata). All four low types and FLOAT32 results use FLOAT32 for
 reductions and formula arithmetic; [FLOAT64](../../glossary.md#term-float64) results use FLOAT64. Final low outputs are narrowed
 once to the result format. The [operation](../../glossary.md#operation) selects no traversal, pass count, [reassociation](../../glossary.md#term-reassociation),
 compensation method, [kernel](../../glossary.md#kernel), or [backend](../../glossary.md#backend) algorithm.
@@ -160,7 +160,7 @@ or [infinity](../../glossary.md#term-infinity) in a non-empty [batch](../../glos
 saved inverse [standard deviation](../../glossary.md#term-standard-deviation), and normalized outputs NaN. A [finite](../../glossary.md#term-finite) [constant](../../glossary.md#term-constant) domain has
 positive-zero variances and a positive saved inverse standard deviation. Scale, [bias](../../glossary.md#term-bias), old
 statistics, [signed zero](../../glossary.md#term-signed-zero), [overflow](../../glossary.md#term-overflow), and [underflow](../../glossary.md#term-underflow) otherwise follow ordinary floating arithmetic.
-The written [momentum](../../glossary.md#term-momentum) formula applies even at zero and one, so a zero coefficient does not suppress
+The written [momentum](../../glossary.md#batch-normalization--batch-normalization-inference-and-training) formula applies even at zero and one, so a zero coefficient does not suppress
 NaN or infinity. A conforming implementation must not use unstable [cancellation](../../glossary.md#term-cancellation) to invent a
 negative finite variance, but may otherwise reassociate within future [tolerance](../../glossary.md#term-tolerance). Bitwise equality,
 [NaN payload](../../glossary.md#nan-infinity-and-signed-zero)/sign preservation, and identical cross-[backend](../../glossary.md#backend) [rounding](../../glossary.md#term-rounding) are not promised.
@@ -388,7 +388,7 @@ logits and target roles for dense floating targets. For index targets it support
 requires positive static class depth, clamps ignored targets before one-hot construction, and
 excludes ignored rows through a final selection; dynamic or zero class depth fails closed.
 Construction does not inspect index values or target contents. Value-dependent [validation](../../glossary.md#term-validation)
-belongs to the accepted [backend route](../../glossary.md#backend-route), not to descriptor [inference](../../glossary.md#term-inference). Qualified occurrences
+belongs to the accepted [backend route](../../glossary.md#backend-route), not to descriptor [inference](../../glossary.md#term-inference-meanings). Qualified occurrences
 already lower, [prepare](../../glossary.md#prepare), execute and publish through [Engine](../../glossary.md#term-engine) and can supply configured Training
 objectives; this adds no arbitrary dynamic class depth, implicit target [normalization](../../glossary.md#term-normalization) or
 general-purpose optimization/[decomposition](../../glossary.md#term-decomposition) permission.

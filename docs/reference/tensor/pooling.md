@@ -35,7 +35,7 @@ average-Pool1d [operation](../../glossary.md#operation) kinds. Each successful c
           --SQUEEZE(axis 2)--> [N, C, W_out]
 ```
 
-`MaxPool1dAttrs` and `AveragePool1dAttrs` are [immutable](../../glossary.md#term-immutable) public composition [parameters](../../glossary.md#term-parameter). Both [carry](../../glossary.md#term-carry)
+`MaxPool1dAttrs` and `AveragePool1dAttrs` are [immutable](../../glossary.md#term-immutable) public composition [parameters](../../glossary.md#term-parameter). Both carry
 positive `kernelWidth`, `strideWidth`, and `dilationWidth`, non-negative symmetric
 `paddingWidth`, and literal `ceilMode`. Construction maps those components to a fresh matching
 Pool2d attributes value:
@@ -507,9 +507,9 @@ flags and actual Pool3d backward closure through these existing shared rules and
 Direct forward execution retains fully static Shapes, resolved non-negative layouts, [injective](../../glossary.md#term-injective)
 output layouts and checked geometry. CPU low [pooling](../../glossary.md#term-pooling) forward and selected actual gradients use
 the same [owners](../../glossary.md#term-owner) with FLOAT32 arithmetic and final [narrowing](../../glossary.md#term-narrowing). Existing
-[scalar](../../glossary.md#term-scalar)/caller-parallel forward emission owns complete output cells with zero workspace or
+[scalar](../../glossary.md#cpu-portable-execution-strategy)/caller-parallel forward emission owns complete output cells with zero workspace or
 [materialization](../../glossary.md#materialization); no standalone backward kernel or [vector](../../glossary.md#term-vector)/native/[fused](../../glossary.md#specialization-and-fusion) pooling route was added.
-Qualified CPU all-valid/[runtime](../../glossary.md#term-runtime)-length [Scan](../../glossary.md#term-cumulative-scan) composes both pools and their actual reverse bodies
+Qualified CPU all-valid/[runtime](../../glossary.md#term-runtime)-length [Scan](../../glossary.md#general-differentiable-scan) composes both pools and their actual reverse bodies
 in [homogeneous](../../glossary.md#term-homogeneous) FLOAT32/FLOAT64 and both traversal directions, under existing complete-body,
 static-window and terminal restrictions. Ordinary public named-B [admission](../../glossary.md#term-admission) is unchanged.
 [Metal](../../glossary.md#term-metal) FLOAT32 admits overlapping Pool2d/Pool3d gradient-bearing windows through the same

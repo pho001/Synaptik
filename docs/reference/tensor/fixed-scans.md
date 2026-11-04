@@ -106,7 +106,7 @@ Failure behavior is local and deterministic:
   metadata have been constructed.<span data-glossary-navigation="true"> ([metadata glossary](../../glossary.md#term-metadata))</span>
 
 <a id="fixed-recurrent-scan-expressions"></a>
-### Fixed recurrent-[scan](../../glossary.md#term-cumulative-scan) expressions
+### Fixed recurrent-[scan](../../glossary.md#term-fixed-recurrent-scan) expressions
 
 The public final field-free `model.tensor.RecurrentScan` type is an advanced low-level static
 [Tensor](../../glossary.md#tensor)-expression namespace. Its exactly six methods construct one fixed [time-major](../../glossary.md#term-time-major) scan
@@ -209,7 +209,7 @@ may consume earlier output IDs without returning a partial result, following the
 multi-output factory contract.
 
 Current generic [graph capture](../../glossary.md#capture-graph-ports-and-reconstruction) can translate the shared producer to one flat [node](../../glossary.md#node) with the same
-ordered inputs and outputs. Current package-private [Compiler](../../glossary.md#term-compiler) forward-only [inference](../../glossary.md#term-inference) independently
+ordered inputs and outputs. Current package-private [Compiler](../../glossary.md#term-compiler) forward-only [inference](../../glossary.md#term-inference-meanings) independently
 revalidates the fully static descriptor contract, while both backward-capable modes reject a
 complete forward inventory containing recurrence before [derivative](../../glossary.md#term-derivative) Tensor allocation.
 

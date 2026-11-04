@@ -1,4 +1,4 @@
-# [Unary](../../glossary.md#term-unary) transforms, [scalar](../../glossary.md#term-scalar) arithmetic and clamps
+# [Unary](../../glossary.md#term-unary) transforms, [scalar](../../glossary.md#term-scalar-immediate) arithmetic and clamps
 
 [Reference goals](../index.md) · [Javadoc and exact signatures](../javadoc.md)<span data-glossary-navigation="true"> ([Javadoc glossary](../../glossary.md#term-javadoc); [signatures glossary](../../glossary.md#term-signature))</span> · [Source entry point](../../../modules/model/src/main/java/io/github/pho001/synaptik/model/tensor/Tensor.java)
 
@@ -223,7 +223,7 @@ was captured, or that any [backend](../../glossary.md#backend) supports either o
   built.<span data-glossary-navigation="true"> ([descriptor glossary](../../glossary.md#term-descriptor); [provenance glossary](../../glossary.md#provenance))</span>
 
 <a id="scalar-arithmetic-and-clamp-expressions"></a>
-### [Scalar](../../glossary.md#term-scalar) arithmetic and clamp expressions
+### [Scalar](../../glossary.md#term-scalar-immediate) arithmetic and clamp expressions
 
 The scalar arithmetic surface parallels the seven [Tensor](../../glossary.md#tensor)-to-Tensor relationships. Each has one
 exact [`ScalarValue`](../../glossary.md#typed-scalar-value--scalarvalue) overload and one retained exact-[FLOAT64](../../glossary.md#term-float64) `double` convenience:
@@ -236,7 +236,7 @@ exact [`ScalarValue`](../../glossary.md#typed-scalar-value--scalarvalue) overloa
 | `div(ScalarValue)` | `div(double)` | Divide the input by the scalar. | `ScalarValueAttrs` |
 | `minimum(ScalarValue)` | `minimum(double)` | Select the pairwise scalar minimum. | `ScalarValueAttrs` |
 | `maximum(ScalarValue)` | `maximum(double)` | Select the pairwise scalar maximum. | `ScalarValueAttrs` |
-| `pow(ScalarValue)` | `pow(double)` | Raise the input to the scalar [exponent](../../glossary.md#term-exponent). | `ScalarValueAttrs` |
+| `pow(ScalarValue)` | `pow(double)` | Raise the input to the scalar exponent. | `ScalarValueAttrs` |
 
 The clamp surface retains one first-class range [operation](../../glossary.md#operation) and two one-bound conveniences:
 
@@ -286,7 +286,7 @@ provenance construction: the compiler consumes the later immutable graph occurre
 
 For the scalar rows, `ScalarValueAttrs` is immutable semantic metadata, not a Tensor [constant](../../glossary.md#term-constant).
 The compiler reads only its exact type and typed value; it does not inspect Tensor host storage or
-expose a public compiler [API](../../glossary.md#term-application-programming-interface-api). A later current [scan](../../glossary.md#term-cumulative-scan) can combine an explicit integral logical-splat
+expose a public compiler [API](../../glossary.md#term-application-programming-interface-api). A later current compiler pass can combine an explicit integral logical-splat
 fact for the graph-valued input with an exact same-typed integral attribute for scalar `ADD`,
 `SUB`, `MUL`, `MIN`, or `MAX`. That result is a new fixed [logical splat](../../glossary.md#logical-splat), not a Tensor, dense
 data payload, or physical allocation. Floating scalar [evaluation](../../glossary.md#term-evaluation), CLAMP, DIV, POW, multiplication by
@@ -315,12 +315,12 @@ equal the receiver type. NaN payload selection, numerical evaluation, optimizati
 [graph capture](../../glossary.md#capture-graph-ports-and-reconstruction), and [backend](../../glossary.md#backend) execution remain later responsibilities.
 
 <a id="complete-scalar-expression-example"></a>
-#### Complete [scalar](../../glossary.md#term-scalar)-expression example
+#### Complete [scalar](../../glossary.md#term-scalar-immediate)-expression example
 
 <a id="goal-and-inputs-19"></a>
 ##### Goal and inputs
 
-Build a [scalar](../../glossary.md#term-scalar) multiplication followed by one range-clamp expression from a storage-free
+Build a [scalar](../../glossary.md#term-scalar-immediate) multiplication followed by one range-clamp expression from a storage-free
 [`FLOAT32`](../../glossary.md#term-float32) [tensor](../../glossary.md#tensor) of [shape](../../glossary.md#shape) `[2, 3]`. The example uses [negative zero](../../glossary.md#nan-infinity-and-signed-zero) and a raw [NaN payload](../../glossary.md#nan-infinity-and-signed-zero) to
 demonstrate exact [binary32](../../glossary.md#floating-point-precision-and-rounding) retention and observes expression [metadata](../../glossary.md#term-metadata) rather than numerical
 values.
@@ -383,7 +383,7 @@ public final class ScalarExpressionExample {
 <a id="meaningful-lines-and-intermediate-results-5"></a>
 ##### Meaningful lines and intermediate results
 
-- `input.mul(negativeZero)` records [scalar](../../glossary.md#term-scalar) `MUL` and retains the exact [`ScalarValue`](../../glossary.md#typed-scalar-value--scalarvalue) reference and
+- `input.mul(negativeZero)` records [scalar](../../glossary.md#term-scalar-immediate) `MUL` and retains the exact [`ScalarValue`](../../glossary.md#typed-scalar-value--scalarvalue) reference and
   binary32 negative-zero pattern in one <span data-glossary-navigation="true"> ([binary32 glossary](../../glossary.md#floating-point-precision-and-rounding))</span>`ScalarValueAttrs`.
 - `scaled.clamp(negativeZero, payloadNaN)` records exactly one `CLAMP` with both exact typed values
   in one `ClampRangeAttrs`. Its sole input
