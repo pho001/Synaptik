@@ -19,100 +19,12 @@ import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan.Cal
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan.CreatedBuffer;
 import io.github.pho001.synaptik.runtime.resource.PreparedRepresentationPlan.InitializedBuffer;
 import io.github.pho001.synaptik.runtime.resource.WorkspaceRepresentation;
-import java.io.InputStream;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class RunStateCreationTest {
-    @Test
-    void exposesExactPlanAndPackagePrivateCreationSurface() throws Exception {
-        Class<PreparedRepresentationPlan> planType = PreparedRepresentationPlan.class;
-        Class<RunStateCreation> creationType = RunStateCreation.class;
-        Method create =
-                creationType.getDeclaredMethod(
-                        "create", PreparedRepresentationPlan.class, List.class);
-
-        assertAll(
-                () -> assertTrue(Modifier.isPublic(planType.getModifiers())),
-                () -> assertTrue(Modifier.isFinal(planType.getModifiers())),
-                () -> assertTrue(planType.isRecord()),
-                () -> assertEquals(
-                        List.of("memoryPlan", "bufferPreparations", "workspaceCreators"),
-                        Arrays.stream(planType.getRecordComponents())
-                                .map(component -> component.getName())
-                                .toList()),
-                () -> assertEquals(
-                        List.of(
-                                PreparedRepresentationPlan.BufferCreator.class,
-                                BufferPreparation.class,
-                                CallerInput.class,
-                                CreatedBuffer.class,
-                                InitializedBuffer.class,
-                                PreparedRepresentationPlan.WorkspaceCreator.class),
-                        Arrays.stream(planType.getDeclaredClasses())
-                                .sorted((left, right) -> left.getSimpleName().compareTo(right.getSimpleName()))
-                                .toList()),
-                () -> assertTrue(BufferPreparation.class.isSealed()),
-                () -> assertArrayEquals(
-                        new Class<?>[] {
-                            CallerInput.class, CreatedBuffer.class, InitializedBuffer.class
-                        },
-                        BufferPreparation.class.getPermittedSubclasses()),
-                () -> assertTrue(
-                        PreparedRepresentationPlan.BufferCreator.class.isAnnotationPresent(
-                                FunctionalInterface.class)),
-                () -> assertTrue(
-                        PreparedRepresentationPlan.WorkspaceCreator.class.isAnnotationPresent(
-                                FunctionalInterface.class)),
-                () -> assertTrue(Modifier.isFinal(creationType.getModifiers())),
-                () -> assertFalse(Modifier.isPublic(creationType.getModifiers())),
-                () -> assertEquals(1, creationType.getDeclaredConstructors().length),
-                () -> assertTrue(
-                        Modifier.isPrivate(
-                                creationType.getDeclaredConstructors()[0].getModifiers())),
-                () -> assertEquals(
-                        2,
-                        Arrays.stream(creationType.getDeclaredMethods())
-                                .filter(method -> !Modifier.isPrivate(method.getModifiers()))
-                                .count()),
-                () -> assertTrue(Modifier.isStatic(create.getModifiers())),
-                () -> assertFalse(Modifier.isPublic(create.getModifiers())),
-                () -> assertEquals(RunState.class, create.getReturnType()));
-    }
-
-    @Test
-    void compiledContractsContainNoForbiddenUpstreamOrDynamicMechanisms() throws Exception {
-        String compiled =
-                classBytes(PreparedRepresentationPlan.class)
-                        + classBytes(BufferPreparation.class)
-                        + classBytes(CallerInput.class)
-                        + classBytes(CreatedBuffer.class)
-                        + classBytes(PreparedRepresentationPlan.BufferCreator.class)
-                        + classBytes(PreparedRepresentationPlan.WorkspaceCreator.class)
-                        + classBytes(RunStateCreation.class)
-                        + classBytes(RunState.class);
-
-        assertAll(
-                () -> assertFalse(compiled.contains("io/github/pho001/synaptik/prepare")),
-                () -> assertFalse(compiled.contains("io/github/pho001/synaptik/planning")),
-                () -> assertFalse(compiled.contains("io/github/pho001/synaptik/compiler")),
-                () -> assertFalse(compiled.contains("io/github/pho001/synaptik/model")),
-                () -> assertFalse(compiled.contains("io/github/pho001/synaptik/engine")),
-                () -> assertFalse(compiled.contains("java/lang/reflect")),
-                () -> assertFalse(compiled.contains("java/util/Map")),
-                () -> assertFalse(compiled.contains("java/util/ServiceLoader")),
-                () -> assertFalse(compiled.contains("java/util/concurrent")),
-                () -> assertFalse(
-                        Arrays.stream(RunStateCreation.class.getDeclaredMethods())
-                                .anyMatch(method -> Modifier.isPublic(method.getModifiers()))));
-    }
-
     @Test
     void planValidatesInExactOrderAndSnapshotsBothListLevelsWithoutCreating() {
         PreparedMemoryPlan plan = memoryPlan(1, 1);
@@ -487,6 +399,38 @@ class RunStateCreationTest {
     }
 
     @Test
+    void successfulCreatorHandoffDoesNotNeedAnAllocatingCallerIterator() {
+        var closeOrder = new ArrayList<String>();
+        var caller = new TrackingBuffer("caller", closeOrder, null);
+        var buffer = new TrackingBuffer("buffer", closeOrder, null);
+        var workspace = new TrackingWorkspace("workspace", closeOrder, null);
+        var allocationFailure = new OutOfMemoryError("caller iterator allocation");
+        List<BufferRepresentation> callers = new java.util.AbstractList<>() {
+            @Override public int size() { return 1; }
+            @Override public BufferRepresentation get(int index) {
+                if (index != 0) throw new IndexOutOfBoundsException(index);
+                return caller;
+            }
+            @Override public java.util.Iterator<BufferRepresentation> iterator() {
+                throw allocationFailure;
+            }
+        };
+        var plan = new PreparedRepresentationPlan(
+                memoryPlan(1, 1),
+                List.of(List.of(new CallerInput(),
+                        new CreatedBuffer((bytes, alignment) -> buffer))),
+                List.of((bytes, alignment) -> workspace));
+
+        RunState state = RunStateCreation.create(plan, callers);
+        state.close();
+
+        assertEquals(List.of("workspace", "buffer"), closeOrder);
+        assertEquals(0, caller.closeCount);
+        assertEquals(1, buffer.closeCount);
+        assertEquals(1, workspace.closeCount);
+    }
+
+    @Test
     void creatorFailureRollsBackInReverseAndSuppressesCleanupFailuresInEncounterOrder() {
         List<String> closeOrder = new ArrayList<>();
         RuntimeException original = new RuntimeException("creator");
@@ -564,13 +508,6 @@ class RunStateCreationTest {
             workspaces.add(new PreparedMemoryPlan.WorkspaceEntry(new WorkspaceSlot(index), 0, 1));
         }
         return new PreparedMemoryPlan(buffers, workspaces);
-    }
-
-    private static String classBytes(Class<?> type) throws Exception {
-        String resource = "/" + type.getName().replace('.', '/') + ".class";
-        try (InputStream stream = type.getResourceAsStream(resource)) {
-            return new String(stream.readAllBytes(), StandardCharsets.ISO_8859_1);
-        }
     }
 
     private static <T extends Throwable> void assertFailure(

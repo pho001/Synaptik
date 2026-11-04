@@ -297,6 +297,37 @@ final class EngineTypedLifecycleTest {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void ordinaryBorrowUsesOnlyReferencedPrefixAndRetainsCallerStorage(boolean positional) {
+        RecordingComposition composition = new RecordingComposition();
+        try (Arena arena = Arena.ofShared(); Engine engine = engine(composition)) {
+            var segment = arena.allocate(12, 4);
+            segment.setAtIndex(java.lang.foreign.ValueLayout.JAVA_INT, 0, 0x3fc00000);
+            segment.setAtIndex(java.lang.foreign.ValueLayout.JAVA_INT, 1, 0xc0200000);
+            segment.setAtIndex(java.lang.foreign.ValueLayout.JAVA_INT, 2, 0x7fc12345);
+            byte[] original = segment.toArray(java.lang.foreign.ValueLayout.JAVA_BYTE);
+            var storage = new MemorySegmentStorage(DataType.FLOAT32, 3, segment);
+            var descriptor = leaf(false, false).descriptor();
+            Tensor input = TensorFactory.create(descriptor, Optional.empty(), Optional.of(storage));
+            Tensor prototype = positional ? TensorFactory.create(descriptor) : input;
+            try (var prepared = engine.prepare(engine.compile(List.of(prototype.neg())));
+                    var result = positional
+                            ? engine.runValues(prepared, List.of(input))
+                            : engine.run(prepared, List.of(input))) {
+                HostTensorStorage borrowed = composition.borrowedStorages.getFirst();
+                assertEquals(2, borrowed.elementCapacity());
+                assertEquals(8, borrowed.byteSize());
+                assertEquals(segment.address(), borrowed.segment().address());
+                assertEquals(DataType.FLOAT32, borrowed.dataType());
+                assertEquals(1, result.resultCount());
+            }
+            assertSame(storage, input.hostStorage().orElseThrow());
+            assertTrue(storage.isAlive());
+            assertArrayEquals(original, segment.toArray(java.lang.foreign.ValueLayout.JAVA_BYTE));
+        }
+    }
+
     @Test
     void bothRunMethodsCheckOwnerAndClosedDelegateBeforeInputs() {
         RecordingComposition composition = new RecordingComposition();

@@ -14,6 +14,7 @@ import io.github.pho001.synaptik.config.compile.GraphOptimizationConfig;
 import io.github.pho001.synaptik.config.compile.PartitionScoringConfig;
 import io.github.pho001.synaptik.config.tuning.ModelAutotuningConfig;
 import io.github.pho001.synaptik.model.storage.HostTensorStorage;
+import io.github.pho001.synaptik.model.storage.MemorySegmentStorage;
 import io.github.pho001.synaptik.model.tensor.Tensor;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.model.tensor.TensorId;
@@ -1345,7 +1346,9 @@ public final class AdvancedEngine implements AutoCloseable {
     }
 
     /**
-     * Shares validated storage/adapter execution across the two ordinary binding modes.
+     * Shares validated storage/adapter execution across the two ordinary binding modes. Borrowing
+     * excludes capacity beyond the established referenced prefix without copying caller bytes,
+     * and its rollback ledger reserves the complete input count before acquiring any wrapper.
      *
      * @param owner exact non-null facade with an existing Engine admission
      * @param preparedExecution non-null handle checked before input inspection
@@ -1361,7 +1364,7 @@ public final class AdvancedEngine implements AutoCloseable {
             io.github.pho001.synaptik.engine.PreparedExecution preparedExecution,
             List<Tensor> inputs,
             boolean positional) {
-        var borrowed = new ArrayList<BufferRepresentation>();
+        List<BufferRepresentation> borrowed = List.of();
         io.github.pho001.synaptik.runtime.run.RunResult inwardResult = null;
         boolean ownershipTransferred = false;
         try {
@@ -1443,8 +1446,22 @@ public final class AdvancedEngine implements AutoCloseable {
                 throw new IllegalStateException(
                         "prepared input adapter count does not match compiled input count");
             }
+            borrowed = new ArrayList<>(storages.size());
             for (int index = 0; index < storages.size(); index++) {
-                borrowed.add(inputAdapters.get(index).borrow(storages.get(index)));
+                HostTensorStorage storage = storages.get(index);
+                var descriptor = required.get(index).descriptor();
+                var layout = descriptor.layout().orElse(null);
+                if (positional || layout != null) {
+                    long span = positional
+                            ? preparedExecution.valueElementSpan(index)
+                            : layout.referencedElementSpan();
+                    long byteSize = Math.multiplyExact(span, descriptor.dataType().byteWidth());
+                    if (byteSize < storage.byteSize()) {
+                        storage = new MemorySegmentStorage(
+                                storage.dataType(), span, storage.segment().asSlice(0, byteSize));
+                    }
+                }
+                borrowed.add(inputAdapters.get(index).borrow(storage));
             }
 
             inwardResult = runner.run(execution, borrowed);
@@ -1872,6 +1889,8 @@ public final class AdvancedEngine implements AutoCloseable {
      * exact retained first cleanup failure, if any.
      * A caller holding an admission to this Engine fails before any lifecycle change or wait.
      * Recursive close by the thread performing Engine cleanup is an idempotent no-op.
+     * Retained owners are removed in reverse order under the lifecycle gate and cleaned outside
+     * it, without allocating shutdown snapshots after the terminal transition.
      *
      * @throws IllegalStateException if the calling thread holds an Engine operation admission
      * @throws RuntimeException if result, prepared-handle, or composition cleanup first
@@ -1914,19 +1933,21 @@ public final class AdvancedEngine implements AutoCloseable {
 
         Throwable failure = null;
         try {
-            List<AdvancedRunResult> results;
-            synchronized (lifecycleLock) {
-                results = List.copyOf(openResults);
+            while (true) {
+                AdvancedRunResult result;
+                synchronized (lifecycleLock) {
+                    if (openResults.isEmpty()) break;
+                    result = openResults.removeLast();
+                }
+                failure = closeAndAccumulate(result, failure);
             }
-            for (int index = results.size() - 1; index >= 0; index--) {
-                failure = closeAndAccumulate(results.get(index), failure);
-            }
-            List<AutoCloseable> preparations;
-            synchronized (lifecycleLock) {
-                preparations = List.copyOf(openPreparations);
-            }
-            for (int index = preparations.size() - 1; index >= 0; index--) {
-                failure = closeAndAccumulate(preparations.get(index), failure);
+            while (true) {
+                AutoCloseable preparation;
+                synchronized (lifecycleLock) {
+                    if (openPreparations.isEmpty()) break;
+                    preparation = openPreparations.removeLast();
+                }
+                failure = closeAndAccumulate(preparation, failure);
             }
             failure = closeAndAccumulate(composition, failure);
         } finally {

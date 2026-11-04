@@ -16,7 +16,9 @@ import java.util.Objects;
  * <p>This package-private operation is the setup seam for a later Runtime runner, not a public
  * lifecycle facade. It validates the complete caller-input list before invoking any callback,
  * creates buffer representations in dense buffer/representation order and workspaces afterward,
- * and transfers ownership only when {@link RunState} construction succeeds.
+ * and transfers ownership only when {@link RunState} construction succeeds. Indexed diagnostics
+ * are constructed before acquisition; fresh results enter a preallocated rollback ledger before
+ * any subsequent allocating bookkeeping.
  */
 final class RunStateCreation {
     private RunStateCreation() {}
@@ -137,16 +139,14 @@ final class RunStateCreation {
                                 preparation instanceof CreatedBuffer created
                                         ? created.creator()
                                         : ((InitializedBuffer) preparation).creator();
+                        String nullResultMessage = "bufferPreparations["
+                                + bufferIndex + "][" + representationIndex + "] creator result";
                         BufferRepresentation representation =
                                 Objects.requireNonNull(
                                         creator.create(geometry.bufferByteSize(bufferIndex),
                                                 representationPlan.memoryPlan().buffers()
                                                         .get(bufferIndex).byteAlignment()),
-                                        "bufferPreparations["
-                                                + bufferIndex
-                                                + "]["
-                                                + representationIndex
-                                                + "] creator result");
+                                        nullResultMessage);
                         rejectRepeatedIdentity(
                                 callerInputs,
                                 createdRepresentations,
@@ -167,13 +167,14 @@ final class RunStateCreation {
             for (int workspaceIndex = 0;
                     workspaceIndex < representationPlan.workspaceCreators().size();
                     workspaceIndex++) {
+                String nullResultMessage = "workspaceCreators[" + workspaceIndex + "] result";
                 WorkspaceRepresentation representation =
                         Objects.requireNonNull(
                                 representationPlan.workspaceCreators().get(workspaceIndex).create(
                                         geometry.workspaceByteSize(workspaceIndex),
                                         representationPlan.memoryPlan().workspaces()
                                                 .get(workspaceIndex).byteAlignment()),
-                                "workspaceCreators[" + workspaceIndex + "] result");
+                                nullResultMessage);
                 rejectRepeatedIdentity(
                         callerInputs,
                         createdRepresentations,
@@ -211,8 +212,8 @@ final class RunStateCreation {
             AutoCloseable[] createdRepresentations,
             int createdCount,
             AutoCloseable representation) {
-        for (BufferRepresentation callerInput : callerInputs) {
-            if (callerInput == representation) {
+        for (int index = 0; index < callerInputs.size(); index++) {
+            if (callerInputs.get(index) == representation) {
                 throw new IllegalArgumentException(
                         "representation is already bound to this run");
             }

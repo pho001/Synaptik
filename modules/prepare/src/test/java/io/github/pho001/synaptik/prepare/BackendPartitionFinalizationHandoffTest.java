@@ -594,6 +594,31 @@ class BackendPartitionFinalizationHandoffTest {
                 () -> assertTrue(fixture.secondFinalizer.seen.isEmpty()));
     }
 
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 2, 3})
+    void adoptionFailureRollsBackTheEntireReturnedBundleOnce(int adoptedCount) {
+        var closes = new ArrayList<String>();
+        var primary = new OutOfMemoryError("resource tracking allocation");
+        var earlierCloseFailure = new RuntimeException("earlier close");
+        var tailCloseFailure = new AssertionError("tail close");
+        var earlier = new TestResource("earlier", closes, earlierCloseFailure);
+        var first = new TestResource("first", closes, null);
+        var second = new TestResource("second", closes, primary);
+        var third = new TestResource("third", closes, tailCloseFailure);
+        List<PreparedResource> unique = List.of(first, second, third);
+        var recorded = new ArrayList<PreparedResource>();
+        recorded.add(earlier);
+        recorded.addAll(unique.subList(0, adoptedCount));
+        List<PreparedResource> returned =
+                List.of(earlier, first, first, second, third, first, third);
+
+        BackendPartitionFinalizationHandoff.rollback(recorded, returned, primary);
+
+        assertEquals(List.of("third", "second", "first", "earlier"), closes);
+        assertEquals(List.of(tailCloseFailure, earlierCloseFailure),
+                List.of(primary.getSuppressed()));
+    }
+
     @Test
     void rollbackAttemptsAllAndPreservesSuppressionWithoutSelfSuppression() {
         Fixture fixture = fixture();

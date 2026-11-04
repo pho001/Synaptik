@@ -34,10 +34,12 @@ import java.util.Objects;
  * rejecting its first duplicate, including resources listed after the duplicate. Rejection
  * occurs before executable validation or any later finalizer call. Any duplicate rejection,
  * later finalization, association, or successful-handoff result construction failure closes all
- * tracked identities once in reverse order while preserving the triggering failure and
- * suppressing distinct cleanup failures without self-suppression. Producerless declarations
- * receive shared buffer assignments but no partition-finalizer assignment. The operation creates
- * immutable recipe associations only; it performs no physical allocation, initialization,
+ * returned identities once in reverse first-acquisition order while preserving the triggering
+ * failure and suppressing distinct cleanup failures without self-suppression. The complete current
+ * result stays reachable until adoption finishes, including if tracking allocation fails.
+ * Producerless declarations receive shared buffer assignments but no partition-finalizer
+ * assignment. The operation creates immutable recipe associations only; it performs no physical
+ * allocation, initialization,
  * materialization, per-run binding, execution, scheduling, transfer, or publication.</p>
  */
 final class BackendPartitionFinalizationHandoff {
@@ -75,7 +77,8 @@ final class BackendPartitionFinalizationHandoff {
      *
      * <p>Returned resources become transaction-owned before result validation. A duplicate
      * identity rejects its result only after every unique resource in that result has been
-     * tracked, so rollback also closes trailing resources. The first duplicate's indexed
+     * tracked, so rollback also closes trailing resources. Allocation failure during adoption likewise
+     * rolls back the entire returned bundle, not only its recorded prefix. The first duplicate's indexed
      * diagnostic remains primary even if cleanup fails; the rejected executable is not
      * validated or used and no later finalizer is called.</p>
      *
@@ -238,11 +241,13 @@ final class BackendPartitionFinalizationHandoff {
         var preparedPartitions = new ArrayList<PreparedPartition>(entries.size());
         var resources = new ArrayList<PreparedResource>();
         var observedResources = new IdentityHashMap<PreparedResource, Boolean>();
+        BackendPartitionFinalizationResult pending = null;
         try {
             for (int index = 0; index < invocations.size(); index++) {
-                BackendPartitionFinalizationResult result = Objects.requireNonNull(
-                        invocations.get(index).finalizePartition(),
-                        "entries[" + index + "].finalizer returned null");
+                String nullResultMessage = "entries[" + index + "].finalizer returned null";
+                pending = invocations.get(index).finalizePartition();
+                BackendPartitionFinalizationResult result =
+                        Objects.requireNonNull(pending, nullResultMessage);
                 int firstDuplicateResourceIndex = -1;
                 for (int resourceIndex = 0;
                         resourceIndex < result.resources().size();
@@ -256,6 +261,7 @@ final class BackendPartitionFinalizationHandoff {
                         resources.add(resource);
                     }
                 }
+                pending = null;
                 if (firstDuplicateResourceIndex >= 0) {
                     throw new IllegalArgumentException(
                             "entries[" + index + "].finalizer resources[" + firstDuplicateResourceIndex
@@ -276,7 +282,7 @@ final class BackendPartitionFinalizationHandoff {
                     workspaceAssignments,
                     resources);
         } catch (RuntimeException | Error failure) {
-            rollback(resources, failure);
+            rollback(resources, pending == null ? List.of() : pending.resources(), failure);
             throw failure;
         }
     }
@@ -446,14 +452,49 @@ final class BackendPartitionFinalizationHandoff {
         BackendPartitionFinalizationResult finalizePartition();
     }
 
+    /**
+     * Rolls back recorded owners and a possibly only partly adopted finalizer bundle.
+     * Identity scans on this exceptional path require no new tracking allocation.
+     *
+     * @param resources non-null unique owners already recorded in acquisition order
+     * @param pending non-null complete current bundle in acquisition order, possibly overlapping
+     *     recorded owners and containing duplicate identities
+     * @param primary non-null original failure receiving distinct cleanup failures
+     */
+    static void rollback(
+            List<? extends PreparedResource> resources,
+            List<? extends PreparedResource> pending,
+            Throwable primary) {
+        for (int index = pending.size() - 1; index >= 0; index--) {
+            PreparedResource resource = pending.get(index);
+            if (!containsIdentity(resources, resources.size(), resource)
+                    && !containsIdentity(pending, index, resource)) {
+                closeWithSuppression(resource, primary);
+            }
+        }
+        rollback(resources, primary);
+    }
+
+    private static boolean containsIdentity(
+            List<? extends PreparedResource> resources, int end, PreparedResource resource) {
+        for (int index = 0; index < end; index++) {
+            if (resources.get(index) == resource) return true;
+        }
+        return false;
+    }
+
     static void rollback(List<? extends PreparedResource> resources, Throwable primary) {
         for (int index = resources.size() - 1; index >= 0; index--) {
-            try {
-                resources.get(index).close();
-            } catch (RuntimeException | Error cleanupFailure) {
-                if (cleanupFailure != primary) {
-                    primary.addSuppressed(cleanupFailure);
-                }
+            closeWithSuppression(resources.get(index), primary);
+        }
+    }
+
+    private static void closeWithSuppression(PreparedResource resource, Throwable primary) {
+        try {
+            resource.close();
+        } catch (RuntimeException | Error cleanupFailure) {
+            if (cleanupFailure != primary) {
+                primary.addSuppressed(cleanupFailure);
             }
         }
     }

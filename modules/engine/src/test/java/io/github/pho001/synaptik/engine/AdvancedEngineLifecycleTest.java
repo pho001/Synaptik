@@ -405,6 +405,58 @@ final class AdvancedEngineLifecycleTest {
     }
 
     @Test
+    void shutdownDrainsRetainedOwnersWithoutAllocatingSnapshotsAndReplaysCleanupFailure() {
+        for (boolean failingCleanup : List.of(false, true)) {
+            var order = new ArrayList<String>();
+            var snapshotFailure = new OutOfMemoryError("shutdown snapshot allocation");
+            var primary = new OutOfMemoryError("second result cleanup");
+            var preparedFailure = new RuntimeException("first prepared cleanup");
+            var backendFailure = new AssertionError("backend cleanup");
+            AtomicInteger preparationIndex = new AtomicInteger();
+            RecordingComposition composition = new RecordingComposition(() -> {
+                int index = preparationIndex.incrementAndGet();
+                return resourceAndCreatedBufferExecution(
+                        new TestPreparedResource(
+                                failingCleanup && index == 1 ? preparedFailure : null,
+                                order, "prepared-" + index),
+                        (bytes, alignment) -> new TestBuffer(
+                                failingCleanup && index == 2 ? primary : null,
+                                order, "result-" + index));
+            });
+            composition.closeOrder = order;
+            composition.closeFailure = failingCleanup ? backendFailure : null;
+            AdvancedEngine engine = new AdvancedEngine(composition, composition::prepare);
+            ArrayList<AdvancedRunResult> results = unsnapshotableOwners(snapshotFailure);
+            ArrayList<AutoCloseable> preparations = unsnapshotableOwners(snapshotFailure);
+            replaceField(engine, "openResults", results);
+            replaceField(engine, "openPreparations", preparations);
+            var compiled = compile(engine, leaf().neg());
+            var firstPrepared = engine.prepare(compiled);
+            var secondPrepared = engine.prepare(compiled);
+            var firstResult = engine.run(firstPrepared, List.of());
+            var secondResult = engine.run(secondPrepared, List.of());
+
+            if (failingCleanup) {
+                assertSame(primary, assertThrows(OutOfMemoryError.class, engine::close));
+                assertArrayEquals(new Throwable[] {preparedFailure, backendFailure},
+                        primary.getSuppressed());
+                assertSame(primary, assertThrows(OutOfMemoryError.class, engine::close));
+            } else {
+                engine.close();
+                engine.close();
+            }
+            assertEquals(List.of("result-2", "result-1", "prepared-2", "prepared-1", "backend"),
+                    order);
+            assertTrue(results.isEmpty());
+            assertTrue(preparations.isEmpty());
+            assertTrue(firstResult.isClosed());
+            assertTrue(secondResult.isClosed());
+            assertTrue(firstPrepared.isClosed());
+            assertTrue(secondPrepared.isClosed());
+        }
+    }
+
+    @Test
     void closeRacingPreparedPublicationRollsBackTheUnpublishedExecution() throws Exception {
         CountDownLatch prepared = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
@@ -540,6 +592,21 @@ final class AdvancedEngineLifecycleTest {
     private static <T> ArrayList<T> rejectingPublications(Error failure) {
         return new ArrayList<>() {
             @Override public boolean add(T value) { throw failure; }
+        };
+    }
+
+    /**
+     * Models exhausted allocation at a retained-owner snapshot boundary while preserving the
+     * existing publication and removal operations.
+     *
+     * @param failure exact error raised if shutdown attempts a collection snapshot
+     * @param <T> retained owner type
+     * @return empty mutable ownership ledger that cannot be snapshotted
+     */
+    private static <T> ArrayList<T> unsnapshotableOwners(Error failure) {
+        return new ArrayList<>() {
+            @Override public Object[] toArray() { throw failure; }
+            @Override public <U> U[] toArray(U[] destination) { throw failure; }
         };
     }
 

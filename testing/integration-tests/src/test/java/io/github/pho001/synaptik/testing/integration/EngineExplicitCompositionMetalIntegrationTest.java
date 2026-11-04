@@ -2396,6 +2396,56 @@ final class EngineExplicitCompositionMetalIntegrationTest {
     }
 
     @Test
+    void sharedCallerInputTransfersOnlyItsReferencedPrefixForRunAndRunValues() {
+        Path library = configuredMetalLibrary();
+        try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
+            builder.takeOwnership(MetalBackendIntegration.open(
+                    new MetalBackendConfiguration(library)));
+            builder.takeOwnership(CpuBackendIntegration.open());
+            try (Engine engine = builder.build()) {
+                List<byte[]> expectedBits = null;
+                for (int capacity : new int[] {2, 3}) {
+                    double[] values = capacity == 2
+                            ? new double[] {-1.25, 2.5}
+                            : new double[] {-1.25, 2.5, Double.longBitsToDouble(0x7ff8000012345678L)};
+                    Tensor input = nativeDoubleTensor(Shape.of(2), arena, values);
+                    Tensor fresh = nativeDoubleTensor(Shape.of(2), arena, values);
+                    MixedFixture fixture = mixedFixtures(input, -1.25f, 2.5f).get(3);
+                    var compiled = engine.compile(fixture.outputs());
+                    assertMixedStructure(EngineMixedOwnerTestAccess.compileArtifacts(compiled), fixture);
+                    try (var prepared = engine.prepare(compiled)) {
+                        assertPreparedTransfers(prepared, fixture.transfers(), Shape.of(2));
+                        for (boolean positional : new boolean[] {false, true}) {
+                            Tensor caller = positional ? fresh : input;
+                            var storage = caller.hostStorage().orElseThrow();
+                            byte[] original = storage.segment().toArray(ValueLayout.JAVA_BYTE);
+                            try (var result = positional
+                                    ? engine.runValues(prepared, List.of(caller))
+                                    : engine.run(prepared, List.of(caller))) {
+                                assertMixedPublications(result, fixture.expected());
+                                var actualBits = new ArrayList<byte[]>();
+                                for (var publication : result.publications()) {
+                                    ByteBuffer bytes = result.materialize(publication, 16).bytes();
+                                    var bits = new byte[bytes.remaining()];
+                                    bytes.get(bits);
+                                    actualBits.add(bits);
+                                }
+                                if (expectedBits == null) expectedBits = actualBits;
+                                else for (int index = 0; index < expectedBits.size(); index++) {
+                                    assertArrayEquals(expectedBits.get(index), actualBits.get(index));
+                                }
+                            }
+                            assertTrue(storage.isAlive());
+                            assertEquals(capacity, storage.elementCapacity());
+                            assertArrayEquals(original, storage.segment().toArray(ValueLayout.JAVA_BYTE));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     void canonicalScalarTransfersRunInBothDirections() {
         Path library = configuredMetalLibrary();
         try (Arena arena = Arena.ofShared(); Engine.Builder builder = Engine.builder()) {
