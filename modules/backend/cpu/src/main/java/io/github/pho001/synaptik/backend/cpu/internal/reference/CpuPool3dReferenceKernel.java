@@ -4,6 +4,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool3dIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool3dLowering;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.Float8E4M3Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E5M2Bits;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.Arrays;
@@ -119,18 +121,21 @@ public final class CpuPool3dReferenceKernel {
                         long represented = bits(g, in,
                                 address(g.input().offset(), s, n, c, id, ih, iw));
                         float value = (float) decode(g, represented);
-                        allNegativeZero &= g.dataType() == DataType.FLOAT32
-                                ? (int) represented == Integer.MIN_VALUE
-                                : (represented & 0xffffL) == 0x8000L;
+                        allNegativeZero &= Float.floatToRawIntBits(value) == Integer.MIN_VALUE;
                         sum += value;
                     }
                 }
             }
             float result = sum / (float) g.divisor();
             if (result == 0.0f) result = allNegativeZero ? -0.0f : +0.0f;
-            long represented = g.dataType() == DataType.FLOAT32
-                    ? Float.floatToRawIntBits(result) & 0xffffffffL
-                    : BFloat16Bits.fromFloat(result) & 0xffffL;
+            long represented = switch (g.dataType()) {
+                case FLOAT32 -> Float.floatToRawIntBits(result) & 0xffffffffL;
+                case BFLOAT16 -> BFloat16Bits.fromFloat(result) & 0xffffL;
+                case FLOAT16 -> Float.floatToFloat16(result) & 0xffffL;
+                case FLOAT8_E4M3 -> Float8E4M3Bits.fromFloat(result) & 0xffL;
+                case FLOAT8_E5M2 -> Float8E5M2Bits.fromFloat(result) & 0xffL;
+                default -> throw new AssertionError();
+            };
             store(g, out, output, represented);
         }
     }
@@ -148,6 +153,9 @@ public final class CpuPool3dReferenceKernel {
             case FLOAT64 -> Double.doubleToRawLongBits(Double.NEGATIVE_INFINITY);
             case FLOAT32 -> Float.floatToRawIntBits(Float.NEGATIVE_INFINITY) & 0xffffffffL;
             case BFLOAT16 -> BFloat16Bits.fromFloat(Float.NEGATIVE_INFINITY) & 0xffffL;
+            case FLOAT16 -> 0xfc00L;
+            case FLOAT8_E4M3 -> 0x7fL;
+            case FLOAT8_E5M2 -> 0xfcL;
             default -> throw new AssertionError();
         };
     }
@@ -157,6 +165,9 @@ public final class CpuPool3dReferenceKernel {
             case FLOAT64 -> Double.longBitsToDouble(bits);
             case FLOAT32 -> Float.intBitsToFloat((int) bits);
             case BFLOAT16 -> BFloat16Bits.toFloat((short) bits);
+            case FLOAT16 -> Float.float16ToFloat((short) bits);
+            case FLOAT8_E4M3 -> Float8E4M3Bits.toFloat((byte) bits);
+            case FLOAT8_E5M2 -> Float8E5M2Bits.toFloat((byte) bits);
             default -> throw new AssertionError();
         };
     }
@@ -171,9 +182,11 @@ public final class CpuPool3dReferenceKernel {
                     ? Float.floatToRawIntBits(v[Math.toIntExact(address)]) & 0xffffffffL
                     : ((MemorySegment) carrier).get(ValueLayout.JAVA_INT_UNALIGNED, bytes)
                             & 0xffffffffL;
-            case BFLOAT16 -> carrier instanceof short[] v ? v[Math.toIntExact(address)] & 0xffffL
+            case BFLOAT16, FLOAT16 -> carrier instanceof short[] v ? v[Math.toIntExact(address)] & 0xffffL
                     : ((MemorySegment) carrier).get(ValueLayout.JAVA_SHORT_UNALIGNED, bytes)
                             & 0xffffL;
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> carrier instanceof byte[] v ? v[Math.toIntExact(address)] & 0xffL
+                    : ((MemorySegment) carrier).get(ValueLayout.JAVA_BYTE, bytes) & 0xffL;
             default -> throw new AssertionError();
         };
     }
@@ -188,8 +201,12 @@ public final class CpuPool3dReferenceKernel {
             case FLOAT32 -> { if (carrier instanceof float[] v)
                     v[Math.toIntExact(address)] = Float.intBitsToFloat((int) bits);
                 else ((MemorySegment) carrier).set(ValueLayout.JAVA_INT_UNALIGNED, bytes, (int) bits); }
-            case BFLOAT16 -> { if (carrier instanceof short[] v) v[Math.toIntExact(address)] = (short) bits;
+            case BFLOAT16, FLOAT16 -> { if (carrier instanceof short[] v) v[Math.toIntExact(address)] = (short) bits;
                 else ((MemorySegment) carrier).set(ValueLayout.JAVA_SHORT_UNALIGNED, bytes, (short) bits); }
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> {
+                if (carrier instanceof byte[] v) v[Math.toIntExact(address)] = (byte) bits;
+                else ((MemorySegment) carrier).set(ValueLayout.JAVA_BYTE, bytes, (byte) bits);
+            }
             default -> throw new AssertionError();
         }
     }
@@ -199,7 +216,8 @@ public final class CpuPool3dReferenceKernel {
         boolean valid = carrier instanceof MemorySegment || switch (g.dataType()) {
             case FLOAT64 -> carrier instanceof double[];
             case FLOAT32 -> carrier instanceof float[];
-            case BFLOAT16 -> carrier instanceof short[];
+            case BFLOAT16, FLOAT16 -> carrier instanceof short[];
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> carrier instanceof byte[];
             default -> false;
         };
         if (!valid) throw new IllegalArgumentException("Pool3d carrier type disagrees");
@@ -216,8 +234,10 @@ public final class CpuPool3dReferenceKernel {
                     : ((MemorySegment) carrier).byteSize() / Double.BYTES;
             case FLOAT32 -> carrier instanceof float[] v ? v.length
                     : ((MemorySegment) carrier).byteSize() / Float.BYTES;
-            case BFLOAT16 -> carrier instanceof short[] v ? v.length
+            case BFLOAT16, FLOAT16 -> carrier instanceof short[] v ? v.length
                     : ((MemorySegment) carrier).byteSize() / Short.BYTES;
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> carrier instanceof byte[] v ? v.length
+                    : ((MemorySegment) carrier).byteSize();
             default -> throw new AssertionError();
         };
         if (actual < required) throw new IllegalArgumentException("Pool3d carrier capacity disagrees");

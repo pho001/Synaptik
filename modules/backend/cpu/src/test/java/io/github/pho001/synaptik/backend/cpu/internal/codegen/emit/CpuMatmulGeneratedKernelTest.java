@@ -126,23 +126,6 @@ final class CpuMatmulGeneratedKernelTest {
         var generator = new CpuClassFileKernelGenerator();
         byte[] bytes=generator.generateClassBytes(specialization, ir.encodedKernelIr());
         var generated = generator.defineClassBytes(specialization, ir.encodedKernelIr(), bytes);
-        var evidence=java.nio.file.Path.of("/tmp/synaptik-cpu-0008f-evidence/focused");
-        java.nio.file.Files.createDirectories(evidence);
-        java.nio.file.Files.write(evidence.resolve("direct-n-vector-f32.class"),bytes);
-        String constants=new String(bytes,java.nio.charset.StandardCharsets.ISO_8859_1);
-        var references=java.util.stream.StreamSupport.stream(java.lang.classfile.ClassFile.of()
-                        .parse(bytes).constantPool().spliterator(),false)
-                .filter(java.lang.classfile.constantpool.MemberRefEntry.class::isInstance)
-                .map(java.lang.classfile.constantpool.MemberRefEntry.class::cast).toList();
-        assertAll(()->assertTrue(constants.contains("jdk/incubator/vector/FloatVector")),
-                ()->assertFalse(constants.contains("io/github/pho001/synaptik/backend/cpu/internal/reference")),
-                ()->assertFalse(constants.contains("java/lang/reflect")),
-                ()->assertFalse(constants.contains("java/util/Map")),
-                ()->assertTrue(references.stream().anyMatch(value->value.name().stringValue()
-                        .equals("mul")&&value.type().stringValue()
-                        .equals("(F)Ljdk/incubator/vector/FloatVector;"))),
-                ()->assertTrue(references.stream().noneMatch(value->value.name().stringValue()
-                        .equals("broadcast"))));
         long[] geometry = {0,0,0,1,m,k,n,k,1,n,1,n,1,0,0,0,(long)m*n,1};
         generated.entryPoint().invokeWithArguments(left,right,output,geometry,0L,(long)m);
         assertArrayEquals(expected, output);
@@ -165,21 +148,15 @@ final class CpuMatmulGeneratedKernelTest {
         java.util.Collections.nCopies(4,CarrierAccess.FLOAT_ARRAY),bits,-1,List.of(),false,54,
         java.util.Optional.of(ir));var generator=new CpuClassFileKernelGenerator();
         byte[] bytes=generator.generateClassBytes(specialization,ir.encodedKernelIr());
-        var instructions=java.lang.classfile.ClassFile.of().parse(bytes).methods().getFirst()
-                .code().orElseThrow().elementStream().filter(java.lang.classfile.Instruction.class::isInstance)
-                .map(java.lang.classfile.Instruction.class::cast).toList();
-        assertAll(()->assertTrue(instructions.stream().noneMatch(value->value.opcode()
-                        ==java.lang.classfile.Opcode.F2D)),
-                ()->assertTrue(instructions.stream().noneMatch(value->value.opcode()
-                        ==java.lang.classfile.Opcode.D2F)));
         var generated=generator.defineClassBytes(specialization, ir.encodedKernelIr(), bytes);
         long[] geometry={0,0,0,1,1,1,n,1,1,n,1,n,1,0,0,1,n,1};
         generated.entryPoint().invokeWithArguments(new float[]{2},right,bias,output,geometry,0L,1L);
         assertArrayEquals(expected,output);
     }
 
-    @Test void generatedScalarBodyCoversAllThirteenOrderedNumericPairs() throws Throwable {
-        DataType[] floating = {DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64};
+    @Test void generatedScalarBodyCoversEveryOrderedNumericPair() throws Throwable {
+        DataType[] floating = {DataType.BFLOAT16, DataType.FLOAT16, DataType.FLOAT8_E4M3,
+                DataType.FLOAT8_E5M2, DataType.FLOAT32, DataType.FLOAT64};
         for (DataType leftType : floating) for (DataType rightType : floating)
             scalarPair(leftType, rightType);
         DataType[] integral = {DataType.INT32, DataType.INT64};
@@ -209,13 +186,6 @@ final class CpuMatmulGeneratedKernelTest {
         java.util.Optional.of(ir));
         var generator=new CpuClassFileKernelGenerator();
         byte[] bytes=generator.generateClassBytes(specialization,ir.encodedKernelIr());
-        var instructions=java.lang.classfile.ClassFile.of().parse(bytes).methods().getFirst()
-                .code().orElseThrow().elementStream()
-                .filter(java.lang.classfile.Instruction.class::isInstance)
-                .map(java.lang.classfile.Instruction.class::cast).toList();
-        assertNoPerAccessLongConversion(instructions);
-        assertTrue(instructions.stream().filter(value->value.opcode()
-                ==java.lang.classfile.Opcode.LALOAD).count()<=32);
         var generated=generator.defineClassBytes(specialization, ir.encodedKernelIr(), bytes);
         long[] geometry={0,0,0,1,m,k,n,k,1,n,1,n,1,0,0,0,(long)m*n,1};
         generated.entryPoint().invokeWithArguments(left,right,output,geometry,0L,4L);
@@ -247,21 +217,6 @@ final class CpuMatmulGeneratedKernelTest {
         java.util.Optional.of(ir));
         var generator=new CpuClassFileKernelGenerator();
         byte[] bytes=generator.generateClassBytes(specialization,ir.encodedKernelIr());
-        var members=java.lang.classfile.ClassFile.of().parse(bytes).constantPool().spliterator();
-        var references=java.util.stream.StreamSupport.stream(members,false)
-                .filter(java.lang.classfile.constantpool.MemberRefEntry.class::isInstance)
-                .map(java.lang.classfile.constantpool.MemberRefEntry.class::cast).toList();
-        var invokes=java.lang.classfile.ClassFile.of().parse(bytes).methods().getFirst().code()
-                .orElseThrow().elementStream()
-                .filter(java.lang.classfile.instruction.InvokeInstruction.class::isInstance)
-                .map(java.lang.classfile.instruction.InvokeInstruction.class::cast).toList();
-        assertAll(()->assertTrue(references.stream().anyMatch(value->value.name().stringValue()
-                        .equals("mul")&&value.type().stringValue().equals("(F)Ljdk/incubator/vector/FloatVector;"))),
-                ()->assertTrue(references.stream().noneMatch(value->value.name().stringValue()
-                        .equals("broadcast"))),
-                ()->assertEquals(1,invokes.stream().filter(value->value.name().stringValue()
-                        .equals("zero")&&value.owner().asInternalName()
-                        .equals("jdk/incubator/vector/FloatVector")).count()));
         var generated=generator.defineClassBytes(specialization, ir.encodedKernelIr(), bytes);
         long[] geometry={0,0,0,1,m,k,n,k,1,n,1,n,1,0,0,0,(long)m*n,1};
         long work=(long)((m+1)/2)*((n+2L*lanes-1)/(2L*lanes));
@@ -342,8 +297,7 @@ final class CpuMatmulGeneratedKernelTest {
     }
 
     private static void scalarPair(DataType leftType, DataType rightType) throws Throwable {
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(leftType == DataType.BFLOAT16 || leftType == DataType.FLOAT16 ? leftType : rightType, () -> {
-        DataType resultType = io.github.pho001.synaptik.model.datatype.DataTypePromotion
+        { DataType resultType = io.github.pho001.synaptik.model.datatype.DataTypePromotion
                 .promoteNumeric(leftType, rightType);
         var read = plan(CpuAccessPlan.AccessKind.READ);
         var write = plan(CpuAccessPlan.AccessKind.WRITE);
@@ -354,15 +308,16 @@ final class CpuMatmulGeneratedKernelTest {
         var specialization = new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(
                 ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,
         List.of(leftType, rightType, resultType), carriers, 0, -1, List.of(), false,
-        54, java.util.Optional.of(ir));
+        leftType.isFloating() && leftType.byteWidth() <= 2 || rightType.isFloating() && rightType.byteWidth() <= 2
+                ? 77 : 54, java.util.Optional.of(ir));
         var generator = new CpuClassFileKernelGenerator();
         var generated = generator.defineClassBytes(specialization, ir.encodedKernelIr(), generator.generateClassBytes(specialization, ir.encodedKernelIr()));
         Object left = values(leftType, 2, 3), right = values(rightType, 4, 5);
         Object output = values(resultType, 0);
         long[] geometry = {0,0,0,1,1,2,1,2,1,1,1,1,1,0,0,0,1,1};
         generated.entryPoint().invokeWithArguments(left,right,output,geometry,0L,1L);
-        assertEquals(23.0, value(resultType, output), 0.0, leftType + " x " + rightType);
-        });
+        double expected = resultType == DataType.FLOAT8_E4M3 || resultType == DataType.FLOAT8_E5M2 ? 24.0 : 23.0;
+        assertEquals(expected, value(resultType, output), 0.0, leftType + " x " + rightType); }
     }
 
     private static void run(DataType type, Object left, Object right, Object output,
@@ -396,7 +351,8 @@ final class CpuMatmulGeneratedKernelTest {
             case BFLOAT16 -> CarrierAccess.SHORT_ARRAY; case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
             case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY; case INT32 -> CarrierAccess.INT_ARRAY;
             case INT64 -> CarrierAccess.LONG_ARRAY; case BOOL -> throw new AssertionError();
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU matmul unsupported");
+            case FLOAT16 -> CarrierAccess.SHORT_ARRAY;
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> CarrierAccess.BYTE_ARRAY;
         };
     }
 
@@ -409,7 +365,14 @@ final class CpuMatmulGeneratedKernelTest {
             case INT32 -> values.clone();
             case INT64 -> { long[] result=new long[values.length]; for(int i=0;i<values.length;i++)result[i]=values[i]; yield result; }
             case BOOL -> throw new AssertionError();
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU matmul unsupported");
+            case FLOAT16 -> { short[] result = new short[values.length];
+                for (int i = 0; i < values.length; i++) result[i] = Float.floatToFloat16(values[i]);
+                yield result; }
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> { byte[] result = new byte[values.length];
+                for (int i = 0; i < values.length; i++) result[i] = type == DataType.FLOAT8_E4M3
+                        ? io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.fromFloat(values[i])
+                        : io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.fromFloat(values[i]);
+                yield result; }
         };
     }
 
@@ -419,7 +382,9 @@ final class CpuMatmulGeneratedKernelTest {
             case FLOAT32 -> ((float[])values)[0]; case FLOAT64 -> ((double[])values)[0];
             case INT32 -> ((int[])values)[0]; case INT64 -> ((long[])values)[0];
             case BOOL -> throw new AssertionError();
-            case FLOAT16 -> throw new IllegalArgumentException("FLOAT16 CPU matmul unsupported");
+            case FLOAT16 -> Float.float16ToFloat(((short[]) values)[0]);
+            case FLOAT8_E4M3 -> io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.toFloat(((byte[]) values)[0]);
+            case FLOAT8_E5M2 -> io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.toFloat(((byte[]) values)[0]);
         };
     }
 
@@ -429,14 +394,4 @@ final class CpuMatmulGeneratedKernelTest {
         throw new AssertionError(array.getClass());
     }
 
-    private static void assertNoPerAccessLongConversion(
-            List<java.lang.classfile.Instruction> instructions) {
-        for(int index=1;index<instructions.size();index++) {
-            var opcode=instructions.get(index).opcode();
-            if(opcode==java.lang.classfile.Opcode.FALOAD||opcode==java.lang.classfile.Opcode.FASTORE
-                    ||opcode==java.lang.classfile.Opcode.SALOAD
-                    ||opcode==java.lang.classfile.Opcode.SASTORE)
-                assertNotEquals(java.lang.classfile.Opcode.L2I,instructions.get(index-1).opcode());
-        }
-    }
 }

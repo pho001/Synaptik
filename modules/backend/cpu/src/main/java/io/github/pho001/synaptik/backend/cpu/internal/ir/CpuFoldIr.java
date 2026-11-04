@@ -8,7 +8,7 @@ import java.util.Objects;
  * CPU-private structural identity for one zero-initialized overlap fold.
  * Concrete extents, offsets, strides, axes, windows, ranges, and carrier instances remain cold.
  * The addition policy fixes canonical sequential contributor order. FLOAT64/FLOAT32 keep their
- * represented precision; BFLOAT16/FLOAT16 use FLOAT32 accumulation and one final ties-to-even
+ * represented precision; all four low formats use FLOAT32 accumulation and one final ties-to-even
  * narrowing; integer addition is modular. A low-only version discriminator makes pre-repair
  * per-add-narrowing artifacts incompatible without changing nonlow identities.
  *
@@ -25,7 +25,7 @@ import java.util.Objects;
 public record CpuFoldIr(Family family, DataType dataType, CpuAccessPlan inputAccess,
         CpuAccessPlan outputAccess, int additionPolicy, boolean kernelBroadcastInput) implements CpuPortableKernelIr {
     /**
-     * Creates the ordinary materialized-input form without compact-input admission. Either low
+     * Creates the ordinary materialized-input form without compact-input admission. Every low
      * type still uses the versioned FLOAT32 accumulation policy described by this record.
      * @param family non-null fold family
      * @param dataType non-null represented type
@@ -48,7 +48,7 @@ public record CpuFoldIr(Family family, DataType dataType, CpuAccessPlan inputAcc
 
     /**
      * Identifies positive-zero initialization followed by canonical input-row-major sequential
-     * addition in the declared working precision: FLOAT32 for either low type, represented
+     * addition in the declared working precision: FLOAT32 for every low type, represented
      * precision for FLOAT32/FLOAT64, and modular integer arithmetic otherwise. Low results narrow
      * only after the last contributor; the low-only identity suffix versions that arithmetic.
      */
@@ -75,9 +75,8 @@ public record CpuFoldIr(Family family, DataType dataType, CpuAccessPlan inputAcc
                 || outputAccess.accessKind() != CpuAccessPlan.AccessKind.WRITE
                 || dataType == DataType.BOOL
                 || family == Family.FOLD2D
-                    && dataType != DataType.FLOAT64 && dataType != DataType.FLOAT32
-                    && dataType != DataType.BFLOAT16 && dataType != DataType.FLOAT16
-                || family == Family.FOLD3D && (dataType != DataType.FLOAT32 && dataType != DataType.FLOAT64
+                    && !dataType.isFloating()
+                || family == Family.FOLD3D && (!dataType.isFloating()
                     || inputAccess.iterationRank() != 3 || outputAccess.iterationRank() != 5)
                 || additionPolicy != CANONICAL_SEQUENTIAL_ADDITION
                 || kernelBroadcastInput && (family != Family.FOLD2D
@@ -104,7 +103,7 @@ public record CpuFoldIr(Family family, DataType dataType, CpuAccessPlan inputAcc
                 List.of(new CpuKernelIr.Store(1, 0)),
                 "fold:" + family + ":addition=" + additionPolicy
                         + (kernelBroadcastInput ? ":kernel-broadcast-input-v1" : "")
-                        + (dataType == DataType.BFLOAT16 || dataType == DataType.FLOAT16
+                        + (dataType.isFloating() && dataType.byteWidth() <= 2
                                 ? ":low-fp32-accumulation-v1" : ""));
     }
 

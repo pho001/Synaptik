@@ -3,6 +3,8 @@ package io.github.pho001.synaptik.backend.cpu.internal.reference;
 import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuPool2dIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuPool2dLowering;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E4M3Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E5M2Bits;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.Objects;
@@ -154,10 +156,14 @@ public final class CpuPool2dReferenceKernel {
             }
             float result = sum / (float) g.divisor();
             if (result == 0.0f) result = allNegativeZero ? -0.0f : +0.0f;
-            long represented =
-                    g.dataType() == io.github.pho001.synaptik.model.datatype.DataType.FLOAT32
-                            ? Float.floatToRawIntBits(result) & 0xffffffffL
-                            : BFloat16Bits.fromFloat(result) & 0xffffL;
+            long represented = switch (g.dataType()) {
+                case FLOAT32 -> Float.floatToRawIntBits(result) & 0xffffffffL;
+                case BFLOAT16 -> BFloat16Bits.fromFloat(result) & 0xffffL;
+                case FLOAT16 -> Float.floatToFloat16(result) & 0xffffL;
+                case FLOAT8_E4M3 -> Float8E4M3Bits.fromFloat(result) & 0xffL;
+                case FLOAT8_E5M2 -> Float8E5M2Bits.fromFloat(result) & 0xffL;
+                default -> throw new AssertionError();
+            };
             store(g, out, address, represented);
         }
     }
@@ -177,6 +183,9 @@ public final class CpuPool2dReferenceKernel {
             case FLOAT64 -> Double.doubleToRawLongBits(Double.NEGATIVE_INFINITY);
             case FLOAT32 -> Float.floatToRawIntBits(Float.NEGATIVE_INFINITY) & 0xffffffffL;
             case BFLOAT16 -> BFloat16Bits.fromFloat(Float.NEGATIVE_INFINITY) & 0xffffL;
+            case FLOAT16 -> 0xfc00L;
+            case FLOAT8_E4M3 -> 0x7fL;
+            case FLOAT8_E5M2 -> 0xfcL;
             default -> throw new AssertionError();
         };
     }
@@ -186,6 +195,9 @@ public final class CpuPool2dReferenceKernel {
             case FLOAT64 -> Double.longBitsToDouble(bits);
             case FLOAT32 -> Float.intBitsToFloat((int) bits);
             case BFLOAT16 -> BFloat16Bits.toFloat((short) bits);
+            case FLOAT16 -> Float.float16ToFloat((short) bits);
+            case FLOAT8_E4M3 -> Float8E4M3Bits.toFloat((byte) bits);
+            case FLOAT8_E5M2 -> Float8E5M2Bits.toFloat((byte) bits);
             default -> throw new AssertionError();
         };
     }
@@ -202,11 +214,14 @@ public final class CpuPool2dReferenceKernel {
                             ? Float.floatToRawIntBits(v[Math.toIntExact(a)]) & 0xffffffffL
                             : ((MemorySegment) carrier).get(ValueLayout.JAVA_INT_UNALIGNED, byteOffset)
                                     & 0xffffffffL;
-            case BFLOAT16 ->
+            case BFLOAT16, FLOAT16 ->
                     carrier instanceof short[] v
                             ? v[Math.toIntExact(a)] & 0xffffL
                             : ((MemorySegment) carrier).get(ValueLayout.JAVA_SHORT_UNALIGNED, byteOffset)
                                     & 0xffffL;
+            case FLOAT8_E4M3, FLOAT8_E5M2 ->
+                    carrier instanceof byte[] v ? v[Math.toIntExact(a)] & 0xffL
+                            : ((MemorySegment) carrier).get(ValueLayout.JAVA_BYTE, byteOffset) & 0xffL;
             default -> throw new AssertionError();
         };
     }
@@ -222,10 +237,14 @@ public final class CpuPool2dReferenceKernel {
                 if (carrier instanceof float[] v) v[Math.toIntExact(a)] = Float.intBitsToFloat((int) bits);
                 else ((MemorySegment) carrier).set(ValueLayout.JAVA_INT_UNALIGNED, byteOffset, (int) bits);
             }
-            case BFLOAT16 -> {
+            case BFLOAT16, FLOAT16 -> {
                 if (carrier instanceof short[] v) v[Math.toIntExact(a)] = (short) bits;
                 else
                     ((MemorySegment) carrier).set(ValueLayout.JAVA_SHORT_UNALIGNED, byteOffset, (short) bits);
+            }
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> {
+                if (carrier instanceof byte[] v) v[Math.toIntExact(a)] = (byte) bits;
+                else ((MemorySegment) carrier).set(ValueLayout.JAVA_BYTE, byteOffset, (byte) bits);
             }
             default -> throw new AssertionError();
         }
@@ -238,7 +257,8 @@ public final class CpuPool2dReferenceKernel {
                         || switch (g.dataType()) {
                             case FLOAT64 -> carrier instanceof double[];
                             case FLOAT32 -> carrier instanceof float[];
-                            case BFLOAT16 -> carrier instanceof short[];
+                            case BFLOAT16, FLOAT16 -> carrier instanceof short[];
+                            case FLOAT8_E4M3, FLOAT8_E5M2 -> carrier instanceof byte[];
                             default -> false;
                         };
         if (!ok) throw new IllegalArgumentException("Pool2d carrier type disagrees");
@@ -263,10 +283,13 @@ public final class CpuPool2dReferenceKernel {
                             carrier instanceof float[] values
                                     ? values.length
                                     : ((MemorySegment) carrier).byteSize() / Float.BYTES;
-                    case BFLOAT16 ->
+                    case BFLOAT16, FLOAT16 ->
                             carrier instanceof short[] values
                                     ? values.length
                                     : ((MemorySegment) carrier).byteSize() / Short.BYTES;
+                    case FLOAT8_E4M3, FLOAT8_E5M2 ->
+                            carrier instanceof byte[] values ? values.length
+                                    : ((MemorySegment) carrier).byteSize();
                     default -> throw new AssertionError();
                 };
         if (actualElements < requiredElements) {

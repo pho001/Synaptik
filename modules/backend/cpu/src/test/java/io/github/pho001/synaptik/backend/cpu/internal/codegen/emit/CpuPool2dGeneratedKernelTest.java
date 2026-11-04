@@ -17,6 +17,38 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class CpuPool2dGeneratedKernelTest {
+    @Test void fp8WindowsPreserveRawWinnersPaddingAndFinalAverageNarrowing() throws Throwable {
+        for (var type : List.of(DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2))
+            for (var kind : CpuPool2dIr.Kind.values())
+                for (boolean foreign : List.of(false, true)) {
+                    var access = foreign ? CarrierAccess.MEMORY_SEGMENT : CarrierAccess.BYTE_ARRAY;
+                    var f = fixture(type, kind, false, access, access);
+                    byte[] input = new byte[20], actual = new byte[15], expected = new byte[15];
+                    byte[] values = type == DataType.FLOAT8_E4M3
+                            ? new byte[]{(byte) 0xfe, (byte) 0x80, 0, 1, 0x38, 0x7e, (byte) 0xff}
+                            : new byte[]{(byte) 0xfb, (byte) 0x80, 0, 1, 0x3c, 0x7b, (byte) 0xff};
+                    for (int i = 0; i < input.length; i++) input[i] = values[i % values.length];
+                    CpuPool2dReferenceKernel.evaluate(f.geometry, input, expected, 0, 15);
+                    Object in = foreign ? MemorySegment.ofArray(input) : input;
+                    Object out = foreign ? MemorySegment.ofArray(actual) : actual;
+                    f.handle.invokeWithArguments(in, out, f.geometry.pack(0, 0), 7L, 15L);
+                    f.handle.invokeWithArguments(in, out, f.geometry.pack(0, 0), 0L, 7L);
+                    assertArrayEquals(expected, actual, type + "/" + kind);
+                    Arrays.fill(input, (byte) 0x80);
+                    f.handle.invokeWithArguments(in, out, f.geometry.pack(0, 0), 0L, 15L);
+                    assertEquals(kind == CpuPool2dIr.Kind.MAX ? (byte) 0x80 : (byte) 0, actual[1]);
+                    if (type == DataType.FLOAT8_E4M3 && kind == CpuPool2dIr.Kind.MAX) {
+                        Arrays.fill(input, (byte) 0xfe);
+                        f.handle.invokeWithArguments(in, out, f.geometry.pack(0, 0), 0L, 15L);
+                        assertEquals((byte) 0xfe, actual[1], "padding cannot poison a real -448 winner");
+                        assertEquals((byte) 0x7f, actual[0], "empty E4M3 maximum narrows -infinity to NaN");
+                        input[0] = (byte) 0x80;
+                        input[1] = 0;
+                        f.handle.invokeWithArguments(in, out, f.geometry.pack(0, 0), 0L, 15L);
+                        assertEquals((byte) 0, actual[1], "positive zero wins an exact zero tie");
+                    }
+                }
+    }
     @Test
     void arraysPreserveAllTypeAndSpecialValueSemantics() throws Throwable {
         for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64))
@@ -33,11 +65,6 @@ class CpuPool2dGeneratedKernelTest {
                                     List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT),
                                     List.of(arrayAccess(type), CarrierAccess.MEMORY_SEGMENT),
                                     List.of(CarrierAccess.MEMORY_SEGMENT, arrayAccess(type)))) {
-                        if (type == DataType.BFLOAT16 && kind == CpuPool2dIr.Kind.AVERAGE) {
-                            assertThrows(IllegalArgumentException.class, () -> fixture(type, kind,
-                                    true, carriers.get(0), carriers.get(1)), kind + "/" + carriers);
-                            continue;
-                        }
                         var f = fixture(type, kind, true, carriers.get(0), carriers.get(1));
                         Object input = carrier(type, carriers.get(0), arena, 80);
                         Object actual = carrier(type, carriers.get(1), arena, 96);
@@ -101,42 +128,39 @@ class CpuPool2dGeneratedKernelTest {
     void averageUsesNegativeZeroOnlyForAnAllNegativeZeroWindow() throws Throwable {
         for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64)) {
             for (boolean padded : List.of(true, false)) {
-                io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
-                        .assertNumericalOutcome(type, () -> {
-                            CarrierAccess access = arrayAccess(type);
-                            var fixture = fixture(type, CpuPool2dIr.Kind.AVERAGE, false, access, access);
-                            var geometry = padded ? fixture.geometry
-                                    : new CpuPool2dLowering.Geometry(
-                                            CpuPool2dIr.Kind.AVERAGE,
-                                            type,
-                                            new CpuPool2dLowering.Layout(
-                                                    new long[] {1, 1, 1, 2}, 0,
-                                                    new long[] {2, 2, 2, 1}),
-                                            new CpuPool2dLowering.Layout(
-                                                    new long[] {1, 1, 1, 1}, 0,
-                                                    new long[] {1, 1, 1, 1}),
-                                            1, 2, 1, 1, 0, 0, 1, 1, 2, 1);
-                            Object input = array(type, padded ? 20 : 2);
-                            Object output = array(type, padded ? 15 : 1);
-                            switch (type) {
-                                case BFLOAT16 ->
-                                        Arrays.fill((short[]) input, BFloat16Bits.fromFloat(-0.0f));
-                                case FLOAT32 -> Arrays.fill((float[]) input, -0.0f);
-                                case FLOAT64 -> Arrays.fill((double[]) input, -0.0d);
-                                default -> throw new AssertionError(type);
-                            }
-                            fixture.handle.invokeWithArguments(input, output, geometry.pack(0, 0),
-                                    0L, geometry.outputCount());
-                            switch (type) {
-                                case BFLOAT16 -> assertEquals(BFloat16Bits.fromFloat(
-                                        padded ? +0.0f : -0.0f), ((short[]) output)[0]);
-                                case FLOAT32 -> assertEquals(padded ? 0 : Integer.MIN_VALUE,
-                                        Float.floatToRawIntBits(((float[]) output)[0]));
-                                case FLOAT64 -> assertEquals(padded ? 0L : Long.MIN_VALUE,
-                                        Double.doubleToRawLongBits(((double[]) output)[0]));
-                                default -> throw new AssertionError(type);
-                            }
-                        });
+                { CarrierAccess access = arrayAccess(type);
+                var fixture = fixture(type, CpuPool2dIr.Kind.AVERAGE, false, access, access);
+                var geometry = padded ? fixture.geometry
+                        : new CpuPool2dLowering.Geometry(
+                                CpuPool2dIr.Kind.AVERAGE,
+                                type,
+                                new CpuPool2dLowering.Layout(
+                                        new long[] {1, 1, 1, 2}, 0,
+                                        new long[] {2, 2, 2, 1}),
+                                new CpuPool2dLowering.Layout(
+                                        new long[] {1, 1, 1, 1}, 0,
+                                        new long[] {1, 1, 1, 1}),
+                                1, 2, 1, 1, 0, 0, 1, 1, 2, 1);
+                Object input = array(type, padded ? 20 : 2);
+                Object output = array(type, padded ? 15 : 1);
+                switch (type) {
+                    case BFLOAT16 ->
+                            Arrays.fill((short[]) input, BFloat16Bits.fromFloat(-0.0f));
+                    case FLOAT32 -> Arrays.fill((float[]) input, -0.0f);
+                    case FLOAT64 -> Arrays.fill((double[]) input, -0.0d);
+                    default -> throw new AssertionError(type);
+                }
+                fixture.handle.invokeWithArguments(input, output, geometry.pack(0, 0),
+                        0L, geometry.outputCount());
+                switch (type) {
+                    case BFLOAT16 -> assertEquals(BFloat16Bits.fromFloat(
+                            padded ? +0.0f : -0.0f), ((short[]) output)[0]);
+                    case FLOAT32 -> assertEquals(padded ? 0 : Integer.MIN_VALUE,
+                            Float.floatToRawIntBits(((float[]) output)[0]));
+                    case FLOAT64 -> assertEquals(padded ? 0L : Long.MIN_VALUE,
+                            Double.doubleToRawLongBits(((double[]) output)[0]));
+                    default -> throw new AssertionError(type);
+                } }
             }
         }
     }
@@ -202,11 +226,6 @@ class CpuPool2dGeneratedKernelTest {
 
     private static void checkArray(DataType type, CpuPool2dIr.Kind kind) throws Throwable {
         CarrierAccess access = arrayAccess(type);
-        if (type == DataType.BFLOAT16 && kind == CpuPool2dIr.Kind.AVERAGE) {
-            assertThrows(IllegalArgumentException.class,
-                    () -> fixture(type, kind, false, access, access), type + "/" + kind);
-            return;
-        }
         var f = fixture(type, kind, false, access, access);
         Object input = array(type, 20), actual = array(type, 15), expected = array(type, 15);
         fillArray(type, input);
@@ -268,7 +287,7 @@ class CpuPool2dGeneratedKernelTest {
                 -1,
                 List.of(),
                 false,
-                55);
+                type.byteWidth() == 1 || kind == CpuPool2dIr.Kind.AVERAGE && type.byteWidth() == 2 ? 77 : 55);
         var generator = new CpuClassFileKernelGenerator();
         byte[] bytes = generator.generateClassBytes(specialization, ir);
         return new Fixture(

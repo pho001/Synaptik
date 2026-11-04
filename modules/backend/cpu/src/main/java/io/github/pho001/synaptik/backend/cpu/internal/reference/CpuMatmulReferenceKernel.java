@@ -4,6 +4,8 @@ import io.github.pho001.synaptik.backend.cpu.internal.ir.CpuMatmulIr;
 import io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuMatmulLowering;
 import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
 import io.github.pho001.synaptik.model.datatype.DataType;
+import io.github.pho001.synaptik.model.datatype.Float8E4M3Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E5M2Bits;
 import java.util.Objects;
 
 /** Optimal clean-Java full-K scalar oracle for portable MATMUL generated forms. */
@@ -66,7 +68,7 @@ public final class CpuMatmulReferenceKernel {
                         }
                         ((double[]) result)[Math.toIntExact(output)] = sum;
                     }
-                    case BFLOAT16, FLOAT16, FLOAT32 -> {
+                    case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, FLOAT32 -> {
                         float sum = 0.0f;
                         if (geometry.k() == 1) {
                             sum = (float) floating(geometry.leftType(), left, a)
@@ -83,7 +85,11 @@ public final class CpuMatmulReferenceKernel {
                         if (geometry.resultType() == DataType.FLOAT32) ((float[]) result)[address] = sum;
                         else if (geometry.resultType() == DataType.FLOAT16)
                             ((short[]) result)[address] = Float.floatToFloat16(sum);
-                        else ((short[]) result)[address] = BFloat16Bits.fromFloat(sum);
+                        else if (geometry.resultType() == DataType.BFLOAT16)
+                            ((short[]) result)[address] = BFloat16Bits.fromFloat(sum);
+                        else if (geometry.resultType() == DataType.FLOAT8_E4M3)
+                            ((byte[]) result)[address] = Float8E4M3Bits.fromFloat(sum);
+                        else ((byte[]) result)[address] = Float8E5M2Bits.fromFloat(sum);
                     }
                     case INT32 -> {
                         int sum = 0;
@@ -128,6 +134,8 @@ public final class CpuMatmulReferenceKernel {
             case FLOAT32 -> ((float[]) carrier)[index];
             case BFLOAT16 -> BFloat16Bits.toFloat(((short[]) carrier)[index]);
             case FLOAT16 -> Float.float16ToFloat(((short[]) carrier)[index]);
+            case FLOAT8_E4M3 -> Float8E4M3Bits.toFloat(((byte[]) carrier)[index]);
+            case FLOAT8_E5M2 -> Float8E5M2Bits.toFloat(((byte[]) carrier)[index]);
             default -> throw new IllegalArgumentException("floating MATMUL carrier type disagrees");
         };
     }
@@ -150,6 +158,7 @@ public final class CpuMatmulReferenceKernel {
             case FLOAT64 -> carrier instanceof double[];
             case FLOAT32 -> carrier instanceof float[];
             case BFLOAT16, FLOAT16 -> carrier instanceof short[];
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> carrier instanceof byte[];
             case INT32 -> carrier instanceof int[];
             case INT64 -> carrier instanceof long[];
             case BOOL -> false;

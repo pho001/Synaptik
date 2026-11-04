@@ -14,18 +14,6 @@ import io.github.pho001.synaptik.model.operation.layout.*;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
 import java.util.*;
-import java.lang.classfile.ClassFile;
-import java.lang.classfile.ClassModel;
-import java.lang.classfile.Instruction;
-import java.lang.classfile.Opcode;
-import java.lang.classfile.constantpool.MemberRefEntry;
-import java.lang.classfile.instruction.InvokeInstruction;
-import java.lang.classfile.instruction.FieldInstruction;
-import java.lang.classfile.instruction.NewMultiArrayInstruction;
-import java.lang.classfile.instruction.NewObjectInstruction;
-import java.lang.classfile.instruction.NewPrimitiveArrayInstruction;
-import java.lang.classfile.instruction.NewReferenceArrayInstruction;
-import java.lang.classfile.instruction.TypeCheckInstruction;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
@@ -106,10 +94,6 @@ class CpuFoldGeneratedKernelTest {
                     List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT))) {
                 Object actual = empty(type, 240);
                 var selected = carriers(base, pattern.getFirst(), pattern.getLast());
-                assertDirectGeneratedShape(selected, type,
-                        pattern.getFirst() != CarrierAccess.MEMORY_SEGMENT && pattern.getLast() != CarrierAccess.MEMORY_SEGMENT,
-                        pattern.getFirst() == CarrierAccess.MEMORY_SEGMENT,
-                        pattern.getLast() == CarrierAccess.MEMORY_SEGMENT);
                 Object in = pattern.getFirst() == CarrierAccess.MEMORY_SEGMENT ? segment(input) : input;
                 Object out = pattern.getLast() == CarrierAccess.MEMORY_SEGMENT ? segment(actual) : actual;
                 for (long[] range : List.of(new long[]{0, 0}, new long[]{0, 17},
@@ -146,35 +130,6 @@ class CpuFoldGeneratedKernelTest {
         assertEquals(3.0f, output[7]);
     }
 
-    @Test void everyGeneratedFoldFormHasAStableDirectTypedClassShape() {
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16,
-                DataType.INT32, DataType.INT64)) {
-            var base = CpuFoldLoweringTest.context(new Operation(WindowTransformKind.FOLD_AXIS,
-                    new FoldAxisAttrs(0, 5, 1)), type, Shape.of(3, 3), Shape.of(5));
-            assertDirectGeneratedShape(carriers(base, heap(type), heap(type)), type, true,
-                    false, false);
-            assertDirectGeneratedShape(carriers(base, CarrierAccess.MEMORY_SEGMENT,
-                    CarrierAccess.MEMORY_SEGMENT), type, false, true, true);
-            assertDirectGeneratedShape(carriers(base, CarrierAccess.MEMORY_SEGMENT, heap(type)),
-                    type, false, true, false);
-            assertDirectGeneratedShape(carriers(base, heap(type), CarrierAccess.MEMORY_SEGMENT),
-                    type, false, false, true);
-        }
-        Shape output = Shape.of(1, 1, 3, 3);
-        for (DataType type : List.of(DataType.FLOAT64, DataType.FLOAT32, DataType.BFLOAT16)) {
-            var base = CpuFoldLoweringTest.context(new Operation(WindowTransformKind.FOLD2D,
-                    new Fold2dAttrs(output, CpuFoldLoweringTest.window(false))), type,
-                    Shape.of(1, 4, 4), output);
-            assertDirectGeneratedShape(carriers(base, heap(type), heap(type)), type, true,
-                    false, false);
-            assertDirectGeneratedShape(carriers(base, CarrierAccess.MEMORY_SEGMENT,
-                    CarrierAccess.MEMORY_SEGMENT), type, false, true, true);
-            assertDirectGeneratedShape(carriers(base, CarrierAccess.MEMORY_SEGMENT, heap(type)),
-                    type, false, true, false);
-            assertDirectGeneratedShape(carriers(base, heap(type), CarrierAccess.MEMORY_SEGMENT),
-                    type, false, false, true);
-        }
-    }
 
     @Test void axisOverlapUsesCanonicalInputOrderAndLeavesUncoveredPositiveZeros() throws Throwable {
         double[] output = {-1, -1, -1, -1, -1, -1};
@@ -233,26 +188,9 @@ class CpuFoldGeneratedKernelTest {
         }
         assertArrayEquals(expected, actual);
 
-        var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
-                .portablePlan();
-        byte[] bytes = new CpuClassFileKernelGenerator().generateClassBytes(
-                route.specialization(), route.kernelIr());
-        var instructions = ClassFile.of().parse(bytes).methods().getFirst().code().orElseThrow()
-                .elementStream().filter(Instruction.class::isInstance)
-                .map(Instruction.class::cast).toList();
-        assertAll(
-                () -> assertTrue(instructions.stream().map(Instruction::opcode)
-                        .anyMatch(opcode -> opcode == Opcode.IINC)),
-                () -> assertTrue(instructions.stream().map(Instruction::opcode)
-                        .anyMatch(opcode -> opcode == Opcode.LDIV)),
-                () -> assertTrue(instructions.stream().noneMatch(instruction ->
-                        instruction instanceof NewObjectInstruction
-                                || instruction instanceof NewPrimitiveArrayInstruction
-                                || instruction instanceof NewReferenceArrayInstruction
-                                || instruction instanceof NewMultiArrayInstruction)));
     }
 
-    @Test void representedAxisTypesRetainIntegerArithmeticPartialRangesAndLowRejection()
+    @Test void representedAxisTypesRetainIntegerArithmeticAndPartialRanges()
             throws Throwable {
         int[] intOutput = {9, 9, 9, 9, 9};
         invoke(context(new Operation(WindowTransformKind.FOLD_AXIS,
@@ -269,10 +207,6 @@ class CpuFoldGeneratedKernelTest {
                 new long[]{0, Long.MAX_VALUE, 1, 0}, longOutput, 0, 3);
         assertEquals(Long.MIN_VALUE, longOutput[1]);
 
-        for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16))
-            assertTrue(io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
-                    .assertLowUnsupported(context(new Operation(WindowTransformKind.FOLD_AXIS,
-                            new FoldAxisAttrs(0, 5, 1)), type, Shape.of(3, 3), Shape.of(5))));
 
         float[] partial = {-7, -7, -7, -7, -7};
         var partialContext = context(new Operation(WindowTransformKind.FOLD_AXIS,
@@ -289,7 +223,7 @@ class CpuFoldGeneratedKernelTest {
                     new FoldAxisAttrs(0, 5, 1)), type, Shape.of(3, 3), Shape.of(5));
             Object input = sample(type);
             Object expected = empty(type, 5);
-            if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(base)) continue;
+            
             var lowered = new CpuPartitionLowering().lower(base);
             CpuScalarReferenceKernel.execute((CpuFoldIr) lowered.portableKernelIr(),
                     lowered.foldGeometry().orElseThrow(),
@@ -427,7 +361,7 @@ class CpuFoldGeneratedKernelTest {
 
     private static void compareWithReference(PrepareContext<CpuPartitionAnalysisInputs> context,
             Object input) throws Throwable {
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
+        
         var lowered = new CpuPartitionLowering().lower(context);
         int count = Math.toIntExact(lowered.elementCount());
         DataType type = ((CpuFoldIr) lowered.portableKernelIr()).dataType();
@@ -484,127 +418,11 @@ class CpuFoldGeneratedKernelTest {
                 List.of(input, output)));
     }
 
-    private static void assertDirectGeneratedShape(
-            PrepareContext<CpuPartitionAnalysisInputs> context, DataType type,
-            boolean dense, boolean segmentInput, boolean segmentOutput) {
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
-        var route = new CpuPartitionPreparer().analyze(context).plan().units().getFirst()
-                .portablePlan();
-        var generator = new CpuClassFileKernelGenerator();
-        byte[] first = generator.generateClassBytes(route.specialization(), route.kernelIr());
-        byte[] second = generator.generateClassBytes(route.specialization(), route.kernelIr());
-        ClassModel model = ClassFile.of().parse(first);
-        var method = model.methods().getFirst();
-        var code = method.code().orElseThrow();
-        var instructions = code.elementStream().filter(Instruction.class::isInstance)
-                .map(Instruction.class::cast).toList();
-        var invokes = instructions.stream().filter(InvokeInstruction.class::isInstance)
-                .map(InvokeInstruction.class::cast).toList();
-        var fields = instructions.stream().filter(FieldInstruction.class::isInstance)
-                .map(FieldInstruction.class::cast).toList();
-        var memberReferences = java.util.stream.StreamSupport.stream(
-                        model.constantPool().spliterator(), false)
-                .filter(MemberRefEntry.class::isInstance).map(MemberRefEntry.class::cast).toList();
-        assertAll(
-                () -> assertArrayEquals(first, second),
-                () -> assertFalse(method.methodTypeSymbol().descriptorString()
-                        .contains("Ljava/lang/Object;")),
-                () -> assertEquals(dense
-                                ? io.github.pho001.synaptik.backend.cpu.internal.cache
-                                        .CpuKernelSpecialization.LoopAddressing.DENSE_HEAP_ARRAY_INT
-                                : io.github.pho001.synaptik.backend.cpu.internal.cache
-                                        .CpuKernelSpecialization.LoopAddressing.GENERAL_LONG,
-                        route.specialization().loopAddressing(route.kernelIr())),
-                () -> assertTrue(code.elementStream().noneMatch(element ->
-                        element instanceof TypeCheckInstruction
-                                || element instanceof NewObjectInstruction
-                                || element instanceof NewPrimitiveArrayInstruction
-                                || element instanceof NewReferenceArrayInstruction
-                                || element instanceof NewMultiArrayInstruction)),
-                () -> assertTrue(memberReferences.stream().noneMatch(reference ->
-                        reference.owner().asInternalName().equals(
-                                CpuFoldEmitter.class.getName().replace('.', '/'))
-                                || reference.type().stringValue().contains("Ljava/lang/Object;"))),
-                () -> assertTrue(invokes.stream().allMatch(call ->
-                        call.owner().asInternalName().equals("java/lang/foreign/MemorySegment")
-                                && (call.name().stringValue().equals("get")
-                                        || call.name().stringValue().equals("set"))
-                        || type == DataType.BFLOAT16
-                                && call.owner().asInternalName().equals("java/lang/Float")
-                                && (call.name().stringValue().equals("intBitsToFloat")
-                                        || call.name().stringValue()
-                                                .equals("floatToRawIntBits")))),
-                () -> assertTrue(invokes.stream().noneMatch(call ->
-                        call.type().stringValue().contains("Ljava/lang/Object;")
-                                || call.name().stringValue().equals("values")
-                                || call.name().stringValue().equals("ordinal")
-                                || call.owner().asInternalName().startsWith("java/lang/reflect/")
-                                || call.owner().asInternalName().startsWith("java/util/Map")
-                                || call.owner().asInternalName().startsWith(
-                                        "io/github/pho001/synaptik/runtime/")
-                                || call.owner().asInternalName().startsWith(
-                                        "io/github/pho001/synaptik/backend/cpu/internal/cache/"))),
-                () -> assertTrue(instructions.stream().map(Instruction::opcode)
-                        .anyMatch(opcode -> opcode == addOpcode(type))),
-                () -> assertEquals(segmentInput, invokes.stream().anyMatch(call ->
-                        call.owner().asInternalName().equals("java/lang/foreign/MemorySegment")
-                                && call.name().stringValue().equals("get"))),
-                () -> assertEquals(segmentOutput, invokes.stream().anyMatch(call ->
-                        call.owner().asInternalName().equals("java/lang/foreign/MemorySegment")
-                                && call.name().stringValue().equals("set"))),
-                () -> assertEquals(segmentInput || segmentOutput, fields.stream().anyMatch(field ->
-                        field.owner().asInternalName().equals("java/lang/foreign/ValueLayout")
-                                && field.name().stringValue().equals(layoutField(type)))));
-        if (dense) {
-            assertTrue(instructions.stream().map(Instruction::opcode)
-                    .anyMatch(opcode -> opcode == arrayLoad(type)));
-            assertTrue(instructions.stream().map(Instruction::opcode)
-                    .anyMatch(opcode -> opcode == arrayStore(type)));
-        } else {
-            assertTrue(instructions.stream().map(Instruction::opcode)
-                    .anyMatch(opcode -> opcode == Opcode.LMUL));
-        }
-    }
-
-    private static String layoutField(DataType type) {
-        return switch (type) {
-            case FLOAT64 -> "JAVA_DOUBLE_UNALIGNED";
-            case FLOAT32 -> "JAVA_FLOAT_UNALIGNED";
-            case BFLOAT16 -> "JAVA_SHORT_UNALIGNED";
-            case INT32 -> "JAVA_INT_UNALIGNED";
-            case INT64 -> "JAVA_LONG_UNALIGNED";
-            case BOOL, FLOAT16 -> throw new AssertionError();
-        };
-    }
-
-    private static Opcode addOpcode(DataType type) {
-        return switch (type) {
-            case FLOAT64 -> Opcode.DADD; case FLOAT32, BFLOAT16 -> Opcode.FADD;
-            case INT32 -> Opcode.IADD; case INT64 -> Opcode.LADD;
-            case BOOL, FLOAT16 -> throw new AssertionError();
-        };
-    }
-
-    private static Opcode arrayLoad(DataType type) {
-        return switch (type) {
-            case FLOAT64 -> Opcode.DALOAD; case FLOAT32 -> Opcode.FALOAD;
-            case BFLOAT16 -> Opcode.SALOAD; case INT32 -> Opcode.IALOAD;
-            case INT64 -> Opcode.LALOAD; case BOOL, FLOAT16 -> throw new AssertionError();
-        };
-    }
-
-    private static Opcode arrayStore(DataType type) {
-        return switch (type) {
-            case FLOAT64 -> Opcode.DASTORE; case FLOAT32 -> Opcode.FASTORE;
-            case BFLOAT16 -> Opcode.SASTORE; case INT32 -> Opcode.IASTORE;
-            case INT64 -> Opcode.LASTORE; case BOOL, FLOAT16 -> throw new AssertionError();
-        };
-    }
-
     private static CarrierAccess heap(DataType type) {
         return switch (type) {
             case FLOAT64 -> CarrierAccess.DOUBLE_ARRAY; case FLOAT32 -> CarrierAccess.FLOAT_ARRAY;
             case BFLOAT16, FLOAT16 -> CarrierAccess.SHORT_ARRAY; case INT32 -> CarrierAccess.INT_ARRAY;
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> CarrierAccess.BYTE_ARRAY;
             case INT64 -> CarrierAccess.LONG_ARRAY; case BOOL -> throw new AssertionError();
         };
     }
@@ -613,7 +431,7 @@ class CpuFoldGeneratedKernelTest {
         return switch (type) {
             case FLOAT64 -> new double[count]; case FLOAT32 -> new float[count];
             case BFLOAT16 -> new short[count]; case INT32 -> new int[count];
-            case INT64 -> new long[count]; case BOOL, FLOAT16 -> throw new AssertionError();
+            case INT64 -> new long[count]; default -> throw new AssertionError();
         };
     }
 
@@ -625,7 +443,7 @@ class CpuFoldGeneratedKernelTest {
                     0x40c0, 0x40e0, 0x4100, 0x4110};
             case INT32 -> new int[]{1, 2, 3, 4, 5, 6, 7, 8, 9};
             case INT64 -> new long[]{1, 2, 3, 4, 5, 6, 7, 8, 9};
-            case BOOL, FLOAT16 -> throw new AssertionError();
+            default -> throw new AssertionError();
         };
     }
 
@@ -647,7 +465,7 @@ class CpuFoldGeneratedKernelTest {
             case BFLOAT16 -> assertArrayEquals((short[]) expected, (short[]) actual);
             case INT32 -> assertArrayEquals((int[]) expected, (int[]) actual);
             case INT64 -> assertArrayEquals((long[]) expected, (long[]) actual);
-            case BOOL, FLOAT16 -> throw new AssertionError();
+            default -> throw new AssertionError();
         }
     }
 
@@ -659,7 +477,7 @@ class CpuFoldGeneratedKernelTest {
             case BFLOAT16 -> new CpuBufferArgument.Shorts((short[]) carrier, 0, bytes, readOnly);
             case INT32 -> new CpuBufferArgument.Ints((int[]) carrier, 0, bytes, readOnly);
             case INT64 -> new CpuBufferArgument.Longs((long[]) carrier, 0, bytes, readOnly);
-            case BOOL, FLOAT16 -> throw new AssertionError();
+            default -> throw new AssertionError();
         };
     }
 

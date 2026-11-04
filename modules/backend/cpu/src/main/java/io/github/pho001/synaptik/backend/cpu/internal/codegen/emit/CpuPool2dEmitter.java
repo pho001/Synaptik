@@ -18,6 +18,8 @@ import java.lang.constant.MethodTypeDesc;
  * typed array or segment access, visits each cell's full dilated window, and writes that cell once.
  * The emitter does not allocate window storage, split a window across workers, or call a
  * Synaptik-owned numerical helper.
+ * Low averages accumulate in FLOAT32 and narrow once. Maxima retain the original selected bits;
+ * a first-contributor flag keeps E4M3's empty-window NaN identity out of nonempty comparisons.
  *
  * <p>Controlled entries guard each full logical output ordinal using proved boundary ROW facts
  * before traversing a window or loading a primal. Inactive original rows store represented
@@ -48,9 +50,9 @@ public final class CpuPool2dEmitter {
                 || specialization.carrierPattern().size() != 2
                 || specialization.boundaryDataTypes().size() != 2
                 || specialization.boundaryDataTypes().get(1) != type
-                || type != DataType.BFLOAT16 && type != DataType.FLOAT16
-                        && type != DataType.FLOAT32 && type != DataType.FLOAT64
-                || specialization.classIdentitySchema() != 55
+                || !type.isFloating()
+                || specialization.classIdentitySchema() != (type.byteWidth() == 1
+                        || average && type.byteWidth() == 2 ? 77 : 55)
                 || !ir.familyIdentity().contains(":type=" + type + ":")
                 || !ir.familyIdentity().endsWith(":realization=DIRECT_SCALAR")
                 || specialization.executionStrategy().compute()
@@ -303,10 +305,11 @@ public final class CpuPool2dEmitter {
         zero(code, type);
         storeValue(code, type, sum);
         code.labelBinding(store);
-        if (type == DataType.BFLOAT16 || type == DataType.FLOAT16) {
-            int result = code.allocateLocal(TypeKind.DOUBLE);
-            code.fload(sum).f2d().dstore(result);
-            CpuNormEmitter.emitStore(code, carriers, s, type, 1, output, result, false, true);
+        if (type.byteWidth() <= 2) {
+            int result = code.allocateLocal(TypeKind.INT);
+            CpuCastEmitter.emitFloatToLow(code, type, sum);
+            code.istore(result);
+            carriers.storeFrozen(type, s.carrierPattern().get(1), 1, output, result, false);
         } else carriers.storeFrozen(type, s.carrierPattern().get(1), 1, output, sum, false);
     }
 
@@ -375,21 +378,15 @@ public final class CpuPool2dEmitter {
         if (t == DataType.FLOAT64) c.dload(represented).dstore(value);
         else if (t == DataType.FLOAT32) c.fload(represented).fstore(value);
         else if (t == DataType.FLOAT16)
-            c.iload(represented).i2s()
-                    .invokestatic(
-                            FLOAT,
-                            "float16ToFloat",
-                            MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short))
-                    .fstore(value);
-        else
-            c.iload(represented)
-                    .loadConstant(16)
-                    .ishl()
-                    .invokestatic(
-                            FLOAT,
-                            "intBitsToFloat",
-                            MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int))
-                    .fstore(value);
+            c.iload(represented).i2s().invokestatic(FLOAT, "float16ToFloat",
+                    MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short)).fstore(value);
+        else if (t == DataType.BFLOAT16)
+            c.iload(represented).loadConstant(16).ishl().invokestatic(FLOAT, "intBitsToFloat",
+                    MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int)).fstore(value);
+        else {
+            CpuCastEmitter.emitLowToFloat(c, t, represented);
+            c.fstore(value);
+        }
     }
 
     private static CodeBuilder loadValue(CodeBuilder c, DataType t, int v) {
@@ -477,9 +474,9 @@ public final class CpuPool2dEmitter {
                     .branch(Opcode.IF_ICMPEQ, negative);
         else
             c.iload(represented)
-                    .loadConstant(0xffff)
+                    .loadConstant(t.byteWidth() == 1 ? 0xff : 0xffff)
                     .iand()
-                    .loadConstant(0x8000)
+                    .loadConstant(t.byteWidth() == 1 ? 0x80 : 0x8000)
                     .branch(Opcode.IF_ICMPEQ, negative);
         c.loadConstant(0).istore(flag).labelBinding(negative);
     }
@@ -487,6 +484,12 @@ public final class CpuPool2dEmitter {
     private static void negativeInfinity(CodeBuilder c, DataType t, int target) {
         if (t == DataType.FLOAT64) c.loadConstant(Double.NEGATIVE_INFINITY).dstore(target);
         else if (t == DataType.FLOAT32) c.loadConstant(Float.NEGATIVE_INFINITY).fstore(target);
-        else c.loadConstant(t == DataType.FLOAT16 ? 0xfc00 : 0xff80).istore(target);
+        else c.loadConstant(switch (t) {
+            case FLOAT16 -> 0xfc00;
+            case BFLOAT16 -> 0xff80;
+            case FLOAT8_E4M3 -> 0x7f;
+            case FLOAT8_E5M2 -> 0xfc;
+            default -> throw new IllegalArgumentException("unsupported pooling type");
+        }).istore(target);
     }
 }

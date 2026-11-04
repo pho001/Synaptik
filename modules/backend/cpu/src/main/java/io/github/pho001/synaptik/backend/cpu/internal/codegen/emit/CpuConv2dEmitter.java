@@ -17,13 +17,13 @@ import java.lang.constant.ConstantDescs;
  * <p>The generated body traverses input channels within the selected group, kernel height, and
  * kernel width in increasing logical order. It loads every weight contribution, represents an
  * out-of-range input coordinate as positive zero before ordinary multiplication, accumulates in
- * FLOAT64 or FLOAT32 as selected by the output type, and narrows either low type only at the final store.
+ * FLOAT64 or FLOAT32 as selected by the output type, and narrows every low type only at the final store.
  * No Synaptik method is called by generated hot work. The schema-63 vector form is limited to
  * same-typed dense FLOAT32 or FLOAT64 direct convolution without an external epilogue. Only the
  * width stride and width dilation must be one; non-width stride and dilation remain eligible.
  * Preferred-species chunks cover complete in-bounds output-width cells, while padding borders,
  * worker-range fragments, and tails use the same ordered scalar-cell semantics. Every other form,
- * including BFLOAT16, FLOAT16, short or interior-free widths, and non-dense access, remains scalar.</p>
+ * including all low formats, short or interior-free widths, and non-dense access, remains scalar.</p>
  *
  * <p>Controlled scalar entries use the proved output-boundary ROW provenance and full logical
  * output ordinal before any operand load. Inactive cells publish positive zero without evaluating
@@ -825,16 +825,9 @@ public final class CpuConv2dEmitter {
             CpuNormEmitter.decodeRepresented(code, type, represented, decoded);
         } else if (type == DataType.FLOAT32) {
             code.fload(represented).fstore(decoded);
-        } else if (type == DataType.FLOAT16) {
-            code.iload(represented).i2s().invokestatic(
-                    ClassDesc.of(Float.class.getName()), "float16ToFloat",
-                    MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short))
-                    .fstore(decoded);
         } else {
-            code.iload(represented).loadConstant(16).ishl().invokestatic(
-                    ClassDesc.of(Float.class.getName()), "intBitsToFloat",
-                    MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int))
-                    .fstore(decoded);
+            CpuCastEmitter.emitLowToFloat(code, type, represented);
+            code.fstore(decoded);
         }
     }
 

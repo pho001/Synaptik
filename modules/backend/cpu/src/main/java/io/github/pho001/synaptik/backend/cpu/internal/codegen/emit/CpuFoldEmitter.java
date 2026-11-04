@@ -16,7 +16,7 @@ import java.lang.constant.MethodTypeDesc;
  * Emits carrier-, type-, family-, and access-specialized overlap-fold loops directly into
  * generated CPU classes. Each owned output starts at represented positive zero, scans logical
  * input occurrences in canonical row-major order, and is stored exactly once. FLOAT64/FLOAT32
- * additions retain their represented precision, BFLOAT16/FLOAT16 accumulate exact decoded
+ * additions retain their represented precision, all four low formats accumulate exact decoded
  * contributions in FLOAT32 and narrow once at the output store, and
  * INT32/INT64 additions remain modular. Direct segment access uses the predefined native-order
  * unaligned layouts. One guarded mixed-carrier FLOAT32 FOLD2D form accepts only the frozen
@@ -47,7 +47,6 @@ import java.lang.constant.MethodTypeDesc;
  * never from a physical carrier address.</p>
  */
 public final class CpuFoldEmitter {
-    private static final ClassDesc FLOAT_CLASS = ClassDesc.of(Float.class.getName());
     private static final ClassDesc SEGMENT = ClassDesc.of("java.lang.foreign.MemorySegment");
     private static final ClassDesc VALUE_LAYOUT = ClassDesc.of("java.lang.foreign.ValueLayout");
     private static final ClassDesc DOUBLE_LAYOUT =
@@ -56,6 +55,8 @@ public final class CpuFoldEmitter {
             ClassDesc.of("java.lang.foreign.ValueLayout$OfFloat");
     private static final ClassDesc SHORT_LAYOUT =
             ClassDesc.of("java.lang.foreign.ValueLayout$OfShort");
+    private static final ClassDesc BYTE_LAYOUT =
+            ClassDesc.of("java.lang.foreign.ValueLayout$OfByte");
     private static final ClassDesc INT_LAYOUT =
             ClassDesc.of("java.lang.foreign.ValueLayout$OfInt");
     private static final ClassDesc LONG_LAYOUT =
@@ -696,7 +697,7 @@ public final class CpuFoldEmitter {
         loadValue(code, type, left); loadValue(code, type, right);
         switch (type) {
             case FLOAT64 -> code.dadd();
-            case FLOAT32, BFLOAT16, FLOAT16 -> code.fadd();
+            case FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> code.fadd();
             case INT32 -> code.iadd();
             case INT64 -> code.ladd();
             case BOOL -> throw new IllegalArgumentException("BOOL fold is unsupported");
@@ -705,7 +706,7 @@ public final class CpuFoldEmitter {
     }
 
     /**
-     * Loads storage and exactly decodes either low format to FLOAT32 on the operand stack.
+     * Loads storage and exactly decodes every low format to FLOAT32 on the operand stack.
      * @param code non-null generation-time body builder
      * @param carriers non-null direct carrier emitter
      * @param type non-null admitted boundary type; storage width remains unchanged
@@ -724,12 +725,10 @@ public final class CpuFoldEmitter {
             code.invokeinterface(SEGMENT, "get", MethodTypeDesc.of(primitive(type), layoutClass(type),
                     ConstantDescs.CD_long));
         }
-        if (type == DataType.BFLOAT16) {
-            code.loadConstant(16).ishl().invokestatic(FLOAT_CLASS, "intBitsToFloat",
-                    MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_int));
-        } else if (type == DataType.FLOAT16) {
-            code.i2s().invokestatic(FLOAT_CLASS, "float16ToFloat",
-                    MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short));
+        if (type.isFloating() && type.byteWidth() <= 2) {
+            int raw = code.allocateLocal(TypeKind.INT);
+            code.istore(raw);
+            CpuCastEmitter.emitLowToFloat(code, type, raw);
         }
     }
 
@@ -748,10 +747,10 @@ public final class CpuFoldEmitter {
     private static void storeCarrier(CodeBuilder code, CpuCarrierEmitter carriers, DataType type,
             CarrierAccess access, int parameterSlot, int addressLocal, int valueLocal,
             boolean intAddress) {
-        boolean low = type == DataType.BFLOAT16 || type == DataType.FLOAT16;
+        boolean low = type.isFloating() && type.byteWidth() <= 2;
         if (low) {
             int represented = code.allocateLocal(TypeKind.INT);
-            new CpuCastEmitter(code).emit(DataType.FLOAT32, type, valueLocal);
+            CpuCastEmitter.emitFloatToLow(code, type, valueLocal);
             code.istore(represented);
             valueLocal = represented;
         }
@@ -778,6 +777,7 @@ public final class CpuFoldEmitter {
             case FLOAT64 -> "JAVA_DOUBLE_UNALIGNED";
             case FLOAT32 -> "JAVA_FLOAT_UNALIGNED";
             case BFLOAT16, FLOAT16 -> "JAVA_SHORT_UNALIGNED";
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> "JAVA_BYTE";
             case INT32 -> "JAVA_INT_UNALIGNED";
             case INT64 -> "JAVA_LONG_UNALIGNED";
             case BOOL -> throw new IllegalArgumentException("BOOL fold is unsupported");
@@ -789,6 +789,7 @@ public final class CpuFoldEmitter {
             case FLOAT64 -> DOUBLE_LAYOUT;
             case FLOAT32 -> FLOAT_LAYOUT;
             case BFLOAT16, FLOAT16 -> SHORT_LAYOUT;
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> BYTE_LAYOUT;
             case INT32 -> INT_LAYOUT;
             case INT64 -> LONG_LAYOUT;
             case BOOL -> throw new IllegalArgumentException("BOOL fold is unsupported");
@@ -800,6 +801,7 @@ public final class CpuFoldEmitter {
             case FLOAT64 -> ConstantDescs.CD_double;
             case FLOAT32 -> ConstantDescs.CD_float;
             case BFLOAT16, FLOAT16 -> ConstantDescs.CD_short;
+            case FLOAT8_E4M3, FLOAT8_E5M2 -> ConstantDescs.CD_byte;
             case INT32 -> ConstantDescs.CD_int;
             case INT64 -> ConstantDescs.CD_long;
             case BOOL -> throw new IllegalArgumentException("BOOL fold is unsupported");
@@ -810,13 +812,13 @@ public final class CpuFoldEmitter {
      * Initializes the owned cell's working accumulator, including gaps with no contributors.
      * @param code non-null generation-time body builder
      * @param type non-null supported fold boundary type
-     * @param local accumulator local; float for either low format
+     * @param local accumulator local; float for every low format
      * @throws IllegalArgumentException if type is BOOL
      */
     private static void positiveZero(CodeBuilder code, DataType type, int local) {
         switch (type) {
             case FLOAT64 -> code.loadConstant(0.0d).dstore(local);
-            case FLOAT32, BFLOAT16, FLOAT16 -> code.loadConstant(0.0f).fstore(local);
+            case FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> code.loadConstant(0.0f).fstore(local);
             case INT64 -> code.loadConstant(0L).lstore(local);
             case INT32 -> code.loadConstant(0).istore(local);
             case BOOL -> throw new IllegalArgumentException("BOOL fold is unsupported");
@@ -919,7 +921,7 @@ public final class CpuFoldEmitter {
     private static void loadValue(CodeBuilder code, DataType type, int local) {
         switch (type) {
             case FLOAT64 -> code.dload(local);
-            case FLOAT32, BFLOAT16, FLOAT16 -> code.fload(local);
+            case FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> code.fload(local);
             case INT64 -> code.lload(local);
             case INT32, BOOL -> code.iload(local);
         }
@@ -934,21 +936,21 @@ public final class CpuFoldEmitter {
     private static void storeValue(CodeBuilder code, DataType type, int local) {
         switch (type) {
             case FLOAT64 -> code.dstore(local);
-            case FLOAT32, BFLOAT16, FLOAT16 -> code.fstore(local);
+            case FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> code.fstore(local);
             case INT64 -> code.lstore(local);
             case INT32, BOOL -> code.istore(local);
         }
     }
 
     /**
-     * Distinguishes arithmetic locals from the low formats' short storage carriers.
+     * Distinguishes arithmetic locals from the low formats' byte or short storage carriers.
      * @param type non-null fold boundary type
-     * @return non-null primitive working kind; FLOAT for FLOAT32, BFLOAT16 and FLOAT16
+     * @return non-null primitive working kind; FLOAT for FLOAT32 and all four low formats
      */
     private static TypeKind localKind(DataType type) {
         return switch (type) {
             case FLOAT64 -> TypeKind.DOUBLE;
-            case FLOAT32, BFLOAT16, FLOAT16 -> TypeKind.FLOAT;
+            case FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> TypeKind.FLOAT;
             case INT64 -> TypeKind.LONG;
             case INT32, BOOL -> TypeKind.INT;
         };

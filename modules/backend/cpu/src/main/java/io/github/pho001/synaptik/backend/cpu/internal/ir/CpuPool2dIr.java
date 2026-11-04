@@ -56,10 +56,7 @@ public record CpuPool2dIr(
         Objects.requireNonNull(realization, "realization");
         Objects.requireNonNull(inputAccess, "inputAccess");
         Objects.requireNonNull(outputAccess, "outputAccess");
-        if (dataType != DataType.BFLOAT16
-                        && dataType != DataType.FLOAT16
-                        && dataType != DataType.FLOAT32
-                        && dataType != DataType.FLOAT64
+        if (!dataType.isFloating()
                 || inputAccess.accessKind() != CpuAccessPlan.AccessKind.READ
                 || outputAccess.accessKind() != CpuAccessPlan.AccessKind.WRITE) {
             throw new IllegalArgumentException("Pool2d IR facts disagree");

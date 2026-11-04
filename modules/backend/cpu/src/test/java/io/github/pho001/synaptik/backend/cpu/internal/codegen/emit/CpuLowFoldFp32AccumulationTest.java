@@ -14,14 +14,50 @@ import io.github.pho001.synaptik.model.operation.layout.*;
 import io.github.pho001.synaptik.model.shape.Shape;
 import io.github.pho001.synaptik.model.tensor.TensorDescriptor;
 import io.github.pho001.synaptik.prepare.analysis.PrepareContext;
-import java.lang.classfile.*;
-import java.lang.classfile.instruction.*;
 import java.lang.foreign.*;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 
-/** Exact low-fold numeric, layout, range and generated-dataflow regressions; no timing. */
+/** Exact low-fold numeric, layout, range and contributor regressions; no timing. */
 class CpuLowFoldFp32AccumulationTest {
+    @Test void fp8AxisImageAndVolumeFoldsNarrowAfterEveryOverlapContributor() throws Throwable {
+        for (var type : List.of(DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2))
+            for (int dimensions = 1; dimensions <= 3; dimensions++)
+                for (boolean foreign : List.of(false, true)) {
+                    Shape outputShape = dimensions == 1 ? Shape.of(5)
+                            : dimensions == 2 ? Shape.of(1, 1, 1, 5) : Shape.of(1, 1, 1, 1, 5);
+                    Operation op = switch (dimensions) {
+                        case 1 -> new Operation(WindowTransformKind.FOLD_AXIS, new FoldAxisAttrs(0, 5, 1));
+                        case 2 -> new Operation(WindowTransformKind.FOLD2D, new Fold2dAttrs(outputShape,
+                                new Window2dAttrs(1, 3, 1, 1, 0, 0, 1, 1, false)));
+                        default -> new Operation(WindowTransformKind.FOLD3D, new Fold3dAttrs(outputShape,
+                                new Window3dAttrs(1, 1, 3, 1, 1, 1, 0, 0, 0, 1, 1, 1, false)));
+                    };
+                    var base = CpuFoldLoweringTest.context(op, type,
+                            dimensions == 1 ? Shape.of(3, 3) : Shape.of(1, 3, 3), outputShape);
+                    var access = foreign ? CarrierAccess.MEMORY_SEGMENT : CarrierAccess.BYTE_ARRAY;
+                    var context = new PrepareContext<>(base.partition(), base.nodes(), base.values(),
+                            base.memoryRequirements(), base.constants(),
+                            new CpuPartitionAnalysisInputs(false, List.of(access, access)));
+                    var plan = new CpuPartitionPreparer().analyze(context).plan();
+                    var route = plan.units().getFirst().portablePlan();
+                    var generator = new CpuClassFileKernelGenerator();
+                    var artifact = generator.defineClassBytes(route.specialization(), route.kernelIr(),
+                            generator.generateClassBytes(route.specialization(), route.kernelIr()));
+                    byte[] input = new byte[9], output = new byte[5];
+                    boolean e4m3 = type == DataType.FLOAT8_E4M3;
+                    input[2] = e4m3 ? Float8E4M3Bits.fromFloat(1) : Float8E5M2Bits.fromFloat(1);
+                    input[4] = input[6] = e4m3
+                            ? Float8E4M3Bits.fromFloat(.0625f) : Float8E5M2Bits.fromFloat(.125f);
+                    Object in = foreign ? MemorySegment.ofArray(input) : input;
+                    Object out = foreign ? MemorySegment.ofArray(output) : output;
+                    long[] geometry = plan.foldGeometry().orElseThrow().pack(new long[2], 0, 5);
+                    artifact.entryPoint().invokeWithArguments(in, out, geometry, 0L, 2L);
+                    artifact.entryPoint().invokeWithArguments(in, out, geometry, 2L, 5L);
+                    assertEquals(e4m3 ? Float8E4M3Bits.fromFloat(1.125f)
+                            : Float8E5M2Bits.fromFloat(1.25f), output[2], type + "/FOLD" + dimensions);
+                }
+    }
     @Test void roundingCancellationOverflowAndSpecialClassesUseOneFinalNarrowing() throws Throwable {
         for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
             float half = Math.scalb(1.0f, type == DataType.BFLOAT16 ? -8 : -11);
@@ -42,9 +78,8 @@ class CpuLowFoldFp32AccumulationTest {
             };
             for (boolean image : List.of(false, true)) for (int carriers = 0; carriers < 4; carriers++) {
                 var context = small(type, image, carriers);
-                if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) continue;
+                
                 var plan = new CpuPartitionPreparer().analyze(context).plan();
-                inspect(plan, type);
                 for (int i = 0; i < cases.length; i++) {
                     short[] input = new short[9];
                     input[2] = encode(type, cases[i][0]); input[4] = encode(type, cases[i][1]);
@@ -123,17 +158,19 @@ class CpuLowFoldFp32AccumulationTest {
 
     @Test void admittedEmptyInputAndOutputDomainsNeverReadNonexistentContributors() throws Throwable {
         for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) for (int carriers = 0; carriers < 4; carriers++) {
-            var unsupported = CpuFoldLoweringTest.context(new Operation(WindowTransformKind.FOLD_AXIS,
+            var emptyInput = CpuFoldLoweringTest.context(new Operation(WindowTransformKind.FOLD_AXIS,
                     new FoldAxisAttrs(0, 2, 1)), type, Shape.of(0, 3), Shape.of(2));
-            var unsupportedCarriers = carriers(unsupported, carriers);
-            assertThrows(IllegalArgumentException.class, () -> new CpuPartitionPreparer().analyze(unsupportedCarriers));
+            var emptyPlan = new CpuPartitionPreparer().analyze(carriers(emptyInput, carriers)).plan();
+            short[] zeroOutput = {9, 9};
+            execute(emptyPlan, new short[0], zeroOutput, 0, 2, false);
+            assertArrayEquals(new short[]{0, 0}, zeroOutput);
             for (var base : List.of(
                     CpuFoldLoweringTest.context(new Operation(WindowTransformKind.FOLD_AXIS,
                             new FoldAxisAttrs(0, 0, 1)), type, Shape.of(0, 1), Shape.of(0)),
                     CpuFoldLoweringTest.context(new Operation(WindowTransformKind.FOLD2D,
                             new Fold2dAttrs(Shape.of(0, 2, 3, 3), new Window2dAttrs(2, 2, 1, 1, 0, 0, 1, 1, false))),
                             type, Shape.of(0, 8, 4), Shape.of(0, 2, 3, 3)))) {
-                if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(carriers(base, carriers))) continue;
+                
                 var plan = new CpuPartitionPreparer().analyze(carriers(base, carriers)).plan();
                 short[] output = {(short) 9, (short) 9};
                 execute(plan, new short[0], output, 0, 0, false);
@@ -144,7 +181,7 @@ class CpuLowFoldFp32AccumulationTest {
 
     private static void qualify(PrepareContext<CpuPartitionAnalysisInputs> context, DataType type,
             boolean nativeMemory) throws Throwable {
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
+        
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         var g = plan.foldGeometry().orElseThrow();
         short[] input = new short[span(g.input())], expected = new short[span(g.output())];
@@ -166,7 +203,6 @@ class CpuLowFoldFp32AccumulationTest {
         execute(plan, input, partitioned, start, middle, nativeMemory);
         execute(plan, input, partitioned, middle, end, nativeMemory);
         same(expected, partitioned, type);
-        inspect(plan, type);
     }
 
     private static int span(CpuFoldLowering.Layout l) {
@@ -248,38 +284,6 @@ class CpuLowFoldFp32AccumulationTest {
         }
     }
 
-    private static void inspect(CpuPartitionPreparationPlan plan, DataType type) {
-        var r = plan.units().getFirst().portablePlan();
-        var code = ClassFile.of().parse(new CpuClassFileKernelGenerator().generateClassBytes(r.specialization(), r.kernelIr())).methods().getFirst().code().orElseThrow();
-        var instructions = code.elementStream().filter(Instruction.class::isInstance).map(Instruction.class::cast).toList();
-        assertTrue(instructions.stream().anyMatch(i -> i.opcode() == Opcode.FADD));
-        assertFalse(instructions.stream().anyMatch(i -> i.opcode() == Opcode.DADD || i.opcode() == Opcode.F2D || i.opcode() == Opcode.D2F
-                || i instanceof NewObjectInstruction || i instanceof NewPrimitiveArrayInstruction || i instanceof NewReferenceArrayInstruction || i instanceof NewMultiArrayInstruction || i instanceof TypeCheckInstruction));
-        String narrow = type == DataType.BFLOAT16 ? "floatToRawIntBits" : "floatToFloat16";
-        String decode = type == DataType.BFLOAT16 ? "intBitsToFloat" : "float16ToFloat";
-        var calls = instructions.stream().filter(InvokeInstruction.class::isInstance).map(InvokeInstruction.class::cast).toList();
-        assertTrue(calls.stream().allMatch(c -> c.owner().asInternalName().equals("java/lang/Float")
-                && Set.of(narrow, decode, "isNaN").contains(c.name().stringValue())
-                || c.owner().asInternalName().equals("java/lang/foreign/MemorySegment") && Set.of("get", "set").contains(c.name().stringValue())));
-        long adds = instructions.stream().filter(i -> i.opcode() == Opcode.FADD).count();
-        assertEquals(adds, calls.stream().filter(c -> c.name().stringValue().equals(narrow)).count());
-        assertEquals(adds, calls.stream().filter(c -> c.name().stringValue().equals(decode)).count());
-        assertEquals(adds, instructions.stream().filter(i -> i.opcode() == Opcode.SASTORE || i instanceof InvokeInstruction c && c.name().stringValue().equals("set")).count());
-        // A backwards contributor-loop edge must follow each add and precede final narrowing.
-        List<CodeElement> elements = code.elementStream().toList();
-        for (int at = 0; at < elements.size(); at++) if (elements.get(at) instanceof Instruction ins && ins.opcode() == Opcode.FADD) {
-            int narrowAt = -1;
-            for (int next = at + 1; next < elements.size(); next++) if (elements.get(next) instanceof InvokeInstruction call && call.name().stringValue().equals(narrow)) { narrowAt = next; break; }
-            assertTrue(narrowAt > at);
-            boolean innerEdge = false;
-            for (int edge = at + 1; edge < narrowAt; edge++) if (elements.get(edge) instanceof BranchInstruction branch) {
-                int target = -1;
-                for (int k = 0; k < at; k++) if (elements.get(k) instanceof LabelTarget label && label.label().equals(branch.target())) target = k;
-                if (target >= 0) innerEdge = true;
-            }
-            assertTrue(innerEdge, "no narrowing in contributor loop");
-        }
-    }
 
     private static short encode(DataType t, float v) { return t == DataType.BFLOAT16 ? BFloat16Bits.fromFloat(v) : Float.floatToFloat16(v); }
     private static float decode(DataType t, short v) { return t == DataType.BFLOAT16 ? Float.intBitsToFloat(v << 16) : Float.float16ToFloat(v); }

@@ -80,7 +80,21 @@ public final class CpuConv3dReferenceKernel {
 
     private static double addProduct(DataType type,double sum,double left,double right){return type==DataType.FLOAT64?sum+left*right:(float)((float)sum+(float)left*(float)right);}
     private static double promoted(DataType source,DataType result,double value){double represented=represented(source,value);return result==DataType.FLOAT64?represented:(float)represented;}
-    private static double represented(DataType type,double value){if(type==DataType.FLOAT64)return value;float narrowed=(float)value;if(type==DataType.FLOAT32)return narrowed;int bits=Float.floatToRawIntBits(narrowed);if((bits&0x7fff_ffff)>0x7f80_0000)return Float.intBitsToFloat(0x7fc0_0000);bits+=0x7fff+((bits>>>16)&1);return Float.intBitsToFloat(bits&0xffff_0000);}
+    /** Rounds only the declared represented boundary, never a contraction accumulator. */
+    private static double represented(DataType type, double value) {
+        return switch (type) {
+            case FLOAT64 -> value;
+            case FLOAT32 -> (float) value;
+            case BFLOAT16 -> io.github.pho001.synaptik.model.datatype.BFloat16Bits.toFloat(
+                    io.github.pho001.synaptik.model.datatype.BFloat16Bits.fromFloat((float) value));
+            case FLOAT16 -> Float.float16ToFloat(Float.floatToFloat16((float) value));
+            case FLOAT8_E4M3 -> io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.toFloat(
+                    io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.fromDouble(value));
+            case FLOAT8_E5M2 -> io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.toFloat(
+                    io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.fromDouble(value));
+            default -> throw new IllegalArgumentException("convolution requires floating values");
+        };
+    }
     private static double read(double[] values,long offset,long[] strides,long...coordinates){long address=offset;for(int i=0;i<coordinates.length;i++)address=Math.addExact(address,Math.multiplyExact(coordinates[i],strides[i]));return values[Math.toIntExact(address)];}
     private static void validate(double[] values,long[] extents,long offset,long[] strides){Objects.requireNonNull(values,"input");Objects.requireNonNull(extents,"extents");Objects.requireNonNull(strides,"strides");if(extents.length!=strides.length||offset<0||Arrays.stream(extents).anyMatch(v->v<0)||Arrays.stream(strides).anyMatch(v->v<0))throw new IllegalArgumentException("reference layout is invalid");if(count(extents)==0)return;long maximum=offset;for(int i=0;i<extents.length;i++)maximum=Math.addExact(maximum,Math.multiplyExact(extents[i]-1,strides[i]));if(maximum>=values.length)throw new IllegalArgumentException("reference span is too small");}
     private static long count(long[] extents){for(long extent:extents)if(extent==0)return 0;long result=1;for(long extent:extents)result=Math.multiplyExact(result,extent);return result;}

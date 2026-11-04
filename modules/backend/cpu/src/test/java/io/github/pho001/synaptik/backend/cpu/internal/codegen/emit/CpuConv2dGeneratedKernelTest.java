@@ -37,6 +37,78 @@ import jdk.incubator.vector.FloatVector;
 import org.junit.jupiter.api.Test;
 
 class CpuConv2dGeneratedKernelTest {
+    @Test void lowImageAndVolumeContractionsAccumulateBeforeFinalNarrowing() throws Throwable {
+        for (var type : List.of(DataType.BFLOAT16, DataType.FLOAT16,
+                DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2))
+            for (var right : List.of(type, DataType.FLOAT32, DataType.FLOAT64,
+                    type == DataType.FLOAT8_E4M3 ? DataType.FLOAT8_E5M2 : DataType.FLOAT8_E4M3))
+                for (boolean volume : List.of(false, true)) {
+                    float half = switch (type) {
+                        case BFLOAT16 -> 0x1p-8f;
+                        case FLOAT16 -> 0x1p-11f;
+                        case FLOAT8_E4M3 -> 0x1p-4f;
+                        default -> 0x1p-3f;
+                    };
+                    var base = volume
+                            ? io.github.pho001.synaptik.backend.cpu.internal.lowering.CpuConv3dLoweringTest.context(
+                                    List.of(type, right), Shape.of(1, 1, 1, 1, 3), Shape.of(1, 1, 1, 1, 3),
+                                    Shape.of(1, 1, 1, 1, 1),
+                                    io.github.pho001.synaptik.model.operation.convolution.Conv3dAttrs.defaults(), null)
+                            : CpuConv2dLoweringTest.context(List.of(type, right),
+                                    Shape.of(1, 1, 1, 3), Shape.of(1, 1, 1, 3), Shape.of(1, 1, 1, 1),
+                                    Conv2dAttrs.defaults(), null);
+                    DataType resultType = io.github.pho001.synaptik.model.datatype.DataTypePromotion.promoteNumeric(type, right);
+                    var carriers = List.of(lowCarrier(type), lowCarrier(right), lowCarrier(resultType));
+                    var plan = new CpuPartitionPreparer().analyze(withInputs(base,
+                            new CpuPartitionAnalysisInputs(false, carriers))).plan();
+                    var route = plan.units().getFirst().portablePlan();
+                    var generator = new CpuClassFileKernelGenerator();
+                    var handle = generator.defineClassBytes(route.specialization(), route.kernelIr(),
+                            generator.generateClassBytes(route.specialization(), route.kernelIr())).entryPoint();
+                    Object input = representedArray(type, 1, half, half), weight = representedArray(right, 1, 1, 1);
+                    Object output = representedArray(resultType, 0);
+                    long[] geometry = volume ? plan.conv3dGeometry().orElseThrow().pack(new long[3])
+                            : plan.conv2dGeometry().orElseThrow().pack(new long[3]);
+                    handle.invokeWithArguments(input, weight, output, geometry, 0L, 1L);
+                    double actual = switch (resultType) {
+                        case FLOAT32 -> ((float[]) output)[0];
+                        case FLOAT64 -> ((double[]) output)[0];
+                        case BFLOAT16 -> io.github.pho001.synaptik.model.datatype.BFloat16Bits.toFloat(((short[]) output)[0]);
+                        case FLOAT16 -> Float.float16ToFloat(((short[]) output)[0]);
+                        case FLOAT8_E4M3 -> io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.toFloat(((byte[]) output)[0]);
+                        case FLOAT8_E5M2 -> io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.toFloat(((byte[]) output)[0]);
+                        default -> throw new AssertionError(resultType);
+                    };
+                    assertEquals(1.0 + 2.0 * half, actual, 0.0, type + "/" + right + "/volume=" + volume);
+                }
+    }
+
+    private static CarrierAccess lowCarrier(DataType type) {
+        return type == DataType.FLOAT64 ? CarrierAccess.DOUBLE_ARRAY
+                : type == DataType.FLOAT32 ? CarrierAccess.FLOAT_ARRAY
+                : type.byteWidth() == 1 ? CarrierAccess.BYTE_ARRAY : CarrierAccess.SHORT_ARRAY;
+    }
+
+    private static Object representedArray(DataType type, float... values) {
+        if (type == DataType.FLOAT32) return values.clone();
+        if (type == DataType.FLOAT64) {
+            double[] result = new double[values.length];
+            for (int i = 0; i < values.length; i++) result[i] = values[i];
+            return result;
+        }
+        if (type.byteWidth() == 1) {
+            byte[] result = new byte[values.length];
+            for (int i = 0; i < values.length; i++) result[i] = type == DataType.FLOAT8_E4M3
+                    ? io.github.pho001.synaptik.model.datatype.Float8E4M3Bits.fromFloat(values[i])
+                    : io.github.pho001.synaptik.model.datatype.Float8E5M2Bits.fromFloat(values[i]);
+            return result;
+        }
+        short[] result = new short[values.length];
+        for (int i = 0; i < values.length; i++) result[i] = type == DataType.FLOAT16
+                ? Float.floatToFloat16(values[i])
+                : io.github.pho001.synaptik.model.datatype.BFloat16Bits.fromFloat(values[i]);
+        return result;
+    }
     private static final ValueLayout.OfFloat FLOAT = ValueLayout.JAVA_FLOAT_UNALIGNED
             .withOrder(ByteOrder.nativeOrder());
     private static final ValueLayout.OfDouble DOUBLE = ValueLayout.JAVA_DOUBLE_UNALIGNED
@@ -92,8 +164,7 @@ class CpuConv2dGeneratedKernelTest {
     }
 
     @Test void mixedGeneralCarriersAndBfloat16UseFloatAccumulation() throws Throwable {
-        io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertNumericalOutcome(DataType.BFLOAT16, () -> {
-        var inputShape = Shape.of(1, 1, 2, 2);
+        { var inputShape = Shape.of(1, 1, 2, 2);
         var weightShape = Shape.of(1, 1, 2, 2);
         var outputShape = Shape.of(1, 1, 1, 1);
         var layouts = List.of(
@@ -130,8 +201,7 @@ class CpuConv2dGeneratedKernelTest {
         expected = (float) (expected + 2f * -2f);
         expected = (float) (expected + -3f * 1.5f);
         expected = (float) (expected + .5f * 4f);
-        assertEquals(Float.floatToRawIntBits(expected), Float.floatToRawIntBits(output[3]));
-        });
+        assertEquals(Float.floatToRawIntBits(expected), Float.floatToRawIntBits(output[3])); }
     }
 
     @Test void conceptualPaddingMultipliesPositiveZeroByInfinity() throws Throwable {

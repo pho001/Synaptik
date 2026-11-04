@@ -18,34 +18,26 @@ import java.util.*;
 import org.junit.jupiter.api.Test;
 
 class CpuPool3dGeneratedKernelTest {
-    @Test
-    void productionSelectionPreservesEveryGeneratedOrUnsupportedBodyTarget() throws Throwable {
-        Set<String> digests=new LinkedHashSet<>();
-        for(DataType type:List.of(DataType.BFLOAT16,DataType.FLOAT32,DataType.FLOAT64))
-            for(CpuPool3dIr.Kind kind:CpuPool3dIr.Kind.values())
-                for(boolean inputSegment:List.of(false,true))
-                    for(boolean outputSegment:List.of(false,true)){
-                        CarrierAccess input=inputSegment?CarrierAccess.MEMORY_SEGMENT:arrayAccess(type);
-                        CarrierAccess output=outputSegment?CarrierAccess.MEMORY_SEGMENT:arrayAccess(type);
-                        if (type == DataType.BFLOAT16 && kind == CpuPool3dIr.Kind.AVERAGE) {
-                            assertThrows(IllegalArgumentException.class,
-                                    () -> fixture(type, kind, input, output),
-                                    type + "/" + kind + "/" + input + "/" + output);
-                            continue;
-                        }
-                        Fixture fixture=fixture(type,kind,input,output);
-                        assertTrue(digests.add(HexFormat.of().formatHex(
-                                MessageDigest.getInstance("SHA-256").digest(fixture.bytes()))),
-                                "each retained target has a distinct generated body");
-                        var model=ClassFile.of().parse(fixture.bytes());
-                        assertTrue(model.fields().isEmpty());
-                        assertEquals(1,model.methods().size());
-                    }
-        assertFalse(digests.isEmpty());
+    @Test void fp8VolumetricWindowsPreserveSelectedBytesAndFixedDivisors() throws Throwable {
+        for (var type : List.of(DataType.FLOAT8_E4M3, DataType.FLOAT8_E5M2))
+            for (var kind : CpuPool3dIr.Kind.values())
+                for (boolean foreign : List.of(false, true)) {
+                    var access = foreign ? CarrierAccess.MEMORY_SEGMENT : CarrierAccess.BYTE_ARRAY;
+                    var f = fixture(type, kind, access, access);
+                    byte[] input = new byte[256], actual = new byte[320], expected = new byte[320];
+                    byte[] values = {(byte) 0x80, 0, 1, 0x38, (byte) 0xb8, (byte) 0xff};
+                    for (int i = 0; i < input.length; i++) input[i] = values[i % values.length];
+                    CpuPool3dReferenceKernel.evaluate(f.geometry(), input, expected, 0, 60);
+                    Object in = foreign ? MemorySegment.ofArray(input) : input;
+                    Object out = foreign ? MemorySegment.ofArray(actual) : actual;
+                    f.handle().invokeWithArguments(in, out, f.geometry().pack(0, 0), 0L, 29L);
+                    f.handle().invokeWithArguments(in, out, f.geometry().pack(0, 0), 29L, 60L);
+                    assertArrayEquals(expected, actual, type + "/" + kind);
+                }
     }
 
     @Test
-    void everySupportedBodyMatchesDirectOracleAndLowAveragesReject() throws Throwable {
+    void everySupportedBodyMatchesDirectOracle() throws Throwable {
         try (Arena arena = Arena.ofConfined()) {
             for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT32, DataType.FLOAT64))
                 for (CpuPool3dIr.Kind kind : CpuPool3dIr.Kind.values())
@@ -54,12 +46,6 @@ class CpuPool3dGeneratedKernelTest {
                             List.of(arrayAccess(type), CarrierAccess.MEMORY_SEGMENT),
                             List.of(CarrierAccess.MEMORY_SEGMENT, arrayAccess(type)),
                             List.of(CarrierAccess.MEMORY_SEGMENT, CarrierAccess.MEMORY_SEGMENT))) {
-                        if (type == DataType.BFLOAT16 && kind == CpuPool3dIr.Kind.AVERAGE) {
-                            assertThrows(IllegalArgumentException.class,
-                                    () -> fixture(type, kind, pair.get(0), pair.get(1)),
-                                    type + "/" + kind + "/" + pair);
-                            continue;
-                        }
                         Fixture f = fixture(type, kind, pair.get(0), pair.get(1));
                         Object input = carrier(type, pair.get(0), arena, 256);
                         Object actual = carrier(type, pair.get(1), arena, 320);
@@ -116,7 +102,8 @@ class CpuPool3dGeneratedKernelTest {
                         regime==CpuAccessPlan.Regime.DENSE_LINEAR?5:0));
         var ir=pool.encodedKernelIr();
         var specialization=new CpuKernelSpecialization(CpuLoweringFingerprint.fromHex(ir.structuralKey()), CpuPartitionPreparationPlan.ExecutionStrategy.SCALAR,List.of(type,type),
-        List.of(inputCarrier,outputCarrier),0,-1,List.of(),false,56);
+        List.of(inputCarrier,outputCarrier),0,-1,List.of(),false,
+                type.byteWidth() == 1 || kind == CpuPool3dIr.Kind.AVERAGE && type.byteWidth() == 2 ? 77 : 56);
         var generator=new CpuClassFileKernelGenerator();
         byte[] bytes=generator.generateClassBytes(specialization,ir);
         return new Fixture(geometry,generator.defineClassBytes(specialization, ir, bytes).entryPoint(),bytes);

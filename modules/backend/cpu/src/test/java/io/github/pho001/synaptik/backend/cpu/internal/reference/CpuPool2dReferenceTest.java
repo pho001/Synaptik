@@ -77,16 +77,16 @@ class CpuPool2dReferenceTest {
     }
 
     @Test
-    void averageRejectsLowNumericalWindowsAndPreservesEligibleNegativeZero() {
+    void averagePreservesLowAndEligibleNegativeZero() {
         var attrs = new AveragePool2dAttrs(1, 2, 1, 1, 0, 0, 1, 1, false);
         for (DataType type : List.of(DataType.BFLOAT16, DataType.FLOAT16)) {
-            assertTrue(io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest
-                    .assertLowUnsupported(CpuPool2dLoweringTest.context(
-                            Pool2dKind.AVERAGE_POOL2D, attrs, type,
-                            Shape.of(1, 1, 1, 2), Shape.of(1, 1, 1, 1))));
-            assertThrows(IllegalArgumentException.class, () -> new CpuPool2dLowering().lower(
-                    CpuPool2dLoweringTest.context(Pool2dKind.AVERAGE_POOL2D, attrs, type,
-                            Shape.of(1, 1, 1, 2), Shape.of(1, 1, 1, 1))));
+            var geometry = new CpuPool2dLowering().lower(CpuPool2dLoweringTest.context(
+                    Pool2dKind.AVERAGE_POOL2D, attrs, type,
+                    Shape.of(1, 1, 1, 2), Shape.of(1, 1, 1, 1))).pool2dGeometry().orElseThrow();
+            short[] output = new short[1];
+            CpuPool2dReferenceKernel.evaluate(geometry, new short[]{(short) 0x8000, (short) 0x8000},
+                    output, 0, 1);
+            assertEquals((short) 0x8000, output[0]);
         }
         for (DataType type : List.of(DataType.FLOAT32, DataType.FLOAT64)) {
             var geometry =

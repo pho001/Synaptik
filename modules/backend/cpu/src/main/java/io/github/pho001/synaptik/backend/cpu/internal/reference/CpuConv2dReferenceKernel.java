@@ -2,6 +2,9 @@ package io.github.pho001.synaptik.backend.cpu.internal.reference;
 
 import io.github.pho001.synaptik.model.datatype.DataType;
 import io.github.pho001.synaptik.model.datatype.DataTypePromotion;
+import io.github.pho001.synaptik.model.datatype.BFloat16Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E4M3Bits;
+import io.github.pho001.synaptik.model.datatype.Float8E5M2Bits;
 import io.github.pho001.synaptik.model.operation.convolution.Conv2dAttrs;
 import java.util.Arrays;
 import java.util.List;
@@ -103,13 +106,15 @@ public final class CpuConv2dReferenceKernel {
     }
 
     private static double represented(DataType type, double value) {
-        if (type == DataType.FLOAT64) return value;
-        float narrowed = (float) value;
-        if (type == DataType.FLOAT32) return narrowed;
-        int bits = Float.floatToRawIntBits(narrowed);
-        if ((bits & 0x7fff_ffff) > 0x7f80_0000) return Float.intBitsToFloat(0x7fc0_0000);
-        bits += 0x7fff + ((bits >>> 16) & 1);
-        return Float.intBitsToFloat(bits & 0xffff_0000);
+        return switch (type) {
+            case FLOAT64 -> value;
+            case FLOAT32 -> (float) value;
+            case BFLOAT16 -> BFloat16Bits.toFloat(BFloat16Bits.fromFloat((float) value));
+            case FLOAT16 -> Float.float16ToFloat(Float.floatToFloat16((float) value));
+            case FLOAT8_E4M3 -> Float8E4M3Bits.toFloat(Float8E4M3Bits.fromDouble(value));
+            case FLOAT8_E5M2 -> Float8E5M2Bits.toFloat(Float8E5M2Bits.fromDouble(value));
+            default -> throw new IllegalArgumentException("convolution requires floating values");
+        };
     }
 
     private static double read(double[] values, long offset, long[] strides, long... coordinates) {

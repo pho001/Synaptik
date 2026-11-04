@@ -28,11 +28,12 @@ import java.util.function.IntConsumer;
  * Floating vector TANH is applied after the full-K sum and optional ordered bias ADD, before
  * the sole output store, using the same typed mathematics as pointwise vectors. Scalar N tails
  * retain the scalar epilogue; no terminal is applied inside the contraction loop.
+ * Homogeneous low contractions use FLOAT32 throughout full K and narrow exactly once at the
+ * output store; unlike low operands use the Model-promoted FLOAT32 or FLOAT64 result working type.
  * Realizations without an exact emitted loop shape fail before class generation; this type never
  * relabels the scalar fallback as a tiled or vector-tiled artifact.
  */
 public final class CpuMatmulEmitter {
-    private static final ClassDesc FLOAT = ClassDesc.of(Float.class.getName());
     /** Creates a stateless MATMUL emitter. */
     public CpuMatmulEmitter() { }
 
@@ -61,7 +62,7 @@ public final class CpuMatmulEmitter {
             boolean directProduct, Runnable left, Runnable right) {
         var kind = switch (dataType) {
             case FLOAT64 -> TypeKind.DOUBLE;
-            case FLOAT32, BFLOAT16, FLOAT16 -> TypeKind.FLOAT;
+            case FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> TypeKind.FLOAT;
             case INT32 -> TypeKind.INT;
             case INT64 -> TypeKind.LONG;
             case BOOL -> throw new IllegalArgumentException("BOOL contraction");
@@ -427,11 +428,12 @@ public final class CpuMatmulEmitter {
         if (resultType == DataType.INT32 || resultType == DataType.INT64) {
             storeIntegral(code, carriers, specialization, resultType, outputBoundary,
                     outputAddress, accumulator, intAddress);
-        } else if(resultType==DataType.BFLOAT16||resultType==DataType.FLOAT16) {
-            int binary64=code.allocateLocal(TypeKind.DOUBLE);
-            code.fload(accumulator).f2d().dstore(binary64);
-            CpuNormEmitter.emitStore(code,carriers,specialization,resultType,outputBoundary,
-                    outputAddress,binary64,intAddress,true);
+        } else if(resultType.isFloating() && resultType.byteWidth() <= 2) {
+            int raw = code.allocateLocal(TypeKind.INT);
+            CpuCastEmitter.emitFloatToLow(code, resultType, accumulator);
+            code.istore(raw);
+            carriers.storeFrozen(resultType, specialization.carrierPattern().get(outputBoundary),
+                    outputBoundary, outputAddress, raw, intAddress);
         } else {
             carriers.storeFrozen(resultType,specialization.carrierPattern().get(outputBoundary),
                     outputBoundary,outputAddress,accumulator,intAddress);
@@ -659,10 +661,12 @@ public final class CpuMatmulEmitter {
         int outputBoundary=specialization.carrierPattern().size()-1;
         if(type==DataType.INT32||type==DataType.INT64)
             storeIntegral(code,carriers,specialization,type,outputBoundary,address,value,intAddress);
-        else if(type==DataType.BFLOAT16||type==DataType.FLOAT16) {
-            int binary64=code.allocateLocal(TypeKind.DOUBLE);code.fload(value).f2d().dstore(binary64);
-            CpuNormEmitter.emitStore(code,carriers,specialization,type,outputBoundary,address,
-                    binary64,intAddress,true);
+        else if(type.isFloating() && type.byteWidth() <= 2) {
+            int raw = code.allocateLocal(TypeKind.INT);
+            CpuCastEmitter.emitFloatToLow(code, type, value);
+            code.istore(raw);
+            carriers.storeFrozen(type, specialization.carrierPattern().get(outputBoundary),
+                    outputBoundary, address, raw, intAddress);
         } else carriers.storeFrozen(type,specialization.carrierPattern().get(outputBoundary),
                 outputBoundary,address,value,intAddress);
     }
@@ -1245,7 +1249,7 @@ public final class CpuMatmulEmitter {
     private static void zero(CodeBuilder code, DataType type, int target) {
         switch (type) {
             case FLOAT64 -> code.loadConstant(0.0).dstore(target);
-            case FLOAT32, BFLOAT16, FLOAT16 -> code.loadConstant(0.0f).fstore(target);
+            case FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> code.loadConstant(0.0f).fstore(target);
             case INT32 -> code.loadConstant(0).istore(target);
             case INT64 -> code.loadConstant(0L).lstore(target);
             case BOOL -> throw new AssertionError();
@@ -1267,7 +1271,7 @@ public final class CpuMatmulEmitter {
         switch (source) {
             case FLOAT64 -> code.dstore(represented);
             case FLOAT32 -> code.fstore(represented);
-            case BFLOAT16, FLOAT16, INT32 -> code.istore(represented);
+            case BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2, INT32 -> code.istore(represented);
             case INT64 -> code.lstore(represented);
             case BOOL -> throw new AssertionError();
         }
@@ -1275,24 +1279,17 @@ public final class CpuMatmulEmitter {
             if (source == DataType.FLOAT64) {
                 if(represented!=value)code.dload(represented).dstore(value);
             } else if (source == DataType.FLOAT32) code.fload(represented).f2d().dstore(value);
-            else if (source == DataType.FLOAT16) code.iload(represented).i2s()
-                    .invokestatic(FLOAT, "float16ToFloat",
-                            MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short))
-                    .f2d().dstore(value);
-            else code.iload(represented).loadConstant(16).ishl().invokestatic(FLOAT,
-                    "intBitsToFloat", MethodTypeDesc.of(ConstantDescs.CD_float,
-                            ConstantDescs.CD_int)).f2d().dstore(value);
-        } else if (result == DataType.FLOAT32 || result == DataType.BFLOAT16
-                || result == DataType.FLOAT16) {
+            else {
+                CpuCastEmitter.emitLowToFloat(code, source, represented);
+                code.f2d().dstore(value);
+            }
+        } else if (result.isFloating()) {
             if (source == DataType.FLOAT32) {
                 if(represented!=value)code.fload(represented).fstore(value);
-            } else if (source == DataType.FLOAT16) code.iload(represented).i2s()
-                    .invokestatic(FLOAT, "float16ToFloat",
-                            MethodTypeDesc.of(ConstantDescs.CD_float, ConstantDescs.CD_short))
-                    .fstore(value);
-            else code.iload(represented).loadConstant(16).ishl().invokestatic(FLOAT,
-                    "intBitsToFloat", MethodTypeDesc.of(ConstantDescs.CD_float,
-                            ConstantDescs.CD_int)).fstore(value);
+            } else {
+                CpuCastEmitter.emitLowToFloat(code, source, represented);
+                code.fstore(value);
+            }
         } else if (result == DataType.INT64) {
             if (source == DataType.INT64) {
                 if(represented!=value)code.lload(represented).lstore(value);
@@ -1303,7 +1300,7 @@ public final class CpuMatmulEmitter {
     /**
      * Composes the ordinary scalar contraction primitive over explicitly bound typed locals.
      * Scan generation reuses this site without entry-slot, batch or geometry-array assumptions.
-     * BF16/F16 represented loads have already decoded into FLOAT working locals; they must
+     * Low represented loads have already decoded into FLOAT working locals; they must
      * not be reloaded with their integral storage kind. MUL and ADD remain separate sites.
      * @param code generation-only builder
      * @param type admitted accumulator dtype
@@ -1317,7 +1314,7 @@ public final class CpuMatmulEmitter {
             boolean directProduct) {
         var workingKind = switch (type) {
             case FLOAT64 -> TypeKind.DOUBLE;
-            case FLOAT32, BFLOAT16, FLOAT16 -> TypeKind.FLOAT;
+            case FLOAT32, BFLOAT16, FLOAT16, FLOAT8_E4M3, FLOAT8_E5M2 -> TypeKind.FLOAT;
             case INT32 -> TypeKind.INT;
             case INT64 -> TypeKind.LONG;
             case BOOL -> throw new AssertionError();

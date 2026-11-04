@@ -64,7 +64,7 @@ class CpuPool2d3dSemanticClosureTest {
         var context = CpuSpecializedGeneratedMatrixTest.semanticConfigure(
                 CpuSpecializedGeneratedMatrixTest.semanticPoolContext(candidate.form(), candidate.type(), candidate.ceilMode()),
                 candidate.request());
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
+        
         var plan = new CpuPartitionPreparer().analyze(context).plan();
         assertEquals(1, plan.units().size(), candidate.owner());
         assertTrue(plan.materializations().isEmpty(), candidate.owner() + " materialization candidate stays unselected");

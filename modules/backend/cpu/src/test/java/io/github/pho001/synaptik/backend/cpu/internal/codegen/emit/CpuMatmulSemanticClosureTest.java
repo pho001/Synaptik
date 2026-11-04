@@ -65,7 +65,7 @@ class CpuMatmulSemanticClosureTest {
 
     private static void invokeAndCompare(Fixture fixture) throws Throwable {
         PrepareContext<CpuPartitionAnalysisInputs> context = configure(base(fixture), fixture.request);
-        if (io.github.pho001.synaptik.backend.cpu.CpuGeneratedCoverageUnsupportedBoundaryTest.assertLowUnsupported(context)) return;
+        
         CpuPartitionPreparationPlan plan = new CpuPartitionPreparer().analyze(context).plan();
         var unit = plan.units().getFirst();
         var route = unit.portablePlan();
